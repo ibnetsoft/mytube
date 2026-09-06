@@ -1729,11 +1729,26 @@ export default function StdPortalPage() {
             .slice(0, 120) || 'download'
     }
 
+    const getSceneImageDownloadUrl = (scene: any) => {
+        const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
+        if (!selectedProject?.project?.id || sceneNumber < 1) return ''
+        return `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-image?sceneNumber=${encodeURIComponent(String(sceneNumber))}`
+    }
+
+    const getSceneImagesZipDownloadUrl = (scenes: any[]) => {
+        if (!selectedProject?.project?.id) return ''
+        const sceneNumbers = scenes
+            .map((scene: any, index: number) => Number(scene?.scene_number || scene?.scene_order || index + 1))
+            .filter((sceneNumber: number) => Number.isFinite(sceneNumber) && sceneNumber > 0)
+        const query = selectedSceneIndexes.length > 0 && sceneNumbers.length
+            ? `?scenes=${encodeURIComponent(sceneNumbers.join(','))}`
+            : ''
+        return `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-images${query}`
+    }
+
     const downloadSceneMedia = async (scene: any, assetType: 'image' | 'video' = 'image') => {
         const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
-        const sceneImageDownloadUrl = selectedProject?.project?.id && assetType === 'image' && sceneNumber > 0
-            ? `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-image?sceneNumber=${encodeURIComponent(String(sceneNumber))}`
-            : ''
+        const sceneImageDownloadUrl = assetType === 'image' ? getSceneImageDownloadUrl(scene) : ''
         const url = String(assetType === 'video' ? scene?.video_url || '' : (sceneImageDownloadUrl || scene?.image_url || '')).trim()
         if (!url) {
             alert(assetType === 'video' ? '다운로드할 영상이 없습니다.' : '다운로드할 이미지가 없습니다.')
@@ -1790,10 +1805,7 @@ export default function StdPortalPage() {
             return
         }
         if (selectedProject?.project?.id) {
-            const sceneNumbers = imageScenes
-                .map((scene: any, index: number) => Number(scene?.scene_number || scene?.scene_order || index + 1))
-                .filter((sceneNumber: number) => Number.isFinite(sceneNumber) && sceneNumber > 0)
-            const zipUrl = `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-images${selectedSceneIndexes.length > 0 && sceneNumbers.length ? `?scenes=${encodeURIComponent(sceneNumbers.join(','))}` : ''}`
+            const zipUrl = getSceneImagesZipDownloadUrl(imageScenes)
             const projectKey = String(selectedProject.project.id || 'project').slice(0, 8) || 'project'
             const fileName = safeDownloadFileName(`std-${projectKey}-images.zip`)
             const link = document.createElement('a')
@@ -8218,12 +8230,31 @@ export default function StdPortalPage() {
                                         >
                                             <span>☁</span> {uploadingKey === 'drive-resync' ? 'Drive 저장 중' : 'Drive 확정 저장'}
                                         </button>
-                                        <button
-                                            onClick={() => void downloadAllSceneImages()}
-                                            className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 transition-all"
-                                        >
-                                            이미지 {selectedSceneIndexes.length > 0 ? '선택' : '일괄'} 다운로드
-                                        </button>
+                                        {(() => {
+                                            const sourceScenes = selectedSceneIndexes.length > 0
+                                                ? selectedSceneIndexes.map(index => selectedProject?.scenes?.[index]).filter(Boolean)
+                                                : (selectedProject?.scenes || [])
+                                            const imageScenes = sourceScenes.filter((scene: any) => String(scene?.image_url || '').trim())
+                                            const zipUrl = getSceneImagesZipDownloadUrl(imageScenes)
+                                            const projectKey = String(selectedProject?.project?.id || 'project').slice(0, 8) || 'project'
+                                            return (
+                                                <a
+                                                    href={zipUrl || '#'}
+                                                    download={safeDownloadFileName(`std-${projectKey}-images.zip`)}
+                                                    onClick={event => {
+                                                        if (!zipUrl || !imageScenes.length) {
+                                                            event.preventDefault()
+                                                            alert('다운로드할 이미지가 없습니다.')
+                                                            return
+                                                        }
+                                                        setMessage(`이미지 ${imageScenes.length}개 ZIP 다운로드를 시작했습니다.`)
+                                                    }}
+                                                    className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 transition-all"
+                                                >
+                                                    이미지 {selectedSceneIndexes.length > 0 ? '선택' : '일괄'} 다운로드
+                                                </a>
+                                            )
+                                        })()}
                                         <button
                                             onClick={copyAllPrompts}
                                             className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 transition-all"
@@ -8488,13 +8519,20 @@ export default function StdPortalPage() {
                                                     ) : scene.image_url ? (
                                                         <>
                                                             <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => void downloadSceneMedia(scene, 'image')}
+                                                            <a
+                                                                href={getSceneImageDownloadUrl(scene) || scene.image_url}
+                                                                download={safeDownloadFileName(`std-${String(selectedProject?.project?.id || 'project').slice(0, 8) || 'project'}-scene-${String(sceneNum).padStart(3, '0')}.png`)}
+                                                                onClick={event => {
+                                                                    const href = getSceneImageDownloadUrl(scene) || scene.image_url
+                                                                    if (!href) {
+                                                                        event.preventDefault()
+                                                                        void downloadSceneMedia(scene, 'image')
+                                                                    }
+                                                                }}
                                                                 className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-black/70 hover:bg-black/90 text-white text-[10px] font-bold border border-white/20 transition-all"
                                                             >
                                                                 이미지 다운로드
-                                                            </button>
+                                                            </a>
                                                         </>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
