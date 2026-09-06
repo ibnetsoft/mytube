@@ -1788,6 +1788,23 @@ export default function StdPortalPage() {
             alert('다운로드할 이미지가 없습니다.')
             return
         }
+        if (selectedProject?.project?.id) {
+            const sceneNumbers = imageScenes
+                .map((scene: any, index: number) => Number(scene?.scene_number || scene?.scene_order || index + 1))
+                .filter((sceneNumber: number) => Number.isFinite(sceneNumber) && sceneNumber > 0)
+            const zipUrl = `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-images${selectedSceneIndexes.length > 0 && sceneNumbers.length ? `?scenes=${encodeURIComponent(sceneNumbers.join(','))}` : ''}`
+            const projectTitle = selectedProject?.project?.title || 'std-project'
+            const fileName = safeDownloadFileName(`${projectTitle}-images.zip`)
+            const link = document.createElement('a')
+            link.href = zipUrl
+            link.download = fileName
+            link.rel = 'noopener'
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            setMessage(`이미지 ${imageScenes.length}개 ZIP 다운로드를 시작했습니다.`)
+            return
+        }
         setMessage(`이미지 ${imageScenes.length}개 다운로드를 시작합니다...`)
         for (const scene of imageScenes) {
             await downloadSceneMedia(scene, 'image')
