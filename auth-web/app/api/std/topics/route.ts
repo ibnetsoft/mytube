@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
 
-const ROUTE_REVISION = 'std-topics-final-eligibility-guard-2026-09-06'
+const ROUTE_REVISION = 'std-topics-live-refresh-649a9aa-plus'
 
 function isUnclaimedPendingTopic(topic: any): boolean {
     const assignee = String(topic?.assigned_employee_email || '').trim()
@@ -114,16 +114,6 @@ async function loadDirectPreparedTopics(limit: number, profile: any, filters: Re
     return (data || [])
         .map(normalizeTopicJsonFields)
         .filter(isUnclaimedPendingTopic)
-        .filter((topic: any) =>
-            topic?.pregenerated_script_status === 'ready'
-            && topic?.pregenerated_structure_status === 'ready'
-            && String(topic?.pregenerated_script || '').trim().length > 0
-            && String(topic?.pregenerated_structure?.image_grid_prompt_status || '') === 'ready'
-            && Array.isArray(topic?.pregenerated_structure?.scenes)
-            && topic.pregenerated_structure.scenes.length > 0
-            && Array.isArray(topic?.pregenerated_structure?.image_grid_prompts)
-            && topic.pregenerated_structure.image_grid_prompts.length > 0
-        )
         .filter((topic: any) => filters.ignore_category || topicMatchesPreferredCategory(topic, preferredCategories))
         .slice(0, limit)
         .map(normalizeDirectTopic)
