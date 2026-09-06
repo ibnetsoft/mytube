@@ -131,8 +131,19 @@ export function getStandardSceneDuration(sceneNumber: number): number {
 
 export function estimateRequiredSceneCount(rawScriptText: string, existingSceneCount: number = BASE_STORY_SCENE_COUNT): number {
     const textLength = normalizedScriptText(rawScriptText).length
-    const minimumScenes = Math.max(BASE_STORY_SCENE_COUNT, existingSceneCount || BASE_STORY_SCENE_COUNT)
+    const explicitSceneCount = Number(existingSceneCount || 0)
+    const minimumScenes = explicitSceneCount > 0 ? explicitSceneCount : BASE_STORY_SCENE_COUNT
     if (textLength <= 0) return minimumScenes
+
+    // CoWork also has short-form prepared projects, e.g. 5-minute stories with
+    // 28 real scenes. When a project already has an explicit short scene
+    // manifest, the scene count is authoritative; subtitles should split
+    // within those scenes, not create fake 29~53 scenes. Expanding a 28-scene
+    // project to the legacy 53-scene baseline spreads the final sentence into
+    // one-word, 20~30 second subtitle rows.
+    if (explicitSceneCount > 0 && explicitSceneCount < BASE_STORY_SCENE_COUNT) {
+        return explicitSceneCount
+    }
 
     let sceneCount = 0
     let budget = 0
@@ -145,7 +156,7 @@ export function estimateRequiredSceneCount(rawScriptText: string, existingSceneC
 }
 
 export function calculateLongformSceneTimings(scenes: any[]): SceneTiming[] {
-    const totalScenes = Math.max(BASE_STORY_SCENE_COUNT, scenes.length || BASE_STORY_SCENE_COUNT)
+    const totalScenes = scenes.length || BASE_STORY_SCENE_COUNT
     const timings: SceneTiming[] = []
     let currentTime = 0.0
 
