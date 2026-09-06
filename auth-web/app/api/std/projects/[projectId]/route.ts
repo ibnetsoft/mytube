@@ -5,6 +5,63 @@ import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 
 export const dynamic = 'force-dynamic'
 
+const CONTENT_ASSETS_BUCKET = 'content-assets'
+
+function cleanUrl(value: any): string {
+    const str = String(value || '').trim()
+    if (!str || str.startsWith('blob:')) return ''
+    return str
+}
+
+function storagePublicUrl(bucket: any, objectPath: any): string {
+    const path = String(objectPath || '').trim().replace(/^\/+/, '')
+    if (!path) return ''
+    const safeBucket = String(bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
+    const { data } = supabaseAdmin.storage.from(safeBucket).getPublicUrl(path)
+    return cleanUrl(data?.publicUrl)
+}
+
+function sceneStorageImageUrl(scene: any): string {
+    const metadata = scene?.metadata || {}
+    const nestedMetadata = metadata?.metadata || {}
+    const coworkAsset = metadata?.cowork_image_asset || nestedMetadata?.cowork_image_asset || {}
+    return cleanUrl(scene?.image_url || scene?.image)
+        || cleanUrl(metadata?.image_url || metadata?.image || nestedMetadata?.image_url || nestedMetadata?.image)
+        || storagePublicUrl(coworkAsset?.bucket || metadata?.bucket || nestedMetadata?.bucket, coworkAsset?.object_path || metadata?.object_path || nestedMetadata?.object_path)
+        || storagePublicUrl(metadata?.storage_bucket || nestedMetadata?.storage_bucket, metadata?.storage_path || nestedMetadata?.storage_path)
+}
+
+function sceneStorageVideoUrl(scene: any): string {
+    const metadata = scene?.metadata || {}
+    const nestedMetadata = metadata?.metadata || {}
+    return cleanUrl(scene?.video_url || scene?.video)
+        || cleanUrl(metadata?.video_url || metadata?.video || nestedMetadata?.video_url || nestedMetadata?.video)
+}
+
+function hydrateSceneMedia(scene: any) {
+    const imageUrl = sceneStorageImageUrl(scene)
+    const videoUrl = sceneStorageVideoUrl(scene)
+    return {
+        ...scene,
+        ...(imageUrl ? { image_url: imageUrl } : {}),
+        ...(videoUrl ? { video_url: videoUrl } : {}),
+    }
+}
+
+function payloadScenes(project: any): any[] {
+    const payload = project?.project_payload || {}
+    const structureScenes = Array.isArray(payload?.structure?.scenes) ? payload.structure.scenes : []
+    const scenes = Array.isArray(payload?.scenes) ? payload.scenes : []
+    return [...structureScenes, ...scenes]
+}
+
+function findSceneByNumber(scenes: any[], sceneNumber: number) {
+    return (scenes || []).find((scene: any, index: number) => {
+        const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
+        return candidate === sceneNumber
+    })
+}
+
 function firstScript(...values: any[]): string {
     return values.map(value => String(value || '').trim()).find(Boolean) || ''
 }
@@ -82,7 +139,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
     if (assetsError) return NextResponse.json({ success: false, error: assetsError.message }, { status: 500 })
 
-    return NextResponse.json({ success: true, project, scenes: scenes || [], assets: assets || [] })
+    return NextResponse.json({ success: true, project, scenes: (scenes || []).map(hydrateSceneMedia), assets: assets || [] })
 }
 
 export async function PATCH(req: Request, { params }: { params: { projectId: string } }) {
@@ -175,6 +232,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         return NextResponse.json({ success: false, error: 'No supported fields to update' }, { status: 400 })
     }
 
+    const currentPayloadScenes = payloadScenes(project)
     const normalizedScenes = incomingScenes.length > 0
         ? incomingScenes
             .map((scene: any, index: number) => {
@@ -182,17 +240,29 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null
                 const normalizedSceneNumber = Math.floor(sceneNumber)
                 const requiresVideoPrompt = isStdRequiredVideoScene(normalizedSceneNumber)
+                const currentScene = findSceneByNumber(currentPayloadScenes, normalizedSceneNumber) || {}
+                const imageUrl = cleanUrl(scene?.image_url || scene?.image)
+                    || sceneStorageImageUrl(scene)
+                    || sceneStorageImageUrl(currentScene)
+                const videoUrl = cleanUrl(scene?.video_url || scene?.video)
+                    || sceneStorageVideoUrl(scene)
+                    || sceneStorageVideoUrl(currentScene)
                 return {
                     scene_number: normalizedSceneNumber,
+                    scene_order: normalizedSceneNumber,
                     scene_title: String(scene?.scene_title || scene?.title || `Scene ${normalizedSceneNumber}`).slice(0, 500),
                     scene_text: String(scene?.text || scene?.script_excerpt || scene?.scene_text || '').slice(0, 10000),
                     image_prompt: String(scene?.image_prompt || scene?.prompt || '').slice(0, 20000),
                     video_prompt: requiresVideoPrompt ? String(scene?.video_prompt || '').slice(0, 20000) : '',
+                    ...(imageUrl ? { image_url: imageUrl } : {}),
+                    ...(videoUrl ? { video_url: videoUrl } : {}),
                     metadata: {
                         ...(scene?.metadata || {}),
                         script_excerpt: scene?.script_excerpt || scene?.text || scene?.scene_text || '',
                         visual_type: requiresVideoPrompt ? (scene?.visual_type || 'video') : 'image',
                         video_prompt_required: requiresVideoPrompt,
+                        ...(imageUrl ? { image_url: imageUrl } : {}),
+                        ...(videoUrl ? { video_url: videoUrl } : {}),
                     },
                 }
             })
@@ -289,7 +359,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             .eq('project_id', project.id)
             .order('scene_number', { ascending: true })
         if (scenesAfterSaveError) return NextResponse.json({ success: false, error: scenesAfterSaveError.message }, { status: 500 })
-        updatedScenes = scenesAfterSave || []
+        updatedScenes = (scenesAfterSave || []).map(hydrateSceneMedia)
     }
 
     return NextResponse.json({ success: true, project: updated, scenes: updatedScenes })
