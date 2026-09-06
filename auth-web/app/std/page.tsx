@@ -2957,8 +2957,16 @@ export default function StdPortalPage() {
             const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
             const preferredProjectId = urlProjectId || savedActiveProjectId
 
-            if (preferredProjectId && loadedProjects.some(p => p.id === preferredProjectId)) {
-                await openProject(preferredProjectId, accessToken).catch(() => {})
+            if (preferredProjectId) {
+                const openedProject = await openProject(preferredProjectId, accessToken).catch(() => null)
+                if (openedProject?.project?.id) {
+                    setProjects(prev => [
+                        openedProject.project,
+                        ...prev.filter(p => p.id !== openedProject.project.id),
+                    ])
+                } else if (loadedProjects.length > 0) {
+                    await openProject(loadedProjects[0].id, accessToken).catch(() => {})
+                }
             } else if (loadedProjects.length > 0) {
                 await openProject(loadedProjects[0].id, accessToken).catch(() => {})
             } else if (savedProjectStateRaw) {
