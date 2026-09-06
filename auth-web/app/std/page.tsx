@@ -1731,7 +1731,10 @@ export default function StdPortalPage() {
 
     const downloadSceneMedia = async (scene: any, assetType: 'image' | 'video' = 'image') => {
         const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
-        const url = String(assetType === 'video' ? scene?.video_url || '' : scene?.image_url || '').trim()
+        const sceneImageDownloadUrl = selectedProject?.project?.id && assetType === 'image' && sceneNumber > 0
+            ? `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-image?sceneNumber=${encodeURIComponent(String(sceneNumber))}`
+            : ''
+        const url = String(assetType === 'video' ? scene?.video_url || '' : (sceneImageDownloadUrl || scene?.image_url || '')).trim()
         if (!url) {
             alert(assetType === 'video' ? '다운로드할 영상이 없습니다.' : '다운로드할 이미지가 없습니다.')
             return false
