@@ -4297,7 +4297,16 @@ export default function StdPortalPage() {
     ): Promise<'synced' | false> => {
         if (!file || !selectedProject) return false
         const sceneNum = scene?.scene_number || 1
-        const actualAssetType = file.type?.startsWith('video/') ? 'video' : assetType
+        const lowerFileName = String(file.name || '').toLowerCase()
+        const actualAssetType = file.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(lowerFileName)
+            ? 'video'
+            : file.type?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(lowerFileName)
+                ? 'image'
+                : assetType
+        if (isStdRequiredVideoScene(sceneNum) && actualAssetType !== 'video') {
+            setMessage(`씬 ${sceneNum}은 초반 필수 영상 구간이라 이미지 업로드는 무효입니다. 영상 파일을 업로드하세요.`)
+            return false
+        }
         const key = `${sceneNum}-${actualAssetType}`
         const localAssetId = `local-asset-${Date.now()}`
         setUploadingKey(key)
@@ -5419,25 +5428,50 @@ export default function StdPortalPage() {
     const assetStats = useMemo(() => {
         const scenes = selectedProject?.scenes || []
         const totalScenes = scenes.length || 53
-        const videoScenes = scenes.filter(s => Boolean(s.video_url)).map(s => s.scene_number)
-        const imageScenes = scenes.filter(s => Boolean(s.image_url) && !s.video_url).map(s => s.scene_number)
-        const missingScenes = scenes.filter(s => !s.video_url && !s.image_url).map(s => s.scene_number)
-        
-        const requiredVideoZone = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        const sceneNumberOf = (scene: any, index: number) => Number(scene?.scene_number || scene?.scene_order || index + 1)
+        const videoScenes = scenes
+            .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
+            .filter(({ scene }) => Boolean(scene.video_url))
+            .map(({ sceneNumber }) => sceneNumber)
+        const imageScenes = scenes
+            .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
+            .filter(({ scene, sceneNumber }) => Boolean(scene.image_url) && !scene.video_url && !isStdRequiredVideoScene(sceneNumber))
+            .map(({ sceneNumber }) => sceneNumber)
+        const completeScenes = scenes
+            .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
+            .filter(({ scene, sceneNumber }) =>
+                isStdRequiredVideoScene(sceneNumber)
+                    ? Boolean(scene.video_url)
+                    : Boolean(scene.video_url || scene.image_url)
+            )
+            .map(({ sceneNumber }) => sceneNumber)
+        const missingScenes = scenes
+            .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
+            .filter(({ scene, sceneNumber }) =>
+                isStdRequiredVideoScene(sceneNumber)
+                    ? !scene.video_url
+                    : !scene.video_url && !scene.image_url
+            )
+            .map(({ sceneNumber }) => sceneNumber)
+
+        const requiredVideoZone = Array.from({ length: STD_REQUIRED_VIDEO_SCENE_COUNT }, (_, index) => index + 1)
         const videoReadyInZone = videoScenes.filter(num => requiredVideoZone.includes(num))
         const requiredZoneOnlyImage = scenes
-            .filter(s => requiredVideoZone.includes(s.scene_number) && Boolean(s.image_url) && !s.video_url)
-            .map(s => s.scene_number)
+            .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
+            .filter(({ scene, sceneNumber }) => requiredVideoZone.includes(sceneNumber) && Boolean(scene.image_url) && !scene.video_url)
+            .map(({ sceneNumber }) => sceneNumber)
         const requiredZoneMissingAll = scenes
-            .filter(s => requiredVideoZone.includes(s.scene_number) && !s.image_url && !s.video_url)
-            .map(s => s.scene_number)
-        const completion = totalScenes > 0 ? Math.round(((totalScenes - missingScenes.length) / totalScenes) * 100) : 0
+            .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
+            .filter(({ scene, sceneNumber }) => requiredVideoZone.includes(sceneNumber) && !scene.image_url && !scene.video_url)
+            .map(({ sceneNumber }) => sceneNumber)
+        const completion = totalScenes > 0 ? Math.round((completeScenes.length / totalScenes) * 100) : 0
 
         return {
             totalScenes,
             imageCount: imageScenes.length,
             videoCount: videoScenes.length,
             missingScenes,
+            completeScenes,
             videoReadyInZoneCount: videoReadyInZone.length,
             requiredZoneOnlyImage,
             requiredZoneMissingAll,
@@ -8294,7 +8328,7 @@ export default function StdPortalPage() {
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 text-xs">
                                         <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">씬 {assetStats.totalScenes}</span>
-                                        <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">이미지 {assetStats.imageCount}</span>
+                                        <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">유효 이미지 {assetStats.imageCount}</span>
                                         <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">영상 {assetStats.videoCount}</span>
                                         <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/12</span>
                                         <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">비주얼 누락 {assetStats.missingScenes.length}</span>
