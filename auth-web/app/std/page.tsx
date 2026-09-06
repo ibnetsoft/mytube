@@ -1741,7 +1741,8 @@ export default function StdPortalPage() {
         }
         const projectTitle = selectedProject?.project?.title || 'std-project'
         const extension = assetType === 'video' ? 'mp4' : 'png'
-        const fileName = safeDownloadFileName(`${projectTitle}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
+        const projectKey = String(selectedProject?.project?.id || 'project').slice(0, 8) || safeDownloadFileName(projectTitle)
+        const fileName = safeDownloadFileName(`std-${projectKey}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
         try {
             if (assetType === 'image' && sceneImageDownloadUrl) {
                 const link = document.createElement('a')
@@ -1793,8 +1794,8 @@ export default function StdPortalPage() {
                 .map((scene: any, index: number) => Number(scene?.scene_number || scene?.scene_order || index + 1))
                 .filter((sceneNumber: number) => Number.isFinite(sceneNumber) && sceneNumber > 0)
             const zipUrl = `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/scene-images${selectedSceneIndexes.length > 0 && sceneNumbers.length ? `?scenes=${encodeURIComponent(sceneNumbers.join(','))}` : ''}`
-            const projectTitle = selectedProject?.project?.title || 'std-project'
-            const fileName = safeDownloadFileName(`${projectTitle}-images.zip`)
+            const projectKey = String(selectedProject.project.id || 'project').slice(0, 8) || 'project'
+            const fileName = safeDownloadFileName(`std-${projectKey}-images.zip`)
             const link = document.createElement('a')
             link.href = zipUrl
             link.download = fileName

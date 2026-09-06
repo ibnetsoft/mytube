@@ -18,7 +18,7 @@ function safeAsciiFilename(value: string) {
 
 function contentDisposition(filename: string) {
     const fallback = safeAsciiFilename(filename)
-    return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    return `attachment; filename="${fallback}"`
 }
 
 function extractImageUrl(scene: any, payloadScene: any) {
@@ -90,8 +90,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     const buffer = await response.arrayBuffer()
     const contentType = response.headers.get('content-type') || 'image/png'
     const ext = contentType.includes('webp') ? 'webp' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png'
-    const title = String(project?.title || 'std-project').trim()
-    const filename = `${title}-scene-${String(sceneNumber).padStart(3, '0')}.${ext}`
+    const projectKey = String(project?.id || params.projectId).slice(0, 8) || 'project'
+    const filename = `std-${projectKey}-scene-${String(sceneNumber).padStart(3, '0')}.${ext}`
 
     return new NextResponse(buffer, {
         headers: {

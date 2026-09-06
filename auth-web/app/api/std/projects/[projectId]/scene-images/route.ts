@@ -18,7 +18,7 @@ function safeAsciiFilename(value: string, fallback = 'scene-images') {
 
 function contentDisposition(filename: string) {
     const fallback = safeAsciiFilename(filename, 'scene-images.zip')
-    return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    return `attachment; filename="${fallback}"`
 }
 
 function extractImageUrl(scene: any, payloadScene: any) {
@@ -206,8 +206,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         return NextResponse.json({ success: false, error: 'No scene images found' }, { status: 404 })
     }
 
-    const title = String(project?.title || 'std-project').trim()
-    const filename = `${title}-images.zip`
+    const projectKey = String(project?.id || params.projectId).slice(0, 8) || 'project'
+    const filename = `std-${projectKey}-images.zip`
     const zip = makeZip(files)
 
     return new NextResponse(zip, {
