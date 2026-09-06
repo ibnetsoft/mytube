@@ -105,7 +105,7 @@ async function inspectEligibilityDebug(topics: any[], limit: number) {
 async function loadDirectPreparedTopics(limit: number) {
     const { data, error } = await supabaseAdmin
         .from('topics_queue')
-        .select('id,topic,generated_title,category_id,categories(id,name,language,default_script_style,default_image_style),language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
+        .select('id,topic,generated_title,category_id,categories(id,name,language,default_script_style,default_image_style),language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
         .eq('status', 'pending')
         .is('assigned_at', null)
         .or('assigned_employee_email.is.null,assigned_employee_email.eq.')
