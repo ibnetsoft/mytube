@@ -8498,7 +8498,7 @@ export default function StdPortalPage() {
                                                                 {isReady ? '✅ 영상 완료' : isUploading ? '업로드 중...' : '영상 없음'}
                                                             </span>
                                                         </div>
-                                                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
+                                                        <div className="flex items-center pt-1 border-t border-white/5 text-[11px] font-bold">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
@@ -8574,10 +8574,6 @@ export default function StdPortalPage() {
                                                             >
                                                                 보기
                                                             </button>
-                                                            <span className="text-gray-600">|</span>
-                                                            <span className="text-emerald-300/90 cursor-not-allowed" title="13씬 이후 생성 이미지는 유저 교체가 비활성화되어 있습니다.">
-                                                                보호됨
-                                                            </span>
                                                         </div>
                                                     </div>
                                                 )
