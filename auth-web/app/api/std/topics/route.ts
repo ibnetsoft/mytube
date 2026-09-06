@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
 
-const ROUTE_REVISION = 'std-topics-live-card-refresh-9092f49-plus'
+const ROUTE_REVISION = 'std-topics-direct-refresh-fallback-3341'
 
 function isUnclaimedPendingTopic(topic: any): boolean {
     const assignee = String(topic?.assigned_employee_email || '').trim()
@@ -102,10 +102,29 @@ async function inspectEligibilityDebug(topics: any[], limit: number) {
     }
 }
 
+async function attachCategories(topics: any[]) {
+    const categoryIds = Array.from(new Set((topics || [])
+        .map((topic: any) => topic?.category_id)
+        .filter((id: any) => id !== null && id !== undefined)
+        .map((id: any) => String(id))))
+    if (!categoryIds.length) return topics
+
+    const { data } = await supabaseAdmin
+        .from('categories')
+        .select('id,name,language,default_script_style,default_image_style')
+        .in('id', categoryIds)
+
+    const categoriesById = new Map((data || []).map((category: any) => [String(category.id), category]))
+    return topics.map((topic: any) => ({
+        ...topic,
+        categories: topic?.categories || categoriesById.get(String(topic?.category_id)) || null,
+    }))
+}
+
 async function loadDirectPreparedTopics(limit: number) {
     const { data, error } = await supabaseAdmin
         .from('topics_queue')
-        .select('id,topic,generated_title,category_id,categories(id,name,language,default_script_style,default_image_style),language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
+        .select('id,topic,generated_title,category_id,language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
         .eq('status', 'pending')
         .is('assigned_at', null)
         .or('assigned_employee_email.is.null,assigned_employee_email.eq.')
@@ -114,7 +133,8 @@ async function loadDirectPreparedTopics(limit: number) {
         .limit(300)
     if (error) throw error
 
-    return (data || [])
+    const withCategories = await attachCategories(data || [])
+    return withCategories
         .map(normalizeTopicJsonFields)
         .slice(0, limit)
         .map(normalizeDirectTopic)
