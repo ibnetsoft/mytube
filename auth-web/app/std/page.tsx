@@ -8585,7 +8585,9 @@ export default function StdPortalPage() {
                             </div>
 
                             <div className="space-y-4">
-                                {selectedProject.scenes.map((scene: any, i: number) => {
+                                {selectedProject.scenes
+                                    .filter((scene: any, i: number) => isStdRequiredVideoScene(scene?.scene_number || i + 1))
+                                    .map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
                                     const videoPromptText = getSceneVideoPromptText(scene, sceneNum)
