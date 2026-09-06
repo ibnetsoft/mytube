@@ -77,8 +77,9 @@ function normalizeTopicForStd(topic: any, policy: Record<string, any>, payoutMul
     const summary = normalizeTopicSummary(topic)
     const videoType = String(topic?.video_type || category?.video_type || 'longform').trim().toLowerCase() || 'longform'
     const minMinutes = Math.max(15, toInt(policy.sys_api_longform_min_duration_minutes, 15))
-    let durationMinutes = toInt(topic?.duration_minutes || topic?.recommended_duration_minutes || topic?.assigned_duration_minutes, 0)
-    if (videoType === 'longform') durationMinutes = Math.max(minMinutes, durationMinutes || minMinutes)
+    const explicitDuration = toInt(topic?.duration_minutes ?? topic?.recommended_duration_minutes ?? topic?.assigned_duration_minutes, 0)
+    let durationMinutes = explicitDuration || toInt(summary.assigned_duration_minutes, 0)
+    if (videoType === 'longform' && !durationMinutes) durationMinutes = minMinutes
 
     const estimatedPayout = videoType === 'longform'
         ? calculateLongformPayoutByScenes(summary.scene_count || 53)

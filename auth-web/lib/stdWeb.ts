@@ -260,7 +260,7 @@ export function buildStdScenes(topic: any) {
         .map((scene: any) => firstText(scene?.script_excerpt, scene?.scene_text, scene?.narration, scene?.description))
         .filter(Boolean)
         .join('\n\n'))
-    const sceneCount = estimateRequiredSceneCount(script, scenes.length || 53)
+    const sceneCount = scenes.length > 0 ? scenes.length : estimateRequiredSceneCount(script, 53)
     const partitioned = partitionScriptTo53Scenes(script, sceneCount)
 
     return Array.from({ length: sceneCount }, (_, index) => scenes[index] || {
@@ -331,6 +331,14 @@ export function normalizeTopicSummary(topic: any) {
     const structure = topic?.pregenerated_structure || topic?.structure || {}
     const scenes = buildStdScenes(topic)
     const sceneCount = scenes.length || 53
+    const inferredDurationMinutes = (() => {
+        const rawScenes = Array.isArray(structure?.scenes) ? structure.scenes : []
+        const totalSeconds = rawScenes.reduce((sum: number, scene: any) => {
+            const seconds = Number(scene?.duration_seconds || scene?.target_duration || 0)
+            return Number.isFinite(seconds) && seconds > 0 ? sum + seconds : sum
+        }, 0)
+        return totalSeconds > 0 ? Math.max(1, Math.ceil(totalSeconds / 60)) : null
+    })()
     const structureImageStyle = firstText(structure?.image_style)
     const estimatedPayout = calculateLongformPayoutByScenes(sceneCount)
     return {
@@ -339,7 +347,7 @@ export function normalizeTopicSummary(topic: any) {
         category_name: category.name || topic.category_name || '옛날이야기',
         category_id: topic.category_id,
         language: topic.language || category.language || 'ko',
-        assigned_duration_minutes: topic.assigned_duration_minutes || topic.recommended_duration_minutes || null,
+        assigned_duration_minutes: topic.assigned_duration_minutes || topic.recommended_duration_minutes || inferredDurationMinutes,
         estimated_payout: estimatedPayout,
         estimated_payout_usdt: estimatedPayout,
         script_style: topic.assigned_script_style || category.default_script_style || 'default',

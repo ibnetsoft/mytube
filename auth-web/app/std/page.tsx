@@ -2770,7 +2770,7 @@ export default function StdPortalPage() {
             || topic.script
             || rawScenes.map((s: any) => s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || '').join('\n\n')
         )
-        const requiredSceneCount = estimateRequiredSceneCount(projectScript, rawScenes.length || 53)
+        const requiredSceneCount = rawScenes.length > 0 ? rawScenes.length : estimateRequiredSceneCount(projectScript, 53)
         const partitionedScript = partitionScriptTo53Scenes(projectScript, requiredSceneCount)
 
         if (rawScenes.length < requiredSceneCount) {
@@ -2837,12 +2837,20 @@ export default function StdPortalPage() {
             }
         }
 
+        const inferredDurationMinutes = (() => {
+            const totalSeconds = rawScenes.reduce((sum: number, scene: any) => {
+                const seconds = Number(scene?.duration_seconds || scene?.target_duration || 0)
+                return Number.isFinite(seconds) && seconds > 0 ? sum + seconds : sum
+            }, 0)
+            return totalSeconds > 0 ? Math.max(1, Math.ceil(totalSeconds / 60)) : null
+        })()
+
         const projectData: StdProject = {
             id: dummyId,
             title: sampleTopicTitle,
             status: 'image_prompted',
             language: topic.language || 'ko',
-            assigned_duration_minutes: topic.assigned_duration_minutes || 15,
+            assigned_duration_minutes: topic.assigned_duration_minutes || topic.recommended_duration_minutes || inferredDurationMinutes || 15,
             estimated_payout: topic.estimated_payout || 45000,
             scene_count: scenes.length,
             progress_payload: {
