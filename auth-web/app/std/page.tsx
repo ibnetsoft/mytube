@@ -1694,9 +1694,93 @@ export default function StdPortalPage() {
                 ...scene,
                 image_url: imageUrl,
                 video_url: videoUrl,
+                video_prompt: scene?.video_prompt || scene?.metadata?.video_prompt || scene?.prompt_en || '',
+                image_prompt: scene?.image_prompt || scene?.metadata?.image_prompt || scene?.prompt || '',
                 asset_status: videoUrl || imageUrl ? 'ready' : (scene?.asset_status || 'missing'),
             }
         })
+    }
+
+    const getSceneVideoPromptText = (scene: any, sceneNumber?: number) => {
+        const num = Number(sceneNumber || scene?.scene_number || scene?.scene_order || 0)
+        if (!isStdRequiredVideoScene(num)) return ''
+        const explicit = String(
+            scene?.video_prompt
+            || scene?.metadata?.video_prompt
+            || scene?.prompt_en
+            || scene?.metadata?.prompt_en
+            || ''
+        ).trim()
+        if (explicit) return explicit
+        const visualPrompt = String(scene?.image_prompt || scene?.metadata?.image_prompt || scene?.prompt || '').trim()
+        const scriptContext = cleanScriptContextText(scene?.scene_text || scene?.script_excerpt || scene?.scene_summary || '')
+        return [
+            `Create a 5-second cinematic video shot for scene ${num}.`,
+            visualPrompt || `Visualize this narration beat: ${scriptContext}`,
+            'Use slow controlled camera motion, realistic depth, consistent characters and setting, no text, no subtitles, no logos.',
+        ].filter(Boolean).join(' ')
+    }
+
+    const safeDownloadFileName = (name: string) => {
+        return String(name || 'download')
+            .replace(/[\\/:*?"<>|]+/g, '-')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 120) || 'download'
+    }
+
+    const downloadSceneMedia = async (scene: any, assetType: 'image' | 'video' = 'image') => {
+        const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
+        const url = String(assetType === 'video' ? scene?.video_url || '' : scene?.image_url || '').trim()
+        if (!url) {
+            alert(assetType === 'video' ? '다운로드할 영상이 없습니다.' : '다운로드할 이미지가 없습니다.')
+            return false
+        }
+        const projectTitle = selectedProject?.project?.title || 'std-project'
+        const extension = assetType === 'video' ? 'mp4' : 'png'
+        const fileName = safeDownloadFileName(`${projectTitle}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
+        try {
+            const response = await fetch(url)
+            if (!response.ok) throw new Error(`download failed ${response.status}`)
+            const blob = await response.blob()
+            const blobUrl = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = blobUrl
+            link.download = fileName
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1500)
+            return true
+        } catch {
+            const link = document.createElement('a')
+            link.href = url
+            link.download = fileName
+            link.target = '_blank'
+            link.rel = 'noopener noreferrer'
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            return true
+        }
+    }
+
+    const downloadAllSceneImages = async () => {
+        if (!selectedProject?.scenes?.length) return
+        const sourceScenes = selectedSceneIndexes.length > 0
+            ? selectedSceneIndexes.map(index => selectedProject.scenes[index]).filter(Boolean)
+            : selectedProject.scenes
+        const imageScenes = sourceScenes.filter((scene: any) => String(scene?.image_url || '').trim())
+        if (!imageScenes.length) {
+            alert('다운로드할 이미지가 없습니다.')
+            return
+        }
+        setMessage(`이미지 ${imageScenes.length}개 다운로드를 시작합니다...`)
+        for (const scene of imageScenes) {
+            await downloadSceneMedia(scene, 'image')
+            await new Promise(resolve => setTimeout(resolve, 250))
+        }
+        setMessage(`이미지 ${imageScenes.length}개 다운로드 요청 완료`)
     }
 
     const sceneVisualSignature = useMemo(() => {
@@ -8104,10 +8188,10 @@ export default function StdPortalPage() {
                                             <span>☁</span> {uploadingKey === 'drive-resync' ? 'Drive 저장 중' : 'Drive 확정 저장'}
                                         </button>
                                         <button
-                                            onClick={() => alert('등록된 모든 이미지를 다운로드합니다.')}
+                                            onClick={() => void downloadAllSceneImages()}
                                             className="px-3 py-1.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-xs font-bold text-gray-200 transition-all"
                                         >
-                                            이미지 일괄 다운로드
+                                            이미지 {selectedSceneIndexes.length > 0 ? '선택' : '일괄'} 다운로드
                                         </button>
                                         <button
                                             onClick={copyAllPrompts}
@@ -8312,9 +8396,7 @@ export default function StdPortalPage() {
                                 {selectedProject.scenes.map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
-                                    const videoPromptText = inRequiredZone
-                                        ? String(scene.video_prompt || scene.prompt_en || '')
-                                        : ''
+                                    const videoPromptText = getSceneVideoPromptText(scene, sceneNum)
                                     const isDual = Boolean(dualFrameStates[i])
                                     const isSelected = selectedSceneIndexes.includes(i)
 
@@ -8373,7 +8455,16 @@ export default function StdPortalPage() {
                                                             </div>
                                                         </>
                                                     ) : scene.image_url ? (
-                                                        <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
+                                                        <>
+                                                            <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void downloadSceneMedia(scene, 'image')}
+                                                                className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-black/70 hover:bg-black/90 text-white text-[10px] font-bold border border-white/20 transition-all"
+                                                            >
+                                                                이미지 다운로드
+                                                            </button>
+                                                        </>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
                                                             <span className="text-xl">{inRequiredZone ? '🎬' : '🖼️'}</span>
@@ -8409,9 +8500,9 @@ export default function StdPortalPage() {
                                                             </button>
                                                         </div>
                                                     </div>
-                                                    <p className="text-[11px] text-gray-300 leading-relaxed overflow-hidden line-clamp-5 font-mono">
-                                                        {videoPromptText}
-                                                    </p>
+                                                    <pre className="whitespace-pre-wrap text-[11px] text-gray-300 leading-relaxed max-h-36 overflow-y-auto font-mono">
+                                                        {videoPromptText || '영상 프롬프트 없음'}
+                                                    </pre>
                                                 </div>
 
                                                 <div className="lg:col-span-3 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-white/5">
