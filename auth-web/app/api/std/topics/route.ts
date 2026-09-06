@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { requireStdUser, isPreparedStdTopic, normalizeTopicSummary } from '@/lib/stdWeb'
+import { requireStdUser, normalizeTopicSummary } from '@/lib/stdWeb'
 import { getStdRecommendedTopics } from '@/lib/stdRecommendations'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
@@ -92,7 +92,16 @@ async function loadDirectPreparedTopics(limit: number, profile: any, filters: Re
     const preferredCategories = filters.ignore_category ? new Set<string>() : preferredCategorySet(profile)
     return (data || [])
         .filter(isUnclaimedPendingTopic)
-        .filter(isPreparedStdTopic)
+        .filter((topic: any) =>
+            topic?.pregenerated_script_status === 'ready'
+            && topic?.pregenerated_structure_status === 'ready'
+            && String(topic?.pregenerated_script || '').trim().length > 0
+            && String(topic?.pregenerated_structure?.image_grid_prompt_status || '') === 'ready'
+            && Array.isArray(topic?.pregenerated_structure?.scenes)
+            && topic.pregenerated_structure.scenes.length > 0
+            && Array.isArray(topic?.pregenerated_structure?.image_grid_prompts)
+            && topic.pregenerated_structure.image_grid_prompts.length > 0
+        )
         .filter((topic: any) => filters.ignore_category || topicMatchesPreferredCategory(topic, preferredCategories))
         .slice(0, limit)
         .map(normalizeDirectTopic)
