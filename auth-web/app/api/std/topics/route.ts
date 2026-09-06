@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
 
-const ROUTE_REVISION = 'std-topics-live-refresh-649a9aa-plus'
+const ROUTE_REVISION = 'std-topics-live-card-refresh-9092f49-plus'
 
 function isUnclaimedPendingTopic(topic: any): boolean {
     const assignee = String(topic?.assigned_employee_email || '').trim()
@@ -31,8 +31,12 @@ function normalizeDirectTopic(topic: any) {
     const summary = normalizeTopicSummary(normalizedTopic)
     const duration = Number(normalizedTopic?.duration_minutes || normalizedTopic?.recommended_duration_minutes || normalizedTopic?.assigned_duration_minutes || summary.assigned_duration_minutes || 0) || null
     const payout = Number(normalizedTopic?.estimated_payout || summary.estimated_payout || 0) || 0
+    const sceneCount = Number(normalizedTopic?.total_scenes || normalizedTopic?.scene_count || summary.scene_count || 53) || 53
     return {
         ...summary,
+        topic: String(normalizedTopic?.generated_title || normalizedTopic?.topic || summary.topic || '').trim(),
+        scene_count: sceneCount,
+        total_scenes: sceneCount,
         duration_minutes: duration,
         recommended_duration_minutes: duration,
         assigned_duration_minutes: duration || summary.assigned_duration_minutes,
@@ -101,7 +105,7 @@ async function inspectEligibilityDebug(topics: any[], limit: number) {
 async function loadDirectPreparedTopics(limit: number) {
     const { data, error } = await supabaseAdmin
         .from('topics_queue')
-        .select('*, categories(*)')
+        .select('id,topic,generated_title,category_id,categories(id,name,language,default_script_style,default_image_style),language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
         .eq('status', 'pending')
         .is('assigned_at', null)
         .or('assigned_employee_email.is.null,assigned_employee_email.eq.')
