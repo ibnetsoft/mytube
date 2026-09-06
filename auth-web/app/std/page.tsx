@@ -1428,7 +1428,7 @@ export default function StdPortalPage() {
                 const payloadTooLarge = res.status === 413 || raw.includes('FUNCTION_PAYLOAD_TOO_LARGE')
                 return {
                     error: payloadTooLarge
-                        ? '파일 용량이 커서 서버 경유 업로드에 실패했습니다. 큰 영상은 Google Drive 직접 업로드 방식으로 다시 시도합니다.'
+                        ? '파일 용량이 커서 서버 경유 업로드에 실패했습니다. Google Drive 직접 업로드 방식으로 다시 시도합니다.'
                         : fallbackErrMsg || `Request failed with HTTP ${res.status}`,
                     raw,
                 }
@@ -1827,7 +1827,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024
+    const DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES = 0
 
     const inferVisualMimeType = (file: File, assetType: 'image' | 'video' | 'thumbnail') => {
         const explicitType = String(file.type || '').trim()
@@ -4455,10 +4455,11 @@ export default function StdPortalPage() {
             })
             const mimeType = inferVisualMimeType(file, actualAssetType)
             let persistedAsset: any = null
-            const shouldUseDirectDriveUpload = actualAssetType === 'video' && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
+            const shouldUseDirectDriveUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
+                && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
 
             if (shouldUseDirectDriveUpload) {
-                setMessage(`큰 영상 (${file.name}) Google Drive 직접 업로드 준비 중...`)
+                setMessage(`파일 (${file.name}) Google Drive 직접 업로드 준비 중...`)
                 const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                     method: 'POST',
                     headers: authedJsonHeaders,
@@ -4475,7 +4476,7 @@ export default function StdPortalPage() {
                     throw new Error(initPayload.error || 'Asset upload init failed')
                 }
 
-                setMessage(`큰 영상 (${file.name}) Google Drive 업로드 중...`)
+                setMessage(`파일 (${file.name}) Google Drive 업로드 중...`)
                 let drivePayload: any = null
                 try {
                     const driveRes = await fetch(initPayload.upload_url, {
@@ -4527,8 +4528,8 @@ export default function StdPortalPage() {
                 })
                 const uploadPayload = await safeParseJson(uploadRes, 'Asset upload failed')
                 if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
-                    if (uploadRes.status === 413 && actualAssetType === 'video') {
-                        throw new Error('영상 파일이 서버 업로드 제한보다 큽니다. 새 버전에서는 큰 영상을 Google Drive 직접 업로드로 처리합니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
+                    if (uploadRes.status === 413) {
+                        throw new Error('파일이 서버 업로드 제한보다 큽니다. 새 버전에서는 Google Drive 직접 업로드로 처리합니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
                     }
                     throw new Error(uploadPayload.error || 'Asset upload failed')
                 }
@@ -4796,27 +4797,63 @@ export default function StdPortalPage() {
         setUploadingKey('thumbnail-upload')
         setMessage('썸네일 이미지를 업로드하는 중...')
         try {
-            const form = new FormData()
-            form.set('file', file)
-            form.set('asset_type', 'thumbnail')
-            form.set('mime_type', file.type || 'image/png')
-            form.set('file_name', file.name)
-            form.set('file_size', String(file.size))
-
-            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
+            const mimeType = inferVisualMimeType(file, 'thumbnail')
+            const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                 method: 'POST',
-                headers: authedUploadHeaders,
-                body: form,
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    asset_type: 'thumbnail',
+                    mime_type: mimeType,
+                    file_name: file.name,
+                    file_size: file.size,
+                }),
             })
-            const uploadPayload = await safeParseJson(uploadRes, '썸네일 업로드 실패')
-            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) throw new Error(uploadPayload.error || '썸네일 업로드 실패')
+            const initPayload = await safeParseJson(initRes, '썸네일 업로드 준비 실패')
+            if (!initRes.ok || initPayload.success === false || !initPayload.upload_url) {
+                throw new Error(initPayload.error || '썸네일 업로드 준비 실패')
+            }
 
-            const persistedThumbnailUrl = assetDisplayUrl(selectedProject.project.id, uploadPayload.asset) || ''
+            setMessage('썸네일 이미지를 Google Drive에 업로드하는 중...')
+            let drivePayload: any = null
+            try {
+                const driveRes = await fetch(initPayload.upload_url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': mimeType },
+                    body: file,
+                })
+                drivePayload = await safeParseJson(driveRes, 'Drive 썸네일 업로드 실패')
+                if (!driveRes.ok || !drivePayload.id) {
+                    throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive 썸네일 업로드 실패')
+                }
+            } catch (driveError: any) {
+                console.warn('[STD ThumbnailUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
+                setMessage('브라우저가 Google Drive 직접 업로드를 막아, 서버 중계 방식으로 다시 업로드합니다...')
+                drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
+            }
+
+            const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    drive_file_id: drivePayload.id,
+                    target_folder_id: initPayload.target_folder_id,
+                    asset_type: 'thumbnail',
+                    mime_type: mimeType,
+                    file_name: file.name,
+                    file_size: file.size,
+                }),
+            })
+            const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')
+            if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
+                throw new Error(completePayload.error || '썸네일 업로드 완료 처리 실패')
+            }
+
+            const persistedThumbnailUrl = assetDisplayUrl(selectedProject.project.id, completePayload.asset) || ''
             setSelectedProject(prev => {
                 if (!prev) return prev
                 const updated = {
                     ...prev,
-                    assets: [uploadPayload.asset, ...prev.assets.filter(a => a.asset_type !== 'thumbnail')],
+                    assets: [completePayload.asset, ...prev.assets.filter(a => a.asset_type !== 'thumbnail')],
                     project: {
                         ...prev.project,
                         progress_payload: {

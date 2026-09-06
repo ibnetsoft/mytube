@@ -10,8 +10,6 @@ const getAdmin = () => createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const MAX_THUMBNAIL_BYTES = 5_000_000
-
 // POST (multipart/form-data, field "file"): 렌더큐 작업의 썸네일 이미지를
 // Google Drive에서 교체 업로드한다. 기존 파일 ID를 그대로 유지하며 내용만
 // 바꾸므로, 이후 유튜브 업로드 단계(services/drive_bundle_service.py)가
@@ -29,9 +27,6 @@ export async function POST(req: Request) {
         const file = form.get('file')
         if (!(file instanceof File)) {
             return NextResponse.json({ error: '이미지 파일이 필요합니다.' }, { status: 400 })
-        }
-        if (file.size > MAX_THUMBNAIL_BYTES) {
-            return NextResponse.json({ error: '이미지 용량이 너무 큽니다 (5MB 이하).' }, { status: 400 })
         }
         if (!file.type.startsWith('image/')) {
             return NextResponse.json({ error: '이미지 파일만 업로드할 수 있습니다.' }, { status: 400 })
