@@ -1916,15 +1916,30 @@ export default function StdPortalPage() {
         setMessage(`이미지 ${imageScenes.length}개 다운로드 요청 완료`)
     }
 
+    const getProjectPayloadScenes = () => {
+        const payload = selectedProject?.project?.project_payload || {}
+        const structureScenes = Array.isArray(payload?.structure?.scenes) ? payload.structure.scenes : []
+        const payloadScenes = Array.isArray(payload?.scenes) ? payload.scenes : []
+        return [...structureScenes, ...payloadScenes]
+    }
+
+    const findSceneByNumber = (scenes: any[], sceneNumber: number) => {
+        return (scenes || []).find((scene: any, index: number) => {
+            const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
+            return candidate === sceneNumber
+        })
+    }
+
     const sceneVisualSignature = useMemo(() => {
-        return (selectedProject?.scenes || [])
+        const payloadScenes = getProjectPayloadScenes()
+        return [...(selectedProject?.scenes || []), ...payloadScenes]
             .map((scene: any, index: number) => [
                 Number(scene?.scene_number || scene?.scene_order || index + 1),
-                runtimeAssetUrl(scene?.image_url || scene?.image) || '',
-                runtimeAssetUrl(scene?.video_url || scene?.video) || '',
+                runtimeAssetUrl(scene?.image_url || scene?.image || scene?.metadata?.image_url) || '',
+                runtimeAssetUrl(scene?.video_url || scene?.video || scene?.metadata?.video_url) || '',
             ].join(':'))
             .join('|')
-    }, [selectedProject?.scenes])
+    }, [selectedProject?.scenes, selectedProject?.project?.project_payload])
 
     const subtitleSceneVisual = (subtitle: any, subtitleIndex: number, scenes = selectedProject?.scenes || []) => {
         const requestedSceneNumber = Number(subtitle?.scene_number || subtitle?.scene || subtitle?.sceneNumber)
@@ -1932,14 +1947,18 @@ export default function StdPortalPage() {
         const sceneNumber = Number.isFinite(requestedSceneNumber) && requestedSceneNumber > 0
             ? requestedSceneNumber
             : fallbackSceneNumber
-        const matchedScene = scenes.find((scene: any, index: number) => {
-            const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
-            return candidate === sceneNumber
-        }) || scenes[sceneNumber - 1] || scenes[0] || {}
+        const payloadScenes = getProjectPayloadScenes()
+        const matchedScene = findSceneByNumber(scenes, sceneNumber)
+            || findSceneByNumber(payloadScenes, sceneNumber)
+            || scenes[sceneNumber - 1]
+            || payloadScenes[sceneNumber - 1]
+            || scenes[0]
+            || payloadScenes[0]
+            || {}
         return {
             scene_number: sceneNumber,
-            image_url: runtimeAssetUrl(matchedScene?.image_url || matchedScene?.image) || '',
-            video_url: runtimeAssetUrl(matchedScene?.video_url || matchedScene?.video) || null,
+            image_url: runtimeAssetUrl(matchedScene?.image_url || matchedScene?.image || matchedScene?.metadata?.image_url) || '',
+            video_url: runtimeAssetUrl(matchedScene?.video_url || matchedScene?.video || matchedScene?.metadata?.video_url) || null,
         }
     }
 
@@ -7508,13 +7527,18 @@ export default function StdPortalPage() {
                                                         </div>
                                                         {/* 이미지 & 타임 */}
                                                         <div className="w-40 h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
-                                                            {group.video_url ? (
-                                                                <video src={group.video_url} className="w-full h-full object-cover" muted />
-                                                            ) : group.image_url ? (
+                                                            {group.image_url ? (
                                                                 <img src={group.image_url} alt="" className="w-full h-full object-cover" />
+                                                            ) : group.video_url ? (
+                                                                <video src={group.video_url} className="w-full h-full object-cover" muted />
                                                             ) : (
                                                                 <div className="w-full h-full bg-[#0b0e14]" />
                                                             )}
+                                                            {group.video_url ? (
+                                                                <span className="absolute top-0.5 right-0.5 bg-purple-700/90 text-white text-[8px] font-bold px-1 rounded">
+                                                                    영상 완료
+                                                                </span>
+                                                            ) : null}
                                                             <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
                                                                 {group.subtitles.length} lines
                                                             </span>
