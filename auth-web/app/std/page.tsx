@@ -1743,6 +1743,16 @@ export default function StdPortalPage() {
         const extension = assetType === 'video' ? 'mp4' : 'png'
         const fileName = safeDownloadFileName(`${projectTitle}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
         try {
+            if (assetType === 'image' && sceneImageDownloadUrl) {
+                const link = document.createElement('a')
+                link.href = sceneImageDownloadUrl
+                link.download = fileName
+                link.rel = 'noopener'
+                document.body.appendChild(link)
+                link.click()
+                link.remove()
+                return true
+            }
             const response = await fetch(url)
             if (!response.ok) throw new Error(`download failed ${response.status}`)
             const blob = await response.blob()
