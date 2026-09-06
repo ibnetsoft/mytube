@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
+import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
     driveFileLink,
     driveFolderLink,
@@ -146,6 +146,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             success: false,
             error: 'Video file is required for scenes 1-12.',
             code: 'video_required_for_scene',
+        }, { status: 422 })
+    }
+    if (
+        sceneNumber != null
+        && sceneNumber > STD_REQUIRED_VIDEO_SCENE_COUNT
+        && ['image', 'video'].includes(assetType)
+    ) {
+        return NextResponse.json({
+            success: false,
+            error: 'Generated image scenes after scene 12 are protected and cannot be replaced.',
+            code: 'generated_image_scene_protected',
         }, { status: 422 })
     }
 

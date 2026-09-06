@@ -4431,6 +4431,10 @@ export default function StdPortalPage() {
             setMessage(`씬 ${sceneNum}은 초반 필수 영상 구간이라 이미지 업로드는 무효입니다. 영상 파일을 업로드하세요.`)
             return false
         }
+        if (!isStdRequiredVideoScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
+            setMessage(`씬 ${sceneNum}은 생성 이미지 보호 구간이라 유저가 이미지/영상을 교체할 수 없습니다.`)
+            return false
+        }
         const key = `${sceneNum}-${actualAssetType}`
         const localAssetId = `local-asset-${Date.now()}`
         setUploadingKey(key)
@@ -8632,7 +8636,7 @@ export default function StdPortalPage() {
                                                 </span>
                                             </div>
                                             <span className="text-[10px] text-gray-400 font-mono">
-                                                완료: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
+                                                고정: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
                                             </span>
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
@@ -8655,7 +8659,7 @@ export default function StdPortalPage() {
                                                                 #{sNum}
                                                             </span>
                                                             <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
-                                                                {isReady ? '✅ 이미지 완료' : isUploading ? '업로드 중...' : '이미지 없음'}
+                                                                {isReady ? '🔒 이미지 고정' : isUploading ? '처리 중...' : '이미지 없음'}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -8670,16 +8674,9 @@ export default function StdPortalPage() {
                                                                 보기
                                                             </button>
                                                             <span className="text-gray-600">|</span>
-                                                            <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-400 hover:text-amber-300'} transition-colors`}>
-                                                                {isUploading ? '처리 중' : isReady ? '교체' : '업로드'}
-                                                                <input
-                                                                    type="file"
-                                                                    accept="image/*,video/*"
-                                                                    className="hidden"
-                                                                    disabled={isUploading}
-                                                                    onChange={e => uploadAsset(scene, 'image', e.target.files?.[0] || null)}
-                                                                />
-                                                            </label>
+                                                            <span className="text-emerald-300/90 cursor-not-allowed" title="13씬 이후 생성 이미지는 유저 교체가 비활성화되어 있습니다.">
+                                                                보호됨
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 )
@@ -8788,16 +8785,22 @@ export default function StdPortalPage() {
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
                                                             <span className="text-xl">{inRequiredZone ? '🎬' : '🖼️'}</span>
-                                                            <span className="text-xs font-bold text-gray-400">{inRequiredZone ? '영상만 등록 가능' : '에셋 없음'}</span>
-                                                            <label className="cursor-pointer mt-1 px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-[11px] font-bold transition-all">
-                                                                📁 {inRequiredZone ? '영상 업로드' : '이미지 업로드'}
-                                                                <input
-                                                                    type="file"
-                                                                    accept={inRequiredZone ? 'video/*' : 'image/*,video/*'}
-                                                                    className="hidden"
-                                                                    onChange={e => uploadAsset(scene, inRequiredZone ? 'video' : 'image', e.target.files?.[0] || null)}
-                                                                />
-                                                            </label>
+                                                            <span className="text-xs font-bold text-gray-400">{inRequiredZone ? '영상만 등록 가능' : '생성 이미지 보호됨'}</span>
+                                                            {inRequiredZone ? (
+                                                                <label className="cursor-pointer mt-1 px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-[11px] font-bold transition-all">
+                                                                    📁 영상 업로드
+                                                                    <input
+                                                                        type="file"
+                                                                        accept="video/*"
+                                                                        className="hidden"
+                                                                        onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
+                                                                    />
+                                                                </label>
+                                                            ) : (
+                                                                <span className="mt-1 px-3 py-1 bg-emerald-950/20 border border-emerald-500/20 text-emerald-300/90 rounded text-[11px] font-bold">
+                                                                    🔒 교체 불가
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
