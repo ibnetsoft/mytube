@@ -9,7 +9,9 @@ const ROUTE_REVISION = 'std-topics-final-eligibility-guard-2026-09-06'
 
 function isUnclaimedPendingTopic(topic: any): boolean {
     const assignee = String(topic?.assigned_employee_email || '').trim()
-    return String(topic?.status || '') === 'pending' && !topic?.assigned_at && assignee.length === 0
+    const assignedAt = topic?.assigned_at
+    const hasAssignedAt = assignedAt !== null && assignedAt !== undefined && String(assignedAt).trim().length > 0
+    return String(topic?.status || '') === 'pending' && !hasAssignedAt && assignee.length === 0
 }
 
 function topicMatchesPreferredCategory(topic: any, preferredCategories: Set<string>): boolean {
@@ -105,26 +107,33 @@ export async function GET(req: Request) {
     const refresh = ['1', 'true', 'yes'].includes(String(searchParams.get('refresh') || '').toLowerCase())
     const filterDuration = String(searchParams.get('filter_duration') || '')
     const filters = new Set(filterDuration.split(',').map((item) => item.trim()).filter(Boolean))
+    const routeFilters = {
+        ignore_duration: filters.has('duration_ignore'),
+        ignore_language: filters.has('language_ignore'),
+        ignore_category: filters.has('category_ignore'),
+    }
 
     try {
+        if (refresh) {
+            const directTopics = await loadDirectPreparedTopics(limit, auth.requester.profile, routeFilters)
+            if (directTopics.length > 0) {
+                const debug = searchParams.get('debug') === 'eligibility'
+                    ? await inspectEligibilityDebug(directTopics, 20)
+                    : undefined
+                return NextResponse.json({ success: true, topics: directTopics, cached: false, revision: ROUTE_REVISION, debug })
+            }
+        }
+
         const result = await getStdRecommendedTopics({
             email: auth.requester.email,
             profile: auth.requester.profile,
             limit,
             refresh,
-            filters: {
-                ignore_duration: filters.has('duration_ignore'),
-                ignore_language: filters.has('language_ignore'),
-                ignore_category: filters.has('category_ignore'),
-            },
+            filters: routeFilters,
         })
         let topics = await filterLiveEligibleTopics(result.topics)
         if (topics.length < 1 && refresh) {
-            topics = await loadDirectPreparedTopics(limit, auth.requester.profile, {
-                ignore_duration: filters.has('duration_ignore'),
-                ignore_language: filters.has('language_ignore'),
-                ignore_category: filters.has('category_ignore'),
-            })
+            topics = await loadDirectPreparedTopics(limit, auth.requester.profile, routeFilters)
         }
         const debug = searchParams.get('debug') === 'eligibility'
             ? await inspectEligibilityDebug(result.topics, 20)
