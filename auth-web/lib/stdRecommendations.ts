@@ -115,6 +115,11 @@ function topicMatchesPreferredCategory(topic: any, preferredCategories: Set<stri
     return preferredCategories.size === 0 || preferredCategories.has(String(topic?.category_id || ''))
 }
 
+function isUnclaimedPendingTopic(topic: any): boolean {
+    const assignee = String(topic?.assigned_employee_email || '').trim()
+    return String(topic?.status || '') === 'pending' && !topic?.assigned_at && assignee.length === 0
+}
+
 function calculateTopicScore(topic: any, profile: any, requesterEmail: string, filters: Record<string, boolean>): number {
     let score = 0
     if (String(topic?.assigned_employee_email || '').toLowerCase() === requesterEmail.toLowerCase()) score += 50
@@ -173,6 +178,7 @@ async function cachedRecommendationTopics(email: string, limit: number, profile:
 
     const preferredCategories = filters.ignore_category ? new Set<string>() : preferredCategorySet(profile)
     const liveById = new Map((liveTopics || [])
+        .filter(isUnclaimedPendingTopic)
         .filter(isPreparedStdTopic)
         .filter((topic: any) => filters.ignore_category || topicMatchesPreferredCategory(topic, preferredCategories))
         .map((topic: any) => [String(topic.id), topic])
@@ -331,7 +337,7 @@ export async function getStdRecommendedTopics(options: {
     if (error) throw error
 
     // 1. 중복 제거된 준비된 주제 목록
-    const preparedTopics = deduplicateTopics((data || []).filter(isPreparedStdTopic))
+    const preparedTopics = deduplicateTopics((data || []).filter(isUnclaimedPendingTopic).filter(isPreparedStdTopic))
     const preferredCategories = options.filters.ignore_category ? new Set<string>() : preferredCategorySet(options.profile)
     const candidateTopics = preparedTopics.filter((topic: any) =>
         options.filters.ignore_category || topicMatchesPreferredCategory(topic, preferredCategories)
