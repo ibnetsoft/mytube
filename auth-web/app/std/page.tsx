@@ -5824,8 +5824,12 @@ export default function StdPortalPage() {
         image_url: '',
     }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
-    const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
-    const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
+    const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSub?.image)
+        || currentSubVisual.image_url
+        || ''
+    const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSub?.video)
+        || currentSubVisual.video_url
+        || ''
     const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
 
     useEffect(() => {

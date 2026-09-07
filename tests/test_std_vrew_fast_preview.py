@@ -60,6 +60,13 @@ def test_vrew_playback_syncs_the_current_scene_video():
     assert "playsInline" in STD_PAGE
 
 
+def test_vrew_preview_falls_back_to_the_current_scene_media_when_subtitle_media_is_stale():
+    assert "const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSub?.image)" in STD_PAGE
+    assert "|| currentSubVisual.image_url" in STD_PAGE
+    assert "const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSub?.video)" in STD_PAGE
+    assert "|| currentSubVisual.video_url" in STD_PAGE
+
+
 def test_elevenlabs_subscription_checks_use_a_short_server_cache():
     assert "ELEVENLABS_KEY_INSPECTION_TTL_MS = 60_000" in TTS_GENERATE
     assert "elevenLabsKeyInspectionCache.get(cacheKey)" in TTS_GENERATE
