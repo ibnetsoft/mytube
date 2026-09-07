@@ -34,7 +34,7 @@ function normalizeDirectTopic(topic: any) {
     const normalizedTopic = normalizeTopicJsonFields(topic)
     const summary = normalizeTopicSummary(normalizedTopic)
     const duration = Number(normalizedTopic?.duration_minutes || normalizedTopic?.recommended_duration_minutes || normalizedTopic?.assigned_duration_minutes || summary.assigned_duration_minutes || 0) || null
-    const payout = Number(normalizedTopic?.estimated_payout || summary.estimated_payout || 0) || 0
+    const payout = Number(summary.estimated_payout || 0) || 0
     const sceneCount = Number(normalizedTopic?.total_scenes || normalizedTopic?.scene_count || summary.scene_count || 53) || 53
     return {
         ...summary,

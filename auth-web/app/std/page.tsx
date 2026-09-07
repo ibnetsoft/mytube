@@ -93,7 +93,7 @@ import {
 } from '@/lib/stdSubtitles'
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
-import { calculateLongformPayoutByScenes, capLongformPayout } from '@/lib/stdPayoutPolicy'
+import { calculateLongformPayoutByScenes } from '@/lib/stdPayoutPolicy'
 
 type Topic = {
     id: number
@@ -596,20 +596,7 @@ export default function StdPortalPage() {
         )
     )
     const getTopicPayoutUsdt = (topic: any): number => {
-        const sceneCount = Number(topic?.scene_count ?? topic?.total_scenes ?? 0)
-        if (Number.isFinite(sceneCount) && sceneCount > 0) {
-            return calculateLongformPayoutByScenes(sceneCount)
-        }
-        const raw = Number(
-            topic?.adjusted_payout_usdt
-            ?? topic?.adjusted_payout
-            ?? topic?.estimated_payout_usdt
-            ?? topic?.estimated_payout
-            ?? 0
-        )
-        if (!Number.isFinite(raw) || raw <= 0) return 4
-        const usdt = raw >= 1000 ? raw / 1000 : raw
-        return capLongformPayout(usdt)
+        return calculateLongformPayoutByScenes(topic?.scene_count ?? topic?.total_scenes ?? 0)
     }
     const formatTopicPayout = (topic: any): string => {
         const amount = getTopicPayoutUsdt(topic)

@@ -46,7 +46,7 @@ function normalizePayoutUsdt(value: any): number {
 async function loadPolicy(): Promise<Record<string, any>> {
     const defaults: Record<string, any> = {
         sys_api_longform_min_duration_minutes: '15',
-        sys_api_longform_base_payout: '4',
+        sys_api_longform_base_payout: '2.5',
         sys_api_longform_extra_minute_payout: '0',
         sys_api_longform_payout_tiers: DEFAULT_LONGFORM_PAYOUT_TIERS_JSON,
         sys_api_longform_duration_lock_enabled: 'true',
@@ -85,7 +85,7 @@ function normalizeTopicForStd(topic: any, policy: Record<string, any>, payoutMul
         ? calculateLongformPayoutByScenes(summary.scene_count || 53)
         : normalizePayoutUsdt(topic?.estimated_payout)
     const adjustedPayout = videoType === 'longform'
-        ? capLongformPayout(estimatedPayout * payoutMultiplier)
+        ? capLongformPayout(estimatedPayout)
         : Math.round(estimatedPayout * payoutMultiplier * 10) / 10
 
     return {

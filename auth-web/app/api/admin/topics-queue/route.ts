@@ -924,16 +924,9 @@ export async function POST(req: Request) {
                     duration_locked: durationLockEnabled,
                     estimated_payout: estimatedPayout,
                     payout_policy: {
-                        basis: 'scene_count',
-                        scene_count: 53,
-                        max_payout_usdt: 10,
-                        tiers: [
-                            { max_scenes: 40, payout_usdt: 3 },
-                            { max_scenes: 70, payout_usdt: 4 },
-                            { max_scenes: 100, payout_usdt: 5 },
-                            { max_scenes: 150, payout_usdt: 7 },
-                            { max_scenes: 220, payout_usdt: 10 },
-                        ],
+                        basis: 'fixed',
+                        payout_usdt: estimatedPayout,
+                        scene_count_independent: true,
                     },
                     duration_reason: typeof item === 'string' ? '' : (item?.duration_reason || ''),
                     difficulty_level: typeof item === 'string' ? 'normal' : (item?.difficulty_level || 'normal')
