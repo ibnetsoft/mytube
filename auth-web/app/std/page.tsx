@@ -839,12 +839,17 @@ export default function StdPortalPage() {
     const [audioResultUrl, setAudioResultUrl] = useState('')
     const [audioDurationSeconds, setAudioDurationSeconds] = useState(0)
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
+    const [isBodyImageSectionOpen, setIsBodyImageSectionOpen] = useState(false)
     const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
     const projectMediaObjectUrlsRef = useRef<Record<string, string>>({})
 
     useEffect(() => {
         setAudioDurationSeconds(0)
     }, [audioResultUrl])
+
+    useEffect(() => {
+        setIsBodyImageSectionOpen(false)
+    }, [selectedProject?.project?.id])
 
     useEffect(() => {
         setVrewNarrationVoice(prev => prev || selectedVoice)
@@ -8536,49 +8541,62 @@ export default function StdPortalPage() {
                                                     본문 이미지 구간 (씬 13 ~ {selectedProject.scenes.length})
                                                 </span>
                                             </div>
-                                            <span className="text-[10px] text-gray-400 font-mono">
-                                                고정: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[10px] text-gray-400 font-mono">
+                                                    고정: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsBodyImageSectionOpen(prev => !prev)}
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-300 hover:border-amber-400/70 hover:bg-amber-500/15 transition-colors"
+                                                    aria-expanded={isBodyImageSectionOpen}
+                                                >
+                                                    {isBodyImageSectionOpen ? '접기' : '펼치기'}
+                                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBodyImageSectionOpen ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                                            {selectedProject.scenes.slice(12).map((scene: any, offsetIdx: number) => {
-                                                const idx = offsetIdx + 12
-                                                const sNum = scene.scene_number || idx + 1
-                                                const isReady = Boolean(scene.image_url || scene.video_url)
-                                                const isUploading = uploadingKey.startsWith(`${sNum}-`)
-                                                return (
-                                                    <div
-                                                        key={scene.id || idx}
-                                                        className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between min-h-[76px] ${
-                                                            isReady
-                                                                ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
-                                                                : 'bg-[#181d26] border-amber-500/30 hover:border-amber-400/60 shadow-sm'
-                                                        }`}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10">
-                                                                #{sNum}
-                                                            </span>
-                                                            <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
-                                                                {isReady ? '🔒 이미지 고정' : isUploading ? '처리 중...' : '이미지 없음'}
-                                                            </span>
+                                        {isBodyImageSectionOpen && (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                                                {selectedProject.scenes.slice(12).map((scene: any, offsetIdx: number) => {
+                                                    const idx = offsetIdx + 12
+                                                    const sNum = scene.scene_number || idx + 1
+                                                    const isReady = Boolean(scene.image_url || scene.video_url)
+                                                    const isUploading = uploadingKey.startsWith(`${sNum}-`)
+                                                    return (
+                                                        <div
+                                                            key={scene.id || idx}
+                                                            className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between min-h-[76px] ${
+                                                                isReady
+                                                                    ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
+                                                                    : 'bg-[#181d26] border-amber-500/30 hover:border-amber-400/60 shadow-sm'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-white/5 text-gray-300 border border-white/10">
+                                                                    #{sNum}
+                                                                </span>
+                                                                <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
+                                                                    {isReady ? '🔒 이미지 고정' : isUploading ? '처리 중...' : '이미지 없음'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const el = document.getElementById(`prompt-card-${idx}`)
+                                                                        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-white transition-colors"
+                                                                >
+                                                                    보기
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const el = document.getElementById(`prompt-card-${idx}`)
-                                                                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                                                }}
-                                                                className="text-gray-400 hover:text-white transition-colors"
-                                                            >
-                                                                보기
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
