@@ -870,6 +870,7 @@ export default function StdPortalPage() {
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
@@ -2561,6 +2562,7 @@ export default function StdPortalPage() {
             vrewAudioRef.current.load()
             vrewAudioRef.current = null
         }
+        vrewPreviewVideoRef.current?.pause()
         setIsPlayingPreview(false)
         setVrewActiveTokenIndex(-1)
     }
@@ -5824,6 +5826,19 @@ export default function StdPortalPage() {
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
     const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
     const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
+    const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
+
+    useEffect(() => {
+        const video = vrewPreviewVideoRef.current
+        if (!video) return
+        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview || !currentSubVideoUrl) {
+            video.pause()
+            return
+        }
+        video.currentTime = 0
+        void video.play().catch(() => {})
+    }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
+
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     const bgmAsset = selectedProject?.assets?.find((asset: any) =>
         asset.asset_type === 'bgm' && asset.id === bgmSfxSettings.bgm_asset_id
@@ -7818,10 +7833,12 @@ export default function StdPortalPage() {
                                         >
                                             {currentSubVideoUrl ? (
                                                 <video
+                                                    ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
                                                     className="w-full h-full object-cover"
                                                     controls
                                                     muted
+                                                    playsInline
                                                 />
                                             ) : currentSubImageUrl ? (
                                                 <img

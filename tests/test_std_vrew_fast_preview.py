@@ -51,6 +51,15 @@ def test_vrew_preview_deduplicates_requests_and_prefetches_upcoming_segments():
     assert "prefetchVrewSegment(selectedSubIndex)" in STD_PAGE
 
 
+def test_vrew_playback_syncs_the_current_scene_video():
+    assert "const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)" in STD_PAGE
+    assert "vrewPreviewVideoRef.current?.pause()" in STD_PAGE
+    assert "const currentPreviewSceneNumber" in STD_PAGE
+    assert "void video.play().catch(() => {})" in STD_PAGE
+    assert "ref={vrewPreviewVideoRef}" in STD_PAGE
+    assert "playsInline" in STD_PAGE
+
+
 def test_elevenlabs_subscription_checks_use_a_short_server_cache():
     assert "ELEVENLABS_KEY_INSPECTION_TTL_MS = 60_000" in TTS_GENERATE
     assert "elevenLabsKeyInspectionCache.get(cacheKey)" in TTS_GENERATE
