@@ -1656,6 +1656,17 @@ export default function StdPortalPage() {
         return str.startsWith('blob:') ? str : sanitizeAssetUrl(str)
     }
 
+    const isPlayablePreviewVideoUrl = (url: string | null | undefined): boolean => {
+        const value = String(url || '').trim()
+        if (!value) return false
+        try {
+            const parsed = new URL(value, window.location.origin)
+            return !(parsed.hostname.toLowerCase() === 'drive.google.com' && /^\/file\/d\//.test(parsed.pathname))
+        } catch {
+            return false
+        }
+    }
+
     const driveFileViewLink = (fileId: string | null | undefined): string | null => {
         const id = String(fileId || '').trim()
         return id ? `https://drive.google.com/file/d/${id}/view` : null
@@ -5827,9 +5838,12 @@ export default function StdPortalPage() {
     const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSub?.image)
         || currentSubVisual.image_url
         || ''
-    const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSub?.video)
+    const currentSubVideoCandidate = runtimeAssetUrl(currentSub?.video_url || currentSub?.video)
         || currentSubVisual.video_url
         || ''
+    const currentSubVideoUrl = isPlayablePreviewVideoUrl(currentSubVideoCandidate)
+        ? currentSubVideoCandidate
+        : ''
     const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
 
     useEffect(() => {
