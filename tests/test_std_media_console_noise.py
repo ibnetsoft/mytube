@@ -42,8 +42,6 @@ def test_unlisted_cached_project_is_restored_without_a_failing_detail_request():
     assert STD_PAGE.index(cache_restore) < STD_PAGE.index(server_fetch)
 
 
-def test_optional_project_open_uses_a_non_error_response_when_cache_can_recover():
-    assert "'X-Std-Project-Open': '1'" in STD_PAGE
-    assert "const isOptionalOpenRequest = req.headers.get('x-std-project-open') === '1'" in PROJECT_ROUTE
-    assert "if (isOptionalOpenRequest)" in PROJECT_ROUTE
+def test_missing_project_detail_has_a_non_error_response_for_cache_recovery():
+    assert "Project not found" not in PROJECT_ROUTE.split("export async function PATCH", 1)[0]
     assert "return new NextResponse(null, { status: 204" in PROJECT_ROUTE

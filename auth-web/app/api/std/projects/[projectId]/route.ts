@@ -96,7 +96,6 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!auth.ok) return auth.response
 
     const url = new URL(req.url)
-    const isOptionalOpenRequest = req.headers.get('x-std-project-open') === '1'
     const impersonateTarget = (req.headers.get('x-impersonate-email') || url.searchParams.get('impersonate') || url.searchParams.get('email') || '').trim().toLowerCase()
     let query = supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId)
     if (auth.requester.email && !auth.requester.email.startsWith('admin') && !auth.requester.email.startsWith('worker')) {
@@ -111,10 +110,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) {
-        if (isOptionalOpenRequest) {
-            return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
-        }
-        return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
+        return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     }
 
     const originalWorkerScript = await resolveOriginalWorkerScript(project)
