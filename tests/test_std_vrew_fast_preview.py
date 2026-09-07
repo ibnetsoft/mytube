@@ -26,6 +26,14 @@ def test_vrew_preview_persists_the_same_audio_in_background():
     assert ".eq('metadata->>cache_key', cacheKey)" in SEGMENT_CACHE
 
 
+def test_vrew_cached_preview_fetches_authenticated_audio_before_playback():
+    assert "isSameOriginApiAudioUrl(audioUrl)" in STD_PAGE
+    assert "fetchVrewAudioBlobUrl(audioUrl)" in STD_PAGE
+    assert "...authedJsonHeaders" in STD_PAGE
+    assert "Accept: 'audio/mpeg'" in STD_PAGE
+    assert "return URL.createObjectURL(audioBlob)" in STD_PAGE
+
+
 def test_vrew_preview_deduplicates_requests_and_prefetches_upcoming_segments():
     assert "vrewAudioPromiseRef" in STD_PAGE
     assert "return await inFlightRequest" in STD_PAGE

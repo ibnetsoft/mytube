@@ -2608,6 +2608,34 @@ export default function StdPortalPage() {
         }
     }
 
+    const isSameOriginApiAudioUrl = (audioUrl: string) => {
+        if (audioUrl.startsWith('/api/')) return true
+        try {
+            const parsed = new URL(audioUrl, window.location.origin)
+            return parsed.origin === window.location.origin && parsed.pathname.startsWith('/api/')
+        } catch {
+            return false
+        }
+    }
+
+    const fetchVrewAudioBlobUrl = async (audioUrl: string) => {
+        const res = await fetch(audioUrl, {
+            headers: {
+                ...authedJsonHeaders,
+                Accept: 'audio/mpeg',
+            },
+        })
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => '')
+            throw new Error(errorText || `자막 구간 음성 파일을 불러오지 못했습니다. (${res.status})`)
+        }
+        const audioBlob = await res.blob()
+        if (audioBlob.size < 256) {
+            throw new Error('자막 구간 음성 파일이 비어 있습니다.')
+        }
+        return URL.createObjectURL(audioBlob)
+    }
+
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
@@ -2658,6 +2686,8 @@ export default function StdPortalPage() {
                 void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
                     console.warn('[STD Vrew subtitles] background segment cache failed:', error)
                 })
+            } else if (isSameOriginApiAudioUrl(audioUrl)) {
+                audioUrl = await fetchVrewAudioBlobUrl(audioUrl)
             }
             vrewAudioCacheRef.current[cacheKey] = audioUrl
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
