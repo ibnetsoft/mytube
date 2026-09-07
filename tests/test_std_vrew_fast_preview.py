@@ -39,6 +39,8 @@ def test_vrew_cached_preview_regenerates_when_cached_drive_audio_fails():
     assert "segmentCacheKey && !bypassSegmentCache" in TTS_GENERATE
     assert "bypass_cache: bypassCache" in STD_PAGE
     assert "if (!payload?.cached) throw error" in STD_PAGE
+    assert "vrewBypassCachedSegmentAudioRef.current = true" in STD_PAGE
+    assert "requestSegmentAudio(vrewBypassCachedSegmentAudioRef.current)" in STD_PAGE
     assert "payload = await requestSegmentAudio(true)" in STD_PAGE
 
 

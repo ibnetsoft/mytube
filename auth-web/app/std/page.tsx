@@ -869,6 +869,7 @@ export default function StdPortalPage() {
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
+    const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -2697,13 +2698,13 @@ export default function StdPortalPage() {
                 return audioUrl
             }
 
-            let payload = await requestSegmentAudio(false)
+            let payload = await requestSegmentAudio(vrewBypassCachedSegmentAudioRef.current)
             let audioUrl = ''
             try {
                 audioUrl = await resolvePayloadAudioUrl(payload)
             } catch (error) {
                 if (!payload?.cached) throw error
-                console.warn('[STD Vrew subtitles] cached segment audio failed; regenerating preview:', error)
+                vrewBypassCachedSegmentAudioRef.current = true
                 payload = await requestSegmentAudio(true)
                 audioUrl = await resolvePayloadAudioUrl(payload)
             }
