@@ -657,6 +657,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const voiceMap = body?.voice_map || {}
         const fastSegmentPreview = body?.mode === 'vrew_segment_preview_fast'
         const segmentPreview = body?.mode === 'vrew_segment_preview' || fastSegmentPreview || body?.segment_preview === true
+        const bypassSegmentCache = Boolean(body?.bypass_cache)
         const segmentIndex = Number(body?.segment_index)
         const segmentCacheKey = segmentPreview
             ? safeFileKey(String(body?.cache_key || createHash('sha1')
@@ -671,7 +672,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 }))
                 .digest('hex')))
             : ''
-        if (segmentPreview && segmentCacheKey) {
+        if (segmentPreview && segmentCacheKey && !bypassSegmentCache) {
             stage = 'lookup_segment_cache'
             const { data: cachedAsset, error: cachedAssetError } = await supabaseAdmin
                 .from('std_project_assets')

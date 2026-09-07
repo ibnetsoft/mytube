@@ -2655,39 +2655,57 @@ export default function StdPortalPage() {
 
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
         const generationPromise = (async () => {
-            const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
-                method: 'POST',
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    mode: 'vrew_segment_preview_fast',
-                    provider: voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
-                    voice_id: voiceId,
-                    model_id: 'eleven_multilingual_v2',
-                    speed: Number(ttsSpeed),
-                    stability: Number(elStability),
-                    style: Number(elStyle),
-                    text,
-                    segment_index: index,
-                    cache_key: cacheKey,
-                    multi_voice: false,
-                    voice_map: {},
-                }),
-            })
-            const payload = await safeParseJson(res, '자막 구간 TTS 생성 실패')
-            if (!res.ok || payload?.success === false || !payload?.audio_url) {
-                throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
+            const requestSegmentAudio = async (bypassCache = false) => {
+                const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                    method: 'POST',
+                    headers: authedJsonHeaders,
+                    body: JSON.stringify({
+                        mode: 'vrew_segment_preview_fast',
+                        provider: voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
+                        voice_id: voiceId,
+                        model_id: 'eleven_multilingual_v2',
+                        speed: Number(ttsSpeed),
+                        stability: Number(elStability),
+                        style: Number(elStyle),
+                        text,
+                        segment_index: index,
+                        cache_key: cacheKey,
+                        bypass_cache: bypassCache,
+                        multi_voice: false,
+                        voice_map: {},
+                    }),
+                })
+                const payload = await safeParseJson(res, '자막 구간 TTS 생성 실패')
+                if (!res.ok || payload?.success === false || !payload?.audio_url) {
+                    throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
+                }
+                return payload
             }
 
-            let audioUrl = String(payload.audio_url)
-            if (audioUrl.startsWith('data:audio/')) {
-                const inlineAudioRes = await fetch(audioUrl)
-                const audioBlob = await inlineAudioRes.blob()
-                audioUrl = URL.createObjectURL(audioBlob)
-                void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
-                    console.warn('[STD Vrew subtitles] background segment cache failed:', error)
-                })
-            } else if (isSameOriginApiAudioUrl(audioUrl)) {
-                audioUrl = await fetchVrewAudioBlobUrl(audioUrl)
+            const resolvePayloadAudioUrl = async (payload: any) => {
+                let audioUrl = String(payload.audio_url)
+                if (audioUrl.startsWith('data:audio/')) {
+                    const inlineAudioRes = await fetch(audioUrl)
+                    const audioBlob = await inlineAudioRes.blob()
+                    audioUrl = URL.createObjectURL(audioBlob)
+                    void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
+                        console.warn('[STD Vrew subtitles] background segment cache failed:', error)
+                    })
+                } else if (isSameOriginApiAudioUrl(audioUrl)) {
+                    audioUrl = await fetchVrewAudioBlobUrl(audioUrl)
+                }
+                return audioUrl
+            }
+
+            let payload = await requestSegmentAudio(false)
+            let audioUrl = ''
+            try {
+                audioUrl = await resolvePayloadAudioUrl(payload)
+            } catch (error) {
+                if (!payload?.cached) throw error
+                console.warn('[STD Vrew subtitles] cached segment audio failed; regenerating preview:', error)
+                payload = await requestSegmentAudio(true)
+                audioUrl = await resolvePayloadAudioUrl(payload)
             }
             vrewAudioCacheRef.current[cacheKey] = audioUrl
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))

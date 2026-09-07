@@ -34,6 +34,14 @@ def test_vrew_cached_preview_fetches_authenticated_audio_before_playback():
     assert "return URL.createObjectURL(audioBlob)" in STD_PAGE
 
 
+def test_vrew_cached_preview_regenerates_when_cached_drive_audio_fails():
+    assert "const bypassSegmentCache = Boolean(body?.bypass_cache)" in TTS_GENERATE
+    assert "segmentCacheKey && !bypassSegmentCache" in TTS_GENERATE
+    assert "bypass_cache: bypassCache" in STD_PAGE
+    assert "if (!payload?.cached) throw error" in STD_PAGE
+    assert "payload = await requestSegmentAudio(true)" in STD_PAGE
+
+
 def test_vrew_preview_deduplicates_requests_and_prefetches_upcoming_segments():
     assert "vrewAudioPromiseRef" in STD_PAGE
     assert "return await inFlightRequest" in STD_PAGE
