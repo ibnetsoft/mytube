@@ -2906,6 +2906,7 @@ export default function StdPortalPage() {
             && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
             && (asset?.id || asset?.drive_file_id)
         )
+        const restoreHeaders = { ...headers, 'X-Std-Media-Restore': '1' }
 
         const driveEntries = await Promise.all(mediaAssets.map(async (asset: any) => {
             const cacheKey = projectAssetCacheKey(projectId, asset)
@@ -2920,8 +2921,8 @@ export default function StdPortalPage() {
                 const query = assetId
                     ? `assetId=${encodeURIComponent(assetId)}`
                     : `driveFileId=${encodeURIComponent(driveFileId)}`
-                const res = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers })
-                if (!res.ok) return null
+                const res = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers: restoreHeaders })
+                if (!res.ok || res.status === 204) return null
                 const blob = await res.blob()
                 const objectUrl = URL.createObjectURL(blob)
                 projectMediaObjectUrlsRef.current[cacheKey] = objectUrl

@@ -38,6 +38,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!auth.ok) return auth.response
 
     const url = new URL(req.url)
+    const isMediaRestoreRequest = req.headers.get('x-std-media-restore') === '1'
     const assetId = String(url.searchParams.get('assetId') || '').trim()
     const driveFileId = String(url.searchParams.get('driveFileId') || '').trim()
     if (!assetId && !driveFileId) {
@@ -69,6 +70,10 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         fileBuffer = await downloadStdDriveFile(targetDriveFileId)
     } catch (error: any) {
         console.warn('[STD Asset File] Drive download failed:', error?.message)
+        if (isMediaRestoreRequest) {
+            // Project hydration can safely continue without stale Drive media.
+            return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+        }
         return NextResponse.json({
             success: false,
             error: 'Asset file could not be loaded from Drive',

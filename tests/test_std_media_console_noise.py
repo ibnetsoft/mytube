@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STD_PAGE = (ROOT / "auth-web" / "app" / "std" / "page.tsx").read_text(encoding="utf-8")
+ASSET_ROUTE = (ROOT / "auth-web" / "app" / "api" / "std" / "projects" / "[projectId]" / "assets" / "file" / "route.ts").read_text(encoding="utf-8")
 
 
 def test_std_media_api_urls_are_not_rendered_directly_after_restore_failures():
@@ -20,3 +21,12 @@ def test_subtitle_scene_cards_do_not_restore_direct_asset_api_urls():
     assert "video_url: visual.video_url || runtimeAssetUrl(sub?.video_url || sub?.video) || null" in STD_PAGE
     assert "group.image_url = visual.image_url || runtimeAssetUrl(sub?.image_url || sub?.image) || ''" in STD_PAGE
     assert "group.video_url = visual.video_url || runtimeAssetUrl(sub?.video_url || sub?.video) || null" in STD_PAGE
+
+
+def test_failed_drive_media_restore_does_not_emit_browser_404s():
+    assert "const restoreHeaders = { ...headers, 'X-Std-Media-Restore': '1' }" in STD_PAGE
+    assert "{ headers: restoreHeaders }" in STD_PAGE
+    assert "if (!res.ok || res.status === 204) return null" in STD_PAGE
+    assert "const isMediaRestoreRequest = req.headers.get('x-std-media-restore') === '1'" in ASSET_ROUTE
+    assert "if (isMediaRestoreRequest)" in ASSET_ROUTE
+    assert "return new NextResponse(null, { status: 204" in ASSET_ROUTE
