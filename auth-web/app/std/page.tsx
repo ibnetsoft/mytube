@@ -4370,7 +4370,10 @@ export default function StdPortalPage() {
         const activeImpEmail = overrideImpEmail || (isImpersonating ? impersonateEmail : '')
         if (!activeImpEmail) rememberActiveProjectId(requestedProjectId)
         const impQuery = activeImpEmail ? `?impersonate=${encodeURIComponent(activeImpEmail)}` : ''
-        const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${targetToken}` }
+        const fetchHeaders: Record<string, string> = {
+            Authorization: `Bearer ${targetToken}`,
+            'X-Std-Project-Open': '1',
+        }
         if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
         try {
             stopVrewPlayback()

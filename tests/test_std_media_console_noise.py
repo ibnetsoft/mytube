@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STD_PAGE = (ROOT / "auth-web" / "app" / "std" / "page.tsx").read_text(encoding="utf-8")
 ASSET_ROUTE = (ROOT / "auth-web" / "app" / "api" / "std" / "projects" / "[projectId]" / "assets" / "file" / "route.ts").read_text(encoding="utf-8")
+PROJECT_ROUTE = (ROOT / "auth-web" / "app" / "api" / "std" / "projects" / "[projectId]" / "route.ts").read_text(encoding="utf-8")
 
 
 def test_std_media_api_urls_are_not_rendered_directly_after_restore_failures():
@@ -39,3 +40,10 @@ def test_unlisted_cached_project_is_restored_without_a_failing_detail_request():
     assert cache_restore in STD_PAGE
     assert server_fetch in STD_PAGE
     assert STD_PAGE.index(cache_restore) < STD_PAGE.index(server_fetch)
+
+
+def test_optional_project_open_uses_a_non_error_response_when_cache_can_recover():
+    assert "'X-Std-Project-Open': '1'" in STD_PAGE
+    assert "const isOptionalOpenRequest = req.headers.get('x-std-project-open') === '1'" in PROJECT_ROUTE
+    assert "if (isOptionalOpenRequest)" in PROJECT_ROUTE
+    assert "return new NextResponse(null, { status: 204" in PROJECT_ROUTE
