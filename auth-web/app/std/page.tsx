@@ -9026,32 +9026,16 @@ export default function StdPortalPage() {
                                                     {topic.generated_title || topic.topic}
                                                 </h4>
 
-                                                {/* 원본 주제 요약 */}
-                                                <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
-                                                    {topic.topic}
-                                                </p>
                                             </div>
 
-                                            {/* 하단 메타 태그 & 작업 버튼 */}
-                                            <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
+                                            {/* 하단 메타 태그 */}
+                                            <div className="mt-4 pt-3 border-t border-white/5">
                                                 <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
                                                     <span className="flex items-center gap-1">
                                                         <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
                                                     </span>
                                                     <span className="text-cyan-400">{topic.scene_count || 53} Scenes</span>
                                                 </div>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        setSelectedTopicForModal(topic)
-                                                        setTopicModalOpen(true)
-                                                    }}
-                                                    className="w-full py-2 bg-[#202632] group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-indigo-600 text-gray-300 group-hover:text-white rounded-xl text-xs font-bold transition-all shadow"
-                                                >
-                                                    주제 상세 확인 & 작업 시작 →
-                                                </button>
                                             </div>
                                         </div>
                                     ))}
