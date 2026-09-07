@@ -661,6 +661,24 @@ export default function StdPortalPage() {
         return null
     }
 
+    const isProjectAssetFileUrl = (url: string | null | undefined): boolean => {
+        const str = String(url || '').trim()
+        if (!str) return false
+        if (str.startsWith('/api/std/') && str.includes('/assets/file?')) return true
+        try {
+            const parsed = new URL(str, window.location.origin)
+            return parsed.origin === window.location.origin
+                && parsed.pathname.includes('/api/std/')
+                && parsed.pathname.endsWith('/assets/file')
+        } catch {
+            return false
+        }
+    }
+
+    const keepRenderableMediaUrl = (url: string | null | undefined): string | null => {
+        return isProjectAssetFileUrl(url) ? null : sanitizeAssetUrl(url)
+    }
+
     const buildPersistentProjectState = (projectPayload: SelectedProjectPayload): SelectedProjectPayload => {
         const projectId = String(projectPayload?.project?.id || '').trim()
         if (!projectId) return projectPayload
@@ -669,34 +687,15 @@ export default function StdPortalPage() {
         const repairedSubtitles = Array.isArray(storedSubtitles)
             ? repairSubtitleItemQuoteBoundaries(storedSubtitles)
             : storedSubtitles
-        const latestBySceneType = new Map<string, any>()
-        ;(projectPayload.assets || [])
-            .filter((asset: any) => ['uploaded', 'assigned'].includes(String(asset?.status || '')))
-            .forEach((asset: any) => {
-                const sceneNumber = Number(asset?.scene_number)
-                const assetType = String(asset?.asset_type || '').toLowerCase()
-                if (!Number.isFinite(sceneNumber) || !['image', 'video'].includes(assetType)) return
-                const key = `${sceneNumber}:${assetType}`
-                if (!latestBySceneType.has(key)) latestBySceneType.set(key, asset)
-            })
-
-        const thumbnailAsset = (projectPayload.assets || []).find((asset: any) =>
-            String(asset?.asset_type || '').toLowerCase() === 'thumbnail'
-            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
-        )
-        const persistentThumbnailUrl = projectAssetFileUrl(projectId, thumbnailAsset)
-            || sanitizeAssetUrl(projectPayload.project?.progress_payload?.thumbnail_url)
+        const persistentThumbnailUrl = keepRenderableMediaUrl(projectPayload.project?.progress_payload?.thumbnail_url)
 
         return {
             ...projectPayload,
             scenes: (projectPayload.scenes || []).map((scene: any) => {
-                const sceneNumber = Number(scene?.scene_number)
-                const imageAsset = latestBySceneType.get(`${sceneNumber}:image`)
-                const videoAsset = latestBySceneType.get(`${sceneNumber}:video`)
                 return {
                     ...scene,
-                    image_url: projectAssetFileUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image),
-                    video_url: projectAssetFileUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video),
+                    image_url: keepRenderableMediaUrl(scene?.image_url || scene?.image),
+                    video_url: keepRenderableMediaUrl(scene?.video_url || scene?.video),
                 }
             }),
             project: {
@@ -1671,24 +1670,9 @@ export default function StdPortalPage() {
     }
 
     const mergeAssetsIntoScenes = (scenes: any[], assets: any[] = [], projectId?: string | null) => {
-        const latestBySceneType = new Map<string, any>()
-        ;(assets || [])
-            .filter((asset: any) => ['uploaded', 'assigned'].includes(asset?.status))
-            .forEach((asset: any) => {
-                const sceneNumber = Number(asset?.scene_number)
-                if (!Number.isFinite(sceneNumber)) return
-                const assetType = String(asset?.asset_type || '').toLowerCase()
-                if (!['image', 'video'].includes(assetType)) return
-                const key = `${sceneNumber}:${assetType}`
-                if (!latestBySceneType.has(key)) latestBySceneType.set(key, asset)
-            })
-
         return (scenes || []).map((scene: any) => {
-            const sceneNumber = Number(scene?.scene_number)
-            const imageAsset = latestBySceneType.get(`${sceneNumber}:image`)
-            const videoAsset = latestBySceneType.get(`${sceneNumber}:video`)
-            const imageUrl = assetDisplayUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image)
-            const videoUrl = assetDisplayUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video)
+            const imageUrl = keepRenderableMediaUrl(scene?.image_url || scene?.image)
+            const videoUrl = keepRenderableMediaUrl(scene?.video_url || scene?.video)
             return {
                 ...scene,
                 image_url: imageUrl,
@@ -2963,12 +2947,9 @@ export default function StdPortalPage() {
             restoredMap.set(`${sceneNumber}:${assetType}`, entry.objectUrl)
         }
 
-        const thumbnailAsset = assets.find((asset: any) =>
-            String(asset?.asset_type || '').toLowerCase() === 'thumbnail' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
-        )
-        const fallbackThumbnailUrl = sanitizeAssetUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
-        if (restoredThumbnailUrl || fallbackThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset)) {
-            setThumbBgUrl(restoredThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset) || fallbackThumbnailUrl)
+        const fallbackThumbnailUrl = keepRenderableMediaUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
+        if (restoredThumbnailUrl || fallbackThumbnailUrl) {
+            setThumbBgUrl(restoredThumbnailUrl || fallbackThumbnailUrl)
             setThumbBgUploadFile(null)
         }
 
@@ -2985,9 +2966,9 @@ export default function StdPortalPage() {
                 const restoredVideoUrl = restoredMap.get(`${sceneNumber}:video`)
                 return {
                     ...scene,
-                    image_url: restoredImageUrl || scene.image_url || null,
-                    video_url: restoredVideoUrl || scene.video_url || null,
-                    asset_status: restoredImageUrl || restoredVideoUrl || scene.image_url || scene.video_url
+                    image_url: restoredImageUrl || keepRenderableMediaUrl(scene.image_url) || null,
+                    video_url: restoredVideoUrl || keepRenderableMediaUrl(scene.video_url) || null,
+                    asset_status: restoredImageUrl || restoredVideoUrl || keepRenderableMediaUrl(scene.image_url) || keepRenderableMediaUrl(scene.video_url)
                         ? 'ready'
                         : (scene.asset_status || 'missing'),
                 }
@@ -3003,8 +2984,8 @@ export default function StdPortalPage() {
                 const sceneNumber = Number(scene?.scene_number)
                 return {
                     ...scene,
-                    image_url: restoredMap.get(`${sceneNumber}:image`) || scene?.image_url || null,
-                    video_url: restoredMap.get(`${sceneNumber}:video`) || scene?.video_url || null,
+                    image_url: restoredMap.get(`${sceneNumber}:image`) || keepRenderableMediaUrl(scene?.image_url) || null,
+                    video_url: restoredMap.get(`${sceneNumber}:video`) || keepRenderableMediaUrl(scene?.video_url) || null,
                 }
             }),
             project: {
