@@ -1651,6 +1651,7 @@ export default function StdPortalPage() {
     const runtimeAssetUrl = (url: string | null | undefined): string | null => {
         if (!url) return null
         const str = String(url).trim()
+        if (isProjectAssetFileUrl(str)) return null
         return str.startsWith('blob:') ? str : sanitizeAssetUrl(str)
     }
 
@@ -1702,10 +1703,10 @@ export default function StdPortalPage() {
             return {
                 ...currentScene,
                 ...scene,
-                image_url: sanitizeAssetUrl(scene?.image_url || scene?.image)
-                    || sanitizeAssetUrl(currentScene?.image_url || currentScene?.image),
-                video_url: sanitizeAssetUrl(scene?.video_url || scene?.video)
-                    || sanitizeAssetUrl(currentScene?.video_url || currentScene?.video),
+                image_url: keepRenderableMediaUrl(scene?.image_url || scene?.image)
+                    || keepRenderableMediaUrl(currentScene?.image_url || currentScene?.image),
+                video_url: keepRenderableMediaUrl(scene?.video_url || scene?.video)
+                    || keepRenderableMediaUrl(currentScene?.video_url || currentScene?.video),
             }
         })
         return mergeAssetsIntoScenes(mediaPreservedScenes, assets, projectId)
@@ -1985,8 +1986,8 @@ export default function StdPortalPage() {
                     end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
                     start_time: sub?.start_time || '0.0',
                     end_time: sub?.end_time || '0.0',
-                    image_url: visual.image_url || sub?.image_url || '',
-                    video_url: visual.video_url || sub?.video_url || null,
+                    image_url: visual.image_url || runtimeAssetUrl(sub?.image_url || sub?.image) || '',
+                    video_url: visual.video_url || runtimeAssetUrl(sub?.video_url || sub?.video) || null,
                     is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
                     subtitles: [],
                 }
@@ -1996,8 +1997,12 @@ export default function StdPortalPage() {
             group.lastIndex = index
             group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
             group.end_time = sub?.end_time || group.end_time
-            if (!group.image_url && (visual.image_url || sub?.image_url)) group.image_url = visual.image_url || sub.image_url
-            if (!group.video_url && (visual.video_url || sub?.video_url)) group.video_url = visual.video_url || sub.video_url
+            if (!group.image_url && (visual.image_url || sub?.image_url || sub?.image)) {
+                group.image_url = visual.image_url || runtimeAssetUrl(sub?.image_url || sub?.image) || ''
+            }
+            if (!group.video_url && (visual.video_url || sub?.video_url || sub?.video)) {
+                group.video_url = visual.video_url || runtimeAssetUrl(sub?.video_url || sub?.video) || null
+            }
             group.subtitles.push({ ...sub, subtitleIndex: index })
         })
         return groups
