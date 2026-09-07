@@ -3231,8 +3231,10 @@ export default function StdPortalPage() {
             const savedProjectStateRaw = !isImpersonating ? localStorage.getItem('std_active_project_state') : null
             const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
             const preferredProjectId = urlProjectId || savedActiveProjectId
+            const rememberedPreferredProject = preferredProjectId ? readRememberedProjectState(preferredProjectId) : null
+            const preferredProjectIsListed = Boolean(preferredProjectId && loadedProjects.some((project: any) => project.id === preferredProjectId))
 
-            if (preferredProjectId) {
+            if (preferredProjectId && preferredProjectIsListed) {
                 const openedProject = await openProject(preferredProjectId, accessToken).catch(() => null)
                 if (openedProject?.project?.id) {
                     setProjects(prev => [
@@ -3242,6 +3244,11 @@ export default function StdPortalPage() {
                 } else if (loadedProjects.length > 0) {
                     await openProject(loadedProjects[0].id, accessToken).catch(() => {})
                 }
+            } else if (rememberedPreferredProject && projectMatchesRequester(rememberedPreferredProject, email || user?.email)) {
+                setSelectedProject(rememberedPreferredProject)
+                setCustomScriptText(cleanScriptContextText(rememberedPreferredProject.project.project_payload?.script || ''))
+                rememberProjectState(rememberedPreferredProject)
+                restorePersistedProjectMedia(rememberedPreferredProject, headers).catch(() => {})
             } else if (loadedProjects.length > 0) {
                 await openProject(loadedProjects[0].id, accessToken).catch(() => {})
             } else if (savedProjectStateRaw) {

@@ -30,3 +30,9 @@ def test_failed_drive_media_restore_does_not_emit_browser_404s():
     assert "const isMediaRestoreRequest = req.headers.get('x-std-media-restore') === '1'" in ASSET_ROUTE
     assert "if (isMediaRestoreRequest)" in ASSET_ROUTE
     assert "return new NextResponse(null, { status: 204" in ASSET_ROUTE
+
+
+def test_unlisted_cached_project_is_restored_without_a_failing_detail_request():
+    assert "const preferredProjectIsListed" in STD_PAGE
+    assert "if (preferredProjectId && preferredProjectIsListed)" in STD_PAGE
+    assert "else if (rememberedPreferredProject && projectMatchesRequester(rememberedPreferredProject, email || user?.email))" in STD_PAGE
