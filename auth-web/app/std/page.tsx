@@ -661,24 +661,6 @@ export default function StdPortalPage() {
         return null
     }
 
-    const isProjectAssetFileUrl = (url: string | null | undefined): boolean => {
-        const str = String(url || '').trim()
-        if (!str) return false
-        if (str.startsWith('/api/std/') && str.includes('/assets/file?')) return true
-        try {
-            const parsed = new URL(str, window.location.origin)
-            return parsed.origin === window.location.origin
-                && parsed.pathname.includes('/api/std/')
-                && parsed.pathname.endsWith('/assets/file')
-        } catch {
-            return false
-        }
-    }
-
-    const keepRenderableMediaUrl = (url: string | null | undefined): string | null => {
-        return isProjectAssetFileUrl(url) ? null : sanitizeAssetUrl(url)
-    }
-
     const buildPersistentProjectState = (projectPayload: SelectedProjectPayload): SelectedProjectPayload => {
         const projectId = String(projectPayload?.project?.id || '').trim()
         if (!projectId) return projectPayload
@@ -687,15 +669,34 @@ export default function StdPortalPage() {
         const repairedSubtitles = Array.isArray(storedSubtitles)
             ? repairSubtitleItemQuoteBoundaries(storedSubtitles)
             : storedSubtitles
-        const persistentThumbnailUrl = keepRenderableMediaUrl(projectPayload.project?.progress_payload?.thumbnail_url)
+        const latestBySceneType = new Map<string, any>()
+        ;(projectPayload.assets || [])
+            .filter((asset: any) => ['uploaded', 'assigned'].includes(String(asset?.status || '')))
+            .forEach((asset: any) => {
+                const sceneNumber = Number(asset?.scene_number)
+                const assetType = String(asset?.asset_type || '').toLowerCase()
+                if (!Number.isFinite(sceneNumber) || !['image', 'video'].includes(assetType)) return
+                const key = `${sceneNumber}:${assetType}`
+                if (!latestBySceneType.has(key)) latestBySceneType.set(key, asset)
+            })
+
+        const thumbnailAsset = (projectPayload.assets || []).find((asset: any) =>
+            String(asset?.asset_type || '').toLowerCase() === 'thumbnail'
+            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+        )
+        const persistentThumbnailUrl = projectAssetFileUrl(projectId, thumbnailAsset)
+            || sanitizeAssetUrl(projectPayload.project?.progress_payload?.thumbnail_url)
 
         return {
             ...projectPayload,
             scenes: (projectPayload.scenes || []).map((scene: any) => {
+                const sceneNumber = Number(scene?.scene_number)
+                const imageAsset = latestBySceneType.get(`${sceneNumber}:image`)
+                const videoAsset = latestBySceneType.get(`${sceneNumber}:video`)
                 return {
                     ...scene,
-                    image_url: keepRenderableMediaUrl(scene?.image_url || scene?.image),
-                    video_url: keepRenderableMediaUrl(scene?.video_url || scene?.video),
+                    image_url: projectAssetFileUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image),
+                    video_url: projectAssetFileUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video),
                 }
             }),
             project: {
@@ -864,20 +865,15 @@ export default function StdPortalPage() {
     const [subBgOpacity, setSubBgOpacity] = useState('0.5')
     const [subBgVOffset, setSubBgVOffset] = useState('0')
     const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
-    const [workerSfxItems, setWorkerSfxItems] = useState<any[]>([])
-    const [workerSfxQuery, setWorkerSfxQuery] = useState('')
-    const [workerSfxLoading, setWorkerSfxLoading] = useState(false)
-    const [workerSfxError, setWorkerSfxError] = useState('')
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
-    const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
-    const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
+    const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
     const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
@@ -1077,7 +1073,7 @@ export default function StdPortalPage() {
     }
 
     // 8. 썸네일(Thumbnail) 제작 스튜디오 전용 상태 (유저앱 thumbnail.html 100% 동일 구현)
-    const [thumbTitle, setThumbTitle] = useState('')
+    const [thumbTitle, setThumbTitle] = useState('아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다')
     const [thumbLayout, setThumbLayout] = useState('face')
     const [thumbStyle, setThumbStyle] = useState('realistic')
     const [thumbStep, setThumbStep] = useState<number>(1)
@@ -1085,7 +1081,6 @@ export default function StdPortalPage() {
     const [thumbBgUploadFile, setThumbBgUploadFile] = useState<File | null>(null)
     const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const thumbnailDesignAppliedProjectRef = useRef('')
-    const codexThumbnailAppliedProjectRef = useRef('')
     const [thumbTextLayers, setThumbTextLayers] = useState<Array<{
         id: string
         text: string
@@ -1137,36 +1132,6 @@ export default function StdPortalPage() {
             .filter(layer => layer.text.trim())
     }
 
-    const codexThumbnailData = useMemo(() => {
-        const projectPayload = selectedProject?.project?.project_payload || {}
-        const progressPayload = selectedProject?.project?.progress_payload || {}
-        const source = projectPayload.thumbnail_copy_source || progressPayload.thumbnail_copy_source || ''
-        const hookTexts = [
-            ...(Array.isArray(projectPayload.thumbnail_hook_texts) ? projectPayload.thumbnail_hook_texts : []),
-            ...(Array.isArray(progressPayload.thumbnail_hook_texts) ? progressPayload.thumbnail_hook_texts : []),
-        ]
-            .map((text: unknown) => String(text || '').trim())
-            .filter((text: string, index: number, all: string[]) => Boolean(text) && all.indexOf(text) === index)
-            .slice(0, 3)
-        return {
-            source: String(source),
-            hookTexts,
-            reasoning: String(projectPayload.thumbnail_hook_reasoning || progressPayload.thumbnail_hook_reasoning || '').trim(),
-            imagePrompt: String(projectPayload.thumbnail_image_prompt || progressPayload.thumbnail_image_prompt || '').trim(),
-        }
-    }, [selectedProject?.project?.project_payload, selectedProject?.project?.progress_payload])
-
-    const thumbnailIdeas = useMemo(() => {
-        const badges = ['충격 폭로형', '현실 대비형', '호기심 자극형']
-        return codexThumbnailData.hookTexts.map((headline, index) => ({
-            id: `codex-idea-${index + 1}`,
-            badge: badges[index] || 'Codex 추천',
-            headline,
-            subhead: codexThumbnailData.reasoning || 'Codex가 대본을 바탕으로 만든 썸네일 문구',
-            prompt: codexThumbnailData.imagePrompt || 'Codex 이미지 프롬프트를 준비 중입니다.',
-        }))
-    }, [codexThumbnailData])
-
     useEffect(() => {
         const projectId = String(selectedProject?.project?.id || '')
         if (!projectId || thumbnailDesignAppliedProjectRef.current === projectId) return
@@ -1193,32 +1158,6 @@ export default function StdPortalPage() {
         selectedProject?.project?.progress_payload,
         selectedProject?.project?.project_payload,
     ])
-
-    useEffect(() => {
-        const projectId = String(selectedProject?.project?.id || '')
-        if (!projectId || codexThumbnailAppliedProjectRef.current === projectId) return
-        codexThumbnailAppliedProjectRef.current = projectId
-
-        const projectPayload = selectedProject?.project?.project_payload || {}
-        const progressPayload = selectedProject?.project?.progress_payload || {}
-        const hasSavedDesign = Boolean(projectPayload.thumbnail_design || progressPayload.thumbnail_design)
-        const projectTitle = String(projectPayload.generated_title || selectedProject?.project?.title || '').trim()
-        if (!hasSavedDesign && projectTitle) setThumbTitle(projectTitle)
-        if (!hasSavedDesign && codexThumbnailData.hookTexts.length) {
-            setThumbTextLayers(codexThumbnailData.hookTexts.slice(0, 2).map((text, index) => ({
-                id: `codex-layer-${projectId}-${index + 1}`,
-                text,
-                fontSize: index === 0 ? 34 : 26,
-                color: index === 0 ? '#ffeb3b' : '#ffffff',
-                strokeColor: '#000000',
-                strokeWidth: index === 0 ? 4 : 3,
-                fontFamily: 'GmarketSansBold',
-                x: 50,
-                y: index === 0 ? 35 : 65,
-            })))
-            setThumbStep(2)
-        }
-    }, [selectedProject?.project?.id, selectedProject?.project?.title, selectedProject?.project?.project_payload, selectedProject?.project?.progress_payload, codexThumbnailData])
 
     const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true, overrideScript?: string) => {
         if (!selectedProject) return false
@@ -1724,33 +1663,12 @@ export default function StdPortalPage() {
     const runtimeAssetUrl = (url: string | null | undefined): string | null => {
         if (!url) return null
         const str = String(url).trim()
-        // This endpoint authenticates through the same STD session cookie, so it is
-        // safe to use live for legacy Drive videos. Do not persist it to local state.
-        if (isProjectAssetFileUrl(str)) return str
         return str.startsWith('blob:') ? str : sanitizeAssetUrl(str)
-    }
-
-    const isPlayablePreviewVideoUrl = (url: string | null | undefined): boolean => {
-        const value = String(url || '').trim()
-        if (!value) return false
-        try {
-            const parsed = new URL(value, window.location.origin)
-            return !(parsed.hostname.toLowerCase() === 'drive.google.com' && /^\/file\/d\//.test(parsed.pathname))
-        } catch {
-            return false
-        }
     }
 
     const driveFileViewLink = (fileId: string | null | undefined): string | null => {
         const id = String(fileId || '').trim()
         return id ? `https://drive.google.com/file/d/${id}/view` : null
-    }
-
-    const driveFileIdFromUrl = (url: string | null | undefined): string | null => {
-        const value = String(url || '').trim()
-        const match = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i)
-            || value.match(/[?&]id=([^&#]+)/i)
-        return match?.[1] ? decodeURIComponent(match[1]) : null
     }
 
     const assetDisplayUrl = (projectId: string | null | undefined, asset: any): string | null => {
@@ -1764,39 +1682,24 @@ export default function StdPortalPage() {
     }
 
     const mergeAssetsIntoScenes = (scenes: any[], assets: any[] = [], projectId?: string | null) => {
-        return (scenes || []).map((scene: any) => {
-            const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
-            const sceneId = String(scene?.id || scene?.metadata?.scene_id || '').trim()
-            const assetMatchesScene = (asset: any, assetType: 'image' | 'video') => {
-                if (String(asset?.asset_type || '').toLowerCase() !== assetType) return false
-                if (!['uploaded', 'assigned'].includes(String(asset?.status || '').toLowerCase())) return false
-                if (sceneId && String(asset?.scene_id || '').trim() === sceneId) return true
-                return Number(asset?.scene_number) === sceneNumber
-            }
-            const videoAsset = (assets || []).find((asset: any) =>
-                assetMatchesScene(asset, 'video')
-            )
-            const imageAsset = (assets || []).find((asset: any) =>
-                assetMatchesScene(asset, 'image')
-            )
-            // Route saved project assets through the server so it can serve the
-            // Supabase copy first and seamlessly use the archived Drive copy when
-            // Storage retention has removed the original object.
-            const imageUrl = projectAssetFileUrl(projectId, imageAsset)
-                || keepRenderableMediaUrl(scene?.image_url || scene?.image)
-                || keepRenderableMediaUrl(imageAsset?.metadata?.storage_public_url)
-            const sceneVideoUrl = keepRenderableMediaUrl(scene?.video_url || scene?.video)
-            const sceneVideoDriveProxy = projectAssetFileUrl(projectId, {
-                drive_file_id: driveFileIdFromUrl(sceneVideoUrl),
+        const latestBySceneType = new Map<string, any>()
+        ;(assets || [])
+            .filter((asset: any) => ['uploaded', 'assigned'].includes(asset?.status))
+            .forEach((asset: any) => {
+                const sceneNumber = Number(asset?.scene_number)
+                if (!Number.isFinite(sceneNumber)) return
+                const assetType = String(asset?.asset_type || '').toLowerCase()
+                if (!['image', 'video'].includes(assetType)) return
+                const key = `${sceneNumber}:${assetType}`
+                if (!latestBySceneType.has(key)) latestBySceneType.set(key, asset)
             })
-            // A saved Drive "view" page is not a media stream. Prefer the
-            // Storage copy, then the authenticated project asset endpoint.
-            const videoUrl = projectAssetFileUrl(projectId, videoAsset)
-                || keepRenderableMediaUrl(videoAsset?.metadata?.storage_public_url)
-                || (sceneVideoUrl && !isProjectAssetFileUrl(sceneVideoUrl) && !sceneVideoUrl.includes('drive.google.com/file/d/')
-                    ? sceneVideoUrl
-                    : null)
-                || sceneVideoDriveProxy
+
+        return (scenes || []).map((scene: any) => {
+            const sceneNumber = Number(scene?.scene_number)
+            const imageAsset = latestBySceneType.get(`${sceneNumber}:image`)
+            const videoAsset = latestBySceneType.get(`${sceneNumber}:video`)
+            const imageUrl = assetDisplayUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image)
+            const videoUrl = assetDisplayUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video)
             return {
                 ...scene,
                 image_url: imageUrl,
@@ -1826,10 +1729,10 @@ export default function StdPortalPage() {
             return {
                 ...currentScene,
                 ...scene,
-                image_url: keepRenderableMediaUrl(scene?.image_url || scene?.image)
-                    || keepRenderableMediaUrl(currentScene?.image_url || currentScene?.image),
-                video_url: keepRenderableMediaUrl(scene?.video_url || scene?.video)
-                    || keepRenderableMediaUrl(currentScene?.video_url || currentScene?.video),
+                image_url: sanitizeAssetUrl(scene?.image_url || scene?.image)
+                    || sanitizeAssetUrl(currentScene?.image_url || currentScene?.image),
+                video_url: sanitizeAssetUrl(scene?.video_url || scene?.video)
+                    || sanitizeAssetUrl(currentScene?.video_url || currentScene?.video),
             }
         })
         return mergeAssetsIntoScenes(mediaPreservedScenes, assets, projectId)
@@ -1928,6 +1831,7 @@ export default function StdPortalPage() {
         }
     }
 
+    const DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES = 0
 
     const inferVisualMimeType = (file: File, assetType: 'image' | 'video' | 'thumbnail') => {
         const explicitType = String(file.type || '').trim()
@@ -2075,6 +1979,67 @@ export default function StdPortalPage() {
         return repairSubtitleItemQuoteBoundaries(normalizedSceneSubtitles)
     }
 
+    const subtitleHasValidTiming = (subtitle: any) => {
+        const start = Number.isFinite(Number(subtitle?.start_num)) ? Number(subtitle.start_num) : Number(subtitle?.start_time)
+        const end = Number.isFinite(Number(subtitle?.end_num)) ? Number(subtitle.end_num) : Number(subtitle?.end_time)
+        return Number.isFinite(start) && Number.isFinite(end) && end > start
+    }
+
+    const ensureSubtitlesHaveTiming = (subtitles: any[], scenes = selectedProject?.scenes || []) => {
+        if (!Array.isArray(subtitles) || subtitles.length === 0) return subtitles || []
+        if (subtitles.every(subtitleHasValidTiming)) return subtitles
+
+        const sceneTimings = calculateLongformSceneTimings(scenes || [])
+        const byScene = new Map<number, { subtitle: any; index: number }[]>()
+        subtitles.forEach((subtitle: any, index: number) => {
+            const sceneNumber = Number(subtitle?.scene_number || index + 1)
+            const normalizedSceneNumber = Number.isFinite(sceneNumber) && sceneNumber > 0 ? Math.floor(sceneNumber) : index + 1
+            const group = byScene.get(normalizedSceneNumber) || []
+            group.push({ subtitle, index })
+            byScene.set(normalizedSceneNumber, group)
+        })
+
+        const next = subtitles.map((subtitle: any) => ({ ...subtitle }))
+        byScene.forEach((group, sceneNumber) => {
+            const hasBrokenTiming = group.some(({ subtitle }) => !subtitleHasValidTiming(subtitle))
+            if (!hasBrokenTiming) return
+
+            const timing = sceneTimings[sceneNumber - 1] || {
+                start_time: 0,
+                end_time: group.length,
+                duration: Math.max(1, group.length),
+            }
+            const start = Number(timing.start_time)
+            const end = Number(timing.end_time)
+            const duration = Number.isFinite(Number(timing.duration)) && Number(timing.duration) > 0
+                ? Number(timing.duration)
+                : Math.max(1, end - start)
+            const weights = group.map(({ subtitle }) => Math.max(1, String(subtitle?.text || '').replace(/\s/g, '').length))
+            const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || group.length || 1
+            let elapsedWeight = 0
+
+            group.forEach(({ index }, groupIndex) => {
+                const subtitleStart = start + (duration * elapsedWeight / totalWeight)
+                elapsedWeight += weights[groupIndex]
+                const subtitleEnd = groupIndex === group.length - 1
+                    ? start + duration
+                    : start + (duration * elapsedWeight / totalWeight)
+                const roundedStart = Math.round(subtitleStart * 10) / 10
+                const roundedEnd = Math.round(Math.max(subtitleEnd, roundedStart + 0.1) * 10) / 10
+                next[index] = {
+                    ...next[index],
+                    scene_number: sceneNumber,
+                    start_num: roundedStart,
+                    end_num: roundedEnd,
+                    start_time: roundedStart.toFixed(1),
+                    end_time: roundedEnd.toFixed(1),
+                }
+            })
+        })
+
+        return next
+    }
+
     useEffect(() => {
         if (!selectedProject?.project?.id || !selectedProject?.scenes?.length) return
         setLocalSubtitles(prev => {
@@ -2108,8 +2073,8 @@ export default function StdPortalPage() {
                     end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
                     start_time: sub?.start_time || '0.0',
                     end_time: sub?.end_time || '0.0',
-                    image_url: visual.image_url || runtimeAssetUrl(sub?.image_url || sub?.image) || '',
-                    video_url: visual.video_url || runtimeAssetUrl(sub?.video_url || sub?.video) || null,
+                    image_url: visual.image_url || sub?.image_url || '',
+                    video_url: visual.video_url || sub?.video_url || null,
                     is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
                     subtitles: [],
                 }
@@ -2119,12 +2084,8 @@ export default function StdPortalPage() {
             group.lastIndex = index
             group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
             group.end_time = sub?.end_time || group.end_time
-            if (!group.image_url && (visual.image_url || sub?.image_url || sub?.image)) {
-                group.image_url = visual.image_url || runtimeAssetUrl(sub?.image_url || sub?.image) || ''
-            }
-            if (!group.video_url && (visual.video_url || sub?.video_url || sub?.video)) {
-                group.video_url = visual.video_url || runtimeAssetUrl(sub?.video_url || sub?.video) || null
-            }
+            if (!group.image_url && (visual.image_url || sub?.image_url)) group.image_url = visual.image_url || sub.image_url
+            if (!group.video_url && (visual.video_url || sub?.video_url)) group.video_url = visual.video_url || sub.video_url
             group.subtitles.push({ ...sub, subtitleIndex: index })
         })
         return groups
@@ -2519,14 +2480,28 @@ export default function StdPortalPage() {
         ))
     }
 
-    const vrewActiveTokenAtPlaybackTime = (subtitle: any, time: number) => {
-        const tokenCount = vrewTextTokens(subtitle?.text || '').length
-        const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0)
-        const end = Number(subtitle?.end_num ?? subtitle?.end_time ?? start)
-        if (!tokenCount || !Number.isFinite(start) || !Number.isFinite(end) || time < start || time > end) return -1
-        const highlightTime = Math.min(end, time + 0.06)
-        const progress = Math.max(0, Math.min(1, (highlightTime - start) / Math.max(0.1, end - start)))
-        return Math.min(tokenCount - 1, Math.floor(progress * tokenCount))
+    const renderPreviewSubtitleText = (text: string, activeTokenIndex = -1) => {
+        const tokens = String(text || '').match(/\S+\s*/g) || []
+        if (activeTokenIndex < 0 || !tokens.length) return text
+        return tokens.map((token, index) => (
+            <span
+                key={`${index}-${token}`}
+                className={index === activeTokenIndex ? 'rounded text-cyan-200' : undefined}
+                style={{
+                    display: 'inline',
+                    fontSize: 'inherit',
+                    fontWeight: 'inherit',
+                    lineHeight: 'inherit',
+                    padding: 0,
+                    margin: 0,
+                    transform: 'none',
+                    boxShadow: index === activeTokenIndex ? '0 0 0 2px rgba(255,255,255,0.18)' : undefined,
+                    backgroundColor: index === activeTokenIndex ? 'rgba(255,255,255,0.12)' : undefined,
+                }}
+            >
+                {token}
+            </span>
+        ))
     }
 
     const renderVrewSubtitleTokenEditor = (text: string, activeTokenIndex = -1) => {
@@ -2558,26 +2533,21 @@ export default function StdPortalPage() {
         onSelect: (voiceId: string) => void,
         title: string,
         tone: 'default' | 'dialogue' = 'default',
-        openDirection: 'left' | 'right' = 'right',
-        disabled = false
+        openDirection: 'left' | 'right' = 'right'
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
-        const isOpen = !disabled && openVoicePickerKey === pickerKey
+        const isOpen = openVoicePickerKey === pickerKey
         return (
             <div className="relative inline-flex">
                 <button
                     type="button"
-                    disabled={disabled}
-                    title={disabled ? '자막 섹션을 선택하면 성우를 변경할 수 있습니다.' : `${title}: ${currentVoiceName}`}
+                    title={`${title}: ${currentVoiceName}`}
                     onClick={(event) => {
                         event.stopPropagation()
-                        if (disabled) return
                         setOpenVoicePickerKey(isOpen ? '' : pickerKey)
                     }}
                     className={`w-8 h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
-                        disabled
-                            ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
-                            : tone === 'dialogue'
+                        tone === 'dialogue'
                             ? 'bg-emerald-500/10 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/20'
                             : 'bg-[#10141b] border-white/10 text-cyan-100 hover:bg-[#202632] hover:border-cyan-400/50'
                     }`}
@@ -2619,28 +2589,22 @@ export default function StdPortalPage() {
         )
     }
 
-    const renderSelectedSceneTransitionPicker = (disabled = false) => (
+    const renderSelectedSceneTransitionPicker = () => (
         <div className="relative inline-flex">
             <button
                 type="button"
-                disabled={disabled}
-                title={disabled ? '자막 섹션을 선택하면 효과를 적용할 수 있습니다.' : '선택한 씬 화면 전환 효과'}
+                title="선택한 씬 화면 전환 효과"
                 onClick={(event) => {
                     event.stopPropagation()
-                    if (disabled) return
                     setOpenVoicePickerKey('')
                     setIsTransitionPickerOpen(prev => !prev)
                 }}
-                className={`h-7 px-2 rounded-md border flex items-center gap-1 text-[10px] font-bold transition ${
-                    disabled
-                        ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
-                        : 'border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20'
-                }`}
+                className="h-7 px-2 rounded-md border border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 flex items-center gap-1 text-[10px] font-bold transition"
             >
                 <Sparkles size={12} />
                 효과
             </button>
-            {!disabled && isTransitionPickerOpen && (
+            {isTransitionPickerOpen && (
                 <div
                     className="absolute left-0 top-full mt-1 z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
                     onClick={(event) => event.stopPropagation()}
@@ -2680,8 +2644,8 @@ export default function StdPortalPage() {
             vrewAudioRef.current.load()
             vrewAudioRef.current = null
         }
-        vrewPreviewVideoRef.current?.pause()
         setIsPlayingPreview(false)
+        setVrewActiveTokenIndex(-1)
     }
 
     const persistVrewSegmentAudio = async (
@@ -2717,34 +2681,6 @@ export default function StdPortalPage() {
         }
     }
 
-    const isSameOriginApiAudioUrl = (audioUrl: string) => {
-        if (audioUrl.startsWith('/api/')) return true
-        try {
-            const parsed = new URL(audioUrl, window.location.origin)
-            return parsed.origin === window.location.origin && parsed.pathname.startsWith('/api/')
-        } catch {
-            return false
-        }
-    }
-
-    const fetchVrewAudioBlobUrl = async (audioUrl: string) => {
-        const res = await fetch(audioUrl, {
-            headers: {
-                ...authedJsonHeaders,
-                Accept: 'audio/mpeg',
-            },
-        })
-        if (!res.ok) {
-            const errorText = await res.text().catch(() => '')
-            throw new Error(errorText || `자막 구간 음성 파일을 불러오지 못했습니다. (${res.status})`)
-        }
-        const audioBlob = await res.blob()
-        if (audioBlob.size < 256) {
-            throw new Error('자막 구간 음성 파일이 비어 있습니다.')
-        }
-        return URL.createObjectURL(audioBlob)
-    }
-
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
@@ -2764,57 +2700,37 @@ export default function StdPortalPage() {
 
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
         const generationPromise = (async () => {
-            const requestSegmentAudio = async (bypassCache = false) => {
-                const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
-                    method: 'POST',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        mode: 'vrew_segment_preview_fast',
-                        provider: voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
-                        voice_id: voiceId,
-                        model_id: 'eleven_multilingual_v2',
-                        speed: Number(ttsSpeed),
-                        stability: Number(elStability),
-                        style: Number(elStyle),
-                        text,
-                        segment_index: index,
-                        cache_key: cacheKey,
-                        bypass_cache: bypassCache,
-                        multi_voice: false,
-                        voice_map: {},
-                    }),
+            const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                body: JSON.stringify({
+                    mode: 'vrew_segment_preview_fast',
+                    provider: voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
+                    voice_id: voiceId,
+                    model_id: 'eleven_multilingual_v2',
+                    speed: Number(ttsSpeed),
+                    stability: Number(elStability),
+                    style: Number(elStyle),
+                    text,
+                    segment_index: index,
+                    cache_key: cacheKey,
+                    multi_voice: false,
+                    voice_map: {},
+                }),
+            })
+            const payload = await safeParseJson(res, '자막 구간 TTS 생성 실패')
+            if (!res.ok || payload?.success === false || !payload?.audio_url) {
+                throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
+            }
+
+            let audioUrl = String(payload.audio_url)
+            if (audioUrl.startsWith('data:audio/')) {
+                const inlineAudioRes = await fetch(audioUrl)
+                const audioBlob = await inlineAudioRes.blob()
+                audioUrl = URL.createObjectURL(audioBlob)
+                void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
+                    console.warn('[STD Vrew subtitles] background segment cache failed:', error)
                 })
-                const payload = await safeParseJson(res, '자막 구간 TTS 생성 실패')
-                if (!res.ok || payload?.success === false || !payload?.audio_url) {
-                    throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
-                }
-                return payload
-            }
-
-            const resolvePayloadAudioUrl = async (payload: any) => {
-                let audioUrl = String(payload.audio_url)
-                if (audioUrl.startsWith('data:audio/')) {
-                    const inlineAudioRes = await fetch(audioUrl)
-                    const audioBlob = await inlineAudioRes.blob()
-                    audioUrl = URL.createObjectURL(audioBlob)
-                    void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
-                        console.warn('[STD Vrew subtitles] background segment cache failed:', error)
-                    })
-                } else if (isSameOriginApiAudioUrl(audioUrl)) {
-                    audioUrl = await fetchVrewAudioBlobUrl(audioUrl)
-                }
-                return audioUrl
-            }
-
-            let payload = await requestSegmentAudio(vrewBypassCachedSegmentAudioRef.current)
-            let audioUrl = ''
-            try {
-                audioUrl = await resolvePayloadAudioUrl(payload)
-            } catch (error) {
-                if (!payload?.cached) throw error
-                vrewBypassCachedSegmentAudioRef.current = true
-                payload = await requestSegmentAudio(true)
-                audioUrl = await resolvePayloadAudioUrl(payload)
             }
             vrewAudioCacheRef.current[cacheKey] = audioUrl
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
@@ -2867,6 +2783,7 @@ export default function StdPortalPage() {
                 const audio = new Audio(audioUrl)
                 vrewAudioRef.current = audio
                 const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
+                const tokenCount = Math.max(1, vrewTextTokens(subtitle?.text || '').length)
                 const cleanup = () => {
                     if (vrewProgressTimerRef.current) {
                         clearInterval(vrewProgressTimerRef.current)
@@ -2877,17 +2794,20 @@ export default function StdPortalPage() {
                 }
                 audio.onended = () => {
                     cleanup()
+                    setVrewActiveTokenIndex(-1)
                     resolve()
                 }
                 audio.onerror = () => {
                     cleanup()
                     reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
                 }
-                const syncPlaybackProgress = () => {
-                    setPlaybackTime(baseStart + audio.currentTime)
-                }
-                syncPlaybackProgress()
-                vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
+                vrewProgressTimerRef.current = setInterval(() => {
+                    setPlaybackTime(Math.round((baseStart + audio.currentTime) * 10) / 10)
+                    const duration = Number.isFinite(audio.duration) && audio.duration > 0
+                        ? audio.duration
+                        : Math.max(0.1, Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1) - baseStart)
+                    setVrewActiveTokenIndex(Math.min(tokenCount - 1, Math.floor((audio.currentTime / duration) * tokenCount)))
+                }, 100)
                 audio.play().catch(error => {
                     cleanup()
                     reject(error)
@@ -2937,6 +2857,17 @@ export default function StdPortalPage() {
             vrewAudioPromiseRef.current.clear()
         }
     }, [])
+
+    const audioPlaybackEndpoint = (projectId: string, asset: any): string | null => {
+        if (!projectId) return null
+        if (asset?.id) {
+            return `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
+        }
+        if (asset?.drive_file_id) {
+            return `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?driveFileId=${encodeURIComponent(asset.drive_file_id)}`
+        }
+        return null
+    }
 
     const findStoredProjectScript = (projectPayload?: SelectedProjectPayload | null): string => {
         const payload = projectPayload?.project?.project_payload || {}
@@ -3005,39 +2936,11 @@ export default function StdPortalPage() {
         const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
         if (!projectId) return
 
-        const sceneNumberById = new Map<string, number>(
-            (projectPayload.scenes || []).reduce<Array<[string, number]>>((entries, scene: any, index: number) => {
-                const sceneId = String(scene?.id || '').trim()
-                const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
-                if (sceneId && Number.isFinite(sceneNumber) && sceneNumber > 0) entries.push([sceneId, sceneNumber])
-                return entries
-            }, [])
-        )
-        const linkedSceneNumberByAssetId = new Map<string, number>(
-            (projectPayload.scenes || []).reduce<Array<[string, number]>>((entries, scene: any, index: number) => {
-                const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
-                if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return entries
-                const assetIds = ['image_asset_id', 'video_asset_id']
-                    .map(key => String(scene?.metadata?.[key] || '').trim())
-                    .filter(Boolean)
-                assetIds.forEach(assetId => entries.push([assetId, sceneNumber]))
-                return entries
-            }, [])
-        )
-        const assetSceneNumber = (asset: any): number | null => {
-            const directSceneNumber = Number(asset?.scene_number)
-            if (Number.isFinite(directSceneNumber) && directSceneNumber > 0) return directSceneNumber
-            const sceneIdMatch = sceneNumberById.get(String(asset?.scene_id || '').trim())
-            if (sceneIdMatch) return sceneIdMatch
-            return linkedSceneNumberByAssetId.get(String(asset?.id || '').trim()) || null
-        }
-
         const mediaAssets = assets.filter((asset: any) =>
             ['uploaded', 'assigned'].includes(String(asset?.status || ''))
             && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
             && (asset?.id || asset?.drive_file_id)
         )
-        const restoreHeaders = { ...headers, 'X-Std-Media-Restore': '1' }
 
         const driveEntries = await Promise.all(mediaAssets.map(async (asset: any) => {
             const cacheKey = projectAssetCacheKey(projectId, asset)
@@ -3052,8 +2955,8 @@ export default function StdPortalPage() {
                 const query = assetId
                     ? `assetId=${encodeURIComponent(assetId)}`
                     : `driveFileId=${encodeURIComponent(driveFileId)}`
-                const res = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers: restoreHeaders })
-                if (!res.ok || res.status === 204) return null
+                const res = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers })
+                if (!res.ok) return null
                 const blob = await res.blob()
                 const objectUrl = URL.createObjectURL(blob)
                 projectMediaObjectUrlsRef.current[cacheKey] = objectUrl
@@ -3075,23 +2978,28 @@ export default function StdPortalPage() {
                 restoredAudioUrl = entry.objectUrl
                 continue
             }
-            const sceneNumber = assetSceneNumber(entry.asset)
+            const sceneNumber = Number(entry.asset.scene_number)
             if (assetType === 'thumbnail') {
                 restoredThumbnailUrl = entry.objectUrl
                 continue
             }
-            if (sceneNumber == null || !['image', 'video'].includes(assetType)) continue
+            if (!Number.isFinite(sceneNumber) || !['image', 'video'].includes(assetType)) continue
             restoredMap.set(`${sceneNumber}:${assetType}`, entry.objectUrl)
         }
 
-        const fallbackThumbnailUrl = keepRenderableMediaUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
-        if (restoredThumbnailUrl || fallbackThumbnailUrl) {
-            setThumbBgUrl(restoredThumbnailUrl || fallbackThumbnailUrl)
+        const thumbnailAsset = assets.find((asset: any) =>
+            String(asset?.asset_type || '').toLowerCase() === 'thumbnail' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+        )
+        const fallbackThumbnailUrl = sanitizeAssetUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
+        if (restoredThumbnailUrl || fallbackThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset)) {
+            setThumbBgUrl(restoredThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset) || fallbackThumbnailUrl)
             setThumbBgUploadFile(null)
         }
 
-        // A failed Drive restore must not leave a stale endpoint on the native audio tag.
-        setAudioResultUrl(restoredAudioUrl || '')
+        const audioAsset = assets.find((asset: any) =>
+            String(asset?.asset_type || '').toLowerCase() === 'audio' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+        )
+        setAudioResultUrl(restoredAudioUrl || audioPlaybackEndpoint(projectId, audioAsset) || '')
 
         setSelectedProject(prev => {
             if (!prev || String(prev.project?.id || '') !== String(projectId)) return prev
@@ -3101,9 +3009,9 @@ export default function StdPortalPage() {
                 const restoredVideoUrl = restoredMap.get(`${sceneNumber}:video`)
                 return {
                     ...scene,
-                    image_url: restoredImageUrl || runtimeAssetUrl(scene.image_url) || null,
-                    video_url: restoredVideoUrl || runtimeAssetUrl(scene.video_url) || null,
-                    asset_status: restoredImageUrl || restoredVideoUrl || keepRenderableMediaUrl(scene.image_url) || keepRenderableMediaUrl(scene.video_url)
+                    image_url: restoredImageUrl || scene.image_url || null,
+                    video_url: restoredVideoUrl || scene.video_url || null,
+                    asset_status: restoredImageUrl || restoredVideoUrl || scene.image_url || scene.video_url
                         ? 'ready'
                         : (scene.asset_status || 'missing'),
                 }
@@ -3119,8 +3027,8 @@ export default function StdPortalPage() {
                 const sceneNumber = Number(scene?.scene_number)
                 return {
                     ...scene,
-                    image_url: restoredMap.get(`${sceneNumber}:image`) || keepRenderableMediaUrl(scene?.image_url) || null,
-                    video_url: restoredMap.get(`${sceneNumber}:video`) || keepRenderableMediaUrl(scene?.video_url) || null,
+                    image_url: restoredMap.get(`${sceneNumber}:image`) || scene?.image_url || null,
+                    video_url: restoredMap.get(`${sceneNumber}:video`) || scene?.video_url || null,
                 }
             }),
             project: {
@@ -3366,18 +3274,8 @@ export default function StdPortalPage() {
                     localStorage.removeItem('std_active_project_state')
                 }
             }
-            const rememberedPreferredProject = preferredProjectId && !urlProjectId ? readRememberedProjectState(preferredProjectId) : null
-            const preferredProjectIsListed = Boolean(preferredProjectId && loadedProjects.some((project: any) => project.id === preferredProjectId))
 
-            if (rememberedPreferredProject && (
-                preferredProjectIsListed
-                || projectMatchesRequester(rememberedPreferredProject, email || user?.email)
-            )) {
-                setSelectedProject(rememberedPreferredProject)
-                setCustomScriptText(cleanScriptContextText(rememberedPreferredProject.project.project_payload?.script || ''))
-                rememberProjectState(rememberedPreferredProject)
-                restorePersistedProjectMedia(rememberedPreferredProject, headers).catch(() => {})
-            } else if (preferredProjectId && preferredProjectIsListed) {
+            if (preferredProjectId) {
                 const openedProject = await openProject(preferredProjectId, accessToken).catch(() => null)
                 if (openedProject?.project?.id) {
                     setProjects(prev => [
@@ -3444,18 +3342,22 @@ export default function StdPortalPage() {
             if (impUserId) setImpersonateUserId(impUserId)
             setEmail(cleanEmail)
 
-            // Impersonation must be authorized by the real signed-in account.
+            const impToken = `std_impersonate_${Date.now()}`
+            const impUser = {
+                id: impUserId || ('worker-' + Date.now()),
+                email: cleanEmail,
+                full_name: cleanEmail.split('@')[0] || 'STD 유저',
+                membership: 'std',
+                signup_status: 'approved',
+            }
+            setToken(impToken)
+            setUser(impUser)
+
+            // Direct fetch for impersonated user without reading local cache
             const fetchImpersonated = async () => {
                 try {
-                    const { data: { session } } = await supabase.auth.getSession()
-                    const accessToken = session?.access_token || localStorage.getItem('std_session_token') || ''
-                    if (!accessToken) {
-                        setMessage('관리자 로그인 후 사용자 화면을 열어주세요.')
-                        return
-                    }
-                    setToken(accessToken)
                     const headers = {
-                        Authorization: `Bearer ${accessToken}`,
+                        Authorization: `Bearer ${impToken}`,
                         'x-impersonate-email': cleanEmail,
                     }
                     const [meRes, pRes, tRes] = await Promise.allSettled([
@@ -3463,14 +3365,6 @@ export default function StdPortalPage() {
                         fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                         fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                     ])
-                    const deniedResponse = [meRes, pRes, tRes].find((result): result is PromiseFulfilledResult<Response> =>
-                        result.status === 'fulfilled' && !result.value.ok
-                    )
-                    if (deniedResponse) {
-                        const deniedPayload = await deniedResponse.value.clone().json().catch(() => ({}))
-                        setMessage(deniedPayload?.error || '사용자 화면을 열 권한이 없습니다.')
-                        return
-                    }
                     const meData = meRes.status === 'fulfilled' ? await meRes.value.json().catch(() => ({})) : {}
                     const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
                     const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
@@ -3501,9 +3395,9 @@ export default function StdPortalPage() {
 
                     const urlProjectId = readUrlProjectId()
                     if (urlProjectId && loadedProjects.some((p: any) => p.id === urlProjectId)) {
-                        await openProject(urlProjectId, accessToken, cleanEmail)
+                        await openProject(urlProjectId, impToken, cleanEmail)
                     } else if (loadedProjects.length > 0) {
-                        await openProject(loadedProjects[0].id, accessToken, cleanEmail)
+                        await openProject(loadedProjects[0].id, impToken, cleanEmail)
                     } else if (loadedTopics.length > 0) {
                         const built = buildProjectFromSupabaseTopic(loadedTopics[0])
                         built.project.title = `[${cleanEmail.split('@')[0]}] ` + built.project.title
@@ -3569,7 +3463,7 @@ export default function StdPortalPage() {
                 scenes,
                 Number(subMaxChars) || 20
             )
-        const normalizedSubtitles = matchSubtitlesToSceneVisuals(subs, scenes)
+        const normalizedSubtitles = matchSubtitlesToSceneVisuals(ensureSubtitlesHaveTiming(subs, scenes), scenes)
         setLocalSubtitles(normalizedSubtitles)
         if (Array.isArray(savedSubtitles)) {
             const subtitlesChanged = normalizedSubtitles.length !== savedSubtitles.length
@@ -3577,6 +3471,8 @@ export default function StdPortalPage() {
                     item.text !== savedSubtitles[index]?.text
                     || item.voice_id !== savedSubtitles[index]?.voice_id
                     || item.scene_number !== savedSubtitles[index]?.scene_number
+                    || item.start_time !== savedSubtitles[index]?.start_time
+                    || item.end_time !== savedSubtitles[index]?.end_time
                 ))
             if (subtitlesChanged) {
                 setSelectedProject((prev: any) => {
@@ -4131,7 +4027,7 @@ export default function StdPortalPage() {
     const clearBgmSetting = async () => {
         if (!selectedProject?.project?.id) return
         const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-        const { bgm_asset_id, bgm_drive_file_id, bgm_file_name, ...rest } = currentSettings
+        const { bgm_asset_id, bgm_file_name, ...rest } = currentSettings
         try {
             await updateBgmSfxSettings(rest)
             setMessage('BGM 적용을 해제했습니다.')
@@ -4356,7 +4252,7 @@ export default function StdPortalPage() {
                 scenes,
                 Number(subMaxChars) || 20
             )
-        const syncedSubtitles = matchSubtitlesToSceneVisuals(baseSubtitles, scenes)
+        const syncedSubtitles = matchSubtitlesToSceneVisuals(ensureSubtitlesHaveTiming(baseSubtitles, scenes), scenes)
         setLocalSubtitles(syncedSubtitles)
         setSelectedSubIndex(0)
         setPlaybackTime(0)
@@ -4653,10 +4549,11 @@ export default function StdPortalPage() {
             })
             const mimeType = inferVisualMimeType(file, actualAssetType)
             let persistedAsset: any = null
-            const shouldUseDirectStorageUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
+            const shouldUseDirectDriveUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
+                && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
 
-            if (shouldUseDirectStorageUpload) {
-                setMessage(`파일 (${file.name}) Supabase Storage 업로드 준비 중...`)
+            if (shouldUseDirectDriveUpload) {
+                setMessage(`파일 (${file.name}) Google Drive 직접 업로드 준비 중...`)
                 const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                     method: 'POST',
                     headers: authedJsonHeaders,
@@ -4669,57 +4566,33 @@ export default function StdPortalPage() {
                     }),
                 })
                 const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
-                if (!initRes.ok || initPayload.success === false || !initPayload.storage_upload_url) {
+                if (!initRes.ok || initPayload.success === false || !initPayload.upload_url) {
                     throw new Error(initPayload.error || 'Asset upload init failed')
                 }
 
-                // Scene media is retained in both Supabase Storage and Google Drive.
-                // Storage is uploaded first so preview playback always has a stable source.
-                setMessage(`파일 (${file.name}) Supabase Storage 업로드 중...`)
-                const storageRes = await fetch(initPayload.storage_upload_url, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': mimeType,
-                        'x-upsert': 'true',
-                    },
-                    body: file,
-                })
-                if (!storageRes.ok) {
-                    throw new Error(`Supabase Storage upload failed (${storageRes.status})`)
+                setMessage(`파일 (${file.name}) Google Drive 업로드 중...`)
+                let drivePayload: any = null
+                try {
+                    const driveRes = await fetch(initPayload.upload_url, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': mimeType },
+                        body: file,
+                    })
+                    drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
+                    if (!driveRes.ok || !drivePayload.id) {
+                        throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
+                    }
+                } catch (driveError: any) {
+                    console.warn('[STD AssetUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
+                    setMessage('브라우저가 Google Drive 직접 업로드를 막아, 서버 중계 방식으로 다시 업로드합니다...')
+                    drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
                 }
 
-                let drivePayload: any = null
-                let driveBackupError = String(initPayload.drive_backup_error || '')
-                if (initPayload.upload_url) {
-                    setMessage(`파일 (${file.name}) Google Drive에도 저장 중...`)
-                    try {
-                        const driveRes = await fetch(initPayload.upload_url, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': mimeType },
-                            body: file,
-                        })
-                        drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
-                        if (!driveRes.ok || !drivePayload.id) {
-                            throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
-                        }
-                    } catch (directDriveError: any) {
-                        try {
-                            console.warn('[STD AssetUpload] direct Drive upload failed; retrying through chunk proxy:', directDriveError?.message)
-                            drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
-                        } catch (proxyDriveError: any) {
-                            driveBackupError = String(proxyDriveError?.message || directDriveError?.message || 'drive_archive_upload_failed')
-                            console.warn('[STD AssetUpload] Drive archive copy failed; keeping Supabase asset:', driveBackupError)
-                        }
-                    }
-                }
                 const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
                     method: 'POST',
                     headers: authedJsonHeaders,
                     body: JSON.stringify({
-                        storage_bucket: initPayload.storage_bucket,
-                        storage_path: initPayload.storage_path,
-                        storage_public_url: initPayload.storage_public_url,
-                        drive_file_id: drivePayload?.id || null,
+                        drive_file_id: drivePayload.id,
                         target_folder_id: initPayload.target_folder_id,
                         asset_type: actualAssetType,
                         mime_type: mimeType,
@@ -4733,9 +4606,6 @@ export default function StdPortalPage() {
                     throw new Error(completePayload.error || 'Asset upload complete failed')
                 }
                 persistedAsset = completePayload.asset
-                setMessage(drivePayload?.id
-                    ? `에셋 (${file.name}) Supabase Storage와 Google Drive에 저장 완료!`
-                    : `에셋 (${file.name}) Supabase Storage에 저장 완료${driveBackupError ? '. Drive 보관본은 나중에 다시 시도됩니다.' : ''}`)
             } else {
                 const form = new FormData()
                 form.set('file', file)
@@ -4800,7 +4670,7 @@ export default function StdPortalPage() {
                 status: p.status === 'claimed' ? 'in_progress' : p.status,
                 updated_at: new Date().toISOString(),
             } as any : p))
-            setMessage(`에셋 (${file.name}) Supabase Storage 및 Google Drive 저장 완료!`)
+            setMessage(`에셋 (${file.name}) Google Drive 저장 완료!`)
             return 'synced'
         } catch (error: any) {
             if (objectUrl) {
@@ -5033,56 +4903,33 @@ export default function StdPortalPage() {
                 }),
             })
             const initPayload = await safeParseJson(initRes, '썸네일 업로드 준비 실패')
-            if (!initRes.ok || initPayload.success === false || !initPayload.storage_upload_url) {
+            if (!initRes.ok || initPayload.success === false || !initPayload.upload_url) {
                 throw new Error(initPayload.error || '썸네일 업로드 준비 실패')
             }
 
-            setMessage('썸네일 이미지를 Supabase Storage에 업로드하는 중...')
-            const storageRes = await fetch(initPayload.storage_upload_url, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': mimeType,
-                    'x-upsert': 'true',
-                },
-                body: file,
-            })
-            if (!storageRes.ok) {
-                throw new Error(`Supabase Storage 썸네일 업로드 실패 (${storageRes.status})`)
-            }
-
+            setMessage('썸네일 이미지를 Google Drive에 업로드하는 중...')
             let drivePayload: any = null
-            let driveBackupError = String(initPayload.drive_backup_error || '')
-            if (initPayload.upload_url) {
-                setMessage('썸네일 이미지를 Google Drive에도 저장 중...')
-                try {
-                    const driveRes = await fetch(initPayload.upload_url, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': mimeType },
-                        body: file,
-                    })
-                    drivePayload = await safeParseJson(driveRes, 'Drive 썸네일 업로드 실패')
-                    if (!driveRes.ok || !drivePayload.id) {
-                        throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive 썸네일 업로드 실패')
-                    }
-                } catch (directDriveError: any) {
-                    try {
-                        console.warn('[STD ThumbnailUpload] direct Drive upload failed; retrying through chunk proxy:', directDriveError?.message)
-                        drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
-                    } catch (proxyDriveError: any) {
-                        driveBackupError = String(proxyDriveError?.message || directDriveError?.message || 'drive_archive_upload_failed')
-                        console.warn('[STD ThumbnailUpload] Drive archive copy failed; keeping Supabase asset:', driveBackupError)
-                    }
+            try {
+                const driveRes = await fetch(initPayload.upload_url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': mimeType },
+                    body: file,
+                })
+                drivePayload = await safeParseJson(driveRes, 'Drive 썸네일 업로드 실패')
+                if (!driveRes.ok || !drivePayload.id) {
+                    throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive 썸네일 업로드 실패')
                 }
+            } catch (driveError: any) {
+                console.warn('[STD ThumbnailUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
+                setMessage('브라우저가 Google Drive 직접 업로드를 막아, 서버 중계 방식으로 다시 업로드합니다...')
+                drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
             }
 
             const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
                 method: 'POST',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
-                    storage_bucket: initPayload.storage_bucket,
-                    storage_path: initPayload.storage_path,
-                    storage_public_url: initPayload.storage_public_url,
-                    drive_file_id: drivePayload?.id || null,
+                    drive_file_id: drivePayload.id,
                     target_folder_id: initPayload.target_folder_id,
                     asset_type: 'thumbnail',
                     mime_type: mimeType,
@@ -5115,9 +4962,7 @@ export default function StdPortalPage() {
             })
             setThumbBgUrl(persistedThumbnailUrl)
             setThumbBgUploadFile(null)
-            setMessage(drivePayload?.id
-                ? '썸네일 이미지가 Supabase Storage와 Google Drive에 저장되었습니다.'
-                : `썸네일 이미지가 Supabase Storage에 저장되었습니다${driveBackupError ? '. Drive 보관본은 나중에 다시 시도됩니다.' : ''}`)
+            setMessage('썸네일 이미지가 Google Drive에 저장되었습니다.')
             return persistedThumbnailUrl
         } finally {
             setUploadingKey('')
@@ -6031,97 +5876,9 @@ export default function StdPortalPage() {
         end_time: '4.6',
         image_url: '',
     }
-
-    const loadWorkerSfxLibrary = async () => {
-        setWorkerSfxLoading(true)
-        setWorkerSfxError('')
-        try {
-            const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
-            if (isImpersonating && impersonateEmail) headers['x-impersonate-email'] = impersonateEmail
-            const response = await fetch('/api/std/sfx-library', { headers })
-            const payload = await response.json().catch(() => ({}))
-            if (!response.ok || !Array.isArray(payload.items)) {
-                throw new Error(payload?.error || '효과음 라이브러리를 불러오지 못했습니다.')
-            }
-            setWorkerSfxItems(payload.items)
-        } catch (error: any) {
-            setWorkerSfxError(error?.message || '효과음 라이브러리를 불러오지 못했습니다.')
-        } finally {
-            setWorkerSfxLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        if (subEditTab === 'bgm' && workerSfxItems.length === 0 && !workerSfxLoading) {
-            void loadWorkerSfxLibrary()
-        }
-    }, [subEditTab])
-
-    const applyWorkerSfxItem = async (item: any) => {
-        if (!selectedProject?.project?.id) return
-        const subtitle = localSubtitles[selectedSubIndex] || {}
-        const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-        const currentCues = Array.isArray(currentSettings.sfx_cues) ? currentSettings.sfx_cues : []
-        const nextCue = {
-            id: `subtitle-${selectedSubIndex}`,
-            drive_file_id: String(item.drive_file_id),
-            file_name: String(item.title || item.file_name),
-            scene_number: Number(subtitle.scene_number) || null,
-            subtitle_index: selectedSubIndex,
-            start: Number(subtitle.start_num ?? subtitle.start_time ?? 0) || 0,
-            volume_db: Number(item.default_volume_db ?? -18),
-            enabled: true,
-        }
-        try {
-            await updateBgmSfxSettings({
-                ...currentSettings,
-                sfx_cues: [...currentCues.filter((cue: any) => Number(cue?.subtitle_index) !== selectedSubIndex), nextCue]
-                    .sort((a: any, b: any) => Number(a.start || 0) - Number(b.start || 0)),
-            })
-            setMessage(`현재 자막 구간에 효과음 '${nextCue.file_name}'을 적용했습니다.`)
-        } catch (error: any) {
-            setMessage(error?.message || '효과음 적용에 실패했습니다.')
-        }
-    }
-
-    const applyWorkerBgmItem = async (item: any) => {
-        if (!selectedProject?.project?.id) return
-        const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-        try {
-            await updateBgmSfxSettings({
-                ...currentSettings,
-                bgm_drive_file_id: String(item.drive_file_id),
-                bgm_file_name: String(item.title || item.file_name),
-                bgm_volume: currentSettings.bgm_volume ?? 0.25,
-            })
-            setMessage(`배경음 '${item.title || item.file_name}'을 적용했습니다.`)
-        } catch (error: any) {
-            setMessage(error?.message || '배경음 적용에 실패했습니다.')
-        }
-    }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
-    const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSub?.image)
-        || currentSubVisual.image_url
-        || ''
-    const currentSubVideoCandidate = runtimeAssetUrl(currentSub?.video_url || currentSub?.video)
-        || currentSubVisual.video_url
-        || ''
-    const currentSubVideoUrl = isPlayablePreviewVideoUrl(currentSubVideoCandidate)
-        ? currentSubVideoCandidate
-        : ''
-    const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
-
-    useEffect(() => {
-        const video = vrewPreviewVideoRef.current
-        if (!video) return
-        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview || !currentSubVideoUrl) {
-            video.pause()
-            return
-        }
-        video.currentTime = 0
-        void video.play().catch(() => {})
-    }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
-
+    const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
+    const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     const bgmAsset = selectedProject?.assets?.find((asset: any) =>
         asset.asset_type === 'bgm' && asset.id === bgmSfxSettings.bgm_asset_id
@@ -6899,7 +6656,7 @@ export default function StdPortalPage() {
     }
 
     return (
-        <div className="min-h-[100dvh] overflow-x-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none md:h-screen md:overflow-hidden">
+        <div className="h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none">
             {isImpersonating && (
                 <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
                     <div className="flex items-center gap-2.5">
@@ -7058,7 +6815,7 @@ export default function StdPortalPage() {
             })()}
 
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
-            <div className="flex-1 flex overflow-visible relative md:overflow-hidden">
+            <div className="flex-1 flex overflow-hidden relative">
                 {/* 모바일 드로어 사이드바 (모바일 햄버거 메뉴 열림 시) */}
                 {mobileMenuOpen && (
                     <div
@@ -7255,8 +7012,8 @@ export default function StdPortalPage() {
                 </aside>
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
-                <main className={`flex-1 flex min-h-0 flex-col bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 ${
-                    currentNav === 'subtitle_vrew' ? 'overflow-y-auto md:overflow-hidden' : 'overflow-y-auto'
+                <main className={`flex-1 flex flex-col bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 ${
+                    currentNav === 'subtitle_vrew' ? 'overflow-hidden' : 'overflow-y-auto'
                 }`}>
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
@@ -7289,9 +7046,8 @@ export default function StdPortalPage() {
                         const allSubtitleScenesSelected = subtitleSceneGroups.length > 0 && subtitleSceneGroups.every(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
-                        const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
                         return (
-                        <div className="space-y-3 w-full flex flex-col h-auto min-h-0 overflow-visible md:h-full md:overflow-hidden">
+                        <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
                             <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
                                 {isVrewSubtitleMode && (
@@ -7380,7 +7136,7 @@ export default function StdPortalPage() {
                                             {t('sub_restore_worker_script')}
                                         </button>
                                         {selectedVoiceObj?.preview_url && (
-                                            <div className="ml-0 flex w-full min-w-0 flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible sm:ml-auto sm:min-w-[300px] sm:max-w-[420px]">
+                                            <div className="ml-auto flex min-w-[300px] max-w-[420px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-[10px]">🎙</span>
@@ -7704,22 +7460,6 @@ export default function StdPortalPage() {
                                                 title="세로 여백/오프셋"
                                             />
                                         </div>
-                                        <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
-                                            {renderVoicePicker(
-                                                'selected-scenes-bulk',
-                                                selectedSubtitleSceneVoiceId,
-                                                (nextVoiceId) => {
-                                                    if (selectedSubtitleSceneGroup) {
-                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
-                                                    }
-                                                },
-                                                `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
-                                                'default',
-                                                'right',
-                                                !hasSelectedSubtitleSections
-                                            )}
-                                            {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
-                                        </div>
                                     </div>
 
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
@@ -7769,11 +7509,11 @@ export default function StdPortalPage() {
                             </div>
 
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
-                            <div className="grid grid-cols-1 gap-3 flex-none min-h-0 overflow-visible lg:grid-cols-[minmax(0,1fr)_430px] lg:flex-1 lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_450px]">
+                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 flex-1 min-h-0 overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
-                                <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-visible shadow min-w-0 min-h-[28rem] lg:min-h-0 lg:overflow-hidden">
-                                    <div className="flex min-h-[57px] flex-wrap items-center justify-between gap-2 p-3 border-b border-white/5 bg-[#14181f]">
-                                        <div className="flex min-w-0 flex-wrap items-center gap-2 overflow-visible">
+                                <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-0">
+                                    <div className="flex min-h-[57px] items-center justify-between gap-2 p-3 border-b border-white/5 bg-[#14181f]">
+                                        <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-visible">
                                             <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
                                                 <input
                                                     type="checkbox"
@@ -7835,6 +7575,13 @@ export default function StdPortalPage() {
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
                                                         {tf('sub_selected_scenes', { count: selectedSubtitleSceneNumbers.length })}
                                                     </span>
+                                                    {selectedSubtitleBlockIndexes.length < 2 && selectedSubtitleSceneGroup && renderVoicePicker(
+                                                        'selected-scenes-bulk',
+                                                        selectedSubtitleSceneVoiceId,
+                                                        (nextVoiceId) => void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId),
+                                                        `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
+                                                    )}
+                                                    {renderSelectedSceneTransitionPicker()}
                                                 </>
                                             )}
                                         </div>
@@ -7845,8 +7592,8 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 자막 카드 목록 */}
-                                    <div className="flex flex-1 overflow-visible lg:overflow-hidden">
-                                        <div className="subtitle-navy-scrollbar flex-1 overflow-visible p-2 space-y-2 lg:overflow-y-auto">
+                                    <div className="flex flex-1 overflow-hidden">
+                                        <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-2 space-y-2">
                                             {subtitleSceneGroups.map((group) => {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
@@ -7883,7 +7630,7 @@ export default function StdPortalPage() {
                                                             setSelectedSubIndex(group.firstIndex)
                                                             setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
-                                                        className={`p-2 sm:p-3 rounded-xl border flex items-start gap-2 sm:gap-3 cursor-pointer transition-all ${
+                                                        className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                                                             isChecked
                                                                 ? 'bg-cyan-500/10 border-cyan-400/70 shadow-md'
                                                                 : isActive
@@ -7910,7 +7657,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         {/* 이미지 & 타임 */}
-                                                        <div className="w-24 h-[54px] sm:w-40 sm:h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
+                                                        <div className="w-40 h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
                                                             {group.image_url ? (
                                                                 <img src={group.image_url} alt="" className="w-full h-full object-cover" />
                                                             ) : group.video_url ? (
@@ -7936,14 +7683,23 @@ export default function StdPortalPage() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="w-12 sm:w-16 text-[9px] sm:text-[10px] font-mono text-gray-400 shrink-0 self-start">
+                                                        <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0 self-start">
                                                             {group.start_time}s<br />~{group.end_time}s
                                                             <div className="mt-1 text-[9px] text-gray-500">
                                                                 {duration.toFixed(1)}s
                                                             </div>
+                                                            {isVrewSubtitleMode && transitionEffect && (
+                                                                <div
+                                                                    title={`화면전환효과: ${sceneTransitionLabel(transitionEffect)}`}
+                                                                    className="mt-2 min-w-0 rounded border border-violet-400/20 bg-violet-500/10 px-1.5 py-1 font-sans text-[9px] font-bold leading-tight text-violet-200"
+                                                                >
+                                                                    <span className="block font-mono text-[8px] text-violet-300">전환</span>
+                                                                    <span className="break-words">{sceneTransitionLabel(transitionEffect)}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                                                            <div className="flex items-center gap-2 mb-1">
                                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                                                                     Scene {sNum}
                                                                 </span>
@@ -7970,7 +7726,7 @@ export default function StdPortalPage() {
                                                                 )}
                                                                 {isVrewSubtitleMode && (
                                                                     <div
-                                                                        className="ml-0 sm:ml-auto flex items-center gap-2"
+                                                                        className="ml-auto flex items-center gap-2"
                                                                         onClick={(event) => event.stopPropagation()}
                                                                     >
                                                                         {hasSingleGroupVoice && (
@@ -8105,8 +7861,8 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="min-w-0 min-h-0 overflow-visible lg:overflow-hidden">
-                                    <div className="flex flex-col gap-3 w-full max-h-none overflow-visible lg:max-h-full lg:overflow-y-auto">
+                                <div className="min-w-0 min-h-0 overflow-hidden">
+                                    <div className="flex flex-col gap-3 w-full max-h-full overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
@@ -8117,12 +7873,10 @@ export default function StdPortalPage() {
                                         >
                                             {currentSubVideoUrl ? (
                                                 <video
-                                                    ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
                                                     className="w-full h-full object-cover"
                                                     controls
                                                     muted
-                                                    playsInline
                                                 />
                                             ) : currentSubImageUrl ? (
                                                 <img
@@ -8179,6 +7933,8 @@ export default function StdPortalPage() {
                                             ))}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
+                                                const previewTokens = vrewTextTokens(currentSub.text)
+                                                const shouldShowTokenSync = isVrewSubtitleMode && isPlayingPreview && previewTokens.length > 0
                                                 return (
                                             <div
                                                 className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
@@ -8205,7 +7961,10 @@ export default function StdPortalPage() {
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
-                                                    {currentSub.text}
+                                                    {renderPreviewSubtitleText(
+                                                        currentSub.text,
+                                                        shouldShowTokenSync ? vrewActiveTokenIndex : -1
+                                                    )}
                                                 </div>
                                             </div>
                                                 )
@@ -8359,9 +8118,7 @@ export default function StdPortalPage() {
                                                             >
                                                                 {renderVrewSubtitleTokenEditor(
                                                                     currentSub.text,
-                                                                    isPlayingPreview
-                                                                        ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime)
-                                                                        : -1
+                                                                    isPlayingPreview ? vrewActiveTokenIndex : -1
                                                                 )}
                                                             </button>
                                                             <button
@@ -8397,7 +8154,7 @@ export default function StdPortalPage() {
                                                                 className="hidden"
                                                                 onChange={handleUploadBgmFile}
                                                             />
-                                                            {(bgmAsset || bgmSfxSettings.bgm_drive_file_id) && (
+                                                            {bgmAsset && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={clearBgmSetting}
@@ -8409,7 +8166,7 @@ export default function StdPortalPage() {
                                                             )}
                                                             <label
                                                                 htmlFor="std-bgm-upload"
-                                                                className={`hidden h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
+                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
                                                                     uploadingKey === 'bgm-upload'
                                                                         ? 'cursor-wait border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
                                                                         : 'cursor-pointer border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'
@@ -8463,7 +8220,7 @@ export default function StdPortalPage() {
                                                             )}
                                                             <label
                                                                 htmlFor="std-sfx-upload"
-                                                                className={`hidden h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
+                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
                                                                     uploadingKey === 'sfx-upload'
                                                                         ? 'cursor-wait border-purple-500/30 bg-purple-500/10 text-purple-200'
                                                                         : 'cursor-pointer border-purple-500/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20'
@@ -8483,46 +8240,10 @@ export default function StdPortalPage() {
                                                     )}
                                                 </div>
 
-                                                <div className="rounded-lg border border-violet-400/20 bg-violet-500/5 p-3">
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <div className="text-xs font-black text-violet-100">공용 SFX Drive 라이브러리</div>
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void loadWorkerSfxLibrary()}
-                                                            disabled={workerSfxLoading}
-                                                            className="h-8 rounded-md border border-violet-400/30 bg-violet-500/10 px-2.5 text-[11px] font-black text-violet-100 transition hover:bg-violet-500/20 disabled:cursor-wait disabled:opacity-50"
-                                                        >
-                                                            {workerSfxLoading ? '불러오는 중' : workerSfxItems.length ? `${workerSfxItems.length}개 새로고침` : '라이브러리 불러오기'}
-                                                        </button>
-                                                    </div>
-                                                    {workerSfxError && <div className="mt-2 text-[11px] text-amber-300">{workerSfxError}</div>}
-                                                    {workerSfxItems.length > 0 && (
-                                                        <>
-                                                            <input
-                                                                value={workerSfxQuery}
-                                                                onChange={event => setWorkerSfxQuery(event.target.value)}
-                                                                placeholder="효과음 검색"
-                                                                className="mt-3 h-8 w-full rounded-md border border-white/10 bg-[#10151d] px-2.5 text-[11px] text-white outline-none focus:border-violet-400/50"
-                                                            />
-                                                            <div className="mt-2 max-h-44 space-y-1 overflow-y-auto pr-1">
-                                                                {workerSfxItems.filter(item => `${item.title} ${item.category} ${(item.tags || []).join(' ')}`.toLowerCase().includes(workerSfxQuery.toLowerCase())).slice(0, 40).map(item => (
-                                                                    <div key={item.key} className="flex items-center gap-2 rounded-md border border-white/5 bg-[#10151d] px-2 py-1.5">
-                                                                        <div className="min-w-0 flex-1">
-                                                                            <div className="truncate text-[11px] font-bold text-gray-100">{item.title}</div>
-                                                                            <div className="text-[9px] text-violet-300">{item.category}</div>
-                                                                        </div>
-                                                                        <audio controls preload="none" src={`/api/std/sfx-library/preview?fileId=${encodeURIComponent(item.drive_file_id)}`} className="h-7 w-28" />
-                                                                        <button type="button" onClick={() => void applyWorkerBgmItem(item)} className="h-7 rounded-md bg-cyan-700 px-2 text-[10px] font-bold text-white hover:bg-cyan-600">BGM</button>
-                                                                        <button type="button" onClick={() => void applyWorkerSfxItem(item)} className="h-7 rounded-md bg-violet-600 px-2 text-[10px] font-bold text-white hover:bg-violet-500">SFX</button>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </>
-                                                    )}
+                                                <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] leading-5 text-blue-100">
+                                                    업로드한 파일은 프로젝트 Google Drive 폴더의 <span className="font-mono">04_audio</span>에 저장되고,
+                                                    렌더 제출 시 워커가 Drive에서 내려받아 기존 믹서로 적용합니다.
                                                 </div>
-
                                             </div>
                                         )}
                                     </div>
@@ -9017,43 +8738,24 @@ export default function StdPortalPage() {
                                                             영상 필수
                                                         </div>
                                                     )}
-                                                    {scene.video_url ? (
-                                                        <>
-                                                            <video
-                                                                src={scene.video_url}
-                                                                className="w-full h-full object-cover"
-                                                                controls
-                                                                loop
-                                                                muted
-                                                                playsInline
-                                                            />
-                                                            <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                                                🎬 Video Ready
-                                                            </div>
-                                                            <label className="absolute bottom-2 left-2 cursor-pointer px-2 py-1 rounded bg-purple-700/90 hover:bg-purple-700 text-white text-[10px] font-bold border border-white/20 transition-all">
-                                                                영상 교체
-                                                                <input
-                                                                    type="file"
-                                                                    accept="video/*"
-                                                                    className="hidden"
-                                                                    disabled={uploadingKey === `${sceneNum}-video`}
-                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
-                                                                />
-                                                            </label>
-                                                        </>
-                                                    ) : scene.image_url ? (
+                                                    {scene.image_url ? (
                                                         <>
                                                             <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
-                                                            <label className="absolute bottom-2 left-2 cursor-pointer px-2 py-1 rounded bg-blue-700/90 hover:bg-blue-700 text-white text-[10px] font-bold border border-white/20 transition-all">
-                                                                {uploadingKey === `${sceneNum}-video` ? '영상 업로드 중' : '영상 업로드'}
-                                                                <input
-                                                                    type="file"
-                                                                    accept="video/*"
-                                                                    className="hidden"
-                                                                    disabled={uploadingKey === `${sceneNum}-video`}
-                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
-                                                                />
-                                                            </label>
+                                                            {scene.video_url && (
+                                                                <>
+                                                                    <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
+                                                                        🎬 Video Ready
+                                                                    </div>
+                                                                    <a
+                                                                        href={scene.video_url}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-purple-700/80 hover:bg-purple-700 text-white text-[10px] font-bold border border-white/20 transition-all"
+                                                                    >
+                                                                        영상 보기
+                                                                    </a>
+                                                                </>
+                                                            )}
                                                             <a
                                                                 href={getSceneImageDownloadUrl(scene) || scene.image_url}
                                                                 download={safeDownloadFileName(`std-${String(selectedProject?.project?.id || 'project').slice(0, 8) || 'project'}-scene-${String(sceneNum).padStart(3, '0')}.png`)}
@@ -9068,6 +8770,19 @@ export default function StdPortalPage() {
                                                             >
                                                                 이미지 다운로드
                                                             </a>
+                                                        </>
+                                                    ) : scene.video_url ? (
+                                                        <>
+                                                            <video
+                                                                src={scene.video_url}
+                                                                className="w-full h-full object-cover"
+                                                                controls
+                                                                loop
+                                                                muted
+                                                            />
+                                                            <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
+                                                                🎬 Video Ready
+                                                            </div>
                                                         </>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
@@ -9305,7 +9020,7 @@ export default function StdPortalPage() {
                                     <span className="text-xs text-gray-400">주제 카드를 클릭하면 상세 기획 프리뷰 및 작업 시작 모달이 나타납니다.</span>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                     {displayedTopics.map(topic => (
                                         <div
                                             key={topic.id}
@@ -9316,9 +9031,13 @@ export default function StdPortalPage() {
                                             className="bg-[#1c2027] border border-white/10 hover:border-indigo-500 rounded-2xl p-5 cursor-pointer hover:-translate-y-1.5 transition-all shadow-lg group flex flex-col justify-between relative overflow-hidden"
                                         >
                                             <div className="space-y-3">
-                                                <div className="flex items-center gap-2">
+                                                {/* 상단 뱃지 & 수당 */}
+                                                <div className="flex items-center justify-between gap-2">
                                                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 truncate max-w-[65%]">
                                                         {topic.category_name || '옛날이야기'}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                                                        {formatTopicPayout(topic)}
                                                     </span>
                                                 </div>
 
@@ -9326,6 +9045,33 @@ export default function StdPortalPage() {
                                                 <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 leading-snug">
                                                     {topic.generated_title || topic.topic}
                                                 </h4>
+
+                                                {/* 원본 주제 요약 */}
+                                                <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
+                                                    {topic.topic}
+                                                </p>
+                                            </div>
+
+                                            {/* 하단 메타 태그 & 작업 버튼 */}
+                                            <div className="mt-4 pt-3 border-t border-white/5 space-y-3">
+                                                <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
+                                                    <span className="flex items-center gap-1">
+                                                        <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
+                                                    </span>
+                                                    <span className="text-cyan-400">{topic.scene_count || 53} Scenes</span>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setSelectedTopicForModal(topic)
+                                                        setTopicModalOpen(true)
+                                                    }}
+                                                    className="w-full py-2 bg-[#202632] group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-indigo-600 text-gray-300 group-hover:text-white rounded-xl text-xs font-bold transition-all shadow"
+                                                >
+                                                    주제 상세 확인 & 작업 시작 →
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
@@ -9450,23 +9196,8 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                if (!thumbnailIdeas.length) {
-                                                    alert('이 프로젝트에는 아직 Codex 워커가 생성한 썸네일 문구가 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요.')
-                                                    return
-                                                }
-                                                setThumbTextLayers(thumbnailIdeas.slice(0, 2).map((idea, index) => ({
-                                                    id: `codex-layer-${Date.now()}-${index + 1}`,
-                                                    text: idea.headline,
-                                                    fontSize: index === 0 ? 34 : 26,
-                                                    color: index === 0 ? '#ffeb3b' : '#ffffff',
-                                                    strokeColor: '#000000',
-                                                    strokeWidth: index === 0 ? 4 : 3,
-                                                    fontFamily: 'GmarketSansBold',
-                                                    x: 50,
-                                                    y: index === 0 ? 35 : 65,
-                                                })))
                                                 setThumbStep(2)
-                                                alert('Codex 워커가 대본과 함께 생성한 썸네일 문구를 적용했습니다.')
+                                                alert('입력된 영상 제목과 스타일에 맞춰 3가지 최적 썸네일 기획안이 생성되었습니다.')
                                             }}
                                             className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all"
                                         >
@@ -9476,12 +9207,7 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const hook = codexThumbnailData.hookTexts[0]
-                                                    if (!hook) {
-                                                        alert('Codex 워커가 생성한 문구가 아직 없습니다.')
-                                                        return
-                                                    }
-                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: `${hook.replace(/[!?]+$/, '')}!?` } : l))
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '삼십 년 숨긴 편지의 진실!?' } : l))
                                                     alert('더 자극적인(Clicky) 후킹 문구로 변경되었습니다.')
                                                 }}
                                                 className="py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-[11px] font-bold transition"
@@ -9491,12 +9217,7 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const hook = codexThumbnailData.hookTexts[0]
-                                                    if (!hook) {
-                                                        alert('Codex 워커가 생성한 문구가 아직 없습니다.')
-                                                        return
-                                                    }
-                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: hook.replace(/[!?]+$/, '') } : l))
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '장례식 날 열린 마지막 편지' } : l))
                                                     alert('더 깔끔하고 신뢰감 있는(Clean) 문구로 변경되었습니다.')
                                                 }}
                                                 className="py-1.5 border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-[11px] font-bold transition"
@@ -9580,7 +9301,29 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    {thumbnailIdeas.map((idea, idx) => (
+                                    {[
+                                        {
+                                            id: 'idea-1',
+                                            badge: '충격 폭로형',
+                                            headline: '삼십 년 숨긴 편지의 진실',
+                                            subhead: '통장에 찍힌 실제 수령액 공개',
+                                            prompt: 'An elderly husband looking in shock at a bank statement with a magnifying glass, dramatic lighting, high contrast',
+                                        },
+                                        {
+                                            id: 'idea-2',
+                                            badge: '현실 대비형',
+                                            headline: '장례식 뒤 드러난 마지막 약속',
+                                            subhead: '우리가 몰랐던 은퇴 후 한 달 생활비',
+                                            prompt: 'Split screen, on the left an old pension book, on the right a simple empty dinner table, emotive photorealistic style',
+                                        },
+                                        {
+                                            id: 'idea-3',
+                                            badge: '호기심 자극형',
+                                            headline: '30년 일하고 받은 돈이 고작...',
+                                            subhead: '평범한 부부의 솔직한 고백',
+                                            prompt: 'Close up of weathered hands holding a worn leather handbag and yellowed letter, intense emotional atmosphere',
+                                        },
+                                    ].map((idea, idx) => (
                                         <div
                                             key={idea.id}
                                             onClick={() => {
@@ -9637,11 +9380,6 @@ export default function StdPortalPage() {
                                             </button>
                                         </div>
                                     ))}
-                                    {!thumbnailIdeas.length && (
-                                        <div className="md:col-span-3 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-5 text-center text-xs text-amber-200">
-                                            이 프로젝트는 기존에 생성되어 Codex 썸네일 문구가 없습니다. 새 Codex 콘텐츠 작업부터 대본과 함께 3개 후보가 저장됩니다.
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* 훅 추천 문구 바 */}
@@ -9651,7 +9389,12 @@ export default function StdPortalPage() {
                                         <span className="text-xs font-bold text-blue-300">AI 추천 훅 문구:</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 flex-1">
-                                        {codexThumbnailData.hookTexts.map((hook, hIdx) => (
+                                        {[
+                                            "삼십 년 숨긴 편지의 진실",
+                                            "통장에 찍힌 실제 수령액",
+                                            "은퇴 후 현실 생계비",
+                                            "평범한 부부의 눈물",
+                                        ].map((hook, hIdx) => (
                                             <button
                                                 key={hIdx}
                                                 type="button"
@@ -9674,9 +9417,6 @@ export default function StdPortalPage() {
                                                 + {hook}
                                             </button>
                                         ))}
-                                        {!codexThumbnailData.hookTexts.length && (
-                                            <span className="text-[11px] text-gray-500">Codex 워커가 생성한 추천 문구가 아직 없습니다.</span>
-                                        )}
                                     </div>
                                 </div>
                             </div>
