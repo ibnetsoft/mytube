@@ -25,6 +25,8 @@ def test_vrew_preview_persists_the_same_audio_in_background():
 def test_vrew_word_progress_is_shown_only_in_the_subtitle_editor():
     assert "const vrewActiveTokenAtPlaybackTime" in STD_PAGE
     assert "? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime)" in STD_PAGE
+    assert "const highlightTime = Math.min(end, time + 0.06)" in STD_PAGE
+    assert "setInterval(syncPlaybackProgress, 33)" in STD_PAGE
     assert "const renderPreviewSubtitleText" not in STD_PAGE
     preview_overlay = STD_PAGE.split("{/* 실시간 폰트/스타일 자막 오버레이", 1)[1].split("{/* 커스텀 플레이어 바 */}", 1)[0]
     assert "{currentSub.text}" in preview_overlay

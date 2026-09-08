@@ -874,7 +874,6 @@ export default function StdPortalPage() {
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
-    const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
     const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
@@ -2414,7 +2413,8 @@ export default function StdPortalPage() {
         const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0)
         const end = Number(subtitle?.end_num ?? subtitle?.end_time ?? start)
         if (!tokenCount || !Number.isFinite(start) || !Number.isFinite(end) || time < start || time > end) return -1
-        const progress = Math.max(0, Math.min(1, (time - start) / Math.max(0.1, end - start)))
+        const highlightTime = Math.min(end, time + 0.06)
+        const progress = Math.max(0, Math.min(1, (highlightTime - start) / Math.max(0.1, end - start)))
         return Math.min(tokenCount - 1, Math.floor(progress * tokenCount))
     }
 
@@ -2560,7 +2560,6 @@ export default function StdPortalPage() {
         }
         vrewPreviewVideoRef.current?.pause()
         setIsPlayingPreview(false)
-        setVrewActiveTokenIndex(-1)
     }
 
     const persistVrewSegmentAudio = async (
@@ -2746,7 +2745,6 @@ export default function StdPortalPage() {
                 const audio = new Audio(audioUrl)
                 vrewAudioRef.current = audio
                 const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
-                const tokenCount = Math.max(1, vrewTextTokens(subtitle?.text || '').length)
                 const cleanup = () => {
                     if (vrewProgressTimerRef.current) {
                         clearInterval(vrewProgressTimerRef.current)
@@ -2757,20 +2755,17 @@ export default function StdPortalPage() {
                 }
                 audio.onended = () => {
                     cleanup()
-                    setVrewActiveTokenIndex(-1)
                     resolve()
                 }
                 audio.onerror = () => {
                     cleanup()
                     reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
                 }
-                vrewProgressTimerRef.current = setInterval(() => {
-                    setPlaybackTime(Math.round((baseStart + audio.currentTime) * 10) / 10)
-                    const duration = Number.isFinite(audio.duration) && audio.duration > 0
-                        ? audio.duration
-                        : Math.max(0.1, Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1) - baseStart)
-                    setVrewActiveTokenIndex(Math.min(tokenCount - 1, Math.floor((audio.currentTime / duration) * tokenCount)))
-                }, 100)
+                const syncPlaybackProgress = () => {
+                    setPlaybackTime(baseStart + audio.currentTime)
+                }
+                syncPlaybackProgress()
+                vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
                 audio.play().catch(error => {
                     cleanup()
                     reject(error)
