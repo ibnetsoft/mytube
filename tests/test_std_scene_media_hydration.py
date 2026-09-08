@@ -28,10 +28,18 @@ def test_project_scene_hydration_prefers_live_topic_supabase_media_before_drive_
 
 def test_project_scene_hydration_prefers_supabase_video_before_drive_fallback():
     assert "function sceneSupabaseVideoUrl" in PROJECT_ROUTE
+    assert "function assetSupabaseUrl" in PROJECT_ROUTE
     assert "const coworkAsset = metadata?.cowork_video_asset" in PROJECT_ROUTE
     assert "metadata?.video_storage_object_path" in PROJECT_ROUTE
-    assert "const videoUrl = sceneSupabaseVideoUrl(scene)" in PROJECT_ROUTE
+    assert "const videoUrl = assetSupabaseUrl(videoAsset)" in PROJECT_ROUTE
     assert "|| sceneSupabaseVideoUrl(sourceScene)" in PROJECT_ROUTE
+
+
+def test_project_scene_hydration_prioritizes_the_uploaded_scene_asset():
+    assert "const imageAsset = sceneMediaAsset(scene, 'image', assets)" in PROJECT_ROUTE
+    assert "const videoAsset = sceneMediaAsset(scene, 'video', assets)" in PROJECT_ROUTE
+    assert "const imageUrl = assetSupabaseUrl(imageAsset)" in PROJECT_ROUTE
+    assert "const videoUrl = assetSupabaseUrl(videoAsset)" in PROJECT_ROUTE
 
 
 def test_media_restore_supports_legacy_assets_without_scene_number():

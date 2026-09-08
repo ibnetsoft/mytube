@@ -119,19 +119,27 @@ function sceneMediaAsset(scene: any, assetType: 'image' | 'video', assets: any[]
     }) || null
 }
 
+function assetSupabaseUrl(asset: any): string {
+    const metadata = asset?.metadata || {}
+    return cleanUrl(metadata?.storage_public_url)
+        || storagePublicUrl(metadata?.storage_bucket, metadata?.storage_path)
+}
+
 function hydrateSceneMedia(scene: any, assets: any[] = [], sourceScene?: any) {
-    // A topic can receive its final CoWork images after a user has already claimed it.
-    // Prefer the canonical Supabase object in the live topic, then retain project/Drive media as fallback.
-    const imageUrl = sceneSupabaseImageUrl(scene)
+    // A scene upload is the user's explicit replacement, so surface its
+    // Supabase copy immediately. Topic media remains the fallback.
+    const imageAsset = sceneMediaAsset(scene, 'image', assets)
+    const videoAsset = sceneMediaAsset(scene, 'video', assets)
+    const imageUrl = assetSupabaseUrl(imageAsset)
+        || sceneSupabaseImageUrl(scene)
         || sceneSupabaseImageUrl(sourceScene)
         || sceneStorageImageUrl(scene)
         || sceneStorageImageUrl(sourceScene)
-    const videoUrl = sceneSupabaseVideoUrl(scene)
+    const videoUrl = assetSupabaseUrl(videoAsset)
+        || sceneSupabaseVideoUrl(scene)
         || sceneSupabaseVideoUrl(sourceScene)
         || sceneStorageVideoUrl(scene)
         || sceneStorageVideoUrl(sourceScene)
-    const imageAsset = sceneMediaAsset(scene, 'image', assets)
-    const videoAsset = sceneMediaAsset(scene, 'video', assets)
     return {
         ...scene,
         metadata: {
