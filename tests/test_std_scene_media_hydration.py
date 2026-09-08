@@ -21,6 +21,9 @@ def test_project_scene_hydration_prefers_live_topic_supabase_media_before_drive_
     assert ".from('topics_queue')" in PROJECT_ROUTE
     assert "sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))" in PROJECT_ROUTE
     assert "metadata?.storage_object_path" in PROJECT_ROUTE
+    assert "function projectTopicQueueId" in PROJECT_ROUTE
+    assert "sourcePayload?.id" in PROJECT_ROUTE
+    assert "function structureScenes" in PROJECT_ROUTE
 
 
 def test_project_scene_hydration_prefers_supabase_video_before_drive_fallback():

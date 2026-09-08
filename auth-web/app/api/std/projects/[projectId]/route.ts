@@ -13,6 +13,40 @@ function cleanUrl(value: any): string {
     return str
 }
 
+function jsonObject(value: any): Record<string, any> {
+    if (value && typeof value === 'object' && !Array.isArray(value)) return value
+    if (typeof value !== 'string' || !value.trim()) return {}
+    try {
+        const parsed = JSON.parse(value)
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    } catch {
+        return {}
+    }
+}
+
+function projectTopicQueueId(project: any): number | null {
+    const projectPayload = jsonObject(project?.project_payload)
+    const sourcePayload = jsonObject(project?.source_payload)
+    const candidates = [
+        project?.topic_queue_id,
+        projectPayload?.topic_queue_id,
+        projectPayload?.topic_id,
+        sourcePayload?.id,
+        sourcePayload?.topic_queue_id,
+        sourcePayload?.topic_id,
+    ]
+    for (const candidate of candidates) {
+        const topicId = Number(candidate)
+        if (Number.isFinite(topicId) && topicId > 0) return Math.floor(topicId)
+    }
+    return null
+}
+
+function structureScenes(value: any): any[] {
+    const structure = jsonObject(value)
+    return Array.isArray(structure?.scenes) ? structure.scenes : []
+}
+
 function storagePublicUrl(bucket: any, objectPath: any): string {
     const path = String(objectPath || '').trim().replace(/^\/+/, '')
     if (!path) return ''
@@ -203,17 +237,22 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
     if (assetsError) return NextResponse.json({ success: false, error: assetsError.message }, { status: 500 })
 
-    let sourceSceneByNumber = new Map<number, any>()
-    if (project.topic_queue_id) {
+    const sourceSceneByNumber = new Map<number, any>()
+    const sourcePayload = jsonObject(project?.source_payload)
+    for (const [index, scene] of structureScenes(sourcePayload?.pregenerated_structure).entries()) {
+        sourceSceneByNumber.set(sceneNumberOf(scene, index + 1), scene)
+    }
+
+    const topicQueueId = projectTopicQueueId(project)
+    if (topicQueueId) {
         const { data: topic } = await supabaseAdmin
             .from('topics_queue')
             .select('pregenerated_structure')
-            .eq('id', project.topic_queue_id)
+            .eq('id', topicQueueId)
             .maybeSingle()
-        const sourceScenes = Array.isArray(topic?.pregenerated_structure?.scenes)
-            ? topic.pregenerated_structure.scenes
-            : []
-        sourceSceneByNumber = new Map(sourceScenes.map((scene: any, index: number) => [sceneNumberOf(scene, index + 1), scene]))
+        for (const [index, scene] of structureScenes(topic?.pregenerated_structure).entries()) {
+            sourceSceneByNumber.set(sceneNumberOf(scene, index + 1), scene)
+        }
     }
 
     return NextResponse.json({
