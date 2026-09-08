@@ -3247,7 +3247,10 @@ export default function StdPortalPage() {
             const rememberedPreferredProject = preferredProjectId ? readRememberedProjectState(preferredProjectId) : null
             const preferredProjectIsListed = Boolean(preferredProjectId && loadedProjects.some((project: any) => project.id === preferredProjectId))
 
-            if (rememberedPreferredProject && projectMatchesRequester(rememberedPreferredProject, email || user?.email)) {
+            if (rememberedPreferredProject && (
+                preferredProjectIsListed
+                || projectMatchesRequester(rememberedPreferredProject, email || user?.email)
+            )) {
                 setSelectedProject(rememberedPreferredProject)
                 setCustomScriptText(cleanScriptContextText(rememberedPreferredProject.project.project_payload?.script || ''))
                 rememberProjectState(rememberedPreferredProject)

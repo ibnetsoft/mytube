@@ -35,11 +35,12 @@ def test_failed_drive_media_restore_does_not_emit_browser_404s():
 
 def test_unlisted_cached_project_is_restored_without_a_failing_detail_request():
     assert "const preferredProjectIsListed" in STD_PAGE
-    cache_restore = "if (rememberedPreferredProject && projectMatchesRequester(rememberedPreferredProject, email || user?.email))"
+    cache_restore = "if (rememberedPreferredProject && ("
     server_fetch = "else if (preferredProjectId && preferredProjectIsListed)"
     assert cache_restore in STD_PAGE
     assert server_fetch in STD_PAGE
     assert STD_PAGE.index(cache_restore) < STD_PAGE.index(server_fetch)
+    assert "preferredProjectIsListed\n                || projectMatchesRequester" in STD_PAGE
 
 
 def test_missing_project_detail_has_a_non_error_response_for_cache_recovery():
