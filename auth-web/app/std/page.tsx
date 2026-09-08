@@ -4583,13 +4583,17 @@ export default function StdPortalPage() {
             }
             throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
-            const remembered = readRememberedProjectState(requestedProjectId)
-            if (remembered?.project?.id && projectMatchesRequester(remembered, activeImpEmail || email || user?.email)) {
-                setSelectedProject(remembered)
-                setCustomScriptText(cleanScriptContextText(remembered.project.project_payload?.script || ''))
-                rememberProjectState(remembered)
-                restorePersistedProjectMedia(remembered, fetchHeaders).catch(() => {})
-                return remembered
+            const urlProjectId = readUrlProjectId()
+            const canUseRememberedFallback = !urlProjectId || String(urlProjectId) !== String(requestedProjectId)
+            if (canUseRememberedFallback) {
+                const remembered = readRememberedProjectState(requestedProjectId)
+                if (remembered?.project?.id && projectMatchesRequester(remembered, activeImpEmail || email || user?.email)) {
+                    setSelectedProject(remembered)
+                    setCustomScriptText(cleanScriptContextText(remembered.project.project_payload?.script || ''))
+                    rememberProjectState(remembered)
+                    restorePersistedProjectMedia(remembered, fetchHeaders).catch(() => {})
+                    return remembered
+                }
             }
             setMessage(error.message || '작업 상세 조회 실패')
         } finally {
