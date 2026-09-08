@@ -2447,21 +2447,26 @@ export default function StdPortalPage() {
         onSelect: (voiceId: string) => void,
         title: string,
         tone: 'default' | 'dialogue' = 'default',
-        openDirection: 'left' | 'right' = 'right'
+        openDirection: 'left' | 'right' = 'right',
+        disabled = false
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
-        const isOpen = openVoicePickerKey === pickerKey
+        const isOpen = !disabled && openVoicePickerKey === pickerKey
         return (
             <div className="relative inline-flex">
                 <button
                     type="button"
-                    title={`${title}: ${currentVoiceName}`}
+                    disabled={disabled}
+                    title={disabled ? '자막 섹션을 선택하면 성우를 변경할 수 있습니다.' : `${title}: ${currentVoiceName}`}
                     onClick={(event) => {
                         event.stopPropagation()
+                        if (disabled) return
                         setOpenVoicePickerKey(isOpen ? '' : pickerKey)
                     }}
                     className={`w-8 h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
-                        tone === 'dialogue'
+                        disabled
+                            ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
+                            : tone === 'dialogue'
                             ? 'bg-emerald-500/10 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/20'
                             : 'bg-[#10141b] border-white/10 text-cyan-100 hover:bg-[#202632] hover:border-cyan-400/50'
                     }`}
@@ -2503,22 +2508,28 @@ export default function StdPortalPage() {
         )
     }
 
-    const renderSelectedSceneTransitionPicker = () => (
+    const renderSelectedSceneTransitionPicker = (disabled = false) => (
         <div className="relative inline-flex">
             <button
                 type="button"
-                title="선택한 씬 화면 전환 효과"
+                disabled={disabled}
+                title={disabled ? '자막 섹션을 선택하면 효과를 적용할 수 있습니다.' : '선택한 씬 화면 전환 효과'}
                 onClick={(event) => {
                     event.stopPropagation()
+                    if (disabled) return
                     setOpenVoicePickerKey('')
                     setIsTransitionPickerOpen(prev => !prev)
                 }}
-                className="h-7 px-2 rounded-md border border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 flex items-center gap-1 text-[10px] font-bold transition"
+                className={`h-7 px-2 rounded-md border flex items-center gap-1 text-[10px] font-bold transition ${
+                    disabled
+                        ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
+                        : 'border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20'
+                }`}
             >
                 <Sparkles size={12} />
                 효과
             </button>
-            {isTransitionPickerOpen && (
+            {!disabled && isTransitionPickerOpen && (
                 <div
                     className="absolute left-0 top-full mt-1 z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
                     onClick={(event) => event.stopPropagation()}
@@ -6994,6 +7005,7 @@ export default function StdPortalPage() {
                         const allSubtitleScenesSelected = subtitleSceneGroups.length > 0 && subtitleSceneGroups.every(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
+                        const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
                         return (
                         <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
@@ -7408,6 +7420,22 @@ export default function StdPortalPage() {
                                                 title="세로 여백/오프셋"
                                             />
                                         </div>
+                                        <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
+                                            {renderVoicePicker(
+                                                'selected-scenes-bulk',
+                                                selectedSubtitleSceneVoiceId,
+                                                (nextVoiceId) => {
+                                                    if (selectedSubtitleSceneGroup) {
+                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
+                                                    }
+                                                },
+                                                `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
+                                                'default',
+                                                'right',
+                                                !hasSelectedSubtitleSections
+                                            )}
+                                            {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
+                                        </div>
                                     </div>
 
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
@@ -7523,13 +7551,6 @@ export default function StdPortalPage() {
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
                                                         {tf('sub_selected_scenes', { count: selectedSubtitleSceneNumbers.length })}
                                                     </span>
-                                                    {selectedSubtitleBlockIndexes.length < 2 && selectedSubtitleSceneGroup && renderVoicePicker(
-                                                        'selected-scenes-bulk',
-                                                        selectedSubtitleSceneVoiceId,
-                                                        (nextVoiceId) => void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId),
-                                                        `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
-                                                    )}
-                                                    {renderSelectedSceneTransitionPicker()}
                                                 </>
                                             )}
                                         </div>
