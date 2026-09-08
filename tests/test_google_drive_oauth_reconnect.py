@@ -11,6 +11,7 @@ def test_drive_reconnect_requires_superadmin_and_uses_offline_consent():
     assert "access_type: 'offline'" in source
     assert "prompt: 'consent'" in source
     assert "scope: DRIVE_SCOPE" in source
+    assert "include_granted_scopes" not in source
 
 
 def test_drive_callback_checks_state_and_stores_the_new_refresh_token():
