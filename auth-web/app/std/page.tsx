@@ -2964,14 +2964,15 @@ export default function StdPortalPage() {
             }, [])
         )
         const linkedSceneNumberByAssetId = new Map<string, number>(
-            (projectPayload.scenes || []).flatMap<Array<[string, number]>>((scene: any, index: number) => {
+            (projectPayload.scenes || []).reduce<Array<[string, number]>>((entries, scene: any, index: number) => {
                 const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
-                if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return []
-                return ['image_asset_id', 'video_asset_id']
+                if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return entries
+                const assetIds = ['image_asset_id', 'video_asset_id']
                     .map(key => String(scene?.metadata?.[key] || '').trim())
                     .filter(Boolean)
-                    .map(assetId => [assetId, sceneNumber])
-            })
+                assetIds.forEach(assetId => entries.push([assetId, sceneNumber]))
+                return entries
+            }, [])
         )
         const assetSceneNumber = (asset: any): number | null => {
             const directSceneNumber = Number(asset?.scene_number)

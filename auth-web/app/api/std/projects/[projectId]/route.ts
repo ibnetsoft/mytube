@@ -21,14 +21,36 @@ function storagePublicUrl(bucket: any, objectPath: any): string {
     return cleanUrl(data?.publicUrl)
 }
 
-function sceneStorageImageUrl(scene: any): string {
+function sceneNumberOf(scene: any, fallback = 0): number {
+    const value = Number(scene?.scene_number || scene?.scene_order || fallback)
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback
+}
+
+function isSupabaseStorageUrl(value: any): boolean {
+    const url = cleanUrl(value)
+    return url.includes('/storage/v1/object/') || url.includes('/storage/v1/render/')
+}
+
+function sceneSupabaseImageUrl(scene: any): string {
     const metadata = scene?.metadata || {}
     const nestedMetadata = metadata?.metadata || {}
     const coworkAsset = metadata?.cowork_image_asset || nestedMetadata?.cowork_image_asset || {}
-    return cleanUrl(scene?.image_url || scene?.image)
+    const directUrl = cleanUrl(scene?.image_url || scene?.image)
         || cleanUrl(metadata?.image_url || metadata?.image || nestedMetadata?.image_url || nestedMetadata?.image)
+    return (isSupabaseStorageUrl(directUrl) ? directUrl : '')
         || storagePublicUrl(coworkAsset?.bucket || metadata?.bucket || nestedMetadata?.bucket, coworkAsset?.object_path || metadata?.object_path || nestedMetadata?.object_path)
-        || storagePublicUrl(metadata?.storage_bucket || nestedMetadata?.storage_bucket, metadata?.storage_path || nestedMetadata?.storage_path)
+        || storagePublicUrl(
+            metadata?.storage_bucket || nestedMetadata?.storage_bucket,
+            metadata?.storage_path || metadata?.storage_object_path || nestedMetadata?.storage_path || nestedMetadata?.storage_object_path
+        )
+}
+
+function sceneStorageImageUrl(scene: any): string {
+    const metadata = scene?.metadata || {}
+    const nestedMetadata = metadata?.metadata || {}
+    return sceneSupabaseImageUrl(scene)
+        || cleanUrl(scene?.image_url || scene?.image)
+        || cleanUrl(metadata?.image_url || metadata?.image || nestedMetadata?.image_url || nestedMetadata?.image)
 }
 
 function sceneStorageVideoUrl(scene: any): string {
@@ -48,8 +70,13 @@ function sceneMediaAsset(scene: any, assetType: 'image' | 'video', assets: any[]
     }) || null
 }
 
-function hydrateSceneMedia(scene: any, assets: any[] = []) {
-    const imageUrl = sceneStorageImageUrl(scene)
+function hydrateSceneMedia(scene: any, assets: any[] = [], sourceScene?: any) {
+    // A topic can receive its final CoWork images after a user has already claimed it.
+    // Prefer the canonical Supabase object in the live topic, then retain project/Drive media as fallback.
+    const imageUrl = sceneSupabaseImageUrl(scene)
+        || sceneSupabaseImageUrl(sourceScene)
+        || sceneStorageImageUrl(scene)
+        || sceneStorageImageUrl(sourceScene)
     const videoUrl = sceneStorageVideoUrl(scene)
     const imageAsset = sceneMediaAsset(scene, 'image', assets)
     const videoAsset = sceneMediaAsset(scene, 'video', assets)
@@ -158,7 +185,29 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
     if (assetsError) return NextResponse.json({ success: false, error: assetsError.message }, { status: 500 })
 
-    return NextResponse.json({ success: true, project, scenes: (scenes || []).map(scene => hydrateSceneMedia(scene, assets || [])), assets: assets || [] })
+    let sourceSceneByNumber = new Map<number, any>()
+    if (project.topic_queue_id) {
+        const { data: topic } = await supabaseAdmin
+            .from('topics_queue')
+            .select('pregenerated_structure')
+            .eq('id', project.topic_queue_id)
+            .maybeSingle()
+        const sourceScenes = Array.isArray(topic?.pregenerated_structure?.scenes)
+            ? topic.pregenerated_structure.scenes
+            : []
+        sourceSceneByNumber = new Map(sourceScenes.map((scene: any, index: number) => [sceneNumberOf(scene, index + 1), scene]))
+    }
+
+    return NextResponse.json({
+        success: true,
+        project,
+        scenes: (scenes || []).map((scene, index) => hydrateSceneMedia(
+            scene,
+            assets || [],
+            sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))
+        )),
+        assets: assets || [],
+    })
 }
 
 export async function PATCH(req: Request, { params }: { params: { projectId: string } }) {
