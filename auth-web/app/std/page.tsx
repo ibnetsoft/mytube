@@ -1734,6 +1734,13 @@ export default function StdPortalPage() {
         return id ? `https://drive.google.com/file/d/${id}/view` : null
     }
 
+    const driveFileIdFromUrl = (url: string | null | undefined): string | null => {
+        const value = String(url || '').trim()
+        const match = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i)
+            || value.match(/[?&]id=([^&#]+)/i)
+        return match?.[1] ? decodeURIComponent(match[1]) : null
+    }
+
     const assetDisplayUrl = (projectId: string | null | undefined, asset: any): string | null => {
         return projectAssetFileUrl(projectId, asset)
             || sanitizeAssetUrl(
@@ -1764,6 +1771,9 @@ export default function StdPortalPage() {
                 || keepRenderableMediaUrl(imageAsset?.metadata?.storage_public_url)
                 || projectAssetFileUrl(projectId, imageAsset)
             const sceneVideoUrl = keepRenderableMediaUrl(scene?.video_url || scene?.video)
+            const sceneVideoDriveProxy = projectAssetFileUrl(projectId, {
+                drive_file_id: driveFileIdFromUrl(sceneVideoUrl),
+            })
             // A saved Drive "view" page is not a media stream. Prefer the
             // Storage copy, then the authenticated project asset endpoint.
             const videoUrl = keepRenderableMediaUrl(videoAsset?.metadata?.storage_public_url)
@@ -1771,6 +1781,7 @@ export default function StdPortalPage() {
                     ? sceneVideoUrl
                     : null)
                 || projectAssetFileUrl(projectId, videoAsset)
+                || sceneVideoDriveProxy
             return {
                 ...scene,
                 image_url: imageUrl,

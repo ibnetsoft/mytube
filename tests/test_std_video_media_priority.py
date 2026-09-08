@@ -15,6 +15,8 @@ def test_hook_scenes_remain_video_scenes():
 def test_existing_video_assets_are_preferred_over_scene_images():
     assert "const sceneId = String(scene?.id || scene?.metadata?.scene_id || '').trim()" in STD_PAGE
     assert "String(asset?.scene_id || '').trim() === sceneId" in STD_PAGE
+    assert "const driveFileIdFromUrl" in STD_PAGE
+    assert "const sceneVideoDriveProxy = projectAssetFileUrl" in STD_PAGE
     assert "const videoAsset = (assets || []).find" in STD_PAGE
     assert "|| projectAssetFileUrl(projectId, videoAsset)" in STD_PAGE
     assert "if (isProjectAssetFileUrl(str)) return str" in STD_PAGE
