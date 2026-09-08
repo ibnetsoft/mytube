@@ -53,10 +53,25 @@ function sceneStorageImageUrl(scene: any): string {
         || cleanUrl(metadata?.image_url || metadata?.image || nestedMetadata?.image_url || nestedMetadata?.image)
 }
 
+function sceneSupabaseVideoUrl(scene: any): string {
+    const metadata = scene?.metadata || {}
+    const nestedMetadata = metadata?.metadata || {}
+    const coworkAsset = metadata?.cowork_video_asset || nestedMetadata?.cowork_video_asset || {}
+    const directUrl = cleanUrl(scene?.video_url || scene?.video)
+        || cleanUrl(metadata?.video_url || metadata?.video || nestedMetadata?.video_url || nestedMetadata?.video)
+    const supabaseUrl = isSupabaseStorageUrl(directUrl) ? directUrl : ''
+    return supabaseUrl
+        || storagePublicUrl(
+            coworkAsset?.bucket || metadata?.video_storage_bucket || nestedMetadata?.video_storage_bucket,
+            coworkAsset?.object_path || metadata?.video_storage_path || metadata?.video_storage_object_path || nestedMetadata?.video_storage_path || nestedMetadata?.video_storage_object_path
+        )
+}
+
 function sceneStorageVideoUrl(scene: any): string {
     const metadata = scene?.metadata || {}
     const nestedMetadata = metadata?.metadata || {}
-    return cleanUrl(scene?.video_url || scene?.video)
+    return sceneSupabaseVideoUrl(scene)
+        || cleanUrl(scene?.video_url || scene?.video)
         || cleanUrl(metadata?.video_url || metadata?.video || nestedMetadata?.video_url || nestedMetadata?.video)
 }
 
@@ -77,7 +92,10 @@ function hydrateSceneMedia(scene: any, assets: any[] = [], sourceScene?: any) {
         || sceneSupabaseImageUrl(sourceScene)
         || sceneStorageImageUrl(scene)
         || sceneStorageImageUrl(sourceScene)
-    const videoUrl = sceneStorageVideoUrl(scene)
+    const videoUrl = sceneSupabaseVideoUrl(scene)
+        || sceneSupabaseVideoUrl(sourceScene)
+        || sceneStorageVideoUrl(scene)
+        || sceneStorageVideoUrl(sourceScene)
     const imageAsset = sceneMediaAsset(scene, 'image', assets)
     const videoAsset = sceneMediaAsset(scene, 'video', assets)
     return {
@@ -309,10 +327,12 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 const normalizedSceneNumber = Math.floor(sceneNumber)
                 const requiresVideoPrompt = isStdRequiredVideoScene(normalizedSceneNumber)
                 const currentScene = findSceneByNumber(currentPayloadScenes, normalizedSceneNumber) || {}
-                const imageUrl = cleanUrl(scene?.image_url || scene?.image)
+                const imageUrl = sceneSupabaseImageUrl(scene)
+                    || sceneSupabaseImageUrl(currentScene)
                     || sceneStorageImageUrl(scene)
                     || sceneStorageImageUrl(currentScene)
-                const videoUrl = cleanUrl(scene?.video_url || scene?.video)
+                const videoUrl = sceneSupabaseVideoUrl(scene)
+                    || sceneSupabaseVideoUrl(currentScene)
                     || sceneStorageVideoUrl(scene)
                     || sceneStorageVideoUrl(currentScene)
                 return {
