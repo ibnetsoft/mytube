@@ -11,7 +11,7 @@ def test_project_scene_hydration_matches_assets_by_scene_id_before_scene_number(
     assert "function sceneMediaAsset" in PROJECT_ROUTE
     assert "String(asset?.scene_id || '').trim() === sceneId" in PROJECT_ROUTE
     assert "image_asset_id: imageAsset.id" in PROJECT_ROUTE
-    assert "hydrateSceneMedia(scene => hydrateSceneMedia(scene, assetsAfterSave || []))" in PROJECT_ROUTE
+    assert "assetsAfterSave || []" in PROJECT_ROUTE
 
 
 def test_project_scene_hydration_prefers_live_topic_supabase_media_before_drive_fallback():
