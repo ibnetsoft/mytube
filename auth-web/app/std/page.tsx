@@ -3360,7 +3360,13 @@ export default function StdPortalPage() {
             const savedProjectStateRaw = !isImpersonating ? localStorage.getItem('std_active_project_state') : null
             const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
             const preferredProjectId = urlProjectId || savedActiveProjectId
-            const rememberedPreferredProject = preferredProjectId ? readRememberedProjectState(preferredProjectId) : null
+            if (urlProjectId && !isImpersonating) {
+                localStorage.removeItem(projectStateCacheKey(urlProjectId))
+                if (savedActiveProjectId === urlProjectId) {
+                    localStorage.removeItem('std_active_project_state')
+                }
+            }
+            const rememberedPreferredProject = preferredProjectId && !urlProjectId ? readRememberedProjectState(preferredProjectId) : null
             const preferredProjectIsListed = Boolean(preferredProjectId && loadedProjects.some((project: any) => project.id === preferredProjectId))
 
             if (rememberedPreferredProject && (
