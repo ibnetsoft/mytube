@@ -4757,7 +4757,7 @@ export default function StdPortalPage() {
                 status: p.status === 'claimed' ? 'in_progress' : p.status,
                 updated_at: new Date().toISOString(),
             } as any : p))
-            setMessage(`에셋 (${file.name}) Google Drive 저장 완료!`)
+            setMessage(`에셋 (${file.name}) Supabase Storage 및 Google Drive 저장 완료!`)
             return 'synced'
         } catch (error: any) {
             if (objectUrl) {
@@ -8949,24 +8949,43 @@ export default function StdPortalPage() {
                                                             영상 필수
                                                         </div>
                                                     )}
-                                                    {scene.image_url ? (
+                                                    {scene.video_url ? (
+                                                        <>
+                                                            <video
+                                                                src={scene.video_url}
+                                                                className="w-full h-full object-cover"
+                                                                controls
+                                                                loop
+                                                                muted
+                                                                playsInline
+                                                            />
+                                                            <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
+                                                                🎬 Video Ready
+                                                            </div>
+                                                            <label className="absolute bottom-2 left-2 cursor-pointer px-2 py-1 rounded bg-purple-700/90 hover:bg-purple-700 text-white text-[10px] font-bold border border-white/20 transition-all">
+                                                                영상 교체
+                                                                <input
+                                                                    type="file"
+                                                                    accept="video/*"
+                                                                    className="hidden"
+                                                                    disabled={uploadingKey === `${sceneNum}-video`}
+                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
+                                                                />
+                                                            </label>
+                                                        </>
+                                                    ) : scene.image_url ? (
                                                         <>
                                                             <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
-                                                            {scene.video_url && (
-                                                                <>
-                                                                    <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                                                        🎬 Video Ready
-                                                                    </div>
-                                                                    <a
-                                                                        href={scene.video_url}
-                                                                        target="_blank"
-                                                                        rel="noreferrer"
-                                                                        className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-purple-700/80 hover:bg-purple-700 text-white text-[10px] font-bold border border-white/20 transition-all"
-                                                                    >
-                                                                        영상 보기
-                                                                    </a>
-                                                                </>
-                                                            )}
+                                                            <label className="absolute bottom-2 left-2 cursor-pointer px-2 py-1 rounded bg-blue-700/90 hover:bg-blue-700 text-white text-[10px] font-bold border border-white/20 transition-all">
+                                                                {uploadingKey === `${sceneNum}-video` ? '영상 업로드 중' : '영상 업로드'}
+                                                                <input
+                                                                    type="file"
+                                                                    accept="video/*"
+                                                                    className="hidden"
+                                                                    disabled={uploadingKey === `${sceneNum}-video`}
+                                                                    onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
+                                                                />
+                                                            </label>
                                                             <a
                                                                 href={getSceneImageDownloadUrl(scene) || scene.image_url}
                                                                 download={safeDownloadFileName(`std-${String(selectedProject?.project?.id || 'project').slice(0, 8) || 'project'}-scene-${String(sceneNum).padStart(3, '0')}.png`)}
@@ -8981,19 +9000,6 @@ export default function StdPortalPage() {
                                                             >
                                                                 이미지 다운로드
                                                             </a>
-                                                        </>
-                                                    ) : scene.video_url ? (
-                                                        <>
-                                                            <video
-                                                                src={scene.video_url}
-                                                                className="w-full h-full object-cover"
-                                                                controls
-                                                                loop
-                                                                muted
-                                                            />
-                                                            <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                                                🎬 Video Ready
-                                                            </div>
                                                         </>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">

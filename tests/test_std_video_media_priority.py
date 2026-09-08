@@ -34,6 +34,14 @@ def test_project_asset_stream_uses_drive_when_storage_copy_was_pruned():
     assert "const imageUrl = projectAssetFileUrl(projectId, imageAsset)" in STD_PAGE
 
 
+def test_image_page_keeps_video_upload_available_when_a_scene_has_an_image():
+    assert "{scene.video_url ? (" in STD_PAGE
+    assert ") : scene.image_url ? (" in STD_PAGE
+    assert "영상 교체" in STD_PAGE
+    assert "영상 업로드 중' : '영상 업로드" in STD_PAGE
+    assert "accept=\"video/*\"" in STD_PAGE
+
+
 def test_new_visual_uploads_are_saved_to_supabase_then_drive():
     assert "createSignedUploadUrl(storagePath" in INIT_ROUTE
     assert "storage_upload_url: signedUpload.signedUrl" in INIT_ROUTE
