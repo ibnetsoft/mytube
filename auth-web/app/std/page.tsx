@@ -1699,6 +1699,18 @@ export default function StdPortalPage() {
         return cleaned.trim() || String(text).trim()
     }
 
+    const subtitleSnapshotMatchesScript = (script: string | null | undefined, subtitles: any[] | null | undefined): boolean => {
+        const normalizedScript = cleanScriptContextText(script).replace(/\s+/g, ' ').trim()
+        if (!normalizedScript || !Array.isArray(subtitles) || subtitles.length === 0) return true
+        const leadingSubtitleTexts = subtitles
+            .map((subtitle: any) => cleanScriptContextText(subtitle?.text || subtitle?.subtitle || subtitle?.content || '').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .slice(0, 8)
+        if (leadingSubtitleTexts.length === 0) return true
+        const matchedCount = leadingSubtitleTexts.filter(text => normalizedScript.includes(text)).length
+        return matchedCount >= Math.ceil(leadingSubtitleTexts.length * 0.6)
+    }
+
     const sanitizeAssetUrl = (url: string | null | undefined): string | null => {
         if (!url) return null
         const str = String(url).trim()
@@ -3540,10 +3552,14 @@ export default function StdPortalPage() {
         // 1~12씬(5초 비디오 훅) + 13~53씬(동적 런닝타임) 3중 싱크 자막 생성
         const scenes = selectedProject?.scenes || []
         const savedSubtitles = selectedProject?.project?.project_payload?.subtitles
-        const subs = Array.isArray(savedSubtitles) && savedSubtitles.length > 0
+        const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
+        const canReuseSavedSubtitles = Array.isArray(savedSubtitles)
+            && savedSubtitles.length > 0
+            && subtitleSnapshotMatchesScript(currentScript, savedSubtitles)
+        const subs = canReuseSavedSubtitles
             ? savedSubtitles
             : generateSynchronizedSubtitles(
-                selectedProject?.project?.project_payload?.script || customScriptText || '',
+                currentScript,
                 scenes,
                 Number(subMaxChars) || 20
             )
@@ -4496,8 +4512,8 @@ export default function StdPortalPage() {
                     ? payload.scenes
                     : payload.project.project_payload?.structure?.scenes || []
 
-                const fullScript = payload.project.project_payload?.script || serverScenes.map((s: any) => cleanScriptContextText(s.scene_text || s.script_excerpt)).join('\n\n')
-                setCustomScriptText(cleanScriptContextText(fullScript))
+                const fullScript = cleanScriptContextText(payload.project.project_payload?.script || serverScenes.map((s: any) => cleanScriptContextText(s.scene_text || s.script_excerpt)).join('\n\n'))
+                setCustomScriptText(fullScript)
                 const payloadScenes = Array.isArray(payload.project?.project_payload?.structure?.scenes)
                     ? payload.project.project_payload.structure.scenes
                     : (Array.isArray(payload.project?.project_payload?.scenes) ? payload.project.project_payload.scenes : [])
@@ -4528,12 +4544,21 @@ export default function StdPortalPage() {
                     }
                 })
 
+                const storedServerSubtitles = Array.isArray(payload.project?.project_payload?.subtitles)
+                    ? payload.project.project_payload.subtitles
+                    : []
+                const projectSubtitles = subtitleSnapshotMatchesScript(fullScript, storedServerSubtitles)
+                    ? storedServerSubtitles
+                    : generateSynchronizedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20)
+
                 const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
                     project: {
                         ...payload.project,
                         project_payload: {
                             ...(payload.project?.project_payload || {}),
+                            script: fullScript,
+                            subtitles: projectSubtitles,
                             original_worker_script: findOriginalWorkerScript({
                                 ...payload,
                                 project: payload.project,
