@@ -142,6 +142,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             scene_number: sceneNumber,
         })
     } catch (error: any) {
-        return NextResponse.json({ success: false, error: error?.message || 'Drive upload init failed' }, { status: 500 })
+        const detail = String(error?.message || 'asset_upload_init_failed')
+        if (detail.includes('drive_token_refresh_failed')) {
+            return NextResponse.json({
+                success: false,
+                code: 'drive_reconnect_required',
+                error: 'Google Drive 연결이 만료되었습니다. 관리자 설정에서 Google Drive를 다시 연결한 뒤 영상을 업로드하세요.',
+            }, { status: 409 })
+        }
+        return NextResponse.json({ success: false, error: detail }, { status: 500 })
     }
 }

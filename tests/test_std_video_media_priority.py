@@ -53,3 +53,9 @@ def test_new_visual_uploads_are_saved_to_supabase_then_drive():
     assert "storage_public_url: storagePublicUrl" in COMPLETE_ROUTE
     assert "browser_supabase_then_drive" in COMPLETE_ROUTE
     assert "ALTER COLUMN drive_file_id DROP NOT NULL" in MEDIA_MIGRATION
+
+
+def test_upload_init_reports_expired_drive_connection_without_a_generic_server_error():
+    assert "drive_reconnect_required" in INIT_ROUTE
+    assert "Google Drive 연결이 만료되었습니다" in INIT_ROUTE
+    assert "status: 409" in INIT_ROUTE
