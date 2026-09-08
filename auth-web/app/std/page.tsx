@@ -3983,7 +3983,7 @@ export default function StdPortalPage() {
     const clearBgmSetting = async () => {
         if (!selectedProject?.project?.id) return
         const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-        const { bgm_asset_id, bgm_file_name, ...rest } = currentSettings
+        const { bgm_asset_id, bgm_drive_file_id, bgm_file_name, ...rest } = currentSettings
         try {
             await updateBgmSfxSettings(rest)
             setMessage('BGM 적용을 해제했습니다.')
@@ -5859,6 +5859,22 @@ export default function StdPortalPage() {
             setMessage(`현재 자막 구간에 효과음 '${nextCue.file_name}'을 적용했습니다.`)
         } catch (error: any) {
             setMessage(error?.message || '효과음 적용에 실패했습니다.')
+        }
+    }
+
+    const applyWorkerBgmItem = async (item: any) => {
+        if (!selectedProject?.project?.id) return
+        const currentSettings = selectedProject.project.project_payload?.render_settings || {}
+        try {
+            await updateBgmSfxSettings({
+                ...currentSettings,
+                bgm_drive_file_id: String(item.drive_file_id),
+                bgm_file_name: String(item.title || item.file_name),
+                bgm_volume: currentSettings.bgm_volume ?? 0.25,
+            })
+            setMessage(`배경음 '${item.title || item.file_name}'을 적용했습니다.`)
+        } catch (error: any) {
+            setMessage(error?.message || '배경음 적용에 실패했습니다.')
         }
     }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
@@ -8159,7 +8175,7 @@ export default function StdPortalPage() {
                                                                 className="hidden"
                                                                 onChange={handleUploadBgmFile}
                                                             />
-                                                            {bgmAsset && (
+                                                            {(bgmAsset || bgmSfxSettings.bgm_drive_file_id) && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={clearBgmSetting}
@@ -8171,7 +8187,7 @@ export default function StdPortalPage() {
                                                             )}
                                                             <label
                                                                 htmlFor="std-bgm-upload"
-                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
+                                                                className={`hidden h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
                                                                     uploadingKey === 'bgm-upload'
                                                                         ? 'cursor-wait border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
                                                                         : 'cursor-pointer border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'
@@ -8225,7 +8241,7 @@ export default function StdPortalPage() {
                                                             )}
                                                             <label
                                                                 htmlFor="std-sfx-upload"
-                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
+                                                                className={`hidden h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
                                                                     uploadingKey === 'sfx-upload'
                                                                         ? 'cursor-wait border-purple-500/30 bg-purple-500/10 text-purple-200'
                                                                         : 'cursor-pointer border-purple-500/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20'
@@ -8277,7 +8293,8 @@ export default function StdPortalPage() {
                                                                             <div className="text-[9px] text-violet-300">{item.category}</div>
                                                                         </div>
                                                                         <audio controls preload="none" src={`/api/std/sfx-library/preview?fileId=${encodeURIComponent(item.drive_file_id)}`} className="h-7 w-28" />
-                                                                        <button type="button" onClick={() => void applyWorkerSfxItem(item)} className="h-7 rounded-md bg-violet-600 px-2 text-[10px] font-bold text-white hover:bg-violet-500">적용</button>
+                                                                        <button type="button" onClick={() => void applyWorkerBgmItem(item)} className="h-7 rounded-md bg-cyan-700 px-2 text-[10px] font-bold text-white hover:bg-cyan-600">BGM</button>
+                                                                        <button type="button" onClick={() => void applyWorkerSfxItem(item)} className="h-7 rounded-md bg-violet-600 px-2 text-[10px] font-bold text-white hover:bg-violet-500">SFX</button>
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -8286,8 +8303,7 @@ export default function StdPortalPage() {
                                                 </div>
 
                                                 <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] leading-5 text-blue-100">
-                                                    업로드한 파일은 프로젝트 Google Drive 폴더의 <span className="font-mono">04_audio</span>에 저장되고,
-                                                    렌더 제출 시 워커가 Drive에서 내려받아 기존 믹서로 적용합니다.
+                                                    공용 SFX Drive 라이브러리에서 미리듣기 후 배경음 또는 현재 자막 효과음으로 바로 적용할 수 있습니다.
                                                 </div>
                                             </div>
                                         )}

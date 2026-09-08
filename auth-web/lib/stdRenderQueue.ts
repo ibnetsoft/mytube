@@ -397,16 +397,17 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
     const assetById = new Map(audioEffectAssets.map((asset: any) => [String(asset.id), asset]))
     const bgmAssetId = String(projectRenderSettings.bgm_asset_id || project.project_payload?.bgm_asset_id || '').trim()
     const bgmAsset = bgmAssetId ? assetById.get(bgmAssetId) : null
+    const bgmDriveFileId = String(projectRenderSettings.bgm_drive_file_id || '').trim()
     let bgmPath = ''
-    if (bgmAsset?.drive_file_id) {
-        bgmPath = audioManifestPath(bgmAsset, 'bgm')
+    if (bgmAsset?.drive_file_id || bgmDriveFileId) {
+        bgmPath = bgmAsset ? audioManifestPath(bgmAsset, 'bgm') : 'audio/library-bgm.mp3'
         manifestFiles.push({
             asset_type: 'bgm',
-            drive_file_id: bgmAsset.drive_file_id,
+            drive_file_id: bgmAsset?.drive_file_id || bgmDriveFileId,
             path: bgmPath,
-            file_name: bgmAsset.file_name,
-            mime_type: bgmAsset.mime_type,
-            size: bgmAsset.file_size || null,
+            file_name: bgmAsset?.file_name || projectRenderSettings.bgm_file_name || 'library-bgm.mp3',
+            mime_type: bgmAsset?.mime_type || 'audio/mpeg',
+            size: bgmAsset?.file_size || null,
         })
     }
 
