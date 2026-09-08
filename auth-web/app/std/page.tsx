@@ -2836,17 +2836,6 @@ export default function StdPortalPage() {
         }
     }, [])
 
-    const audioPlaybackEndpoint = (projectId: string, asset: any): string | null => {
-        if (!projectId) return null
-        if (asset?.id) {
-            return `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
-        }
-        if (asset?.drive_file_id) {
-            return `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?driveFileId=${encodeURIComponent(asset.drive_file_id)}`
-        }
-        return null
-    }
-
     const findStoredProjectScript = (projectPayload?: SelectedProjectPayload | null): string => {
         const payload = projectPayload?.project?.project_payload || {}
         const embeddedScript = cleanScriptContextText(
@@ -2972,10 +2961,8 @@ export default function StdPortalPage() {
             setThumbBgUploadFile(null)
         }
 
-        const audioAsset = assets.find((asset: any) =>
-            String(asset?.asset_type || '').toLowerCase() === 'audio' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
-        )
-        setAudioResultUrl(restoredAudioUrl || audioPlaybackEndpoint(projectId, audioAsset) || '')
+        // A failed Drive restore must not leave a stale endpoint on the native audio tag.
+        setAudioResultUrl(restoredAudioUrl || '')
 
         setSelectedProject(prev => {
             if (!prev || String(prev.project?.id || '') !== String(projectId)) return prev

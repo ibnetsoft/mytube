@@ -33,6 +33,11 @@ def test_failed_drive_media_restore_does_not_emit_browser_404s():
     assert "return new NextResponse(null, { status: 204" in ASSET_ROUTE
 
 
+def test_failed_drive_audio_restore_does_not_fall_back_to_a_stale_tts_endpoint():
+    assert "setAudioResultUrl(restoredAudioUrl || '')" in STD_PAGE
+    assert "audioPlaybackEndpoint" not in STD_PAGE
+
+
 def test_unlisted_cached_project_is_restored_without_a_failing_detail_request():
     assert "const preferredProjectIsListed" in STD_PAGE
     cache_restore = "if (rememberedPreferredProject && ("
