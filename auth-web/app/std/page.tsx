@@ -2409,28 +2409,13 @@ export default function StdPortalPage() {
         ))
     }
 
-    const renderPreviewSubtitleText = (text: string, activeTokenIndex = -1) => {
-        const tokens = String(text || '').match(/\S+\s*/g) || []
-        if (activeTokenIndex < 0 || !tokens.length) return text
-        return tokens.map((token, index) => (
-            <span
-                key={`${index}-${token}`}
-                className={index === activeTokenIndex ? 'rounded text-cyan-200' : undefined}
-                style={{
-                    display: 'inline',
-                    fontSize: 'inherit',
-                    fontWeight: 'inherit',
-                    lineHeight: 'inherit',
-                    padding: 0,
-                    margin: 0,
-                    transform: 'none',
-                    boxShadow: index === activeTokenIndex ? '0 0 0 2px rgba(255,255,255,0.18)' : undefined,
-                    backgroundColor: index === activeTokenIndex ? 'rgba(255,255,255,0.12)' : undefined,
-                }}
-            >
-                {token}
-            </span>
-        ))
+    const vrewActiveTokenAtPlaybackTime = (subtitle: any, time: number) => {
+        const tokenCount = vrewTextTokens(subtitle?.text || '').length
+        const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0)
+        const end = Number(subtitle?.end_num ?? subtitle?.end_time ?? start)
+        if (!tokenCount || !Number.isFinite(start) || !Number.isFinite(end) || time < start || time > end) return -1
+        const progress = Math.max(0, Math.min(1, (time - start) / Math.max(0.1, end - start)))
+        return Math.min(tokenCount - 1, Math.floor(progress * tokenCount))
     }
 
     const renderVrewSubtitleTokenEditor = (text: string, activeTokenIndex = -1) => {
@@ -7903,8 +7888,6 @@ export default function StdPortalPage() {
                                             ))}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
-                                                const previewTokens = vrewTextTokens(currentSub.text)
-                                                const shouldShowTokenSync = isVrewSubtitleMode && isPlayingPreview && previewTokens.length > 0
                                                 return (
                                             <div
                                                 className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
@@ -7931,10 +7914,7 @@ export default function StdPortalPage() {
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
-                                                    {renderPreviewSubtitleText(
-                                                        currentSub.text,
-                                                        shouldShowTokenSync ? vrewActiveTokenIndex : -1
-                                                    )}
+                                                    {currentSub.text}
                                                 </div>
                                             </div>
                                                 )
@@ -8088,7 +8068,9 @@ export default function StdPortalPage() {
                                                             >
                                                                 {renderVrewSubtitleTokenEditor(
                                                                     currentSub.text,
-                                                                    isPlayingPreview ? vrewActiveTokenIndex : -1
+                                                                    isPlayingPreview
+                                                                        ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime)
+                                                                        : -1
                                                                 )}
                                                             </button>
                                                             <button

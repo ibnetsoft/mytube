@@ -20,6 +20,15 @@ def test_vrew_preview_returns_generated_audio_before_drive_persistence():
 
 def test_vrew_preview_persists_the_same_audio_in_background():
     assert "persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId)" in STD_PAGE
+
+
+def test_vrew_word_progress_is_shown_only_in_the_subtitle_editor():
+    assert "const vrewActiveTokenAtPlaybackTime" in STD_PAGE
+    assert "? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime)" in STD_PAGE
+    assert "const renderPreviewSubtitleText" not in STD_PAGE
+    preview_overlay = STD_PAGE.split("{/* 실시간 폰트/스타일 자막 오버레이", 1)[1].split("{/* 커스텀 플레이어 바 */}", 1)[0]
+    assert "{currentSub.text}" in preview_overlay
+    assert "text-cyan-200" not in preview_overlay
     assert "/tts/cache-segment" in STD_PAGE
     assert "upload_mode: 'fast_preview_background_cache'" in SEGMENT_CACHE
     assert "kind: 'vrew_segment_tts'" in SEGMENT_CACHE
