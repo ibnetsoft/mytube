@@ -2955,6 +2955,32 @@ export default function StdPortalPage() {
         const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
         if (!projectId) return
 
+        const sceneNumberById = new Map<string, number>(
+            (projectPayload.scenes || []).reduce<Array<[string, number]>>((entries, scene: any, index: number) => {
+                const sceneId = String(scene?.id || '').trim()
+                const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
+                if (sceneId && Number.isFinite(sceneNumber) && sceneNumber > 0) entries.push([sceneId, sceneNumber])
+                return entries
+            }, [])
+        )
+        const linkedSceneNumberByAssetId = new Map<string, number>(
+            (projectPayload.scenes || []).flatMap<Array<[string, number]>>((scene: any, index: number) => {
+                const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
+                if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return []
+                return ['image_asset_id', 'video_asset_id']
+                    .map(key => String(scene?.metadata?.[key] || '').trim())
+                    .filter(Boolean)
+                    .map(assetId => [assetId, sceneNumber])
+            })
+        )
+        const assetSceneNumber = (asset: any): number | null => {
+            const directSceneNumber = Number(asset?.scene_number)
+            if (Number.isFinite(directSceneNumber) && directSceneNumber > 0) return directSceneNumber
+            const sceneIdMatch = sceneNumberById.get(String(asset?.scene_id || '').trim())
+            if (sceneIdMatch) return sceneIdMatch
+            return linkedSceneNumberByAssetId.get(String(asset?.id || '').trim()) || null
+        }
+
         const mediaAssets = assets.filter((asset: any) =>
             ['uploaded', 'assigned'].includes(String(asset?.status || ''))
             && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
@@ -2998,12 +3024,12 @@ export default function StdPortalPage() {
                 restoredAudioUrl = entry.objectUrl
                 continue
             }
-            const sceneNumber = Number(entry.asset.scene_number)
+            const sceneNumber = assetSceneNumber(entry.asset)
             if (assetType === 'thumbnail') {
                 restoredThumbnailUrl = entry.objectUrl
                 continue
             }
-            if (!Number.isFinite(sceneNumber) || !['image', 'video'].includes(assetType)) continue
+            if (sceneNumber == null || !['image', 'video'].includes(assetType)) continue
             restoredMap.set(`${sceneNumber}:${assetType}`, entry.objectUrl)
         }
 

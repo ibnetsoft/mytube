@@ -38,11 +38,28 @@ function sceneStorageVideoUrl(scene: any): string {
         || cleanUrl(metadata?.video_url || metadata?.video || nestedMetadata?.video_url || nestedMetadata?.video)
 }
 
-function hydrateSceneMedia(scene: any) {
+function sceneMediaAsset(scene: any, assetType: 'image' | 'video', assets: any[] = []) {
+    const sceneId = String(scene?.id || '').trim()
+    const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
+    return (assets || []).find((asset: any) => {
+        if (String(asset?.asset_type || '').toLowerCase() !== assetType) return false
+        if (sceneId && String(asset?.scene_id || '').trim() === sceneId) return true
+        return Number.isFinite(sceneNumber) && sceneNumber > 0 && Number(asset?.scene_number) === sceneNumber
+    }) || null
+}
+
+function hydrateSceneMedia(scene: any, assets: any[] = []) {
     const imageUrl = sceneStorageImageUrl(scene)
     const videoUrl = sceneStorageVideoUrl(scene)
+    const imageAsset = sceneMediaAsset(scene, 'image', assets)
+    const videoAsset = sceneMediaAsset(scene, 'video', assets)
     return {
         ...scene,
+        metadata: {
+            ...(scene?.metadata || {}),
+            ...(imageAsset?.id ? { image_asset_id: imageAsset.id } : {}),
+            ...(videoAsset?.id ? { video_asset_id: videoAsset.id } : {}),
+        },
         ...(imageUrl ? { image_url: imageUrl } : {}),
         ...(videoUrl ? { video_url: videoUrl } : {}),
     }
@@ -141,7 +158,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
     if (assetsError) return NextResponse.json({ success: false, error: assetsError.message }, { status: 500 })
 
-    return NextResponse.json({ success: true, project, scenes: (scenes || []).map(hydrateSceneMedia), assets: assets || [] })
+    return NextResponse.json({ success: true, project, scenes: (scenes || []).map(scene => hydrateSceneMedia(scene, assets || [])), assets: assets || [] })
 }
 
 export async function PATCH(req: Request, { params }: { params: { projectId: string } }) {
@@ -361,7 +378,14 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             .eq('project_id', project.id)
             .order('scene_number', { ascending: true })
         if (scenesAfterSaveError) return NextResponse.json({ success: false, error: scenesAfterSaveError.message }, { status: 500 })
-        updatedScenes = (scenesAfterSave || []).map(hydrateSceneMedia)
+        const { data: assetsAfterSave, error: assetsAfterSaveError } = await supabaseAdmin
+            .from('std_project_assets')
+            .select('id,scene_id,scene_number,asset_type,status,created_at')
+            .eq('project_id', project.id)
+            .in('status', ['uploaded', 'assigned'])
+            .order('created_at', { ascending: false })
+        if (assetsAfterSaveError) return NextResponse.json({ success: false, error: assetsAfterSaveError.message }, { status: 500 })
+        updatedScenes = (scenesAfterSave || []).map(scene => hydrateSceneMedia(scene, assetsAfterSave || []))
     }
 
     return NextResponse.json({ success: true, project: updated, scenes: updatedScenes })
