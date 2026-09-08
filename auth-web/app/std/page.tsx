@@ -1767,20 +1767,23 @@ export default function StdPortalPage() {
             const imageAsset = (assets || []).find((asset: any) =>
                 assetMatchesScene(asset, 'image')
             )
-            const imageUrl = keepRenderableMediaUrl(scene?.image_url || scene?.image)
+            // Route saved project assets through the server so it can serve the
+            // Supabase copy first and seamlessly use the archived Drive copy when
+            // Storage retention has removed the original object.
+            const imageUrl = projectAssetFileUrl(projectId, imageAsset)
+                || keepRenderableMediaUrl(scene?.image_url || scene?.image)
                 || keepRenderableMediaUrl(imageAsset?.metadata?.storage_public_url)
-                || projectAssetFileUrl(projectId, imageAsset)
             const sceneVideoUrl = keepRenderableMediaUrl(scene?.video_url || scene?.video)
             const sceneVideoDriveProxy = projectAssetFileUrl(projectId, {
                 drive_file_id: driveFileIdFromUrl(sceneVideoUrl),
             })
             // A saved Drive "view" page is not a media stream. Prefer the
             // Storage copy, then the authenticated project asset endpoint.
-            const videoUrl = keepRenderableMediaUrl(videoAsset?.metadata?.storage_public_url)
+            const videoUrl = projectAssetFileUrl(projectId, videoAsset)
+                || keepRenderableMediaUrl(videoAsset?.metadata?.storage_public_url)
                 || (sceneVideoUrl && !isProjectAssetFileUrl(sceneVideoUrl) && !sceneVideoUrl.includes('drive.google.com/file/d/')
                     ? sceneVideoUrl
                     : null)
-                || projectAssetFileUrl(projectId, videoAsset)
                 || sceneVideoDriveProxy
             return {
                 ...scene,

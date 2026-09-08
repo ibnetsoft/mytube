@@ -4,6 +4,7 @@ from pathlib import Path
 STD_PAGE = Path("auth-web/app/std/page.tsx").read_text(encoding="utf-8")
 INIT_ROUTE = Path("auth-web/app/api/std/projects/[projectId]/assets/init/route.ts").read_text(encoding="utf-8")
 COMPLETE_ROUTE = Path("auth-web/app/api/std/projects/[projectId]/assets/complete/route.ts").read_text(encoding="utf-8")
+ASSET_FILE_ROUTE = Path("auth-web/app/api/std/projects/[projectId]/assets/file/route.ts").read_text(encoding="utf-8")
 POLICY = Path("auth-web/lib/stdPolicy.ts").read_text(encoding="utf-8")
 MEDIA_MIGRATION = Path("migrations/air_0246_std_supabase_primary_media.sql").read_text(encoding="utf-8")
 
@@ -19,9 +20,18 @@ def test_existing_video_assets_are_preferred_over_scene_images():
     assert "const driveFileIdFromUrl" in STD_PAGE
     assert "const sceneVideoDriveProxy = projectAssetFileUrl" in STD_PAGE
     assert "const videoAsset = (assets || []).find" in STD_PAGE
-    assert "|| projectAssetFileUrl(projectId, videoAsset)" in STD_PAGE
+    assert "const videoUrl = projectAssetFileUrl(projectId, videoAsset)" in STD_PAGE
     assert "if (isProjectAssetFileUrl(str)) return str" in STD_PAGE
     assert "video_url: restoredVideoUrl || runtimeAssetUrl(scene.video_url) || null" in STD_PAGE
+
+
+def test_project_asset_stream_uses_drive_when_storage_copy_was_pruned():
+    assert "const storagePath = String(asset?.metadata?.storage_path" in ASSET_FILE_ROUTE
+    assert ".storage.from(storageBucket).download(storagePath)" in ASSET_FILE_ROUTE
+    assert "Storage download failed; trying Drive" in ASSET_FILE_ROUTE
+    assert "downloadStdDriveFile(targetDriveFileId)" in ASSET_FILE_ROUTE
+    assert "X-STD-Media-Source" in ASSET_FILE_ROUTE
+    assert "const imageUrl = projectAssetFileUrl(projectId, imageAsset)" in STD_PAGE
 
 
 def test_new_visual_uploads_are_saved_to_supabase_then_drive():

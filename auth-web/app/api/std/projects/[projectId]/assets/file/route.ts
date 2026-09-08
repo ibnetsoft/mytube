@@ -6,6 +6,7 @@ import { downloadStdDriveFile } from '@/lib/stdGoogleDrive'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const CONTENT_ASSETS_BUCKET = 'content-assets'
 
 function topicIdFromProjectParam(projectId: string): number | null {
     const value = String(projectId || '').trim()
@@ -53,7 +54,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (assetId) {
         const { data: assetRow, error: assetError } = await supabaseAdmin
             .from('std_project_assets')
-            .select('id,project_id,asset_type,drive_file_id,file_name,mime_type,status')
+            .select('id,project_id,asset_type,drive_file_id,file_name,mime_type,status,metadata')
             .eq('id', assetId)
             .eq('project_id', project.id)
             .in('status', ['uploaded', 'assigned'])
@@ -62,23 +63,38 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         asset = assetRow
     }
 
-    const targetDriveFileId = asset?.drive_file_id || driveFileId
-    if (!targetDriveFileId) return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 })
+    const storageBucket = String(asset?.metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
+    const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
+    let fileBuffer: Buffer | null = null
+    let source = ''
 
-    let fileBuffer: Buffer
-    try {
-        fileBuffer = await downloadStdDriveFile(targetDriveFileId)
-    } catch (error: any) {
-        console.warn('[STD Asset File] Drive download failed:', error?.message)
-        if (isMediaRestoreRequest) {
-            // Project hydration can safely continue without stale Drive media.
-            return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+    if (storagePath) {
+        const { data, error } = await supabaseAdmin.storage.from(storageBucket).download(storagePath)
+        if (data && !error) {
+            fileBuffer = Buffer.from(await data.arrayBuffer())
+            source = 'storage'
+        } else {
+            console.warn('[STD Asset File] Storage download failed; trying Drive:', error?.message || 'storage_asset_missing')
         }
-        return NextResponse.json({
-            success: false,
-            error: 'Asset file could not be loaded from Drive',
-            detail: error?.message || 'drive_download_failed',
-        }, { status: 404 })
+    }
+
+    if (!fileBuffer) {
+        const targetDriveFileId = asset?.drive_file_id || driveFileId
+        if (!targetDriveFileId) return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 })
+        try {
+            fileBuffer = await downloadStdDriveFile(targetDriveFileId)
+            source = 'drive'
+        } catch (error: any) {
+            console.warn('[STD Asset File] Drive download failed:', error?.message)
+            if (isMediaRestoreRequest) {
+                return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+            }
+            return NextResponse.json({
+                success: false,
+                error: 'Asset file could not be loaded from Storage or Drive',
+                detail: error?.message || 'drive_download_failed',
+            }, { status: 404 })
+        }
     }
 
     return new NextResponse(new Uint8Array(fileBuffer), {
@@ -87,6 +103,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             'Content-Length': String(fileBuffer.length),
             'Cache-Control': 'private, max-age=300',
             'Content-Disposition': `inline; filename="${encodeURIComponent(asset?.file_name || 'std_asset')}"`,
+            'X-STD-Media-Source': source,
         },
     })
 }
