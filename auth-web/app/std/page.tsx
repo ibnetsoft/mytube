@@ -1913,7 +1913,6 @@ export default function StdPortalPage() {
         }
     }
 
-    const DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES = 0
 
     const inferVisualMimeType = (file: File, assetType: 'image' | 'video' | 'thumbnail') => {
         const explicitType = String(file.type || '').trim()
@@ -4616,11 +4615,10 @@ export default function StdPortalPage() {
             })
             const mimeType = inferVisualMimeType(file, actualAssetType)
             let persistedAsset: any = null
-            const shouldUseDirectDriveUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
-                && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
+            const shouldUseDirectStorageUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
 
-            if (shouldUseDirectDriveUpload) {
-                setMessage(`파일 (${file.name}) Google Drive 직접 업로드 준비 중...`)
+            if (shouldUseDirectStorageUpload) {
+                setMessage(`파일 (${file.name}) Supabase Storage 업로드 준비 중...`)
                 const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                     method: 'POST',
                     headers: authedJsonHeaders,
