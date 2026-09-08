@@ -5885,12 +5885,16 @@ export default function StdPortalPage() {
         setWorkerSfxLoading(true)
         setWorkerSfxError('')
         try {
-            const response = await fetch('/api/std/sfx-library')
+            const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+            if (isImpersonating && impersonateEmail) headers['x-impersonate-email'] = impersonateEmail
+            const response = await fetch('/api/std/sfx-library', { headers })
             const payload = await response.json().catch(() => ({}))
-            if (!response.ok || !Array.isArray(payload.items)) throw new Error('워커 효과음 라이브러리를 불러오지 못했습니다.')
+            if (!response.ok || !Array.isArray(payload.items)) {
+                throw new Error(payload?.error || '효과음 라이브러리를 불러오지 못했습니다.')
+            }
             setWorkerSfxItems(payload.items)
         } catch (error: any) {
-            setWorkerSfxError(error?.message || 'AIR Worker가 실행 중인지 확인해 주세요.')
+            setWorkerSfxError(error?.message || '효과음 라이브러리를 불러오지 못했습니다.')
         } finally {
             setWorkerSfxLoading(false)
         }
@@ -8330,9 +8334,8 @@ export default function StdPortalPage() {
 
                                                 <div className="rounded-lg border border-violet-400/20 bg-violet-500/5 p-3">
                                                     <div className="flex items-center justify-between gap-3">
-                                                        <div>
+                                                        <div className="min-w-0">
                                                             <div className="text-xs font-black text-violet-100">공용 SFX Drive 라이브러리</div>
-                                                            <div className="mt-1 text-[11px] text-gray-400">Drive에 저장한 효과음을 미리듣고 배경음 또는 현재 자막에 적용합니다.</div>
                                                         </div>
                                                         <button
                                                             type="button"
@@ -8369,9 +8372,6 @@ export default function StdPortalPage() {
                                                     )}
                                                 </div>
 
-                                                <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] leading-5 text-blue-100">
-                                                    공용 SFX Drive 라이브러리에서 미리듣기 후 배경음 또는 현재 자막 효과음으로 바로 적용할 수 있습니다.
-                                                </div>
                                             </div>
                                         )}
                                     </div>

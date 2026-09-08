@@ -5,10 +5,29 @@ import { getGoogleDriveAccessToken } from '@/lib/googleDriveConfig'
 export const dynamic = 'force-dynamic'
 
 const SFX_LIBRARY_FOLDER_NAME = 'SFX'
+// Shared SFX folder created in the production Drive account. An environment
+// override keeps the library movable without changing application code.
+const SFX_LIBRARY_FOLDER_ID = process.env.GOOGLE_DRIVE_SFX_LIBRARY_FOLDER_ID || '1xu6GBDh8F8iF5wsSiggzeM6YG2iB-Utq'
 
 async function findSfxLibraryFolder(accessToken: string): Promise<string> {
-    const query = encodeURIComponent(`'root' in parents and name = '${SFX_LIBRARY_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`)
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)&pageSize=10`, {
+    const directResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${SFX_LIBRARY_FOLDER_ID}?fields=id,name,mimeType`, {
+        headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store',
+    })
+    if (directResponse.ok) {
+        const directFolder = await directResponse.json()
+        if (directFolder.mimeType === 'application/vnd.google-apps.folder') return String(directFolder.id)
+    }
+
+    const params = new URLSearchParams({
+        q: `'root' in parents and name = '${SFX_LIBRARY_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        fields: 'files(id,name)',
+        pageSize: '10',
+        spaces: 'drive',
+        corpora: 'user',
+        supportsAllDrives: 'true',
+        includeItemsFromAllDrives: 'true',
+    })
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store',
     })
     if (!response.ok) throw new Error(`Drive SFX folder lookup failed (${response.status})`)
@@ -19,8 +38,15 @@ async function findSfxLibraryFolder(accessToken: string): Promise<string> {
 }
 
 async function listFolder(accessToken: string, folderId: string, prefix = ''): Promise<any[]> {
-    const query = encodeURIComponent(`'${folderId}' in parents and trashed = false`)
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType,parents)&pageSize=1000`, {
+    const params = new URLSearchParams({
+        q: `'${folderId}' in parents and trashed = false`,
+        fields: 'files(id,name,mimeType,parents)',
+        pageSize: '1000',
+        spaces: 'drive',
+        supportsAllDrives: 'true',
+        includeItemsFromAllDrives: 'true',
+    })
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
         headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store',
     })
     if (!response.ok) throw new Error(`Drive library list failed (${response.status})`)
