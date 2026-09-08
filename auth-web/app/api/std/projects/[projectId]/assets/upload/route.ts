@@ -16,6 +16,7 @@ export const maxDuration = 300
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const CONTENT_ASSETS_BUCKET = 'content-assets'
 
 function sceneNumberOf(scene: any, index: number) {
     const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
@@ -66,7 +67,8 @@ function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetTy
 
 function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | null, assetType: string, asset: any) {
     if (sceneNumber == null || !['image', 'video'].includes(assetType)) return project.project_payload || {}
-    const assetUrl = asset?.metadata?.thumbnail_link
+    const assetUrl = asset?.metadata?.storage_public_url
+        || asset?.metadata?.thumbnail_link
         || asset?.metadata?.web_view_link
         || driveFileLink(asset?.drive_file_id)
     const projectPayload = project.project_payload || {}
@@ -214,16 +216,42 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     try {
-        const folders = await ensureStdProjectDriveFolders(project)
-        const targetFolderId = folderForAssetType(folders, assetType)
+        const fileName = String(fileValue.name || form.get('file_name') || 'asset')
+        const storagePath = [
+            'std-projects',
+            project.id,
+            sceneNumber == null ? 'project-assets' : `scenes/${Math.floor(sceneNumber)}`,
+            `${Date.now()}-${fileName.replace(/[\\/]/g, '_')}`,
+        ].join('/')
         const buffer = Buffer.from(await fileValue.arrayBuffer())
-        const driveFile = await uploadStdDriveBuffer(
-            targetFolderId,
-            String(fileValue.name || form.get('file_name') || 'asset'),
-            buffer,
-            mimeType,
-            `AIR Studio STD ${assetType} asset for project ${project.id}`
-        )
+        const { error: storageError } = await supabaseAdmin.storage
+            .from(CONTENT_ASSETS_BUCKET)
+            .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
+        if (storageError) throw new Error(storageError.message || 'Supabase Storage upload failed')
+        const { data: publicUrlData } = supabaseAdmin.storage
+            .from(CONTENT_ASSETS_BUCKET)
+            .getPublicUrl(storagePath)
+
+        // Drive is a second, long-term archive. It cannot invalidate a
+        // successful Supabase upload when the Drive connection is unavailable.
+        let folders: Awaited<ReturnType<typeof ensureStdProjectDriveFolders>> | null = null
+        let targetFolderId = ''
+        let driveFile: Awaited<ReturnType<typeof uploadStdDriveBuffer>> | null = null
+        let driveBackupError = ''
+        try {
+            folders = await ensureStdProjectDriveFolders(project)
+            targetFolderId = folderForAssetType(folders, assetType)
+            driveFile = await uploadStdDriveBuffer(
+                targetFolderId,
+                fileName,
+                buffer,
+                mimeType,
+                `AIR Studio STD ${assetType} asset for project ${project.id}`
+            )
+        } catch (driveError: any) {
+            driveBackupError = String(driveError?.message || 'drive_archive_upload_failed')
+            console.warn('[STD AssetUpload] Drive archive copy failed; keeping Supabase asset:', driveBackupError)
+        }
 
         if (sceneNumber != null && ['image', 'video'].includes(assetType)) {
             await supabaseAdmin
@@ -242,18 +270,23 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 scene_id: scene?.id || null,
                 scene_number: sceneNumber,
                 asset_type: assetType,
-                drive_file_id: driveFile.id,
-                drive_folder_id: targetFolderId,
-                file_name: driveFile.name || fileValue.name || form.get('file_name') || 'asset',
-                mime_type: driveFile.mimeType || mimeType,
-                file_size: driveFile.size ? Number(driveFile.size) : fileValue.size || null,
+                drive_file_id: driveFile?.id || null,
+                drive_folder_id: targetFolderId || project.drive_folder_id || null,
+                file_name: driveFile?.name || fileName,
+                mime_type: driveFile?.mimeType || mimeType,
+                file_size: driveFile?.size ? Number(driveFile.size) : fileValue.size || null,
                 status: sceneNumber != null ? 'assigned' : 'uploaded',
                 uploaded_by: uploadedById(auth.requester.user.id),
                 metadata: {
-                    web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-                    thumbnail_link: driveFile.thumbnailLink || null,
+                    ...(driveFile ? {
+                        web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+                        thumbnail_link: driveFile.thumbnailLink || null,
+                    } : {}),
+                    storage_bucket: CONTENT_ASSETS_BUCKET,
+                    storage_path: storagePath,
+                    storage_public_url: publicUrlData.publicUrl,
                     uploaded_by: auth.requester.email,
-                    upload_mode: 'server_drive_upload',
+                    upload_mode: driveFile ? 'server_supabase_then_drive' : 'server_supabase_storage',
                 },
             })
             .select('*')
@@ -277,13 +310,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         await supabaseAdmin
             .from('std_projects')
             .update({
-                drive_folder_id: folders.projectFolderId,
+                drive_folder_id: folders?.projectFolderId || project.drive_folder_id || null,
                 status: project.status === 'claimed' ? 'in_progress' : project.status,
                 progress_payload: {
                     ...progressPayload,
                     ready_scene_count: readySceneCount || 0,
                     last_asset_uploaded_at: new Date().toISOString(),
-                    std_drive: {
+                    ...(folders ? { std_drive: {
                         ...(progressPayload.std_drive || {}),
                         folder_ids: {
                             project: folders.projectFolderId,
@@ -292,7 +325,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                             originals: folders.originalsFolderId,
                             audio: folders.audioFolderId,
                         },
-                    },
+                    } } : {}),
                 },
                 project_payload: nextProjectPayload,
                 updated_at: new Date().toISOString(),
@@ -309,9 +342,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             success: true,
             asset: {
                 ...asset,
-                drive_file_link: driveFileLink(driveFile.id),
-                drive_folder_link: targetFolderId ? driveFolderLink(targetFolderId) : null,
+                drive_file_link: driveFile ? driveFileLink(driveFile.id) : null,
+                drive_folder_link: driveFile && targetFolderId ? driveFolderLink(targetFolderId) : null,
             },
+            drive_backup_error: driveBackupError || null,
         })
     } catch (error: any) {
         console.error('[STD AssetUpload] failed:', error?.message)

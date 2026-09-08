@@ -5,6 +5,12 @@ STD_PAGE = Path("auth-web/app/std/page.tsx").read_text(encoding="utf-8")
 COMPLETE_ROUTE = Path(
     "auth-web/app/api/std/projects/[projectId]/assets/complete/route.ts"
 ).read_text(encoding="utf-8")
+INIT_ROUTE = Path(
+    "auth-web/app/api/std/projects/[projectId]/assets/init/route.ts"
+).read_text(encoding="utf-8")
+SERVER_UPLOAD_ROUTE = Path(
+    "auth-web/app/api/std/projects/[projectId]/assets/upload/route.ts"
+).read_text(encoding="utf-8")
 
 
 def _upload_asset_body() -> str:
@@ -13,7 +19,7 @@ def _upload_asset_body() -> str:
     )[0]
 
 
-def test_scene_assets_are_uploaded_to_storage_then_drive_before_completion():
+def test_scene_assets_are_uploaded_to_storage_then_drive_before_completion_when_available():
     upload_asset = _upload_asset_body()
 
     init_pos = upload_asset.index("'/assets/init'")
@@ -26,7 +32,8 @@ def test_scene_assets_are_uploaded_to_storage_then_drive_before_completion():
     assert "body: file" in upload_asset
     assert "storage_bucket: initPayload.storage_bucket" in upload_asset
     assert "storage_path: initPayload.storage_path" in upload_asset
-    assert "drive_file_id: drivePayload.id" in upload_asset
+    assert "drive_file_id: drivePayload?.id || null" in upload_asset
+    assert "keeping Supabase asset" in upload_asset
 
 
 def test_scene_is_not_marked_ready_before_server_confirmation():
@@ -47,3 +54,25 @@ def test_dual_store_completion_is_idempotent_and_checks_project_persistence():
     assert "browser_supabase_then_drive" in COMPLETE_ROUTE
     assert "storage_public_url: storagePublicUrl" in COMPLETE_ROUTE
     assert "if (projectUpdateError)" in COMPLETE_ROUTE
+
+
+def test_drive_archive_failure_does_not_block_a_storage_upload():
+    assert "Storage is the source of truth" in INIT_ROUTE
+    assert "drive_backup_error: driveBackupError || null" in INIT_ROUTE
+    assert "storage_upload_url: signedUpload.signedUrl" in INIT_ROUTE
+    assert "Drive archive copy failed; keeping Supabase asset" in SERVER_UPLOAD_ROUTE
+    assert ".upload(storagePath, buffer" in SERVER_UPLOAD_ROUTE
+    assert "drive_file_id: driveFile?.id || null" in SERVER_UPLOAD_ROUTE
+    assert "server_supabase_storage" in SERVER_UPLOAD_ROUTE
+
+
+def test_thumbnail_upload_uses_the_same_supabase_first_flow():
+    thumbnail_upload = STD_PAGE.split("const uploadThumbnailBgToDrive = async", 1)[1].split(
+        "const markThumbnailConfirmed", 1
+    )[0]
+
+    assert "initPayload.storage_upload_url" in thumbnail_upload
+    assert "storageRes = await fetch(initPayload.storage_upload_url" in thumbnail_upload
+    assert "storage_bucket: initPayload.storage_bucket" in thumbnail_upload
+    assert "drive_file_id: drivePayload?.id || null" in thumbnail_upload
+    assert "keeping Supabase asset" in thumbnail_upload

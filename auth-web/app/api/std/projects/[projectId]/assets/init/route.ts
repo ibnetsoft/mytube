@@ -96,37 +96,46 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .from(CONTENT_ASSETS_BUCKET)
             .getPublicUrl(storagePath)
 
-        // Each visual file is retained in both stores: Storage for playback and
-        // Drive as the project archive. Create the Drive session before returning
-        // so the browser can fail cleanly instead of creating a one-sided asset.
-        const folders = await ensureStdProjectDriveFolders(project)
-        const uploadUrl = await createStdDriveUploadSession({
-            folderId: folderForAssetType(folders, assetType),
-            fileName,
-            mimeType,
-            fileSize,
-        })
-        const progressPayload = project.progress_payload || {}
-        await supabaseAdmin
-            .from('std_projects')
-            .update({
-                drive_folder_id: folders.projectFolderId,
-                progress_payload: {
-                    ...progressPayload,
-                    std_drive: {
-                        ...(progressPayload.std_drive || {}),
-                        folder_ids: {
-                            project: folders.projectFolderId,
-                            images: folders.imagesFolderId,
-                            videos: folders.videosFolderId,
-                            originals: folders.originalsFolderId,
-                            audio: folders.audioFolderId,
+        // Storage is the source of truth. Drive is an archive copy and must not
+        // prevent an asset from being saved or rendered while it is unavailable.
+        let uploadUrl = ''
+        let driveFolderId = ''
+        let targetFolderId = ''
+        let driveBackupError = ''
+        try {
+            const folders = await ensureStdProjectDriveFolders(project)
+            targetFolderId = folderForAssetType(folders, assetType)
+            uploadUrl = await createStdDriveUploadSession({
+                folderId: targetFolderId,
+                fileName,
+                mimeType,
+                fileSize,
+            })
+            driveFolderId = folders.projectFolderId
+            const progressPayload = project.progress_payload || {}
+            await supabaseAdmin
+                .from('std_projects')
+                .update({
+                    drive_folder_id: driveFolderId,
+                    progress_payload: {
+                        ...progressPayload,
+                        std_drive: {
+                            ...(progressPayload.std_drive || {}),
+                            folder_ids: {
+                                project: folders.projectFolderId,
+                                images: folders.imagesFolderId,
+                                videos: folders.videosFolderId,
+                                originals: folders.originalsFolderId,
+                                audio: folders.audioFolderId,
+                            },
                         },
                     },
-                },
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', project.id)
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', project.id)
+        } catch (driveError: any) {
+            driveBackupError = String(driveError?.message || 'drive_archive_unavailable')
+        }
 
         return NextResponse.json({
             success: true,
@@ -135,21 +144,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             storage_path: storagePath,
             storage_public_url: publicUrlData.publicUrl,
             upload_url: uploadUrl,
-            drive_folder_id: folders.projectFolderId,
-            target_folder_id: folderForAssetType(folders, assetType),
+            drive_folder_id: driveFolderId,
+            target_folder_id: targetFolderId,
+            drive_backup_error: driveBackupError || null,
             file_name: fileName,
             asset_type: assetType,
             scene_number: sceneNumber,
         })
     } catch (error: any) {
-        const detail = String(error?.message || 'asset_upload_init_failed')
-        if (detail.includes('drive_token_refresh_failed')) {
-            return NextResponse.json({
-                success: false,
-                code: 'drive_reconnect_required',
-                error: 'Google Drive 연결이 만료되었습니다. 관리자 설정에서 Google Drive를 다시 연결한 뒤 영상을 업로드하세요.',
-            }, { status: 409 })
-        }
-        return NextResponse.json({ success: false, error: detail }, { status: 500 })
+        return NextResponse.json({
+            success: false,
+            error: String(error?.message || 'asset_upload_init_failed'),
+        }, { status: 500 })
     }
 }
