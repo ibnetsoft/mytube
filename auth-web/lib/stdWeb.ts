@@ -26,6 +26,8 @@ export type StdAuthResult =
     | { ok: true; requester: StdRequester }
     | { ok: false; response: NextResponse }
 
+const SUPER_ADMIN_EMAIL = 'ejsh0519@naver.com'
+
 function jsonError(error: string, status: number) {
     return NextResponse.json({ success: false, error }, { status })
 }
@@ -43,6 +45,17 @@ function getCookieValue(req: Request, name: string): string {
     return ''
 }
 
+function canImpersonate(requester: StdRequester): boolean {
+    const email = String(requester.email || '').trim().toLowerCase()
+    const metadata = requester.user?.app_metadata || {}
+    const profile = requester.profile || {}
+    return email === SUPER_ADMIN_EMAIL
+        || metadata.is_superadmin === true
+        || metadata.role === 'sub_admin'
+        || profile.is_superadmin === true
+        || profile.is_admin === true
+}
+
 export async function requireStdUser(req: Request): Promise<StdAuthResult> {
     const url = new URL(req.url, 'http://localhost')
     const impersonateQuery = url.searchParams.get('impersonate') || url.searchParams.get('email')
@@ -55,33 +68,6 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
         : ''
     const cookieToken = getCookieValue(req, 'std_session_token')
     const token = bearerToken || cookieToken
-
-    // If impersonating a specific user
-    if (targetImpersonateEmail) {
-        const { data: pData } = await supabaseAdmin
-            .from('profiles')
-            .select('*')
-            .eq('email', targetImpersonateEmail)
-            .maybeSingle()
-
-        const foundProfile = pData || {
-            id: 'worker-' + targetImpersonateEmail,
-            email: targetImpersonateEmail,
-            full_name: targetImpersonateEmail.split('@')[0] || 'STD 작업자',
-            membership_tier: 'std',
-            is_approved: true,
-            signup_status: 'approved',
-        }
-
-        return {
-            ok: true,
-            requester: {
-                user: { id: foundProfile.id, email: targetImpersonateEmail } as any,
-                profile: foundProfile,
-                email: targetImpersonateEmail,
-            },
-        }
-    }
 
     if (!token) return { ok: false, response: jsonError('Authentication required', 401) }
 
@@ -136,29 +122,53 @@ export async function requireStdUser(req: Request): Promise<StdAuthResult> {
         }
         const fallbackEmail = desktopEmail
         const fallbackId = userId || 'temp-worker-id'
-        return {
-            ok: true,
-            requester: {
-                user: { id: fallbackId, email: fallbackEmail } as any,
-                profile: {
-                    id: fallbackId,
-                    email: fallbackEmail,
-                    full_name: fallbackEmail.split('@')[0] || 'STD 작업자',
-                    membership_tier: 'std',
-                    is_approved: true,
-                    signup_status: 'approved',
-                },
-                email: fallbackEmail,
-            },
+        profile = {
+            id: fallbackId,
+            email: fallbackEmail,
+            full_name: fallbackEmail.split('@')[0] || 'STD 작업자',
+            membership_tier: 'std',
+            is_approved: true,
+            signup_status: 'approved',
         }
+        userId = fallbackId
+        userEmail = fallbackEmail
+    }
+
+    const requester: StdRequester = {
+        user: { id: userId || profile.id, email: userEmail || profile.email } as any,
+        profile,
+        email: userEmail || profile.email,
+    }
+
+    if (!targetImpersonateEmail || targetImpersonateEmail === requester.email.toLowerCase()) {
+        return { ok: true, requester }
+    }
+
+    if (!canImpersonate(requester)) {
+        return { ok: false, response: jsonError('Admin access required for impersonation', 403) }
+    }
+
+    const { data: pData } = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('email', targetImpersonateEmail)
+        .maybeSingle()
+
+    const foundProfile = pData || {
+        id: 'worker-' + targetImpersonateEmail,
+        email: targetImpersonateEmail,
+        full_name: targetImpersonateEmail.split('@')[0] || 'STD 작업자',
+        membership_tier: 'std',
+        is_approved: true,
+        signup_status: 'approved',
     }
 
     return {
         ok: true,
         requester: {
-            user: { id: userId || profile.id, email: userEmail || profile.email } as any,
-            profile,
-            email: userEmail || profile.email,
+            user: { id: foundProfile.id, email: targetImpersonateEmail } as any,
+            profile: foundProfile,
+            email: targetImpersonateEmail,
         },
     }
 }

@@ -3304,22 +3304,18 @@ export default function StdPortalPage() {
             if (impUserId) setImpersonateUserId(impUserId)
             setEmail(cleanEmail)
 
-            const impToken = `std_impersonate_${Date.now()}`
-            const impUser = {
-                id: impUserId || ('worker-' + Date.now()),
-                email: cleanEmail,
-                full_name: cleanEmail.split('@')[0] || 'STD 유저',
-                membership: 'std',
-                signup_status: 'approved',
-            }
-            setToken(impToken)
-            setUser(impUser)
-
-            // Direct fetch for impersonated user without reading local cache
+            // Impersonation must be authorized by the real signed-in account.
             const fetchImpersonated = async () => {
                 try {
+                    const { data: { session } } = await supabase.auth.getSession()
+                    const accessToken = session?.access_token || localStorage.getItem('std_session_token') || ''
+                    if (!accessToken) {
+                        setMessage('관리자 로그인 후 사용자 화면을 열어주세요.')
+                        return
+                    }
+                    setToken(accessToken)
                     const headers = {
-                        Authorization: `Bearer ${impToken}`,
+                        Authorization: `Bearer ${accessToken}`,
                         'x-impersonate-email': cleanEmail,
                     }
                     const [meRes, pRes, tRes] = await Promise.allSettled([
@@ -3327,6 +3323,14 @@ export default function StdPortalPage() {
                         fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                         fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
                     ])
+                    const deniedResponse = [meRes, pRes, tRes].find((result): result is PromiseFulfilledResult<Response> =>
+                        result.status === 'fulfilled' && !result.value.ok
+                    )
+                    if (deniedResponse) {
+                        const deniedPayload = await deniedResponse.value.clone().json().catch(() => ({}))
+                        setMessage(deniedPayload?.error || '사용자 화면을 열 권한이 없습니다.')
+                        return
+                    }
                     const meData = meRes.status === 'fulfilled' ? await meRes.value.json().catch(() => ({})) : {}
                     const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
                     const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
@@ -3357,9 +3361,9 @@ export default function StdPortalPage() {
 
                     const urlProjectId = readUrlProjectId()
                     if (urlProjectId && loadedProjects.some((p: any) => p.id === urlProjectId)) {
-                        await openProject(urlProjectId, impToken, cleanEmail)
+                        await openProject(urlProjectId, accessToken, cleanEmail)
                     } else if (loadedProjects.length > 0) {
-                        await openProject(loadedProjects[0].id, impToken, cleanEmail)
+                        await openProject(loadedProjects[0].id, accessToken, cleanEmail)
                     } else if (loadedTopics.length > 0) {
                         const built = buildProjectFromSupabaseTopic(loadedTopics[0])
                         built.project.title = `[${cleanEmail.split('@')[0]}] ` + built.project.title
