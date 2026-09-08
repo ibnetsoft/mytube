@@ -12,6 +12,7 @@ import {
 export const dynamic = 'force-dynamic'
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
+const CONTENT_ASSETS_BUCKET = 'content-assets'
 
 function validMimeForAsset(assetType: string, mimeType: string): boolean {
     if (assetType === 'image' || assetType === 'thumbnail') return mimeType.startsWith('image/')
@@ -79,31 +80,55 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     try {
-        const folders = await ensureStdProjectDriveFolders(project)
-        const targetFolderId = folderForAssetType(folders, assetType)
-        const uploadUrl = await createStdDriveUploadSession({
-            folderId: targetFolderId,
-            fileName,
-            mimeType,
-            fileSize,
-        })
+        const storagePath = [
+            'std-projects',
+            project.id,
+            sceneNumber == null ? 'project-assets' : `scenes/${Math.floor(sceneNumber)}`,
+            `${Date.now()}-${fileName}`,
+        ].join('/')
+        const { data: signedUpload, error: storageError } = await supabaseAdmin.storage
+            .from(CONTENT_ASSETS_BUCKET)
+            .createSignedUploadUrl(storagePath, { upsert: true })
+        if (storageError || !signedUpload?.signedUrl) {
+            throw new Error(storageError?.message || 'Supabase Storage upload URL could not be created')
+        }
+        const { data: publicUrlData } = supabaseAdmin.storage
+            .from(CONTENT_ASSETS_BUCKET)
+            .getPublicUrl(storagePath)
+
+        // Drive is retained only as a fallback for uploads that cannot reach Storage.
+        let uploadUrl = ''
+        let folders: Awaited<ReturnType<typeof ensureStdProjectDriveFolders>> | null = null
+        try {
+            folders = await ensureStdProjectDriveFolders(project)
+            uploadUrl = await createStdDriveUploadSession({
+                folderId: folderForAssetType(folders, assetType),
+                fileName,
+                mimeType,
+                fileSize,
+            })
+        } catch {
+            // A stale Drive token must not prevent the primary Supabase upload.
+        }
         const progressPayload = project.progress_payload || {}
         await supabaseAdmin
             .from('std_projects')
             .update({
-                drive_folder_id: folders.projectFolderId,
+                ...(folders ? { drive_folder_id: folders.projectFolderId } : {}),
                 progress_payload: {
                     ...progressPayload,
-                    std_drive: {
-                        ...(progressPayload.std_drive || {}),
-                        folder_ids: {
-                            project: folders.projectFolderId,
-                            images: folders.imagesFolderId,
-                            videos: folders.videosFolderId,
-                            originals: folders.originalsFolderId,
-                            audio: folders.audioFolderId,
+                    ...(folders ? {
+                        std_drive: {
+                            ...(progressPayload.std_drive || {}),
+                            folder_ids: {
+                                project: folders.projectFolderId,
+                                images: folders.imagesFolderId,
+                                videos: folders.videosFolderId,
+                                originals: folders.originalsFolderId,
+                                audio: folders.audioFolderId,
+                            },
                         },
-                    },
+                    } : {}),
                 },
                 updated_at: new Date().toISOString(),
             })
@@ -111,9 +136,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
         return NextResponse.json({
             success: true,
+            storage_upload_url: signedUpload.signedUrl,
+            storage_bucket: CONTENT_ASSETS_BUCKET,
+            storage_path: storagePath,
+            storage_public_url: publicUrlData.publicUrl,
             upload_url: uploadUrl,
-            drive_folder_id: folders.projectFolderId,
-            target_folder_id: targetFolderId,
+            drive_folder_id: folders?.projectFolderId || null,
+            target_folder_id: folders ? folderForAssetType(folders, assetType) : null,
             file_name: fileName,
             asset_type: assetType,
             scene_number: sceneNumber,

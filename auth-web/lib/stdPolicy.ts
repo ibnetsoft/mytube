@@ -1,7 +1,6 @@
-// CoWork currently creates still-image storyboard assets and does not create
-// video clips.  Keep video prompts for the opening hook, but do not reject a
-// valid image asset for its first twelve scenes.
-export const STD_VIDEO_REQUIRED_UNTIL_SEC = 0
+// The opening hook uses twelve user-provided clips. Generated still images
+// cover the remaining scenes, but must never replace an uploaded hook video.
+export const STD_VIDEO_REQUIRED_UNTIL_SEC = 60
 export const STD_VIDEO_REQUIRED_SCENE_SECONDS = 5
 export const STD_REQUIRED_VIDEO_SCENE_COUNT = Math.ceil(
     STD_VIDEO_REQUIRED_UNTIL_SEC / STD_VIDEO_REQUIRED_SCENE_SECONDS

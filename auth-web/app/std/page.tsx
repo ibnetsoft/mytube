@@ -1712,7 +1712,9 @@ export default function StdPortalPage() {
     const runtimeAssetUrl = (url: string | null | undefined): string | null => {
         if (!url) return null
         const str = String(url).trim()
-        if (isProjectAssetFileUrl(str)) return null
+        // This endpoint authenticates through the same STD session cookie, so it is
+        // safe to use live for legacy Drive videos. Do not persist it to local state.
+        if (isProjectAssetFileUrl(str)) return str
         return str.startsWith('blob:') ? str : sanitizeAssetUrl(str)
     }
 
@@ -1744,8 +1746,28 @@ export default function StdPortalPage() {
 
     const mergeAssetsIntoScenes = (scenes: any[], assets: any[] = [], projectId?: string | null) => {
         return (scenes || []).map((scene: any) => {
+            const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
+            const videoAsset = (assets || []).find((asset: any) =>
+                String(asset?.asset_type || '').toLowerCase() === 'video'
+                && ['uploaded', 'assigned'].includes(String(asset?.status || '').toLowerCase())
+                && Number(asset?.scene_number) === sceneNumber
+            )
+            const imageAsset = (assets || []).find((asset: any) =>
+                String(asset?.asset_type || '').toLowerCase() === 'image'
+                && ['uploaded', 'assigned'].includes(String(asset?.status || '').toLowerCase())
+                && Number(asset?.scene_number) === sceneNumber
+            )
             const imageUrl = keepRenderableMediaUrl(scene?.image_url || scene?.image)
-            const videoUrl = keepRenderableMediaUrl(scene?.video_url || scene?.video)
+                || keepRenderableMediaUrl(imageAsset?.metadata?.storage_public_url)
+                || projectAssetFileUrl(projectId, imageAsset)
+            const sceneVideoUrl = keepRenderableMediaUrl(scene?.video_url || scene?.video)
+            // A saved Drive "view" page is not a media stream. Prefer the
+            // Storage copy, then the authenticated project asset endpoint.
+            const videoUrl = keepRenderableMediaUrl(videoAsset?.metadata?.storage_public_url)
+                || (sceneVideoUrl && !isProjectAssetFileUrl(sceneVideoUrl) && !sceneVideoUrl.includes('drive.google.com/file/d/')
+                    ? sceneVideoUrl
+                    : null)
+                || projectAssetFileUrl(projectId, videoAsset)
             return {
                 ...scene,
                 image_url: imageUrl,
@@ -3051,8 +3073,8 @@ export default function StdPortalPage() {
                 const restoredVideoUrl = restoredMap.get(`${sceneNumber}:video`)
                 return {
                     ...scene,
-                    image_url: restoredImageUrl || keepRenderableMediaUrl(scene.image_url) || null,
-                    video_url: restoredVideoUrl || keepRenderableMediaUrl(scene.video_url) || null,
+                    image_url: restoredImageUrl || runtimeAssetUrl(scene.image_url) || null,
+                    video_url: restoredVideoUrl || runtimeAssetUrl(scene.video_url) || null,
                     asset_status: restoredImageUrl || restoredVideoUrl || keepRenderableMediaUrl(scene.image_url) || keepRenderableMediaUrl(scene.video_url)
                         ? 'ready'
                         : (scene.asset_status || 'missing'),
@@ -4597,44 +4619,80 @@ export default function StdPortalPage() {
                     }),
                 })
                 const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
-                if (!initRes.ok || initPayload.success === false || !initPayload.upload_url) {
+                if (!initRes.ok || initPayload.success === false || !initPayload.storage_upload_url) {
                     throw new Error(initPayload.error || 'Asset upload init failed')
                 }
 
-                setMessage(`파일 (${file.name}) Google Drive 업로드 중...`)
-                let drivePayload: any = null
+                // Supabase Storage is the primary home for scene media. The Drive
+                // resumable session below remains only as a recovery path.
+                setMessage(`파일 (${file.name}) Supabase Storage 업로드 중...`)
+                let completePayload: any = null
                 try {
-                    const driveRes = await fetch(initPayload.upload_url, {
+                    const storageRes = await fetch(initPayload.storage_upload_url, {
                         method: 'PUT',
-                        headers: { 'Content-Type': mimeType },
+                        headers: {
+                            'Content-Type': mimeType,
+                            'x-upsert': 'true',
+                        },
                         body: file,
                     })
-                    drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
-                    if (!driveRes.ok || !drivePayload.id) {
-                        throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
+                    if (!storageRes.ok) {
+                        throw new Error(`Supabase Storage upload failed (${storageRes.status})`)
                     }
-                } catch (driveError: any) {
-                    console.warn('[STD AssetUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
-                    setMessage('브라우저가 Google Drive 직접 업로드를 막아, 서버 중계 방식으로 다시 업로드합니다...')
-                    drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
-                }
-
-                const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
-                    method: 'POST',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        drive_file_id: drivePayload.id,
-                        target_folder_id: initPayload.target_folder_id,
-                        asset_type: actualAssetType,
-                        mime_type: mimeType,
-                        file_name: file.name,
-                        file_size: file.size,
-                        scene_number: sceneNum,
-                    }),
-                })
-                const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
-                if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
-                    throw new Error(completePayload.error || 'Asset upload complete failed')
+                    const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+                        method: 'POST',
+                        headers: authedJsonHeaders,
+                        body: JSON.stringify({
+                            storage_bucket: initPayload.storage_bucket,
+                            storage_path: initPayload.storage_path,
+                            storage_public_url: initPayload.storage_public_url,
+                            asset_type: actualAssetType,
+                            mime_type: mimeType,
+                            file_name: file.name,
+                            file_size: file.size,
+                            scene_number: sceneNum,
+                        }),
+                    })
+                    completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
+                    if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
+                        throw new Error(completePayload.error || 'Asset upload complete failed')
+                    }
+                } catch (storageError: any) {
+                    if (!initPayload.upload_url) throw storageError
+                    console.warn('[STD AssetUpload] Supabase upload failed; using Drive fallback:', storageError?.message)
+                    setMessage('Supabase Storage 업로드에 실패해 Google Drive로 대체 업로드 중...')
+                    let drivePayload: any = null
+                    try {
+                        const driveRes = await fetch(initPayload.upload_url, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': mimeType },
+                            body: file,
+                        })
+                        drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
+                        if (!driveRes.ok || !drivePayload.id) {
+                            throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
+                        }
+                    } catch (driveError: any) {
+                        console.warn('[STD AssetUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
+                        drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
+                    }
+                    const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
+                        method: 'POST',
+                        headers: authedJsonHeaders,
+                        body: JSON.stringify({
+                            drive_file_id: drivePayload.id,
+                            target_folder_id: initPayload.target_folder_id,
+                            asset_type: actualAssetType,
+                            mime_type: mimeType,
+                            file_name: file.name,
+                            file_size: file.size,
+                            scene_number: sceneNum,
+                        }),
+                    })
+                    completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
+                    if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
+                        throw new Error(completePayload.error || 'Asset upload complete failed')
+                    }
                 }
                 persistedAsset = completePayload.asset
             } else {

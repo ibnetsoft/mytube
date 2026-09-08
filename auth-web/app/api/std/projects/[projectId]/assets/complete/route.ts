@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic'
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const CONTENT_ASSETS_BUCKET = 'content-assets'
 
 function sceneNumberOf(scene: any, index: number) {
     const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
@@ -52,7 +53,8 @@ function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetTy
 
 function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | null, assetType: string, asset: any) {
     if (sceneNumber == null || !['image', 'video'].includes(assetType)) return project.project_payload || {}
-    const assetUrl = asset?.metadata?.thumbnail_link
+    const assetUrl = asset?.metadata?.storage_public_url
+        || asset?.metadata?.thumbnail_link
         || asset?.metadata?.web_view_link
         || driveFileLink(asset?.drive_file_id)
     const projectPayload = project.project_payload || {}
@@ -113,11 +115,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     const driveFileId = String(body?.drive_file_id || '').trim()
+    const storageBucket = String(body?.storage_bucket || '').trim()
+    const storagePath = String(body?.storage_path || '').trim().replace(/^\/+/, '')
+    const storagePublicUrl = String(body?.storage_public_url || '').trim()
     const assetType = String(body?.asset_type || '').toLowerCase()
     const sceneNumber = body?.scene_number == null ? null : Number(body.scene_number)
     const targetFolderId = String(body?.target_folder_id || '').trim()
 
-    if (!driveFileId) return NextResponse.json({ success: false, error: 'Drive file id is required' }, { status: 400 })
+    if (!driveFileId && !storagePath) return NextResponse.json({ success: false, error: 'Storage path or Drive file id is required' }, { status: 400 })
     if (!ASSET_TYPES.has(assetType)) return NextResponse.json({ success: false, error: 'Invalid asset type' }, { status: 400 })
     if (sceneNumber != null && !Number.isFinite(sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Invalid scene number' }, { status: 400 })
@@ -195,8 +200,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     try {
-        const metadata = await getStdDriveFileMetadata(driveFileId)
-        if (targetFolderId && Array.isArray(metadata.parents) && !metadata.parents.includes(targetFolderId)) {
+        const isSupabaseAsset = Boolean(storagePath)
+        if (isSupabaseAsset && (
+            storageBucket !== CONTENT_ASSETS_BUCKET
+            || !storagePath.startsWith(`std-projects/${project.id}/`)
+        )) {
+            return NextResponse.json({ success: false, error: 'Invalid Supabase Storage asset path' }, { status: 400 })
+        }
+        const metadata = isSupabaseAsset ? null : await getStdDriveFileMetadata(driveFileId)
+        if (metadata && targetFolderId && Array.isArray(metadata.parents) && !metadata.parents.includes(targetFolderId)) {
             return NextResponse.json({ success: false, error: 'Drive file is not in the expected folder' }, { status: 400 })
         }
 
@@ -204,7 +216,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .from('std_project_assets')
             .select('*')
             .eq('project_id', project.id)
-            .eq('drive_file_id', metadata.id)
+            .eq('drive_file_id', metadata?.id || '')
             .maybeSingle()
         if (existingAssetError) {
             return NextResponse.json({ success: false, error: existingAssetError.message }, { status: 500 })
@@ -237,16 +249,22 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 scene_id: scene?.id || null,
                 scene_number: sceneNumber,
                 asset_type: assetType,
-                drive_file_id: metadata.id,
-                drive_folder_id: targetFolderId || metadata.parents?.[0] || project.drive_folder_id,
-                file_name: metadata.name || body?.file_name || 'asset',
-                mime_type: metadata.mimeType || body?.mime_type || null,
-                file_size: metadata.size ? Number(metadata.size) : Number(body?.file_size || 0) || null,
+                drive_file_id: metadata?.id || null,
+                drive_folder_id: targetFolderId || metadata?.parents?.[0] || project.drive_folder_id || null,
+                file_name: metadata?.name || body?.file_name || 'asset',
+                mime_type: metadata?.mimeType || body?.mime_type || null,
+                file_size: metadata?.size ? Number(metadata.size) : Number(body?.file_size || 0) || null,
                 status: sceneNumber != null ? 'assigned' : 'uploaded',
                 uploaded_by: uploadedById(auth.requester.user.id),
                 metadata: {
-                    web_view_link: metadata.webViewLink || driveFileLink(metadata.id),
-                    thumbnail_link: metadata.thumbnailLink || null,
+                    ...(metadata ? {
+                        web_view_link: metadata.webViewLink || driveFileLink(metadata.id),
+                        thumbnail_link: metadata.thumbnailLink || null,
+                    } : {
+                        storage_bucket: CONTENT_ASSETS_BUCKET,
+                        storage_path: storagePath,
+                        storage_public_url: storagePublicUrl || supabaseAdmin.storage.from(CONTENT_ASSETS_BUCKET).getPublicUrl(storagePath).data.publicUrl,
+                    }),
                     uploaded_by: auth.requester.email,
                     upload_mode: 'browser_drive_resumable',
                 },
@@ -298,8 +316,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             success: true,
             asset: {
                 ...asset,
-                drive_file_link: driveFileLink(metadata.id),
-                drive_folder_link: asset.drive_folder_id ? driveFolderLink(asset.drive_folder_id) : null,
+                drive_file_link: metadata ? driveFileLink(metadata.id) : null,
+                drive_folder_link: metadata && asset.drive_folder_id ? driveFolderLink(asset.drive_folder_id) : null,
             },
         })
     } catch (error: any) {
