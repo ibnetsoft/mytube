@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
+import { createHmac, timingSafeEqual } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { getGoogleDriveConfig } from '@/lib/googleDriveConfig'
 
 export const dynamic = 'force-dynamic'
-
-const STATE_COOKIE = 'admin_drive_oauth_state'
 
 function redirect(req: Request, result: string): NextResponse {
     const destination = new URL('/dashboard', req.url)
@@ -12,30 +11,30 @@ function redirect(req: Request, result: string): NextResponse {
     return NextResponse.redirect(destination)
 }
 
-function readPendingStates(cookieHeader: string | null): string[] {
-    const raw = cookieHeader
-        ?.split(';')
-        .map(value => value.trim().split('='))
-        .find(([name]) => name === STATE_COOKIE)
-        ?.slice(1)
-        .join('=') || ''
-    if (!raw) return []
+function hasValidState(state: string, clientSecret: string): boolean {
+    const [nonce, issuedAt, signature, ...remainder] = state.split('.')
+    const issuedAtMs = Number(issuedAt)
+    if (
+        remainder.length
+        || !/^[a-f0-9]{64}$/i.test(nonce || '')
+        || !/^\d{13}$/.test(issuedAt || '')
+        || !/^[a-f0-9]{64}$/i.test(signature || '')
+        || !Number.isFinite(issuedAtMs)
+        || issuedAtMs > Date.now()
+        || Date.now() - issuedAtMs > 10 * 60 * 1000
+    ) return false
 
-    try {
-        const parsed = JSON.parse(decodeURIComponent(raw))
-        return Array.isArray(parsed) ? parsed.filter(value => typeof value === 'string') : []
-    } catch {
-        // Accept a state created by older deployments until it naturally expires.
-        return [decodeURIComponent(raw)]
-    }
+    const expected = createHmac('sha256', clientSecret).update(`${nonce}.${issuedAt}`).digest('hex')
+    return timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))
 }
 
 export async function GET(req: Request) {
     const url = new URL(req.url)
     const receivedState = String(url.searchParams.get('state') || '')
-    const pendingStates = readPendingStates(req.headers.get('cookie'))
+    const config = await getGoogleDriveConfig()
+    if (!config.clientId || !config.clientSecret) return redirect(req, 'client_not_configured')
 
-    if (!receivedState || !pendingStates.includes(receivedState)) {
+    if (!hasValidState(receivedState, config.clientSecret)) {
         return redirect(req, 'state_mismatch')
     }
 
@@ -44,9 +43,6 @@ export async function GET(req: Request) {
     if (providerError || !code) return redirect(req, providerError || 'missing_code')
 
     try {
-        const config = await getGoogleDriveConfig()
-        if (!config.clientId || !config.clientSecret) return redirect(req, 'client_not_configured')
-
         const redirectUri = `${url.origin}/api/admin/google-drive/oauth/callback`
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
@@ -69,9 +65,7 @@ export async function GET(req: Request) {
             .upsert({ key: 'sys_api_google_drive_refresh_token', value: refreshToken }, { onConflict: 'key' })
         if (error) throw error
 
-        const response = redirect(req, 'connected')
-        response.cookies.set(STATE_COOKIE, '', { httpOnly: true, sameSite: 'lax', path: '/api/admin/google-drive/oauth', maxAge: 0 })
-        return response
+        return redirect(req, 'connected')
     } catch {
         return redirect(req, 'save_failed')
     }

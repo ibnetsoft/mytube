@@ -1,30 +1,18 @@
 import { NextResponse } from 'next/server'
-import { randomBytes } from 'crypto'
+import { createHmac, randomBytes } from 'crypto'
 import { isAuthResponse, requireSuperAdmin } from '../../_auth'
 import { getGoogleDriveConfig } from '@/lib/googleDriveConfig'
 
 export const dynamic = 'force-dynamic'
 
-const STATE_COOKIE = 'admin_drive_oauth_state'
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
-const MAX_PENDING_STATES = 5
 
-function readPendingStates(cookieHeader: string | null): string[] {
-    const raw = cookieHeader
-        ?.split(';')
-        .map(value => value.trim().split('='))
-        .find(([name]) => name === STATE_COOKIE)
-        ?.slice(1)
-        .join('=') || ''
-    if (!raw) return []
-
-    try {
-        const parsed = JSON.parse(decodeURIComponent(raw))
-        return Array.isArray(parsed) ? parsed.filter(value => typeof value === 'string') : []
-    } catch {
-        // Accept a state created by older deployments until it naturally expires.
-        return [decodeURIComponent(raw)]
-    }
+function createState(clientSecret: string): string {
+    const nonce = randomBytes(32).toString('hex')
+    const issuedAt = Date.now().toString()
+    const payload = `${nonce}.${issuedAt}`
+    const signature = createHmac('sha256', clientSecret).update(payload).digest('hex')
+    return `${payload}.${signature}`
 }
 
 export async function POST(req: Request) {
@@ -38,8 +26,7 @@ export async function POST(req: Request) {
 
     const origin = new URL(req.url).origin
     const redirectUri = `${origin}/api/admin/google-drive/oauth/callback`
-    const state = randomBytes(32).toString('hex')
-    const pendingStates = [...readPendingStates(req.headers.get('cookie')), state].slice(-MAX_PENDING_STATES)
+    const state = createState(config.clientSecret)
     const authorizationUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     authorizationUrl.search = new URLSearchParams({
         client_id: config.clientId,
@@ -51,13 +38,5 @@ export async function POST(req: Request) {
         state,
     }).toString()
 
-    const response = NextResponse.json({ authorization_url: authorizationUrl.toString(), redirect_uri: redirectUri })
-    response.cookies.set(STATE_COOKIE, encodeURIComponent(JSON.stringify(pendingStates)), {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: origin.startsWith('https://'),
-        path: '/api/admin/google-drive/oauth',
-        maxAge: 10 * 60,
-    })
-    return response
+    return NextResponse.json({ authorization_url: authorizationUrl.toString(), redirect_uri: redirectUri })
 }
