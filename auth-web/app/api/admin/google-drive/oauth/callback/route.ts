@@ -7,22 +7,35 @@ export const dynamic = 'force-dynamic'
 const STATE_COOKIE = 'admin_drive_oauth_state'
 
 function redirect(req: Request, result: string): NextResponse {
-    const destination = new URL('/admin', req.url)
+    const destination = new URL('/dashboard', req.url)
     destination.searchParams.set('drive_oauth', result)
     return NextResponse.redirect(destination)
 }
 
-export async function GET(req: Request) {
-    const url = new URL(req.url)
-    const receivedState = String(url.searchParams.get('state') || '')
-    const expectedState = req.headers.get('cookie')
+function readPendingStates(cookieHeader: string | null): string[] {
+    const raw = cookieHeader
         ?.split(';')
         .map(value => value.trim().split('='))
         .find(([name]) => name === STATE_COOKIE)
         ?.slice(1)
         .join('=') || ''
+    if (!raw) return []
 
-    if (!receivedState || !expectedState || receivedState !== decodeURIComponent(expectedState)) {
+    try {
+        const parsed = JSON.parse(decodeURIComponent(raw))
+        return Array.isArray(parsed) ? parsed.filter(value => typeof value === 'string') : []
+    } catch {
+        // Accept a state created by older deployments until it naturally expires.
+        return [decodeURIComponent(raw)]
+    }
+}
+
+export async function GET(req: Request) {
+    const url = new URL(req.url)
+    const receivedState = String(url.searchParams.get('state') || '')
+    const pendingStates = readPendingStates(req.headers.get('cookie'))
+
+    if (!receivedState || !pendingStates.includes(receivedState)) {
         return redirect(req, 'state_mismatch')
     }
 

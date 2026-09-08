@@ -17,7 +17,8 @@ def test_drive_reconnect_requires_superadmin_and_uses_offline_consent():
 def test_drive_callback_checks_state_and_stores_the_new_refresh_token():
     source = (ROOT / 'auth-web' / 'app' / 'api' / 'admin' / 'google-drive' / 'oauth' / 'callback' / 'route.ts').read_text(encoding='utf-8')
 
-    assert "receivedState !== decodeURIComponent(expectedState)" in source
+    assert "pendingStates.includes(receivedState)" in source
+    assert "new URL('/dashboard', req.url)" in source
     assert "grant_type: 'authorization_code'" in source
     assert "key: 'sys_api_google_drive_refresh_token'" in source
 
