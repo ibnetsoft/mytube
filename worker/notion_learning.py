@@ -83,10 +83,13 @@ def _row_from_page(page: dict[str, Any]) -> dict[str, Any]:
             }
     metrics = notion_blocks.get("metrics") if isinstance(notion_blocks.get("metrics"), dict) else {}
     evaluation = notion_blocks.get("evaluation") if isinstance(notion_blocks.get("evaluation"), dict) else {}
+    identifiers = notion_blocks.get("identifiers") if isinstance(notion_blocks.get("identifiers"), dict) else {}
     return {
         "generated_title": _plain_text(title_prop) or str(title_generation.get("generated_title") or title_generation.get("final_title") or "").strip(),
         "production_topic": _plain_text(props.get("Learning Text")),
-        "category_id": _plain_text(props.get("Category ID")),
+        "topic_queue_id": _plain_text(props.get("Topic Queue ID")) or str(identifiers.get("topic_queue_id") or "").strip(),
+        "source_job_id": _plain_text(props.get("Source Job Key")) or _plain_text(props.get("Source Job Text")) or str(identifiers.get("source_job_id") or "").strip(),
+        "category_id": _plain_text(props.get("Category ID")) or str(identifiers.get("category_id") or "").strip(),
         "category_name": _plain_text(props.get("Category")),
         "title_score": _number(props.get("Title Score")),
         "script_score": _number(props.get("Script Score")),
@@ -118,6 +121,13 @@ def _select_value(text: Any, fallback: str = "unknown") -> dict[str, Any]:
 
 def _date_value(text: Any) -> dict[str, Any]:
     value = str(text or "").strip()
+    try:
+        numeric = float(value)
+        if numeric > 1_000_000_000:
+            from datetime import datetime, timezone
+            value = datetime.fromtimestamp(numeric, tz=timezone.utc).isoformat()
+    except (TypeError, ValueError):
+        pass
     if not value:
         from datetime import datetime, timezone
         value = datetime.now(timezone.utc).isoformat()
@@ -168,6 +178,22 @@ def _put_property(target: dict[str, Any], properties: dict[str, Any], name: str,
     converted = _property_value(meta.get("type"), value)
     if converted is not None:
         target[name] = converted
+
+
+def _put_first_property(target: dict[str, Any], properties: dict[str, Any], names: tuple[str, ...], value: Any) -> None:
+    for name in names:
+        before = len(target)
+        _put_property(target, properties, name, value)
+        if len(target) > before:
+            return
+
+
+def _first_text_value(*values: Any) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
 
 
 def _parse_code_block_payload(block: dict[str, Any]) -> tuple[str, Any] | None:
@@ -359,3 +385,85 @@ async def create_music_learning_row(row: dict[str, Any]) -> bool:
             },
         )
     return response.status_code in (200, 201)
+
+
+async def create_content_learning_row(row: dict[str, Any]) -> bool:
+    """Persist a completed Codex content package as reusable learning memory."""
+    token = _token()
+    database_id = _database_id()
+    if not token or not database_id or not row:
+        return False
+
+    properties_meta = await _database_properties(token, database_id)
+    title_prop = _title_property_name(properties_meta)
+    title_generation = row.get("title_generation") if isinstance(row.get("title_generation"), dict) else {}
+    quality = row.get("script_quality_report") if isinstance(row.get("script_quality_report"), dict) else {}
+    blueprint = row.get("narrative_blueprint") if isinstance(row.get("narrative_blueprint"), dict) else {}
+    title = str(row.get("generated_title") or row.get("upload_title") or "AIR content learning row").strip()
+    topic_queue_id = _first_text_value(row.get("topic_queue_id"), row.get("topic_id"))
+    source_job_id = _first_text_value(row.get("source_job_id"), row.get("job_id"))
+    category_id = _first_text_value(row.get("category_id"))
+    learning_text = "\n".join(part for part in [
+        f"Title: {title}",
+        f"Category: {row.get('category') or '-'}",
+        f"Category ID: {category_id or '-'}",
+        f"Topic Queue ID: {topic_queue_id or '-'}",
+        f"Source Job ID: {source_job_id or '-'}",
+        f"Quality score: {quality.get('score') or '-'}",
+        f"Theme: {blueprint.get('core_theme') or blueprint.get('theme') or '-'}",
+        f"Logline: {blueprint.get('logline') or '-'}",
+        "Use the stored structured blocks for title candidates, benchmark summary, and evaluation.",
+    ] if part)
+    properties: dict[str, Any] = {title_prop: _title_text(title)}
+    _put_property(properties, properties_meta, "Category", row.get("category") or "")
+    _put_property(properties, properties_meta, "Category ID", category_id)
+    _put_first_property(properties, properties_meta, ("Topic Queue ID", "Topic ID", "Queue ID"), topic_queue_id)
+    # This Notion database has controlled select options.  Use its existing
+    # worker values instead of attempting to create new options at write time.
+    _put_property(properties, properties_meta, "Quality", "pass")
+    _put_property(properties, properties_meta, "Source", "worker_history")
+    _put_first_property(properties, properties_meta, ("Source Job Key", "Source Job Text", "Source Job ID"), source_job_id)
+    _put_property(properties, properties_meta, "Title Score", title_generation.get("selected_score") or quality.get("score") or "")
+    _put_property(properties, properties_meta, "Script Score", quality.get("score") or "")
+    _put_property(properties, properties_meta, "Created At", row.get("completed_at") or "")
+    _put_property(properties, properties_meta, "Learning Text", learning_text)
+    benchmark = row.get("benchmark_analysis") if isinstance(row.get("benchmark_analysis"), dict) else {}
+    web_research = benchmark.get("web_research") if isinstance(benchmark.get("web_research"), dict) else {}
+    benchmark_summary = {
+        "selected_title": benchmark.get("selected_title") or benchmark.get("representative_title"),
+        "audit_summary": benchmark.get("audit_summary") or {},
+        "sources": [
+            {"title": item.get("title"), "url": item.get("url")}
+            for item in (web_research.get("sources") or [])[:8]
+            if isinstance(item, dict)
+        ],
+    }
+    blocks = {
+        "identifiers": {
+            "topic_queue_id": topic_queue_id,
+            "source_job_id": source_job_id,
+            "category_id": category_id,
+            "category": row.get("category") or "",
+            "job_type": row.get("job_type") or "",
+        },
+        "title_generation": title_generation,
+        "title_candidates_compact": {"generated_title": title, "title_candidates": title_generation.get("title_candidates") or []},
+        "benchmark_summary": benchmark_summary,
+        "evaluation": {"source": "codex_content_generate", "script_quality_report": quality},
+    }
+    children = [
+        {"object": "block", "type": "paragraph", "paragraph": {"rich_text": [{"type": "text", "text": {"content": learning_text[:1900]}}]}},
+        *[
+            {"object": "block", "type": "code", "code": {"language": "json", "rich_text": [{"type": "text", "text": {"content": json.dumps({key: value}, ensure_ascii=False)[:1900]}}]}}
+            for key, value in blocks.items()
+        ],
+    ]
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.post(
+            "https://api.notion.com/v1/pages",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Notion-Version": NOTION_VERSION},
+            json={"parent": {"database_id": database_id}, "properties": properties, "children": children},
+        )
+    if response.status_code not in (200, 201):
+        raise RuntimeError(f"Notion page creation failed: {response.status_code} {response.text[:300]}")
+    return True

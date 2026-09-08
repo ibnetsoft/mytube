@@ -23,48 +23,6 @@ UNAVAILABLE_GEMINI_MODELS = {
 }
 
 
-class ProviderCreditExhaustedError(RuntimeError):
-    """A provider rejected a request because its paid balance is unavailable.
-
-    This is deliberately distinct from ordinary provider errors.  Callers use
-    it to stop a job instead of silently changing the model/provider or
-    manufacturing a fallback result.
-    """
-
-    def __init__(self, provider: str, cause: Exception | str):
-        self.provider = str(provider or "AI provider")
-        self.cause = str(cause or "")
-        super().__init__(
-            f"{self.provider} API 크레딧 또는 잔액이 부족합니다. "
-            "충전 또는 결제 상태를 확인한 뒤 작업을 다시 실행하세요. "
-            f"(provider error: {self.cause[:500]})"
-        )
-
-
-def is_credit_exhaustion_error(exc: Exception | str) -> bool:
-    """Return true only for billing/credit exhaustion, never rate limits."""
-    message = str(exc or "").lower()
-    return (
-        " 402" in message
-        or "(402" in message
-        or "status=402" in message
-        or "status 402" in message
-        or "insufficient balance" in message
-        or "insufficient credit" in message
-        or "credit exhausted" in message
-        or "balance exhausted" in message
-        or "billing hard limit" in message
-        or "잔액 부족" in message
-        or "크레딧 부족" in message
-        or "余额不足" in message
-    )
-
-
-def raise_if_credit_exhausted(provider: str, exc: Exception) -> None:
-    if is_credit_exhaustion_error(exc):
-        raise ProviderCreditExhaustedError(provider, exc) from exc
-
-
 def _has_glm_key() -> bool:
     return bool((getattr(config, "GLM_API_KEY", "") or "").strip())
 
@@ -83,14 +41,12 @@ def fallback_text_model(exclude_provider: str | None = None) -> str:
 
 
 def normalize_model(model: str) -> str:
-    """Normalize an explicitly selected model; never choose a replacement."""
+    """Normalize text model choice without changing the requested provider."""
     selected = str(model or "").strip()
-    if not selected:
-        raise ValueError("No AI model selected; generation stopped because provider fallback is disabled")
     selected_lower = selected.lower()
     if selected_lower in UNAVAILABLE_GEMINI_MODELS:
-        raise ValueError(f"Selected model is unavailable: {selected}")
-    return selected
+        return FALLBACK_GEMINI_MODEL
+    return selected or fallback_text_model()
 
 
 def detect_provider(model: str) -> str:
@@ -114,6 +70,7 @@ async def generate_text(
     task_type: str = "text_gen",
     use_search: bool = False,
     json_mode: bool = False,
+    fallback_model: str | None = None,
 ) -> str:
     """Route a text-generation call to the selected provider."""
     selected = normalize_model(model)
@@ -131,8 +88,40 @@ async def generate_text(
                 model=selected,
             )
         except Exception as exc:
-            raise_if_credit_exhausted("Claude", exc)
-            raise RuntimeError(f"Claude generation failed for {task_type}; no provider fallback is allowed: {exc}") from exc
+            selected_fallback = normalize_model(fallback_model) if fallback_model else fallback_text_model()
+            fallback_provider = detect_provider(selected_fallback)
+            print(f"[AI Router] Claude failed for {task_type}: {exc}")
+            print(f"[AI Router] Falling back to {fallback_provider.upper()} (model={selected_fallback})")
+            if fallback_provider == "deepseek":
+                return await deepseek_service.generate_text(
+                    prompt,
+                    model=selected_fallback,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    task_type=task_type,
+                    json_mode=json_mode,
+                    project_id=project_id,
+                )
+            if fallback_provider == "glm":
+                return await glm_service.generate_text(
+                    prompt,
+                    model=selected_fallback,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    task_type=task_type,
+                    json_mode=json_mode,
+                    project_id=project_id,
+                )
+            return await gemini_service.generate_text(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                project_id=project_id,
+                task_type=task_type,
+                model=selected_fallback,
+                use_search=use_search,
+                json_mode=json_mode,
+            )
 
     if provider == "deepseek":
         if use_search:
@@ -152,8 +141,32 @@ async def generate_text(
                 project_id=project_id,
             )
         except Exception as exc:
-            raise_if_credit_exhausted("DeepSeek", exc)
-            raise RuntimeError(f"DeepSeek generation failed for {task_type}; no provider fallback is allowed: {exc}") from exc
+            selected_fallback = normalize_model(fallback_model) if fallback_model else fallback_text_model(exclude_provider="deepseek")
+            if detect_provider(selected_fallback) == "deepseek":
+                selected_fallback = fallback_text_model(exclude_provider="deepseek")
+            fallback_provider = detect_provider(selected_fallback)
+            print(f"[AI Router] DeepSeek failed for {task_type}: {exc}")
+            print(f"[AI Router] Falling back to {fallback_provider.upper()} (model={selected_fallback})")
+            if fallback_provider == "glm":
+                return await glm_service.generate_text(
+                    prompt,
+                    model=selected_fallback,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    task_type=task_type,
+                    json_mode=json_mode,
+                    project_id=project_id,
+                )
+            return await gemini_service.generate_text(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                project_id=project_id,
+                task_type=task_type,
+                model=selected_fallback,
+                use_search=use_search,
+                json_mode=json_mode,
+            )
 
     if provider == "glm":
         if use_search:
@@ -162,32 +175,24 @@ async def generate_text(
                 f"running plain text generation for {task_type}"
             )
         print(f"[AI Router] Using GLM for {task_type} (model={selected})")
-        try:
-            return await glm_service.generate_text(
-                prompt,
-                model=selected,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                task_type=task_type,
-                json_mode=json_mode,
-                project_id=project_id,
-            )
-        except Exception as exc:
-            raise_if_credit_exhausted("GLM", exc)
-            raise
-
-    print(f"[AI Router] Using Gemini for {task_type} (model={selected})")
-    try:
-        return await gemini_service.generate_text(
+        return await glm_service.generate_text(
             prompt,
+            model=selected,
             temperature=temperature,
             max_tokens=max_tokens,
-            project_id=project_id,
             task_type=task_type,
-            model=selected,
-            use_search=use_search,
             json_mode=json_mode,
+            project_id=project_id,
         )
-    except Exception as exc:
-        raise_if_credit_exhausted("Gemini", exc)
-        raise
+
+    print(f"[AI Router] Using Gemini for {task_type} (model={selected})")
+    return await gemini_service.generate_text(
+        prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        project_id=project_id,
+        task_type=task_type,
+        model=selected,
+        use_search=use_search,
+        json_mode=json_mode,
+    )

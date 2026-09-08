@@ -33,6 +33,21 @@ def test_hermes_autopilot_reads_notion_learning_rows():
     assert "https://api.notion.com/v1/databases/" in helper
 
 
+def test_codex_content_learning_rows_include_trace_identifiers():
+    worker = read("worker/hermes_worker.py")
+    helper = read("worker/notion_learning.py")
+
+    assert 'package["source_job_id"] = job_id' in worker
+    assert 'package["category_id"]' in worker
+    assert '_put_first_property(properties, properties_meta, ("Topic Queue ID", "Topic ID", "Queue ID"), topic_queue_id)' in helper
+    assert '_put_first_property(properties, properties_meta, ("Source Job Key", "Source Job Text", "Source Job ID"), source_job_id)' in helper
+    assert '"topic_queue_id": _plain_text(props.get("Topic Queue ID"))' in helper
+    assert '"source_job_id": _plain_text(props.get("Source Job Key"))' in helper
+    assert '"identifiers": {' in helper
+    assert "Topic Queue ID:" in helper
+    assert "Source Job ID:" in helper
+
+
 def test_worker_settings_can_save_notion_env_values():
     config = read("worker/worker_config.py")
     dashboard = read("worker/dashboard_app.py")

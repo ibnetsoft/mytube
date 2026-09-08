@@ -39,13 +39,14 @@ EXTERNAL_RUNNING_STATE_GRACE_SECONDS = 10 * 60
 TITLE_GENERATION_TIMEOUT_SECONDS = 90.0
 HERMES_PIPELINE_JOB_TYPES = {
     "topic_benchmark_analyze",
-    "web_research",
+    "web_research", "codex_topic_discover",
+    "codex_content_generate",
     "script_plan_generate",
     "script_generate",
     "publish_metadata_generate",
 }
 HERMES_ACTIVE_STATUSES = {"CLAIMED", "PREPARING", "RENDERING", "UPLOADING"}
-HERMES_RESUMABLE_JOB_TYPES = {"web_research", "script_plan_generate", "script_generate"}
+HERMES_RESUMABLE_JOB_TYPES = {"web_research", "codex_content_generate", "script_plan_generate", "script_generate"}
 TOPICS_QUEUE_OPTIONAL_MATERIAL_COLUMNS = {
     "benchmark_status",
     "title_status",
@@ -716,7 +717,7 @@ class HermesAutopilotManager:
         for jobs in grouped.values():
             jobs.sort(key=lambda item: float(item.get("created_at") or 0))
             if any(
-                job.get("job_type") == "publish_metadata_generate"
+                job.get("job_type") in {"publish_metadata_generate", "codex_content_generate"}
                 and str(job.get("status") or "").upper() == "COMPLETED"
                 for job in jobs
             ):
@@ -742,6 +743,10 @@ class HermesAutopilotManager:
         return candidates[0]
 
     def _submit_resume_job_from_pipeline(self, jobs: list[dict]) -> dict:
+        codex_job, _codex_data = self._completed_result_for_type(jobs, "codex_content_generate")
+        if codex_job:
+            return {"success": False, "error": "이미 Codex 콘텐츠 패키지 단계까지 완료된 작업입니다."}
+
         metadata_job, _metadata_data = self._completed_result_for_type(jobs, "publish_metadata_generate")
         if metadata_job:
             return {"success": False, "error": "이미 설명·태그 단계까지 완료된 작업입니다."}
@@ -1851,6 +1856,39 @@ class HermesAutopilotManager:
             raise RuntimeError("No title-generation model selected; provider fallback is disabled")
         return [model]
 
+    @staticmethod
+    def _orchestrator_models() -> tuple[str, str]:
+        from config import config as app_config
+
+        primary = str(app_config.HERMES_ORCHESTRATOR_MODEL or "deepseek-chat").strip()
+        fallback = str(
+            app_config.HERMES_ORCHESTRATOR_FALLBACK_MODEL or "gemini-3.6-flash"
+        ).strip()
+        return primary, fallback
+
+    async def _generate_orchestrator_text(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+        task_type: str,
+        use_search: bool = False,
+        json_mode: bool = False,
+    ) -> str:
+        """Use Hermes' own decision model without changing content generators."""
+        primary, fallback = self._orchestrator_models()
+        return await ai_router.generate_text(
+            prompt,
+            model=primary,
+            fallback_model=fallback,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            task_type=task_type,
+            use_search=use_search,
+            json_mode=json_mode,
+        )
+
     async def _generate_title_text_with_fallback(
         self,
         prompt: str,
@@ -2440,14 +2478,12 @@ Return ONLY JSON:
 {{"style_key":"one catalog key", "reason":"short Korean reason"}}
 """.strip()
         try:
-            from config import config as app_config
-            model = app_config.TITLE_GENERATION_MODEL or app_config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
-            raw = await ai_router.generate_text(
+            raw = await self._generate_orchestrator_text(
                 prompt,
-                model=model,
                 temperature=0.2,
                 max_tokens=500,
                 task_type="hermes_image_style_select",
+                json_mode=True,
             )
             selected = self._extract_json_object(raw)
             style_key = str(selected.get("style_key") or "").strip().lower()
@@ -2527,17 +2563,11 @@ Return ONLY a JSON array of strings.
 """
         discovered: list[str] = []
         try:
-            from config import config as app_config
-            raw = await ai_router.generate_text(
+            raw = await self._generate_orchestrator_text(
                 prompt,
-                model=app_config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash",
                 temperature=0.55,
                 max_tokens=800,
                 task_type="hermes_benchmark_keyword_discovery",
-                use_search=True,
-                # Gemini does not support responseMimeType together with
-                # Google Search grounding. Parse the JSON array defensively
-                # from the normal text response instead.
                 json_mode=False,
             )
             match = re.search(r"\[[\s\S]*\]", raw or "")
@@ -2781,6 +2811,12 @@ Return ONLY a JSON array of strings.
         # 0. Supabase URL 및 키 읽기
         supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+        content_engine = str(os.environ.get("CONTENT_GENERATION_ENGINE", "codex")).strip().lower()
+        if content_engine == "codex" and (not supabase_url or not supabase_key):
+            raise RuntimeError(
+                "Codex 콘텐츠 생성은 Supabase 저장 설정(NEXT_PUBLIC_SUPABASE_URL, "
+                "SUPABASE_SERVICE_ROLE_KEY)이 필요합니다. 로컬 전용 완료로 우회하지 않습니다."
+            )
         
         headers = {
             "apikey": supabase_key,
@@ -2924,23 +2960,18 @@ Return ONLY a JSON array of strings.
             await self._wait_for_job(benchmark_job_id)
             # 결과 읽기
             result_data = self._read_result_file(benchmark_job_id)
-        except Exception as benchmark_error:
-            cached = self._load_cached_benchmark_result(category)
-            if not cached:
-                raise
-            result_data = cached
-            self.add_log(
-                f"YouTube API 일시 오류로 최근 실제 벤치마크를 재사용합니다: "
-                f"{cached['audit_summary'].get('cached_from')} ({benchmark_error})"
-            )
+        except Exception:
+            # Every run must be backed by a fresh YouTube API benchmark.
+            # Do not silently substitute a cached result for this pipeline.
+            raise
         if not result_data or "candidates" not in result_data or not result_data["candidates"]:
             raise RuntimeError("유튜브 벤치마크 탐색 결과 분석 데이터가 유효하지 않습니다.")
             
-        candidates = result_data["candidates"]
+        candidates = result_data.get("candidates") or []
         audit_path = result_data.get("audit_path")
         audit_summary = result_data.get("audit_summary") or {}
-        best_candidate = candidates[0]
-        video_title = best_candidate.get("title", "")
+        best_candidate = candidates[0] if candidates else {}
+        video_title = best_candidate.get("title", "") or self._category_fallback_title(category)
         performance_ratio = best_candidate.get("performance_ratio", 0.0)
         self.add_log(f"📈 벤치마크 탐색 완료: 대본 기획에 참조할 영상 {len(candidates)}개")
         for index, candidate in enumerate(candidates, start=1):
@@ -2973,45 +3004,73 @@ Return ONLY a JSON array of strings.
         )
         if learning_profile.get("sample_count"):
             self.add_log(f"Learning memory loaded: {learning_profile['sample_count']} prior feedback row(s)")
-        title_plan = await self._generate_title_plan(category, candidates, learning_profile)
-        generated_title = title_plan["generated_title"]
-        if not self._is_usable_title_candidate(generated_title, category):
-            raise RuntimeError(f"Title QA rejected generated upload title: {generated_title!r}")
-        self.current_step = "Gemini 웹 자료 조사"
-        if result_data.get("cached"):
-            self.add_log("Cached benchmark data is only a seed; submitting a real web_research job before planning.")
-        self.add_log(f"Submitting web_research for '{generated_title}' before script planning.")
-        research_job_id = job_store.submit_job(
-            job_type="web_research",
-            payload={
-                "category": category,
-                "topic": category,
-                "upload_title": generated_title,
-                "benchmark_sources": [
-                    {
-                        "title": str(candidate.get("title") or "YouTube benchmark video"),
-                        "url": f"https://www.youtube.com/watch?v={candidate.get('video_id')}",
-                    }
-                    for candidate in candidates[:3]
-                    if candidate.get("video_id")
-                ],
-            },
-            priority=100,
-            source="autopilot",
-        )
-        await self._wait_for_job(research_job_id)
-        research_result = self._read_result_file(research_job_id) or {}
-        research_bundle = research_result.get("research_bundle") or {}
-        research_sources = research_bundle.get("sources") or []
-        if not research_sources:
-            raise RuntimeError("Gemini 웹 조사 결과에 검증 가능한 출처가 없습니다.")
-        self.add_log(f"📚 Gemini 웹 자료 조사 완료: 출처 {len(research_sources)}개")
-        for source in research_sources:
-            self.add_log(f"   자료: {source.get('title') or '(제목 없음)'} | {source.get('url')}")
+        if content_engine == "codex":
+            self.current_step = "Codex 주제 후보 발굴 및 선정"
+            forbidden_titles = [
+                str(candidate.get("title") or "").strip() for candidate in candidates
+            ]
+            topic_job_id = job_store.submit_job(
+                job_type="codex_topic_discover",
+                payload={
+                    "category": category,
+                    "language": category_language,
+                    "benchmark_analysis": {"candidates": candidates, "audit_summary": audit_summary},
+                    "learning_profile": learning_profile,
+                    "forbidden_titles": [title for title in forbidden_titles if title],
+                },
+                priority=100,
+                source="autopilot",
+                max_retries=0,
+            )
+            await self._wait_for_job(topic_job_id)
+            topic_discovery = self._read_result_file(topic_job_id) or {}
+            selected_topic = topic_discovery.get("selected_topic") or {}
+            generated_title = str(selected_topic.get("title") or "").strip()
+            if not generated_title:
+                raise RuntimeError("Codex 주제 발굴 결과에 선택된 제목이 없습니다.")
+            title_plan = {
+                "generated_title": generated_title,
+                "title_candidates": topic_discovery.get("candidates") or [],
+                "selected_topic": selected_topic,
+                "selection_rationale": topic_discovery.get("selection_rationale") or "",
+                "generation_models": {"title": "codex-cli"},
+                "selection_source": "codex_youtube_evidence_topic_discovery",
+            }
+        else:
+            title_plan = await self._generate_title_plan(category, candidates, learning_profile)
+            generated_title = title_plan["generated_title"]
+            if not self._is_usable_title_candidate(generated_title, category):
+                raise RuntimeError(f"Title QA rejected generated upload title: {generated_title!r}")
+        if content_engine == "codex":
+            research_bundle = {
+                "source": "youtube_data_api",
+                "benchmark_candidates": candidates,
+                "topic_discovery": topic_discovery,
+            }
+            self.add_log(f"📺 YouTube API 근거로 Codex 주제 후보 {len(topic_discovery.get('candidates') or [])}개를 비교·선정했습니다.")
+        else:
+            self.current_step = "Gemini 웹 자료 조사"
+            self.add_log(f"Submitting web_research for '{generated_title}' before script planning.")
+            research_job_id = job_store.submit_job(
+                job_type="web_research", payload={"category": category, "topic": category, "upload_title": generated_title}, priority=100, source="autopilot"
+            )
+            await self._wait_for_job(research_job_id)
+            research_result = self._read_result_file(research_job_id) or {}
+            research_bundle = research_result.get("research_bundle") or {}
+            if not (research_bundle.get("sources") or []):
+                raise RuntimeError("Gemini 웹 조사 결과에 검증 가능한 출처가 없습니다.")
         manual_image_style = (self.settings.get("category_image_style_overrides") or {}).get(category)
-        image_style_plan = await self._select_image_style(
-            category, generated_title, category_image_style, manual_image_style
-        )
+        if content_engine == "codex":
+            assigned_seed_style = manual_image_style or category_image_style or "realistic"
+            image_style_plan = {
+                "assigned_image_style": assigned_seed_style,
+                "selection_source": "configured_style_seed_before_codex_content_generation",
+                "reason": "Codex will apply this configured visual style while it creates prompts.",
+            }
+        else:
+            image_style_plan = await self._select_image_style(
+                category, generated_title, category_image_style, manual_image_style
+            )
         assigned_image_style = image_style_plan["assigned_image_style"]
         self.current_image_style = assigned_image_style
         self.add_log(
@@ -3029,8 +3088,8 @@ Return ONLY a JSON array of strings.
             "image_style_selection": image_style_plan,
         }
         self.current_topic = generated_title
-        self.add_log(f"AI title selected for category '{category}': '{generated_title}'")
-        self.add_log(f"AI title selected: '{generated_title}' (score={title_plan['selected_score']})")
+        self.add_log(f"Content title seed for category '{category}': '{generated_title}'")
+        self.add_log(f"Title source: {title_plan.get('selection_source', 'legacy_title_planner')}")
 
         # Persist the category separately from the QA-approved upload title.
         if supabase_url and supabase_key:
@@ -3077,6 +3136,9 @@ Return ONLY a JSON array of strings.
                             "assigned_image_style",
                             "pregenerated_structure_status",
                             "pregenerated_script_status",
+                            "generated_by_worker_id",
+                            "generated_by_worker_instance_id",
+                            "generated_by_worker_at",
                         }
                         fallback_row_data = {
                             key: value for key, value in row_data.items()
@@ -3098,11 +3160,80 @@ Return ONLY a JSON array of strings.
                     self.add_log(f"Supabase: 검증된 업로드 제목 '{generated_title}' 등록 완료")
             except Exception as e:
                 reason = str(e) or repr(e) or type(e).__name__
+                if content_engine == "codex":
+                    raise RuntimeError(
+                        "Supabase topic registration is required for the Codex pipeline; "
+                        f"refusing local-only generation: {reason}"
+                    ) from e
                 self.current_topic_queue_id = str(topic_queue_id)
                 self.add_log(
                     "Supabase 검증 제목 등록 실패: "
                     f"{reason}. 로컬 작업 ID({topic_queue_id})로 계속 생성합니다."
                 )
+
+        if content_engine == "codex":
+            self.current_step = "Codex 단계형 콘텐츠 생성"
+            self.add_log("Codex가 기존 순서대로 씬 기획 → 씬별 대본 → 대본 QA → 이미지/영상 프롬프트 → 메타데이터를 생성합니다. 이미지 생성은 수행하지 않습니다.")
+            target_duration_seconds = self._target_duration_seconds_for_category(category)
+            codex_job_id = job_store.submit_job(
+                job_type="codex_content_generate",
+                payload={
+                    "topic_queue_id": topic_queue_id,
+                    "category": category,
+                    "category_name": category,
+                    "category_id": category_id,
+                    "topic": generated_title,
+                    "upload_title": generated_title,
+                    "forbidden_titles": [
+                        str(candidate.get("title") or "").strip()
+                        for candidate in candidates if str(candidate.get("title") or "").strip()
+                    ],
+                    "target_duration_seconds": target_duration_seconds,
+                    "tts_speed": self.settings.get("tts_speed", 1.0),
+                    "script_style": category_script_style,
+                    "image_style": assigned_image_style,
+                    "image_style_selection": image_style_plan,
+                    "language": category_language,
+                    "benchmark_analysis": {**(best_candidate.get("analysis") or best_candidate), "web_research": research_bundle},
+                    "research_bundle": research_bundle,
+                    "title_generation": title_plan,
+                    "learning_profile": learning_profile,
+                    "quality_feedback": getattr(self, "_quality_feedback", []),
+                },
+                priority=100,
+                source="autopilot",
+                max_retries=0,
+            )
+            self.add_log(f"-> codex_content_generate 작업 제출 완료 (Job ID: {codex_job_id})")
+            await self._wait_for_job(codex_job_id)
+            codex_data = self._read_result_file(codex_job_id) or {}
+            if not codex_data.get("script") or not codex_data.get("publish_metadata"):
+                raise RuntimeError("Codex 콘텐츠 패키지 결과가 불완전합니다.")
+            generated_title = str(codex_data.get("generated_title") or generated_title)
+            self.current_topic = generated_title
+            summary_payload = {
+                **codex_data,
+                "topic_queue_id": topic_queue_id,
+                "category": category,
+                "original_benchmark_title": video_title,
+                "performance_ratio": performance_ratio,
+                "benchmark_analysis": benchmark_payload,
+                "benchmark_job_id": benchmark_job_id,
+                "benchmark_audit_path": audit_path,
+                "benchmark_audit_summary": audit_summary,
+                "completed_at": time.time(),
+            }
+            RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+            local_result_path = RESULTS_DIR / f"{topic_queue_id}.json"
+            local_result_path.write_text(json.dumps(summary_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.session_stats["generated_count"] += 1
+            self._quality_feedback = []
+            self.last_run_status = "completed"
+            self.last_error = ""
+            self.last_completed_result_id = str(topic_queue_id)
+            self._save_state()
+            self.add_log(f"💾 Codex 콘텐츠 패키지 저장 완료: {local_result_path}")
+            return
 
         # 4. 구조 및 씬 기획 생성
         self.current_step = "대본 구조 및 씬 기획"

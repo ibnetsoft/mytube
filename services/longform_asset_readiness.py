@@ -19,10 +19,10 @@ TERMINAL_PROJECT_STATUSES = {
     "youtube_published",
 }
 
-# The user app keeps this setting hidden. The default policy is 60 seconds,
-# mapped to the first 12 scenes at 5 seconds per scene.
+# CoWork creates still-image storyboard assets. Video prompts may still exist
+# for the opening hook, but image assets are accepted for every scene.
 CHARS_PER_SECOND = 5.0
-DEFAULT_VIDEO_REQUIRED_UNTIL_SEC = 60
+DEFAULT_VIDEO_REQUIRED_UNTIL_SEC = 0
 VIDEO_REQUIRED_SCENE_SECONDS = 5
 
 

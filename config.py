@@ -74,16 +74,16 @@ class Config:
     GLM_BASE_URL = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
 
     # AI Model Settings
+    HERMES_ORCHESTRATOR_MODEL = os.getenv("HERMES_ORCHESTRATOR_MODEL", "deepseek-chat")
+    HERMES_ORCHESTRATOR_FALLBACK_MODEL = os.getenv(
+        "HERMES_ORCHESTRATOR_FALLBACK_MODEL", "gemini-3.6-flash"
+    )
     SCRIPT_GENERATION_MODEL = os.getenv("SCRIPT_GENERATION_MODEL", "claude-haiku-4-5-20251001")  # 대본 생성 모델
     # Keep local/offline defaults on a broadly available text model. The
     # web-admin settings override these values in production.
     TOPIC_GENERATION_MODEL = os.getenv("TOPIC_GENERATION_MODEL", "gemini-3.6-flash")
     TITLE_GENERATION_MODEL = os.getenv("TITLE_GENERATION_MODEL", "gemini-3.6-flash")
     SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-3.6-flash")
-    # Used only to diagnose/recover a failed Claude script call.  It is kept
-    # separate from planning so changing the primary writer never accidentally
-    # removes Hermes' explicitly selected Gemini coordinator.
-    HERMES_ORCHESTRATOR_MODEL = os.getenv("HERMES_ORCHESTRATOR_MODEL", "gemini-3.6-flash")
     IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-3.6-flash")
     TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-3.6-flash")
     IMAGE_GENERATION_MODEL = os.getenv("IMAGE_GENERATION_MODEL", "gemini-3.1-flash-image-preview")  # 이미지 생성 모델
@@ -248,7 +248,8 @@ class Config:
             'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH',
             'LONGFORM_MIN_DURATION_MINUTES', 'LONGFORM_BASE_PAYOUT',
             'LONGFORM_EXTRA_MINUTE_PAYOUT', 'LONGFORM_DURATION_LOCK_ENABLED',
-            'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL', 'SCRIPT_PLANNING_MODEL', 'HERMES_ORCHESTRATOR_MODEL',
+            'HERMES_ORCHESTRATOR_MODEL', 'HERMES_ORCHESTRATOR_FALLBACK_MODEL',
+            'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL', 'SCRIPT_PLANNING_MODEL',
             'SCRIPT_GENERATION_MODEL', 'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
             'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',
         }
@@ -260,8 +261,9 @@ class Config:
                 local_override_keys = {
                     'GEMINI_API_KEY', 'GEMINI_API_KEY_FREE', 'GEMINI_API_KEY_PAID', 'CLAUDE_API_KEY', 'DEEPSEEK_API_KEY', 'DEEPSEEK_BASE_URL',
                     'GLM_API_KEY', 'GLM_BASE_URL',
+                    'HERMES_ORCHESTRATOR_MODEL', 'HERMES_ORCHESTRATOR_FALLBACK_MODEL',
                     'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL',
-                    'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL', 'HERMES_ORCHESTRATOR_MODEL',
+                    'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL',
                     'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
                 }
                 if key_name in local_override_keys and os.getenv(key_name, '').strip():
@@ -294,10 +296,11 @@ class Config:
             "gemini-3-flash-preview": "gemini-3.6-flash",
         }
         for key_name in (
+            "HERMES_ORCHESTRATOR_MODEL",
+            "HERMES_ORCHESTRATOR_FALLBACK_MODEL",
             "TOPIC_GENERATION_MODEL",
             "TITLE_GENERATION_MODEL",
             "SCRIPT_PLANNING_MODEL",
-            "HERMES_ORCHESTRATOR_MODEL",
             "SCRIPT_GENERATION_MODEL",
             "IMAGE_PROMPT_MODEL",
             "TRANSLATION_MODEL",
@@ -313,6 +316,8 @@ class Config:
         """Return invalid model settings without making a worker process crash."""
         cls.normalize_generation_models()
         required = {
+            "HERMES_ORCHESTRATOR_MODEL": cls.HERMES_ORCHESTRATOR_MODEL,
+            "HERMES_ORCHESTRATOR_FALLBACK_MODEL": cls.HERMES_ORCHESTRATOR_FALLBACK_MODEL,
             "TOPIC_GENERATION_MODEL": cls.TOPIC_GENERATION_MODEL,
             "SCRIPT_PLANNING_MODEL": cls.SCRIPT_PLANNING_MODEL,
             "SCRIPT_GENERATION_MODEL": cls.SCRIPT_GENERATION_MODEL,
@@ -371,6 +376,7 @@ class Config:
             'REMOTE_RENDER_DRIVE_FOLDER_ID', 'REMOTE_RENDER_GOOGLE_TOKEN_PATH',
             'LONGFORM_MIN_DURATION_MINUTES', 'LONGFORM_BASE_PAYOUT',
             'LONGFORM_EXTRA_MINUTE_PAYOUT', 'LONGFORM_DURATION_LOCK_ENABLED',
+            'HERMES_ORCHESTRATOR_MODEL', 'HERMES_ORCHESTRATOR_FALLBACK_MODEL',
             'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL', 'SCRIPT_PLANNING_MODEL',
             'SCRIPT_GENERATION_MODEL', 'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
             'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',

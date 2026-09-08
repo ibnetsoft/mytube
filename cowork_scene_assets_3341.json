@@ -1,0 +1,87 @@
+{
+  "schema": "cowork_scene_assets/v1",
+  "topic_id": "3341",
+  "title": "새벽 종을 훔친 아이",
+  "bucket": "content-assets",
+  "created_at": "2026-09-06T07:13:33.118176+00:00",
+  "scene_count": 28,
+  "grids": [
+    {
+      "grid_number": 1,
+      "scene_numbers": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "prompt": "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. Use one consistent visual world across all panels.\nShared style and continuity: A soft, dreamlike watercolor and graphite sketch style illustration, depicting a cozy scene from a children's nursery rhyme storybook. A group of friendly, anthropomorphic animal characters—a bear, a rabbit, and an owl—are gathered on a patchwork blanket in a lush, stylized forest glade. They are listening intently to an old, stylized tree character with a friendly face, who appears to be telling a story. The entire image has a soft, warm paper texture, gentle brush strokes, and clear, transparent colors. The background is a soft blend of green foliage and distant, rolling hills under a warm, diffused golden sunlight.\nPanel briefs:\n- Panel 1 (Position: Top-Left): Predawn mountain temple, empty bell pavilion beneath pines and mist, vacant hook and quiet stone steps establishing the missing bronze bell.\n- Panel 2 (Position: Top-Right): Saebom, a patched thirteen-year-old child, wakes between dew-covered rocks at dawn, hugging a small aged bronze bell to their chest.\n- Panel 3 (Position: Bottom-Left): Stern broker Mansuk accuses Saebom at the temple gate while early market vendors gather in a suspicious circle around the frightened child.\n- Panel 4 (Position: Bottom-Right): Saebom kneels beside temple stones, turning the bell toward dawn and tracing its worn inner engraving with a careful trembling finger.\nNegative guardrails: no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion.",
+      "raw_file": "grid-001.png"
+    },
+    {
+      "grid_number": 2,
+      "scene_numbers": [
+        5,
+        6,
+        7,
+        8
+      ],
+      "prompt": "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. Use one consistent visual world across all panels.\nShared style and continuity: A soft, dreamlike watercolor and graphite sketch style illustration, depicting a cozy scene from a children's nursery rhyme storybook. A group of friendly, anthropomorphic animal characters—a bear, a rabbit, and an owl—are gathered on a patchwork blanket in a lush, stylized forest glade. They are listening intently to an old, stylized tree character with a friendly face, who appears to be telling a story. The entire image has a soft, warm paper texture, gentle brush strokes, and clear, transparent colors. The background is a soft blend of green foliage and distant, rolling hills under a warm, diffused golden sunlight.\nPanel briefs:\n- Panel 1 (Position: Top-Left): Elderly Boksun recognizes the bell and stops Mansuk’s reaching wrist, while Saebom looks up with sudden astonished hope.\n- Panel 2 (Position: Top-Right): Mansuk threatens the old bell with a heavy stone as Saebom runs into a shadowed pine forest holding it beneath patched clothing.\n- Panel 3 (Position: Bottom-Left): Saebom flees across mossy stones, bell grazing a rock, while gentle temple errand child Doyun follows several cautious paces behind.\n- Panel 4 (Position: Bottom-Right): Monk Hyedam cradles the weathered bronze bell beneath temple eaves as Saebom and Doyun listen in reflective dawn silence.\nNegative guardrails: no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion.",
+      "raw_file": "grid-002.png"
+    },
+    {
+      "grid_number": 3,
+      "scene_numbers": [
+        9,
+        10,
+        11,
+        12
+      ],
+      "prompt": "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. Use one consistent visual world across all panels.\nShared style and continuity: A soft, dreamlike watercolor and graphite sketch style illustration, depicting a cozy scene from a children's nursery rhyme storybook. A group of friendly, anthropomorphic animal characters—a bear, a rabbit, and an owl—are gathered on a patchwork blanket in a lush, stylized forest glade. They are listening intently to an old, stylized tree character with a friendly face, who appears to be telling a story. The entire image has a soft, warm paper texture, gentle brush strokes, and clear, transparent colors. The background is a soft blend of green foliage and distant, rolling hills under a warm, diffused golden sunlight.\nPanel briefs:\n- Panel 1 (Position: Top-Left): Saebom peers into tarnished bronze and recognizes one significant scratched mark among rust, their expression changing from fear to revelation.\n- Panel 2 (Position: Top-Right): With villagers whispering behind, determined Saebom walks toward a black rock cave beyond a misty mountain pass holding the bell.\n- Panel 3 (Position: Bottom-Left): Boksun grieves beside the path while elderly villagers avert their eyes, and Saebom listens beside the bronze bell beneath bare branches.\n- Panel 4 (Position: Bottom-Right): At the dark cave entrance, Saebom holds the bell over packed earth as dust ripples and Doyun and Boksun watch hopefully.\nNegative guardrails: no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion.",
+      "raw_file": "grid-003.png"
+    },
+    {
+      "grid_number": 4,
+      "scene_numbers": [
+        13,
+        14,
+        15,
+        16
+      ],
+      "prompt": "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. Use one consistent visual world across all panels.\nShared style and continuity: A soft, dreamlike watercolor and graphite sketch style illustration, depicting a cozy scene from a children's nursery rhyme storybook. A group of friendly, anthropomorphic animal characters—a bear, a rabbit, and an owl—are gathered on a patchwork blanket in a lush, stylized forest glade. They are listening intently to an old, stylized tree character with a friendly face, who appears to be telling a story. The entire image has a soft, warm paper texture, gentle brush strokes, and clear, transparent colors. The background is a soft blend of green foliage and distant, rolling hills under a warm, diffused golden sunlight.\nPanel briefs:\n- Panel 1 (Position: Top-Left): Deep cave wagon ruts scar the earthen wall; frightened Doyun hesitates while Saebom listens through the bell and walks into darkness.\n- Panel 2 (Position: Top-Right): Sand falls from the cave ceiling as ringing the bell opens a crevice, revealing clay jars and faded child wrist ribbons.\n- Panel 3 (Position: Bottom-Left): Mansuk and market men block the cave mouth, but Boksun stands firm before them and refuses to yield the truth.\n- Panel 4 (Position: Bottom-Right): Saebom lays a small palm on a lotus-and-handprint carved cave stone, silently resolving to find mother Yeonhwa’s hidden trace.\nNegative guardrails: no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion.",
+      "raw_file": "grid-004.png"
+    },
+    {
+      "grid_number": 5,
+      "scene_numbers": [
+        17,
+        18,
+        19,
+        20
+      ],
+      "prompt": "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. Use one consistent visual world across all panels.\nShared style and continuity: A soft, dreamlike watercolor and graphite sketch style illustration, depicting a cozy scene from a children's nursery rhyme storybook. A group of friendly, anthropomorphic animal characters—a bear, a rabbit, and an owl—are gathered on a patchwork blanket in a lush, stylized forest glade. They are listening intently to an old, stylized tree character with a friendly face, who appears to be telling a story. The entire image has a soft, warm paper texture, gentle brush strokes, and clear, transparent colors. The background is a soft blend of green foliage and distant, rolling hills under a warm, diffused golden sunlight.\nPanel briefs:\n- Panel 1 (Position: Top-Left): Doyun holds the bell while Saebom pushes the carved stone, uncovering a wooden record box bound with rotten cord in a hidden crevice.\n- Panel 2 (Position: Top-Right): Mansuk tries to cast the record box into torch fire, but monk Hyedam blocks him as Saebom hugs the evidence tightly.\n- Panel 3 (Position: Bottom-Left): Boksun opens the first brittle record page while a village teacher gestures and ashamed elders bow, facing the children they lost.\n- Panel 4 (Position: Bottom-Right): Saebom tenderly touches an ink-stained record page and realizes a lost infant identity, tears glowing with grief and recognition.\nNegative guardrails: no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion.",
+      "raw_file": "grid-005.png"
+    },
+    {
+      "grid_number": 6,
+      "scene_numbers": [
+        21,
+        22,
+        23,
+        24
+      ],
+      "prompt": "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. Use one consistent visual world across all panels.\nShared style and continuity: A soft, dreamlike watercolor and graphite sketch style illustration, depicting a cozy scene from a children's nursery rhyme storybook. A group of friendly, anthropomorphic animal characters—a bear, a rabbit, and an owl—are gathered on a patchwork blanket in a lush, stylized forest glade. They are listening intently to an old, stylized tree character with a friendly face, who appears to be telling a story. The entire image has a soft, warm paper texture, gentle brush strokes, and clear, transparent colors. The background is a soft blend of green foliage and distant, rolling hills under a warm, diffused golden sunlight.\nPanel briefs:\n- Panel 1 (Position: Top-Left): Monk Hyedam kneels by the bell pavilion remembering a bundled crying infant, while Saebom listens beside the recovered bronze bell.\n- Panel 2 (Position: Top-Right): A fallen torch lies in dirt as Mansuk kneels before villagers, his collapsed posture revealing his unbearable old guilt.\n- Panel 3 (Position: Bottom-Left): Saebom faces the kneeling Mansuk but chooses restraint, holding the wooden record box close beneath the silent bell pavilion.\n- Panel 4 (Position: Bottom-Right): Villagers spread paper and ink at the temple pavilion while Saebom carefully creates the first abstract memorial brush marks with Boksun.\nNegative guardrails: no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion.",
+      "raw_file": "grid-006.png"
+    },
+    {
+      "grid_number": 7,
+      "scene_numbers": [
+        25,
+        26,
+        27,
+        28
+      ],
+      "prompt": "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). Create a strict 2x2 image grid: exactly 2 columns, 2 rows, 4 equal panels in a 16:9 widescreen canvas. No borders, NO grid lines, NO white lines, NO dividers, NO crosshairs; panels touch seamlessly. Use one consistent visual world across all panels.\nShared style and continuity: A soft, dreamlike watercolor and graphite sketch style illustration, depicting a cozy scene from a children's nursery rhyme storybook. A group of friendly, anthropomorphic animal characters—a bear, a rabbit, and an owl—are gathered on a patchwork blanket in a lush, stylized forest glade. They are listening intently to an old, stylized tree character with a friendly face, who appears to be telling a story. The entire image has a soft, warm paper texture, gentle brush strokes, and clear, transparent colors. The background is a soft blend of green foliage and distant, rolling hills under a warm, diffused golden sunlight.\nPanel briefs:\n- Panel 1 (Position: Top-Left): Repaired bronze bell hangs in its pavilion as monk Hyedam gives Saebom a wooden striker, transforming fear into shared guardianship.\n- Panel 2 (Position: Top-Right): First sunlight reaches Saebom ringing the restored bell while villagers quietly stack stones into a small memorial beside the cave.\n- Panel 3 (Position: Bottom-Left): Warm temple kitchen scene: Boksun serves porridge, Doyun offers Saebom a hand, and the child joins people with a shy smile.\n- Panel 4 (Position: Bottom-Right): At sunrise Saebom stands peacefully in the bell pavilion, blank memorial papers fluttering over a clear mountain road and fading mist.\nNegative guardrails: no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion.",
+      "raw_file": "grid-007.png"
+    }
+  ]
+}

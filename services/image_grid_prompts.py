@@ -91,14 +91,11 @@ def make_compact_image_grid_prompt(
 
     shared = str(shared_style or "").strip()
     negative = str(negative_prompt or "").strip()
-    required_negative = (
-        "no text", "no words", "no letters", "no labels", "no captions",
-        "no watermarks", "no borders", "no grid lines", "no dividers",
-        "correct anatomy", "no extra limbs",
-    )
-    missing_negative = [rule for rule in required_negative if rule not in negative.casefold()]
-    if missing_negative:
-        negative = ", ".join(part for part in (negative, ", ".join(missing_negative)) if part)
+    if not negative:
+        negative = (
+            "no text, no words, no letters, no labels, no captions, no watermarks, "
+            "no borders, no grid lines, no dividers, correct anatomy, no extra limbs"
+        )
 
     return (
         "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). "
@@ -112,25 +109,6 @@ def make_compact_image_grid_prompt(
         + negative
         + "\nEach panel must visibly match its assigned position and story beat while staying distinct in action, composition, and emotion."
     )
-
-
-def ensure_prompt_mentions_image_style(
-    prompt: str,
-    image_style_key: str = "",
-    image_style_directive: str = "",
-) -> str:
-    """Prefix a prompt with the locked category style when the model omitted it."""
-    text = str(prompt or "").strip()
-    style_key = str(image_style_key or "").strip()
-    directive = str(image_style_directive or "").strip()
-    if not style_key:
-        return text
-    if style_key.casefold() in text.casefold():
-        return text
-    style_line = f"Selected image style: {style_key}."
-    if directive and directive.casefold() not in text.casefold():
-        style_line = f"{style_line} Style directive: {directive}"
-    return f"{style_line}\n{text}".strip()
 
 
 def build_compact_image_grid_prompts(
@@ -268,11 +246,7 @@ def normalize_image_grid_prompts(value: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-def validate_scene_image_prompt_readiness(
-    scenes: Iterable[Mapping[str, Any]],
-    *,
-    min_prompt_chars: int = MIN_SCENE_IMAGE_PROMPT_CHARS,
-) -> None:
+def validate_scene_image_prompt_readiness(scenes: Iterable[Mapping[str, Any]]) -> None:
     """Require a real, scene-specific image prompt for every planned scene."""
     seen_prompts: set[str] = set()
     for fallback_number, scene in enumerate(scenes, start=1):
@@ -280,10 +254,9 @@ def validate_scene_image_prompt_readiness(
             raise ValueError(f"scene {fallback_number} is not an object")
         scene_number = _scene_number(scene, fallback_number)
         prompt = str(scene.get("image_prompt") or "").strip()
-        if len(prompt) < max(1, int(min_prompt_chars)):
+        if len(prompt) < MIN_SCENE_IMAGE_PROMPT_CHARS:
             raise ValueError(f"scene {scene_number} image_prompt too short/missing")
-        lowered = prompt.lower()
-        if any(marker in lowered for marker in FALLBACK_IMAGE_PROMPT_MARKERS):
+        if any(marker in prompt.lower() for marker in FALLBACK_IMAGE_PROMPT_MARKERS):
             raise ValueError(f"scene {scene_number} image_prompt used deterministic fallback")
         if prompt in seen_prompts:
             raise ValueError(f"duplicate image_prompt for scene {scene_number}")

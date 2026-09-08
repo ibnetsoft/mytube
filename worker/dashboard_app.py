@@ -6,7 +6,6 @@ Runs inside the Manager process on a separate uvicorn instance bound to
 Local API (local_api_token.py) so the user only needs one token.
 """
 import datetime
-import base64
 import json
 import os
 import re
@@ -20,7 +19,6 @@ from tempfile import NamedTemporaryFile
 from xml.etree import ElementTree
 
 import httpx
-import central_client
 import job_store
 from fastapi import FastAPI, Header, HTTPException, Response, Body, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
@@ -40,6 +38,8 @@ _MANAGER_RECOVERY_COOLDOWN_SECONDS = 120.0
 HERMES_JOB_TYPES = {
     "topic_benchmark_analyze",
     "web_research",
+    "codex_topic_discover",
+    "codex_content_generate",
     "script_plan_generate",
     "script_generate",
     "publish_metadata_generate",
@@ -413,7 +413,6 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
                 "learning_profile": plan_data.get("learning_profile") or plan_payload.get("learning_profile"),
                 "defer_ready_until_quality_gate": True,
                 "resume_from_job_id": plan_job.get("job_id"),
-                "resume_from_checkpoint": True,
             },
             priority=100,
             source="autopilot",
@@ -474,9 +473,8 @@ def _submit_resume_job_from_pipeline(jobs: list[dict]) -> dict:
 AUTOPILOT_RESULTS_DIR = OUTPUT_DIR / "hermes_autopilot_results"
 AUTOPILOT_STATE_FILE = STATE_DIR / "hermes_autopilot_state.json"
 HERMES_RESULTS_DIR = OUTPUT_DIR / "hermes_results"
-TOPIC_DELIVERY_EXCLUSIONS_FILE = STATE_DIR / "topic_delivery_exclusions.json"
 NOTEBOOKLM_RESULTS_DIR = OUTPUT_DIR / "notebooklm_results"
-GENERATED_RESULT_JOB_TYPES = {"script_generate", "script_plan_generate", "web_research", "publish_metadata_generate"}
+GENERATED_RESULT_JOB_TYPES = {"codex_topic_discover", "codex_content_generate", "script_generate", "script_plan_generate", "web_research", "publish_metadata_generate"}
 _OFFLINE_HARNESS_CACHE: dict = {"checked_at": 0.0, "report": None}
 _OFFLINE_HARNESS_CACHE_SECONDS = 30.0
 
@@ -1069,7 +1067,7 @@ def _merge_topic_generated_result(target: dict, data: dict, *, source: str, sour
         target["char_count"] = data.get("char_count")
     if data.get("error") or data.get("error_message"):
         target.setdefault("errors", []).append(data.get("error") or data.get("error_message"))
-    elif status == "COMPLETED" and job_type in {"script_generate", "publish_metadata_generate"}:
+    elif status == "COMPLETED" and job_type in {"codex_content_generate", "script_generate", "publish_metadata_generate"}:
         target["errors"] = []
     target["status"] = status or target.get("status") or "PARTIAL"
 
@@ -1164,66 +1162,6 @@ def _collect_topic_generated_results(limit: int = 500) -> dict[str, dict]:
         )
 
     return results
-
-
-def _load_topic_delivery_exclusions() -> dict[str, dict]:
-    try:
-        data = json.loads(TOPIC_DELIVERY_EXCLUSIONS_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError, TypeError):
-        return {}
-
-
-def _write_topic_delivery_exclusions(items: dict[str, dict]) -> None:
-    TOPIC_DELIVERY_EXCLUSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    temp = TOPIC_DELIVERY_EXCLUSIONS_FILE.with_suffix(".tmp")
-    temp.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
-    temp.replace(TOPIC_DELIVERY_EXCLUSIONS_FILE)
-
-
-def _set_topic_delivery_exclusion(topic_ids: list[str], excluded: bool) -> dict[str, dict]:
-    items = _load_topic_delivery_exclusions()
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    for topic_id in topic_ids:
-        key = _topic_key(topic_id)
-        if not key:
-            continue
-        if excluded:
-            items[key] = {"excluded": True, "updated_at": now}
-        else:
-            items.pop(key, None)
-    _write_topic_delivery_exclusions(items)
-    return items
-
-
-def _hide_excluded_topics_in_supabase(topic_ids: list[str]) -> None:
-    """Remove already-synced excluded rows from user/admin pending queues."""
-    try:
-        import requests
-        supabase_url = str(os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
-        supabase_key = str(os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "")
-        if not supabase_url or not supabase_key:
-            return
-        headers = {"apikey": supabase_key, "Authorization": f"Bearer {supabase_key}"}
-        for topic_id in topic_ids:
-            key = _topic_key(topic_id)
-            if not key:
-                continue
-            response = requests.get(
-                f"{supabase_url}/rest/v1/topics_queue", headers=headers,
-                params={"select": "progress_payload", "id": f"eq.{key}"}, timeout=10,
-            )
-            existing = response.json() if response.ok else []
-            progress = existing[0].get("progress_payload") if existing and isinstance(existing[0], dict) else {}
-            if not isinstance(progress, dict):
-                progress = {}
-            progress.update({"worker_delivery_excluded": True, "worker_delivery_excluded_at": datetime.datetime.now(datetime.timezone.utc).isoformat()})
-            requests.patch(
-                f"{supabase_url}/rest/v1/topics_queue?id=eq.{key}", headers=headers,
-                json={"status": "excluded", "progress_payload": progress}, timeout=10,
-            )
-    except Exception as exc:
-        logger.warning("Could not hide excluded topics in Supabase: %s", exc)
 
 
 def _notion_token() -> str:
@@ -2061,40 +1999,6 @@ def api_cancel_job(
     return wait_for_result(submit_command("cancel_job", {"job_id": job_id}), timeout=15)
 
 
-@app.post("/api/jobs/{job_id}/retry-credit-exhausted")
-def api_retry_credit_exhausted_job(
-    job_id: str,
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    """Queue a user-approved retry after the provider account was charged."""
-    require_auth(authorization, cookie)
-    try:
-        job = job_store.retry_after_credit_recharge(job_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="job not found")
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    return {"success": True, "job": job}
-
-
-@app.post("/api/jobs/{job_id}/regenerate")
-def api_regenerate_job(
-    job_id: str,
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    """Requeue a failed local AI/QA job with its original title and structure."""
-    require_auth(authorization, cookie)
-    try:
-        job = job_store.retry_after_regeneration_required(job_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="job not found")
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    return {"success": True, "job": job}
-
-
 @app.post("/api/hermes/pipelines/{job_id}/resume")
 def api_resume_hermes_pipeline(
     job_id: str,
@@ -2702,21 +2606,14 @@ async def yt_trending_keywords(
 
 _MASKED = "••••••••"
 _MODEL_SETTING_KEYS = {
+    "HERMES_ORCHESTRATOR_MODEL",
+    "HERMES_ORCHESTRATOR_FALLBACK_MODEL",
     "TOPIC_GENERATION_MODEL",
     "TITLE_GENERATION_MODEL",
     "SCRIPT_GENERATION_MODEL",
     "SCRIPT_PLANNING_MODEL",
-    "HERMES_ORCHESTRATOR_MODEL",
     "IMAGE_PROMPT_MODEL",
 }
-
-
-def _mask_value(v: str) -> str:
-    if not v:
-        return ""
-    if len(v) <= 8:
-        return _MASKED
-    return v[:4] + _MASKED
 
 
 @app.get("/api/settings")
@@ -2729,6 +2626,7 @@ async def api_get_settings(
     keys = [
         ("NEXT_PUBLIC_SUPABASE_URL", "Supabase 프로젝트 URL"),
         ("SUPABASE_SERVICE_ROLE_KEY", "Supabase Service Role Key"),
+        ("GEMINI_API_KEY", "Gemini 레거시 API 키"),
         ("GEMINI_API_KEY_FREE", "Gemini 무료 키"),
         ("GEMINI_API_KEY_PAID", "Gemini 후불 키"),
         ("CLAUDE_API_KEY", "Claude API 키"),
@@ -2740,18 +2638,18 @@ async def api_get_settings(
         ("YOUTUBE_API_KEYS", "YouTube Data API 백업 키"),
         ("ELEVENLABS_API_KEY", "ElevenLabs API 키"),
         ("SUNO_API_KEY", "Suno API 키"),
+        ("HERMES_ORCHESTRATOR_MODEL", "Hermes 판단 모델"),
+        ("HERMES_ORCHESTRATOR_FALLBACK_MODEL", "Hermes 대체 모델"),
         ("TOPIC_GENERATION_MODEL", "제목 생성 모델"),
         ("TITLE_GENERATION_MODEL", "제목 후보 모델"),
         ("SCRIPT_GENERATION_MODEL", "대본 생성 모델"),
         ("SCRIPT_PLANNING_MODEL", "대본 구조 모델"),
-        ("HERMES_ORCHESTRATOR_MODEL", "Hermes 실패 조율 모델 (Gemini)"),
         ("IMAGE_PROMPT_MODEL", "이미지/영상 프롬프트 모델"),
     ]
     result = []
     for attr, label in keys:
         val = getattr(Config, attr, "")
-        display_value = str(val or "") if attr in _MODEL_SETTING_KEYS else _mask_value(val)
-        result.append({"key": attr, "label": label, "value": display_value, "set": bool(val)})
+        result.append({"key": attr, "label": label, "value": str(val or ""), "set": bool(val)})
     return {"settings": result}
 
 
@@ -2776,7 +2674,8 @@ async def api_set_setting(
         "GEMINI_API_KEY", "GEMINI_API_KEY_FREE", "GEMINI_API_KEY_PAID", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
-        "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "HERMES_ORCHESTRATOR_MODEL", "IMAGE_PROMPT_MODEL",
+        "HERMES_ORCHESTRATOR_MODEL", "HERMES_ORCHESTRATOR_FALLBACK_MODEL",
+        "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "IMAGE_PROMPT_MODEL",
     }
     if key not in allowed:
         return {"error": f"허용되지 않은 설정 키: {key}"}
@@ -2814,37 +2713,6 @@ async def api_set_setting(
         return {"error": f"저장 실패: {e}"}
 
 
-@app.get("/api/quality-policy")
-async def api_get_quality_policy(
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    try:
-        return await run_in_threadpool(central_client.get_quality_policy)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"중앙 품질 정책 조회 실패: {exc}")
-
-
-@app.put("/api/quality-policy")
-async def api_save_quality_policy(
-    body: dict,
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    policy = body.get("policy")
-    expected_version = body.get("expected_version")
-    if not isinstance(policy, dict) or not isinstance(expected_version, int):
-        raise HTTPException(status_code=400, detail="policy와 expected_version이 필요합니다.")
-    try:
-        return await run_in_threadpool(central_client.save_quality_policy, policy, expected_version)
-    except central_client.LeaseConflict as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"중앙 품질 정책 저장 실패: {exc}")
-
-
 @app.get("/api/worker-profile-settings")
 async def api_get_worker_profile_settings(
     authorization: str | None = Header(default=None),
@@ -2855,6 +2723,7 @@ async def api_get_worker_profile_settings(
     token_val = os.environ.get("AIRWORKER_TOKEN") or worker_config.WORKER_TOKEN or ""
     masked_token = (token_val[:4] + "••••••••") if len(token_val) > 4 else ("••••••••" if token_val else "")
     notion_token_val = os.environ.get("NOTION_API_KEY") or os.environ.get("NOTION_TOKEN") or ""
+    masked_notion_token = (notion_token_val[:4] + "••••••••") if len(notion_token_val) > 4 else ("••••••••" if notion_token_val else "")
     return {
         "worker_profile": worker_config.WORKER_PROFILE,
         "worker_id": os.environ.get("AIRWORKER_ID") or worker_config.WORKER_ID,
@@ -2863,7 +2732,7 @@ async def api_get_worker_profile_settings(
         "worker_token_set": bool(token_val),
         "remote_worker_id": os.environ.get("REMOTE_RENDER_WORKER_ID", ""),
         "use_gpu_render": os.environ.get("USE_GPU_RENDER", "false").lower() in ("true", "1", "yes"),
-        "notion_api_key": notion_token_val,
+        "notion_api_key": masked_notion_token,
         "notion_api_key_set": bool(notion_token_val),
         "notion_learning_database_id": os.environ.get("NOTION_LEARNING_DATABASE_ID", ""),
     }
@@ -3179,34 +3048,26 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
     us reliable command-line process filtering without adding a runtime dep.
     """
     worker_dir = Path(__file__).resolve().parent
-    project_root = worker_dir.parent
     python_exe = Path(sys.executable)
-    current_manager_pid = os.getpid()
-    import worker_config
-    restart_profile = worker_config.WORKER_PROFILE
     roles_to_start = ["manager"] if restart else []
     helper_script = STATE_DIR / ("restart_worker_server.ps1" if restart else "shutdown_worker_server.ps1")
     lifecycle_log = LOG_DIR / "server_lifecycle.log"
 
-    def ps_utf8(value: str) -> str:
-        """Embed a Windows path without PowerShell/locale escaping problems."""
-        encoded = base64.b64encode(value.encode("utf-8")).decode("ascii")
-        return f"[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('{encoded}'))"
+    def ps_literal(value: str | Path) -> str:
+        return "'" + str(value).replace("'", "''") + "'"
 
     ps_lines = [
         "$ErrorActionPreference = 'SilentlyContinue'",
-        f"$log = {json.dumps(str(lifecycle_log))}",
+        f"$log = {ps_literal(lifecycle_log)}",
         "function Write-LifeLog([string]$message) {",
         "  $line = ('{0} {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'), $message)",
         "  Add-Content -LiteralPath $log -Value $line -Encoding UTF8",
         "}",
         "Write-LifeLog 'helper started'",
         "Start-Sleep -Milliseconds 900",
-        f"$worker = {ps_utf8(str(worker_dir))}",
-        f"$projectRoot = {ps_utf8(str(project_root))}",
-        f"$python = {ps_utf8(str(python_exe))}",
-        f"$currentManagerPid = {current_manager_pid}",
-        f"$managerArgs = {ps_utf8(str(worker_dir / 'air_worker_entry.py') + f' --role manager --profile {restart_profile}')}",
+        f"$worker = {ps_literal(worker_dir)}",
+        f"$python = {ps_literal(python_exe)}",
+        f"$hostPid = {os.getpid()}",
         "$patterns = @(",
         "  'dashboard_app:app',",
         "  'air_worker_entry.py',",
@@ -3219,23 +3080,25 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "function Get-AirWorkerProcesses {",
         "  Get-CimInstance Win32_Process | Where-Object {",
         "    $cmd = $_.CommandLine",
-        # Scope by this exact checkout.  The old packaged-app name
-        # (LongformGenerator) made restart a no-op in source installs.
-        '    $_.ProcessId -ne $PID -and (',
-        '      $_.ProcessId -eq $currentManagerPid -or (',
-        '        $cmd -and $cmd -like "*$projectRoot*" -and',
-        "        (($patterns | Where-Object { $cmd -like \"*$_*\" }).Count -gt 0)",
-        '      )',
-        '    )',
+        "    $isHost = $_.ProcessId -eq $hostPid",
+        "    $isKnownWorker = $cmd -and $cmd -like ('*' + $worker + '*') -and (($patterns | Where-Object { $cmd -like \"*$_*\" }).Count -gt 0)",
+        "    $_.ProcessId -ne $PID -and ($isHost -or $isKnownWorker)",
         "  }",
         "}",
         "$procs = @(Get-AirWorkerProcesses | Sort-Object ProcessId -Unique)",
         "Write-LifeLog ('matched processes: ' + (($procs | ForEach-Object { \"$($_.ProcessId):$($_.Name)\" }) -join ', '))",
-        "foreach ($proc in $procs) {",
+        # The helper is launched by Manager. taskkill /T on Manager would kill
+        # this helper too, before it can start the replacement Manager.
+        "$managerProcs = @($procs | Where-Object { $_.ProcessId -eq $hostPid -or $_.CommandLine -like '*--role manager*' -or $_.CommandLine -like '*dashboard_app:app*' })",
+        "foreach ($proc in $managerProcs) {",
         "  Write-LifeLog ('killing pid=' + $proc.ProcessId + ' cmd=' + $proc.CommandLine)",
-        # Do not wait per PID: a previous failed restart can leave dozens of
-        # child workers, making a serial shutdown exceed the request timeout.
-        "  Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden",
+        "  Stop-Process -Id $proc.ProcessId -Force",
+        "}",
+        "Start-Sleep -Milliseconds 500",
+        "$childProcs = @(Get-AirWorkerProcesses | Sort-Object ProcessId -Unique)",
+        "foreach ($proc in $childProcs) {",
+        "  Write-LifeLog ('killing child pid=' + $proc.ProcessId + ' cmd=' + $proc.CommandLine)",
+        "  Start-Process -FilePath 'taskkill.exe' -ArgumentList @('/PID', [string]$proc.ProcessId, '/T', '/F') -WindowStyle Hidden -Wait",
         "}",
         "$deadline = (Get-Date).AddSeconds(12)",
         "do {",
@@ -3249,27 +3112,28 @@ def _launch_worker_server_lifecycle_helper(*, restart: bool) -> None:
         "}",
     ]
     if restart:
-        # manager.py owns port 3002; launching standalone uvicorn here races
-        # it and can keep stale dashboard HTML alive after Git Pull.
-        ps_lines.append("Write-LifeLog 'starting manager (it starts dashboard)'")
         for role in roles_to_start:
             ps_lines.append(f"Write-LifeLog 'starting role {role}'")
             ps_lines.append(
                 "Start-Process -FilePath $python "
-                "-ArgumentList $managerArgs "
+                f"-ArgumentList {ps_literal(str(worker_dir / 'air_worker_entry.py') + ' --role ' + role)} "
                 "-WorkingDirectory $worker -WindowStyle Hidden"
             )
     ps_lines.append("Write-LifeLog 'helper completed'")
-    helper_script.write_text("\n".join(ps_lines) + "\n", encoding="utf-8")
+    # Windows PowerShell 5 treats UTF-8 without a BOM as the active ANSI
+    # code page, which corrupts Korean workspace paths.
+    helper_script.write_text("\n".join(ps_lines) + "\n", encoding="utf-8-sig")
     logger.info(
         "Launching full worker lifecycle helper "
         f"restart={restart}, python={python_exe}, worker_dir={worker_dir}"
     )
-    flags = getattr(subprocess, "DETACHED_PROCESS", 0x00000008) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200)
+    powershell_exe = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200) | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
     subprocess.Popen(
-        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(helper_script)],
+        [str(powershell_exe), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(helper_script)],
         cwd=str(worker_dir),
         creationflags=flags if sys.platform == "win32" else 0,
+        close_fds=True,
     )
 
 
@@ -3789,7 +3653,6 @@ async def api_generated_results(
     require_auth(authorization, cookie)
     AUTOPILOT_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     rows = []
-    exclusions = _load_topic_delivery_exclusions()
     seen_ids = set()
     seen_topic_ids = set()
     for path in sorted(AUTOPILOT_RESULTS_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
@@ -3798,7 +3661,6 @@ async def api_generated_results(
             seen_ids.add(summary["id"])
             if summary.get("topic_queue_id") is not None:
                 seen_topic_ids.add(_topic_key(summary.get("topic_queue_id")))
-            summary["delivery_excluded"] = bool(exclusions.get(_topic_key(summary.get("topic_queue_id")), {}).get("excluded"))
             rows.append(summary)
     for result_id, data in _collect_topic_generated_results(limit=max(100, min(limit * 10, 1000))).items():
         if result_id in seen_ids:
@@ -3808,7 +3670,6 @@ async def api_generated_results(
             continue
         summary = _topic_generated_result_summary(result_id, data)
         if summary.get("has_script") or summary.get("scene_count"):
-            summary["delivery_excluded"] = bool(exclusions.get(_topic_key(summary.get("topic_queue_id")), {}).get("excluded"))
             rows.append(summary)
     rows.sort(key=lambda row: row.get("completed_at") or row.get("updated_at") or 0, reverse=True)
     rows = rows[:max(1, min(limit, 500))]
@@ -3817,27 +3678,6 @@ async def api_generated_results(
         "dir": f"{AUTOPILOT_RESULTS_DIR} + {HERMES_RESULTS_DIR}",
         "diagnostics": _autopilot_generation_diagnostics(),
     }
-
-
-@app.post("/api/generated-results/delivery-exclusion")
-async def api_generated_result_delivery_exclusion(
-    body: dict = Body(...),
-    authorization: str | None = Header(default=None),
-    cookie: str | None = Header(default=None, alias="Cookie"),
-):
-    require_auth(authorization, cookie)
-    raw_ids = body.get("topic_queue_ids")
-    if not isinstance(raw_ids, list):
-        raise HTTPException(400, "topic_queue_ids 목록이 필요합니다.")
-    topic_ids = [_topic_key(value) for value in raw_ids]
-    topic_ids = [value for value in topic_ids if value]
-    if not topic_ids:
-        raise HTTPException(400, "유효한 주제 ID가 없습니다.")
-    excluded = bool(body.get("excluded", True))
-    _set_topic_delivery_exclusion(topic_ids, excluded)
-    if excluded:
-        await run_in_threadpool(_hide_excluded_topics_in_supabase, topic_ids)
-    return {"ok": True, "excluded": excluded, "topic_queue_ids": topic_ids}
 
 
 @app.get("/api/generated-results/{result_id}")
@@ -3856,7 +3696,6 @@ async def api_generated_result_detail(
         if not isinstance(data, dict):
             raise HTTPException(404, "Generated result not found")
         data["_file"] = {"id": safe_id, "path": "job_store/hermes_results", "updated_at": data.get("updated_at") or data.get("completed_at")}
-        data["delivery_excluded"] = bool(_load_topic_delivery_exclusions().get(_topic_key(data.get("topic_queue_id")), {}).get("excluded"))
         return data
     path = AUTOPILOT_RESULTS_DIR / f"{safe_id}.json"
     if not path.exists():
@@ -4523,11 +4362,8 @@ tr:hover { background: #161b22; }
           <div class="card">
             <div class="card-title">&#x1F4D1; 생성 결과 목록</div>
             <p class="info" style="margin:-4px 0 16px">Hermes 자동 생성이 저장한 제목, 기획, 대본, 이미지 프롬프트, 영상 프롬프트를 확인합니다.</p>
-            <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;gap:8px;margin-bottom:12px">
               <button class="btn btn-sm" onclick="loadGeneratedResults()">&#x1F504; 새로고침</button>
-              <button class="btn btn-sm" onclick="setSelectedGeneratedDeliveryExclusion(true)">선택 항목 전달 제외</button>
-              <button class="btn btn-sm" onclick="setSelectedGeneratedDeliveryExclusion(false)">선택 항목 제외 해제</button>
-              <span class="info">제외하면 워커 로컬 결과만 남고 어드민·유저 주제 목록에는 노출되지 않습니다.</span>
               <span class="info" id="generated-results-dir"></span>
             </div>
             <div id="generated-results-tables">
@@ -4537,7 +4373,7 @@ tr:hover { background: #161b22; }
                   <span class="info" id="generated-results-completed-count">0건</span>
                 </div>
                 <table>
-                  <thead><tr><th>선택</th><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+                  <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
                   <tbody id="generated-results-completed-body"></tbody>
                 </table>
               </div>
@@ -4547,7 +4383,7 @@ tr:hover { background: #161b22; }
                   <span class="info" id="generated-results-partial-count">0건 · 완료율 높은 순</span>
                 </div>
                 <table>
-                  <thead><tr><th>선택</th><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
+                  <thead><tr><th>ID</th><th>카테고리</th><th>제목</th><th>구성</th><th>생성일</th></tr></thead>
                   <tbody id="generated-results-partial-body"></tbody>
                 </table>
               </div>
@@ -4705,6 +4541,8 @@ tr:hover { background: #161b22; }
                 <option value="topic_research">주제 탐색</option>
                 <option value="topic_benchmark_analyze">고성과 영상 분석</option>
                 <option value="web_research">Gemini 웹 자료 조사</option>
+                <option value="codex_topic_discover">Codex YouTube 주제 발굴</option>
+                <option value="codex_content_generate">Codex 단계형 콘텐츠 생성</option>
                 <option value="script_plan_generate">대본 기획 생성</option>
                 <option value="script_generate">대본 생성</option>
               </select>
@@ -4839,10 +4677,7 @@ tr:hover { background: #161b22; }
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;">
             <div class="form-group">
               <label style="color:#c9d1d9;font-size:12px;margin-bottom:4px;display:block;">Notion API Key</label>
-              <div style="display:flex;gap:6px;align-items:center;">
-                <input id="worker-set-notion-api-key" type="password" placeholder="secret_xxx" autocomplete="off" style="min-width:0;flex:1;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
-                <button id="worker-set-notion-api-key-toggle" type="button" onclick="toggleNotionApiKeyVisibility()" aria-label="Notion API Key 표시" title="Notion API Key 표시" style="height:34px;padding:0 11px;border:1px solid #30363d;border-radius:6px;background:#21262d;color:#c9d1d9;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">보기</button>
-              </div>
+              <input id="worker-set-notion-api-key" type="password" placeholder="secret_xxx" autocomplete="off" style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:12px;font-family:monospace;outline:none;" />
               <div style="font-size:11px;color:#8b949e;margin-top:4px;">Notion 통합의 Internal Integration Secret 값을 입력합니다.</div>
             </div>
             <div class="form-group">
@@ -4889,22 +4724,6 @@ tr:hover { background: #161b22; }
           <div id="notion-backfill-results" style="display:none;margin-top:12px;"></div>
           <div id="notion-repair-summary" style="display:none;margin-top:14px;padding:12px 14px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;background:rgba(13,17,23,0.55);font-size:12px;color:#c9d1d9;"></div>
           <div id="notion-repair-results" style="display:none;margin-top:12px;"></div>
-        </div>
-
-        <div class="card" style="margin-bottom:20px;border:1px solid rgba(88,166,255,0.45);background:rgba(56,139,253,0.04);">
-          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-            <span>Hermes 단계별 품질 기준</span>
-            <span id="quality-policy-meta" class="badge">불러오는 중</span>
-          </div>
-          <p style="color:#8b949e;margin-bottom:14px;font-size:13px;line-height:1.5;">
-            DB에 공용 저장되며 모든 Hermes 워커가 작업 시작 시 현재 버전을 스냅샷으로 읽습니다. 실행 중인 작업에는 변경값이 소급 적용되지 않습니다.
-          </p>
-          <div id="quality-policy-editor" class="settings-grid"></div>
-          <div style="margin-top:16px;display:flex;gap:12px;align-items:center;">
-            <button class="btn btn-primary" onclick="saveQualityPolicy()">품질 기준 저장</button>
-            <button class="btn" onclick="loadQualityPolicy()">다시 불러오기</button>
-            <span id="quality-policy-status" style="font-size:13px;color:#8b949e"></span>
-          </div>
         </div>
 
         <div class="card">
@@ -5328,6 +5147,7 @@ const SCRIPT_JOB_TYPES = new Set([
   'topic_research',
   'topic_benchmark_analyze',
   'web_research',
+  'codex_topic_discover',
   'script_plan_generate',
   'script_generate',
   'publish_metadata_generate',
@@ -5401,6 +5221,8 @@ const JOB_TYPE_LABELS = {
   topic_research: '주제 탐색',
   topic_benchmark_analyze: '고성과 영상 분석',
   web_research: 'Gemini 웹 자료 조사',
+  codex_topic_discover: 'Codex YouTube 주제 발굴',
+  codex_content_generate: 'Codex 단계형 콘텐츠 생성',
   script_plan_generate: '대본 기획 생성',
   script_generate: '대본 생성',
   publish_metadata_generate: '설명·태그 생성',
@@ -5411,6 +5233,8 @@ const JOB_TYPE_DESCRIPTIONS = {
   topic_research: '키워드와 시청자 반응을 바탕으로 콘텐츠 주제를 찾고 있습니다.',
   topic_benchmark_analyze: 'YouTube 고성과 영상의 제목, 구성, 반응을 분석하고 있습니다.',
   web_research: 'Gemini가 기사·논문·공식 자료를 검색해 대본 근거와 출처를 정리하고 있습니다.',
+  codex_topic_discover: 'Codex가 실제 YouTube API 성과 신호를 바탕으로 다양한 주제 후보를 비교·선정하고 있습니다.',
+  codex_content_generate: 'Codex가 기존 순서대로 기획, 씬별 대본, 대본 QA, 이미지·영상 프롬프트, 게시 메타데이터를 생성하고 있습니다. 이미지·영상 파일은 생성하지 않습니다.',
   script_plan_generate: '제목을 바탕으로 훅, 전개, 결말을 포함한 대본 기획을 만들고 있습니다.',
   script_generate: '기획을 바탕으로 시청 흐름을 고려한 대본을 작성하고 검수하고 있습니다.',
   publish_metadata_generate: '완성된 대본을 바탕으로 유튜브 설명, 태그, 해시태그를 만들고 있습니다.',
@@ -5614,10 +5438,8 @@ async function restartHermesFromCancelled(jobId, buttonEl) {
 /* ── Pipeline Grouping & Rendering ── */
 /* ── Pipeline Grouping & Rendering ── */
 const PIPELINE_STEPS_CONFIG = [
-  { key: 'research', type: 'web_research', label: '1. 웹 자료조사', icon: '🔍' },
-  { key: 'plan', type: 'script_plan_generate', label: '2. 씬/비주얼 기획', icon: '📝' },
-  { key: 'script', type: 'script_generate', label: '3. 대본·프롬프트', icon: '✍️' },
-  { key: 'metadata', type: 'publish_metadata_generate', label: '4. 설명·태그', icon: '🏷️' },
+  { key: 'topic', type: 'codex_topic_discover', label: '1. YouTube 주제 발굴', icon: '💡' },
+  { key: 'content', type: 'codex_content_generate', label: '2. Codex 단계형 콘텐츠', icon: '✍️' },
 ];
 
 const openPipelineDetails = new Set();
@@ -6362,7 +6184,7 @@ function generatedSortTime(row) {
 
 function renderGeneratedRows(rows, emptyText) {
   if (!rows.length) {
-    return `<tr><td colspan="6" class="info">${escapeHtml(emptyText)}</td></tr>`;
+    return `<tr><td colspan="5" class="info">${escapeHtml(emptyText)}</td></tr>`;
   }
   return rows.map(row => {
     const completion = row._completion || generatedCompletionStats(row);
@@ -6375,28 +6197,14 @@ function renderGeneratedRows(rows, emptyText) {
     const statusText = row.status && row.status !== 'COMPLETED' ? ` / ${row.status}` : '';
     const materialBadges = renderMaterialBadges(completion.statuses);
     const progressClass = completion.isComplete ? 'badge-completed' : (completion.percent >= 67 ? 'badge-review' : 'badge-idle');
-    const excluded = Boolean(row.delivery_excluded);
     return `<tr>
-      <td><input type="checkbox" class="generated-delivery-select" value="${escapeHtml(String(row.topic_queue_id || ''))}" ${excluded ? 'checked' : ''} title="어드민·유저 웹 전달 제외 선택"></td>
       <td><a href="#" onclick="showGeneratedResult('${escapeHtml(row.id)}');return false">${escapeHtml(row.topic_queue_id || row.id)}</a></td>
       <td>${escapeHtml(row.category || '-')}</td>
-      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong>${excluded ? '<span class="badge badge-review" style="margin-left:6px">전달 제외</span>' : ''}<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${materialBadges}</div></td>
+      <td><strong>${escapeHtml(truncate(row.title || '-', 64))}</strong><div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${materialBadges}</div></td>
       <td><span class="badge ${progressClass} generated-progress">${completion.percent}%</span> ${escapeHtml(stageLabel)}${escapeHtml(statusText)}<br><span class="info">${row.scene_count || 0} scenes, ${scriptState}, ${promptState}</span></td>
       <td>${fmtTime(row.completed_at || row.updated_at)}</td>
     </tr>`;
   }).join('');
-}
-
-async function setSelectedGeneratedDeliveryExclusion(excluded) {
-  const ids = [...document.querySelectorAll('.generated-delivery-select:checked')]
-    .map(input => String(input.value || '').trim()).filter(Boolean);
-  if (!ids.length) { showToast('먼저 생성 결과를 선택하세요.', 'warning'); return; }
-  const action = excluded ? '어드민과 유저 웹에서 제외' : '전달 제외 해제';
-  if (!window.confirm(`${ids.length}개 주제를 ${action}하시겠습니까?`)) return;
-  const result = await api('POST', '/api/generated-results/delivery-exclusion', { topic_queue_ids: ids, excluded });
-  if (!result) return;
-  showToast(excluded ? `${ids.length}개 주제를 전달 제외했습니다.` : `${ids.length}개 주제의 전달 제외를 해제했습니다.`, 'success');
-  loadGeneratedResults(activeGeneratedResultId);
 }
 
 function renderGeneratedEmptyState(diagnostics) {
@@ -6430,7 +6238,7 @@ async function loadGeneratedResults(selectedResultId = '') {
   const completedCount = document.getElementById('generated-results-completed-count');
   const partialCount = document.getElementById('generated-results-partial-count');
   if (!completedBody || !partialBody || !empty) return;
-  completedBody.innerHTML = '<tr><td colspan="6" class="info">생성 결과를 불러오는 중...</td></tr>';
+  completedBody.innerHTML = '<tr><td colspan="5" class="info">생성 결과를 불러오는 중...</td></tr>';
   partialBody.innerHTML = '';
   empty.style.display = 'none';
   if (tables) tables.style.display = 'block';
@@ -7027,15 +6835,7 @@ async function showJobDetail(jobId) {
     html += `<div class="card" style="margin-top:16px"><div class="card-title">결과</div><div class="result-viewer">${escapeHtml(resultText)}</div></div>`;
   }
 
-  const canRetryCredit = canRetryCreditExhausted(data);
-  const canRegenerate = canRegenerateRequired(data);
-  if (canRetryCredit) {
-    html += `<div class="card" style="margin-top:16px;border-color:#d29922"><div class="card-title" style="color:#d29922">API 크레딧 소진으로 작업 중단</div><div class="info">API 키를 충전한 뒤 원래 입력값으로 다시 실행할 수 있습니다. 자동 풀백이나 자동 재시도는 하지 않습니다.</div></div>`;
-  }
-  if (canRegenerate) {
-    html += `<div class="card" style="margin-top:16px;border-color:#f85149"><div class="card-title" style="color:#f85149">AI 생성 또는 품질 검사 실패</div><div class="info">완료 처리되지 않았습니다. 현재 제목과 구조를 유지한 채 새 AI 결과로 다시 생성할 수 있습니다.</div></div>`;
-  }
-  html += `<div style="margin-top:16px">${canRetryCredit ? `<button class="btn btn-primary" onclick="retryCreditExhaustedJob('${jobId}')">충전 후 재실행</button>` : ''}${canRegenerate ? `<button class="btn btn-primary" onclick="regenerateRequiredJob('${jobId}')">현재 구조로 재생성</button>` : ''}${canCancel(data.status) ? `<button class="btn btn-danger" onclick="cancelJob('${jobId}');closeModal()">작업 취소</button>` : ''}</div>`;
+  html += `<div style="margin-top:16px">${canCancel(data.status) ? `<button class="btn btn-danger" onclick="cancelJob('${jobId}');closeModal()">작업 취소</button>` : ''}</div>`;
 
   el.innerHTML = html;
   document.getElementById('job-modal').classList.add('active');
@@ -7300,43 +7100,9 @@ async function cancelJob(jobId) {
   }
 }
 
-async function retryCreditExhaustedJob(jobId) {
-  if (!confirm('API 크레딧 충전이 완료됐나요? 기존 작업을 다시 대기열에 넣습니다.')) return;
-  const res = await api('POST', `/api/jobs/${jobId}/retry-credit-exhausted`);
-  if (res && res.success) {
-    closeModal();
-    showToast(`작업 ${jobId.substring(0,8)}을(를) 재실행 대기열에 넣었습니다.`);
-    refreshAll();
-  } else {
-    showToast(`재실행 실패: ${res?.detail || res?.error || '알 수 없음'}`, 'error');
-  }
-}
-
-async function regenerateRequiredJob(jobId) {
-  if (!confirm('현재 제목과 구조를 유지한 채 AI 대본과 프롬프트를 다시 생성합니다.')) return;
-  const res = await api('POST', `/api/jobs/${jobId}/regenerate`);
-  if (res && res.success) {
-    closeModal();
-    showToast(`작업 ${jobId.substring(0,8)}을(를) 재생성 대기열에 넣었습니다.`);
-    refreshAll();
-  } else {
-    showToast(`재생성 실패: ${res?.detail || res?.error || '알 수 없음'}`, 'error');
-  }
-}
-
 /* ── Cancel helper ── */
 function canCancel(status) {
   return ['QUEUED','CLAIMED','PREPARING','RENDERING','UPLOADING'].includes(status);
-}
-
-function canRetryCreditExhausted(job) {
-  return job?.status === 'FAILED' && job?.error_code === 'HERMES_CREDIT_EXHAUSTED'
-    && job?.source !== 'central_server' && !job?.remote_job_id;
-}
-
-function canRegenerateRequired(job) {
-  return job?.status === 'FAILED' && job?.error_code === 'HERMES_REGEN_REQUIRED'
-    && job?.source !== 'central_server' && !job?.remote_job_id;
 }
 
 /* ── Process start / stop ── */
@@ -7474,6 +7240,7 @@ async function doLogout() {
 const settingLabels = {
   'NEXT_PUBLIC_SUPABASE_URL': 'Supabase 프로젝트 URL',
   'SUPABASE_SERVICE_ROLE_KEY': 'Supabase Service Role Key',
+  'GEMINI_API_KEY': 'Gemini 레거시 API Key',
   'GEMINI_API_KEY_FREE': 'Gemini 무료 API Key',
   'GEMINI_API_KEY_PAID': 'Gemini 후불 API Key',
   'CLAUDE_API_KEY': 'Claude API Key',
@@ -7485,11 +7252,12 @@ const settingLabels = {
   'YOUTUBE_API_KEYS': 'YouTube Backup API Keys',
   'ELEVENLABS_API_KEY': 'ElevenLabs API Key',
   'SUNO_API_KEY': 'Suno API Key',
+  'HERMES_ORCHESTRATOR_MODEL': 'Hermes 판단 모델',
+  'HERMES_ORCHESTRATOR_FALLBACK_MODEL': 'Hermes 대체 모델',
   'TOPIC_GENERATION_MODEL': '제목 생성 모델',
   'TITLE_GENERATION_MODEL': '제목 후보 모델',
   'SCRIPT_GENERATION_MODEL': '대본 생성 모델',
   'SCRIPT_PLANNING_MODEL': '구조 생성 모델',
-  'HERMES_ORCHESTRATOR_MODEL': 'Hermes 실패 조율 모델 (Gemini)',
   'IMAGE_PROMPT_MODEL': '이미지/영상 프롬프트 모델',
 };
 
@@ -7497,6 +7265,7 @@ const settingLabels = {
 const settingIcons = {
   'NEXT_PUBLIC_SUPABASE_URL': '&#x2601;',
   'SUPABASE_SERVICE_ROLE_KEY': '&#x1F511;',
+  'GEMINI_API_KEY': '&#x1F4E7;',
   'GEMINI_API_KEY_FREE': '&#x1F4E7;',
   'GEMINI_API_KEY_PAID': '&#x1F4B3;',
   'CLAUDE_API_KEY': '&#x1F4E7;',
@@ -7508,28 +7277,17 @@ const settingIcons = {
   'YOUTUBE_API_KEYS': '&#x1F3AC;',
   'ELEVENLABS_API_KEY': '&#x1F3A4;',
   'SUNO_API_KEY': '&#x1F3B5;',
+  'HERMES_ORCHESTRATOR_MODEL': '&#x1F9E0;',
+  'HERMES_ORCHESTRATOR_FALLBACK_MODEL': '&#x1F504;',
   'TOPIC_GENERATION_MODEL': '&#x1F916;',
   'TITLE_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_PLANNING_MODEL': '&#x1F916;',
-  'HERMES_ORCHESTRATOR_MODEL': '&#x1F916;',
   'IMAGE_PROMPT_MODEL': '&#x1F3A8;',
 };
 
 /* Track original values for dirty detection */
 let settingsOriginal = {};
-
-
-function toggleNotionApiKeyVisibility() {
-  const input = document.getElementById('worker-set-notion-api-key');
-  const button = document.getElementById('worker-set-notion-api-key-toggle');
-  if (!input || !button) return;
-  const shouldShow = input.type === 'password';
-  input.type = shouldShow ? 'text' : 'password';
-  button.textContent = shouldShow ? '숨기기' : '보기';
-  button.setAttribute('aria-label', shouldShow ? 'Notion API Key 숨기기' : 'Notion API Key 표시');
-  button.setAttribute('title', shouldShow ? 'Notion API Key 숨기기' : 'Notion API Key 표시');
-}
 
 
 async function loadWorkerProfileSettings() {
@@ -7552,15 +7310,8 @@ async function loadWorkerProfileSettings() {
       tokenEl.placeholder = data.worker_token_set ? '•••••••• (설정됨)' : '중앙 서버 발급 토큰';
     }
     if (notionApiKeyEl) {
-      notionApiKeyEl.type = 'password';
-      notionApiKeyEl.value = data.notion_api_key || '';
+      notionApiKeyEl.value = '';
       notionApiKeyEl.placeholder = data.notion_api_key_set ? '•••••••• (설정됨)' : 'secret_xxx';
-    }
-    const notionApiKeyToggleEl = document.getElementById('worker-set-notion-api-key-toggle');
-    if (notionApiKeyToggleEl) {
-      notionApiKeyToggleEl.textContent = '보기';
-      notionApiKeyToggleEl.setAttribute('aria-label', 'Notion API Key 표시');
-      notionApiKeyToggleEl.setAttribute('title', 'Notion API Key 표시');
     }
     if (notionDbIdEl) notionDbIdEl.value = data.notion_learning_database_id || '';
     if (badgeEl) {
@@ -7887,16 +7638,15 @@ async function updateWorkerCode(confirmRestart = true) {
     }
 
     if (res && res.success) {
-      const updateMessage = res.already_up_to_date
-        ? '✅ Git 코드는 이미 최신입니다.'
-        : '🎉 최신 업데이트를 성공적으로 가져왔습니다!';
-      showToast(updateMessage, 'success');
-      // Git working tree can already be current while this dashboard still
-      // serves the old Python module loaded in memory. Always offer restart.
-      if (confirmRestart) {
-        if (confirm(`${updateMessage}\n\n실행 중인 워커에 현재 코드를 적용하려면 지금 워커 서버를 재시작하시겠습니까?`)) {
-          confirmRestartServer();
-          return;
+      if (res.already_up_to_date) {
+        showToast('✅ 이미 최신 상태입니다. (추가 업데이트 없음)', 'success');
+      } else {
+        showToast('🎉 최신 업데이트를 성공적으로 가져왔습니다!', 'success');
+        if (confirmRestart) {
+          if (confirm('최신 코드가 다운로드되었습니다.\n\n새 기능을 즉시 적용하기 위해 지금 워커 서버를 재시작하시겠습니까?')) {
+            confirmRestartServer();
+            return;
+          }
         }
       }
       await loadGitInfo();
@@ -7920,7 +7670,6 @@ async function updateWorkerCode(confirmRestart = true) {
 async function loadSettings() {
   loadGitInfo();
   loadWorkerProfileSettings();
-  loadQualityPolicy();
   const data = await api('GET', '/api/settings');
   if (!data) return;
   const list = data.settings || [];
@@ -7937,6 +7686,8 @@ async function loadSettings() {
     ['glm-5.2', 'GLM 5.2'],
   ];
   const modelSettingKeys = new Set([
+    'HERMES_ORCHESTRATOR_MODEL',
+    'HERMES_ORCHESTRATOR_FALLBACK_MODEL',
     'TOPIC_GENERATION_MODEL',
     'TITLE_GENERATION_MODEL',
     'SCRIPT_GENERATION_MODEL',
@@ -7948,22 +7699,20 @@ async function loadSettings() {
   for (const item of list) {
     const label = settingLabels[item.key] || item.key;
     const icon = settingIcons[item.key] || '&#x2699;';
-    const placeholder = item.value || '';
     const setLabel = item.set ? '<span style="color:#3fb950;font-size:12px;margin-left:8px">&#x2714; 설정됨</span>' : '<span style="color:#8b949e;font-size:12px;margin-left:8px">미설정</span>';
     const inputControl = item.key === 'YOUTUBE_API_KEYS'
       ? `<textarea id="setting-${escapeHtml(item.key)}" class="setting-input"
-            placeholder="${escapeHtml(placeholder)}"
             rows="4"
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;resize:vertical;"
-          ></textarea>
+          >${escapeHtml(item.value || '')}</textarea>
           <div style="margin-top:4px;color:#8b949e;font-size:12px;">최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용됩니다.</div>`
       : modelSettingKeys.has(item.key)
       ? `<select id="setting-${escapeHtml(item.key)}" class="setting-input"
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;">
             ${modelOptions.map(([value, label]) => `<option value="${escapeHtml(value)}" ${item.value === value ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}
           </select>`
-      : `<input type="${item.key.includes('KEY') ? 'password' : 'text'}" id="setting-${escapeHtml(item.key)}" class="setting-input"
-            placeholder="${escapeHtml(placeholder)}"
+      : `<input type="text" id="setting-${escapeHtml(item.key)}" class="setting-input"
+            value="${escapeHtml(item.value || '')}"
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;"
             onkeydown="if(event.key==='Enter'){event.preventDefault();saveSetting('${escapeHtml(item.key)}')}"
           />`;
@@ -7984,6 +7733,7 @@ async function loadSettings() {
   const apiSettingKeys = new Set([
     'NEXT_PUBLIC_SUPABASE_URL',
     'SUPABASE_SERVICE_ROLE_KEY',
+    'GEMINI_API_KEY',
     'GEMINI_API_KEY_FREE',
     'GEMINI_API_KEY_PAID',
     'CLAUDE_API_KEY',
@@ -8010,74 +7760,16 @@ async function loadSettings() {
     <div class="settings-grid">
       <div class="settings-panel">
         <div class="settings-panel-title">API Keys</div>
-        <div class="settings-panel-note">YouTube primary and backup keys live here. Gemini is applied in this order: paid key first, then free key. YouTube backup keys are used in order, up to 5 total keys.</div>
+        <div class="settings-panel-note">모든 키는 이 PC의 로컬 설정값 그대로 표시됩니다. Gemini는 후불 키, 무료 키, 레거시 키 순서로 적용됩니다.</div>
         ${apiRows.join('')}
       </div>
       <div class="settings-panel">
         <div class="settings-panel-title">Model Settings</div>
-        <div class="settings-panel-note">Models used by Hermes for topics, titles, scripts, structure, and prompt generation.</div>
+        <div class="settings-panel-note">Hermes 판단 모델은 자동운영 판단에만 사용됩니다. 제목·기획·대본·프롬프트 생성 모델과는 별도 설정입니다.</div>
         ${modelRows.join('')}
       </div>
     </div>`;
   document.getElementById('settings-status').textContent = '';
-}
-
-let qualityPolicyState = null;
-const qualityPolicyFields = {
-  topic: [['enabled','활성화','bool'],['min_title_chars','최소 제목 글자 수','number']],
-  plan: [['enabled','활성화','bool'],['min_scenes','최소 씬 수','number'],['require_media_status_ready','씬 프롬프트 ready 필수','bool']],
-  script: [['enabled','활성화','bool'],['min_quality_score','최소 QA 점수','number'],['min_hangul_chars','최소 한글 글자 수','number'],['max_latin_ratio','영문 최대 비율','number'],['max_repeated_paragraph_opener','동일 문단 시작어 최대 횟수','number'],['prohibit_fallback','대체문/폴백 금지 (강제)','locked'],['prohibit_off_category','카테고리 오염 금지','bool']],
-  media: [['enabled','활성화','bool'],['min_image_prompt_chars','이미지 프롬프트 최소 글자 수','number'],['min_video_prompt_chars','영상 프롬프트 최소 글자 수','number'],['max_video_prompt_scenes','영상 프롬프트 대상 씬 수','number'],['required_camera_movements','씬당 카메라 움직임 수','number'],['require_video_guardrails','무음 가드레일 필수','bool'],['prohibit_duplicate_prompts','중복 프롬프트 금지','bool'],['require_image_grids','2x2 이미지 그리드 필수','bool']],
-  publish: [['enabled','활성화','bool'],['min_description_chars','설명 최소 글자 수','number'],['require_language_match','언어 일치 필수','bool'],['prohibit_internal_terms','내부 작업 용어 금지','bool']],
-  delivery: [['enabled','활성화','bool'],['require_all_prior_stages','이전 단계 전체 통과 필수 (강제)','locked'],['require_quality_report_pass','QA 보고서 pass 필수 (강제)','locked'],['block_scene_count_mismatch','씬 수 불일치 차단','bool']],
-};
-const qualityStageLabels = {topic:'주제',plan:'기획/씬',script:'대본',media:'이미지/영상',publish:'게시 메타데이터',delivery:'유저 전달'};
-
-function renderQualityPolicyEditor(policy) {
-  const editor = document.getElementById('quality-policy-editor');
-  if (!editor) return;
-  editor.innerHTML = Object.entries(qualityPolicyFields).map(([stage, fields]) => `
-    <div class="settings-panel">
-      <div class="settings-panel-title">${escapeHtml(qualityStageLabels[stage])}</div>
-      ${fields.map(([key, label, type]) => {
-        const value = policy?.[stage]?.[key];
-        const id = `quality-${stage}-${key}`;
-        return type === 'bool' || type === 'locked'
-          ? `<label style="display:flex;align-items:center;gap:8px;margin:9px 0;color:#c9d1d9;font-size:12px;"><input id="${id}" type="checkbox" ${value ? 'checked' : ''} ${type === 'locked' ? 'disabled' : ''}> ${escapeHtml(label)}</label>`
-          : `<label style="display:grid;grid-template-columns:1fr 110px;align-items:center;gap:10px;margin:9px 0;color:#c9d1d9;font-size:12px;"><span>${escapeHtml(label)}</span><input id="${id}" type="number" step="any" value="${escapeHtml(String(value ?? ''))}" style="padding:7px 9px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;"></label>`;
-      }).join('')}
-    </div>`).join('');
-}
-
-async function loadQualityPolicy() {
-  const status = document.getElementById('quality-policy-status');
-  if (status) status.textContent = '불러오는 중...';
-  const data = await api('GET', '/api/quality-policy');
-  if (!data?.policy) { if (status) status.textContent = '조회 실패'; return; }
-  qualityPolicyState = data;
-  renderQualityPolicyEditor(data.policy);
-  document.getElementById('quality-policy-meta').textContent = `v${data.version} · ${data.updated_by || '-'}`;
-  if (status) status.textContent = '';
-}
-
-async function saveQualityPolicy() {
-  if (!qualityPolicyState?.policy) return;
-  const policy = JSON.parse(JSON.stringify(qualityPolicyState.policy));
-  for (const [stage, fields] of Object.entries(qualityPolicyFields)) {
-    for (const [key, , type] of fields) {
-      const input = document.getElementById(`quality-${stage}-${key}`);
-      policy[stage][key] = type === 'bool' || type === 'locked' ? input.checked : Number(input.value);
-    }
-  }
-  const status = document.getElementById('quality-policy-status');
-  status.textContent = '저장 중...';
-  const data = await api('PUT', '/api/quality-policy', {policy, expected_version: qualityPolicyState.version});
-  if (!data?.policy) { status.textContent = '저장 실패. 다시 불러온 뒤 재시도하세요.'; return; }
-  qualityPolicyState = data;
-  renderQualityPolicyEditor(data.policy);
-  document.getElementById('quality-policy-meta').textContent = `v${data.version} · ${data.updated_by || '-'}`;
-  status.textContent = `버전 ${data.version} 저장 완료`;
-  showToast(`Hermes 품질 기준 v${data.version} 저장 완료`);
 }
 
 async function saveSetting(key) {

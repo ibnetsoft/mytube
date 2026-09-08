@@ -228,6 +228,21 @@ def _copy_prepared_topic_assets_to_project(project_id: int, topic_data: dict, no
     elif isinstance(sfx_cues, list):
         db.update_project_setting(project_id, "sfx_cues_json", json.dumps(sfx_cues, ensure_ascii=False))
 
+    thumbnail_hook_texts = progress_payload.get("thumbnail_hook_texts")
+    if isinstance(thumbnail_hook_texts, list):
+        cleaned_hook_texts = [str(text).strip() for text in thumbnail_hook_texts if str(text or "").strip()][:3]
+        if cleaned_hook_texts:
+            db.update_project_setting(project_id, "thumbnail_hook_texts", json.dumps(cleaned_hook_texts, ensure_ascii=False))
+    thumbnail_hook_reasoning = str(progress_payload.get("thumbnail_hook_reasoning") or "").strip()
+    if thumbnail_hook_reasoning:
+        db.update_project_setting(project_id, "thumbnail_hook_reasoning", thumbnail_hook_reasoning)
+    thumbnail_image_prompt = str(progress_payload.get("thumbnail_image_prompt") or "").strip()
+    if thumbnail_image_prompt:
+        db.update_project_setting(project_id, "thumbnail_image_prompt", thumbnail_image_prompt)
+    thumbnail_bg_url = str(progress_payload.get("thumbnail_bg_url") or "").strip()
+    if thumbnail_bg_url:
+        db.update_project_setting(project_id, "thumbnail_bg_url", thumbnail_bg_url)
+
     structure = topic_data.get("pregenerated_structure")
     if isinstance(structure, dict):
         prepared_structure = dict(structure)

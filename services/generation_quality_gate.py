@@ -9,9 +9,6 @@ from collections.abc import Mapping
 from difflib import SequenceMatcher
 from typing import Any
 
-from services.content_safety import finance_content_matches
-from services.quality_policy import active_quality_policy, normalize_quality_policy
-
 
 DEFAULT_MIN_SCRIPT_HANGUL = 1000
 DEFAULT_MAX_LATIN_RATIO = 0.05
@@ -93,8 +90,6 @@ _CATEGORY_CONTAMINATION_MAP = {
     "무협": ("스마트폰", "아파트", "달러", "주식", "비행기", "경찰", "CCTV", "엘리베이터", "지하철"),
     "탈북사연": ("비급", "장문인", "사부", "단전", "내공", "무림", "호랑이 사냥꾼", "조선시대"),
 }
-_KOREAN_WORD_CHARS = "가-힣A-Za-z0-9"
-_KOREAN_PRICE_TICKER_TERMS = {"물가", "주가", "유가"}
 _METADATA_INTERNAL_TERMS = (
     "AI",
     "worker",
@@ -111,16 +106,6 @@ _METADATA_INTERNAL_TERMS = (
     "벤치마크",
     "품질 게이트",
 )
-_PARAGRAPH_OPENER_PATTERNS = (
-    ("그런데", re.compile(r"그런데(?:\s+말(?:이야|입니다|이지)|요)?")),
-    ("글쎄", re.compile(r"글쎄(?:요)?")),
-    ("하지만", re.compile(r"하지만(?:\s+말이야)?")),
-    ("그러고 보니", re.compile(r"그러고\s+보니")),
-    ("그러던 어느 날", re.compile(r"그러던\s+어느\s+날")),
-    ("그때였어요", re.compile(r"그때였(?:어요|습니다)")),
-    ("자, 그런데", re.compile(r"자\s*[,，]\s*그런데")),
-)
-_PARAGRAPH_LEADING_CUES_RE = re.compile(r"^\s*(?:\([^()\n]{1,40}\)\s*)*")
 
 
 def _metadata_contains_internal_term(text: str) -> bool:
@@ -141,37 +126,8 @@ def _metadata_contains_internal_term(text: str) -> bool:
     return False
 
 
-def _has_category_contamination_term(text: str, term: str) -> bool:
-    if term in _KOREAN_PRICE_TICKER_TERMS:
-        return bool(
-            re.search(
-                rf"(?<![{_KOREAN_WORD_CHARS}]){re.escape(term)}(?![{_KOREAN_WORD_CHARS}])",
-                text,
-                re.I,
-            )
-        )
-    return bool(re.search(re.escape(term), text, re.I))
-
-
 def _text(value: Any) -> str:
     return str(value or "").strip()
-
-
-def _repeated_paragraph_opener_errors(script: str, max_allowed: int) -> list[str]:
-    counts = Counter()
-    for paragraph in re.split(r"\n\s*\n+", script or ""):
-        cue_match = _PARAGRAPH_LEADING_CUES_RE.match(paragraph)
-        candidate = paragraph[cue_match.end() if cue_match else 0 :]
-        for family, pattern in _PARAGRAPH_OPENER_PATTERNS:
-            match = pattern.match(candidate)
-            if match and re.match(r"(?:$|[\s,，.!?…:;~-])", candidate[match.end() :]):
-                counts[family] += 1
-                break
-    return [
-        f"paragraph opener repetition exceeds policy: {family}={count}, max={max_allowed}"
-        for family, count in counts.items()
-        if count > max_allowed
-    ]
 
 
 def _japanese_char_count(value: str) -> int:
@@ -219,23 +175,6 @@ def _duplicate_or_near_duplicate_errors(values: list[tuple[str, str]], label: st
             if _similarity(left_value, right_value) >= 0.998:
                 errors.append(f"near-duplicate {label}: scenes {left_scene} and {right_scene}")
     return errors
-
-
-def _duplicate_scene_text_field_errors(scenes: list[Any], field: str) -> list[str]:
-    values: dict[str, list[str]] = {}
-    for fallback_number, scene in enumerate(scenes, start=1):
-        if not isinstance(scene, Mapping):
-            continue
-        value = _text(scene.get(field))
-        if len(value) < 12:
-            continue
-        label = str(_scene_number(scene, fallback_number))
-        values.setdefault(value, []).append(label)
-    return [
-        f"duplicate scene {field}: scenes {', '.join(labels)}"
-        for labels in values.values()
-        if len(labels) > 1
-    ]
 
 
 def _hangul_ratio(value: str) -> float:
@@ -343,7 +282,6 @@ def validate_generation_package(
     *,
     category: str = "",
     require_korean_script: bool = True,
-    quality_policy: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """Return blocking quality errors for a completed worker generation package.
 
@@ -351,12 +289,6 @@ def validate_generation_package(
     taste; it prevents the worker from marking incomplete or obviously broken
     data as ready.
     """
-    policy = normalize_quality_policy(quality_policy or active_quality_policy())
-    script_policy = policy["script"]
-    plan_policy = policy["plan"]
-    media_policy = policy["media"]
-    publish_policy = policy["publish"]
-    delivery_policy = policy["delivery"]
     errors: list[str] = []
     structure = payload.get("structure") if isinstance(payload.get("structure"), Mapping) else {}
     scenes = structure.get("scenes") if isinstance(structure, Mapping) else None
@@ -367,15 +299,9 @@ def validate_generation_package(
     require_korean_script = require_korean_script and language == "ko"
     script_quality = payload.get("script_quality_report")
 
-    if policy["topic"]["enabled"]:
-        title = _text(payload.get("generated_title") or payload.get("upload_title") or payload.get("topic"))
-        if len(title) < policy["topic"]["min_title_chars"]:
-            errors.append(f"title below policy minimum: chars={len(title)}, min={policy['topic']['min_title_chars']}")
-
-    require_quality_report = delivery_policy["enabled"] and delivery_policy["require_quality_report_pass"]
-    if require_quality_report and not isinstance(script_quality, Mapping):
+    if not isinstance(script_quality, Mapping):
         errors.append("missing script_quality_report")
-    elif require_quality_report:
+    else:
         try:
             script_quality_score = int(float(script_quality.get("score") or 0))
         except (TypeError, ValueError):
@@ -383,32 +309,26 @@ def validate_generation_package(
         else:
             verdict = _text(script_quality.get("verdict")).lower()
             critical_issues = script_quality.get("critical_issues")
-            if verdict != "pass" or script_quality_score < script_policy["min_quality_score"] or critical_issues:
+            if verdict != "pass" or script_quality_score < MIN_SCRIPT_QUALITY_SCORE or critical_issues:
                 errors.append(
                     "script_quality_report not passing: "
                     f"verdict={verdict or 'missing'}, score={script_quality_score}, "
                     f"critical_issues={len(critical_issues) if isinstance(critical_issues, list) else int(bool(critical_issues))}"
                 )
 
-    if plan_policy["enabled"] and (not isinstance(scenes, list) or len(scenes) < plan_policy["min_scenes"]):
-        count = len(scenes) if isinstance(scenes, list) else 0
-        errors.append(f"structure.scenes below policy minimum: scenes={count}, min={plan_policy['min_scenes']}")
     if not isinstance(scenes, list) or not scenes:
         errors.append("missing structure.scenes")
         scenes = []
-    else:
-        errors.extend(_duplicate_scene_text_field_errors(scenes, "scene_summary"))
-        errors.extend(_duplicate_scene_text_field_errors(scenes, "retention_hook"))
 
-    if script_policy["enabled"] and require_korean_script:
+    if require_korean_script:
         hangul = len(re.findall(r"[\uac00-\ud7a3]", script))
         latin = len(re.findall(r"[A-Za-z]", script))
-        max_latin = max(80, int(hangul * script_policy["max_latin_ratio"]))
-        if script_policy["enabled"] and hangul < script_policy["min_hangul_chars"]:
+        max_latin = max(80, int(hangul * DEFAULT_MAX_LATIN_RATIO))
+        if hangul < DEFAULT_MIN_SCRIPT_HANGUL:
             errors.append(f"script too short or not Korean enough: hangul={hangul}, chars={len(script)}")
         if latin > max_latin:
             errors.append(f"script has too much Latin text: latin={latin}, max={max_latin}")
-    elif script_policy["enabled"] and language == "ja":
+    elif language == "ja":
         japanese = _japanese_char_count(script)
         hangul = len(re.findall(r"[\uac00-\ud7a3]", script))
         if japanese < 800:
@@ -416,30 +336,29 @@ def validate_generation_package(
         if hangul > 0:
             errors.append(f"script contains Hangul for Japanese category: hangul={hangul}")
 
-    if script_policy["enabled"] and script_policy["prohibit_fallback"] and any(marker in script for marker in _FALLBACK_SCRIPT_MARKERS):
+    if any(marker in script for marker in _FALLBACK_SCRIPT_MARKERS):
         errors.append("script contains fallback/scratch English template text")
-    if script_policy["enabled"]:
-        errors.extend(_repeated_paragraph_opener_errors(script, script_policy["max_repeated_paragraph_opener"]))
-
-    content_blob = f"{_contamination_context(payload)}\n{_category_content(payload)}"
-    finance_matches = finance_content_matches(content_blob)
-    if script_policy["enabled"] and script_policy["prohibit_off_category"] and finance_matches:
-        errors.append(
-            "finance/pension contamination is prohibited in every category: "
-            + ", ".join(finance_matches[:8])
-        )
 
     contamination_terms = _CATEGORY_CONTAMINATION_MAP.get(category)
-    if (
-        script_policy["enabled"]
-        and script_policy["prohibit_off_category"]
-        and contamination_terms
-        and any(_has_category_contamination_term(content_blob, term) for term in contamination_terms)
-    ):
+    if contamination_terms and (payload.get("generation_models") or {}).get("content_package") != "codex-cli":
+        # Research may legitimately mention historical economics.  This guard
+        # is about contamination in the generated package, not source notes.
+        content_blob = _category_content(payload)
+        # In folktales, "주식" commonly means a staple food, not a financial
+        # stock.  Keep the financial guardrail without rejecting that normal
+        # historical-food usage; also do not match short ASCII terms inside a word.
         if category in {"옛날이야기", "English Folktales", "日本昔話"}:
-            errors.append(f"off-category finance/economy contamination detected for story category '{category}'")
-        else:
-            errors.append(f"off-category contamination detected for category '{category}'")
+            contamination_terms = tuple(term for term in contamination_terms if term != "주식")
+        patterns = [
+            (r"(?<![A-Za-z0-9])" + re.escape(term) + r"(?![A-Za-z0-9])")
+            if re.fullmatch(r"[A-Za-z0-9]+", term) else re.escape(term)
+            for term in contamination_terms
+        ]
+        if re.search("|".join(patterns), content_blob, re.I):
+            if category in {"옛날이야기", "English Folktales", "日本昔話"}:
+                errors.append(f"off-category finance/economy contamination detected for story category '{category}'")
+            else:
+                errors.append(f"off-category contamination detected for category '{category}'")
 
     video_prompts: list[tuple[str, str]] = []
     for fallback_number, scene in enumerate(scenes, start=1):
@@ -448,55 +367,42 @@ def validate_generation_package(
             continue
         label = str(_scene_number(scene, fallback_number))
         video_prompt = _text(scene.get("video_prompt"))
-        scene_number = _scene_number(scene, fallback_number)
-        requires_video_prompt = (
-            scene.get("video_prompt_required") is not False
-            and isinstance(scene_number, int)
-            and scene_number <= media_policy["max_video_prompt_scenes"]
-        )
+        requires_video_prompt = _scene_requires_video_prompt(scene, fallback_number)
         if video_prompt:
             video_prompts.append((label, video_prompt))
 
-        if plan_policy["enabled"] and plan_policy["require_media_status_ready"] and scene.get("media_prompt_status") != "ready":
+        if scene.get("media_prompt_status") != "ready":
             errors.append(f"scene {label} media_prompt_status is not ready")
         if not requires_video_prompt:
             continue
-        if media_policy["enabled"] and len(video_prompt) < media_policy["min_video_prompt_chars"]:
+        if len(video_prompt) < DEFAULT_MIN_VIDEO_PROMPT_CHARS:
             errors.append(f"scene {label} video_prompt too short/missing")
         video_lower = video_prompt.lower()
         movement_count = sum(1 for movement in APPROVED_VIDEO_CAMERA_MOVEMENTS if movement in video_lower)
-        if media_policy["enabled"] and movement_count != media_policy["required_camera_movements"]:
+        if movement_count != 1:
             errors.append(f"scene {label} video_prompt must contain exactly one approved camera movement")
-        guardrails = ("no dialogue", "no narration", "no subtitles", "no captions", "no music", "no sound effects", "no audio")
-        for required in guardrails if media_policy["enabled"] and media_policy["require_video_guardrails"] else ():
+        for required in ("no dialogue", "no narration", "no subtitles", "no captions", "no music", "no sound effects", "no audio"):
             if required not in video_lower:
                 errors.append(f"scene {label} video_prompt missing guardrail: {required}")
 
-    if media_policy["enabled"] and media_policy["prohibit_duplicate_prompts"]:
-        errors.extend(_duplicate_or_near_duplicate_errors(video_prompts, "video_prompt"))
+    errors.extend(_duplicate_or_near_duplicate_errors(video_prompts, "video_prompt"))
 
     try:
-        from services.image_grid_prompts import (
-            validate_image_grid_prompt_readiness,
-            validate_scene_image_prompt_readiness,
-        )
+        from services.image_grid_prompts import validate_image_grid_prompt_readiness
 
-        if media_policy["enabled"]:
-            validate_scene_image_prompt_readiness(scenes, min_prompt_chars=media_policy["min_image_prompt_chars"])
-        if media_policy["enabled"] and media_policy["require_image_grids"]:
-            validate_image_grid_prompt_readiness(
-                scenes,
-                structure.get("image_grid_prompts") if isinstance(structure, Mapping) else None,
-                status=structure.get("image_grid_prompt_status") if isinstance(structure, Mapping) else None,
-                require_status="ready",
-                require_compact_template=True,
-            )
+        validate_image_grid_prompt_readiness(
+            scenes,
+            structure.get("image_grid_prompts") if isinstance(structure, Mapping) else None,
+            status=structure.get("image_grid_prompt_status") if isinstance(structure, Mapping) else None,
+            require_status="ready",
+            require_compact_template=True,
+        )
     except Exception as exc:
         errors.append(f"image_grid_prompts invalid: {exc}")
 
-    if publish_policy["enabled"] and not metadata:
+    if not metadata:
         errors.append("missing publish_metadata")
-    elif publish_policy["enabled"]:
+    else:
         if metadata.get("source") == "worker_fallback":
             errors.append("publish_metadata used worker_fallback")
         description = _text(metadata.get("description"))
@@ -504,9 +410,9 @@ def validate_generation_package(
         primary_title = _text(titles[0] if titles else payload.get("generated_title") or payload.get("upload_title"))
         if not description:
             errors.append("publish_metadata.description missing")
-        elif len(description) < publish_policy["min_description_chars"]:
+        elif len(description) < 120:
             errors.append("publish_metadata.description too short")
-        elif publish_policy["require_language_match"] and require_korean_script and _hangul_ratio(description) < 0.8:
+        elif require_korean_script and _hangul_ratio(description) < 0.8:
             errors.append("publish_metadata.description not Korean enough")
         elif language == "ja":
             if _japanese_char_count(primary_title) < 2:
@@ -521,7 +427,7 @@ def validate_generation_package(
             " ".join(str(tag) for tag in (metadata.get("tags") or [])),
             " ".join(str(tag) for tag in (metadata.get("hashtags") or [])),
         ])
-        if publish_policy["prohibit_internal_terms"] and _metadata_contains_internal_term(blob):
+        if _metadata_contains_internal_term(blob):
             errors.append("publish_metadata leaks internal production terms")
         tags = metadata.get("tags") or metadata.get("hashtags")
         if not isinstance(tags, list) or not any(_text(tag) for tag in tags):

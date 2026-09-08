@@ -157,6 +157,10 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 tts_url: topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url || null,
                 tts_provider: null,
                 tts_speed: topic.progress_payload?.tts_speed || 1,
+                thumbnail_hook_texts: topic.progress_payload?.thumbnail_hook_texts || [],
+                thumbnail_hook_reasoning: topic.progress_payload?.thumbnail_hook_reasoning || '',
+                thumbnail_image_prompt: topic.progress_payload?.thumbnail_image_prompt || '',
+                thumbnail_bg_url: topic.progress_payload?.thumbnail_bg_url || '',
             },
             progress_payload: {
                 scene_count: summary.scene_count,
@@ -167,6 +171,10 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 tts_completed: Boolean(topic.pregenerated_audio_url || topic.progress_payload?.pregenerated_audio_url),
                 tts_provider: null,
                 tts_speed: topic.progress_payload?.tts_speed || 1,
+                thumbnail_hook_texts: topic.progress_payload?.thumbnail_hook_texts || [],
+                thumbnail_hook_reasoning: topic.progress_payload?.thumbnail_hook_reasoning || '',
+                thumbnail_image_prompt: topic.progress_payload?.thumbnail_image_prompt || '',
+                thumbnail_bg_url: topic.progress_payload?.thumbnail_bg_url || '',
             },
         })
         .select('*')

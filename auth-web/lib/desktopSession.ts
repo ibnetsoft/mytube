@@ -124,6 +124,8 @@ const SYS_KEY_MAP: Record<string, string> = {
     sys_api_longform_payout_tiers: 'LONGFORM_PAYOUT_TIERS',
     sys_api_longform_duration_lock_enabled: 'LONGFORM_DURATION_LOCK_ENABLED',
     sys_api_topic_generation_model: 'TOPIC_GENERATION_MODEL',
+    sys_api_hermes_orchestrator_model: 'HERMES_ORCHESTRATOR_MODEL',
+    sys_api_hermes_orchestrator_fallback_model: 'HERMES_ORCHESTRATOR_FALLBACK_MODEL',
     sys_api_topic_queue_batch_size: 'TOPIC_QUEUE_BATCH_SIZE',
     sys_api_topic_similarity_threshold: 'TOPIC_SIMILARITY_THRESHOLD',
 }

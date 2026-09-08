@@ -94,6 +94,8 @@ class WebAdminClient:
         "sys_api_translation_model": "TRANSLATION_MODEL",
         "sys_api_image_generation_model": "IMAGE_GENERATION_MODEL",
         "sys_api_video_generation_model": "VIDEO_GENERATION_MODEL",
+        "sys_api_hermes_orchestrator_model": "HERMES_ORCHESTRATOR_MODEL",
+        "sys_api_hermes_orchestrator_fallback_model": "HERMES_ORCHESTRATOR_FALLBACK_MODEL",
         "sys_api_drive_render_queue_path": "DRIVE_RENDER_QUEUE_PATH",
         "sys_api_use_external_render": "USE_EXTERNAL_RENDER",
         "latest_app_version": "LATEST_APP_VERSION",

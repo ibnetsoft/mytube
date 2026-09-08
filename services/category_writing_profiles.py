@@ -1,10 +1,4 @@
-"""Category-specific narration voices used by the Hermes script worker.
-
-The category controls more than a topic label: it fixes the narrator's
-distance, sentence rhythm, emotional progression, and language to avoid.
-These profiles deliberately complement (rather than replace) the editable
-``script_style`` preset chosen in the dashboard.
-"""
+"""Immutable category-level narration constraints for the Hermes worker."""
 from __future__ import annotations
 
 
@@ -39,16 +33,6 @@ _PROFILES = {
 - Rhythm: establish place with one or two lived-in details, then move quickly toward a human connection or moral dilemma.
 - Drama: let kindness, misunderstanding, and reciprocity arise from specific actions—not national stereotypes or miraculous praise.
 - Language: avoid exaggerating Korea-versus-other-country comparisons, savior narratives, stereotypes, and unverified claims.""",
-    "노후금융": """[Category Writing Profile: Retirement Finance]
-- Voice: calm, trustworthy guide speaking to an adult audience without condescension or fearmongering.
-- Rhythm: use a relatable household situation, explain one idea at a time, then connect it to a practical decision checklist.
-- Drama: tension comes from trade-offs, timing, and uncertainty—not market panic. Repeat the core takeaway only at the end.
-- Language: distinguish facts, examples, and opinions. Avoid guaranteed returns, individualized investment directives, and urgent sales language.""",
-    "경제": """[Category Writing Profile: Economics]
-- Voice: clear explanatory narration that translates an abstract change into its effect on an ordinary person or business.
-- Rhythm: question first, mechanism second, concrete example third, implication last. Keep paragraphs compact and logically connected.
-- Drama: use cause-and-effect and competing incentives, not alarmist prediction. Introduce numbers only when they clarify the story.
-- Language: precise but accessible. Avoid jargon dumps, certainty about forecasts, clickbait panic, and unsupported causal claims.""",
     "English Folktales": """[Category Writing Profile: English Folktale]
 - Voice: timeless spoken-story narration with clear, musical English and a quiet sense of wonder.
 - Rhythm: concrete image first, then a steadily tightening consequence. Reserve short sentences for an omen or reveal.
@@ -62,22 +46,19 @@ _PROFILES = {
 }
 
 _ALIASES = {
-    "old_story": "옛날이야기",
-    "story": "옛날이야기",
-    "north_korean_drama": "탈북사연",
-    "korean_drama": "한국사연",
-    "overseas_touching": "해외감동",
-    "twilight": "황혼19금",
+    "old_story": "옛날이야기", "story": "옛날이야기", "north_korean_drama": "탈북사연",
+    "korean_drama": "한국사연", "overseas_touching": "해외감동", "twilight": "황혼19금",
 }
 
 
-def resolve_category_writing_profile(category: str | None) -> str:
-    """Return the immutable narrative voice profile for a selected category.
+_GLOBAL_RHYTHM_GUARD = """[Global Narration Rhythm Guard]
+- The script must sound like continuous spoken narration, not a stack of scene summaries.
+- Do not chain many short sentences ending in the same blunt predicate such as 했다/였다/있었다/나왔다/말했다.
+- Vary sentence length, paragraph openings, and final verb forms. Connect adjacent factual beats with cause, emotion, or consequence.
+- Reserve very short sentences for hooks, reversals, or payoff moments; do not let the whole script become clipped report prose."""
 
-    Unknown or omitted categories intentionally return an empty string so
-    custom categories retain the administrator-selected ``script_style``
-    without an unrelated voice being forced onto them.
-    """
+
+def resolve_category_writing_profile(category: str | None) -> str:
     key = str(category or "").strip()
-    canonical = _ALIASES.get(key.lower(), key)
-    return _PROFILES.get(canonical, "")
+    profile = _PROFILES.get(_ALIASES.get(key.lower(), key), "")
+    return f"{profile}\n\n{_GLOBAL_RHYTHM_GUARD}".strip() if profile else _GLOBAL_RHYTHM_GUARD

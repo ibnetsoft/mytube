@@ -43,7 +43,7 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
     try {
         const { data: job } = await supabaseAdmin
             .from('remote_hermes_queue')
-            .select('job_type, status, payload, result_payload, category_id, worker_id, worker_instance_id')
+            .select('job_type, status, payload, result_payload, category_id, worker_id, worker_instance_id, target_worker_id')
             .eq('id', jobId)
             .maybeSingle()
 
@@ -55,43 +55,22 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
         const selectedImageStyle = String(
             job.result_payload?.image_style || structure?.image_style || ''
         ).trim()
-        const lockedImageStyle = String(
-            job.payload?.image_style || selectedImageStyle || ''
-        ).trim()
-        const lockedStructure = lockedImageStyle
-            ? { ...structure, image_style: lockedImageStyle }
-            : structure
         const rawImageStyleSelection = job.result_payload?.image_style_selection || structure?.image_style_selection || null
         const imageStyleSelection = rawImageStyleSelection && typeof rawImageStyleSelection === 'object'
             ? rawImageStyleSelection
             : null
         const updatePayload: Record<string, any> = {
-            pregenerated_structure: lockedStructure,
+            pregenerated_structure: structure,
             pregenerated_structure_status: 'ready',
-            total_scenes: Array.isArray(structure?.scenes)
-                ? structure.scenes.length
-                : structure?.scene_count || null,
         }
-        const { data: existingTopic } = await supabaseAdmin
-            .from('topics_queue')
-            .select('progress_payload')
-            .eq('id', topicQueueId)
-            .maybeSingle()
-        const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
-            ? existingTopic.progress_payload
-            : {}
         if (job.worker_id) {
-            updatePayload.progress_payload = {
-                ...existingProgress,
-                pregenerated_structure_status: 'ready',
-                generated_by_worker_id: job.worker_id,
-                generated_by_worker_instance_id: job.worker_instance_id || null,
-                generated_by_worker_job_id: jobId,
-                generated_by_worker_at: new Date().toISOString(),
-            }
+            updatePayload.generated_by_worker_id = job.worker_id
+            updatePayload.generated_by_worker_instance_id = job.worker_instance_id || null
+            updatePayload.generated_by_worker_job_id = jobId
+            updatePayload.generated_by_worker_at = new Date().toISOString()
         }
-        if (lockedImageStyle) {
-            updatePayload.assigned_image_style = lockedImageStyle
+        if (selectedImageStyle) {
+            updatePayload.assigned_image_style = selectedImageStyle
         }
         if (imageStyleSelection) {
             const existingBenchmark = job.payload?.benchmark_analysis || {}
@@ -101,9 +80,9 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
             }
             if (
                 !updatePayload.benchmark_analysis.image_style_selection.assigned_image_style
-                && lockedImageStyle
+                && selectedImageStyle
             ) {
-                updatePayload.benchmark_analysis.image_style_selection.assigned_image_style = lockedImageStyle
+                updatePayload.benchmark_analysis.image_style_selection.assigned_image_style = selectedImageStyle
             }
         }
 
@@ -130,6 +109,7 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
             .from('remote_hermes_queue')
             .insert({
                 job_type: 'script_generate',
+                target_worker_id: job.worker_id || job.target_worker_id || null,
                 // [FIX] category_id is a top-level remote_hermes_queue column,
                 // never part of payload (see the script_plan_generate insert in
                 // auth-web/app/api/admin/topics-queue/route.ts) - reading
@@ -143,9 +123,9 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                 payload: {
                     topic_queue_id: String(topicQueueId),
                     topic: jobPayload.topic,
-                    structure: lockedStructure,
+                    structure,
                     script_style: jobPayload.script_style,
-                    image_style: lockedImageStyle || jobPayload.image_style,
+                    image_style: selectedImageStyle || jobPayload.image_style,
                     image_style_selection: imageStyleSelection || jobPayload.image_style_selection,
                     language: jobPayload.language,
                     target_duration_seconds: jobPayload.target_duration_seconds,
@@ -154,13 +134,10 @@ async function syncPregeneratedStructure(jobId: string): Promise<void> {
                     narration_mode: jobPayload.narration_mode || 'dramatic_single',
                     narration_pace: jobPayload.narration_pace || 'senior',
                     tts_speed: jobPayload.tts_speed,
-                    ai_model_override: jobPayload.ai_model_override,
                     target_scene_count: jobPayload.target_scene_count,
                     repair_mode: jobPayload.repair_mode,
                     repair_instruction: jobPayload.repair_instruction,
                     repair_source_script: jobPayload.repair_source_script,
-                    defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate),
-                    existing_result_replacement: Boolean(jobPayload.existing_result_replacement),
                 },
                 status: 'pending',
             })
@@ -179,7 +156,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
     try {
         const { data: job } = await supabaseAdmin
             .from('remote_hermes_queue')
-            .select('job_type, status, payload, result_payload, category_id, worker_id, worker_instance_id')
+            .select('job_type, status, payload, result_payload, category_id, worker_id, worker_instance_id, target_worker_id')
             .eq('id', jobId)
             .maybeSingle()
 
@@ -192,7 +169,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
         const resultPayload = job.result_payload || {}
         const { data: existingTopic } = await supabaseAdmin
             .from('topics_queue')
-            .select('progress_payload, pregenerated_structure')
+            .select('progress_payload')
             .eq('id', topicQueueId)
             .maybeSingle()
         const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
@@ -204,6 +181,11 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                 ? existingProgress.sfx_cues
                 : []
         const sfxCuesJson = resultPayload.sfx_cues_json || existingProgress.sfx_cues_json || JSON.stringify(sfxCues)
+        const thumbnailHookTexts = Array.isArray(resultPayload.thumbnail_hook_texts)
+            ? resultPayload.thumbnail_hook_texts.filter((text: unknown) => typeof text === 'string' && text.trim()).slice(0, 3)
+            : Array.isArray(existingProgress.thumbnail_hook_texts)
+                ? existingProgress.thumbnail_hook_texts
+                : []
         const progressPayload = {
             ...existingProgress,
             publish_metadata: resultPayload.publish_metadata || existingProgress.publish_metadata || null,
@@ -214,10 +196,9 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
             prepared_topic_ready: true,
             prepared_topic_ready_at: new Date().toISOString(),
             tts_speed: resultPayload.tts_speed || job.payload?.tts_speed || existingProgress.tts_speed || 1,
-            generated_by_worker_id: job.worker_id || existingProgress.generated_by_worker_id || null,
-            generated_by_worker_instance_id: job.worker_instance_id || existingProgress.generated_by_worker_instance_id || null,
-            generated_by_worker_job_id: jobId,
-            generated_by_worker_at: new Date().toISOString(),
+            thumbnail_hook_texts: thumbnailHookTexts,
+            thumbnail_hook_reasoning: resultPayload.thumbnail_hook_reasoning || existingProgress.thumbnail_hook_reasoning || '',
+            thumbnail_copy_source: resultPayload.thumbnail_copy_source || existingProgress.thumbnail_copy_source || '',
         }
         let { error } = await supabaseAdmin
             .from('topics_queue')
@@ -235,6 +216,12 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                 progress_payload: progressPayload,
                 narrative_blueprint: resultPayload.narrative_blueprint || null,
                 script_quality_report: resultPayload.script_quality_report || null,
+                ...(job.worker_id ? {
+                    generated_by_worker_id: job.worker_id,
+                    generated_by_worker_instance_id: job.worker_instance_id || null,
+                    generated_by_worker_job_id: jobId,
+                    generated_by_worker_at: new Date().toISOString(),
+                } : {}),
             })
             .eq('id', topicQueueId)
 
@@ -255,25 +242,29 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
             .from('remote_hermes_queue')
             .insert({
                 job_type: 'publish_metadata_generate',
+                target_worker_id: job.worker_id || job.target_worker_id || null,
                 category_id: job.category_id ?? null,
                 payload: {
                     topic_queue_id: String(topicQueueId),
                     topic: resultPayload.topic || jobPayload.topic,
                     script,
-                    structure: resultPayload.structure || existingTopic?.pregenerated_structure || jobPayload.structure || {},
+                    structure: resultPayload.structure || jobPayload.structure || {},
                     upload_title: resultPayload.upload_title || jobPayload.upload_title,
                     title_generation: resultPayload.title_generation || jobPayload.title_generation,
                     narrative_blueprint: resultPayload.narrative_blueprint || {},
                     script_quality_report: resultPayload.script_quality_report || {},
                     sfx_cues: sfxCues,
                     sfx_cues_json: sfxCuesJson,
-                    ai_model_override: jobPayload.ai_model_override,
                     defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate),
                     language: jobPayload.language,
                 },
                 status: 'pending',
             })
         if (enqueueError) console.warn('[complete/route] Failed to chain-enqueue publish_metadata_generate (non-fatal):', enqueueError.message)
+        await supabaseAdmin
+            .from('topics_queue')
+            .update({ publish_metadata_status: 'queued' })
+            .eq('id', topicQueueId)
         await recordContentGenerationFeedback(jobId, job, topicQueueId, script)
     } catch (e) {
         console.warn('[complete/route] pregenerated_script sync-back failed (non-fatal):', e)
@@ -331,6 +322,7 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
         const updatePayload: Record<string, any> = {
             status: 'pending',
             publish_metadata: publishMetadata,
+            publish_metadata_status: 'ready',
             progress_payload: progressPayload,
         }
         if (script) {
@@ -347,6 +339,12 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
         }
         if (resultPayload.narrative_blueprint) updatePayload.narrative_blueprint = resultPayload.narrative_blueprint
         if (resultPayload.script_quality_report) updatePayload.script_quality_report = resultPayload.script_quality_report
+        if (job.worker_id) {
+            updatePayload.generated_by_worker_id = job.worker_id
+            updatePayload.generated_by_worker_instance_id = job.worker_instance_id || null
+            updatePayload.generated_by_worker_job_id = jobId
+            updatePayload.generated_by_worker_at = new Date().toISOString()
+        }
 
         let { error } = await supabaseAdmin
             .from('topics_queue')
