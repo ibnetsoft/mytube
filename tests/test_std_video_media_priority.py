@@ -5,6 +5,7 @@ STD_PAGE = Path("auth-web/app/std/page.tsx").read_text(encoding="utf-8")
 INIT_ROUTE = Path("auth-web/app/api/std/projects/[projectId]/assets/init/route.ts").read_text(encoding="utf-8")
 COMPLETE_ROUTE = Path("auth-web/app/api/std/projects/[projectId]/assets/complete/route.ts").read_text(encoding="utf-8")
 POLICY = Path("auth-web/lib/stdPolicy.ts").read_text(encoding="utf-8")
+MEDIA_MIGRATION = Path("migrations/air_0246_std_supabase_primary_media.sql").read_text(encoding="utf-8")
 
 
 def test_hook_scenes_remain_video_scenes():
@@ -30,3 +31,4 @@ def test_new_visual_uploads_use_supabase_before_drive_fallback():
     assert "Supabase Storage is the primary home for scene media" in STD_PAGE
     assert "storage_bucket: initPayload.storage_bucket" in STD_PAGE
     assert "storage_public_url: storagePublicUrl" in COMPLETE_ROUTE
+    assert "ALTER COLUMN drive_file_id DROP NOT NULL" in MEDIA_MIGRATION
