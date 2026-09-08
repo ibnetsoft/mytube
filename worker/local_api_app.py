@@ -18,6 +18,7 @@ from pathlib import Path
 
 import job_store
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
 from ipc import submit_command, wait_for_result
 from local_api_token import verify_token
 from logging_setup import get_logger
@@ -61,6 +62,45 @@ def _read_manager_status() -> dict:
 @app.get("/health")
 async def health():
     return {"status": "ok", "time": time.time()}
+
+
+def sfx_library_response(payload: dict) -> JSONResponse:
+    # The browser editor only needs a public, loopback-only catalogue.  It never
+    # receives the worker token or arbitrary filesystem paths.
+    return JSONResponse(payload, headers={"Access-Control-Allow-Origin": "https://studio.airing.work"})
+
+
+@app.get("/sfx-library")
+async def sfx_library():
+    from sfx_library import list_sfx_items
+
+    items = []
+    for item in list_sfx_items():
+        key = str(item.get("key") or "").strip()
+        if not key:
+            continue
+        items.append({
+            "key": key,
+            "title": str(item.get("title") or key),
+            "category": str(item.get("category") or "other"),
+            "tags": item.get("tags") if isinstance(item.get("tags"), list) else [],
+            "default_volume_db": item.get("default_volume_db", -18),
+        })
+    return sfx_library_response({"items": items})
+
+
+@app.get("/sfx-library/{key}/preview")
+async def sfx_library_preview(key: str):
+    from sfx_library import resolve_sfx_path
+
+    path = resolve_sfx_path(key)
+    if not path:
+        raise HTTPException(status_code=404, detail="SFX item not found")
+    return FileResponse(
+        str(path),
+        media_type="audio/mpeg",
+        headers={"Access-Control-Allow-Origin": "https://studio.airing.work", "Cache-Control": "private, max-age=3600"},
+    )
 
 
 @app.get("/status")

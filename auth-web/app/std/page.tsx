@@ -864,6 +864,10 @@ export default function StdPortalPage() {
     const [subBgOpacity, setSubBgOpacity] = useState('0.5')
     const [subBgVOffset, setSubBgVOffset] = useState('0')
     const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
+    const [workerSfxItems, setWorkerSfxItems] = useState<any[]>([])
+    const [workerSfxQuery, setWorkerSfxQuery] = useState('')
+    const [workerSfxLoading, setWorkerSfxLoading] = useState(false)
+    const [workerSfxError, setWorkerSfxError] = useState('')
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
@@ -5815,6 +5819,48 @@ export default function StdPortalPage() {
         end_time: '4.6',
         image_url: '',
     }
+
+    const loadWorkerSfxLibrary = async () => {
+        setWorkerSfxLoading(true)
+        setWorkerSfxError('')
+        try {
+            const response = await fetch('/api/std/sfx-library')
+            const payload = await response.json().catch(() => ({}))
+            if (!response.ok || !Array.isArray(payload.items)) throw new Error('워커 효과음 라이브러리를 불러오지 못했습니다.')
+            setWorkerSfxItems(payload.items)
+        } catch (error: any) {
+            setWorkerSfxError(error?.message || 'AIR Worker가 실행 중인지 확인해 주세요.')
+        } finally {
+            setWorkerSfxLoading(false)
+        }
+    }
+
+    const applyWorkerSfxItem = async (item: any) => {
+        if (!selectedProject?.project?.id) return
+        const subtitle = localSubtitles[selectedSubIndex] || {}
+        const currentSettings = selectedProject.project.project_payload?.render_settings || {}
+        const currentCues = Array.isArray(currentSettings.sfx_cues) ? currentSettings.sfx_cues : []
+        const nextCue = {
+            id: `subtitle-${selectedSubIndex}`,
+            drive_file_id: String(item.drive_file_id),
+            file_name: String(item.title || item.file_name),
+            scene_number: Number(subtitle.scene_number) || null,
+            subtitle_index: selectedSubIndex,
+            start: Number(subtitle.start_num ?? subtitle.start_time ?? 0) || 0,
+            volume_db: Number(item.default_volume_db ?? -18),
+            enabled: true,
+        }
+        try {
+            await updateBgmSfxSettings({
+                ...currentSettings,
+                sfx_cues: [...currentCues.filter((cue: any) => Number(cue?.subtitle_index) !== selectedSubIndex), nextCue]
+                    .sort((a: any, b: any) => Number(a.start || 0) - Number(b.start || 0)),
+            })
+            setMessage(`현재 자막 구간에 효과음 '${nextCue.file_name}'을 적용했습니다.`)
+        } catch (error: any) {
+            setMessage(error?.message || '효과음 적용에 실패했습니다.')
+        }
+    }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
     const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSub?.image)
         || currentSubVisual.image_url
@@ -8196,6 +8242,46 @@ export default function StdPortalPage() {
                                                             controls
                                                             className="mt-3 h-8 w-full"
                                                         />
+                                                    )}
+                                                </div>
+
+                                                <div className="rounded-lg border border-violet-400/20 bg-violet-500/5 p-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <div className="text-xs font-black text-violet-100">워커 효과음 라이브러리</div>
+                                                            <div className="mt-1 text-[11px] text-gray-400">내 PC의 AIR Worker 효과음을 업로드 없이 현재 자막에 적용합니다.</div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void loadWorkerSfxLibrary()}
+                                                            disabled={workerSfxLoading}
+                                                            className="h-8 rounded-md border border-violet-400/30 bg-violet-500/10 px-2.5 text-[11px] font-black text-violet-100 transition hover:bg-violet-500/20 disabled:cursor-wait disabled:opacity-50"
+                                                        >
+                                                            {workerSfxLoading ? '불러오는 중' : workerSfxItems.length ? `${workerSfxItems.length}개 새로고침` : '라이브러리 불러오기'}
+                                                        </button>
+                                                    </div>
+                                                    {workerSfxError && <div className="mt-2 text-[11px] text-amber-300">{workerSfxError}</div>}
+                                                    {workerSfxItems.length > 0 && (
+                                                        <>
+                                                            <input
+                                                                value={workerSfxQuery}
+                                                                onChange={event => setWorkerSfxQuery(event.target.value)}
+                                                                placeholder="효과음 검색"
+                                                                className="mt-3 h-8 w-full rounded-md border border-white/10 bg-[#10151d] px-2.5 text-[11px] text-white outline-none focus:border-violet-400/50"
+                                                            />
+                                                            <div className="mt-2 max-h-44 space-y-1 overflow-y-auto pr-1">
+                                                                {workerSfxItems.filter(item => `${item.title} ${item.category} ${(item.tags || []).join(' ')}`.toLowerCase().includes(workerSfxQuery.toLowerCase())).slice(0, 40).map(item => (
+                                                                    <div key={item.key} className="flex items-center gap-2 rounded-md border border-white/5 bg-[#10151d] px-2 py-1.5">
+                                                                        <div className="min-w-0 flex-1">
+                                                                            <div className="truncate text-[11px] font-bold text-gray-100">{item.title}</div>
+                                                                            <div className="text-[9px] text-violet-300">{item.category}</div>
+                                                                        </div>
+                                                                        <audio controls preload="none" src={`/api/std/sfx-library/preview?fileId=${encodeURIComponent(item.drive_file_id)}`} className="h-7 w-28" />
+                                                                        <button type="button" onClick={() => void applyWorkerSfxItem(item)} className="h-7 rounded-md bg-violet-600 px-2 text-[10px] font-bold text-white hover:bg-violet-500">적용</button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </div>
 

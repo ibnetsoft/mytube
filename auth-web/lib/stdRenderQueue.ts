@@ -418,7 +418,25 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         if (!cue || cue.enabled === false) return
         const assetId = String(cue.asset_id || '').trim()
         const asset = assetId ? assetById.get(assetId) : null
-        if (!asset?.drive_file_id) return
+        const libraryKey = String(cue.library_key || cue.key || '').trim()
+        if (!asset?.drive_file_id) {
+            const driveFileId = String(cue.drive_file_id || '').trim()
+            if (driveFileId) {
+                const path = `audio/sfx-library-${index + 1}.mp3`
+                manifestFiles.push({ asset_type: 'sfx', drive_file_id: driveFileId, path, file_name: cue.file_name || path, mime_type: 'audio/mpeg', size: null })
+                sfxCues.push({ ...cue, path, filename: path, start: clampNumber(cue.start ?? cue.time, 0, 0, 24 * 60 * 60), volume_db: clampNumber(cue.volume_db, -18, -60, 12) })
+                return
+            }
+            if (!libraryKey) return
+            sfxCues.push({
+                ...cue,
+                library_key: libraryKey,
+                key: libraryKey,
+                start: clampNumber(cue.start ?? cue.time, 0, 0, 24 * 60 * 60),
+                volume_db: clampNumber(cue.volume_db, -18, -60, 12),
+            })
+            return
+        }
         const path = audioManifestPath(asset, 'sfx', index + 1)
         manifestFiles.push({
             asset_type: 'sfx',
