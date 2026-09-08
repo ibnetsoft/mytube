@@ -578,6 +578,21 @@ export default function DashboardContent() {
         }
     }
 
+    const handleReconnectGoogleDrive = async () => {
+        if (!canManageSystemSettings) return
+        try {
+            const response = await adminFetch('/api/admin/google-drive/oauth', { method: 'POST' })
+            const payload = await response.json().catch(() => ({}))
+            if (!response.ok || !payload?.authorization_url) {
+                alert(payload?.error || 'Google Drive 재연결을 시작하지 못했습니다.')
+                return
+            }
+            window.location.assign(payload.authorization_url)
+        } catch (error: any) {
+            alert(error?.message || 'Google Drive 재연결을 시작하지 못했습니다.')
+        }
+    }
+
     const handleUpdateApiKeys = async () => {
         if (!canManageSensitiveUserSettings) return;
         if (!apiViewUser) return;
@@ -5536,19 +5551,21 @@ export default function DashboardContent() {
                             {/* ── Google Drive OAuth ── */}
                             {apiSettingsTab === 'drive' && (
                                 <div className="space-y-5 animate-in fade-in duration-200">
-                                    <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
+                                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
                                         <h4 className="text-sm font-black text-cyan-200">Google Drive 공통 OAuth 설정</h4>
-                                        <p className="mt-2 text-xs leading-relaxed text-cyan-100/70">
-                                            이 값은 유저 에셋 업로드·제출, TTS 보관, 원격 렌더 워커, 관리자 렌더 결과 수정에 공통 적용됩니다.
-                                            세 OAuth 값은 반드시 같은 Google Cloud OAuth 클라이언트에서 발급된 조합이어야 합니다.
-                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleReconnectGoogleDrive}
+                                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-500/25"
+                                        >
+                                            Drive 재연결
+                                        </button>
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                                         {([
                                             { key: 'google_drive_client_id', label: 'Google Drive OAuth Client ID', hint: 'Google Cloud OAuth 2.0 클라이언트 ID' },
                                             { key: 'google_drive_client_secret', label: 'Google Drive OAuth Client Secret', hint: '위 Client ID와 같은 OAuth 클라이언트의 Secret' },
-                                            { key: 'google_drive_refresh_token', label: 'Google Drive OAuth Refresh Token', hint: 'Drive 접근 권한으로 발급된 장기 갱신 토큰' },
                                             { key: 'google_drive_root_folder_id', label: 'Google Drive Root Folder ID', hint: '유저 제출·워커·관리자가 함께 사용할 최상위 폴더 ID' },
                                         ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
                                             <div key={key} className="space-y-1.5">
@@ -5567,10 +5584,6 @@ export default function DashboardContent() {
                                         ))}
                                     </div>
 
-                                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[10px] leading-relaxed text-amber-200">
-                                        요청대로 값은 마스킹하지 않고 그대로 표시됩니다. 이 탭은 시스템 설정 권한이 있는 관리자만 접근할 수 있습니다.
-                                        OAuth 세 값 중 일부만 저장하면 잘못된 계정 조합을 막기 위해 Drive 작업이 중단됩니다.
-                                    </div>
                                 </div>
                             )}
 
