@@ -10,3 +10,7 @@ def test_topic_cards_show_a_single_title_without_an_extra_start_button():
     assert "{topic.generated_title || topic.topic}" in topic_cards
     assert "주제 상세 확인 & 작업 시작" not in topic_cards
     assert '<p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">' not in topic_cards
+    assert "xl:grid-cols-5" in topic_cards
+    assert "{formatTopicPayout(topic)}" not in topic_cards
+    assert "{topic.assigned_duration_minutes || 15}분 영상" not in topic_cards
+    assert "{topic.scene_count || 53} Scenes" not in topic_cards

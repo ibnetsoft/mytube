@@ -8990,7 +8990,7 @@ export default function StdPortalPage() {
                                     <span className="text-xs text-gray-400">주제 카드를 클릭하면 상세 기획 프리뷰 및 작업 시작 모달이 나타납니다.</span>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                                     {displayedTopics.map(topic => (
                                         <div
                                             key={topic.id}
@@ -9001,13 +9001,9 @@ export default function StdPortalPage() {
                                             className="bg-[#1c2027] border border-white/10 hover:border-indigo-500 rounded-2xl p-5 cursor-pointer hover:-translate-y-1.5 transition-all shadow-lg group flex flex-col justify-between relative overflow-hidden"
                                         >
                                             <div className="space-y-3">
-                                                {/* 상단 뱃지 & 수당 */}
-                                                <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2">
                                                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 truncate max-w-[65%]">
                                                         {topic.category_name || '옛날이야기'}
-                                                    </span>
-                                                    <span className="text-xs font-bold text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
-                                                        {formatTopicPayout(topic)}
                                                     </span>
                                                 </div>
 
@@ -9015,17 +9011,6 @@ export default function StdPortalPage() {
                                                 <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 leading-snug">
                                                     {topic.generated_title || topic.topic}
                                                 </h4>
-
-                                            </div>
-
-                                            {/* 하단 메타 태그 */}
-                                            <div className="mt-4 pt-3 border-t border-white/5">
-                                                <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
-                                                    <span className="flex items-center gap-1">
-                                                        <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
-                                                    </span>
-                                                    <span className="text-cyan-400">{topic.scene_count || 53} Scenes</span>
-                                                </div>
                                             </div>
                                         </div>
                                     ))}
