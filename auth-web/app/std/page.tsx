@@ -6775,7 +6775,7 @@ export default function StdPortalPage() {
     }
 
     return (
-        <div className="h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none">
+        <div className="min-h-[100dvh] overflow-x-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none md:h-screen md:overflow-hidden">
             {isImpersonating && (
                 <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
                     <div className="flex items-center gap-2.5">
@@ -6934,7 +6934,7 @@ export default function StdPortalPage() {
             })()}
 
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
-            <div className="flex-1 flex overflow-hidden relative">
+            <div className="flex-1 flex overflow-visible relative md:overflow-hidden">
                 {/* 모바일 드로어 사이드바 (모바일 햄버거 메뉴 열림 시) */}
                 {mobileMenuOpen && (
                     <div
@@ -7131,8 +7131,8 @@ export default function StdPortalPage() {
                 </aside>
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
-                <main className={`flex-1 flex flex-col bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 ${
-                    currentNav === 'subtitle_vrew' ? 'overflow-hidden' : 'overflow-y-auto'
+                <main className={`flex-1 flex min-h-0 flex-col bg-[#14181f] p-3 sm:p-5 md:p-6 space-y-4 sm:space-y-6 ${
+                    currentNav === 'subtitle_vrew' ? 'overflow-y-auto md:overflow-hidden' : 'overflow-y-auto'
                 }`}>
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
@@ -7167,7 +7167,7 @@ export default function StdPortalPage() {
                         ))
                         const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
                         return (
-                        <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
+                        <div className="space-y-3 w-full flex flex-col h-auto min-h-0 overflow-visible md:h-full md:overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
                             <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
                                 {isVrewSubtitleMode && (
@@ -7256,7 +7256,7 @@ export default function StdPortalPage() {
                                             {t('sub_restore_worker_script')}
                                         </button>
                                         {selectedVoiceObj?.preview_url && (
-                                            <div className="ml-auto flex min-w-[300px] max-w-[420px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible">
+                                            <div className="ml-0 flex w-full min-w-0 flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible sm:ml-auto sm:min-w-[300px] sm:max-w-[420px]">
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-[10px]">🎙</span>
@@ -7645,11 +7645,11 @@ export default function StdPortalPage() {
                             </div>
 
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
-                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 flex-1 min-h-0 overflow-hidden">
+                            <div className="grid grid-cols-1 gap-3 flex-none min-h-0 overflow-visible lg:grid-cols-[minmax(0,1fr)_430px] lg:flex-1 lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_450px]">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
-                                <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-0">
-                                    <div className="flex min-h-[57px] items-center justify-between gap-2 p-3 border-b border-white/5 bg-[#14181f]">
-                                        <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-visible">
+                                <div className="bg-[#181d26] border border-white/10 rounded-xl flex flex-col overflow-visible shadow min-w-0 min-h-[28rem] lg:min-h-0 lg:overflow-hidden">
+                                    <div className="flex min-h-[57px] flex-wrap items-center justify-between gap-2 p-3 border-b border-white/5 bg-[#14181f]">
+                                        <div className="flex min-w-0 flex-wrap items-center gap-2 overflow-visible">
                                             <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
                                                 <input
                                                     type="checkbox"
@@ -7721,8 +7721,8 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 자막 카드 목록 */}
-                                    <div className="flex flex-1 overflow-hidden">
-                                        <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-2 space-y-2">
+                                    <div className="flex flex-1 overflow-visible lg:overflow-hidden">
+                                        <div className="subtitle-navy-scrollbar flex-1 overflow-visible p-2 space-y-2 lg:overflow-y-auto">
                                             {subtitleSceneGroups.map((group) => {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
@@ -7759,7 +7759,7 @@ export default function StdPortalPage() {
                                                             setSelectedSubIndex(group.firstIndex)
                                                             setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
-                                                        className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                                                        className={`p-2 sm:p-3 rounded-xl border flex items-start gap-2 sm:gap-3 cursor-pointer transition-all ${
                                                             isChecked
                                                                 ? 'bg-cyan-500/10 border-cyan-400/70 shadow-md'
                                                                 : isActive
@@ -7786,7 +7786,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         {/* 이미지 & 타임 */}
-                                                        <div className="w-40 h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
+                                                        <div className="w-24 h-[54px] sm:w-40 sm:h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
                                                             {group.image_url ? (
                                                                 <img src={group.image_url} alt="" className="w-full h-full object-cover" />
                                                             ) : group.video_url ? (
@@ -7812,14 +7812,14 @@ export default function StdPortalPage() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0 self-start">
+                                                        <div className="w-12 sm:w-16 text-[9px] sm:text-[10px] font-mono text-gray-400 shrink-0 self-start">
                                                             {group.start_time}s<br />~{group.end_time}s
                                                             <div className="mt-1 text-[9px] text-gray-500">
                                                                 {duration.toFixed(1)}s
                                                             </div>
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 mb-1">
+                                                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
                                                                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                                                                     Scene {sNum}
                                                                 </span>
@@ -7846,7 +7846,7 @@ export default function StdPortalPage() {
                                                                 )}
                                                                 {isVrewSubtitleMode && (
                                                                     <div
-                                                                        className="ml-auto flex items-center gap-2"
+                                                                        className="ml-0 sm:ml-auto flex items-center gap-2"
                                                                         onClick={(event) => event.stopPropagation()}
                                                                     >
                                                                         {hasSingleGroupVoice && (
@@ -7981,8 +7981,8 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="min-w-0 min-h-0 overflow-hidden">
-                                    <div className="flex flex-col gap-3 w-full max-h-full overflow-y-auto">
+                                <div className="min-w-0 min-h-0 overflow-visible lg:overflow-hidden">
+                                    <div className="flex flex-col gap-3 w-full max-h-none overflow-visible lg:max-h-full lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
