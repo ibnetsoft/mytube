@@ -1747,15 +1747,18 @@ export default function StdPortalPage() {
     const mergeAssetsIntoScenes = (scenes: any[], assets: any[] = [], projectId?: string | null) => {
         return (scenes || []).map((scene: any) => {
             const sceneNumber = Number(scene?.scene_number || scene?.scene_order || 0)
+            const sceneId = String(scene?.id || scene?.metadata?.scene_id || '').trim()
+            const assetMatchesScene = (asset: any, assetType: 'image' | 'video') => {
+                if (String(asset?.asset_type || '').toLowerCase() !== assetType) return false
+                if (!['uploaded', 'assigned'].includes(String(asset?.status || '').toLowerCase())) return false
+                if (sceneId && String(asset?.scene_id || '').trim() === sceneId) return true
+                return Number(asset?.scene_number) === sceneNumber
+            }
             const videoAsset = (assets || []).find((asset: any) =>
-                String(asset?.asset_type || '').toLowerCase() === 'video'
-                && ['uploaded', 'assigned'].includes(String(asset?.status || '').toLowerCase())
-                && Number(asset?.scene_number) === sceneNumber
+                assetMatchesScene(asset, 'video')
             )
             const imageAsset = (assets || []).find((asset: any) =>
-                String(asset?.asset_type || '').toLowerCase() === 'image'
-                && ['uploaded', 'assigned'].includes(String(asset?.status || '').toLowerCase())
-                && Number(asset?.scene_number) === sceneNumber
+                assetMatchesScene(asset, 'image')
             )
             const imageUrl = keepRenderableMediaUrl(scene?.image_url || scene?.image)
                 || keepRenderableMediaUrl(imageAsset?.metadata?.storage_public_url)
