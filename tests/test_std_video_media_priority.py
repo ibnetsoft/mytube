@@ -24,11 +24,14 @@ def test_existing_video_assets_are_preferred_over_scene_images():
     assert "video_url: restoredVideoUrl || runtimeAssetUrl(scene.video_url) || null" in STD_PAGE
 
 
-def test_new_visual_uploads_use_supabase_before_drive_fallback():
+def test_new_visual_uploads_are_saved_to_supabase_then_drive():
     assert "createSignedUploadUrl(storagePath" in INIT_ROUTE
     assert "storage_upload_url: signedUpload.signedUrl" in INIT_ROUTE
     assert "storage_path: storagePath" in INIT_ROUTE
-    assert "Supabase Storage is the primary home for scene media" in STD_PAGE
+    assert "Scene media is retained in both Supabase Storage and Google Drive" in STD_PAGE
+    assert "Google Drive에도 저장 중" in STD_PAGE
     assert "storage_bucket: initPayload.storage_bucket" in STD_PAGE
+    assert "drive_file_id: drivePayload.id" in STD_PAGE
     assert "storage_public_url: storagePublicUrl" in COMPLETE_ROUTE
+    assert "browser_supabase_then_drive" in COMPLETE_ROUTE
     assert "ALTER COLUMN drive_file_id DROP NOT NULL" in MEDIA_MIGRATION

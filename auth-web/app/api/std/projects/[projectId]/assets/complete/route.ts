@@ -207,7 +207,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         )) {
             return NextResponse.json({ success: false, error: 'Invalid Supabase Storage asset path' }, { status: 400 })
         }
-        const metadata = isSupabaseAsset ? null : await getStdDriveFileMetadata(driveFileId)
+        const metadata = driveFileId ? await getStdDriveFileMetadata(driveFileId) : null
         if (metadata && targetFolderId && Array.isArray(metadata.parents) && !metadata.parents.includes(targetFolderId)) {
             return NextResponse.json({ success: false, error: 'Drive file is not in the expected folder' }, { status: 400 })
         }
@@ -260,13 +260,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     ...(metadata ? {
                         web_view_link: metadata.webViewLink || driveFileLink(metadata.id),
                         thumbnail_link: metadata.thumbnailLink || null,
-                    } : {
+                    } : {}),
+                    ...(isSupabaseAsset ? {
                         storage_bucket: CONTENT_ASSETS_BUCKET,
                         storage_path: storagePath,
                         storage_public_url: storagePublicUrl || supabaseAdmin.storage.from(CONTENT_ASSETS_BUCKET).getPublicUrl(storagePath).data.publicUrl,
-                    }),
+                    } : {}),
                     uploaded_by: auth.requester.email,
-                    upload_mode: 'browser_drive_resumable',
+                    upload_mode: isSupabaseAsset && metadata ? 'browser_supabase_then_drive' : (isSupabaseAsset ? 'browser_supabase_storage' : 'browser_drive_resumable'),
                 },
             })
             .select('*')

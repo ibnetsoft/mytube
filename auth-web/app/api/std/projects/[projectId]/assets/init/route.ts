@@ -96,39 +96,33 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .from(CONTENT_ASSETS_BUCKET)
             .getPublicUrl(storagePath)
 
-        // Drive is retained only as a fallback for uploads that cannot reach Storage.
-        let uploadUrl = ''
-        let folders: Awaited<ReturnType<typeof ensureStdProjectDriveFolders>> | null = null
-        try {
-            folders = await ensureStdProjectDriveFolders(project)
-            uploadUrl = await createStdDriveUploadSession({
-                folderId: folderForAssetType(folders, assetType),
-                fileName,
-                mimeType,
-                fileSize,
-            })
-        } catch {
-            // A stale Drive token must not prevent the primary Supabase upload.
-        }
+        // Each visual file is retained in both stores: Storage for playback and
+        // Drive as the project archive. Create the Drive session before returning
+        // so the browser can fail cleanly instead of creating a one-sided asset.
+        const folders = await ensureStdProjectDriveFolders(project)
+        const uploadUrl = await createStdDriveUploadSession({
+            folderId: folderForAssetType(folders, assetType),
+            fileName,
+            mimeType,
+            fileSize,
+        })
         const progressPayload = project.progress_payload || {}
         await supabaseAdmin
             .from('std_projects')
             .update({
-                ...(folders ? { drive_folder_id: folders.projectFolderId } : {}),
+                drive_folder_id: folders.projectFolderId,
                 progress_payload: {
                     ...progressPayload,
-                    ...(folders ? {
-                        std_drive: {
-                            ...(progressPayload.std_drive || {}),
-                            folder_ids: {
-                                project: folders.projectFolderId,
-                                images: folders.imagesFolderId,
-                                videos: folders.videosFolderId,
-                                originals: folders.originalsFolderId,
-                                audio: folders.audioFolderId,
-                            },
+                    std_drive: {
+                        ...(progressPayload.std_drive || {}),
+                        folder_ids: {
+                            project: folders.projectFolderId,
+                            images: folders.imagesFolderId,
+                            videos: folders.videosFolderId,
+                            originals: folders.originalsFolderId,
+                            audio: folders.audioFolderId,
                         },
-                    } : {}),
+                    },
                 },
                 updated_at: new Date().toISOString(),
             })
@@ -141,8 +135,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             storage_path: storagePath,
             storage_public_url: publicUrlData.publicUrl,
             upload_url: uploadUrl,
-            drive_folder_id: folders?.projectFolderId || null,
-            target_folder_id: folders ? folderForAssetType(folders, assetType) : null,
+            drive_folder_id: folders.projectFolderId,
+            target_folder_id: folderForAssetType(folders, assetType),
             file_name: fileName,
             asset_type: assetType,
             scene_number: sceneNumber,
