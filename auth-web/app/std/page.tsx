@@ -5835,6 +5835,12 @@ export default function StdPortalPage() {
         }
     }
 
+    useEffect(() => {
+        if (subEditTab === 'bgm' && workerSfxItems.length === 0 && !workerSfxLoading) {
+            void loadWorkerSfxLibrary()
+        }
+    }, [subEditTab])
+
     const applyWorkerSfxItem = async (item: any) => {
         if (!selectedProject?.project?.id) return
         const subtitle = localSubtitles[selectedSubIndex] || {}
@@ -8264,8 +8270,8 @@ export default function StdPortalPage() {
                                                 <div className="rounded-lg border border-violet-400/20 bg-violet-500/5 p-3">
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div>
-                                                            <div className="text-xs font-black text-violet-100">워커 효과음 라이브러리</div>
-                                                            <div className="mt-1 text-[11px] text-gray-400">내 PC의 AIR Worker 효과음을 업로드 없이 현재 자막에 적용합니다.</div>
+                                                            <div className="text-xs font-black text-violet-100">공용 SFX Drive 라이브러리</div>
+                                                            <div className="mt-1 text-[11px] text-gray-400">Drive에 저장한 효과음을 미리듣고 배경음 또는 현재 자막에 적용합니다.</div>
                                                         </div>
                                                         <button
                                                             type="button"
