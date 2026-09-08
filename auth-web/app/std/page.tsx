@@ -7657,15 +7657,6 @@ export default function StdPortalPage() {
                                                             <div className="mt-1 text-[9px] text-gray-500">
                                                                 {duration.toFixed(1)}s
                                                             </div>
-                                                            {isVrewSubtitleMode && transitionEffect && (
-                                                                <div
-                                                                    title={`화면전환효과: ${sceneTransitionLabel(transitionEffect)}`}
-                                                                    className="mt-2 min-w-0 rounded border border-violet-400/20 bg-violet-500/10 px-1.5 py-1 font-sans text-[9px] font-bold leading-tight text-violet-200"
-                                                                >
-                                                                    <span className="block font-mono text-[8px] text-violet-300">전환</span>
-                                                                    <span className="break-words">{sceneTransitionLabel(transitionEffect)}</span>
-                                                                </div>
-                                                            )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
