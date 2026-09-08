@@ -46,16 +46,15 @@ def test_new_visual_uploads_are_saved_to_supabase_then_drive():
     assert "createSignedUploadUrl(storagePath" in INIT_ROUTE
     assert "storage_upload_url: signedUpload.signedUrl" in INIT_ROUTE
     assert "storage_path: storagePath" in INIT_ROUTE
-    assert "Scene media is retained in both Supabase Storage and Google Drive" in STD_PAGE
-    assert "Google Drive에도 저장 중" in STD_PAGE
     assert "storage_bucket: initPayload.storage_bucket" in STD_PAGE
     assert "drive_file_id: drivePayload?.id || null" in STD_PAGE
     assert "storage_public_url: storagePublicUrl" in COMPLETE_ROUTE
-    assert "browser_supabase_then_drive" in COMPLETE_ROUTE
+    assert "archiveSupabaseAssetToDrive" in COMPLETE_ROUTE
+    assert "browser_supabase_then_server_drive" in COMPLETE_ROUTE
     assert "ALTER COLUMN drive_file_id DROP NOT NULL" in MEDIA_MIGRATION
 
 
 def test_upload_init_keeps_storage_available_when_drive_is_unavailable():
-    assert "Storage is the source of truth" in INIT_ROUTE
-    assert "drive_backup_error: driveBackupError || null" in INIT_ROUTE
+    assert "resumable Drive URL to the browser causes a CORS-blocked PUT" in INIT_ROUTE
+    assert "upload_url: ''" in INIT_ROUTE
     assert "drive_reconnect_required" not in INIT_ROUTE

@@ -19,15 +19,14 @@ def _upload_asset_body() -> str:
     )[0]
 
 
-def test_scene_assets_are_uploaded_to_storage_then_drive_before_completion_when_available():
+def test_scene_assets_are_uploaded_to_storage_before_completion():
     upload_asset = _upload_asset_body()
 
     init_pos = upload_asset.index("'/assets/init'")
     storage_pos = upload_asset.index("fetch(initPayload.storage_upload_url")
-    drive_pos = upload_asset.index("fetch(initPayload.upload_url")
     complete_pos = upload_asset.index("'/assets/complete'")
 
-    assert init_pos < storage_pos < drive_pos < complete_pos
+    assert init_pos < storage_pos < complete_pos
     assert "method: 'PUT'" in upload_asset
     assert "body: file" in upload_asset
     assert "storage_bucket: initPayload.storage_bucket" in upload_asset
@@ -43,6 +42,7 @@ def test_scene_is_not_marked_ready_before_server_confirmation():
 
     assert "video_url: actualAssetType === 'video' ? objectUrl" not in optimistic_section
     assert "image_url: actualAssetType === 'image' ? objectUrl" not in optimistic_section
+    assert "const persistedUrl = assetDisplayUrl(selectedProject.project.id, persistedAsset) || objectUrl" in confirmed_section
     assert "video_url: actualAssetType === 'video' ? persistedUrl" in confirmed_section
     assert "asset_status: 'ready'" in confirmed_section
 
@@ -57,13 +57,15 @@ def test_dual_store_completion_is_idempotent_and_checks_project_persistence():
 
 
 def test_drive_archive_failure_does_not_block_a_storage_upload():
-    assert "Storage is the source of truth" in INIT_ROUTE
-    assert "drive_backup_error: driveBackupError || null" in INIT_ROUTE
+    assert "resumable Drive URL to the browser causes a CORS-blocked PUT" in INIT_ROUTE
+    assert "upload_url: ''" in INIT_ROUTE
     assert "storage_upload_url: signedUpload.signedUrl" in INIT_ROUTE
     assert "Drive archive copy failed; keeping Supabase asset" in SERVER_UPLOAD_ROUTE
     assert ".upload(storagePath, buffer" in SERVER_UPLOAD_ROUTE
     assert "drive_file_id: driveFile?.id || null" in SERVER_UPLOAD_ROUTE
     assert "server_supabase_storage" in SERVER_UPLOAD_ROUTE
+    assert "archiveSupabaseAssetToDrive" in COMPLETE_ROUTE
+    assert "browser_supabase_then_server_drive" in COMPLETE_ROUTE
 
 
 def test_thumbnail_upload_uses_the_same_supabase_first_flow():

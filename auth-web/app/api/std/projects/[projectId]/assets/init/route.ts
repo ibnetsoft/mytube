@@ -3,9 +3,6 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
-    createStdDriveUploadSession,
-    ensureStdProjectDriveFolders,
-    folderForAssetType,
     sanitizeDriveName,
 } from '@/lib/stdGoogleDrive'
 
@@ -35,7 +32,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     const assetType = String(body?.asset_type || '').toLowerCase()
     const mimeType = String(body?.mime_type || '').trim()
     const fileName = sanitizeDriveName(String(body?.file_name || ''), 'asset')
-    const fileSize = Number(body?.file_size || 0) || null
     const sceneNumber = body?.scene_number == null ? null : Number(body.scene_number)
 
     if (!ASSET_TYPES.has(assetType)) {
@@ -96,46 +92,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .from(CONTENT_ASSETS_BUCKET)
             .getPublicUrl(storagePath)
 
-        // Storage is the source of truth. Drive is an archive copy and must not
-        // prevent an asset from being saved or rendered while it is unavailable.
-        let uploadUrl = ''
-        let driveFolderId = ''
-        let targetFolderId = ''
-        let driveBackupError = ''
-        try {
-            const folders = await ensureStdProjectDriveFolders(project)
-            targetFolderId = folderForAssetType(folders, assetType)
-            uploadUrl = await createStdDriveUploadSession({
-                folderId: targetFolderId,
-                fileName,
-                mimeType,
-                fileSize,
-            })
-            driveFolderId = folders.projectFolderId
-            const progressPayload = project.progress_payload || {}
-            await supabaseAdmin
-                .from('std_projects')
-                .update({
-                    drive_folder_id: driveFolderId,
-                    progress_payload: {
-                        ...progressPayload,
-                        std_drive: {
-                            ...(progressPayload.std_drive || {}),
-                            folder_ids: {
-                                project: folders.projectFolderId,
-                                images: folders.imagesFolderId,
-                                videos: folders.videosFolderId,
-                                originals: folders.originalsFolderId,
-                                audio: folders.audioFolderId,
-                            },
-                        },
-                    },
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('id', project.id)
-        } catch (driveError: any) {
-            driveBackupError = String(driveError?.message || 'drive_archive_unavailable')
-        }
+        // Drive is archived server-side after Storage is committed. Sending a
+        // resumable Drive URL to the browser causes a CORS-blocked PUT.
 
         return NextResponse.json({
             success: true,
@@ -143,10 +101,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             storage_bucket: CONTENT_ASSETS_BUCKET,
             storage_path: storagePath,
             storage_public_url: publicUrlData.publicUrl,
-            upload_url: uploadUrl,
-            drive_folder_id: driveFolderId,
-            target_folder_id: targetFolderId,
-            drive_backup_error: driveBackupError || null,
+            upload_url: '',
+            drive_folder_id: '',
+            target_folder_id: '',
+            drive_backup_error: null,
             file_name: fileName,
             asset_type: assetType,
             scene_number: sceneNumber,

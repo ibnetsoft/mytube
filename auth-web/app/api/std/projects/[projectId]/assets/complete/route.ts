@@ -2,7 +2,14 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
-import { driveFileLink, driveFolderLink, getStdDriveFileMetadata } from '@/lib/stdGoogleDrive'
+import {
+    driveFileLink,
+    driveFolderLink,
+    ensureStdProjectDriveFolders,
+    folderForAssetType,
+    getStdDriveFileMetadata,
+    uploadStdDriveBuffer,
+} from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +26,51 @@ function sceneNumberOf(scene: any, index: number) {
 function uploadedById(value: any): string | null {
     const id = String(value || '').trim()
     return UUID_RE.test(id) ? id : null
+}
+
+async function archiveSupabaseAssetToDrive(project: any, asset: any) {
+    const metadata = asset?.metadata || {}
+    const storageBucket = String(metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
+    const storagePath = String(metadata?.storage_path || '').trim().replace(/^\/+/, '')
+    if (!storagePath) return asset
+
+    const { data: storageFile, error: storageError } = await supabaseAdmin.storage
+        .from(storageBucket)
+        .download(storagePath)
+    if (storageError || !storageFile) {
+        throw new Error(storageError?.message || 'Supabase Storage archive source is unavailable')
+    }
+
+    const folders = await ensureStdProjectDriveFolders(project)
+    const targetFolderId = folderForAssetType(folders, String(asset.asset_type || 'original'))
+    const driveFile = await uploadStdDriveBuffer(
+        targetFolderId,
+        String(asset.file_name || 'asset'),
+        Buffer.from(await storageFile.arrayBuffer()),
+        String(asset.mime_type || 'application/octet-stream'),
+        `AIR Studio STD ${asset.asset_type} archive for project ${project.id}`
+    )
+    const { data: archivedAsset, error: archiveError } = await supabaseAdmin
+        .from('std_project_assets')
+        .update({
+            drive_file_id: driveFile.id,
+            drive_folder_id: targetFolderId,
+            file_name: driveFile.name || asset.file_name,
+            mime_type: driveFile.mimeType || asset.mime_type,
+            file_size: driveFile.size ? Number(driveFile.size) : asset.file_size,
+            metadata: {
+                ...metadata,
+                web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+                thumbnail_link: driveFile.thumbnailLink || null,
+                upload_mode: 'browser_supabase_then_server_drive',
+            },
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', asset.id)
+        .select('*')
+        .single()
+    if (archiveError) throw new Error(archiveError.message)
+    return archivedAsset || asset
 }
 
 function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetType: string, asset: any, assetUrl: string) {
@@ -275,6 +327,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
             if (assetError) return NextResponse.json({ success: false, error: assetError.message }, { status: 500 })
             asset = insertedAsset
+        }
+
+        if (isSupabaseAsset && !asset.drive_file_id) {
+            try {
+                asset = await archiveSupabaseAssetToDrive(project, asset)
+            } catch (driveArchiveError: any) {
+                console.warn('[STD AssetComplete] Drive archive copy failed; keeping Supabase asset:', driveArchiveError?.message)
+            }
         }
 
         if (sceneNumber != null) {
