@@ -1087,7 +1087,7 @@ export default function StdPortalPage() {
     }
 
     // 8. 썸네일(Thumbnail) 제작 스튜디오 전용 상태 (유저앱 thumbnail.html 100% 동일 구현)
-    const [thumbTitle, setThumbTitle] = useState('아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다')
+    const [thumbTitle, setThumbTitle] = useState('')
     const [thumbLayout, setThumbLayout] = useState('face')
     const [thumbStyle, setThumbStyle] = useState('realistic')
     const [thumbStep, setThumbStep] = useState<number>(1)
@@ -1095,6 +1095,7 @@ export default function StdPortalPage() {
     const [thumbBgUploadFile, setThumbBgUploadFile] = useState<File | null>(null)
     const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const thumbnailDesignAppliedProjectRef = useRef('')
+    const codexThumbnailAppliedProjectRef = useRef('')
     const [thumbTextLayers, setThumbTextLayers] = useState<Array<{
         id: string
         text: string
@@ -1146,6 +1147,35 @@ export default function StdPortalPage() {
             .filter(layer => layer.text.trim())
     }
 
+    const codexThumbnailData = useMemo(() => {
+        const projectPayload = selectedProject?.project?.project_payload || {}
+        const progressPayload = selectedProject?.project?.progress_payload || {}
+        const hookTexts = [
+            ...(Array.isArray(projectPayload.thumbnail_hook_texts) ? projectPayload.thumbnail_hook_texts : []),
+            ...(Array.isArray(progressPayload.thumbnail_hook_texts) ? progressPayload.thumbnail_hook_texts : []),
+        ]
+            .map((text: unknown) => String(text || '').trim())
+            .filter((text: string, index: number, all: string[]) => Boolean(text) && all.indexOf(text) === index)
+            .slice(0, 3)
+        return {
+            hookTexts,
+            reasoning: String(projectPayload.thumbnail_hook_reasoning || progressPayload.thumbnail_hook_reasoning || '').trim(),
+            imagePrompt: String(projectPayload.thumbnail_image_prompt || progressPayload.thumbnail_image_prompt || '').trim(),
+            backgroundUrl: String(projectPayload.thumbnail_bg_url || progressPayload.thumbnail_bg_url || '').trim(),
+        }
+    }, [selectedProject?.project?.project_payload, selectedProject?.project?.progress_payload])
+
+    const thumbnailIdeas = useMemo(() => {
+        const badges = ['충격 폭로형', '현실 대비형', '호기심 자극형']
+        return codexThumbnailData.hookTexts.map((headline, index) => ({
+            id: `codex-idea-${index + 1}`,
+            badge: badges[index] || 'Codex 추천',
+            headline,
+            subhead: codexThumbnailData.reasoning || 'Codex가 대본을 바탕으로 만든 썸네일 문구',
+            prompt: codexThumbnailData.imagePrompt || 'Codex 이미지 프롬프트를 준비 중입니다.',
+        }))
+    }, [codexThumbnailData])
+
     useEffect(() => {
         const projectId = String(selectedProject?.project?.id || '')
         if (!projectId || thumbnailDesignAppliedProjectRef.current === projectId) return
@@ -1172,6 +1202,37 @@ export default function StdPortalPage() {
         selectedProject?.project?.progress_payload,
         selectedProject?.project?.project_payload,
     ])
+
+    useEffect(() => {
+        const projectId = String(selectedProject?.project?.id || '')
+        if (!projectId || codexThumbnailAppliedProjectRef.current === projectId) return
+        codexThumbnailAppliedProjectRef.current = projectId
+
+        const projectPayload = selectedProject?.project?.project_payload || {}
+        const progressPayload = selectedProject?.project?.progress_payload || {}
+        const hasSavedDesign = Boolean(projectPayload.thumbnail_design || progressPayload.thumbnail_design)
+        const projectTitle = String(projectPayload.generated_title || selectedProject?.project?.title || '').trim()
+        if (!hasSavedDesign && projectTitle) setThumbTitle(projectTitle)
+        if (!hasSavedDesign && codexThumbnailData.hookTexts.length) {
+            setThumbTextLayers(codexThumbnailData.hookTexts.slice(0, 2).map((text, index) => ({
+                id: `codex-layer-${projectId}-${index + 1}`,
+                text,
+                fontSize: index === 0 ? 34 : 26,
+                color: index === 0 ? '#ffeb3b' : '#ffffff',
+                strokeColor: '#000000',
+                strokeWidth: index === 0 ? 4 : 3,
+                fontFamily: 'GmarketSansBold',
+                x: 50,
+                y: index === 0 ? 35 : 65,
+            })))
+            setThumbStep(2)
+        }
+        const generatedBackgroundUrl = sanitizeAssetUrl(codexThumbnailData.backgroundUrl)
+        if (!hasSavedDesign && generatedBackgroundUrl) {
+            setThumbBgUrl(generatedBackgroundUrl)
+            setThumbBgUploadFile(null)
+        }
+    }, [selectedProject?.project?.id, selectedProject?.project?.title, selectedProject?.project?.project_payload, selectedProject?.project?.progress_payload, codexThumbnailData])
 
     const handleSyncScriptToScenesAndSubtitles = async (showSuccessAlert: boolean = true, overrideScript?: string) => {
         if (!selectedProject) return false
@@ -9628,8 +9689,23 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={() => {
+                                                if (!thumbnailIdeas.length) {
+                                                    alert('이 프로젝트에는 아직 Codex 워커가 생성한 썸네일 문구가 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요.')
+                                                    return
+                                                }
+                                                setThumbTextLayers(thumbnailIdeas.slice(0, 2).map((idea, index) => ({
+                                                    id: `codex-layer-${Date.now()}-${index + 1}`,
+                                                    text: idea.headline,
+                                                    fontSize: index === 0 ? 34 : 26,
+                                                    color: index === 0 ? '#ffeb3b' : '#ffffff',
+                                                    strokeColor: '#000000',
+                                                    strokeWidth: index === 0 ? 4 : 3,
+                                                    fontFamily: 'GmarketSansBold',
+                                                    x: 50,
+                                                    y: index === 0 ? 35 : 65,
+                                                })))
                                                 setThumbStep(2)
-                                                alert('입력된 영상 제목과 스타일에 맞춰 3가지 최적 썸네일 기획안이 생성되었습니다.')
+                                                alert('Codex 워커가 대본과 함께 생성한 썸네일 문구를 적용했습니다.')
                                             }}
                                             className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all"
                                         >
@@ -9639,7 +9715,12 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '삼십 년 숨긴 편지의 진실!?' } : l))
+                                                    const hook = codexThumbnailData.hookTexts[0]
+                                                    if (!hook) {
+                                                        alert('Codex 워커가 생성한 문구가 아직 없습니다.')
+                                                        return
+                                                    }
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: `${hook.replace(/[!?]+$/, '')}!?` } : l))
                                                     alert('더 자극적인(Clicky) 후킹 문구로 변경되었습니다.')
                                                 }}
                                                 className="py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-[11px] font-bold transition"
@@ -9649,7 +9730,12 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: '장례식 날 열린 마지막 편지' } : l))
+                                                    const hook = codexThumbnailData.hookTexts[0]
+                                                    if (!hook) {
+                                                        alert('Codex 워커가 생성한 문구가 아직 없습니다.')
+                                                        return
+                                                    }
+                                                    setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: hook.replace(/[!?]+$/, '') } : l))
                                                     alert('더 깔끔하고 신뢰감 있는(Clean) 문구로 변경되었습니다.')
                                                 }}
                                                 className="py-1.5 border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-[11px] font-bold transition"
@@ -9733,29 +9819,7 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    {[
-                                        {
-                                            id: 'idea-1',
-                                            badge: '충격 폭로형',
-                                            headline: '삼십 년 숨긴 편지의 진실',
-                                            subhead: '통장에 찍힌 실제 수령액 공개',
-                                            prompt: 'An elderly husband looking in shock at a bank statement with a magnifying glass, dramatic lighting, high contrast',
-                                        },
-                                        {
-                                            id: 'idea-2',
-                                            badge: '현실 대비형',
-                                            headline: '장례식 뒤 드러난 마지막 약속',
-                                            subhead: '우리가 몰랐던 은퇴 후 한 달 생활비',
-                                            prompt: 'Split screen, on the left an old pension book, on the right a simple empty dinner table, emotive photorealistic style',
-                                        },
-                                        {
-                                            id: 'idea-3',
-                                            badge: '호기심 자극형',
-                                            headline: '30년 일하고 받은 돈이 고작...',
-                                            subhead: '평범한 부부의 솔직한 고백',
-                                            prompt: 'Close up of weathered hands holding a worn leather handbag and yellowed letter, intense emotional atmosphere',
-                                        },
-                                    ].map((idea, idx) => (
+                                    {thumbnailIdeas.map((idea, idx) => (
                                         <div
                                             key={idea.id}
                                             onClick={() => {
@@ -9812,6 +9876,11 @@ export default function StdPortalPage() {
                                             </button>
                                         </div>
                                     ))}
+                                    {!thumbnailIdeas.length && (
+                                        <div className="md:col-span-3 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-5 text-center text-xs text-amber-200">
+                                            이 프로젝트에는 Codex 워커가 생성한 썸네일 문구가 아직 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요.
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* 훅 추천 문구 바 */}
@@ -9821,12 +9890,7 @@ export default function StdPortalPage() {
                                         <span className="text-xs font-bold text-blue-300">AI 추천 훅 문구:</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 flex-1">
-                                        {[
-                                            "삼십 년 숨긴 편지의 진실",
-                                            "통장에 찍힌 실제 수령액",
-                                            "은퇴 후 현실 생계비",
-                                            "평범한 부부의 눈물",
-                                        ].map((hook, hIdx) => (
+                                        {codexThumbnailData.hookTexts.map((hook, hIdx) => (
                                             <button
                                                 key={hIdx}
                                                 type="button"
@@ -9849,6 +9913,9 @@ export default function StdPortalPage() {
                                                 + {hook}
                                             </button>
                                         ))}
+                                        {!codexThumbnailData.hookTexts.length && (
+                                            <span className="text-[11px] text-gray-500">Codex 워커가 생성한 추천 문구가 아직 없습니다.</span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
