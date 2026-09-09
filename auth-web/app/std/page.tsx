@@ -8305,13 +8305,8 @@ export default function StdPortalPage() {
                                                         color: layer.color,
                                                         fontSize: `${layer.fontSize}px`,
                                                         fontWeight: 'bold',
-                                                        textShadow: `
-                                                            -${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                            ${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                            -${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                            ${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                            0 4px 10px rgba(0,0,0,0.8)
-                                                        `,
+                                                        WebkitTextStroke: `${Math.max(0, Number(layer.strokeWidth) || 0)}px ${layer.strokeColor}`,
+                                                        paintOrder: 'stroke fill',
                                                     }}
                                                 >
                                                     {layer.text}
@@ -8335,13 +8330,8 @@ export default function StdPortalPage() {
                                                         fontWeight: 'bold',
                                                         whiteSpace: 'nowrap',
                                                         lineHeight: '1.3',
-                                                        textShadow: `
-                                                            -${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
-                                                            ${subStrokeWidth}px -${subStrokeWidth}px 0 ${subStrokeColor},
-                                                            -${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
-                                                            ${subStrokeWidth}px ${subStrokeWidth}px 0 ${subStrokeColor},
-                                                            0 0 10px rgba(0,0,0,0.8)
-                                                        `,
+                                                        WebkitTextStroke: `${Math.max(0, Number(subStrokeWidth) || 0)}px ${subStrokeColor}`,
+                                                        paintOrder: 'stroke fill',
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
