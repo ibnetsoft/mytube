@@ -7814,10 +7814,17 @@ export default function StdPortalPage() {
                                                         {/* 이미지와 구간 시간 */}
                                                         <div className="w-40 shrink-0 self-start">
                                                             <div className="h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative">
-                                                                {group.image_url ? (
+                                                                {group.video_url ? (
+                                                                    <video
+                                                                        src={group.video_url}
+                                                                        className="w-full h-full object-cover"
+                                                                        autoPlay
+                                                                        loop
+                                                                        muted
+                                                                        playsInline
+                                                                    />
+                                                                ) : group.image_url ? (
                                                                     <img src={group.image_url} alt="" className="w-full h-full object-cover" />
-                                                                ) : group.video_url ? (
-                                                                    <video src={group.video_url} className="w-full h-full object-cover" muted />
                                                                 ) : (
                                                                     <div className="w-full h-full bg-[#0b0e14]" />
                                                                 )}
