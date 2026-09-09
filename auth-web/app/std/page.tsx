@@ -2353,6 +2353,21 @@ export default function StdPortalPage() {
         return Boolean(subtitleDialogueFlags.get(index) || hasDialogueQuoteText(subtitle?.text))
     }
 
+    const hasDistinctDialogueVoiceAssignment = () => {
+        const narrationVoiceIds = new Set(
+            localSubtitles
+                .filter((subtitle: any, index: number) => !isSubtitleDialogue(subtitle, index))
+                .map((subtitle: any) => String(subtitle?.voice_id || selectedVoice || '').trim())
+                .filter(Boolean)
+        )
+        const dialogueVoiceIds = localSubtitles
+            .filter((subtitle: any, index: number) => isSubtitleDialogue(subtitle, index))
+            .map((subtitle: any) => String(subtitle?.voice_id || '').trim())
+
+        return dialogueVoiceIds.length > 0
+            && dialogueVoiceIds.every(voiceId => Boolean(voiceId) && !narrationVoiceIds.has(voiceId))
+    }
+
     const selectSubtitleBlock = (subtitleIndex: number, shiftKey: boolean) => {
         const targetIndex = Number(subtitleIndex)
         if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex >= localSubtitles.length) return
@@ -5779,6 +5794,10 @@ export default function StdPortalPage() {
     }
 
     const handleFinalizeSubtitlesAndTts = async () => {
+        if (!hasDistinctDialogueVoiceAssignment()) {
+            setMessage('대사 성우를 내레이션 성우와 다르게 일괄 적용한 뒤 최종 TTS를 생성해주세요.')
+            return
+        }
         setGeneratingTts(true)
         setMessage('자막 설정 저장 중...')
         try {
@@ -7246,6 +7265,7 @@ export default function StdPortalPage() {
                         }
                         const narrationSubtitleCount = localSubtitles.filter((sub, index) => !isSubtitleDialogue(sub, index)).length
                         const dialogueSubtitleCount = localSubtitles.filter((sub, index) => isSubtitleDialogue(sub, index)).length
+                        const canFinalizeSubtitlesAndTts = localSubtitles.length > 0 && hasDistinctDialogueVoiceAssignment()
                         const selectedSubtitleSceneGroup = subtitleSceneGroups.find(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
@@ -7314,12 +7334,15 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={() => void handleFinalizeSubtitlesAndTts()}
-                                            disabled={generatingTts || !localSubtitles.length}
+                                            disabled={generatingTts || !canFinalizeSubtitlesAndTts}
                                             className={`px-3 py-1.5 rounded-md text-white text-[11px] font-bold transition ${
-                                                generatingTts || !localSubtitles.length
+                                                generatingTts || !canFinalizeSubtitlesAndTts
                                                     ? 'bg-gray-700 cursor-not-allowed opacity-60'
                                                     : 'bg-violet-600 hover:bg-violet-500'
                                             }`}
+                                            title={canFinalizeSubtitlesAndTts
+                                                ? '최종 자막 저장 및 TTS 생성'
+                                                : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
                                         >
                                             {generatingTts ? t('sub_final_saving') : t('sub_final_save_tts')}
                                         </button>

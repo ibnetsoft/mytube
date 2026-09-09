@@ -72,6 +72,13 @@ def test_vrew_subtitle_sync_retimes_saved_blocks_from_actual_audio_duration():
     assert "자막 싱크 중..." in STD_PAGE
 
 
+def test_final_tts_requires_dialogue_voice_different_from_narration():
+    assert "const hasDistinctDialogueVoiceAssignment = () =>" in STD_PAGE
+    assert "!narrationVoiceIds.has(voiceId)" in STD_PAGE
+    assert "if (!hasDistinctDialogueVoiceAssignment())" in STD_PAGE
+    assert "disabled={generatingTts || !canFinalizeSubtitlesAndTts}" in STD_PAGE
+
+
 def test_vrew_playback_syncs_the_current_scene_video():
     assert "const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)" in STD_PAGE
     assert "vrewPreviewVideoRef.current?.pause()" in STD_PAGE
