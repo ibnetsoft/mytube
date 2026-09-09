@@ -660,7 +660,7 @@ export async function enqueueStdProjectRender(projectId: string) {
     const { data: existingRows } = await supabaseAdmin
         .from('remote_render_queue')
         .select('*')
-        .eq('status', 'pending')
+        .in('status', ['pending', 'rendering'])
         .eq('render_mode', 'drive_api')
         .order('created_at', { ascending: false })
         .limit(100)

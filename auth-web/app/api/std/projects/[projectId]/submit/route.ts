@@ -128,6 +128,37 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     const submittedAt = new Date().toISOString()
+    const { data: submissionClaim, error: submissionClaimError } = await supabaseAdmin
+        .from('std_projects')
+        .update({
+            status: 'review_requested',
+            submitted_at: submittedAt,
+            updated_at: submittedAt,
+        })
+        .eq('id', project.id)
+        .is('submitted_at', null)
+        .select('id')
+        .maybeSingle()
+
+    if (submissionClaimError) {
+        return NextResponse.json({ success: false, error: submissionClaimError.message }, { status: 500 })
+    }
+    if (!submissionClaim) {
+        return NextResponse.json({ success: true, already_submitted: true })
+    }
+
+    const releaseSubmissionClaim = async () => {
+        await supabaseAdmin
+            .from('std_projects')
+            .update({
+                status: project.status,
+                submitted_at: null,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', project.id)
+            .eq('submitted_at', submittedAt)
+    }
+
     const { data: submission, error: submissionError } = await supabaseAdmin
         .from('std_project_submissions')
         .insert({
@@ -142,12 +173,16 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         .select('*')
         .single()
 
-    if (submissionError) return NextResponse.json({ success: false, error: submissionError.message }, { status: 500 })
+    if (submissionError) {
+        await releaseSubmissionClaim()
+        return NextResponse.json({ success: false, error: submissionError.message }, { status: 500 })
+    }
 
     let renderQueueRow: any = null
     try {
         renderQueueRow = await enqueueStdProjectRender(project.id)
     } catch (queueError: any) {
+        await releaseSubmissionClaim()
         return NextResponse.json({ success: false, error: queueError?.message || 'Failed to enqueue render job' }, { status: 500 })
     }
 
