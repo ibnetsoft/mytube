@@ -1106,30 +1106,7 @@ export default function StdPortalPage() {
         fontFamily: string
         x: number
         y: number
-    }>>([
-        {
-            id: 'tlayer-1',
-            text: '장례식 날 발견된 낡은 편지',
-            fontSize: 34,
-            color: '#ffeb3b',
-            strokeColor: '#000000',
-            strokeWidth: 4,
-            fontFamily: 'GmarketSansBold',
-            x: 50,
-            y: 35,
-        },
-        {
-            id: 'tlayer-2',
-            text: '통장에 찍힌 실제 수령액 공개',
-            fontSize: 26,
-            color: '#ffffff',
-            strokeColor: '#000000',
-            strokeWidth: 3,
-            fontFamily: 'GmarketSansBold',
-            x: 50,
-            y: 65,
-        }
-    ])
+    }>>([])
 
     const normalizeThumbTextLayers = (layers: any[]) => {
         return (Array.isArray(layers) ? layers : [])
