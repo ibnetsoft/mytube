@@ -27,3 +27,7 @@ def test_drive_downloads_retry_then_fall_back_to_supabase_storage():
     assert "def _download_asset_with_fallback" in REMOTE_WORKER
     assert 'storage_source=metadata.get("supabase_config")' in REMOTE_WORKER
     assert '"bucket": item.get("supabase_bucket")' in REMOTE_WORKER
+
+
+def test_remote_drive_worker_uses_verified_gpu_path_by_default():
+    assert 'os.getenv("USE_GPU_RENDER", "true").lower() == "true"' in REMOTE_WORKER

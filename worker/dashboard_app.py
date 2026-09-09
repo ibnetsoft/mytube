@@ -2731,7 +2731,7 @@ async def api_get_worker_profile_settings(
         "worker_token": masked_token,
         "worker_token_set": bool(token_val),
         "remote_worker_id": os.environ.get("REMOTE_RENDER_WORKER_ID", ""),
-        "use_gpu_render": os.environ.get("USE_GPU_RENDER", "false").lower() in ("true", "1", "yes"),
+        "use_gpu_render": os.environ.get("USE_GPU_RENDER", "true").lower() in ("true", "1", "yes"),
         "notion_api_key": masked_notion_token,
         "notion_api_key_set": bool(notion_token_val),
         "notion_learning_database_id": os.environ.get("NOTION_LEARNING_DATABASE_ID", ""),

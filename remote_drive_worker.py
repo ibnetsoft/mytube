@@ -76,7 +76,9 @@ class RemoteDriveWorker:
             print(f"[RemoteDriveWorker] Failed to load web admin settings: {e}")
         self.worker_id = os.getenv("REMOTE_RENDER_WORKER_ID") or f"worker-{os.getpid()}"
         self.poll_interval = int(os.getenv("REMOTE_RENDER_POLL_INTERVAL", "10"))
-        self.use_gpu = os.getenv("USE_GPU_RENDER", "false").lower() == "true"
+        # This render PC has a verified NVENC path. Operators can still set
+        # USE_GPU_RENDER=false when diagnosing a graphics-driver issue.
+        self.use_gpu = os.getenv("USE_GPU_RENDER", "true").lower() == "true"
         self.output_folder_id = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID") or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
         self.google_token_path = os.getenv("REMOTE_RENDER_GOOGLE_TOKEN_PATH") or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
         self.supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
