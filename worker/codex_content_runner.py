@@ -193,11 +193,17 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
 
 
 def _script_rhythm_contract(payload: dict[str, Any]) -> str:
-    schedule = _pacing_schedule(payload.get("target_duration_seconds"))
-    first_hook_count = min(12, len(schedule))
+    schedule = payload.get("repair_scene_schedule") or _pacing_schedule(payload.get("target_duration_seconds"))
+    first_hook_count = 0
+    for scene in schedule[:12]:
+        if int(scene.get("duration_seconds") or 0) > 6:
+            break
+        first_hook_count += 1
+    hook_rule = (f"- Scenes 1-{first_hook_count} are short opening beats: concise, vivid, and distinct, but still spoken naturally.\n"
+                 if first_hook_count else "- This existing project has no mandatory 5-second opening cuts; follow its actual scene_budgets and introduce the story naturally.\n")
     return (
         "[Script rhythm QA contract]\n"
-        f"- Scenes 1-{first_hook_count} are 5-second hook beats: concise, vivid, and distinct, but still spoken naturally.\n"
+        + hook_rule +
         "- After the hook section, each section should usually be 2-4 connected sentences or one flowing paragraph, not one dry sentence.\n"
         "- In any 5-scene window, no more than 2 sections may end with the same blunt verb ending such as 했다/였다/있었다/나왔다.\n"
         "- Avoid 3 or more consecutive sentences under 25 Korean characters unless it is a deliberate hook rhythm.\n"
@@ -630,7 +636,7 @@ class CodexStagedContentRunner:
         work_dir = OUTPUT_DIR / "codex_stage_requests"
         work_dir.mkdir(parents=True, exist_ok=True)
         # Changed instructions, rewritten text and QA feedback must never hit an old response.
-        fingerprint = hashlib.sha256(json.dumps([SENIOR_PROFILE, context, task], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+        fingerprint = hashlib.sha256(json.dumps([SENIOR_PROFILE, "supplied-legacy-only-v2", context, task], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
         request_path = work_dir / f"{job_id}.{name}.{fingerprint}.input.json"
         request_path.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
         last_error = ""
@@ -654,7 +660,7 @@ class CodexStagedContentRunner:
             )
             prompt = (f"Read {request_path}. You are AIR Studio's {name} stage. "
                        "Use only this supplied YouTube Data API research; do not web-search and do not use Gemini. "
-                       "Apply legacy_stage_directives and legacy_quality_contract from the context as mandatory instructions. "
+                       "Apply legacy_stage_directives and legacy_quality_contract when actually supplied in the context; absent legacy fields impose no additional requirements. "
                        + task + retry + " Return JSON only. Do not create or save media files or modify repository files.")
             command = [self.config.executable, "exec", "--ephemeral", "--sandbox", "read-only", "--color", "never", "-C", str(PROJECT_ROOT), "--output-last-message", str(response_path)]
             if self.config.model:

@@ -61,3 +61,17 @@ def test_newer_or_manual_edits_are_not_overwritten(monkeypatch, tmp_path, change
               "checks": {key: {"pass": True, "evidence": "The original character relationship remains consistent in the final scene."} for key in CHECKS}}
     with pytest.raises(repair.CodexContentError, match="changed during generation|user-edited narration"):
         repair._update_row("unused", {}, row, [{"scene_order": 1, "text": revised}], report)
+
+
+def test_missing_legacy_timings_preserve_total_and_known_durations():
+    scenes = [{"duration_seconds": 10}, {}, {}]
+    sections = [{"current_text": "가" * 10}, {"current_text": "나" * 30}, {"current_text": "다" * 60}]
+    durations = repair.repair_missing_scene_durations(scenes, sections, 100)
+    assert sum(durations) == 100
+    assert durations[0] == 10
+    assert durations[2] > durations[1] > 0
+
+
+def test_legacy_schedule_does_not_invent_twelve_hook_cuts():
+    contract = repair._script_rhythm_contract({"target_duration_seconds": 300, "repair_scene_schedule": [{"duration_seconds": 25}] * 12})
+    assert "no mandatory 5-second opening cuts" in contract

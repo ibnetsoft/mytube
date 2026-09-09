@@ -376,7 +376,7 @@ def _repair_with_codex_chunked(
 
 def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path, model: str, *, force: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Repair and independently review; never manufacture a passing verdict."""
-    scenes = (row.get("pregenerated_structure") or {}).get("scenes") or []
+    scenes = copy.deepcopy((row.get("pregenerated_structure") or {}).get("scenes") or [])
     if not scenes:
         raise CodexContentError("No scene structure to repair")
     payload = {"category_id": row.get("category_id"), "category_name": category_name,
@@ -384,6 +384,9 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
                "topic": row.get("topic"), "upload_title": row.get("generated_title") or row.get("topic"),
                "assigned_script_style": row.get("assigned_script_style")}
     current = _existing_sections(scenes, row.get("pregenerated_script") or "")
+    repaired_durations = repair_missing_scene_durations(scenes, current, payload["target_duration_seconds"])
+    current = _existing_sections(scenes, row.get("pregenerated_script") or "")
+    payload["repair_scene_schedule"] = [{"duration_seconds": int(s.get("duration_seconds") or s.get("target_duration") or 1)} for s in scenes]
     budgets = _repair_scene_budgets(scenes, payload, current)
     original_structure = row.get("pregenerated_structure") or {}
     compact_structure = {"story_core": original_structure.get("story_core"), "scenes": [
@@ -394,6 +397,11 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
                "original_script": row.get("pregenerated_script"), "scene_budgets": budgets,
                "structure": compact_structure, "research_bundle": original_structure.get("research_bundle") or {},
                "script_style_directive": _resolve_script_style_directive(row.get("assigned_script_style"))}
+    context["legacy_stage_directives"] = "Existing narration repair: preserve supplied scene schedule and actual media assets; apply the supplied category and senior listening contracts."
+    context["legacy_quality_contract"] = "Use senior_listening_v3, scene_budgets and script_rhythm_contract. Absent legacy rules impose no additional requirements."
+    context["generated_scene_asset_count"] = sum(bool(s.get("image_url") or s.get("video_url") or s.get("image_path") or s.get("video_path")) for s in scenes)
+    if not context["generated_scene_asset_count"]:
+        context["media_review_scope"] = "No generated scene assets are recorded. Do not fail narration because nonexistent images cannot be inspected. Preserve prompt data; note any future prompt alignment concern separately. Do not claim actual image pixels were verified."
     runner = CodexStagedContentRunner(CodexContentConfig(
         os.getenv("CODEX_EXECUTABLE", "codex"), model,
         max(120, int(os.getenv("CODEX_CONTENT_TIMEOUT_SECONDS", "1800")))))
@@ -414,6 +422,9 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
             errors.append(f"Expected {len(scenes)} sections, got {len(sections)}")
         blueprint = result.get("narrative_blueprint")
         story_core = result.get("story_core")
+        if isinstance(blueprint, dict):
+            blueprint.pop("validation", None)
+            blueprint.pop("instruction_audit", None)
         if not isinstance(blueprint, dict) or not isinstance(blueprint.get("continuity_ledger"), dict) or not blueprint["continuity_ledger"]:
             errors.append("Revised narrative_blueprint.continuity_ledger is required")
         if not isinstance(story_core, dict) or not story_core:
@@ -425,16 +436,40 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
         review = {}
         if not errors:
             review = runner._stage(job_id, "repair_senior_review", {**context, "sections": sections,
-                "structure": {**compact_structure, "story_core": story_core}, "narrative_blueprint": blueprint,
+                "structure": {**compact_structure, "story_core": story_core, "scenes": [
+                    {**s, "scene_summary": section["text"], "scene_situation": section["text"]}
+                    for s, section in zip(compact_structure["scenes"], sections)]}, "narrative_blueprint": blueprint,
                 "script": "\n\n".join(s["text"].strip() for s in sections)},
                 "Independently review the complete revised narration. Do not rewrite and do not trust author scores. "
                 "Check all nine senior listening criteria, original title and correspondence with existing scene visuals. The revised structure and narrative_blueprint are authoritative; the original script is a flawed reference, not a requirement to preserve errors. "
                 "Return {'script_quality_report':{...}} using the exact required profile and evidence-backed checks in category_narration_voice.")
             errors += review_issues(review.get("script_quality_report"))
         if not errors:
-            return sections, {**review["script_quality_report"], "repaired_story_core": story_core, "repaired_narrative_blueprint": blueprint}
+            return sections, {**review["script_quality_report"], "repaired_story_core": story_core, "repaired_narrative_blueprint": blueprint, "repaired_scene_durations": repaired_durations}
         context = {**context, "previous_revision": sections, "rejection": errors, "independent_review": review}
     raise CodexContentError("Senior repair rejected: " + "; ".join(errors[:12]))
+
+
+def repair_missing_scene_durations(scenes: list[dict[str, Any]], sections: list[dict[str, Any]], total: int) -> list[int]:
+    """Allocate only absent durations; never turn missing legacy timings into 1s cuts."""
+    durations = [int(s.get("duration_seconds") or s.get("target_duration") or 0) for s in scenes]
+    missing = [i for i, duration in enumerate(durations) if duration <= 0]
+    if not missing:
+        return []
+    remaining = total - sum(d for d in durations if d > 0)
+    if remaining < len(missing):
+        raise CodexContentError("Insufficient total duration to restore missing scene timings")
+    weights = [max(1, len(str(sections[i].get("current_text") or ""))) for i in missing]
+    available = remaining - len(missing)
+    shares = [available * weight / sum(weights) for weight in weights]
+    allocated = [1 + int(share) for share in shares]
+    for i in sorted(range(len(missing)), key=lambda i: shares[i] % 1, reverse=True)[:remaining - sum(allocated)]:
+        allocated[i] += 1
+    for index, duration in zip(missing, allocated):
+        scenes[index]["duration_seconds"] = duration
+        scenes[index]["target_duration"] = duration
+        durations[index] = duration
+    return durations
 
 
 def _repair_with_codex_legacy(row: dict[str, Any], category_name: str, output_dir: Path, model: str, *, force: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -687,6 +722,12 @@ def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sec
         text = by_order.get(order) or by_order.get(index) or ""
         scene["scene_text"] = text
         scene["narration"] = text
+        scene["scene_summary"] = text
+        scene["scene_situation"] = text
+        durations = report.get("repaired_scene_durations") or []
+        if durations and not (scene.get("duration_seconds") or scene.get("target_duration")):
+            scene["duration_seconds"] = durations[index - 1]
+            scene["target_duration"] = durations[index - 1]
         parts.append(text)
     script = "\n\n".join(part for part in parts if part).strip()
     repair_report = {
