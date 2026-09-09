@@ -571,6 +571,7 @@ export default function StdPortalPage() {
     const [authChecking, setAuthChecking] = useState(true)
     const [loading, setLoading] = useState(false)
     const [projectLoading, setProjectLoading] = useState(false)
+    const [submittingProjectId, setSubmittingProjectId] = useState('')
     const [message, setMessage] = useState('')
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
@@ -5458,6 +5459,7 @@ export default function StdPortalPage() {
     const submitProject = async (projectOverride?: SelectedProjectPayload) => {
         const targetProject = projectOverride || selectedProject
         if (!targetProject) return
+        if (submittingProjectId) return
         if (!projectOverride && !(await ensureScriptSyncedBeforeAction())) return
         const targetPayload = targetProject.project?.project_payload || {}
         const pStatus = getProjectStepStatus(
@@ -5481,7 +5483,8 @@ export default function StdPortalPage() {
         }
         if (!confirm('모든 단계가 정상 완료되었습니다. 에셋 검증 및 원격 렌더 큐 제출을 진행하시겠습니까?')) return
         setLoading(true)
-        setMessage('')
+        setSubmittingProjectId(String(targetProject.project.id))
+        setMessage('제출 준비 중입니다. 생성 이미지를 Google Drive 보관본으로 확인하고 렌더 큐에 등록합니다...')
         try {
             const res = await fetch(`/api/std/projects/${targetProject.project.id}/submit`, {
                 method: 'POST',
@@ -5495,12 +5498,15 @@ export default function StdPortalPage() {
                 throw new Error((payload.error || '제출 실패') + missing)
             }
             setMessage('✅ 원격 렌더 큐에 성공적으로 등록되었습니다!')
+            await loadStdData(token, { showLoading: false })
+            alert('프로젝트가 원격 렌더 큐에 등록되었습니다.')
         } catch (error: any) {
             const errorMessage = error?.message || '제출 실패'
             setMessage(`❌ ${errorMessage}`)
             alert(`프로젝트 제출 실패: ${errorMessage}`)
         } finally {
             setLoading(false)
+            setSubmittingProjectId('')
         }
     }
 
@@ -10498,13 +10504,22 @@ export default function StdPortalPage() {
                                                                         >
                                                                             <span className="text-xs font-black leading-none text-emerald-400">⏎</span>
                                                                         </button>
+                                                                    ) : submittingProjectId === String(p.id) ? (
+                                                                        <button
+                                                                            disabled
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-md mx-auto cursor-wait transition-all"
+                                                                            title="제출 준비 중: 생성 이미지 보관 및 원격 렌더 큐 등록을 진행하고 있습니다."
+                                                                        >
+                                                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                                        </button>
                                                                     ) : pStatus.allDone ? (
                                                                         <button
                                                                             onClick={async () => {
                                                                                 const openedProject = await openProject(p.id)
                                                                                 if (openedProject) await submitProject(openedProject)
                                                                             }}
-                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
+                                                                            disabled={Boolean(submittingProjectId)}
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-wait text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
                                                                             title="모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수"
                                                                         >
                                                                             <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
