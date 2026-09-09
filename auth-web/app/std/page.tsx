@@ -7617,6 +7617,7 @@ export default function StdPortalPage() {
                                             title="글자 크기 (%)"
                                         />
                                         <span className="text-[11px] text-gray-400">%</span>
+                                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">줄간격</span>
                                         <input
                                             type="number"
                                             value={subLineSpacing}
@@ -7631,6 +7632,7 @@ export default function StdPortalPage() {
                                             max="1.5"
                                             title="자간/행간 비율"
                                         />
+                                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">최대글자수</span>
                                         <input
                                             type="number"
                                             value={subMaxChars}
