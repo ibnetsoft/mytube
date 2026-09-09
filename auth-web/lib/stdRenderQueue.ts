@@ -1,11 +1,14 @@
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
+import { isStdRequiredVideoScene } from './stdPolicy'
 import {
     downloadStdDriveFile,
     driveFileLink,
     driveFolderLink,
     ensureStdProjectDriveFolders,
+    folderForAssetType,
     upsertStdDriveJsonFile,
+    uploadStdDriveBuffer,
 } from './stdGoogleDrive'
 
 type ZipEntry = {
@@ -33,6 +36,114 @@ export function stdWebPseudoProjectId(topicQueueId: any): number {
 
 function activeAsset(asset: any) {
     return ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+}
+
+function generatedImageStorageSource(scene: any) {
+    const metadata = scene?.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}
+    const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
+    const coworkAsset = metadata?.cowork_image_asset || nestedMetadata?.cowork_image_asset || {}
+    const bucket = String(coworkAsset?.bucket || metadata?.storage_bucket || nestedMetadata?.storage_bucket || '').trim()
+    const path = String(
+        coworkAsset?.object_path
+        || metadata?.storage_path
+        || metadata?.storage_object_path
+        || nestedMetadata?.storage_path
+        || nestedMetadata?.storage_object_path
+        || ''
+    ).trim().replace(/^\/+/, '')
+    return bucket && path ? { bucket, path } : null
+}
+
+export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
+    const activeAssets = Array.isArray(assets) ? [...assets] : []
+    const missingGeneratedImages = (scenes || []).filter((scene: any) => {
+        const sceneNumber = Number(scene?.scene_number)
+        if (
+            !Number.isFinite(sceneNumber)
+            || sceneNumber <= 0
+            || isStdRequiredVideoScene(sceneNumber)
+            || !generatedImageStorageSource(scene)
+        ) return false
+        return !activeAssets.some((asset: any) => (
+            activeAsset(asset)
+            && String(asset?.asset_type || '').toLowerCase() === 'image'
+            && Number(asset?.scene_number) === sceneNumber
+            && String(asset?.drive_file_id || '').trim()
+        ))
+    })
+    if (missingGeneratedImages.length === 0) return activeAssets
+
+    const folders = await ensureStdProjectDriveFolders(project)
+    const targetFolderId = folderForAssetType(folders, 'image')
+    for (const scene of missingGeneratedImages) {
+        const sceneNumber = Number(scene.scene_number)
+        const source = generatedImageStorageSource(scene)
+        if (!source) continue
+        const { data: storageFile, error: storageError } = await supabaseAdmin.storage
+            .from(source.bucket)
+            .download(source.path)
+        if (storageError || !storageFile) {
+            throw new Error(`생성 이미지 ${sceneNumber}번을 Supabase Storage에서 읽을 수 없습니다: ${storageError?.message || 'missing file'}`)
+        }
+
+        const driveFile = await uploadStdDriveBuffer(
+            targetFolderId,
+            `scene_${String(sceneNumber).padStart(3, '0')}.png`,
+            Buffer.from(await storageFile.arrayBuffer()),
+            'image/png',
+            `AIR Studio generated scene image archive for project ${project.id}`
+        )
+        const existingAsset = activeAssets.find((asset: any) => (
+            activeAsset(asset)
+            && String(asset?.asset_type || '').toLowerCase() === 'image'
+            && Number(asset?.scene_number) === sceneNumber
+        ))
+        const metadata = {
+            ...(existingAsset?.metadata || {}),
+            storage_bucket: source.bucket,
+            storage_path: source.path,
+            storage_public_url: supabaseAdmin.storage.from(source.bucket).getPublicUrl(source.path).data.publicUrl,
+            web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+            thumbnail_link: driveFile.thumbnailLink || null,
+            upload_mode: 'worker_generated_supabase_then_server_drive',
+        }
+        const assetPayload = {
+            scene_id: scene?.id || existingAsset?.scene_id || null,
+            scene_number: sceneNumber,
+            asset_type: 'image',
+            drive_file_id: driveFile.id,
+            drive_folder_id: targetFolderId,
+            file_name: driveFile.name || `scene_${String(sceneNumber).padStart(3, '0')}.png`,
+            mime_type: driveFile.mimeType || 'image/png',
+            file_size: driveFile.size ? Number(driveFile.size) : null,
+            status: 'assigned',
+            metadata,
+            updated_at: new Date().toISOString(),
+        }
+        let archivedAsset: any = null
+        if (existingAsset?.id) {
+            const { data, error } = await supabaseAdmin
+                .from('std_project_assets')
+                .update(assetPayload)
+                .eq('id', existingAsset.id)
+                .select('*')
+                .single()
+            if (error) throw new Error(error.message)
+            archivedAsset = data
+            const index = activeAssets.findIndex((asset: any) => asset.id === existingAsset.id)
+            if (index >= 0 && archivedAsset) activeAssets[index] = archivedAsset
+        } else {
+            const { data, error } = await supabaseAdmin
+                .from('std_project_assets')
+                .insert({ project_id: project.id, ...assetPayload })
+                .select('*')
+                .single()
+            if (error) throw new Error(error.message)
+            archivedAsset = data
+            if (archivedAsset) activeAssets.push(archivedAsset)
+        }
+    }
+    return activeAssets
 }
 
 function isAudioAsset(asset: any) {
@@ -560,7 +671,8 @@ export async function enqueueStdProjectRender(projectId: string) {
 
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
     const folders = await ensureStdProjectDriveFolders(project)
-    const renderConfig = buildDriveFolderRenderConfig(project, scenes, assets, pseudoProjectId)
+    const archivedAssets = await ensureStdGeneratedSceneAssetsArchived(project, scenes, assets)
+    const renderConfig = buildDriveFolderRenderConfig(project, scenes, archivedAssets, pseudoProjectId)
     const scriptFile = await upsertStdDriveJsonFile(folders.projectFolderId, 'script.json', {
         project_id: project.id,
         topic_queue_id: project.topic_queue_id,

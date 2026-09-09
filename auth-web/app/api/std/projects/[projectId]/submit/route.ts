@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
-import { enqueueStdProjectRender } from '@/lib/stdRenderQueue'
+import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '@/lib/stdRenderQueue'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,10 +24,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Project is closed' }, { status: 409 })
     }
 
-    const [{ data: scenes, error: scenesError }, { data: assets, error: assetsError }] = await Promise.all([
+    const [{ data: scenes, error: scenesError }, { data: loadedAssets, error: assetsError }] = await Promise.all([
         supabaseAdmin
             .from('std_project_scenes')
-            .select('id,scene_number')
+            .select('id,scene_number,metadata')
             .eq('project_id', project.id),
         supabaseAdmin
             .from('std_project_assets')
@@ -47,7 +47,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }, { status: 409 })
     }
 
-    const visualAssets = (assets || []).filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
+    let assets = loadedAssets || []
+    try {
+        assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
+    } catch (archiveError: any) {
+        return NextResponse.json({
+            success: false,
+            error: archiveError?.message || 'Failed to archive generated scene images for render',
+        }, { status: 500 })
+    }
+
+    const visualAssets = assets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const activeSceneNumbers = new Set(visualAssets.map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
     const activeVideoSceneNumbers = new Set(
         visualAssets
