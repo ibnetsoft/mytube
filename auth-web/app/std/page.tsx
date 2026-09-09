@@ -1162,7 +1162,7 @@ export default function StdPortalPage() {
         if (Number.isFinite(designStep) && designStep > 0) setThumbStep(Math.floor(designStep))
         const nextLayers = normalizeThumbTextLayers(design.text_layers || design.textLayers || [])
         if (nextLayers.length > 0) setThumbTextLayers(nextLayers)
-        const designBgUrl = sanitizeAssetUrl(design.bg_url || design.thumbnail_url || projectPayload.thumbnail_url || progressPayload.thumbnail_url)
+        const designBgUrl = sanitizeAssetUrl(design.editor_bg_url || design.bg_url || design.thumbnail_url || projectPayload.thumbnail_url || progressPayload.thumbnail_url)
         if (designBgUrl) {
             setThumbBgUrl(designBgUrl)
             setThumbBgUploadFile(null)
@@ -3234,9 +3234,10 @@ export default function StdPortalPage() {
         const thumbnailAsset = assets.find((asset: any) =>
             String(asset?.asset_type || '').toLowerCase() === 'thumbnail' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
+        const editorThumbnailUrl = sanitizeAssetUrl(projectPayload?.project?.project_payload?.thumbnail_design?.editor_bg_url)
         const fallbackThumbnailUrl = sanitizeAssetUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
-        if (restoredThumbnailUrl || fallbackThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset)) {
-            setThumbBgUrl(restoredThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset) || fallbackThumbnailUrl)
+        if (editorThumbnailUrl || restoredThumbnailUrl || fallbackThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset)) {
+            setThumbBgUrl(editorThumbnailUrl || restoredThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset) || fallbackThumbnailUrl)
             setThumbBgUploadFile(null)
         }
 
@@ -5130,7 +5131,7 @@ export default function StdPortalPage() {
         event.target.value = ''
     }
 
-    const uploadThumbnailBgToDrive = async (file: File) => {
+    const uploadThumbnailBgToDrive = async (file: File, updateEditorPreview = true) => {
         if (!selectedProject?.project?.id) return
         setUploadingKey('thumbnail-upload')
         setMessage('썸네일 이미지를 업로드하는 중...')
@@ -5204,7 +5205,7 @@ export default function StdPortalPage() {
                 rememberProjectState(updated)
                 return updated
             })
-            setThumbBgUrl(persistedThumbnailUrl)
+            if (updateEditorPreview) setThumbBgUrl(persistedThumbnailUrl)
             setThumbBgUploadFile(null)
             setMessage('썸네일 이미지가 Google Drive에 저장되었습니다.')
             return persistedThumbnailUrl
@@ -5213,16 +5214,72 @@ export default function StdPortalPage() {
         }
     }
 
-    const markThumbnailConfirmed = async (thumbnailUrlOverride?: string) => {
+    const createFinalThumbnailFile = async () => {
+        const sourceUrl = String(thumbBgUrl || '').trim()
+        if (!sourceUrl) throw new Error('확정할 썸네일 배경 이미지가 없습니다.')
+
+        const source = await fetch(sourceUrl, {
+            headers: isSameOriginApiAudioUrl(sourceUrl) ? authedJsonHeaders : undefined,
+        })
+        if (!source.ok) throw new Error(`썸네일 배경 이미지를 불러오지 못했습니다. (${source.status})`)
+        const sourceBlob = await source.blob()
+        if (!sourceBlob.type.startsWith('image/')) throw new Error('썸네일 배경이 이미지 파일이 아닙니다.')
+
+        const imageUrl = URL.createObjectURL(sourceBlob)
+        try {
+            const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+                const element = new Image()
+                element.onload = () => resolve(element)
+                element.onerror = () => reject(new Error('썸네일 배경 이미지를 캔버스에 그리지 못했습니다.'))
+                element.src = imageUrl
+            })
+            const canvas = document.createElement('canvas')
+            canvas.width = 1280
+            canvas.height = 720
+            const context = canvas.getContext('2d')
+            if (!context) throw new Error('썸네일 캔버스를 만들지 못했습니다.')
+
+            const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight)
+            const drawWidth = image.naturalWidth * scale
+            const drawHeight = image.naturalHeight * scale
+            context.drawImage(image, (canvas.width - drawWidth) / 2, (canvas.height - drawHeight) / 2, drawWidth, drawHeight)
+
+            for (const layer of normalizeThumbTextLayers(thumbTextLayers)) {
+                const fontSize = Math.max(12, Number(layer.fontSize) || 28)
+                const strokeWidth = Math.max(0, Number(layer.strokeWidth) || 0)
+                context.font = `900 ${fontSize}px ${layer.fontFamily || 'sans-serif'}`
+                context.textAlign = 'center'
+                context.textBaseline = 'middle'
+                context.lineJoin = 'round'
+                context.fillStyle = layer.color || '#ffffff'
+                context.strokeStyle = layer.strokeColor || '#000000'
+                context.lineWidth = strokeWidth * 2
+                const x = (Number(layer.x) || 50) * canvas.width / 100
+                const y = (Number(layer.y) || 50) * canvas.height / 100
+                if (strokeWidth > 0) context.strokeText(layer.text, x, y)
+                context.fillText(layer.text, x, y)
+            }
+
+            const pngBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+            if (!pngBlob) throw new Error('최종 썸네일 PNG 생성에 실패했습니다.')
+            return new File([pngBlob], `std_thumbnail_${Date.now()}.png`, { type: 'image/png' })
+        } finally {
+            URL.revokeObjectURL(imageUrl)
+        }
+    }
+
+    const markThumbnailConfirmed = async (thumbnailUrlOverride?: string, editorBgUrlOverride?: string) => {
         if (!selectedProject?.project?.id) return
         const confirmedAt = new Date().toISOString()
         const savedThumbnailUrl = thumbnailUrlOverride || thumbBgUrl || ''
+        const editorBgUrl = editorBgUrlOverride || thumbBgUrl || ''
         const thumbnailDesign = {
             title: thumbTitle,
             layout: thumbLayout,
             style: thumbStyle,
             step: thumbStep,
-            bg_url: savedThumbnailUrl,
+            bg_url: editorBgUrl,
+            editor_bg_url: editorBgUrl,
             thumbnail_url: savedThumbnailUrl,
             text_layers: normalizeThumbTextLayers(thumbTextLayers),
             saved_at: confirmedAt,
@@ -9805,15 +9862,16 @@ export default function StdPortalPage() {
                                     </h3>
                                     <button
                                         type="button"
-                                        onClick={async () => {
-                                            try {
-                                                let persistedThumbnailUrl: string | undefined
-                                                if (thumbBgUploadFile) {
-                                                    persistedThumbnailUrl = await uploadThumbnailBgToDrive(thumbBgUploadFile)
-                                                }
-                                                await markThumbnailConfirmed(persistedThumbnailUrl)
-                                                alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
-                                            } catch (error: any) {
+                                            onClick={async () => {
+                                                try {
+                                                    const editorBackgroundUrl = thumbBgUrl
+                                                    const finalThumbnailFile = await createFinalThumbnailFile()
+                                                    const persistedThumbnailUrl = await uploadThumbnailBgToDrive(finalThumbnailFile, false)
+                                                    if (!persistedThumbnailUrl) throw new Error('최종 썸네일 파일 URL을 받지 못했습니다.')
+                                                    await markThumbnailConfirmed(persistedThumbnailUrl, editorBackgroundUrl)
+                                                    setMessage('최종 썸네일 이미지와 편집 디자인이 저장되었습니다.')
+                                                    alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
+                                                } catch (error: any) {
                                                 alert(error.message || '썸네일 이미지 업로드에 실패했습니다.')
                                             }
                                         }}
@@ -9981,6 +10039,15 @@ export default function StdPortalPage() {
                                                     src={thumbBgUrl}
                                                     alt="Thumbnail BG"
                                                     className="w-full h-full object-cover"
+                                                    onError={event => {
+                                                        event.currentTarget.onerror = null
+                                                        const fallback = String(selectedProject?.scenes?.[0]?.image_url || '').trim()
+                                                        if (fallback && fallback !== thumbBgUrl) {
+                                                            setThumbBgUrl(fallback)
+                                                            setThumbBgUploadFile(null)
+                                                            setMessage('저장된 썸네일 배경을 불러오지 못해 1번 씬 이미지를 대신 표시했습니다.')
+                                                        }
+                                                    }}
                                                 />
 
                                                 {/* 텍스트 레이어 오버레이 */}
