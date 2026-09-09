@@ -877,6 +877,7 @@ export default function StdPortalPage() {
     } | null>(null)
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
+    const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -2744,6 +2745,27 @@ export default function StdPortalPage() {
         return URL.createObjectURL(audioBlob)
     }
 
+    const getSavedNarrationAudioUrl = async () => {
+        const projectId = String(selectedProject?.project?.id || '').trim()
+        const asset = (selectedProject?.assets || []).find((item: any) =>
+            String(item?.asset_type || '').toLowerCase() === 'audio'
+            && ['uploaded', 'assigned'].includes(String(item?.status || ''))
+        )
+        const assetId = String(asset?.id || '').trim()
+        if (!projectId || !assetId) return null
+
+        if (vrewFinalNarrationAudioRef.current?.assetId === assetId) {
+            return vrewFinalNarrationAudioRef.current.url
+        }
+
+        const endpoint = `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?assetId=${encodeURIComponent(assetId)}`
+        const url = await fetchVrewAudioBlobUrl(endpoint)
+        const previous = vrewFinalNarrationAudioRef.current
+        if (previous?.url) URL.revokeObjectURL(previous.url)
+        vrewFinalNarrationAudioRef.current = { assetId, url }
+        return url
+    }
+
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
@@ -2833,6 +2855,11 @@ export default function StdPortalPage() {
     }
 
     const prefetchVrewSegment = (index: number) => {
+        const hasSavedNarration = (selectedProject?.assets || []).some((asset: any) =>
+            String(asset?.asset_type || '').toLowerCase() === 'audio'
+            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+        )
+        if (hasSavedNarration) return
         const subtitle = localSubtitles[index]
         if (!subtitle) return
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
@@ -2847,6 +2874,69 @@ export default function StdPortalPage() {
         const cancelToken = vrewPlaybackCancelRef.current + 1
         vrewPlaybackCancelRef.current = cancelToken
         setIsPlayingPreview(true)
+
+        const savedNarrationUrl = await getSavedNarrationAudioUrl()
+        if (vrewPlaybackCancelRef.current !== cancelToken) return
+        if (savedNarrationUrl) {
+            const startSubtitle = localSubtitles[Math.max(0, startIndex)]
+            const startTime = Number(startSubtitle?.start_num ?? startSubtitle?.start_time ?? 0) || 0
+            setMessage('저장된 최종 TTS로 자막 미리듣기 재생 중...')
+
+            await new Promise<void>((resolve, reject) => {
+                const audio = new Audio(savedNarrationUrl)
+                vrewAudioRef.current = audio
+                audio.preload = 'auto'
+                const cleanup = () => {
+                    if (vrewProgressTimerRef.current) {
+                        clearInterval(vrewProgressTimerRef.current)
+                        vrewProgressTimerRef.current = null
+                    }
+                    audio.onloadedmetadata = null
+                    audio.onended = null
+                    audio.onerror = null
+                }
+                const syncPlaybackProgress = () => {
+                    const time = Math.max(0, audio.currentTime)
+                    setPlaybackTime(Math.round(time * 10) / 10)
+                    const activeIndex = localSubtitles.findIndex((subtitle: any) => {
+                        const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
+                        const end = Number(subtitle?.end_num ?? subtitle?.end_time ?? start)
+                        return time >= start && time < end
+                    })
+                    if (activeIndex < 0) {
+                        setVrewActiveTokenIndex(-1)
+                        return
+                    }
+                    setSelectedSubIndex(activeIndex)
+                    setVrewActiveTokenIndex(vrewActiveTokenAtPlaybackTime(localSubtitles[activeIndex], time))
+                }
+                audio.onloadedmetadata = () => {
+                    audio.currentTime = Math.min(startTime, Math.max(0, Number(audio.duration) || 0))
+                    syncPlaybackProgress()
+                    vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
+                    audio.play().catch(error => {
+                        cleanup()
+                        reject(error)
+                    })
+                }
+                audio.onended = () => {
+                    cleanup()
+                    setVrewActiveTokenIndex(-1)
+                    resolve()
+                }
+                audio.onerror = () => {
+                    cleanup()
+                    reject(new Error('최종 TTS 음성 재생에 실패했습니다.'))
+                }
+                audio.load()
+            })
+
+            if (vrewPlaybackCancelRef.current === cancelToken) {
+                setIsPlayingPreview(false)
+                setMessage('자막 미리듣기가 완료되었습니다.')
+            }
+            return
+        }
 
         for (let index = Math.max(0, startIndex); index < localSubtitles.length; index += 1) {
             if (vrewPlaybackCancelRef.current !== cancelToken) return
@@ -3005,6 +3095,9 @@ export default function StdPortalPage() {
         return () => {
             stopVrewPlayback()
             Object.values(vrewAudioCacheRef.current).forEach(url => URL.revokeObjectURL(url))
+            if (vrewFinalNarrationAudioRef.current?.url) {
+                URL.revokeObjectURL(vrewFinalNarrationAudioRef.current.url)
+            }
             vrewAudioPromiseRef.current.clear()
         }
     }, [])
