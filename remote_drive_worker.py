@@ -139,6 +139,18 @@ class RemoteDriveWorker:
         rows = self._request("GET", self.queue_url, params=params) or []
         return rows[0] if rows else None
 
+    def get_job(self, job_id):
+        rows = self._request(
+            "GET",
+            self.queue_url,
+            params={
+                "select": "id,status,progress,message,error_message",
+                "id": f"eq.{job_id}",
+                "limit": "1",
+            },
+        ) or []
+        return rows[0] if rows else None
+
     def check(self):
         print("[RemoteDriveWorker] Configuration check")
         print(f"  worker_id: {self.worker_id}")

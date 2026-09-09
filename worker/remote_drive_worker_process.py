@@ -51,6 +51,7 @@ def _job_summary(job: dict) -> dict:
         "project_id": job.get("project_id"),
         "project_name": job.get("project_name"),
         "asset_file_name": job.get("asset_file_name"),
+        "progress_message": job.get("message") or "",
     }
 
 
@@ -88,7 +89,14 @@ def main():
             def refresh_heartbeat():
                 while not heartbeat_stop.wait(10):
                     try:
-                        write_state("running", summary, int(claimed.get("progress") or 1))
+                        latest_job = worker.get_job(claimed["id"]) or claimed
+                        latest_summary = {**summary, "progress_message": latest_job.get("message") or ""}
+                        write_state(
+                            "running",
+                            latest_summary,
+                            int(latest_job.get("progress") or 1),
+                            latest_job.get("error_message") or None,
+                        )
                     except Exception:
                         logger.exception("Failed to refresh Remote Drive Worker heartbeat")
 
