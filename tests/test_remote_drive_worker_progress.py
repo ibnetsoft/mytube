@@ -14,6 +14,7 @@ def test_remote_worker_process_refreshes_dashboard_progress_from_the_queue():
 
 
 def test_drive_renderer_reports_local_progress_file_back_to_the_remote_queue():
+    assert "import threading" in REMOTE_WORKER
     assert 'progress_file = os.path.join(temp_dir, "progress.txt")' in REMOTE_WORKER
     assert "def sync_render_progress():" in REMOTE_WORKER
     assert "self.update_job(job_id, progress=progress, message=message)" in REMOTE_WORKER
