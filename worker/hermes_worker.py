@@ -9820,6 +9820,19 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
     if quality_errors:
         raise RuntimeError("Codex content package failed quality gate: " + "; ".join(quality_errors[:12]))
 
+    # Recheck after finishing/normalization, immediately before any completed artifact is saved.
+    from senior_script_guard import text_issues, review_issues
+    senior_errors = text_issues([
+        {"scene_order": 1, "text": package.get("script")},
+    ], payload) + review_issues(package.get("script_quality_report"))
+    senior_errors += text_issues([
+        {"scene_order": index, "text": scene.get("scene_text") or scene.get("narration")}
+        if isinstance(scene, dict) else {}
+        for index, scene in enumerate(package["structure"]["scenes"], 1)
+    ], payload)
+    if senior_errors:
+        raise RuntimeError("Codex senior listening gate rejected save: " + "; ".join(senior_errors[:12]))
+    package["generation_models"]["script_senior_review"] = "codex-cli"
     job_store.transition(job_id, job_store.UPLOADING, reason="saving Codex content package")
     write_state("running", job, 90, job_id)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

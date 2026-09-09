@@ -9,6 +9,7 @@ never asks Codex to create, crop, or save image assets.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import subprocess
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from worker_config import OUTPUT_DIR, PROJECT_ROOT
+from senior_script_guard import PROFILE as SENIOR_PROFILE, contract as senior_contract, text_issues, review_issues
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -127,6 +129,9 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
         payload.get("upload_title"),
     )
 
+    # An explicit category wins over generic presets such as script_style='story'.
+    if category_id in {"2", "3", "4", "5", "6", "7", "8", "9", "12", "13"}:
+        blob = ""
     universal = (
         "[Universal narration rules]\n"
         "- Write spoken narration, not scene-card summaries.\n"
@@ -136,7 +141,7 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
         "- Preserve the exact scene count and character budgets, but make the full script sound continuous when read aloud."
     )
 
-    if category_id == "2" or any(key in blob for key in ("옛날이야기", "old_story", "folktale", "folk tale", "story", "joseon_sageuk")):
+    if category_id == "2" or any(key in blob for key in ("옛날이야기", "old_story", "folktale", "folk tale", "joseon_sageuk")):
         voice = (
             "[Category narration voice: 옛날이야기]\n"
             "A warm Korean folk-storyteller is telling the tale directly to listeners. Use 구수한 구연체, gentle suspense, "
@@ -168,7 +173,11 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
             "Write with martial-arts chapter energy: honor, grudge, discipline, restrained menace, decisive choices, and archaic cadence "
             "where natural. Keep action concrete and rhythmic. Avoid modern slang and avoid dry mission-report sentences."
         )
-    elif any(key in blob for key in ("황혼", "19금", "twilight", "mature")):
+    elif category_id in {"3", "8"}:
+        voice = "[Category narration voice: financial explanation] Calm, respectful spoken explanation. Define jargon and numerical assumptions. No fear-driven prophecy or unsupported advice."
+    elif category_id in {"12", "13"}:
+        voice = "[Category narration voice: localized folktale] Use natural adult oral storytelling in the requested English or Japanese language, not Korean."
+    elif category_id == "9" or any(key in blob for key in ("황혼", "19금", "twilight", "mature")):
         voice = (
             "[Category narration voice: 황혼19금]\n"
             "Write as mature restrained melodrama for adults: loneliness, late-life desire, regret, secrecy, and dignity. Keep it suggestive "
@@ -180,7 +189,7 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
             "Write natural long-form Korean narration with clear emotional continuity, varied sentence rhythm, and scene-to-scene flow."
         )
 
-    return f"{voice}\n\n{universal}"
+    return f"{voice}\n\n{universal}\n\n{senior_contract(payload)}"
 
 
 def _script_rhythm_contract(payload: dict[str, Any]) -> str:
@@ -325,6 +334,16 @@ def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = 
         raise CodexContentError("Codex response requires structure.scenes")
     if not isinstance(package.get("publish_metadata"), dict):
         raise CodexContentError("Codex response requires publish_metadata object")
+    raw_script = package.get("script")
+    sections = [{"scene_order": i, "text": text} for i, text in enumerate(raw_script.split("\n\n"), 1)] if isinstance(raw_script, str) else []
+    issues = text_issues(sections, payload or {}) + review_issues(package.get("script_quality_report"))
+    issues += text_issues([
+        {"scene_order": i, "text": scene.get("scene_text") or scene.get("narration")}
+        if isinstance(scene, dict) else {}
+        for i, scene in enumerate(structure["scenes"], 1)
+    ], payload or {})
+    if issues:
+        raise CodexContentError("senior script gate rejected package: " + "; ".join(issues[:12]))
     schedule = _pacing_schedule((payload or {}).get("target_duration_seconds"))
     if schedule:
         scenes = structure["scenes"]
@@ -465,6 +484,13 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
 class CodexContentRunner:
     """Run one isolated, read-only Codex content generation session."""
 
+    def _review(self, job_id: str, package: dict[str, Any], payload: dict[str, Any]) -> None:
+        result = CodexStagedContentRunner(self.config)._stage(job_id, "02c_senior_review", {
+            **payload, "script": package.get("script"), "structure": package.get("structure"),
+            "narrative_blueprint": package.get("narrative_blueprint"),
+        }, "Independently review the exact full script against the mandatory senior listening contract. Do not rewrite or trust author self-scores. Return only script_quality_report with the required profile, verdict, score, critical_issues and all evidence-backed checks. Fail unresolved contradictions and unsupported factual claims.")
+        package["script_quality_report"] = result.get("script_quality_report")
+
     def __init__(self, config: CodexContentConfig | None = None):
         self.config = config or CodexContentConfig.from_environment()
 
@@ -472,7 +498,7 @@ class CodexContentRunner:
         work_dir = OUTPUT_DIR / "codex_content_requests"
         work_dir.mkdir(parents=True, exist_ok=True)
         request_path = work_dir / f"{job_id}.input.json"
-        response_path = work_dir / f"{job_id}.response.json"
+        response_path = work_dir / f"{job_id}.{SENIOR_PROFILE}.response.json"
         script_style_directive = _resolve_script_style_directive(
             payload.get("assigned_script_style") or payload.get("script_style")
         )
@@ -488,9 +514,10 @@ class CodexContentRunner:
         # A retry after a downstream quality/compatibility failure should reuse
         # the already completed Codex response, not spend another generation.
         cached_job_id = str(payload.get("reuse_response_job_id") or job_id).strip()
-        cached_response_path = work_dir / f"{cached_job_id}.response.json"
+        cached_response_path = work_dir / f"{cached_job_id}.{SENIOR_PROFILE}.response.json"
         if cached_response_path.exists():
             cached = _normalize_package(_parse_json(cached_response_path.read_text(encoding="utf-8")), payload)
+            self._review(job_id, cached, payload)
             _validate_package(cached, payload)
             _validate_title_uniqueness(cached, payload)
             return cached
@@ -587,6 +614,7 @@ you have checked the package yourself.
         if not response_path.exists():
             raise CodexContentError("Codex completed without an output message file")
         package = _normalize_package(_parse_json(response_path.read_text(encoding="utf-8")), payload)
+        self._review(job_id, package, payload)
         _validate_package(package, payload)
         _validate_title_uniqueness(package, payload)
         return package
@@ -601,14 +629,16 @@ class CodexStagedContentRunner:
     def _stage(self, job_id: str, name: str, context: dict[str, Any], task: str) -> dict[str, Any]:
         work_dir = OUTPUT_DIR / "codex_stage_requests"
         work_dir.mkdir(parents=True, exist_ok=True)
-        request_path = work_dir / f"{job_id}.{name}.input.json"
+        # Changed instructions, rewritten text and QA feedback must never hit an old response.
+        fingerprint = hashlib.sha256(json.dumps([SENIOR_PROFILE, context, task], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+        request_path = work_dir / f"{job_id}.{name}.{fingerprint}.input.json"
         request_path.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
         last_error = ""
         # Match the original worker's bounded recovery policy: a failed
         # provider response is retried once with the failure fed back, never
         # replaced by a synthetic plan/script/prompt.
         for attempt in range(2):
-            response_path = work_dir / f"{job_id}.{name}.attempt-{attempt + 1}.response.json"
+            response_path = work_dir / f"{job_id}.{name}.{fingerprint}.attempt-{attempt + 1}.response.json"
             # A downstream validation retry should reuse the already valid
             # creative stages. Metadata is intentionally regenerated because
             # its validation is performed after this helper returns.
@@ -700,10 +730,23 @@ class CodexStagedContentRunner:
             if len(qa_sections) != len(scenes):
                 raise CodexContentError(f"script QA requires {len(scenes)} sections; got {len(qa_sections)}")
             rhythm_warnings = _script_rhythm_warnings(qa_sections)
+            rhythm_warnings += text_issues(qa_sections, payload)
+            if not rhythm_warnings:
+                review = self._stage(job_id, "02c_senior_review", {
+                    **script_context,
+                    "sections": qa_sections,
+                    "script": "\n\n".join(s["text"].strip() for s in qa_sections),
+                }, "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
+                   "Compare the cast, timeline, object custody, character knowledge and title promise across the entire script. Check factual claims against supplied evidence. "
+                   "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in category_narration_voice's senior listening contract.")
+                qa["script_quality_report"] = review.get("script_quality_report")
+                rhythm_warnings += review_issues(qa["script_quality_report"])
+                if rhythm_warnings:
+                    qa_context["independent_review_feedback"] = review
             if not rhythm_warnings:
                 break
             if qa_attempt:
-                raise CodexContentError("script QA failed rhythm contract: " + "; ".join(rhythm_warnings))
+                raise CodexContentError("script QA failed senior listening contract: " + "; ".join(rhythm_warnings))
             qa_context = {
                 **qa_context,
                 "script": "\n\n".join(

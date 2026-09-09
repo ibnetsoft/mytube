@@ -2,6 +2,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import pytest
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -12,16 +13,22 @@ if str(WORKER) not in sys.path:
     sys.path.insert(0, str(WORKER))
 
 import codex_content_runner as runner_module
+from senior_script_guard import PROFILE, CHECKS
+
+
+def _review_report():
+    return {"profile": PROFILE, "verdict": "pass", "score": 90, "critical_issues": [],
+            "checks": {key: {"pass": True, "evidence": "Scene 1 introduces the protagonist; later scenes resolve the established conflict."} for key in CHECKS}}
 
 
 def _package():
     return {
         "generated_title": "비밀의 우물에서 시작된 약속",
         "title_generation": {"title_candidates": [{"title": "비밀의 우물에서 시작된 약속"}]},
-        "structure": {"scenes": [{"scene_order": 1, "image_prompt": "x", "video_prompt": "y"}]},
+        "structure": {"scenes": [{"scene_order": 1, "image_prompt": "x", "video_prompt": "y", "scene_text": "가" * 220}]},
         "script": "가" * 220,
         "narrative_blueprint": {"hook": "hook"},
-        "script_quality_report": {"verdict": "pass", "score": 90, "critical_issues": []},
+        "script_quality_report": _review_report(),
         "publish_metadata": {"title": "비밀의 우물에서 시작된 약속", "description": "설명", "tags": ["태그"]},
         "main_character": {"name": "연화"},
         "supporting_characters": [],
@@ -35,8 +42,11 @@ def test_codex_runner_requests_read_only_structured_content(monkeypatch, tmp_pat
     captured = {}
 
     def fake_run(command, **kwargs):
-        captured["command"] = command
         response_path = pathlib.Path(command[command.index("--output-last-message") + 1])
+        if "02c_senior_review" in response_path.name:
+            response_path.write_text(json.dumps({"script_quality_report": _review_report()}), encoding="utf-8")
+            return subprocess.CompletedProcess(command, 0, "", "")
+        captured["command"] = command
         response_path.write_text(json.dumps(_package(), ensure_ascii=False), encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -90,7 +100,8 @@ def test_legacy_pacing_uses_sixty_second_cuts_after_fifteen_minutes():
     assert sum(item["duration_seconds"] for item in schedule) == 960
 
 
-def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_path):
+@pytest.mark.parametrize("review_failure", [None, "verdict", "evidence"])
+def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_path, review_failure):
     monkeypatch.setattr(runner_module, "OUTPUT_DIR", tmp_path)
     monkeypatch.setattr(
         runner_module,
@@ -115,11 +126,18 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
         if name in {"02_script", "02b_script_qa"}:
             return {
                 "sections": [
-                    {"scene_order": i, "text": "narration " * (5 if i <= 12 else 10)}
+                    {"scene_order": i, "text": f"{i}번째 날, 연화는 편지에서 어머니의 흔적을 찾았지요." + (f" 그날의 기록 {i}장을 이웃과 확인하자 헤어졌던 이유가 드러났습니다. 연화는 {i}번째 기록을 듣고 다시 집으로 돌아갈 용기를 얻었지요." if i > 12 else "")}
                     for i in range(1, 29)
                 ],
                 "script_quality_report": {"verdict": "pass", "score": 90, "critical_issues": []},
             }
+        if name == "02c_senior_review":
+            report = _review_report()
+            if review_failure == "verdict":
+                report["verdict"] = "revise"
+            elif review_failure == "evidence":
+                report["checks"]["relationships"]["evidence"] = ""
+            return {"script_quality_report": report}
         if name == "03_media":
             positions = ("Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right")
             grids = []
@@ -148,17 +166,24 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
         return {"publish_metadata": {"description": "테스트 설명입니다. 이 문장은 메타데이터 길이 기준을 만족시키기 위한 충분히 긴 설명이며, 이야기의 갈등과 감정선과 결말의 여운을 자연스럽게 소개합니다. 시청자가 내용을 기대할 수 있도록 인물의 선택과 반전의 분위기를 함께 담았습니다.", "tags": ["옛날이야기"], "hashtags": ["#옛날이야기"]}}
 
     monkeypatch.setattr(runner_module.CodexStagedContentRunner, "_stage", fake_stage)
+    if review_failure:
+        with pytest.raises(runner_module.CodexContentError, match="senior listening contract"):
+            runner_module.CodexStagedContentRunner().generate("rejected", {"target_duration_seconds": 300, "category_id": 2})
+        assert [name for name, _ in calls].count("02b_script_qa") == 2
+        assert not any(name == "03_media" for name, _ in calls)
+        assert "independent_review_feedback" in next(context for name, context in reversed(calls) if name == "02b_script_qa")
+        return
     package = runner_module.CodexStagedContentRunner().generate("staged-job", {"target_duration_seconds": 300, "upload_title": "테스트 제목", "title_generation": {"title_candidates": [{"title": "테스트 제목"}]}, "category_name": "옛날이야기", "script_style": "story"})
 
     scenes = package["structure"]["scenes"]
-    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "03_media", "04_metadata", "05_thumbnail_copy"]
     assert len(scenes) == 28
     assert [scene["duration_seconds"] for scene in scenes[:12]] == [5] * 12
     assert [scene["duration_seconds"] for scene in scenes[12:]] == [15] * 16
     assert all(scene["scene_text"] for scene in scenes)
     assert all(scene.get("video_prompt") for scene in scenes[:12])
     assert all("video_prompt" not in scene for scene in scenes[12:])
-    assert "narration" in calls[3][1]["script"]
+    assert "연화" in calls[4][1]["script"]
     assert "Category narration voice: 옛날이야기" in calls[0][1]["category_narration_voice"]
     assert "구수한 테스트 문체" in calls[1][1]["script_style_directive"]
     assert "Script rhythm QA contract" in calls[2][1]["script_rhythm_contract"]
