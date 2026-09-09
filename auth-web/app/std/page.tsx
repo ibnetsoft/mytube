@@ -869,7 +869,9 @@ export default function StdPortalPage() {
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
+    const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
@@ -1666,6 +1668,17 @@ export default function StdPortalPage() {
         return str.startsWith('blob:') ? str : sanitizeAssetUrl(str)
     }
 
+    const isPlayablePreviewVideoUrl = (url: string | null | undefined): boolean => {
+        const value = String(url || '').trim()
+        if (!value) return false
+        try {
+            const parsed = new URL(value, window.location.origin)
+            return !(parsed.hostname.toLowerCase() === 'drive.google.com' && /^\/file\/d\//.test(parsed.pathname))
+        } catch {
+            return false
+        }
+    }
+
     const driveFileViewLink = (fileId: string | null | undefined): string | null => {
         const id = String(fileId || '').trim()
         return id ? `https://drive.google.com/file/d/${id}/view` : null
@@ -2300,6 +2313,16 @@ export default function StdPortalPage() {
         return String(text || '').match(/\S+/g) || []
     }
 
+    const vrewActiveTokenAtPlaybackTime = (subtitle: any, time: number) => {
+        const tokenCount = vrewTextTokens(subtitle?.text || '').length
+        const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0)
+        const end = Number(subtitle?.end_num ?? subtitle?.end_time ?? start)
+        if (!tokenCount || !Number.isFinite(start) || !Number.isFinite(end) || time < start || time > end) return -1
+        const highlightTime = Math.min(end, time + 0.06)
+        const progress = Math.max(0, Math.min(1, (highlightTime - start) / Math.max(0.1, end - start)))
+        return Math.min(tokenCount - 1, Math.floor(progress * tokenCount))
+    }
+
     const hasDialogueQuoteText = (text: string) => {
         return scanDialogueQuoteState(text).isDialogue
     }
@@ -2480,30 +2503,6 @@ export default function StdPortalPage() {
         ))
     }
 
-    const renderPreviewSubtitleText = (text: string, activeTokenIndex = -1) => {
-        const tokens = String(text || '').match(/\S+\s*/g) || []
-        if (activeTokenIndex < 0 || !tokens.length) return text
-        return tokens.map((token, index) => (
-            <span
-                key={`${index}-${token}`}
-                className={index === activeTokenIndex ? 'rounded text-cyan-200' : undefined}
-                style={{
-                    display: 'inline',
-                    fontSize: 'inherit',
-                    fontWeight: 'inherit',
-                    lineHeight: 'inherit',
-                    padding: 0,
-                    margin: 0,
-                    transform: 'none',
-                    boxShadow: index === activeTokenIndex ? '0 0 0 2px rgba(255,255,255,0.18)' : undefined,
-                    backgroundColor: index === activeTokenIndex ? 'rgba(255,255,255,0.12)' : undefined,
-                }}
-            >
-                {token}
-            </span>
-        ))
-    }
-
     const renderVrewSubtitleTokenEditor = (text: string, activeTokenIndex = -1) => {
         const tokens = String(text || '').trim().match(/\S+/g) || []
         if (!tokens.length) {
@@ -2533,28 +2532,33 @@ export default function StdPortalPage() {
         onSelect: (voiceId: string) => void,
         title: string,
         tone: 'default' | 'dialogue' = 'default',
-        openDirection: 'left' | 'right' = 'right'
+        openDirection: 'left' | 'right' = 'right',
+        disabled = false
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
-        const isOpen = openVoicePickerKey === pickerKey
+        const isOpen = !disabled && openVoicePickerKey === pickerKey
         return (
             <div className="relative inline-flex">
                 <button
                     type="button"
-                    title={`${title}: ${currentVoiceName}`}
+                    disabled={disabled}
+                    title={disabled ? '자막 섹션을 선택하면 성우를 변경할 수 있습니다.' : `${title}: ${currentVoiceName}`}
                     onClick={(event) => {
                         event.stopPropagation()
+                        if (disabled) return
                         setOpenVoicePickerKey(isOpen ? '' : pickerKey)
                     }}
                     className={`w-8 h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
-                        tone === 'dialogue'
+                        disabled
+                            ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
+                            : tone === 'dialogue'
                             ? 'bg-emerald-500/10 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/20'
                             : 'bg-[#10141b] border-white/10 text-cyan-100 hover:bg-[#202632] hover:border-cyan-400/50'
                     }`}
                 >
                     <Mic size={14} />
                 </button>
-                {isOpen && (
+                {!disabled && isOpen && (
                     <div
                         className={`absolute ${openDirection === 'left' ? 'right-0' : 'left-0'} top-full mt-1 z-50 w-80 max-w-[min(20rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1`}
                         onClick={(event) => event.stopPropagation()}
@@ -2589,22 +2593,28 @@ export default function StdPortalPage() {
         )
     }
 
-    const renderSelectedSceneTransitionPicker = () => (
+    const renderSelectedSceneTransitionPicker = (disabled = false) => (
         <div className="relative inline-flex">
             <button
                 type="button"
-                title="선택한 씬 화면 전환 효과"
+                disabled={disabled}
+                title={disabled ? '자막 섹션을 선택하면 효과를 적용할 수 있습니다.' : '선택한 씬 화면 전환 효과'}
                 onClick={(event) => {
                     event.stopPropagation()
+                    if (disabled) return
                     setOpenVoicePickerKey('')
                     setIsTransitionPickerOpen(prev => !prev)
                 }}
-                className="h-7 px-2 rounded-md border border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 flex items-center gap-1 text-[10px] font-bold transition"
+                className={`h-7 px-2 rounded-md border flex items-center gap-1 text-[10px] font-bold transition ${
+                    disabled
+                        ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
+                        : 'border-violet-400/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20'
+                }`}
             >
                 <Sparkles size={12} />
                 효과
             </button>
-            {isTransitionPickerOpen && (
+            {!disabled && isTransitionPickerOpen && (
                 <div
                     className="absolute left-0 top-full mt-1 z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
                     onClick={(event) => event.stopPropagation()}
@@ -2644,6 +2654,7 @@ export default function StdPortalPage() {
             vrewAudioRef.current.load()
             vrewAudioRef.current = null
         }
+        vrewPreviewVideoRef.current?.pause()
         setIsPlayingPreview(false)
         setVrewActiveTokenIndex(-1)
     }
@@ -2681,6 +2692,32 @@ export default function StdPortalPage() {
         }
     }
 
+    const isSameOriginApiAudioUrl = (audioUrl: string) => {
+        if (audioUrl.startsWith('/api/')) return true
+        try {
+            const parsed = new URL(audioUrl, window.location.origin)
+            return parsed.origin === window.location.origin && parsed.pathname.startsWith('/api/')
+        } catch {
+            return false
+        }
+    }
+
+    const fetchVrewAudioBlobUrl = async (audioUrl: string) => {
+        const res = await fetch(audioUrl, {
+            headers: {
+                ...authedJsonHeaders,
+                Accept: 'audio/mpeg',
+            },
+        })
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => '')
+            throw new Error(errorText || `자막 구간 음성 파일을 불러오지 못했습니다. (${res.status})`)
+        }
+        const audioBlob = await res.blob()
+        if (audioBlob.size < 256) throw new Error('자막 구간 음성 파일이 비어 있습니다.')
+        return URL.createObjectURL(audioBlob)
+    }
+
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
@@ -2700,6 +2737,7 @@ export default function StdPortalPage() {
 
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
         const generationPromise = (async () => {
+            const requestSegmentAudio = async (bypassCache = false) => {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
@@ -2714,6 +2752,7 @@ export default function StdPortalPage() {
                     text,
                     segment_index: index,
                     cache_key: cacheKey,
+                    bypass_cache: bypassCache,
                     multi_voice: false,
                     voice_map: {},
                 }),
@@ -2722,15 +2761,33 @@ export default function StdPortalPage() {
             if (!res.ok || payload?.success === false || !payload?.audio_url) {
                 throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
             }
+                return payload
+            }
 
-            let audioUrl = String(payload.audio_url)
-            if (audioUrl.startsWith('data:audio/')) {
-                const inlineAudioRes = await fetch(audioUrl)
+            const resolvePayloadAudioUrl = async (payload: any) => {
+                let audioUrl = String(payload.audio_url)
+                if (audioUrl.startsWith('data:audio/')) {
+                    const inlineAudioRes = await fetch(audioUrl)
                 const audioBlob = await inlineAudioRes.blob()
                 audioUrl = URL.createObjectURL(audioBlob)
                 void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
                     console.warn('[STD Vrew subtitles] background segment cache failed:', error)
                 })
+                } else if (isSameOriginApiAudioUrl(audioUrl)) {
+                    audioUrl = await fetchVrewAudioBlobUrl(audioUrl)
+                }
+                return audioUrl
+            }
+
+            let payload = await requestSegmentAudio(vrewBypassCachedSegmentAudioRef.current)
+            let audioUrl = ''
+            try {
+                audioUrl = await resolvePayloadAudioUrl(payload)
+            } catch (error) {
+                if (!payload?.cached) throw error
+                vrewBypassCachedSegmentAudioRef.current = true
+                payload = await requestSegmentAudio(true)
+                audioUrl = await resolvePayloadAudioUrl(payload)
             }
             vrewAudioCacheRef.current[cacheKey] = audioUrl
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
@@ -2801,13 +2858,15 @@ export default function StdPortalPage() {
                     cleanup()
                     reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
                 }
-                vrewProgressTimerRef.current = setInterval(() => {
+                const syncPlaybackProgress = () => {
                     setPlaybackTime(Math.round((baseStart + audio.currentTime) * 10) / 10)
                     const duration = Number.isFinite(audio.duration) && audio.duration > 0
                         ? audio.duration
                         : Math.max(0.1, Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1) - baseStart)
                     setVrewActiveTokenIndex(Math.min(tokenCount - 1, Math.floor((audio.currentTime / duration) * tokenCount)))
-                }, 100)
+                }
+                syncPlaybackProgress()
+                vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
                 audio.play().catch(error => {
                     cleanup()
                     reject(error)
@@ -4636,7 +4695,7 @@ export default function StdPortalPage() {
 
             setSelectedProject(prev => {
                 if (!prev) return prev
-                const persistedUrl = objectUrl || assetDisplayUrl(selectedProject.project.id, persistedAsset)
+                const persistedUrl = assetDisplayUrl(selectedProject.project.id, persistedAsset) || objectUrl
                 const updatedScenes = prev.scenes.map(s => {
                     if (s.scene_number !== sceneNum) return s
                     return {
@@ -5877,8 +5936,27 @@ export default function StdPortalPage() {
         image_url: '',
     }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
-    const currentSubImageUrl = runtimeAssetUrl(currentSub?.image_url || currentSubVisual.image_url) || ''
-    const currentSubVideoUrl = runtimeAssetUrl(currentSub?.video_url || currentSubVisual.video_url) || ''
+    const currentSubImageUrl = currentSubVisual.image_url
+        || runtimeAssetUrl(currentSub?.image_url || currentSub?.image)
+        || ''
+    const currentSubVideoCandidate = currentSubVisual.video_url
+        || runtimeAssetUrl(currentSub?.video_url || currentSub?.video)
+        || ''
+    const currentSubVideoUrl = isPlayablePreviewVideoUrl(currentSubVideoCandidate)
+        ? currentSubVideoCandidate
+        : ''
+    const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
+
+    useEffect(() => {
+        const video = vrewPreviewVideoRef.current
+        if (!video) return
+        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview || !currentSubVideoUrl) {
+            video.pause()
+            return
+        }
+        video.currentTime = 0
+        void video.play().catch(() => {})
+    }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     const bgmAsset = selectedProject?.assets?.find((asset: any) =>
         asset.asset_type === 'bgm' && asset.id === bgmSfxSettings.bgm_asset_id
@@ -7046,6 +7124,7 @@ export default function StdPortalPage() {
                         const allSubtitleScenesSelected = subtitleSceneGroups.length > 0 && subtitleSceneGroups.every(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
+                        const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
                         return (
                         <div className="space-y-3 w-full flex flex-col h-full min-h-0 overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
@@ -7460,6 +7539,22 @@ export default function StdPortalPage() {
                                                 title="세로 여백/오프셋"
                                             />
                                         </div>
+                                        <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
+                                            {renderVoicePicker(
+                                                'selected-scenes-bulk',
+                                                selectedSubtitleSceneVoiceId,
+                                                (nextVoiceId) => {
+                                                    if (selectedSubtitleSceneGroup) {
+                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
+                                                    }
+                                                },
+                                                `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
+                                                'default',
+                                                'left',
+                                                !hasSelectedSubtitleSections
+                                            )}
+                                            {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
+                                        </div>
                                     </div>
 
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
@@ -7575,13 +7670,6 @@ export default function StdPortalPage() {
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
                                                         {tf('sub_selected_scenes', { count: selectedSubtitleSceneNumbers.length })}
                                                     </span>
-                                                    {selectedSubtitleBlockIndexes.length < 2 && selectedSubtitleSceneGroup && renderVoicePicker(
-                                                        'selected-scenes-bulk',
-                                                        selectedSubtitleSceneVoiceId,
-                                                        (nextVoiceId) => void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId),
-                                                        `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
-                                                    )}
-                                                    {renderSelectedSceneTransitionPicker()}
                                                 </>
                                             )}
                                         </div>
@@ -7656,47 +7744,38 @@ export default function StdPortalPage() {
                                                                 className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
                                                             />
                                                         </div>
-                                                        {/* 이미지 & 타임 */}
-                                                        <div className="w-40 h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative shrink-0 self-start">
-                                                            {group.image_url ? (
-                                                                <img src={group.image_url} alt="" className="w-full h-full object-cover" />
-                                                            ) : group.video_url ? (
-                                                                <video src={group.video_url} className="w-full h-full object-cover" muted />
-                                                            ) : (
-                                                                <div className="w-full h-full bg-[#0b0e14]" />
-                                                            )}
-                                                            {group.video_url ? (
-                                                                <span className="absolute top-0.5 right-0.5 bg-purple-700/90 text-white text-[8px] font-bold px-1 rounded">
-                                                                    영상 완료
+                                                        {/* 이미지와 구간 시간 */}
+                                                        <div className="w-40 shrink-0 self-start">
+                                                            <div className="h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative">
+                                                                {group.image_url ? (
+                                                                    <img src={group.image_url} alt="" className="w-full h-full object-cover" />
+                                                                ) : group.video_url ? (
+                                                                    <video src={group.video_url} className="w-full h-full object-cover" muted />
+                                                                ) : (
+                                                                    <div className="w-full h-full bg-[#0b0e14]" />
+                                                                )}
+                                                                {group.video_url ? (
+                                                                    <span className="absolute top-0.5 right-0.5 bg-purple-700/90 text-white text-[8px] font-bold px-1 rounded">
+                                                                        영상 완료
+                                                                    </span>
+                                                                ) : null}
+                                                                <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
+                                                                    {group.subtitles.length} lines
                                                                 </span>
-                                                            ) : null}
-                                                            <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
-                                                                {group.subtitles.length} lines
-                                                            </span>
-                                                            {isHook ? (
-                                                                <span className="absolute top-0.5 left-0.5 bg-orange-600/90 text-white text-[8px] font-bold px-1 rounded">
-                                                                    🎬 훅 #{sNum}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="absolute top-0.5 left-0.5 bg-blue-600/80 text-white text-[8px] font-bold px-1 rounded">
-                                                                    🖼️ 씬 #{sNum}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="w-16 text-[10px] font-mono text-gray-400 shrink-0 self-start">
-                                                            {group.start_time}s<br />~{group.end_time}s
-                                                            <div className="mt-1 text-[9px] text-gray-500">
-                                                                {duration.toFixed(1)}s
+                                                                {isHook ? (
+                                                                    <span className="absolute top-0.5 left-0.5 bg-orange-600/90 text-white text-[8px] font-bold px-1 rounded">
+                                                                        🎬 훅 #{sNum}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="absolute top-0.5 left-0.5 bg-blue-600/80 text-white text-[8px] font-bold px-1 rounded">
+                                                                        🖼️ 씬 #{sNum}
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            {isVrewSubtitleMode && transitionEffect && (
-                                                                <div
-                                                                    title={`화면전환효과: ${sceneTransitionLabel(transitionEffect)}`}
-                                                                    className="mt-2 min-w-0 rounded border border-violet-400/20 bg-violet-500/10 px-1.5 py-1 font-sans text-[9px] font-bold leading-tight text-violet-200"
-                                                                >
-                                                                    <span className="block font-mono text-[8px] text-violet-300">전환</span>
-                                                                    <span className="break-words">{sceneTransitionLabel(transitionEffect)}</span>
-                                                                </div>
-                                                            )}
+                                                            <div className="mt-1 text-[10px] font-mono leading-tight text-gray-400">
+                                                                {group.start_time}s ~ {group.end_time}s
+                                                                <span className="ml-1 text-[9px] text-gray-500">{duration.toFixed(1)}s</span>
+                                                            </div>
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
@@ -7706,11 +7785,6 @@ export default function StdPortalPage() {
                                                                 <span className="text-[10px] text-gray-500">
                                                                     {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
                                                                 </span>
-                                                                {transitionEffect && (
-                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
-                                                                        효과 · {sceneTransitionLabel(transitionEffect)}
-                                                                    </span>
-                                                                )}
                                                                 {isVrewSubtitleMode && segmentStatus && (
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                         segmentStatus === 'ready'
@@ -7743,7 +7817,9 @@ export default function StdPortalPage() {
                                                                             (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
                                                                             isChecked && selectedSubtitleSceneNumbers.length > 1
                                                                                 ? `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
-                                                                                : `씬 ${sNum} 전체 성우`
+                                                                                : `씬 ${sNum} 전체 성우`,
+                                                                            'default',
+                                                                            'left'
                                                                         )}
                                                                     </div>
                                                                 )}
@@ -7873,10 +7949,11 @@ export default function StdPortalPage() {
                                         >
                                             {currentSubVideoUrl ? (
                                                 <video
+                                                    ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
                                                     className="w-full h-full object-cover"
-                                                    controls
                                                     muted
+                                                    playsInline
                                                 />
                                             ) : currentSubImageUrl ? (
                                                 <img
@@ -7933,8 +8010,6 @@ export default function StdPortalPage() {
                                             ))}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
-                                                const previewTokens = vrewTextTokens(currentSub.text)
-                                                const shouldShowTokenSync = isVrewSubtitleMode && isPlayingPreview && previewTokens.length > 0
                                                 return (
                                             <div
                                                 className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
@@ -7961,10 +8036,7 @@ export default function StdPortalPage() {
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
                                                 >
-                                                    {renderPreviewSubtitleText(
-                                                        currentSub.text,
-                                                        shouldShowTokenSync ? vrewActiveTokenIndex : -1
-                                                    )}
+                                                    {currentSub.text}
                                                 </div>
                                             </div>
                                                 )
@@ -8118,7 +8190,9 @@ export default function StdPortalPage() {
                                                             >
                                                                 {renderVrewSubtitleTokenEditor(
                                                                     currentSub.text,
-                                                                    isPlayingPreview ? vrewActiveTokenIndex : -1
+                                                                    isPlayingPreview
+                                                                        ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime)
+                                                                        : -1
                                                                 )}
                                                             </button>
                                                             <button
