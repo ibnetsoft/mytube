@@ -6332,8 +6332,14 @@ export default function StdPortalPage() {
         const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt || s.text)))
         
         // 4. 이미지 (Image): 씬 에셋 등록 여부
-        const uploadedAssetsCount = scenes.filter((s: any) => s.image_url || s.video_url || s.drive_file_id).length
-        const isImageDone = scenes.length > 0 && (uploadedAssetsCount >= scenes.length || (scenes.length >= 50 && uploadedAssetsCount >= 50))
+        const readyVisualScenes = scenes.filter((scene: any, index: number) => {
+            const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
+            return isStdRequiredVideoScene(sceneNumber)
+                ? Boolean(scene?.video_url)
+                : Boolean(scene?.image_url || scene?.video_url || scene?.drive_file_id)
+        })
+        const uploadedAssetsCount = readyVisualScenes.length
+        const isImageDone = scenes.length > 0 && uploadedAssetsCount >= scenes.length
 
         // 5. TTS: 오디오 생성 완료 여부
         const isTtsDone = Boolean(currentAudio || payload.audio_url || payload.tts_url || p.audio_url || (p.progress_payload?.tts_completed))
@@ -10479,6 +10485,14 @@ export default function StdPortalPage() {
                                                              ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                                                              : getProjectStepStatus(p)
                                                         const isSubmitted = Boolean(p.submitted_at)
+                                                        const submitBlockers = [
+                                                            !pStatus.isPlanningDone ? '기획' : '',
+                                                            !pStatus.isScriptDone ? '대본' : '',
+                                                            !pStatus.isImageDone ? '필수 영상/이미지' : '',
+                                                            !pStatus.isTtsDone ? 'TTS' : '',
+                                                            !pStatus.isSubtitlesDone ? '자막' : '',
+                                                            !pStatus.isThumbnailDone ? '썸네일' : '',
+                                                        ].filter(Boolean)
                                                         return (
                                                             <>
                                                                 <td className="px-1 py-2 text-center">
@@ -10550,7 +10564,7 @@ export default function StdPortalPage() {
                                                                         <button
                                                                             disabled
                                                                             className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 text-gray-400 border border-white/10 opacity-80 cursor-not-allowed mx-auto transition-all"
-                                                                            title="모든 단계(기획/대본/이미지/TTS/자막/썸네일) 완료 시 활성화됩니다."
+                                                                            title={`${submitBlockers.join(', ') || '필수 단계'} 완료 후 제출할 수 있습니다.`}
                                                                         >
                                                                             <span className="text-xs font-bold leading-none text-gray-400">⏎</span>
                                                                         </button>
