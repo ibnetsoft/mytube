@@ -125,6 +125,7 @@ type StdProject = {
     drive_folder_id?: string | null
     progress_payload?: any
     created_at?: string
+    submitted_at?: string | null
     scene_count?: number
 }
 
@@ -606,6 +607,12 @@ export default function StdPortalPage() {
     const formatTopicPayoutDetail = (topic: any): string => {
         const amount = getTopicPayoutUsdt(topic)
         return `$${amount.toFixed(2)} USDT`
+    }
+    const formatProjectListDate = (value: unknown): string => {
+        const date = new Date(String(value || ''))
+        if (Number.isNaN(date.getTime())) return ''
+        const twoDigits = (part: number) => String(part).padStart(2, '0')
+        return `${String(date.getFullYear()).slice(-2)}.${twoDigits(date.getMonth() + 1)}.${twoDigits(date.getDate())} ${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}`
     }
 
     // 2. 작업 데이터 상태
@@ -10377,6 +10384,7 @@ export default function StdPortalPage() {
                                 <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1000px]">
                                     <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px]">
                                         <tr>
+                                            <th className="px-2 py-2.5 w-12 text-center">썸네일</th>
                                             <th className="px-3 py-2.5 w-10 text-center">
                                                 <input type="checkbox" className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
                                             </th>
@@ -10418,6 +10426,13 @@ export default function StdPortalPage() {
                                                 if (title.includes('해외') || title.includes('감동')) return '해외감동'
                                                 return '옛날이야기'
                                             })()
+                                            const projectThumbnailUrl = sanitizeAssetUrl(
+                                                p.progress_payload?.thumbnail_url
+                                                || p.project_payload?.thumbnail_url
+                                                || p.project_payload?.thumbnail_design?.thumbnail_url
+                                                || p.project_payload?.thumbnail_design?.bg_url
+                                            )
+                                            const submittedAt = p.submitted_at || p.progress_payload?.submitted_at
                                             return (
                                                 <tr
                                                     key={p.id || idx}
@@ -10427,6 +10442,20 @@ export default function StdPortalPage() {
                                                     }}
                                                     className="hover:bg-[#14181f] transition cursor-pointer group"
                                                 >
+                                                    <td className="px-2 py-1.5 text-center">
+                                                        {projectThumbnailUrl ? (
+                                                            <img
+                                                                src={projectThumbnailUrl}
+                                                                alt=""
+                                                                className="w-9 h-7 object-cover rounded border border-white/10 mx-auto"
+                                                                onError={event => { event.currentTarget.style.display = 'none' }}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-9 h-7 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto">
+                                                                <ImageIcon className="w-3.5 h-3.5" />
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                     <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                         <input type="checkbox" className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
                                                     </td>
@@ -10436,10 +10465,10 @@ export default function StdPortalPage() {
                                                         </span>
                                                     </td>
                                                     <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
-                                                        {p.created_at ? p.created_at.slice(2).replace(/-/g, '. ') + '.' : '26. 08. 14.'}
+                                                        {formatProjectListDate(p.created_at)}
                                                     </td>
                                                     <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
-                                                        {p.updated_at ? p.updated_at.slice(2).replace(/-/g, '. ') + '.' : '26. 08. 18.'}
+                                                        {formatProjectListDate(submittedAt)}
                                                     </td>
                                                     <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
                                                         {p.title}
