@@ -54,7 +54,24 @@ def export_prompt(topic_id: str, output_path: Path) -> Path:
     if len(prompt) < 80:
         raise RuntimeError("topic has no Codex-generated thumbnail_image_prompt")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps({"topic_id": str(row["id"]), "prompt": prompt}, ensure_ascii=False, indent=2), encoding="utf-8")
+    output_path.write_text(
+        json.dumps(
+            {
+                "schema": "cowork_thumbnail_asset/v1",
+                "topic_id": str(row["id"]),
+                "prompt": prompt,
+                "output": {
+                    "width": WIDTH,
+                    "height": HEIGHT,
+                    "text_in_image": False,
+                    "storage_object": f"topics/{row['id']}/thumbnail/background.png",
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     return output_path
 
 
@@ -72,6 +89,66 @@ def _ensure_bucket(base_url: str, headers: dict[str, str]) -> None:
     )
     if create.status_code not in (200, 201, 409):
         raise RuntimeError(f"Storage bucket creation failed: {create.status_code} {create.text[:300]}")
+
+
+def _thumbnail_metadata(progress: dict[str, Any], public_url: str) -> dict[str, Any]:
+    """Build one canonical thumbnail result payload for queue and claimed projects."""
+    return {
+        **progress,
+        "thumbnail_bg_url": public_url,
+        "thumbnail_bg_width": WIDTH,
+        "thumbnail_bg_height": HEIGHT,
+        "thumbnail_bg_source": "cowork_imagegen",
+        "thumbnail_generation_status": "completed",
+    }
+
+
+def _sync_claimed_std_projects(
+    topic_id: str,
+    public_url: str,
+    base_url: str,
+    headers: dict[str, str],
+) -> int:
+    """Make a newly rendered background visible to projects already claimed on STD web.
+
+    Claiming intentionally snapshots ``topics_queue.progress_payload`` into
+    ``std_projects``.  Therefore publishing a CoWork image later must update
+    that snapshot as well; otherwise a browser reload can never see it.
+    """
+    rows_response = requests.get(
+        f"{base_url}/rest/v1/std_projects",
+        headers=headers,
+        params={
+            "topic_queue_id": f"eq.{topic_id}",
+            "select": "id,project_payload,progress_payload",
+        },
+        timeout=60,
+    )
+    rows_response.raise_for_status()
+    rows = rows_response.json()
+    if not isinstance(rows, list):
+        raise RuntimeError("std_projects lookup returned an invalid response")
+
+    synced = 0
+    for project in rows:
+        if not isinstance(project, dict) or not project.get("id"):
+            continue
+        project_payload = project.get("project_payload") if isinstance(project.get("project_payload"), dict) else {}
+        progress_payload = project.get("progress_payload") if isinstance(project.get("progress_payload"), dict) else {}
+        project_patch = _thumbnail_metadata(project_payload, public_url)
+        progress_patch = _thumbnail_metadata(progress_payload, public_url)
+        update = requests.patch(
+            f"{base_url}/rest/v1/std_projects?id=eq.{quote(str(project['id']), safe='')}",
+            headers={**headers, "Content-Type": "application/json", "Prefer": "return=minimal"},
+            json={"project_payload": project_patch, "progress_payload": progress_patch},
+            timeout=60,
+        )
+        if update.status_code not in (200, 204):
+            raise RuntimeError(
+                f"claimed STD project thumbnail update failed: {update.status_code} {update.text[:300]}"
+            )
+        synced += 1
+    return synced
 
 
 def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False) -> str:
@@ -109,7 +186,7 @@ def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False) ->
         raise RuntimeError(f"thumbnail upload failed: {upload.status_code} {upload.text[:300]}")
     public_url = f"{base_url}/storage/v1/object/public/{BUCKET}/{object_path}"
     progress = row.get("progress_payload") if isinstance(row.get("progress_payload"), dict) else {}
-    patch = {**progress, "thumbnail_bg_url": public_url, "thumbnail_bg_width": WIDTH, "thumbnail_bg_height": HEIGHT, "thumbnail_bg_source": "cowork_imagegen"}
+    patch = _thumbnail_metadata(progress, public_url)
     update = requests.patch(
         f"{base_url}/rest/v1/topics_queue?id=eq.{quote(str(row['id']), safe='')}",
         headers={**headers, "Content-Type": "application/json", "Prefer": "return=minimal"},
@@ -118,6 +195,7 @@ def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False) ->
     )
     if update.status_code not in (200, 204):
         raise RuntimeError(f"thumbnail URL update failed: {update.status_code} {update.text[:300]}")
+    _sync_claimed_std_projects(str(row["id"]), public_url, base_url, headers)
     return public_url
 
 

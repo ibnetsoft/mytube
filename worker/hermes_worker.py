@@ -9964,6 +9964,7 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log, *, st
                     "thumbnail_hook_reasoning": result_payload.get("thumbnail_hook_reasoning") or "",
                     "thumbnail_image_prompt": result_payload.get("thumbnail_image_prompt") or "",
                     "thumbnail_copy_source": result_payload.get("thumbnail_copy_source") or "",
+                    "thumbnail_generation_status": "ready_for_cowork" if result_payload.get("thumbnail_image_prompt") else "not_ready",
                     "pregenerated_script_status": "ready",
                     "prepared_topic_ready": True,
                     "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),

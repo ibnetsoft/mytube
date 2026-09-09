@@ -36,13 +36,13 @@ Codex 콘텐츠 워커는 대본 완성 뒤 썸네일 문구 3개와 텍스트 �
 python worker/cowork_thumbnail_asset.py export --topic-id <TOPIC_ID> --out cowork_batches/<TOPIC_ID>/thumbnail.json
 ```
 
-`thumbnail.json`의 `prompt`로 CoWork 이미지 도구에서 텍스트 없는 16:9 이미지를 생성하고, 선택한 이미지 파일을 아래처럼 저장합니다.
+`thumbnail.json`의 `prompt`로 CoWork 이미지 도구에서 텍스트 없는 16:9 이미지를 생성합니다. 매니페스트의 `output`에는 목표 해상도와 최종 Storage 경로가 함께 들어 있습니다. 생성이 끝나면 선택한 이미지 파일을 아래처럼 저장합니다.
 
 ```powershell
 python worker/cowork_thumbnail_asset.py publish --topic-id <TOPIC_ID> --image <GENERATED_IMAGE_PATH> --create-bucket
 ```
 
-`publish`는 이미지를 1920×1080으로 맞춰 Storage에 저장하고 `thumbnail_bg_url`을 기록합니다. 프로젝트를 열면 썸네일 페이지의 16:9 캔버스가 이 URL을 배경으로 불러오며, Codex가 생성한 문구 후보를 바로 얹어 미리볼 수 있습니다.
+대본·문구 생성 후 상태는 `ready_for_cowork`가 됩니다. `publish`는 실제 이미지 파일을 1920×1080으로 맞춰 Storage에 저장하고, 완료 상태 및 `thumbnail_bg_url`을 기록합니다. 이미 클레임된 사용자 웹 프로젝트가 있어도 해당 프로젝트의 스냅샷을 함께 갱신하므로, 프로젝트를 새로 열면 썸네일 페이지의 16:9 캔버스가 이 URL을 배경으로 불러오며 Codex가 생성한 문구 후보를 바로 얹어 미리볼 수 있습니다.
 
 ## 다른 예시
 
