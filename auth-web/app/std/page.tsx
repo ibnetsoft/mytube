@@ -7424,21 +7424,6 @@ export default function StdPortalPage() {
                                         >
                                             {t('sub_restore_default_voice')}
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleFinalizeSubtitlesAndTts()}
-                                            disabled={generatingTts || !canFinalizeSubtitlesAndTts}
-                                            className={`px-3 py-1.5 rounded-md text-white text-[11px] font-bold transition ${
-                                                generatingTts || !canFinalizeSubtitlesAndTts
-                                                    ? 'bg-gray-700 cursor-not-allowed opacity-60'
-                                                    : 'bg-violet-600 hover:bg-violet-500'
-                                            }`}
-                                            title={canFinalizeSubtitlesAndTts
-                                                ? '최종 자막 저장 및 TTS 생성'
-                                                : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
-                                        >
-                                            {generatingTts ? t('sub_final_saving') : t('sub_final_save_tts')}
-                                        </button>
                                         {audioResultUrl && (
                                             <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
                                                 {t('sub_tts_ready')}
@@ -7861,6 +7846,21 @@ export default function StdPortalPage() {
                                             title="현재 성우와 속도로 음성 길이를 측정해 자막 구간을 다시 맞춥니다"
                                         >
                                             {isSubtitleSyncing ? '자막 싱크 중...' : '자막 싱크'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleFinalizeSubtitlesAndTts()}
+                                            disabled={generatingTts || !canFinalizeSubtitlesAndTts}
+                                            className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition ${
+                                                generatingTts || !canFinalizeSubtitlesAndTts
+                                                    ? 'bg-gray-700 cursor-not-allowed opacity-60'
+                                                    : 'bg-violet-600 hover:bg-violet-500'
+                                            }`}
+                                            title={canFinalizeSubtitlesAndTts
+                                                ? '최종 자막 저장 및 TTS 생성'
+                                                : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
+                                        >
+                                            {generatingTts ? t('sub_final_saving') : t('sub_final_save_tts')}
                                         </button>
                                     </div>
                                 </div>
