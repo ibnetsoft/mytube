@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 STD_PAGE = (ROOT / "auth-web" / "app" / "std" / "page.tsx").read_text(encoding="utf-8")
+PROJECTS_ROUTE = (ROOT / "auth-web" / "app" / "api" / "std" / "projects" / "route.ts").read_text(encoding="utf-8")
 
 
 def test_project_list_uses_compact_start_and_submission_dates():
@@ -12,6 +13,8 @@ def test_project_list_uses_compact_start_and_submission_dates():
     assert "const submittedAt = p.submitted_at || p.progress_payload?.submitted_at" in STD_PAGE
     assert "{formatProjectListDate(submittedAt)}" in STD_PAGE
     assert "p.updated_at ? p.updated_at.slice" not in STD_PAGE
+    assert "const isSubmitted = Boolean(p.submitted_at)" in STD_PAGE
+    assert "created_at,updated_at,submitted_at,progress_payload" in PROJECTS_ROUTE
 
 
 def test_project_list_shows_a_compact_saved_thumbnail_first():

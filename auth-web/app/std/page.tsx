@@ -10478,14 +10478,7 @@ export default function StdPortalPage() {
                                                         const pStatus = isSelectedProj
                                                              ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                                                              : getProjectStepStatus(p)
-                                                        const isSubmitted = Boolean(
-                                                            p.status === 'review_requested' ||
-                                                            p.status === 'submitted' ||
-                                                            p.status === 'approved' ||
-                                                            p.status === 'rendering' ||
-                                                            p.status === 'completed' ||
-                                                            p.progress_payload?.submitted_at
-                                                        )
+                                                        const isSubmitted = Boolean(p.submitted_at)
                                                         return (
                                                             <>
                                                                 <td className="px-1 py-2 text-center">
