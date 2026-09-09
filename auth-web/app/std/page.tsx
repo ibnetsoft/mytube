@@ -2850,6 +2850,8 @@ export default function StdPortalPage() {
                 const audio = new Audio(audioUrl)
                 vrewAudioRef.current = audio
                 const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
+                const scheduledEnd = Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1)
+                const scheduledDuration = Math.max(0.1, scheduledEnd - baseStart)
                 const tokenCount = Math.max(1, vrewTextTokens(subtitle?.text || '').length)
                 const cleanup = () => {
                     if (vrewProgressTimerRef.current) {
@@ -2869,11 +2871,12 @@ export default function StdPortalPage() {
                     reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
                 }
                 const syncPlaybackProgress = () => {
-                    setPlaybackTime(Math.round((baseStart + audio.currentTime) * 10) / 10)
-                    const duration = Number.isFinite(audio.duration) && audio.duration > 0
+                    const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0
                         ? audio.duration
-                        : Math.max(0.1, Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1) - baseStart)
-                    setVrewActiveTokenIndex(Math.min(tokenCount - 1, Math.floor((audio.currentTime / duration) * tokenCount)))
+                        : scheduledDuration
+                    const progress = Math.max(0, Math.min(1, audio.currentTime / audioDuration))
+                    setPlaybackTime(Math.round((baseStart + scheduledDuration * progress) * 10) / 10)
+                    setVrewActiveTokenIndex(Math.min(tokenCount - 1, Math.floor(progress * tokenCount)))
                 }
                 syncPlaybackProgress()
                 vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
