@@ -64,6 +64,14 @@ def test_vrew_preview_deduplicates_requests_and_prefetches_upcoming_segments():
     assert "prefetchVrewSegment(selectedSubIndex)" in STD_PAGE
 
 
+def test_vrew_subtitle_sync_retimes_saved_blocks_from_actual_audio_duration():
+    assert "const syncSubtitleTimingsToNarration = async ()" in STD_PAGE
+    assert "const getAudioDuration = async (audioUrl: string)" in STD_PAGE
+    assert "const audioDuration = await getAudioDuration(audioUrl)" in STD_PAGE
+    assert "await persistVrewVoiceSubtitles(syncedSubtitles)" in STD_PAGE
+    assert "자막 싱크 중..." in STD_PAGE
+
+
 def test_vrew_playback_syncs_the_current_scene_video():
     assert "const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)" in STD_PAGE
     assert "vrewPreviewVideoRef.current?.pause()" in STD_PAGE

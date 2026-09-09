@@ -885,6 +885,7 @@ export default function StdPortalPage() {
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
     const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
+    const [isSubtitleSyncing, setIsSubtitleSyncing] = useState(false)
     const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
@@ -2903,6 +2904,69 @@ export default function StdPortalPage() {
             const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
             setMessage(`❌ ${messageText}`)
         })
+    }
+
+    const syncSubtitleTimingsToNarration = async () => {
+        if (!localSubtitles.length || isSubtitleSyncing) return
+        stopVrewPlayback()
+        setIsSubtitleSyncing(true)
+
+        const getAudioDuration = async (audioUrl: string) => await new Promise<number>((resolve, reject) => {
+            const audio = new Audio()
+            const cleanup = () => {
+                audio.onloadedmetadata = null
+                audio.onerror = null
+                audio.removeAttribute('src')
+                audio.load()
+            }
+            audio.preload = 'metadata'
+            audio.onloadedmetadata = () => {
+                const duration = Number(audio.duration)
+                cleanup()
+                if (Number.isFinite(duration) && duration > 0) {
+                    resolve(duration)
+                } else {
+                    reject(new Error('음성 길이를 읽을 수 없습니다.'))
+                }
+            }
+            audio.onerror = () => {
+                cleanup()
+                reject(new Error('음성 길이를 읽는 중 오류가 발생했습니다.'))
+            }
+            audio.src = audioUrl
+            audio.load()
+        })
+
+        try {
+            let elapsed = 0
+            const syncedSubtitles: any[] = []
+            for (let index = 0; index < localSubtitles.length; index += 1) {
+                const subtitle = localSubtitles[index]
+                setMessage(`자막 싱크 보정 중... (${index + 1}/${localSubtitles.length})`)
+                const audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
+                const audioDuration = await getAudioDuration(audioUrl)
+                const start = Math.round(elapsed * 1000) / 1000
+                elapsed += audioDuration
+                const end = Math.round(elapsed * 1000) / 1000
+                syncedSubtitles.push({
+                    ...subtitle,
+                    start_num: start,
+                    end_num: end,
+                    start_time: start.toFixed(3),
+                    end_time: end.toFixed(3),
+                })
+            }
+
+            await persistVrewVoiceSubtitles(syncedSubtitles)
+            const nextIndex = Math.min(selectedSubIndex, syncedSubtitles.length - 1)
+            setSelectedSubIndex(Math.max(0, nextIndex))
+            setPlaybackTime(syncedSubtitles[Math.max(0, nextIndex)]?.start_num || 0)
+            setMessage(`음성 길이 기준으로 자막 ${syncedSubtitles.length}개 구간을 보정했습니다. (${elapsed.toFixed(1)}초)`)
+        } catch (error: any) {
+            setMessage(`❌ 자막 싱크 보정 실패: ${error?.message || '음성 길이를 확인할 수 없습니다.'}`)
+        } finally {
+            setIsSubtitleSyncing(false)
+        }
     }
 
     useEffect(() => {
@@ -7670,6 +7734,15 @@ export default function StdPortalPage() {
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all"
                                         >
                                             {t('sub_translate')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void syncSubtitleTimingsToNarration()}
+                                            disabled={isSubtitleSyncing || localSubtitles.length === 0}
+                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-45"
+                                            title="현재 성우와 속도로 음성 길이를 측정해 자막 구간을 다시 맞춥니다"
+                                        >
+                                            {isSubtitleSyncing ? '자막 싱크 중...' : '자막 싱크'}
                                         </button>
                                     </div>
                                 </div>
