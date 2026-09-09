@@ -777,36 +777,64 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         intro_filename = metadata.get('intro_filename')
         intro_video_path = os.path.join(temp_dir, intro_filename) if intro_filename else None
 
-        from services.video_service import video_service
+        from services.ffmpeg_slideshow_service import FastRenderUnsupported, render_ffmpeg_slideshow
 
         try:
-            import imageio_ffmpeg as _iio_ffmpeg
-            _slideshow_ffmpeg_exe = _iio_ffmpeg.get_ffmpeg_exe()
-        except Exception:
-            _slideshow_ffmpeg_exe = "ffmpeg"
-        slideshow_encoder = _select_video_encoder(use_gpu, _slideshow_ffmpeg_exe)
+            rendered_path = render_ffmpeg_slideshow(
+                temp_dir=temp_dir,
+                images=images,
+                audio_path=audio_path,
+                durations=durations,
+                subtitles=subs if metadata.get('use_subtitles') else [],
+                subtitle_settings=render_settings,
+                image_effects=image_effects,
+                transition_effects=transition_effects,
+                resolution=target_resolution,
+                template_overlay_path=(
+                    template_overlay_path
+                    if template_overlay_path and os.path.exists(template_overlay_path)
+                    else None
+                ),
+                intro_video_path=(
+                    intro_video_path
+                    if intro_video_path and os.path.exists(intro_video_path)
+                    else None
+                ),
+                sfx_cues=sfx_cues,
+                use_gpu=use_gpu,
+                progress_callback=update_progress,
+            )
+        except FastRenderUnsupported as fast_render_error:
+            print(f"[Fast Render] unsupported={fast_render_error} | fallback=moviepy")
+            update_progress(50, '호환 렌더링 엔진으로 전환 중...')
+            from services.video_service import video_service
 
-        update_progress(50, '로컬 슬라이드쇼 엔진으로 렌더링 중...')
-        remote_output_name = f'remote_task_{task_id}.mp4'
-        rendered_path = video_service.create_slideshow(
-            images=images,
-            audio_path=audio_path,
-            output_filename=remote_output_name,
-            duration_per_image=durations,
-            fps=24,
-            resolution=target_resolution,
-            project_id=metadata.get('project_id'),
-            subtitles=subs if metadata.get('use_subtitles') else [],
-            subtitle_settings=render_settings,
-            template_overlay_path=template_overlay_path if template_overlay_path and os.path.exists(template_overlay_path) else None,
-            intro_video_path=intro_video_path if intro_video_path and os.path.exists(intro_video_path) else None,
-            focal_point_ys=focal_point_ys,
-            image_effects=image_effects,
-            transition_effects=transition_effects,
-            sfx_cues=sfx_cues,
-            content_aspect_ratio=metadata.get('content_aspect_ratio'),
-            codec=slideshow_encoder,
-        )
+            try:
+                import imageio_ffmpeg as _iio_ffmpeg
+                _slideshow_ffmpeg_exe = _iio_ffmpeg.get_ffmpeg_exe()
+            except Exception:
+                _slideshow_ffmpeg_exe = "ffmpeg"
+            slideshow_encoder = _select_video_encoder(use_gpu, _slideshow_ffmpeg_exe)
+            remote_output_name = f'remote_task_{task_id}.mp4'
+            rendered_path = video_service.create_slideshow(
+                images=images,
+                audio_path=audio_path,
+                output_filename=remote_output_name,
+                duration_per_image=durations,
+                fps=24,
+                resolution=target_resolution,
+                project_id=metadata.get('project_id'),
+                subtitles=subs if metadata.get('use_subtitles') else [],
+                subtitle_settings=render_settings,
+                template_overlay_path=template_overlay_path if template_overlay_path and os.path.exists(template_overlay_path) else None,
+                intro_video_path=intro_video_path if intro_video_path and os.path.exists(intro_video_path) else None,
+                focal_point_ys=focal_point_ys,
+                image_effects=image_effects,
+                transition_effects=transition_effects,
+                sfx_cues=sfx_cues,
+                content_aspect_ratio=metadata.get('content_aspect_ratio'),
+                codec=slideshow_encoder,
+            )
 
         output_file_path = os.path.join(temp_dir, 'output.mp4')
         update_progress(90, '최종 영상 복사 중...')
