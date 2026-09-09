@@ -61,6 +61,29 @@ function clampNumber(value: any, fallback: number, min: number, max: number) {
     return Math.max(min, Math.min(max, parsed))
 }
 
+function buildRenderSubtitles(project: any, scenes: any[]) {
+    const savedSubtitles = Array.isArray(project?.project_payload?.subtitles)
+        ? project.project_payload.subtitles
+        : []
+    const sourceSubtitles = savedSubtitles.length > 0
+        ? savedSubtitles
+        : (scenes || []).map((scene: any, index: number) => ({
+            start: Number(scene?.metadata?.start ?? index * 5),
+            end: Number(scene?.metadata?.end ?? (index + 1) * 5),
+            text: String(scene?.scene_text || '').trim(),
+        }))
+
+    return sourceSubtitles.map((subtitle: any, index: number) => {
+        const start = Number(subtitle?.start ?? subtitle?.start_num ?? subtitle?.start_time ?? index * 5)
+        const end = Number(subtitle?.end ?? subtitle?.end_num ?? subtitle?.end_time ?? start + 5)
+        return {
+            start: Number.isFinite(start) ? start : index * 5,
+            end: Number.isFinite(end) && end > start ? end : start + 5,
+            text: String(subtitle?.text || '').trim(),
+        }
+    }).filter((subtitle: any) => subtitle.text)
+}
+
 function audioManifestPath(asset: any, prefix: string, index = 0) {
     const ext = mediaExtension(asset?.file_name, asset?.mime_type, '.mp3')
     const safeId = String(asset?.id || asset?.drive_file_id || index || 'audio').replace(/[^a-z0-9_-]/gi, '').slice(0, 48)
@@ -213,15 +236,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         images.push(filename)
     }
 
-    const subtitles = scenes.map((scene: any, index: number) => {
-        const start = Number(scene?.metadata?.start ?? index * 5)
-        const end = Number(scene?.metadata?.end ?? start + 5)
-        return {
-            start,
-            end,
-            text: String(scene?.scene_text || '').trim(),
-        }
-    }).filter((subtitle: any) => subtitle.text)
+    const subtitles = buildRenderSubtitles(project, scenes)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -281,6 +296,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         audio_duration: project.progress_payload?.audio_duration || null,
         images,
         subtitles,
+        subtitle_sync_mode: 'audio_duration_weighted',
         render_settings: renderSettings,
         image_timing_starts: null,
         image_effects: images.map(() => 'auto_classify'),
@@ -359,15 +375,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         })
     }
 
-    const subtitles = scenes.map((scene: any, index: number) => {
-        const start = Number(scene?.metadata?.start ?? index * 5)
-        const end = Number(scene?.metadata?.end ?? start + 5)
-        return {
-            start,
-            end,
-            text: String(scene?.scene_text || '').trim(),
-        }
-    }).filter((subtitle: any) => subtitle.text)
+    const subtitles = buildRenderSubtitles(project, scenes)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -507,6 +515,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         audio_duration: project.progress_payload?.audio_duration || null,
         images,
         subtitles,
+        subtitle_sync_mode: 'audio_duration_weighted',
         render_settings: renderSettings,
         image_timing_starts: null,
         image_effects: images.map(() => 'auto_classify'),

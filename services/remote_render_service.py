@@ -105,6 +105,29 @@ def _sanitize_subtitles_for_render(subtitles):
     return cleaned
 
 
+def _sync_subtitle_timings_to_audio_duration(subtitles, audio_duration):
+    """Always retime render subtitles to the final narration duration."""
+    if not subtitles or not isinstance(audio_duration, (int, float)) or audio_duration <= 0:
+        return subtitles
+
+    weights = [max(1, len(re.sub(r'\s+', '', str(subtitle.get('text', '') or '')))) for subtitle in subtitles]
+    total_weight = sum(weights)
+    if total_weight <= 0:
+        return subtitles
+
+    elapsed = 0.0
+    synced = []
+    for index, subtitle in enumerate(subtitles):
+        start = elapsed
+        elapsed = audio_duration if index == len(subtitles) - 1 else elapsed + (audio_duration * weights[index] / total_weight)
+        synced.append({
+            **subtitle,
+            'start': round(start, 3),
+            'end': round(elapsed, 3),
+        })
+    return synced
+
+
 def _render_std_template_overlay_png(render_settings, temp_dir: str, target_resolution):
     if not isinstance(render_settings, dict) or not render_settings.get('std_image_template_enabled'):
         return None
@@ -730,6 +753,9 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             audio_clip = AudioFileClip(audio_path)
             audio_duration = float(audio_clip.duration)
             audio_clip.close()
+
+        subs = _sync_subtitle_timings_to_audio_duration(subs, audio_duration)
+        update_progress(22, '음성 길이 기준 자막 싱크 보정 중...')
 
         images = []
         for fname in images_filenames:
