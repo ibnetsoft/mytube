@@ -51,9 +51,9 @@ from senior_script_guard import PROFILE, text_issues, review_issues
 
 SELECT_COLUMNS = (
     "id,topic,generated_title,category_id,category_name_en,category_name_vi,category_name_th,"
-    "status,assigned_employee_email,assigned_script_style,assigned_duration_minutes,"
+    "status,language,assigned_employee_email,assigned_script_style,assigned_duration_minutes,"
     "recommended_duration_minutes,pregenerated_script,pregenerated_structure,"
-    "script_quality_report,publish_metadata"
+    "script_quality_report,publish_metadata,narrative_blueprint"
 )
 
 
@@ -385,10 +385,15 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
                "assigned_script_style": row.get("assigned_script_style")}
     current = _existing_sections(scenes, row.get("pregenerated_script") or "")
     budgets = _repair_scene_budgets(scenes, payload, current)
+    original_structure = row.get("pregenerated_structure") or {}
+    compact_structure = {"story_core": original_structure.get("story_core"), "scenes": [
+        {key: s.get(key) for key in ("scene_order", "scene_summary", "scene_situation", "image_prompt", "video_prompt", "duration_seconds") if s.get(key) is not None}
+        for s in scenes]}
     context = {**payload, "category_narration_voice": _category_narration_voice(payload),
                "script_rhythm_contract": _script_rhythm_contract(payload), "sections": current,
                "original_script": row.get("pregenerated_script"), "scene_budgets": budgets,
-               "structure": row.get("pregenerated_structure"), "script_style_directive": _resolve_script_style_directive(row.get("assigned_script_style"))}
+               "structure": compact_structure, "research_bundle": original_structure.get("research_bundle") or {},
+               "script_style_directive": _resolve_script_style_directive(row.get("assigned_script_style"))}
     runner = CodexStagedContentRunner(CodexContentConfig(
         os.getenv("CODEX_EXECUTABLE", "codex"), model,
         max(120, int(os.getenv("CODEX_CONTENT_TIMEOUT_SECONDS", "1800")))))
@@ -400,11 +405,19 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
             "Correct contradictions, unclear introductions, malformed expressions and repeated explanations through minimal motivated changes. "
             "Preserve correspondence with existing scene visuals; do not introduce replacement protagonists, settings or props. "
             "Do not preserve an error merely because it is in the original. Financial claims need supplied evidence or explicit hypothetical framing. "
-            "Return {'sections':[{'scene_order':1,'text':'...'}]} with every scene and respect scene_budgets. No headings, metadata or stage directions in narration.")
+            "Also repair outdated story_core and write narrative_blueprint with a continuity_ledger (cast, timeline, object_custody, character_knowledge, clue_payoffs). "
+            "Original planning may contain a wrong protagonist or obsolete scene ranges: replace those to match the actual revised scene count and plot. "
+            "Return {'sections':[{'scene_order':1,'text':'...'}], 'story_core':{...}, 'narrative_blueprint':{'continuity_ledger':{...}}} with every scene and respect scene_budgets. No headings, metadata or stage directions in narration.")
         sections = result.get("sections") if isinstance(result.get("sections"), list) else []
         errors = text_issues(sections, payload) + _script_rhythm_warnings(sections)
         if len(sections) != len(scenes):
             errors.append(f"Expected {len(scenes)} sections, got {len(sections)}")
+        blueprint = result.get("narrative_blueprint")
+        story_core = result.get("story_core")
+        if not isinstance(blueprint, dict) or not isinstance(blueprint.get("continuity_ledger"), dict) or not blueprint["continuity_ledger"]:
+            errors.append("Revised narrative_blueprint.continuity_ledger is required")
+        if not isinstance(story_core, dict) or not story_core:
+            errors.append("Revised story_core is required")
         for section, budget in zip(sections, budgets):
             text = section.get("text") if isinstance(section, dict) else None
             if not isinstance(text, str) or not budget["min_chars"] <= len(text.strip()) <= max(budget["max_chars"] * 2, budget["max_chars"] + 30):
@@ -412,13 +425,14 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
         review = {}
         if not errors:
             review = runner._stage(job_id, "repair_senior_review", {**context, "sections": sections,
+                "structure": {**compact_structure, "story_core": story_core}, "narrative_blueprint": blueprint,
                 "script": "\n\n".join(s["text"].strip() for s in sections)},
                 "Independently review the complete revised narration. Do not rewrite and do not trust author scores. "
-                "Check all nine senior listening criteria, original title and correspondence with existing scene visuals. "
+                "Check all nine senior listening criteria, original title and correspondence with existing scene visuals. The revised structure and narrative_blueprint are authoritative; the original script is a flawed reference, not a requirement to preserve errors. "
                 "Return {'script_quality_report':{...}} using the exact required profile and evidence-backed checks in category_narration_voice.")
             errors += review_issues(review.get("script_quality_report"))
         if not errors:
-            return sections, review["script_quality_report"]
+            return sections, {**review["script_quality_report"], "repaired_story_core": story_core, "repaired_narrative_blueprint": blueprint}
         context = {**context, "previous_revision": sections, "rejection": errors, "independent_review": review}
     raise CodexContentError("Senior repair rejected: " + "; ".join(errors[:12]))
 
@@ -559,6 +573,7 @@ def _sync_claimed_std_projects(
     script: str,
     structure: dict[str, Any],
     repair_report: dict[str, Any],
+    expected_projects: list[dict[str, Any]] | None = None,
 ) -> int:
     """Propagate an intentional worker rewrite to every already-claimed STD project.
 
@@ -571,7 +586,7 @@ def _sync_claimed_std_projects(
         headers=headers,
         params={
             "topic_queue_id": f"eq.{quote(str(topic_id), safe='')}",
-            "select": "id,source_payload,project_payload,progress_payload",
+            "select": "id,source_payload,project_payload,progress_payload,updated_at",
         },
         timeout=60,
     )
@@ -580,6 +595,10 @@ def _sync_claimed_std_projects(
     projects = response.json()
     if not isinstance(projects, list):
         raise RuntimeError(f"STD project lookup for topic {topic_id} returned invalid JSON")
+    if expected_projects is not None:
+        expected = {p["id"]: p.get("updated_at") for p in expected_projects}
+        if {p["id"]: p.get("updated_at") for p in projects} != expected:
+            raise RuntimeError("Project changed during repair save; refusing to overwrite newer work")
 
     for project in projects:
         if not isinstance(project, dict) or not project.get("id"):
@@ -603,9 +622,14 @@ def _sync_claimed_std_projects(
             **progress_payload,
             "pregenerated_script_status": "ready",
             "script_quality_report": repair_report,
+            "narrative_blueprint": repair_report.get("repaired_narrative_blueprint") or source_payload.get("narrative_blueprint") or {},
+            "script_changed_requires_audio_regeneration": True,
+            "subtitles_completed": False,
+            "subtitles_saved": False,
         }
+        version_filter = "&updated_at=eq." + quote(str(project["updated_at"]), safe="") if project.get("updated_at") else "&updated_at=is.null"
         update = requests.patch(
-            f"{base_url}/rest/v1/std_projects?id=eq.{quote(str(project['id']), safe='')}",
+            f"{base_url}/rest/v1/std_projects?id=eq.{quote(str(project['id']), safe='')}{version_filter}",
             headers=headers,
             json={
                 "source_payload": updated_source,
@@ -619,6 +643,8 @@ def _sync_claimed_std_projects(
                 f"STD project update {project['id']} for topic {topic_id} failed: "
                 f"HTTP {update.status_code} {update.text[:500]}"
             )
+        if not update.json():
+            raise RuntimeError("Project changed concurrently; source repair saved but project synchronization needs retry")
     return len(projects)
 
 
@@ -630,9 +656,26 @@ def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sec
     scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
     if len(sections) != len(scenes):
         raise CodexContentError("Refusing incomplete scene repair")
+    if report.get("repaired_story_core"):
+        structure["story_core"] = report["repaired_story_core"]
+    if report.get("repaired_narrative_blueprint"):
+        structure["narrative_blueprint"] = report["repaired_narrative_blueprint"]
     backup_dir = ROOT / "output" / "script_repairs" / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
-    (backup_dir / f"topic_{row['id']}_{time.time_ns()}.json").write_text(json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8")
+    fresh = _fetch_rows(base_url, headers, [int(row["id"])])[0]
+    if any(fresh.get(key) != row.get(key) for key in ("pregenerated_script", "pregenerated_structure", "status")):
+        raise CodexContentError("Topic changed during generation; refusing to overwrite newer content")
+    project_response = requests.get(f"{base_url}/rest/v1/std_projects", headers=headers,
+        params={"select": "id,source_payload,project_payload,progress_payload,updated_at", "topic_queue_id": f"eq.{row['id']}"}, timeout=60)
+    project_response.raise_for_status()
+    projects = project_response.json()
+    for project in projects:
+        editor = project.get("project_payload") or {}
+        source = project.get("source_payload") or {}
+        original = editor.get("original_worker_script") or source.get("pregenerated_script") or row.get("pregenerated_script")
+        if editor.get("script") and editor["script"] != original:
+            raise CodexContentError(f"Project {project['id']} has user-edited narration; preserve it for manual reconciliation")
+    (backup_dir / f"topic_{row['id']}_{time.time_ns()}.json").write_text(json.dumps({"topic": row, "projects": projects}, ensure_ascii=False, indent=2), encoding="utf-8")
     by_order = {
         int(section.get("scene_order") or index): str(section.get("text") or "").strip()
         for index, section in enumerate(sections, 1)
@@ -660,12 +703,22 @@ def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sec
             "pregenerated_script_status": "ready",
             "pregenerated_structure": structure,
             "script_quality_report": repair_report,
+            "narrative_blueprint": report.get("repaired_narrative_blueprint") or row.get("narrative_blueprint") or {},
         },
         timeout=60,
     )
     if response.status_code >= 400:
         raise RuntimeError(f"update topic {row['id']} failed: HTTP {response.status_code} {response.text[:500]}")
-    _sync_claimed_std_projects(base_url, headers, row["id"], script, structure, repair_report)
+    _sync_claimed_std_projects(base_url, headers, row["id"], script, structure, repair_report, projects)
+    stored = _fetch_rows(base_url, headers, [int(row["id"])])[0]
+    if stored.get("pregenerated_script") != script or stored.get("pregenerated_structure") != structure:
+        raise RuntimeError("Saved topic failed read-back verification")
+    project_response = requests.get(f"{base_url}/rest/v1/std_projects", headers=headers,
+        params={"select": "id,source_payload,project_payload", "topic_queue_id": f"eq.{row['id']}"}, timeout=60)
+    project_response.raise_for_status()
+    for project in project_response.json():
+        if (project.get("source_payload") or {}).get("pregenerated_script") != script or (project.get("project_payload") or {}).get("script") != script:
+            raise RuntimeError(f"Project {project['id']} failed script read-back verification")
 
 
 def _sync_existing_row(base_url: str, headers: dict[str, str], row: dict[str, Any]) -> int:
@@ -687,6 +740,7 @@ def main() -> int:
     parser.add_argument("--sync-only", action="store_true", help="Copy already repaired scripts into claimed STD projects without regeneration")
     parser.add_argument("--model", default=os.getenv("CODEX_CONTENT_MODEL", ""))
     parser.add_argument("--force-regenerate", action="store_true", help="Ignore cached repair response JSON files")
+    parser.add_argument("--continue-on-error", action="store_true", help="Record failures and continue remaining topics")
     args = parser.parse_args()
 
     ids: list[int] = []
@@ -708,21 +762,34 @@ def main() -> int:
         print("No rows found.")
         return 1
     output_dir = ROOT / "output" / "script_repairs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    batch_path = output_dir / f"batch_{time.time_ns()}.json"
+    outcomes: list[dict[str, Any]] = []
     print(f"Repair target rows: {len(rows)}", flush=True)
     for row in rows:
-        if args.sync_only:
-            synced = _sync_existing_row(base_url, headers, row)
-            print(f"[{row['id']}] synced claimed projects={synced}", flush=True)
-            continue
-        category_name = categories.get(str(row.get("category_id"))) or row.get("category_name_en") or ""
-        print(f"[{row['id']}] repairing: {row.get('generated_title') or row.get('topic')} / {category_name}", flush=True)
-        sections, report = _repair_with_codex(row, category_name, output_dir, args.model, force=args.force_regenerate)
-        if args.dry_run:
-            print(f"[{row['id']}] dry-run ok, sections={len(sections)}, report_score={report.get('score')}", flush=True)
-            continue
-        _update_row(base_url, headers, row, sections, report)
-        print(f"[{row['id']}] updated, sections={len(sections)}, report_score={report.get('score')}", flush=True)
-    return 0
+        try:
+            if args.sync_only:
+                synced = _sync_existing_row(base_url, headers, row)
+                print(f"[{row['id']}] synced claimed projects={synced}", flush=True)
+                outcomes.append({"id": row["id"], "status": "synced"})
+            else:
+                category_name = categories.get(str(row.get("category_id"))) or row.get("category_name_en") or ""
+                print(f"[{row['id']}] repairing: {row.get('generated_title') or row.get('topic')} / {category_name}", flush=True)
+                sections, report = _repair_with_codex(row, category_name, output_dir, args.model, force=args.force_regenerate)
+                if not args.dry_run:
+                    _update_row(base_url, headers, row, sections, report)
+                status = "dry_run_pass" if args.dry_run else "saved_and_verified"
+                outcomes.append({"id": row["id"], "status": status, "score": report.get("score")})
+                print(f"[{row['id']}] {status}, sections={len(sections)}, report_score={report.get('score')}", flush=True)
+        except Exception as exc:
+            outcomes.append({"id": row["id"], "status": "failed", "error": str(exc)[:1600]})
+            print(f"[{row['id']}] failed: {str(exc)[:1600]}", flush=True)
+            if not args.continue_on_error:
+                raise
+        finally:
+            batch_path.write_text(json.dumps({"requested_ids": ids, "model": args.model, "profile": PROFILE, "results": outcomes}, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"Batch report: {batch_path}", flush=True)
+    return 1 if any(r["status"] == "failed" for r in outcomes) else 0
 
 
 if __name__ == "__main__":

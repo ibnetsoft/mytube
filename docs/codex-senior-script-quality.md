@@ -47,3 +47,18 @@
 무오류를 보장하지 않는다. 실제 음성의 속도·발음·쉼과 시니어 청취 반응은 별도 검증 대상이다.
 
 검증: `python -m pytest tests/test_codex_content_runner.py tests/test_senior_script_guard.py -q`.
+
+## 기존 대본 수정
+
+`scripts/repair_existing_topic_scripts.py`도 동일한 독립 검수를 거친다.
+본문의 모순을 바로잡을 때 낡은 `story_core`와 `narrative_blueprint`도 함께 수정한다.
+기존 이미지·영상 프롬프트와 생성된 자산은 보존하고, 수정본과의 대응을 검수한다.
+검수 통과 전에는 DB를 수정하지 않는다. 저장 직전에 토픽 및 연결된 STD 프로젝트를
+`output/script_repairs/backups`에 보관하며, 다른 작업이 바꾼 토픽이나 사용자가 직접
+편집한 프로젝트 대본은 덮어쓰지 않는다. 프로젝트 저장은 버전 조건으로 보호한다.
+저장한 토픽/프로젝트 대본은 다시 조회해 일치 여부를 확인한다.
+기존 자막 완료 표시는 해제하고 음성 재생성이 필요하다는 표시를 남긴다.
+
+일괄 실행 시 `--continue-on-error`를 주면 실패한 토픽을 기록하고 나머지를 계속한다.
+`output/script_repairs/batch_*.json`에 건별 결과를 기록한다. 실패는 부분 저장 가능성까지
+포함하므로 결과를 확인해야 하며, 전체 성공으로 취급하지 않는다.
