@@ -7,7 +7,7 @@ export const CATEGORY_IMAGE_STYLE_DEFAULTS: Record<string, string> = {
     '탈북사연': 'shadowed investigation',
     '해외감동': 'watercolor',
     '황혼19금': 'rainy neon metropolis',
-    '옛날이야기': 'watercolor forest story',
+    '옛날이야기': 'realistic',
     '한국사연': 'he moonlit hanok palace',
     '무협': 'classic vintage cinema',
     'English Folktales': 'realistic',
