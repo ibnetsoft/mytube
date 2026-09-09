@@ -847,6 +847,7 @@ export default function StdPortalPage() {
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
     const [selectedSubtitleBlockIndexes, setSelectedSubtitleBlockIndexes] = useState<number[]>([])
     const [selectedSubtitleSceneNumbers, setSelectedSubtitleSceneNumbers] = useState<number[]>([])
+    const [hoveredSubtitleSceneNumber, setHoveredSubtitleSceneNumber] = useState<number | null>(null)
     const subtitleBlockSelectionAnchorRef = useRef<number | null>(null)
     const subtitleTextSelectionRef = useRef<{ subtitleIndex: number; cursor: number } | null>(null)
     const subtitleTextEditorRef = useRef<HTMLTextAreaElement | null>(null)
@@ -903,6 +904,7 @@ export default function StdPortalPage() {
         subtitleBlockSelectionAnchorRef.current = null
         subtitleTextSelectionRef.current = null
         setSelectedSubtitleSceneNumbers([])
+        setHoveredSubtitleSceneNumber(null)
         setIsTransitionPickerOpen(false)
     }, [selectedProject?.project?.id])
 
@@ -7753,6 +7755,9 @@ export default function StdPortalPage() {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
                                                 const isChecked = selectedSubtitleSceneNumbers.includes(Number(sNum))
+                                                const shouldPlayThumbnailVideo = Boolean(group.video_url) && (
+                                                    isActive || hoveredSubtitleSceneNumber === Number(sNum)
+                                                )
                                                 const isHook = sNum <= 12
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
@@ -7785,6 +7790,10 @@ export default function StdPortalPage() {
                                                             setSelectedSubIndex(group.firstIndex)
                                                             setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
                                                         }}
+                                                        onMouseEnter={() => setHoveredSubtitleSceneNumber(Number(sNum))}
+                                                        onMouseLeave={() => setHoveredSubtitleSceneNumber(current => (
+                                                            current === Number(sNum) ? null : current
+                                                        ))}
                                                         className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
                                                             isChecked
                                                                 ? 'bg-cyan-500/10 border-cyan-400/70 shadow-md'
@@ -7816,12 +7825,13 @@ export default function StdPortalPage() {
                                                             <div className="h-[90px] aspect-video rounded-lg overflow-hidden border border-white/10 relative">
                                                                 {group.video_url ? (
                                                                     <video
+                                                                        key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
                                                                         src={group.video_url}
                                                                         className="w-full h-full object-cover"
-                                                                        autoPlay
-                                                                        loop
+                                                                        autoPlay={shouldPlayThumbnailVideo}
                                                                         muted
                                                                         playsInline
+                                                                        preload={shouldPlayThumbnailVideo ? 'auto' : 'metadata'}
                                                                     />
                                                                 ) : group.image_url ? (
                                                                     <img src={group.image_url} alt="" className="w-full h-full object-cover" />
