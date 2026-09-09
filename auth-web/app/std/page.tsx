@@ -10489,7 +10489,8 @@ export default function StdPortalPage() {
                                                         const pStatus = isSelectedProj
                                                              ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                                                              : getProjectStepStatus(p)
-                                                        const isSubmitted = Boolean(submittedAt)
+                                                        const isSubmitted = Boolean(p.submitted_at)
+                                                        const hasSharedSubmission = Boolean(p.shared_submission)
                                                         const submitBlockers = [
                                                             !pStatus.isPlanningDone ? '기획' : '',
                                                             !pStatus.isScriptDone ? '대본' : '',
@@ -10553,7 +10554,7 @@ export default function StdPortalPage() {
                                                                         >
                                                                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                                                                         </button>
-                                                                    ) : pStatus.allDone ? (
+                                                                    ) : (pStatus.allDone || hasSharedSubmission) ? (
                                                                         <button
                                                                             onClick={async () => {
                                                                                 const openedProject = await openProject(p.id)
@@ -10561,7 +10562,9 @@ export default function StdPortalPage() {
                                                                             }}
                                                                             disabled={Boolean(submittingProjectId)}
                                                                             className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-wait text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
-                                                                            title="모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수"
+                                                                            title={hasSharedSubmission
+                                                                                ? '공동 작업 제출 확인: 클릭하면 중복 렌더 없이 제출 완료로 처리됩니다.'
+                                                                                : '모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수'}
                                                                         >
                                                                             <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
                                                                         </button>

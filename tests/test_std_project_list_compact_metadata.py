@@ -14,7 +14,7 @@ def test_project_list_uses_compact_start_and_submission_dates():
     assert "const submittedAt = p.submitted_at || p.shared_submission?.submitted_at" in STD_PAGE
     assert "{formatProjectListDate(submittedAt)}" in STD_PAGE
     assert "p.updated_at ? p.updated_at.slice" not in STD_PAGE
-    assert "const isSubmitted = Boolean(submittedAt)" in STD_PAGE
+    assert "const isSubmitted = Boolean(p.submitted_at)" in STD_PAGE
     assert "created_at,updated_at,submitted_at,progress_payload" in PROJECTS_ROUTE
 
 
@@ -24,6 +24,8 @@ def test_same_topic_submission_is_shared_without_duplicate_rendering():
     assert "shared_submission: true" in SUBMIT_ROUTE
     assert ".eq('topic_queue_id', project.topic_queue_id)" in SUBMIT_ROUTE
     assert "공동 작업 제출 완료" in STD_PAGE
+    assert "const hasSharedSubmission = Boolean(p.shared_submission)" in STD_PAGE
+    assert ") : (pStatus.allDone || hasSharedSubmission) ?" in STD_PAGE
 
 
 def test_project_list_shows_a_compact_saved_thumbnail_first():
