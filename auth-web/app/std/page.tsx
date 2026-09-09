@@ -867,11 +867,19 @@ export default function StdPortalPage() {
     const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
+    const [previewTransition, setPreviewTransition] = useState<{
+        key: number
+        effect: string
+        imageUrl: string
+        videoUrl: string
+        exiting: boolean
+    } | null>(null)
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
+    const previewTransitionVisualRef = useRef<{ sceneNumber: number; imageUrl: string; videoUrl: string } | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
@@ -5947,6 +5955,65 @@ export default function StdPortalPage() {
         : ''
     const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
 
+    const previewTransitionLayerStyle = (effect: string, exiting: boolean) => {
+        const transition = 'opacity 520ms ease-out, transform 520ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 520ms ease-out'
+        if (!exiting) return { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1) rotate(0deg)', filter: 'none', transition }
+        if (effect === 'wipe_left' || effect === 'push') return { opacity: 1, transform: 'translate3d(-100%, 0, 0)', filter: 'none', transition }
+        if (effect === 'wipe_right') return { opacity: 1, transform: 'translate3d(100%, 0, 0)', filter: 'none', transition }
+        if (effect === 'wipe_up') return { opacity: 1, transform: 'translate3d(0, -100%, 0)', filter: 'none', transition }
+        if (effect === 'wipe_down') return { opacity: 1, transform: 'translate3d(0, 100%, 0)', filter: 'none', transition }
+        if (effect === 'diagonal_wipe') return { opacity: 1, transform: 'translate3d(-100%, -100%, 0)', filter: 'none', transition }
+        if (effect === 'darken') return { opacity: 0, transform: 'scale(1)', filter: 'brightness(0)', transition }
+        if (effect === 'brighten') return { opacity: 0, transform: 'scale(1)', filter: 'brightness(2.5)', transition }
+        if (effect === 'color_blend') return { opacity: 0, transform: 'scale(1.03)', filter: 'saturate(2.2) hue-rotate(20deg)', transition }
+        if (effect === 'grayscale_fade') return { opacity: 0, transform: 'scale(1.03)', filter: 'grayscale(1)', transition }
+        if (effect === 'morph') return { opacity: 0, transform: 'scale(1.16)', filter: 'blur(2px)', transition }
+        if (effect === 'focus') return { opacity: 0, transform: 'scale(1.12)', filter: 'blur(6px)', transition }
+        if (effect === 'ripple') return { opacity: 0, transform: 'scale(1.07) rotate(1deg)', filter: 'blur(3px)', transition }
+        if (effect === 'clockwise') return { opacity: 0, transform: 'scale(1.08) rotate(10deg)', filter: 'none', transition }
+        if (effect === 'directional_warp') return { opacity: 0, transform: 'translate3d(-12%, 5%, 0) skewX(-8deg) scale(1.08)', filter: 'none', transition }
+        if (effect === 'static') return { opacity: 0, transform: 'translate3d(3%, -2%, 0) scale(1.03)', filter: 'contrast(1.7)', transition }
+        if (effect === 'mosaic') return { opacity: 0, transform: 'scale(1.12)', filter: 'contrast(1.5) saturate(0.6)', transition }
+        if (effect === 'blinds' || effect === 'horizontal_lines') return { opacity: 0, transform: 'scaleY(0.04)', filter: 'none', transition }
+        return { opacity: 0, transform: 'scale(1.03)', filter: 'none', transition }
+    }
+
+    useEffect(() => {
+        const previousVisual = previewTransitionVisualRef.current
+        const nextVisual = {
+            sceneNumber: currentPreviewSceneNumber,
+            imageUrl: currentSubImageUrl,
+            videoUrl: currentSubVideoUrl,
+        }
+        previewTransitionVisualRef.current = nextVisual
+        if (!previousVisual || previousVisual.sceneNumber === nextVisual.sceneNumber) return
+
+        const incomingScene = selectedProject?.scenes?.find((scene: any) => (
+            Number(scene?.scene_number) === currentPreviewSceneNumber
+        ))
+        const effect = String(incomingScene?.metadata?.transition_effect || incomingScene?.transition_effect || '')
+        if (!effect || effect === 'none') {
+            setPreviewTransition(null)
+            return
+        }
+
+        setPreviewTransition({
+            key: Date.now(),
+            effect,
+            imageUrl: previousVisual.imageUrl,
+            videoUrl: previousVisual.videoUrl,
+            exiting: false,
+        })
+        const frame = window.requestAnimationFrame(() => {
+            setPreviewTransition(current => current ? { ...current, exiting: true } : current)
+        })
+        const timeout = window.setTimeout(() => setPreviewTransition(null), 560)
+        return () => {
+            window.cancelAnimationFrame(frame)
+            window.clearTimeout(timeout)
+        }
+    }, [currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl, selectedProject?.scenes])
+
     useEffect(() => {
         const video = vrewPreviewVideoRef.current
         if (!video) return
@@ -7776,6 +7843,14 @@ export default function StdPortalPage() {
                                                                 {group.start_time}s ~ {group.end_time}s
                                                                 <span className="ml-1 text-[9px] text-gray-500">{duration.toFixed(1)}s</span>
                                                             </div>
+                                                            {transitionEffect && transitionEffect !== 'none' && (
+                                                                <div
+                                                                    title={`화면전환효과: ${sceneTransitionLabel(transitionEffect)}`}
+                                                                    className="mt-1 truncate text-[9px] font-bold text-violet-300"
+                                                                >
+                                                                    {sceneTransitionLabel(transitionEffect)}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1">
@@ -7971,6 +8046,31 @@ export default function StdPortalPage() {
                                                 <div className="w-full h-full bg-[#0b0e14] flex flex-col items-center justify-center text-gray-600 gap-1 select-none">
                                                     <span className="text-2xl opacity-40">🖼️</span>
                                                     <span className="text-[10px] font-mono text-gray-500">이미지 없음 (업로드 대기)</span>
+                                                </div>
+                                            )}
+                                            {previewTransition && (previewTransition.videoUrl || previewTransition.imageUrl) && (
+                                                <div
+                                                    key={previewTransition.key}
+                                                    className="absolute inset-0 z-10 overflow-hidden pointer-events-none"
+                                                    style={{ willChange: 'opacity, transform, filter' }}
+                                                >
+                                                    {previewTransition.videoUrl ? (
+                                                        <video
+                                                            src={previewTransition.videoUrl}
+                                                            className="w-full h-full object-cover"
+                                                            autoPlay
+                                                            muted
+                                                            playsInline
+                                                            style={previewTransitionLayerStyle(previewTransition.effect, previewTransition.exiting)}
+                                                        />
+                                                    ) : (
+                                                        <img
+                                                            src={previewTransition.imageUrl}
+                                                            alt=""
+                                                            className="w-full h-full object-cover"
+                                                            style={previewTransitionLayerStyle(previewTransition.effect, previewTransition.exiting)}
+                                                        />
+                                                    )}
                                                 </div>
                                             )}
                                             {selectedImageTemplatePreset && shapeLayers.map(shape => (

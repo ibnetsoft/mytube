@@ -184,11 +184,21 @@ class RemoteDriveWorker:
         return f"{safe_name}.mp4"
 
     def _resolve_result_folder(self, job):
+        metadata = job.get("metadata") or {}
+        manifest_folder_id = (metadata.get("drive_folder_id") or metadata.get("result_folder_id") or "").strip()
+        if manifest_folder_id:
+            folder_meta = google_drive_service.get_file_metadata(
+                manifest_folder_id,
+                token_path=self.google_token_path or None,
+                fields="id, name, mimeType, parents, webViewLink",
+            )
+            if folder_meta and folder_meta.get("id"):
+                return {"id": folder_meta.get("id"), "name": folder_meta.get("name") or "std-project"}
+
         email = (job.get("email") or "").strip()
         if not email:
             email = "unknown-user"
-            
-        metadata = job.get("metadata") or {}
+
         category_name = metadata.get("category_name")
         folder_category = category_name if category_name else email
         

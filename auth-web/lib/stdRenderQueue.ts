@@ -1,13 +1,11 @@
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 import {
-    createStdDriveJsonFile,
     downloadStdDriveFile,
     driveFileLink,
     driveFolderLink,
     ensureStdProjectDriveFolders,
-    sanitizeDriveName,
-    uploadStdDriveBuffer,
+    upsertStdDriveJsonFile,
 } from './stdGoogleDrive'
 
 type ZipEntry = {
@@ -554,11 +552,26 @@ export async function enqueueStdProjectRender(projectId: string) {
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
     const folders = await ensureStdProjectDriveFolders(project)
     const renderConfig = buildDriveFolderRenderConfig(project, scenes, assets, pseudoProjectId)
-    const configFile = await createStdDriveJsonFile(
+    const scriptFile = await upsertStdDriveJsonFile(folders.projectFolderId, 'script.json', {
+        project_id: project.id,
+        topic_queue_id: project.topic_queue_id,
+        title: project.title,
+        language: project.language || 'ko',
+        script: project.project_payload?.script || project.project_payload?.original_worker_script || '',
+        scenes: scenes.map((scene: any) => ({
+            scene_number: scene.scene_number,
+            scene_title: scene.scene_title || '',
+            scene_text: scene.scene_text || '',
+            image_prompt: scene.image_prompt || '',
+            video_prompt: scene.video_prompt || '',
+        })),
+    })
+    const publishMetadataFile = await upsertStdDriveJsonFile(
         folders.projectFolderId,
-        'config.json',
-        renderConfig
+        'publish_metadata.json',
+        renderConfig.project_upload_metadata
     )
+    const configFile = await upsertStdDriveJsonFile(folders.projectFolderId, 'config.json', renderConfig)
 
     const metadata = {
         queue_scope: 'remote_render',
@@ -575,6 +588,12 @@ export async function enqueueStdProjectRender(projectId: string) {
         config_file_id: configFile.id,
         config_file_name: configFile.name,
         config_web_link: configFile.webViewLink || driveFileLink(configFile.id),
+        script_file_id: scriptFile.id,
+        script_file_name: scriptFile.name,
+        script_web_link: scriptFile.webViewLink || driveFileLink(scriptFile.id),
+        publish_metadata_file_id: publishMetadataFile.id,
+        publish_metadata_file_name: publishMetadataFile.name,
+        publish_metadata_web_link: publishMetadataFile.webViewLink || driveFileLink(publishMetadataFile.id),
         manifest_file_count: renderConfig.asset_manifest.files.length,
         source: 'picadiri_local_app',
         std_web_project_id: project.id,
@@ -629,6 +648,10 @@ export async function enqueueStdProjectRender(projectId: string) {
                     remote_asset_file_id: configFile.id,
                     remote_asset_file_name: configFile.name,
                     remote_asset_web_link: configFile.webViewLink || driveFileLink(configFile.id),
+                    remote_script_file_id: scriptFile.id,
+                    remote_script_web_link: scriptFile.webViewLink || driveFileLink(scriptFile.id),
+                    remote_publish_metadata_file_id: publishMetadataFile.id,
+                    remote_publish_metadata_web_link: publishMetadataFile.webViewLink || driveFileLink(publishMetadataFile.id),
                     remote_render_queue_payload: payload,
                     admin_publish_status: 'render_pending',
                     submitted_to_render_queue_at: now,

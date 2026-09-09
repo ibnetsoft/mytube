@@ -84,6 +84,24 @@ async function findFolder(parentId: string, name: string): Promise<string | null
     return payload.files?.[0]?.id || null
 }
 
+async function findFile(parentId: string, name: string, mimeType?: string): Promise<string | null> {
+    const query = [
+        `'${escapeDriveQuery(parentId)}' in parents`,
+        `name = '${escapeDriveQuery(name)}'`,
+        'trashed = false',
+        ...(mimeType ? [`mimeType = '${escapeDriveQuery(mimeType)}'`] : []),
+    ].join(' and ')
+    const params = new URLSearchParams({
+        q: query,
+        fields: 'files(id,name)',
+        pageSize: '1',
+        supportsAllDrives: 'true',
+        includeItemsFromAllDrives: 'true',
+    })
+    const payload = await driveJson<{ files?: Array<{ id: string }> }>(`https://www.googleapis.com/drive/v3/files?${params}`)
+    return payload.files?.[0]?.id || null
+}
+
 async function createFolder(parentId: string, name: string): Promise<string> {
     const payload = await driveJson<{ id: string }>('https://www.googleapis.com/drive/v3/files?fields=id', {
         method: 'POST',
@@ -288,6 +306,37 @@ export async function createStdDriveJsonFile(folderId: string, fileName: string,
     if (!res.ok) {
         const detail = await res.text()
         throw new Error(`drive_manifest_create_failed: HTTP ${res.status} ${detail.slice(0, 200)}`)
+    }
+    return await res.json() as DriveFileMetadata
+}
+
+export async function upsertStdDriveJsonFile(folderId: string, fileName: string, data: any): Promise<DriveFileMetadata> {
+    const safeName = sanitizeDriveName(fileName, 'manifest.json')
+    const existingFileId = await findFile(folderId, safeName, 'application/json')
+    if (!existingFileId) {
+        return await createStdDriveJsonFile(folderId, safeName, data)
+    }
+
+    const token = await getStdDriveAccessToken()
+    const boundary = 'air_std_web_boundary_' + Math.random().toString(36).slice(2)
+    const body =
+        `--${boundary}\r\n` +
+        `Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: safeName, mimeType: 'application/json' })}\r\n` +
+        `--${boundary}\r\n` +
+        `Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(data, null, 2)}\r\n` +
+        `--${boundary}--`
+
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existingFileId)}?uploadType=multipart&fields=id,name,mimeType,size,parents,webViewLink,thumbnailLink`, {
+        method: 'PATCH',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body,
+    })
+    if (!res.ok) {
+        const detail = await res.text()
+        throw new Error(`drive_manifest_update_failed: HTTP ${res.status} ${detail.slice(0, 200)}`)
     }
     return await res.json() as DriveFileMetadata
 }
