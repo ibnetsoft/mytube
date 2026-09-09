@@ -10,6 +10,7 @@ import argparse
 import sys
 import re
 import traceback
+from urllib.parse import quote
 
 import requests
 
@@ -237,16 +238,81 @@ class RemoteDriveWorker:
             raise RuntimeError(f"잘못된 렌더 파일 경로입니다: {relative_path}")
         return os.path.join(*parts)
 
+    def _download_from_supabase_storage(self, source, destination_path):
+        """Fetch a private Storage object with an atomic local write."""
+        if not isinstance(source, dict):
+            return False
+        bucket = str(source.get("bucket") or "").strip()
+        object_path = str(source.get("path") or "").strip().replace("\\", "/").lstrip("/")
+        if not bucket or not object_path or ".." in object_path.split("/"):
+            return False
+
+        url = f"{self.supabase_url}/storage/v1/object/{quote(bucket, safe='')}/{quote(object_path, safe='/')}"
+        partial_path = f"{destination_path}.download"
+        try:
+            response = requests.get(
+                url,
+                headers={"apikey": self.supabase_key, "Authorization": f"Bearer {self.supabase_key}"},
+                stream=True,
+                timeout=120,
+                proxies={"http": None, "https": None},
+            )
+            if response.status_code != 200:
+                return False
+            os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+            with open(partial_path, "wb") as output:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        output.write(chunk)
+            if not os.path.exists(partial_path) or os.path.getsize(partial_path) <= 0:
+                return False
+            os.replace(partial_path, destination_path)
+            return True
+        except requests.RequestException:
+            return False
+        finally:
+            try:
+                if os.path.exists(partial_path):
+                    os.remove(partial_path)
+            except OSError:
+                pass
+
+    def _download_asset_with_fallback(self, job_id, drive_file_id, destination_path, *, storage_source=None, label):
+        """Prefer Drive, but keep rendering when repeated transient Drive reads fail."""
+        attempts = max(1, int(os.getenv("REMOTE_RENDER_DRIVE_DOWNLOAD_ATTEMPTS", "3")))
+        for attempt in range(1, attempts + 1):
+            try:
+                os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+                downloaded = google_drive_service.download_file(
+                    drive_file_id,
+                    destination_path,
+                    token_path=self.google_token_path or None,
+                )
+                if downloaded and os.path.exists(destination_path):
+                    return "google_drive"
+            except Exception:
+                pass
+            if attempt < attempts:
+                self.update_job(job_id, message=f"Google Drive 다운로드 재시도 중 ({attempt}/{attempts}): {label}")
+                time.sleep(attempt)
+
+        if storage_source:
+            self.update_job(job_id, message=f"Google Drive 오류로 Supabase 에셋 대체 다운로드 중: {label}")
+            if self._download_from_supabase_storage(storage_source, destination_path):
+                return "supabase_storage"
+        raise RuntimeError(f"에셋 다운로드 실패 (Drive {attempts}회 재시도 및 Supabase 대체 다운로드 실패): {label}")
+
     def _prepare_drive_folder_manifest_job(self, job_id, job, temp_dir, config_file_id):
         config_path = os.path.join(temp_dir, "config.json")
         self.update_job(job_id, progress=5, message="Google Drive에서 렌더 설정 파일 다운로드 중...")
-        downloaded_config = google_drive_service.download_file(
+        metadata = job.get("metadata") or {}
+        self._download_asset_with_fallback(
+            job_id,
             config_file_id,
             config_path,
-            token_path=self.google_token_path or None,
+            storage_source=metadata.get("supabase_config"),
+            label="config.json",
         )
-        if not downloaded_config:
-            raise RuntimeError("Google Drive에서 렌더 설정 파일을 다운로드하지 못했습니다.")
 
         with open(config_path, "r", encoding="utf-8") as f_conf:
             packaged_config = json.load(f_conf)
@@ -270,13 +336,19 @@ class RemoteDriveWorker:
                 progress=progress,
                 message=f"Google Drive 에셋 다운로드 중... ({index}/{total})",
             )
-            downloaded = google_drive_service.download_file(
+            storage_source = {
+                "bucket": item.get("supabase_bucket"),
+                "path": item.get("supabase_path"),
+            }
+            if not storage_source["bucket"] or not storage_source["path"]:
+                storage_source = None
+            self._download_asset_with_fallback(
+                job_id,
                 drive_file_id,
                 local_path,
-                token_path=self.google_token_path or None,
+                storage_source=storage_source,
+                label=relative_path,
             )
-            if not downloaded:
-                raise RuntimeError(f"Google Drive 에셋 다운로드 실패: {relative_path}")
 
     def process_job(self, job):
         self._refresh_drive_settings()
@@ -294,9 +366,13 @@ class RemoteDriveWorker:
                 self._prepare_drive_folder_manifest_job(job_id, job, temp_dir, config_file_id)
             else:
                 self.update_job(job_id, progress=5, message="Google Drive에서 에셋 패키지 다운로드 중...")
-                downloaded = google_drive_service.download_file(asset_file_id, zip_path, token_path=self.google_token_path or None)
-                if not downloaded:
-                    raise RuntimeError("Google Drive에서 에셋 패키지 다운로드에 실패했습니다.")
+                self._download_asset_with_fallback(
+                    job_id,
+                    asset_file_id,
+                    zip_path,
+                    storage_source=metadata.get("supabase_asset_package"),
+                    label=job.get("asset_file_name") or "asset_package.zip",
+                )
 
                 self.update_job(job_id, progress=12, message="에셋 패키지 압축 해제 중...")
                 with zipfile.ZipFile(zip_path, "r") as zip_ref:

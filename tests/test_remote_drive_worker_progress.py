@@ -19,3 +19,11 @@ def test_drive_renderer_reports_local_progress_file_back_to_the_remote_queue():
     assert "def sync_render_progress():" in REMOTE_WORKER
     assert "self.update_job(job_id, progress=progress, message=message)" in REMOTE_WORKER
     assert "progress_thread.join(timeout=3)" in REMOTE_WORKER
+
+
+def test_drive_downloads_retry_then_fall_back_to_supabase_storage():
+    assert 'REMOTE_RENDER_DRIVE_DOWNLOAD_ATTEMPTS", "3"' in REMOTE_WORKER
+    assert "def _download_from_supabase_storage" in REMOTE_WORKER
+    assert "def _download_asset_with_fallback" in REMOTE_WORKER
+    assert 'storage_source=metadata.get("supabase_config")' in REMOTE_WORKER
+    assert '"bucket": item.get("supabase_bucket")' in REMOTE_WORKER

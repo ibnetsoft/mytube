@@ -54,6 +54,20 @@ function generatedImageStorageSource(scene: any) {
     return bucket && path ? { bucket, path } : null
 }
 
+function storageSourceForAsset(asset: any) {
+    const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
+    const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
+    const bucket = String(metadata?.storage_bucket || nestedMetadata?.storage_bucket || '').trim()
+    const path = String(
+        metadata?.storage_path
+        || metadata?.storage_object_path
+        || nestedMetadata?.storage_path
+        || nestedMetadata?.storage_object_path
+        || ''
+    ).trim().replace(/^\/+/, '')
+    return bucket && path ? { bucket, path } : null
+}
+
 export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
     const activeAssets = Array.isArray(assets) ? [...assets] : []
     const missingGeneratedImages = (scenes || []).filter((scene: any) => {
@@ -447,6 +461,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
     const manifestFiles: any[] = []
     const audioExt = mediaExtension(audioAsset.file_name, audioAsset.mime_type, '.mp3')
     const audioFilename = `audio_${pseudoProjectId}${audioExt}`
+    const audioStorage = storageSourceForAsset(audioAsset)
     manifestFiles.push({
         asset_type: 'audio',
         drive_file_id: audioAsset.drive_file_id,
@@ -454,6 +469,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         file_name: audioAsset.file_name,
         mime_type: audioAsset.mime_type,
         size: audioAsset.file_size || null,
+        ...(audioStorage ? { supabase_bucket: audioStorage.bucket, supabase_path: audioStorage.path } : {}),
     })
 
     const images: Array<string | null> = []
@@ -475,6 +491,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         const ext = mediaExtension(asset.file_name, asset.mime_type, '.png')
         const filename = `scene_${String(sceneNumber).padStart(3, '0')}${ext}`
         images.push(filename)
+        const assetStorage = storageSourceForAsset(asset)
         manifestFiles.push({
             asset_type: String(asset.asset_type || '').toLowerCase(),
             scene_number: sceneNumber,
@@ -483,6 +500,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: asset.file_name,
             mime_type: asset.mime_type,
             size: asset.file_size || null,
+            ...(assetStorage ? { supabase_bucket: assetStorage.bucket, supabase_path: assetStorage.path } : {}),
         })
     }
 
@@ -493,6 +511,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
     if (thumbnailAsset?.drive_file_id) {
         const ext = mediaExtension(thumbnailAsset.file_name, thumbnailAsset.mime_type, '.png')
         thumbnailFilename = `thumbnail${ext}`
+        const thumbnailStorage = storageSourceForAsset(thumbnailAsset)
         manifestFiles.push({
             asset_type: 'thumbnail',
             drive_file_id: thumbnailAsset.drive_file_id,
@@ -500,6 +519,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: thumbnailAsset.file_name,
             mime_type: thumbnailAsset.mime_type,
             size: thumbnailAsset.file_size || null,
+            ...(thumbnailStorage ? { supabase_bucket: thumbnailStorage.bucket, supabase_path: thumbnailStorage.path } : {}),
         })
     }
 
@@ -518,6 +538,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
     let bgmPath = ''
     if (bgmAsset?.drive_file_id || bgmDriveFileId) {
         bgmPath = bgmAsset ? audioManifestPath(bgmAsset, 'bgm') : 'audio/library-bgm.mp3'
+        const bgmStorage = bgmAsset ? storageSourceForAsset(bgmAsset) : null
         manifestFiles.push({
             asset_type: 'bgm',
             drive_file_id: bgmAsset?.drive_file_id || bgmDriveFileId,
@@ -525,6 +546,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: bgmAsset?.file_name || projectRenderSettings.bgm_file_name || 'library-bgm.mp3',
             mime_type: bgmAsset?.mime_type || 'audio/mpeg',
             size: bgmAsset?.file_size || null,
+            ...(bgmStorage ? { supabase_bucket: bgmStorage.bucket, supabase_path: bgmStorage.path } : {}),
         })
     }
 
@@ -556,6 +578,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             return
         }
         const path = audioManifestPath(asset, 'sfx', index + 1)
+        const sfxStorage = storageSourceForAsset(asset)
         manifestFiles.push({
             asset_type: 'sfx',
             scene_number: Number(cue.scene_number) || null,
@@ -565,6 +588,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: asset.file_name,
             mime_type: asset.mime_type,
             size: asset.file_size || null,
+            ...(sfxStorage ? { supabase_bucket: sfxStorage.bucket, supabase_path: sfxStorage.path } : {}),
         })
         sfxCues.push({
             ...cue,
@@ -670,6 +694,7 @@ export async function enqueueStdProjectRender(projectId: string) {
     }
 
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
+    const taskId = randomUUID()
     const folders = await ensureStdProjectDriveFolders(project)
     const archivedAssets = await ensureStdGeneratedSceneAssetsArchived(project, scenes, assets)
     const renderConfig = buildDriveFolderRenderConfig(project, scenes, archivedAssets, pseudoProjectId)
@@ -693,6 +718,16 @@ export async function enqueueStdProjectRender(projectId: string) {
         renderConfig.project_upload_metadata
     )
     const configFile = await upsertStdDriveJsonFile(folders.projectFolderId, 'config.json', renderConfig)
+    const configStoragePath = `std-projects/${project.id}/render-packages/${taskId}/config.json`
+    const { error: configStorageError } = await supabaseAdmin.storage
+        .from('content-assets')
+        .upload(configStoragePath, Buffer.from(JSON.stringify(renderConfig, null, 2), 'utf8'), {
+            contentType: 'application/json',
+            upsert: true,
+        })
+    if (configStorageError) {
+        console.warn('[STD RenderQueue] Supabase config fallback backup failed:', configStorageError.message)
+    }
 
     const metadata = {
         queue_scope: 'remote_render',
@@ -709,6 +744,7 @@ export async function enqueueStdProjectRender(projectId: string) {
         config_file_id: configFile.id,
         config_file_name: configFile.name,
         config_web_link: configFile.webViewLink || driveFileLink(configFile.id),
+        ...(!configStorageError ? { supabase_config: { bucket: 'content-assets', path: configStoragePath } } : {}),
         script_file_id: scriptFile.id,
         script_file_name: scriptFile.name,
         script_web_link: scriptFile.webViewLink || driveFileLink(scriptFile.id),
@@ -726,7 +762,6 @@ export async function enqueueStdProjectRender(projectId: string) {
     }
 
     const now = new Date().toISOString()
-    const taskId = randomUUID()
     const payload = {
         id: taskId,
         project_id: pseudoProjectId,
