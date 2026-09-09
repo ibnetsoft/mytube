@@ -3771,7 +3771,7 @@ async def auth_logout(response: Response):
 @app.get("/")
 async def dashboard_page():
     return Response(
-        content=DASHBOARD_HTML,
+        content=DASHBOARD_HTML.replace("__AIR_WORKER_PROFILE__", WORKER_PROFILE),
         media_type="text/html; charset=utf-8",
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
@@ -4051,9 +4051,10 @@ tr:hover { background: #161b22; }
 .pipeline-actions-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 .pipeline-error-summary { margin-top: 10px; color: #f0883e; font-size: 12px; word-break: break-word; background: rgba(240,136,62,0.12); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(240,136,62,0.35); }
 .pipeline-header-resume { font-size: 11px; padding: 3px 9px; }
+.tab-content[hidden] { display: none !important; }
 </style>
 </head>
-<body>
+<body data-worker-profile="__AIR_WORKER_PROFILE__">
 <div class="app">
   <!-- Sidebar -->
   <div class="sidebar">
@@ -5110,13 +5111,37 @@ const tabTitles = {
   'settings': '설정',
 };
 
+const SCRIPT_TAB_IDS = new Set([
+  'topic-search',
+  'yt-explore',
+  'hermes-autopilot',
+  'generated-results',
+  'voicebox-tts',
+  'hermes-gen',
+  'notebooklm',
+  'styles',
+  'category-image-styles',
+]);
+
+function tabScope(tabId) {
+  return SCRIPT_TAB_IDS.has(tabId) ? 'script' : 'all';
+}
+
+function isTabVisibleForWorkerProfile(tabId, profile) {
+  return visibleForWorkerProfile(tabScope(tabId), profile);
+}
+
 function switchTab(tabId) {
   const nav = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
-  if (nav && nav.style.display === 'none') tabId = 'overview';
+  const profile = window.latestWorkerStatus?.worker_profile || document.body.dataset.workerProfile || 'full';
+  if (!isTabVisibleForWorkerProfile(tabId, profile) || (nav && nav.style.display === 'none')) tabId = 'overview';
+  const panel = document.getElementById('tab-' + tabId);
+  const targetNav = document.querySelector(`.nav-item[data-tab="${tabId}"]`);
+  if (!panel || !targetNav) return;
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-' + tabId).classList.add('active');
-  document.querySelector(`.nav-item[data-tab="${tabId}"]`).classList.add('active');
+  panel.classList.add('active');
+  targetNav.classList.add('active');
   document.getElementById('page-title').textContent = tabTitles[tabId] || tabId;
   if (tabId === 'history') loadHistory();
   if (tabId === 'logs') loadLogs();
@@ -5136,6 +5161,10 @@ function applyWorkerProfileNavigation(status) {
   document.querySelectorAll('.nav-item[data-worker-scope]').forEach(item => {
     const scope = item.dataset.workerScope || 'all';
     item.style.display = hiddenScopes.has(scope) ? 'none' : '';
+  });
+  document.querySelectorAll('.tab-content[id^="tab-"]').forEach(panel => {
+    const tabId = panel.id.slice(4);
+    panel.hidden = !isTabVisibleForWorkerProfile(tabId, profile);
   });
   updateRoleScopedSelectOptions(profile);
   const active = document.querySelector('.nav-item.active');
