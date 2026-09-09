@@ -5506,12 +5506,18 @@ export default function StdPortalPage() {
                     : ''
                 throw new Error((payload.error || '제출 실패') + missing)
             }
-            const submitMessage = payload.shared_submission
-                ? '✅ 공동 작업 프로젝트가 이미 원격 렌더 큐에 등록되어 있습니다.'
-                : '✅ 원격 렌더 큐에 성공적으로 등록되었습니다!'
+            const submitMessage = payload.already_submitted
+                ? '✅ 이 프로젝트는 이미 원격 렌더 큐에 등록되어 있습니다.'
+                : payload.shared_submission
+                    ? '✅ 공동 작업 프로젝트가 이미 원격 렌더 큐에 등록되어 있습니다.'
+                    : '✅ 원격 렌더 큐에 성공적으로 등록되었습니다!'
             setMessage(submitMessage)
             await loadStdData(token, { showLoading: false })
-            alert(payload.shared_submission ? '공동 작업자가 이미 제출한 프로젝트입니다.' : '프로젝트가 원격 렌더 큐에 등록되었습니다.')
+            alert(payload.already_submitted
+                ? '이미 원격 렌더 큐에 등록된 프로젝트입니다.'
+                : payload.shared_submission
+                    ? '공동 작업자가 이미 제출한 프로젝트입니다.'
+                    : '프로젝트가 원격 렌더 큐에 등록되었습니다.')
         } catch (error: any) {
             const errorMessage = error?.message || '제출 실패'
             setMessage(`❌ ${errorMessage}`)
@@ -10540,11 +10546,15 @@ export default function StdPortalPage() {
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                                     {isSubmitted ? (
                                                                         <button
-                                                                            disabled
-                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600/25 text-emerald-400 border border-emerald-500/50 shadow-md mx-auto cursor-default transition-all"
-                                                                            title={p.shared_submission ? '공동 작업 제출 완료 (원격 렌더 큐 접수됨)' : '제출 완료 (원격 렌더 큐 접수됨)'}
+                                                                            onClick={async () => {
+                                                                                const openedProject = await openProject(p.id)
+                                                                                if (openedProject) await submitProject(openedProject)
+                                                                            }}
+                                                                            disabled={Boolean(submittingProjectId)}
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600/25 hover:bg-emerald-600/40 disabled:opacity-50 disabled:cursor-wait text-emerald-300 border border-emerald-500/50 shadow-md mx-auto cursor-pointer active:scale-95 transition-all"
+                                                                            title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다."
                                                                         >
-                                                                            <span className="text-xs font-black leading-none text-emerald-400">⏎</span>
+                                                                            <span className="text-xs font-black leading-none text-emerald-300">⏎</span>
                                                                         </button>
                                                                     ) : submittingProjectId === String(p.id) ? (
                                                                         <button

@@ -23,9 +23,11 @@ def test_same_topic_submission_is_shared_without_duplicate_rendering():
     assert ".in('topic_queue_id', topicQueueIds)" in PROJECTS_ROUTE
     assert "shared_submission: true" in SUBMIT_ROUTE
     assert ".eq('topic_queue_id', project.topic_queue_id)" in SUBMIT_ROUTE
-    assert "공동 작업 제출 완료" in STD_PAGE
+    assert "공동 작업자가 이미 제출한 프로젝트입니다." in STD_PAGE
     assert "const hasSharedSubmission = Boolean(p.shared_submission)" in STD_PAGE
     assert ") : (pStatus.allDone || hasSharedSubmission) ?" in STD_PAGE
+    assert "이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다." in STD_PAGE
+    assert "payload.already_submitted" in STD_PAGE
 
 
 def test_project_list_shows_a_compact_saved_thumbnail_first():
