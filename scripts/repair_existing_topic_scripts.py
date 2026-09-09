@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import time
+import copy
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -35,6 +36,8 @@ except Exception:
     pass
 
 from codex_content_runner import (  # noqa: E402
+    CodexContentConfig,
+    CodexStagedContentRunner,
     CodexContentError,
     _category_narration_voice,
     _pacing_schedule,
@@ -43,6 +46,7 @@ from codex_content_runner import (  # noqa: E402
     _script_rhythm_contract,
     _script_rhythm_warnings,
 )
+from senior_script_guard import PROFILE, text_issues, review_issues
 
 
 SELECT_COLUMNS = (
@@ -371,6 +375,55 @@ def _repair_with_codex_chunked(
 
 
 def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path, model: str, *, force: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Repair and independently review; never manufacture a passing verdict."""
+    scenes = (row.get("pregenerated_structure") or {}).get("scenes") or []
+    if not scenes:
+        raise CodexContentError("No scene structure to repair")
+    payload = {"category_id": row.get("category_id"), "category_name": category_name,
+               "language": row.get("language") or "ko", "target_duration_seconds": _duration_seconds(row, scenes),
+               "topic": row.get("topic"), "upload_title": row.get("generated_title") or row.get("topic"),
+               "assigned_script_style": row.get("assigned_script_style")}
+    current = _existing_sections(scenes, row.get("pregenerated_script") or "")
+    budgets = _repair_scene_budgets(scenes, payload, current)
+    context = {**payload, "category_narration_voice": _category_narration_voice(payload),
+               "script_rhythm_contract": _script_rhythm_contract(payload), "sections": current,
+               "original_script": row.get("pregenerated_script"), "scene_budgets": budgets,
+               "structure": row.get("pregenerated_structure"), "script_style_directive": _resolve_script_style_directive(row.get("assigned_script_style"))}
+    runner = CodexStagedContentRunner(CodexContentConfig(
+        os.getenv("CODEX_EXECUTABLE", "codex"), model,
+        max(120, int(os.getenv("CODEX_CONTENT_TIMEOUT_SECONDS", "1800")))))
+    job_id = f"repair-{row['id']}-{PROFILE}" + (f"-{time.time_ns()}" if force else "")
+    for attempt in range(3):
+        result = runner._stage(job_id, "repair_script", context,
+            "Rewrite the existing narration for senior adult listening under the mandatory category contract. "
+            "Preserve the title, main characters, coherent plot, scene count/order and duration. "
+            "Correct contradictions, unclear introductions, malformed expressions and repeated explanations through minimal motivated changes. "
+            "Preserve correspondence with existing scene visuals; do not introduce replacement protagonists, settings or props. "
+            "Do not preserve an error merely because it is in the original. Financial claims need supplied evidence or explicit hypothetical framing. "
+            "Return {'sections':[{'scene_order':1,'text':'...'}]} with every scene and respect scene_budgets. No headings, metadata or stage directions in narration.")
+        sections = result.get("sections") if isinstance(result.get("sections"), list) else []
+        errors = text_issues(sections, payload) + _script_rhythm_warnings(sections)
+        if len(sections) != len(scenes):
+            errors.append(f"Expected {len(scenes)} sections, got {len(sections)}")
+        for section, budget in zip(sections, budgets):
+            text = section.get("text") if isinstance(section, dict) else None
+            if not isinstance(text, str) or not budget["min_chars"] <= len(text.strip()) <= max(budget["max_chars"] * 2, budget["max_chars"] + 30):
+                errors.append(f"Section {budget['scene_order']} duration budget violated")
+        review = {}
+        if not errors:
+            review = runner._stage(job_id, "repair_senior_review", {**context, "sections": sections,
+                "script": "\n\n".join(s["text"].strip() for s in sections)},
+                "Independently review the complete revised narration. Do not rewrite and do not trust author scores. "
+                "Check all nine senior listening criteria, original title and correspondence with existing scene visuals. "
+                "Return {'script_quality_report':{...}} using the exact required profile and evidence-backed checks in category_narration_voice.")
+            errors += review_issues(review.get("script_quality_report"))
+        if not errors:
+            return sections, review["script_quality_report"]
+        context = {**context, "previous_revision": sections, "rejection": errors, "independent_review": review}
+    raise CodexContentError("Senior repair rejected: " + "; ".join(errors[:12]))
+
+
+def _repair_with_codex_legacy(row: dict[str, Any], category_name: str, output_dir: Path, model: str, *, force: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     structure = row.get("pregenerated_structure") if isinstance(row.get("pregenerated_structure"), dict) else {}
     scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
     if not scenes:
@@ -570,8 +623,16 @@ def _sync_claimed_std_projects(
 
 
 def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sections: list[dict[str, Any]], report: dict[str, Any]) -> None:
-    structure = row.get("pregenerated_structure") if isinstance(row.get("pregenerated_structure"), dict) else {}
+    errors = text_issues(sections, row) + review_issues(report)
+    if errors:
+        raise CodexContentError("Refusing to save unapproved repair: " + "; ".join(errors[:12]))
+    structure = copy.deepcopy(row.get("pregenerated_structure")) if isinstance(row.get("pregenerated_structure"), dict) else {}
     scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+    if len(sections) != len(scenes):
+        raise CodexContentError("Refusing incomplete scene repair")
+    backup_dir = ROOT / "output" / "script_repairs" / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    (backup_dir / f"topic_{row['id']}_{time.time_ns()}.json").write_text(json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8")
     by_order = {
         int(section.get("scene_order") or index): str(section.get("text") or "").strip()
         for index, section in enumerate(sections, 1)
@@ -587,8 +648,7 @@ def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sec
     script = "\n\n".join(part for part in parts if part).strip()
     repair_report = {
         **report,
-        "verdict": "pass",
-        "codex_repair_profile": "category_narration_rhythm_v2",
+        "codex_repair_profile": PROFILE,
         "repaired_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "preserved_media_assets": True,
     }
@@ -615,8 +675,8 @@ def _sync_existing_row(base_url: str, headers: dict[str, str], row: dict[str, An
     report = row.get("script_quality_report") if isinstance(row.get("script_quality_report"), dict) else {}
     if not script or not structure:
         raise CodexContentError(f"topic {row.get('id')} has no repairable script/structure")
-    if report.get("codex_repair_profile") != "category_narration_rhythm_v2":
-        raise CodexContentError(f"topic {row.get('id')} has not passed the category voice repair")
+    if report.get("codex_repair_profile") != PROFILE or review_issues(report):
+        raise CodexContentError(f"topic {row.get('id')} has not passed the current senior listening review")
     return _sync_claimed_std_projects(base_url, headers, row["id"], script, structure, report)
 
 
