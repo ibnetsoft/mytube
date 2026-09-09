@@ -44,6 +44,25 @@ function toProjectSceneRow(scene: any, projectId: string) {
     }
 }
 
+function isOldStoryCategory(topic: any): boolean {
+    const categoryName = String(
+        topic?.categories?.name
+        || topic?.category_name
+        || topic?.progress_payload?.category_name
+        || ''
+    ).trim()
+    return categoryName === '옛날이야기'
+}
+
+function defaultSubtitleRenderSettings(topic: any) {
+    if (!isOldStoryCategory(topic)) return {}
+    return {
+        subtitle_font_family: 'ChosunIlboMyungjo',
+        subtitle_stroke_color: '#000000',
+        subtitle_stroke_width: 8,
+    }
+}
+
 async function ensureProjectScenes(projectId: string, topic: any) {
     const { data: existingScenes, error: existingScenesError } = await supabaseAdmin
         .from('std_project_scenes')
@@ -130,6 +149,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
     }
 
     const summary = normalizeTopicSummary(topic)
+    const subtitleDefaults = defaultSubtitleRenderSettings(topic)
     const { data: project, error: projectError } = await supabaseAdmin
         .from('std_projects')
         .insert({
@@ -161,6 +181,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 thumbnail_hook_reasoning: topic.progress_payload?.thumbnail_hook_reasoning || '',
                 thumbnail_image_prompt: topic.progress_payload?.thumbnail_image_prompt || '',
                 thumbnail_bg_url: topic.progress_payload?.thumbnail_bg_url || '',
+                render_settings: subtitleDefaults,
             },
             progress_payload: {
                 scene_count: summary.scene_count,

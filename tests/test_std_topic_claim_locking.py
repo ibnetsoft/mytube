@@ -44,3 +44,14 @@ def test_std_frontend_only_restores_cached_project_for_same_owner():
     assert "projectPayload.project.employee_email" in source
     assert "projectMatchesRequester(parsed, email || user?.email)" in source
     assert "projectMatchesRequester(remembered, activeImpEmail || email || user?.email)" in source
+
+
+def test_old_story_topics_receive_their_subtitle_style_defaults_on_claim():
+    source = (ROOT / "auth-web" / "app" / "api" / "std" / "topics" / "[topicId]" / "claim" / "route.ts").read_text(encoding="utf-8")
+
+    assert "function isOldStoryCategory(topic: any)" in source
+    assert "return categoryName === '옛날이야기'" in source
+    assert "subtitle_font_family: 'ChosunIlboMyungjo'" in source
+    assert "subtitle_stroke_color: '#000000'" in source
+    assert "subtitle_stroke_width: 8" in source
+    assert "render_settings: subtitleDefaults" in source
