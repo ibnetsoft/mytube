@@ -499,6 +499,76 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
     raise CodexContentError("rhythm warnings remain: " + "; ".join(rhythm_rejection))
 
 
+def _sync_claimed_std_projects(
+    base_url: str,
+    headers: dict[str, str],
+    topic_id: Any,
+    script: str,
+    structure: dict[str, Any],
+    repair_report: dict[str, Any],
+) -> int:
+    """Propagate an intentional worker rewrite to every already-claimed STD project.
+
+    STD keeps a source snapshot for reproducibility.  A category-voice repair
+    is an explicit replacement of that worker source, so all three copies
+    (source, editor payload, and progress metadata) must advance together.
+    """
+    response = requests.get(
+        f"{base_url}/rest/v1/std_projects",
+        headers=headers,
+        params={
+            "topic_queue_id": f"eq.{quote(str(topic_id), safe='')}",
+            "select": "id,source_payload,project_payload,progress_payload",
+        },
+        timeout=60,
+    )
+    if response.status_code >= 400:
+        raise RuntimeError(f"STD project lookup for topic {topic_id} failed: HTTP {response.status_code} {response.text[:500]}")
+    projects = response.json()
+    if not isinstance(projects, list):
+        raise RuntimeError(f"STD project lookup for topic {topic_id} returned invalid JSON")
+
+    for project in projects:
+        if not isinstance(project, dict) or not project.get("id"):
+            continue
+        source_payload = project.get("source_payload") if isinstance(project.get("source_payload"), dict) else {}
+        project_payload = project.get("project_payload") if isinstance(project.get("project_payload"), dict) else {}
+        progress_payload = project.get("progress_payload") if isinstance(project.get("progress_payload"), dict) else {}
+        updated_source = {
+            **source_payload,
+            "pregenerated_script": script,
+            "pregenerated_structure": structure,
+            "script_quality_report": repair_report,
+        }
+        updated_payload = {
+            **project_payload,
+            "script": script,
+            "original_worker_script": script,
+            "structure": structure,
+        }
+        updated_progress = {
+            **progress_payload,
+            "pregenerated_script_status": "ready",
+            "script_quality_report": repair_report,
+        }
+        update = requests.patch(
+            f"{base_url}/rest/v1/std_projects?id=eq.{quote(str(project['id']), safe='')}",
+            headers=headers,
+            json={
+                "source_payload": updated_source,
+                "project_payload": updated_payload,
+                "progress_payload": updated_progress,
+            },
+            timeout=60,
+        )
+        if update.status_code >= 400:
+            raise RuntimeError(
+                f"STD project update {project['id']} for topic {topic_id} failed: "
+                f"HTTP {update.status_code} {update.text[:500]}"
+            )
+    return len(projects)
+
+
 def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sections: list[dict[str, Any]], report: dict[str, Any]) -> None:
     structure = row.get("pregenerated_structure") if isinstance(row.get("pregenerated_structure"), dict) else {}
     scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
@@ -535,12 +605,26 @@ def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sec
     )
     if response.status_code >= 400:
         raise RuntimeError(f"update topic {row['id']} failed: HTTP {response.status_code} {response.text[:500]}")
+    _sync_claimed_std_projects(base_url, headers, row["id"], script, structure, repair_report)
+
+
+def _sync_existing_row(base_url: str, headers: dict[str, str], row: dict[str, Any]) -> int:
+    """Synchronize a previously repaired queue row without generating text again."""
+    structure = row.get("pregenerated_structure") if isinstance(row.get("pregenerated_structure"), dict) else {}
+    script = str(row.get("pregenerated_script") or "").strip()
+    report = row.get("script_quality_report") if isinstance(row.get("script_quality_report"), dict) else {}
+    if not script or not structure:
+        raise CodexContentError(f"topic {row.get('id')} has no repairable script/structure")
+    if report.get("codex_repair_profile") != "category_narration_rhythm_v2":
+        raise CodexContentError(f"topic {row.get('id')} has not passed the category voice repair")
+    return _sync_claimed_std_projects(base_url, headers, row["id"], script, structure, report)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Repair existing topics_queue scripts with current narration criteria.")
     parser.add_argument("--ids", required=True, help="Comma-separated topic IDs or ranges, e.g. 3340,3350-3371")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--sync-only", action="store_true", help="Copy already repaired scripts into claimed STD projects without regeneration")
     parser.add_argument("--model", default=os.getenv("CODEX_CONTENT_MODEL", ""))
     parser.add_argument("--force-regenerate", action="store_true", help="Ignore cached repair response JSON files")
     args = parser.parse_args()
@@ -566,6 +650,10 @@ def main() -> int:
     output_dir = ROOT / "output" / "script_repairs"
     print(f"Repair target rows: {len(rows)}", flush=True)
     for row in rows:
+        if args.sync_only:
+            synced = _sync_existing_row(base_url, headers, row)
+            print(f"[{row['id']}] synced claimed projects={synced}", flush=True)
+            continue
         category_name = categories.get(str(row.get("category_id"))) or row.get("category_name_en") or ""
         print(f"[{row['id']}] repairing: {row.get('generated_title') or row.get('topic')} / {category_name}", flush=True)
         sections, report = _repair_with_codex(row, category_name, output_dir, args.model, force=args.force_regenerate)
