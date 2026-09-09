@@ -23,6 +23,29 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (['approved', 'canceled'].includes(project.status)) {
         return NextResponse.json({ success: false, error: 'Project is closed' }, { status: 409 })
     }
+    if (project.submitted_at) {
+        return NextResponse.json({ success: true, already_submitted: true, submitted_at: project.submitted_at })
+    }
+    if (project.topic_queue_id) {
+        const { data: sharedSubmission, error: sharedSubmissionError } = await supabaseAdmin
+            .from('std_projects')
+            .select('id,submitted_at')
+            .eq('topic_queue_id', project.topic_queue_id)
+            .neq('id', project.id)
+            .not('submitted_at', 'is', null)
+            .order('submitted_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        if (sharedSubmissionError) return NextResponse.json({ success: false, error: sharedSubmissionError.message }, { status: 500 })
+        if (sharedSubmission) {
+            return NextResponse.json({
+                success: true,
+                shared_submission: true,
+                submitted_at: sharedSubmission.submitted_at,
+                shared_project_id: sharedSubmission.id,
+            })
+        }
+    }
 
     const [{ data: scenes, error: scenesError }, { data: loadedAssets, error: assetsError }] = await Promise.all([
         supabaseAdmin

@@ -120,12 +120,14 @@ type StdProject = {
     status: string
     language: string
     employee_email?: string | null
+    topic_queue_id?: number | null
     assigned_duration_minutes: number | null
     estimated_payout: number | null
     drive_folder_id?: string | null
     progress_payload?: any
     created_at?: string
     submitted_at?: string | null
+    shared_submission?: { project_id: string; submitted_at: string } | null
     scene_count?: number
 }
 
@@ -5504,9 +5506,12 @@ export default function StdPortalPage() {
                     : ''
                 throw new Error((payload.error || '제출 실패') + missing)
             }
-            setMessage('✅ 원격 렌더 큐에 성공적으로 등록되었습니다!')
+            const submitMessage = payload.shared_submission
+                ? '✅ 공동 작업 프로젝트가 이미 원격 렌더 큐에 등록되어 있습니다.'
+                : '✅ 원격 렌더 큐에 성공적으로 등록되었습니다!'
+            setMessage(submitMessage)
             await loadStdData(token, { showLoading: false })
-            alert('프로젝트가 원격 렌더 큐에 등록되었습니다.')
+            alert(payload.shared_submission ? '공동 작업자가 이미 제출한 프로젝트입니다.' : '프로젝트가 원격 렌더 큐에 등록되었습니다.')
         } catch (error: any) {
             const errorMessage = error?.message || '제출 실패'
             setMessage(`❌ ${errorMessage}`)
@@ -10438,7 +10443,7 @@ export default function StdPortalPage() {
                                                 || p.project_payload?.thumbnail_design?.thumbnail_url
                                                 || p.project_payload?.thumbnail_design?.bg_url
                                             )
-                                            const submittedAt = p.submitted_at || p.progress_payload?.submitted_at
+                                            const submittedAt = p.submitted_at || p.shared_submission?.submitted_at
                                             return (
                                                 <tr
                                                     key={p.id || idx}
@@ -10484,7 +10489,7 @@ export default function StdPortalPage() {
                                                         const pStatus = isSelectedProj
                                                              ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                                                              : getProjectStepStatus(p)
-                                                        const isSubmitted = Boolean(p.submitted_at)
+                                                        const isSubmitted = Boolean(submittedAt)
                                                         const submitBlockers = [
                                                             !pStatus.isPlanningDone ? '기획' : '',
                                                             !pStatus.isScriptDone ? '대본' : '',
@@ -10536,7 +10541,7 @@ export default function StdPortalPage() {
                                                                         <button
                                                                             disabled
                                                                             className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600/25 text-emerald-400 border border-emerald-500/50 shadow-md mx-auto cursor-default transition-all"
-                                                                            title="제출 완료 (원격 렌더 큐 접수됨)"
+                                                                            title={p.shared_submission ? '공동 작업 제출 완료 (원격 렌더 큐 접수됨)' : '제출 완료 (원격 렌더 큐 접수됨)'}
                                                                         >
                                                                             <span className="text-xs font-black leading-none text-emerald-400">⏎</span>
                                                                         </button>
