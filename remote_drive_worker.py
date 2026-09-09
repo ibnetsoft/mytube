@@ -302,7 +302,35 @@ class RemoteDriveWorker:
                     zip_ref.extractall(temp_dir)
 
             self.update_job(job_id, progress=20, message="원격 워커에서 영상 렌더링 중...")
-            remote_render_executor_func(job_id, temp_dir, use_gpu=self.use_gpu)
+            progress_file = os.path.join(temp_dir, "progress.txt")
+            progress_stop = threading.Event()
+
+            def sync_render_progress():
+                last_reported = None
+                while not progress_stop.wait(2):
+                    try:
+                        with open(progress_file, "r", encoding="utf-8") as f_progress:
+                            progress_payload = json.load(f_progress)
+                        progress = int(progress_payload.get("progress") or 20)
+                        progress = max(20, min(91, progress))
+                        message = str(progress_payload.get("message") or "원격 워커에서 영상 렌더링 중...")
+                        current = (progress, message)
+                        if current != last_reported:
+                            self.update_job(job_id, progress=progress, message=message)
+                            last_reported = current
+                    except (OSError, ValueError, json.JSONDecodeError):
+                        continue
+                    except Exception:
+                        # A transient queue update failure must not stop rendering.
+                        continue
+
+            progress_thread = threading.Thread(target=sync_render_progress, name=f"remote-render-progress-{job_id}", daemon=True)
+            progress_thread.start()
+            try:
+                remote_render_executor_func(job_id, temp_dir, use_gpu=self.use_gpu)
+            finally:
+                progress_stop.set()
+                progress_thread.join(timeout=3)
 
             output_path = os.path.join(temp_dir, "output.mp4")
             if not os.path.exists(output_path):
