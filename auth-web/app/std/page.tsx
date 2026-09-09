@@ -4832,11 +4832,11 @@ export default function StdPortalPage() {
             })
             const mimeType = inferVisualMimeType(file, actualAssetType)
             let persistedAsset: any = null
-            const shouldUseDirectDriveUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
+            const shouldUseDirectStorageUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
                 && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
 
-            if (shouldUseDirectDriveUpload) {
-                setMessage(`파일 (${file.name}) Google Drive 직접 업로드 준비 중...`)
+            if (shouldUseDirectStorageUpload) {
+                setMessage(`파일 (${file.name}) Supabase Storage 업로드 준비 중...`)
                 const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                     method: 'POST',
                     headers: authedJsonHeaders,
@@ -4849,39 +4849,35 @@ export default function StdPortalPage() {
                     }),
                 })
                 const initPayload = await safeParseJson(initRes, 'Asset upload init failed')
-                if (!initRes.ok || initPayload.success === false || !initPayload.upload_url) {
+                if (!initRes.ok || initPayload.success === false || !initPayload.storage_upload_url) {
                     throw new Error(initPayload.error || 'Asset upload init failed')
                 }
 
-                setMessage(`파일 (${file.name}) Google Drive 업로드 중...`)
-                let drivePayload: any = null
-                try {
-                    const driveRes = await fetch(initPayload.upload_url, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': mimeType },
-                        body: file,
-                    })
-                    drivePayload = await safeParseJson(driveRes, 'Drive asset upload failed')
-                    if (!driveRes.ok || !drivePayload.id) {
-                        throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive asset upload failed')
-                    }
-                } catch (driveError: any) {
-                    console.warn('[STD AssetUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
-                    setMessage('브라우저가 Google Drive 직접 업로드를 막아, 서버 중계 방식으로 다시 업로드합니다...')
-                    drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
+                setMessage(`파일 (${file.name}) Supabase Storage에 업로드 중...`)
+                const storageRes = await fetch(initPayload.storage_upload_url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': mimeType },
+                    body: file,
+                })
+                if (!storageRes.ok) {
+                    const storageError = await storageRes.text().catch(() => '')
+                    throw new Error(storageError || 'Supabase Storage asset upload failed')
                 }
 
                 const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
                     method: 'POST',
                     headers: authedJsonHeaders,
                     body: JSON.stringify({
-                        drive_file_id: drivePayload.id,
-                        target_folder_id: initPayload.target_folder_id,
+                        drive_file_id: null,
+                        target_folder_id: '',
                         asset_type: actualAssetType,
                         mime_type: mimeType,
                         file_name: file.name,
                         file_size: file.size,
                         scene_number: sceneNum,
+                        storage_bucket: initPayload.storage_bucket,
+                        storage_path: initPayload.storage_path,
+                        storage_public_url: initPayload.storage_public_url,
                     }),
                 })
                 const completePayload = await safeParseJson(completeRes, 'Asset upload complete failed')
@@ -4953,7 +4949,7 @@ export default function StdPortalPage() {
                 status: p.status === 'claimed' ? 'in_progress' : p.status,
                 updated_at: new Date().toISOString(),
             } as any : p))
-            setMessage(`에셋 (${file.name}) Google Drive 저장 완료!`)
+            setMessage(`에셋 (${file.name}) Supabase Storage 저장 완료! Google Drive 보관본도 준비합니다.`)
             return 'synced'
         } catch (error: any) {
             if (objectUrl) {
@@ -5186,38 +5182,34 @@ export default function StdPortalPage() {
                 }),
             })
             const initPayload = await safeParseJson(initRes, '썸네일 업로드 준비 실패')
-            if (!initRes.ok || initPayload.success === false || !initPayload.upload_url) {
+            if (!initRes.ok || initPayload.success === false || !initPayload.storage_upload_url) {
                 throw new Error(initPayload.error || '썸네일 업로드 준비 실패')
             }
 
-            setMessage('썸네일 이미지를 Google Drive에 업로드하는 중...')
-            let drivePayload: any = null
-            try {
-                const driveRes = await fetch(initPayload.upload_url, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': mimeType },
-                    body: file,
-                })
-                drivePayload = await safeParseJson(driveRes, 'Drive 썸네일 업로드 실패')
-                if (!driveRes.ok || !drivePayload.id) {
-                    throw new Error(drivePayload.error?.message || drivePayload.error || 'Drive 썸네일 업로드 실패')
-                }
-            } catch (driveError: any) {
-                console.warn('[STD ThumbnailUpload] direct Drive upload failed; retrying through chunk proxy:', driveError?.message)
-                setMessage('브라우저가 Google Drive 직접 업로드를 막아, 서버 중계 방식으로 다시 업로드합니다...')
-                drivePayload = await uploadDriveFileViaChunkProxy(initPayload.upload_url, file, mimeType)
+            setMessage('썸네일 이미지를 Supabase Storage에 업로드하는 중...')
+            const storageRes = await fetch(initPayload.storage_upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': mimeType },
+                body: file,
+            })
+            if (!storageRes.ok) {
+                const storageError = await storageRes.text().catch(() => '')
+                throw new Error(storageError || `썸네일 Storage 업로드 실패 (${storageRes.status})`)
             }
 
             const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
                 method: 'POST',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
-                    drive_file_id: drivePayload.id,
-                    target_folder_id: initPayload.target_folder_id,
+                    drive_file_id: null,
+                    target_folder_id: '',
                     asset_type: 'thumbnail',
                     mime_type: mimeType,
                     file_name: file.name,
                     file_size: file.size,
+                    storage_bucket: initPayload.storage_bucket,
+                    storage_path: initPayload.storage_path,
+                    storage_public_url: initPayload.storage_public_url,
                 }),
             })
             const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')

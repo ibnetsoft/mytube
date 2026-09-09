@@ -15,7 +15,7 @@ SERVER_UPLOAD_ROUTE = Path(
 
 def _upload_asset_body() -> str:
     return STD_PAGE.split("const uploadAsset = async", 1)[1].split(
-        "const saveAssetToLocalDirectory = async", 1
+        "const splitTtsTextForBrowser", 1
     )[0]
 
 
@@ -31,8 +31,8 @@ def test_scene_assets_are_uploaded_to_storage_before_completion():
     assert "body: file" in upload_asset
     assert "storage_bucket: initPayload.storage_bucket" in upload_asset
     assert "storage_path: initPayload.storage_path" in upload_asset
-    assert "drive_file_id: drivePayload?.id || null" in upload_asset
-    assert "keeping Supabase asset" in upload_asset
+    assert "drive_file_id: null" in upload_asset
+    assert "storage_public_url: initPayload.storage_public_url" in upload_asset
 
 
 def test_scene_is_not_marked_ready_before_server_confirmation():
@@ -76,5 +76,5 @@ def test_thumbnail_upload_uses_the_same_supabase_first_flow():
     assert "initPayload.storage_upload_url" in thumbnail_upload
     assert "storageRes = await fetch(initPayload.storage_upload_url" in thumbnail_upload
     assert "storage_bucket: initPayload.storage_bucket" in thumbnail_upload
-    assert "drive_file_id: drivePayload?.id || null" in thumbnail_upload
-    assert "keeping Supabase asset" in thumbnail_upload
+    assert "drive_file_id: null" in thumbnail_upload
+    assert "썸네일 이미지를 Supabase Storage에 업로드하는 중" in thumbnail_upload
