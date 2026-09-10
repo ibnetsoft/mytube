@@ -2250,7 +2250,7 @@ export default function StdPortalPage() {
 
         if (selectedProject?.project?.id) {
             try {
-                await fetch('/api/std/projects/' + selectedProject.project.id, {
+                const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
                     method: 'PATCH',
                     headers: authedJsonHeaders,
                     body: JSON.stringify({
@@ -2264,8 +2264,10 @@ export default function StdPortalPage() {
                         },
                     }),
                 })
+                if (!response.ok) throw new Error('Voice selection save failed')
             } catch (error) {
                 console.warn('[STD subtitles] failed to persist subtitle voice override:', error)
+                setMessage('성우 설정을 서버에 저장하지 못했습니다. 다시 적용해 주세요.')
                 setIsSubtitleSaved(false)
             }
         }
@@ -4689,6 +4691,7 @@ export default function StdPortalPage() {
                     rememberProjectState(updatedFull)
                 }
             } catch (error: any) {
+                setIsSubtitleSaved(false)
                 setMessage(error.message || 'Subtitle save failed')
                 throw error
             }

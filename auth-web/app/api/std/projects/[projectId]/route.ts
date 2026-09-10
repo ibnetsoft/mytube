@@ -1,3 +1,4 @@
+import { canEditStdProject } from '@/lib/stdProjectEditPolicy'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -306,7 +307,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
-    if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
+    if (!canEditStdProject(project.status, body)) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
@@ -450,6 +451,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         .from('std_projects')
         .update(updatePayload)
         .eq('id', project.id)
+        .eq('status', project.status)
         .select('*')
         .single()
 

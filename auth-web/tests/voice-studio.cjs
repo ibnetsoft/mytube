@@ -16,6 +16,16 @@ function load(relative, mocks = {}, suffix = '') {
     return mod.exports
 }
 async function main() {
+    const {canEditStdProject}=load('lib/stdProjectEditPolicy.ts')
+    const subtitleSave={project_payload:{subtitles:[{text:'대본',voice_id:'gemini:Charon'}],script:'대본',render_settings:{},subtitles_saved:true},progress_payload:{subtitles_saved:true,subtitles_completed:true}}
+    assert.equal(canEditStdProject('review_requested',subtitleSave),true)
+    assert.equal(canEditStdProject('approved',subtitleSave),false)
+    assert.equal(canEditStdProject('canceled',subtitleSave),false)
+    assert.equal(canEditStdProject('review_requested',{...subtitleSave,title:'changed'}),false)
+    assert.equal(canEditStdProject('review_requested',{project_payload:{scenes:[]}}),false)
+    assert.equal(canEditStdProject('review_requested',{...subtitleSave,allow_scene_update:true}),false)
+    assert.equal(canEditStdProject('review_requested',{...subtitleSave,progress_payload:{approved:true}}),false)
+    console.log('PASS: review-stage subtitle saves allowed; approved/canceled and unrelated review edits blocked')
     const names=['VERCEL','GCP_PROJECT_NUMBER','GCP_WORKLOAD_IDENTITY_POOL_ID','GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID','GCP_SERVICE_ACCOUNT_EMAIL']
     const saved=Object.fromEntries(names.map(name=>[name,process.env[name]]))
     try {
