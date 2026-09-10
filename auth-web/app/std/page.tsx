@@ -45,6 +45,7 @@ const sceneTransitionLabel = (effectId: string) => (
 )
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
     AlertCircle,
     ArrowRight,
@@ -901,6 +902,9 @@ export default function StdPortalPage() {
     const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
     const [isSubtitleSyncing, setIsSubtitleSyncing] = useState(false)
     const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
+    const [voicePickerDraft, setVoicePickerDraft] = useState('')
+    const [voicePickerSearch, setVoicePickerSearch] = useState('')
+    const [voicePickerPreviewUrl, setVoicePickerPreviewUrl] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const savedStudioNarrator = localSubtitles.find(sub => isVoiceStudioVoice(String(sub?.voice_id || '')))
     useEffect(() => {
@@ -2624,11 +2628,27 @@ export default function StdPortalPage() {
         onSelect: (voiceId: string) => void,
         title: string,
         tone: 'default' | 'dialogue' = 'default',
-        openDirection: 'left' | 'right' = 'right',
+        _openDirection: 'left' | 'right' = 'right',
         disabled = false
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
         const isOpen = !disabled && openVoicePickerKey === pickerKey
+        const draftVoiceId = voicePickerDraft || voiceId
+        const draftVoice = allVoices.find((voice: any) => String(voice.id) === draftVoiceId)
+        const filteredVoices = allVoices.filter((voice: any) => {
+            const query = voicePickerSearch.trim().toLowerCase()
+            if (!query) return true
+            return [
+                voice?.name,
+                voice?.description,
+                voice?.gender,
+                voice?.id,
+            ].some(value => String(value || '').toLowerCase().includes(query))
+        })
+        const closePicker = () => {
+            setOpenVoicePickerKey('')
+            setVoicePickerPreviewUrl('')
+        }
         return (
             <div className="relative inline-flex">
                 <button
@@ -2638,7 +2658,14 @@ export default function StdPortalPage() {
                     onClick={(event) => {
                         event.stopPropagation()
                         if (disabled) return
-                        setOpenVoicePickerKey(isOpen ? '' : pickerKey)
+                        if (isOpen) {
+                            closePicker()
+                            return
+                        }
+                        setVoicePickerDraft(voiceId)
+                        setVoicePickerSearch('')
+                        setVoicePickerPreviewUrl('')
+                        setOpenVoicePickerKey(pickerKey)
                     }}
                     className={`w-8 h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
                         disabled
@@ -2650,36 +2677,145 @@ export default function StdPortalPage() {
                 >
                     <Mic size={14} />
                 </button>
-                {!disabled && isOpen && (
+                {!disabled && isOpen && typeof document !== 'undefined' && createPortal(
                     <div
-                        className={`absolute ${openDirection === 'left' ? 'right-0' : 'left-0'} top-full mt-1 z-50 w-80 max-w-[min(20rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1`}
-                        onClick={(event) => event.stopPropagation()}
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={title}
+                        onClick={closePicker}
                     >
-                        <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 border-b border-white/5 truncate">
-                            {currentVoiceName}
-                        </div>
-                        {allVoices.map((voice: any) => {
-                            const optionId = String(voice.id)
-                            const active = optionId === voiceId
-                            return (
+                        <div
+                            className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 rounded-xl border border-white/20 bg-[#1c2027] p-5 text-gray-100 shadow-2xl [color-scheme:dark]"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <h2 className="truncate text-sm font-black text-white">{title}</h2>
+                                    <p className="mt-1 text-xs text-gray-400">
+                                        현재 선택: <span className="font-bold text-cyan-200">{currentVoiceName}</span>
+                                    </p>
+                                </div>
                                 <button
-                                    key={optionId}
                                     type="button"
-                                    onClick={() => {
-                                        onSelect(optionId)
-                                        setOpenVoicePickerKey('')
-                                    }}
-                                    className={`w-full text-left px-2 py-1.5 rounded text-[11px] leading-snug whitespace-normal break-words transition ${
-                                        active
-                                            ? 'bg-blue-600/25 text-blue-100 font-bold'
-                                            : 'text-gray-200 hover:bg-white/10'
-                                    }`}
+                                    onClick={closePicker}
+                                    className="h-8 rounded-md border border-white/10 px-3 text-xs font-bold text-gray-200 hover:bg-white/10"
                                 >
-                                    {voice.name}
+                                    닫기
                                 </button>
-                            )
-                        })}
-                    </div>
+                            </div>
+                            <input
+                                value={voicePickerSearch}
+                                onChange={event => setVoicePickerSearch(event.target.value)}
+                                placeholder="성우 이름, 설명 검색"
+                                className="w-full rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-cyan-400/60 focus:outline-none"
+                            />
+                            <div className="grid gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                                {filteredVoices.map((voice: any) => {
+                                    const optionId = String(voice.id)
+                                    const active = optionId === draftVoiceId
+                                    const previewUrl = String(voice.preview_url || '').trim()
+                                    return (
+                                        <div
+                                            key={optionId}
+                                            className={`rounded-lg border p-3 transition ${
+                                                active
+                                                    ? 'border-cyan-400 bg-cyan-500/15'
+                                                    : tone === 'dialogue'
+                                                    ? 'border-emerald-400/20 bg-black/15 hover:border-emerald-400/40'
+                                                    : 'border-white/10 bg-black/15 hover:border-cyan-400/40'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <div className="truncate text-sm font-bold text-white">{voice.name || optionId}</div>
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {voice.gender && (
+                                                            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-gray-300">
+                                                                {voice.gender === 'female' ? '여성' : voice.gender === 'male' ? '남성' : voice.gender}
+                                                            </span>
+                                                        )}
+                                                        {active && (
+                                                            <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-bold text-cyan-100">
+                                                                선택됨
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setVoicePickerDraft(optionId)}
+                                                    className={`shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
+                                                        active
+                                                            ? 'bg-cyan-500 text-white'
+                                                            : 'border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    선택
+                                                </button>
+                                            </div>
+                                            {voice.description && (
+                                                <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-gray-400">
+                                                    {voice.description}
+                                                </p>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={!previewUrl}
+                                                onClick={() => {
+                                                    setVoicePickerDraft(optionId)
+                                                    setVoicePickerPreviewUrl(previewUrl)
+                                                }}
+                                                className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-white/10 px-2 text-[11px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                                title={previewUrl ? '성우 샘플 미리듣기' : '제공된 미리듣기 샘플이 없습니다.'}
+                                            >
+                                                <Play size={12} />
+                                                미리듣기
+                                            </button>
+                                        </div>
+                                    )
+                                })}
+                                {filteredVoices.length === 0 && (
+                                    <div className="col-span-full rounded-lg border border-white/10 bg-black/15 p-6 text-center text-sm text-gray-400">
+                                        검색 결과가 없습니다.
+                                    </div>
+                                )}
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                                <div className="mb-2 truncate text-xs font-bold text-gray-300">
+                                    미리듣기: {voicePickerPreviewUrl ? (draftVoice?.name || '선택한 성우') : '샘플을 선택해 주세요'}
+                                </div>
+                                <audio
+                                    key={voicePickerPreviewUrl || 'empty-preview'}
+                                    controls
+                                    autoPlay={Boolean(voicePickerPreviewUrl)}
+                                    src={voicePickerPreviewUrl || undefined}
+                                    className="h-9 w-full"
+                                />
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={closePicker}
+                                    className="rounded-md border border-white/10 px-4 py-2 text-sm font-bold text-gray-200 hover:bg-white/10"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={!draftVoiceId}
+                                    onClick={() => {
+                                        onSelect(draftVoiceId)
+                                        closePicker()
+                                    }}
+                                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    선택 완료
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
                 )}
             </div>
         )
