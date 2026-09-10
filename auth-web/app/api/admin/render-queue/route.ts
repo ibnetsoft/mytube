@@ -38,6 +38,10 @@ function buildDriveFolderLink(folderId?: string | null) {
 
 function normalizeQueueItem(row: any, topicRow?: any) {
     const metadata = row?.metadata || {}
+    const completedWithResult = row?.status === 'completed' && Boolean(row?.result_file_id)
+    const normalizedPublishStatus = completedWithResult && (!metadata.admin_publish_status || metadata.admin_publish_status === 'render_pending')
+        ? 'pending_review'
+        : (metadata.admin_publish_status ?? null)
     const title = metadata.playlist_title || metadata.title || row?.project_name || 'Untitled'
     const appMode = metadata.app_mode || metadata.display_type || 'longform'
     const renderStyle = metadata.render_style || null
@@ -75,9 +79,11 @@ function normalizeQueueItem(row: any, topicRow?: any) {
             render_style: renderStyle,
             queue_type: queueType,
             is_music_queue: isMusicQueue,
-            admin_publish_ready: metadata.admin_publish_ready ?? null,
-            admin_publish_status: metadata.admin_publish_status ?? null,
-            admin_action_required: metadata.admin_action_required ?? null,
+            admin_publish_ready: completedWithResult ? true : (metadata.admin_publish_ready ?? null),
+            admin_publish_status: normalizedPublishStatus,
+            admin_action_required: completedWithResult
+                ? (metadata.admin_action_required || 'review_and_upload')
+                : (metadata.admin_action_required ?? null),
             upload_owner: metadata.upload_owner ?? null,
             publish_owner: metadata.publish_owner ?? null,
             worker_platform: metadata.worker_platform ?? null,
@@ -203,12 +209,19 @@ export async function POST(req: Request) {
 
         const { data: existingRows } = await sb
             .from('publishing_requests')
-            .select('id, metadata')
+            .select('id, status, metadata')
             .eq('user_id', profile.id)
 
         const existingRow = (existingRows || []).find(
             (row: any) => String(row?.metadata?.project_id || '') === String(task.project_id)
         )
+        const existingStatus = String(existingRow?.status || '')
+        if (['approved', 'to_be_published'].includes(existingStatus)) {
+            return NextResponse.json({ success: true, alreadyQueued: true })
+        }
+        if (['published', 'release_requested', 'public'].includes(existingStatus)) {
+            return NextResponse.json({ error: '이미 유튜브 업로드가 완료되었거나 공개 전환 중인 영상입니다.' }, { status: 409 })
+        }
 
         const metadataPayload = {
             ...(existingRow?.metadata || {}),
@@ -249,6 +262,22 @@ export async function POST(req: Request) {
                 .from('publishing_requests')
                 .insert({ user_id: profile.id, video_url: videoUrl, metadata: metadataPayload, status: 'approved' })
             if (insertError) throw insertError
+        }
+
+        const { error: queueMetadataError } = await sb
+            .from('remote_render_queue')
+            .update({
+                metadata: {
+                    ...taskMetadata,
+                    job_stage: 'completed',
+                    admin_publish_ready: true,
+                    admin_publish_status: 'approved',
+                    admin_action_required: 'youtube_upload_pending',
+                },
+            })
+            .eq('id', id)
+        if (queueMetadataError) {
+            console.warn('Failed to sync render queue publish metadata:', queueMetadataError.message)
         }
 
         auditLog('render_queue.upload_request', requester.user.email, {

@@ -67,8 +67,14 @@ class AutoPublishService:
 
             data = res.json()
             requests_list = data.get("requests", [])
-            publish_queue = [r for r in requests_list if r.get("status") in ("approved", "to_be_published")]
-            release_queue = [r for r in requests_list if r.get("status") == "release_requested"]
+            publish_queue = [
+                r for r in requests_list
+                if r.get("status") == "approved" and not self._is_remote_worker_request(r)
+            ]
+            release_queue = [
+                r for r in requests_list
+                if r.get("status") == "release_requested" and not self._is_remote_worker_request(r)
+            ]
 
             if release_queue:
                 self._process_release_queue(release_queue)
@@ -79,6 +85,9 @@ class AutoPublishService:
             print(f"[Info] Found {len(publish_queue)} videos to be published to YouTube.")
 
             for index, req in enumerate(publish_queue):
+                req = self._claim_request(req, "upload")
+                if not req:
+                    continue
                 req_id = req.get("id")
                 metadata = req.get("metadata") or {}
                 project_id = metadata.get("project_id")
@@ -223,9 +232,42 @@ class AutoPublishService:
         if title:
             db.update_project_setting(project_id, "title", title)
 
+    def _claim_request(self, request, operation):
+        request_id = request.get("id")
+        source_status = request.get("status")
+        if not request_id or source_status not in ("approved", "release_requested"):
+            return None
+        metadata = {
+            **(request.get("metadata") or {}),
+            "publish_operation": operation,
+            "publish_worker_id": f"local-app-{os.getpid()}",
+            "publish_claimed_at": datetime.utcnow().isoformat() + "Z",
+        }
+        response = web_admin_client.supabase_patch(
+            "publishing_requests",
+            {"status": "to_be_published", "metadata": metadata},
+            params={"id": f"eq.{request_id}", "status": f"eq.{source_status}"},
+            timeout=15,
+        )
+        if response is None or response.status_code not in (200, 204):
+            return None
+        rows = response.json() if response.text else []
+        return rows[0] if isinstance(rows, list) and rows else None
+
+    @staticmethod
+    def _is_remote_worker_request(request):
+        metadata = request.get("metadata") or {}
+        return (
+            metadata.get("source") == "render_queue_admin_upload"
+            or metadata.get("upload_source") == "remote_drive_bundle"
+        )
+
     def _process_release_queue(self, release_queue):
         print(f"[Info] Found {len(release_queue)} videos to release to public.")
         for req in release_queue:
+            req = self._claim_request(req, "release")
+            if not req:
+                continue
             req_id = req.get("id")
             metadata = req.get("metadata") or {}
             project_id = metadata.get("project_id")

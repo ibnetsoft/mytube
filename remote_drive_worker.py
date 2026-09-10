@@ -488,6 +488,10 @@ class RemoteDriveWorker:
                 result_file_name=drive_file.get("name"),
                 metadata={
                     **(job.get("metadata") or {}),
+                    "job_stage": "completed",
+                    "admin_publish_ready": True,
+                    "admin_publish_status": "pending_review",
+                    "admin_action_required": "review_and_upload",
                     "result_folder_id": result_folder.get("id"),
                     "result_folder_name": result_folder.get("name"),
                     "result_video_file_id": drive_file.get("id"),

@@ -1638,11 +1638,11 @@ export default function DashboardContent() {
         }
     };
 
-    const renderRenderQueueTable = () => {
+    const renderRenderQueueTable = (queueSource: any[] = renderQueue) => {
         const RENDER_QUEUE_PAGE_SIZE = 20;
         const visibleQueue = renderQueueFilter === 'intro_ready'
-            ? renderQueue.filter((task: any) => Boolean(task?.metadata?.intro_video_ready))
-            : renderQueue;
+            ? queueSource.filter((task: any) => Boolean(task?.metadata?.intro_video_ready))
+            : queueSource;
         const totalPages = Math.max(1, Math.ceil(visibleQueue.length / RENDER_QUEUE_PAGE_SIZE));
         const currentPage = Math.min(renderQueuePage, totalPages);
         const pagedQueue = visibleQueue.slice(
@@ -1703,6 +1703,9 @@ export default function DashboardContent() {
                                         : null
                                     const localizedMessage = translateRenderQueueMessage(task.message)
                                     const failureDetail = task.status === 'failed' ? buildRenderQueueFailureDetail(task) : ''
+                                    const publishStatus = String(meta.admin_publish_status || '')
+                                    const publishInProgress = ['approved', 'to_be_published'].includes(publishStatus)
+                                    const publishComplete = ['published', 'release_requested', 'public'].includes(publishStatus)
                                     return (
                                     <tr key={task.id} className="hover:bg-white/[0.02] transition-colors">
                                         <td className="px-4 py-4 whitespace-nowrap">
@@ -1859,7 +1862,7 @@ export default function DashboardContent() {
                                                         보기
                                                     </a>
                                                 )}
-                                                {task.status === 'completed' && task.result_file_id && (
+                                                {task.status === 'completed' && task.result_file_id && !publishInProgress && !publishComplete && (
                                                     <button
                                                         onClick={() => handleUploadQueueTaskToChannel(task)}
                                                         disabled={uploadingQueueId === String(task.id)}
@@ -1868,6 +1871,21 @@ export default function DashboardContent() {
                                                         {uploadingQueueId === String(task.id) ? '요청 중...' : '업로드'}
                                                     </button>
                                                 )}
+                                                {publishInProgress && (
+                                                    <span className="px-3 py-1.5 text-blue-300 font-black text-[10px]">업로드 중</span>
+                                                )}
+                                                {publishComplete && (meta.youtube_url ? (
+                                                    <a
+                                                        href={meta.youtube_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="px-3 py-1.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg border border-emerald-500/20 hover:border-emerald-600 transition-all font-black text-[10px]"
+                                                    >
+                                                        YouTube
+                                                    </a>
+                                                ) : (
+                                                    <span className="px-3 py-1.5 text-emerald-300 font-black text-[10px]">업로드 완료</span>
+                                                ))}
                                                 <button onClick={() => handleDeleteQueueTask(task.id)} className="px-3 py-1.5 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg border border-red-500/20 hover:border-red-600 transition-all font-black text-[10px]">삭제</button>
                                             </div>
                                         </td>
@@ -4330,6 +4348,7 @@ export default function DashboardContent() {
                             // "완료" 탭은 topics_queue가 아니라 리모트 렌더큐를 그대로 보여준다 (아래 참고) -
                             // 여기 topics는 계속 pending/assigned 두 상태만 대상으로 한다.
                             const topicQueueSource = topics;
+                            const completedRenderQueue = renderQueue.filter((task: any) => task.status === 'completed');
                             const topicActualPayout = (item: any) => {
                                 const parsed = Number(item?.actual_payout ?? 0);
                                 return Number.isFinite(parsed) ? parsed : 0;
@@ -4424,7 +4443,7 @@ export default function DashboardContent() {
                                             { key: 'completed', label: '완료' },
                                         ].map(item => {
                                             const count = item.key === 'completed'
-                                                ? renderQueue.length
+                                                ? completedRenderQueue.length
                                                 : topics.filter(topic => isQueueVisibleTopic(topic) && (
                                                     item.key === 'working'
                                                         ? isWorkingTopic(topic)
@@ -4449,7 +4468,7 @@ export default function DashboardContent() {
                                         })}
                                         <span className="shrink-0 bg-yellow-500/20 text-yellow-500 text-[11px] px-3 py-1 rounded-full font-black">
                                             {topicQueueStatusFilter === 'completed'
-                                                ? `총 표시건수: ${renderQueue.length}개`
+                                                ? `총 표시건수: ${completedRenderQueue.length}개`
                                                 : `${selectedCategory ? '선택 표시건수' : '총 표시건수'}: ${filteredTopics.length}개`}
                                         </span>
                                     </div>
@@ -4511,7 +4530,7 @@ export default function DashboardContent() {
                             </div>
                             {topicQueueStatusFilter === 'completed' ? (
                                 <div className="p-10">
-                                    {renderRenderQueueTable()}
+                                    {renderRenderQueueTable(completedRenderQueue)}
                                 </div>
                             ) : (
                             <>
