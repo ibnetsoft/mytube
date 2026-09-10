@@ -50,6 +50,15 @@ async function main() {
     assert.equal(catalog.VOICE_STUDIO_VOICES.length, 30)
     // Exercise the real preview functions with an old audio asset still present.
     const pageSource=fs.readFileSync(path.resolve(__dirname,'../app/std/page.tsx'),'utf8')
+    const eligibilitySource=pageSource.slice(pageSource.indexOf('    const hasDistinctDialogueVoiceAssignment ='),pageSource.indexOf('    const selectSubtitleBlock ='))
+    const eligibilityJs=ts.transpileModule(eligibilitySource,{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText
+    const eligible=(rows)=>new Function('localSubtitles','selectedVoice','isSubtitleDialogue',eligibilityJs+'; return hasDistinctDialogueVoiceAssignment();')(rows,'gemini:Enceladus',row=>!!row.dialogue)
+    assert.equal(eligible([]),false)
+    assert.equal(eligible([{voice_id:'gemini:Enceladus'}]),true)
+    assert.equal(eligible([{voice_id:'gemini:Enceladus'},{dialogue:true}]),false)
+    assert.equal(eligible([{voice_id:'gemini:Enceladus'},{dialogue:true,voice_id:'gemini:Enceladus'}]),false)
+    assert.equal(eligible([{voice_id:'gemini:Enceladus'},{dialogue:true,voice_id:'actor-id'}]),true)
+    console.log('PASS: narration-only finalization allowed; empty script and unassigned/shared dialogue voices blocked')
     const previewSource=pageSource.slice(pageSource.indexOf('    const getSavedNarrationAudioUrl ='),pageSource.indexOf('    const getOrCreateVrewSegmentAudioUrl ='))
         + pageSource.slice(pageSource.indexOf('    const prefetchVrewSegment ='),pageSource.indexOf('    const playVrewSegmentsFrom ='))
     const previewJs=ts.transpileModule(previewSource,{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText

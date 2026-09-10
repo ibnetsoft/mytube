@@ -2424,7 +2424,7 @@ export default function StdPortalPage() {
             .filter((subtitle: any, index: number) => isSubtitleDialogue(subtitle, index))
             .map((subtitle: any) => String(subtitle?.voice_id || '').trim())
 
-        return dialogueVoiceIds.length > 0
+        return localSubtitles.length > 0
             && dialogueVoiceIds.every(voiceId => Boolean(voiceId) && !narrationVoiceIds.has(voiceId))
     }
 
