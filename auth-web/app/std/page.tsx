@@ -44,7 +44,7 @@ const sceneTransitionLabel = (effectId: string) => (
     SCENE_TRANSITION_EFFECTS.find(effect => effect.id === effectId)?.label || effectId
 )
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
     AlertCircle,
     ArrowRight,
@@ -6290,7 +6290,7 @@ export default function StdPortalPage() {
         return { opacity: 0, transform: 'scale(1.03)', filter: 'none', transition }
     }
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const previousVisual = previewTransitionVisualRef.current
         const nextVisual = {
             sceneNumber: currentPreviewSceneNumber,
@@ -6304,10 +6304,6 @@ export default function StdPortalPage() {
             Number(scene?.scene_number) === currentPreviewSceneNumber
         ))
         const effect = String(incomingScene?.metadata?.transition_effect || incomingScene?.transition_effect || '')
-        if (!effect || effect === 'none') {
-            setPreviewTransition(null)
-            return
-        }
 
         setPreviewTransition({
             key: Date.now(),
@@ -6316,15 +6312,41 @@ export default function StdPortalPage() {
             videoUrl: previousVisual.videoUrl,
             exiting: false,
         })
-        const frame = window.requestAnimationFrame(() => {
-            setPreviewTransition(current => current ? { ...current, exiting: true } : current)
-        })
-        const timeout = window.setTimeout(() => setPreviewTransition(null), 560)
+        let canceled = false
+        let revealed = false
+        let frame = 0
+        let timeout = 0
+        const reveal = () => {
+            if (canceled || revealed) return
+            revealed = true
+            if (!effect || effect === 'none') { setPreviewTransition(null); return }
+            frame = window.requestAnimationFrame(() => {
+                if (canceled) return
+                setPreviewTransition(current => current ? { ...current, exiting: true } : current)
+                timeout = window.setTimeout(() => setPreviewTransition(null), 560)
+            })
+        }
+        const video = vrewPreviewVideoRef.current
+        const image = new window.Image()
+        if (currentSubVideoUrl && video) {
+            video.addEventListener('loadeddata', reveal, { once: true })
+            video.addEventListener('error', reveal, { once: true })
+            if (video.readyState >= 2) reveal()
+        } else if (currentSubImageUrl) {
+            image.onload = reveal
+            image.onerror = reveal
+            image.src = currentSubImageUrl
+        } else reveal()
         return () => {
+            canceled = true
+            video?.removeEventListener('loadeddata', reveal)
+            video?.removeEventListener('error', reveal)
+            image.onload = null
+            image.onerror = null
             window.cancelAnimationFrame(frame)
             window.clearTimeout(timeout)
         }
-    }, [currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl, selectedProject?.scenes])
+    }, [currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl])
 
     useEffect(() => {
         const video = vrewPreviewVideoRef.current
@@ -8365,7 +8387,7 @@ export default function StdPortalPage() {
                                     <div className="bg-[#181d26] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
-                                            style={!currentSubVideoUrl && !currentSubImageUrl && selectedImageTemplatePreset
+                                            style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
                                                 ? { backgroundColor: templateBgColor || '#000000' }
                                                 : undefined}
                                         >
@@ -8373,6 +8395,8 @@ export default function StdPortalPage() {
                                                 <video
                                                     ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
+                                                    poster={currentSubImageUrl || undefined}
+                                                    preload="auto"
                                                     className="w-full h-full object-cover"
                                                     muted
                                                     playsInline
@@ -8401,7 +8425,7 @@ export default function StdPortalPage() {
                                                     className="absolute inset-0 z-10 overflow-hidden pointer-events-none"
                                                     style={{ willChange: 'opacity, transform, filter' }}
                                                 >
-                                                    {previewTransition.videoUrl ? (
+                                                    {previewTransition.videoUrl && !previewTransition.imageUrl ? (
                                                         <video
                                                             src={previewTransition.videoUrl}
                                                             className="w-full h-full object-cover"
