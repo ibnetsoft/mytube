@@ -2808,6 +2808,8 @@ export default function StdPortalPage() {
     }
 
     const getSavedNarrationAudioUrl = async () => {
+        // A saved audio asset may predate the current Voice Studio casting.
+        if (localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return null
         const projectId = String(selectedProject?.project?.id || '').trim()
         const asset = (selectedProject?.assets || []).find((item: any) =>
             String(item?.asset_type || '').toLowerCase() === 'audio'
@@ -2922,7 +2924,7 @@ export default function StdPortalPage() {
             String(asset?.asset_type || '').toLowerCase() === 'audio'
             && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        if (hasSavedNarration) return
+        if (hasSavedNarration && !localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return
         const subtitle = localSubtitles[index]
         if (!subtitle) return
         const cacheKey = vrewSegmentCacheKey(subtitle, index)

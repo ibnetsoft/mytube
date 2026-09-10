@@ -48,6 +48,23 @@ async function main() {
     console.log('PASS: local ADC; production fails closed; OIDC federation configuration and token supplier')
     const catalog = load('lib/voiceStudioCatalog.ts')
     assert.equal(catalog.VOICE_STUDIO_VOICES.length, 30)
+    // Exercise the real preview functions with an old audio asset still present.
+    const pageSource=fs.readFileSync(path.resolve(__dirname,'../app/std/page.tsx'),'utf8')
+    const previewSource=pageSource.slice(pageSource.indexOf('    const getSavedNarrationAudioUrl ='),pageSource.indexOf('    const getOrCreateVrewSegmentAudioUrl ='))
+        + pageSource.slice(pageSource.indexOf('    const prefetchVrewSegment ='),pageSource.indexOf('    const playVrewSegmentsFrom ='))
+    const previewJs=ts.transpileModule(previewSource,{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText
+    let generated=0, savedFetches=0
+    const preview=new Function('localSubtitles','selectedProject','isVoiceStudioVoice','vrewFinalNarrationAudioRef','fetchVrewAudioBlobUrl','vrewSegmentCacheKey','vrewAudioCacheRef','vrewSegmentStatus','getOrCreateVrewSegmentAudioUrl',previewJs+'; return {getSavedNarrationAudioUrl,prefetchVrewSegment};')(
+        [{text:'현재 한국어 대본',voice_id:'gemini:Enceladus'},{text:'대사',voice_id:'actor-id'}],
+        {project:{id:'test'},assets:[{id:'old-audio',asset_type:'audio',status:'uploaded'}]},
+        catalog.isVoiceStudioVoice,{current:null},async()=>{savedFetches++;return 'old-audio'},()=> 'segment',{current:{}},{},async()=>{generated++},
+    )
+    assert.equal(await preview.getSavedNarrationAudioUrl(),null)
+    assert.equal(savedFetches,0)
+    preview.prefetchVrewSegment(0)
+    preview.prefetchVrewSegment(1)
+    assert.equal(generated,2)
+    console.log('PASS: mixed Voice Studio preview skips old audio and prefetches current subtitle segments')
     assert.throws(() => catalog.voiceStudioName('gemini:invalid'))
     const merged=catalog.mergeVoiceStudioSegments([{voiceId:'gemini:Charon',text:'첫 줄'},{voiceId:'gemini:Charon',text:'둘째 줄'},{voiceId:'actor-id',text:'대사'},{voiceId:'gemini:Charon',text:'마지막'}])
     assert.equal(merged.length,3)
