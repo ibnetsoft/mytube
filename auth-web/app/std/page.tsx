@@ -1,4 +1,6 @@
 'use client'
+import VoiceStudioPicker from '@/components/VoiceStudioPicker'
+import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
 
 const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', key: 'cat_folktales', language: 'ko' },
@@ -818,6 +820,7 @@ export default function StdPortalPage() {
     const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
     const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // Yooni 기본값
     const [vrewNarrationVoice, setVrewNarrationVoice] = useState('')
+    const [voiceStudioDirection, setVoiceStudioDirection] = useState('')
     const [vrewDialogueVoice, setVrewDialogueVoice] = useState('')
     const ttsSpeed = String(Math.max(0.7, Math.min(1.2, Number(
         selectedProject?.project?.project_payload?.tts_speed
@@ -849,7 +852,6 @@ export default function StdPortalPage() {
     }, [selectedProject?.project?.id])
 
     useEffect(() => {
-        setVrewNarrationVoice(prev => prev || selectedVoice)
         setVrewDialogueVoice(prev => prev || selectedVoice)
     }, [selectedVoice])
 
@@ -899,6 +901,11 @@ export default function StdPortalPage() {
     const [isSubtitleSyncing, setIsSubtitleSyncing] = useState(false)
     const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
+    const savedStudioNarrator = localSubtitles.find(sub => isVoiceStudioVoice(String(sub?.voice_id || '')))
+    useEffect(() => {
+        setVrewNarrationVoice(savedStudioNarrator?.voice_id || 'gemini:Charon')
+        setVoiceStudioDirection(savedStudioNarrator?.voice_direction || '')
+    }, [selectedProject?.project?.id, savedStudioNarrator?.voice_id, savedStudioNarrator?.voice_direction])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
     const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
@@ -2169,6 +2176,7 @@ export default function StdPortalPage() {
         ;(allVoices || []).forEach((voice: any) => {
             if (voice?.id) map.set(String(voice.id), String(voice.name || voice.id))
         })
+        VOICE_STUDIO_VOICES.forEach(voice => map.set(voice.id, `Voice Studio · ${voice.name}`))
         return map
     }, [allVoices])
 
@@ -2192,7 +2200,7 @@ export default function StdPortalPage() {
         return names
     }
 
-    const setSubtitleGroupVoice = async (group: any, voiceId: string) => {
+    const setSubtitleGroupVoice = async (group: any, voiceId: string, direction?: string) => {
         const nextVoiceId = String(voiceId || selectedVoice)
         const groupSceneNumber = Number(group.scene_number)
         const selectedSceneSet = new Set(selectedSubtitleSceneNumbers)
@@ -2207,6 +2215,7 @@ export default function StdPortalPage() {
             return {
                 ...item,
                 voice_id: nextVoiceId,
+                ...(direction !== undefined ? {voice_direction: direction} : {}),
                 voice_name: voiceNameById.get(nextVoiceId) || nextVoiceId,
             }
         })
@@ -2351,6 +2360,7 @@ export default function StdPortalPage() {
             .map((item: any) => ({
                 text: String(item?.text || '').trim(),
                 voice_id: String(item?.voice_id || selectedVoice || '').trim(),
+                direction: String(item?.voice_direction || ''),
             }))
             .filter((item: any) => item.text && item.voice_id)
     }
@@ -2362,6 +2372,7 @@ export default function StdPortalPage() {
             selectedProject?.project?.id || 'project',
             index,
             voiceId,
+            String(subtitle?.voice_direction || ''),
             Number(ttsSpeed) || 1,
             Number(elStability) || 0.35,
             Number(elStyle) || 0.45,
@@ -2471,7 +2482,7 @@ export default function StdPortalPage() {
 
         if (!selectedProject?.project?.id) return
         try {
-            await fetch('/api/std/projects/' + selectedProject.project.id, {
+            const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
                 method: 'PATCH',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
@@ -2485,9 +2496,11 @@ export default function StdPortalPage() {
                     },
                 }),
             })
+            if (!response.ok) throw new Error(`성우 설정 저장 실패 (${response.status})`)
         } catch (error) {
             console.warn('[STD subtitles] failed to persist subtitle voice state:', error)
             setIsSubtitleSaved(false)
+            setMessage('성우 설정을 서버에 저장하지 못했습니다. 다시 적용해 주세요.')
         }
     }
 
@@ -2506,6 +2519,7 @@ export default function StdPortalPage() {
                 ...item,
                 voice_id: nextVoiceId,
                 voice_name: nextVoiceName,
+                ...(target === 'narration' && isVoiceStudioVoice(nextVoiceId) ? {voice_direction: voiceStudioDirection} : {}),
             }
             markVrewSegmentStale(updated, index)
             return updated
@@ -2839,7 +2853,8 @@ export default function StdPortalPage() {
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
                     mode: 'vrew_segment_preview_fast',
-                    provider: voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
+                    provider: isVoiceStudioVoice(voiceId) ? 'voice_studio' : voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
+                    direction: String(subtitle?.voice_direction || ''),
                     voice_id: voiceId,
                     model_id: 'eleven_multilingual_v2',
                     speed: Number(ttsSpeed),
@@ -5541,7 +5556,7 @@ export default function StdPortalPage() {
             return
         }
         const voiceObj = allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
-        const ttsProvider = selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
+        const ttsProvider = subtitleVoiceSegments().some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
         const ttsText = customScriptText || selectedProject.project.project_payload?.script || ''
         if (!ttsText.trim()) {
             setMessage('❗ 대본이 없습니다. 먼저 대본을 생성해주세요.')
@@ -5686,7 +5701,7 @@ export default function StdPortalPage() {
                 )
 
                 const requestBody = {
-                    provider: 'elevenlabs',
+                    provider: voiceSegments.some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : 'elevenlabs',
                     voice_id: selectedVoice,
                     model_id: 'eleven_multilingual_v2',
                     speed: Number(ttsSpeed),
@@ -5707,7 +5722,7 @@ export default function StdPortalPage() {
                     const detail = payload?.error || payload?.detail || payload?.raw || `${res.status} ${res.statusText}`
                     const stage = payload?.stage ? ` (${payload.stage})` : ''
                     const serverErrorMessage = `TTS generation failed${stage}: ${String(detail).slice(0, 600)}`
-                    if (!shouldUseBrowserElevenLabsFallback(serverErrorMessage)) {
+                    if (voiceSegments.some(segment => isVoiceStudioVoice(segment.voice_id)) || !shouldUseBrowserElevenLabsFallback(serverErrorMessage)) {
                         throw new Error(serverErrorMessage)
                     }
 
@@ -7501,16 +7516,16 @@ export default function StdPortalPage() {
                                             <label className="block text-[10px] font-bold text-cyan-100/70 mb-1">
                                                 {tf('sub_narration_voice_count', { count: narrationSubtitleCount })}
                                             </label>
-                                            {renderVoicePicker(
-                                                'bulk-narration',
-                                                vrewNarrationVoice || selectedVoice,
-                                                setVrewNarrationVoice,
-                                                '내레이션 일괄 성우'
-                                            )}
+                                            <VoiceStudioPicker
+                                                value={isVoiceStudioVoice(vrewNarrationVoice) ? vrewNarrationVoice : 'gemini:Charon'}
+                                                direction={voiceStudioDirection}
+                                                headers={authedJsonHeaders}
+                                                onChange={(id, direction) => {setVrewNarrationVoice(id);setVoiceStudioDirection(direction)}}
+                                            />
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => applyVrewVoiceBulk('narration', vrewNarrationVoice || selectedVoice)}
+                                            onClick={() => applyVrewVoiceBulk('narration', isVoiceStudioVoice(vrewNarrationVoice) ? vrewNarrationVoice : 'gemini:Charon')}
                                             className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition"
                                         >
                                             {t('sub_apply_narration_voice')}
@@ -8214,16 +8229,15 @@ export default function StdPortalPage() {
                                                                                 {groupVoiceNames[0]}
                                                                             </span>
                                                                         )}
-                                                                        {renderVoicePicker(
-                                                                            `scene-${sNum}`,
-                                                                            groupVoiceId,
-                                                                            (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
-                                                                            isChecked && selectedSubtitleSceneNumbers.length > 1
-                                                                                ? `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`
-                                                                                : `씬 ${sNum} 전체 성우`,
-                                                                            'default',
-                                                                            'left'
-                                                                        )}
+                                                                        <VoiceStudioPicker
+                                                                            microphone
+                                                                            label={`씬 ${sNum} Voice Studio 성우 선택`}
+                                                                            description="이 섹션에 적용합니다. 여러 씬을 선택했다면 선택한 씬에 함께 적용합니다."
+                                                                            value={isVoiceStudioVoice(groupVoiceId) ? groupVoiceId : 'gemini:Charon'}
+                                                                            direction={group.subtitles.find((item: any) => isVoiceStudioVoice(item.voice_id))?.voice_direction || ''}
+                                                                            headers={authedJsonHeaders}
+                                                                            onChange={(id, direction) => void setSubtitleGroupVoice(group, id, direction)}
+                                                                        />
                                                                     </div>
                                                                 )}
                                                             </div>

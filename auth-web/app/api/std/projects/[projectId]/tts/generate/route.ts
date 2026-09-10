@@ -10,6 +10,8 @@ import {
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { parseScriptToVoiceSegments, ScriptVoiceSegment } from '@/lib/stdMultiVoice'
 import { getConfiguredElevenLabsKeys } from '@/lib/elevenLabsKeys'
+import { generateVoiceStudioMp3 } from '@/lib/stdVoiceStudio'
+import { isVoiceStudioVoice, mergeVoiceStudioSegments } from '@/lib/voiceStudioCatalog'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -346,7 +348,8 @@ async function generateElevenLabsMp3(input: {
     voiceId: string
     modelId: string
     text: string
-    voiceSegments?: Array<{ text: string; voiceId: string }>
+    voiceSegments?: Array<{ text: string; voiceId: string; direction?: string }>
+    language?: string
     speed?: number
     stability?: number
     similarityBoost?: number
@@ -365,8 +368,15 @@ async function generateElevenLabsMp3(input: {
 
     if (input.voiceSegments && input.voiceSegments.length > 0) {
         const buffers: Buffer[] = []
-        for (const seg of input.voiceSegments) {
+        for (const seg of mergeVoiceStudioSegments(input.voiceSegments)) {
             const targetVoiceId = seg.voiceId || input.voiceId || DEFAULT_ELEVENLABS_VOICE_ID
+            if (isVoiceStudioVoice(targetVoiceId)) {
+                for (const chunk of splitText(seg.text, 1000)) {
+                    buffers.push(await generateVoiceStudioMp3({text:chunk,voiceId:targetVoiceId,direction:seg.direction,speed:input.speed,language:input.language}))
+                }
+                usedModelIds.add('gemini-2.5-flash-tts')
+                continue
+            }
             const chunks = splitText(seg.text)
             for (const chunk of chunks) {
                 const result = await generateSingleElevenLabsChunk({
@@ -667,6 +677,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     voiceId,
                     modelId,
                     speed: projectTtsSpeed,
+                    direction: String(body?.direction || ''),
                     stability: body?.stability ?? null,
                     style: body?.style ?? null,
                 }))
@@ -712,6 +723,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 .map((segment: any) => ({
                     text: String(segment?.text || '').trim(),
                     voiceId: String(segment?.voice_id || segment?.voiceId || voiceId).trim(),
+                    direction: String(segment?.direction || ''),
                 }))
                 .filter((segment: { text: string; voiceId: string }) => segment.text && segment.voiceId)
             : []
@@ -736,15 +748,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             ).trim().toLowerCase()
             audioBuffer = await generateGoogleFreeMp3(text, projectLang)
         } else {
+            const synthesisSegments = voiceSegments.length ? voiceSegments : isVoiceStudioVoice(voiceId) ? [{text, voiceId, direction:String(body?.direction || '')}] : []
+            const needsElevenLabs = !synthesisSegments.length || synthesisSegments.some((segment: {voiceId:string}) => !isVoiceStudioVoice(segment.voiceId))
             stage = 'load_elevenlabs_key'
-            const apiKeys = await getConfiguredElevenLabsKeys()
-            if (!apiKeys.length) {
+            const apiKeys = needsElevenLabs ? await getConfiguredElevenLabsKeys() : []
+            if (needsElevenLabs && !apiKeys.length) {
                 return NextResponse.json({ success: false, error: 'ElevenLabs API key is not configured' }, { status: 500 })
             }
-            const keySelection = await selectUsableElevenLabsKeys(apiKeys, largestChunkChars)
+            const keySelection = needsElevenLabs ? await selectUsableElevenLabsKeys(apiKeys, largestChunkChars) : {usableKeys:[],usableSlots:[],inspections:[]}
             elevenLabsKeyInspections = keySelection.inspections
             ttsDebug.keyInspections = elevenLabsKeyInspections
-            if (!keySelection.usableKeys.length) {
+            if (needsElevenLabs && !keySelection.usableKeys.length) {
                 const totalRemaining = elevenLabsKeyInspections.reduce(
                     (sum, item) => sum + (Number.isFinite(item.remaining) ? Number(item.remaining) : 0),
                     0
@@ -764,7 +778,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 voiceId,
                 modelId,
                 text,
-                voiceSegments,
+                voiceSegments: synthesisSegments,
+                language: ({ko:'ko-KR',en:'en-US',ja:'ja-JP',vi:'vi-VN',th:'th-TH'} as Record<string,string>)[String(project.language || 'ko')] || String(project.language || 'ko-KR'),
                 speed: projectTtsSpeed,
                 stability: body?.stability == null ? undefined : Number(body.stability),
                 similarityBoost: body?.similarity_boost == null ? undefined : Number(body.similarity_boost),
