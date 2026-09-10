@@ -893,6 +893,7 @@ export default function StdPortalPage() {
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
+    const previewVideoIdentityRef = useRef('')
     const previewTransitionVisualRef = useRef<{ sceneNumber: number; imageUrl: string; videoUrl: string } | null>(null)
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -1431,7 +1432,7 @@ export default function StdPortalPage() {
                     const nextTime = Math.round((prev + 0.1) * 10) / 10
                     if (nextTime >= totalDuration) {
                         setIsPlayingPreview(false)
-                        return 0.0
+                        return totalDuration
                     }
                     return nextTime
                 })
@@ -6355,7 +6356,13 @@ export default function StdPortalPage() {
             video.pause()
             return
         }
-        video.currentTime = 0
+        const identity = `${selectedProject?.project?.id}:${currentPreviewSceneNumber}:${currentSubVideoUrl}`
+        if (previewVideoIdentityRef.current !== identity) {
+            previewVideoIdentityRef.current = identity
+            video.dataset.finished = ''
+            video.currentTime = 0
+        }
+        if (video.dataset.finished === 'true') return
         void video.play().catch(() => {})
     }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
@@ -8395,6 +8402,14 @@ export default function StdPortalPage() {
                                                 <video
                                                     ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
+                                                    onEnded={(event) => {
+                                                        const video = event.currentTarget
+                                                        video.pause()
+                                                        video.dataset.finished = 'true'
+                                                        if (Number.isFinite(video.duration) && video.duration > 0) {
+                                                            video.currentTime = Math.max(0, video.duration - 0.04)
+                                                        }
+                                                    }}
                                                     poster={currentSubImageUrl || undefined}
                                                     preload="auto"
                                                     className="w-full h-full object-cover"
@@ -8541,7 +8556,16 @@ export default function StdPortalPage() {
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[10px]">
                                                     <button
-                                                        onClick={() => setPlaybackTime(0)}
+                                                        onClick={() => {
+                                                            stopVrewPlayback()
+                                                            previewVideoIdentityRef.current = ''
+                                                            if (vrewPreviewVideoRef.current) {
+                                                                vrewPreviewVideoRef.current.dataset.finished = ''
+                                                                vrewPreviewVideoRef.current.currentTime = 0
+                                                            }
+                                                            setSelectedSubIndex(0)
+                                                            setPlaybackTime(0)
+                                                        }}
                                                         className="text-gray-400 hover:text-white px-1.5 py-0.5 bg-[#202632] rounded"
                                                     >
                                                         {t('sub_back_to_start')}
