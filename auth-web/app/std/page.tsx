@@ -178,6 +178,18 @@ type MusicSubmissionDraft = {
     commercial_use_confirmed?: boolean
 }
 
+const STD_DEFAULT_VOICE = {
+    id: 'google_kr',
+    name: 'Google 한국어 (무료 TTS)',
+    gender: 'neutral',
+    category: 'google',
+    language: 'ko',
+    description: '무료 Google 한국어 TTS입니다. 긴 대본은 자동 분할 초고속 생성됩니다.',
+    preview_url: '/api/std/tts-proxy?text=%EC%95%88%EB%85%95%ED%95%98%EC%84%B8%EC%9A%94.+Google+%ED%95%9C%EA%B5%AD%EC%96%B4+%EB%AC%B4%EB%A3%8C+TTS+%EC%9E%85%EB%8B%88%EB%8B%A4.',
+}
+
+const STD_DEFAULT_VOICE_ID = STD_DEFAULT_VOICE.id
+
 const ELEVENLABS_VOICES = [
     {
         id: 'CwhRBWXzGAHq8TQ4Fs17',
@@ -819,8 +831,8 @@ export default function StdPortalPage() {
     const [musicMissions, setMusicMissions] = useState<MusicMission[]>([])
     const [musicMissionLoading, setMusicMissionLoading] = useState(false)
     const [musicSubmissionDrafts, setMusicSubmissionDrafts] = useState<Record<string, MusicSubmissionDraft>>({})
-    const [allVoices, setAllVoices] = useState(ELEVENLABS_VOICES)
-    const [selectedVoice, setSelectedVoice] = useState('n2fbxG88jqAoaVPUy3IG') // Yooni 기본값
+    const [allVoices, setAllVoices] = useState([STD_DEFAULT_VOICE, ...ELEVENLABS_VOICES])
+    const [selectedVoice, setSelectedVoice] = useState(STD_DEFAULT_VOICE_ID)
     const [vrewNarrationVoice, setVrewNarrationVoice] = useState('')
     const [voiceStudioDirection, setVoiceStudioDirection] = useState('')
     const [vrewDialogueVoice, setVrewDialogueVoice] = useState('')
@@ -5703,7 +5715,7 @@ export default function StdPortalPage() {
             setGeneratingTts(false)
             return
         }
-        const voiceObj = allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
+        const voiceObj = allVoices.find(v => v.id === selectedVoice) || STD_DEFAULT_VOICE
         const ttsProvider = subtitleVoiceSegments().some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
         const ttsText = customScriptText || selectedProject.project.project_payload?.script || ''
         if (!ttsText.trim()) {
@@ -6294,7 +6306,7 @@ export default function StdPortalPage() {
     }, [selectedProject])
 
     const selectedVoiceObj = useMemo(() => {
-        return allVoices.find(v => v.id === selectedVoice) || ELEVENLABS_VOICES[0]
+        return allVoices.find(v => v.id === selectedVoice) || STD_DEFAULT_VOICE
     }, [allVoices, selectedVoice])
 
     const scriptCharCount = useMemo(() => {
@@ -8985,7 +8997,7 @@ export default function StdPortalPage() {
                                                 <span>🎙️</span> 성우 음성 미리듣기 (Preview)
                                             </span>
                                             <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">
-                                                {selectedVoiceObj.gender === 'female' ? '여성' : '남성'}
+                                                {selectedVoiceObj.gender === 'female' ? '여성' : selectedVoiceObj.gender === 'male' ? '남성' : '중립'}
                                             </span>
                                         </div>
                                         <p className="text-[11px] text-gray-400 leading-tight">{selectedVoiceObj.description}</p>
