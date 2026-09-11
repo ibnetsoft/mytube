@@ -144,6 +144,8 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
             elif review_failure == "evidence":
                 report["checks"]["relationships"]["evidence"] = ""
             return {"script_quality_report": report}
+        if name == '02e_dialogue':
+            return {'scenes': [{'scene_number': i, 'spans': []} for i in range(1, 29)]}
         if name == "03_media":
             assert context["character_anchors"]["character_image_generation"]["status"] == "ready"
             positions = ("Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right")
@@ -183,7 +185,8 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     package = runner_module.CodexStagedContentRunner().generate("staged-job", {"target_duration_seconds": 300, "upload_title": "테스트 제목", "title_generation": {"title_candidates": [{"title": "테스트 제목"}]}, "category_name": "옛날이야기", "script_style": "story"})
 
     scenes = package["structure"]["scenes"]
-    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02e_dialogue", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert package['structure']['dialogue_annotations']['model'] == 'gpt-6-astra'
     assert package["structure"]["character_reference_status"] == "ready"
     assert package["character_anchors"]["character_image_generation"]["status"] == "ready"
     assert package["structure"]["image_grid_prompts"][0]["character_references"][0]["image_url"]

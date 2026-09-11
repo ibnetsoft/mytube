@@ -9779,7 +9779,8 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
         **(payload.get("generation_models") if isinstance(payload.get("generation_models"), dict) else {}),
         "content_package": "codex-cli",
         "script_planning": "codex-cli",
-        "script_generation": "codex-cli",
+        "script_generation": "gpt-6-astra",
+        "dialogue_annotation": "gpt-6-astra",
         "scene_media_prompt_generation": "codex-cli",
         "publish_metadata": "codex-cli",
     }

@@ -1,4 +1,5 @@
 'use client'
+import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
@@ -2068,7 +2069,8 @@ export default function StdPortalPage() {
                 video_url: visual.video_url,
             }
         })
-        return repairSubtitleItemQuoteBoundaries(normalizedSceneSubtitles)
+        return splitSubtitleDialogueBlocks(normalizedSceneSubtitles,
+            selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
     }
 
     const subtitleHasValidTiming = (subtitle: any) => {
@@ -2412,22 +2414,23 @@ export default function StdPortalPage() {
         return scanDialogueQuoteState(text).isDialogue
     }
 
-    const subtitleDialogueFlags = useMemo(() => {
-        const flags = new Map<number, boolean>()
-        let expectedClose = ''
-        ;(localSubtitles || []).forEach((subtitle: any, index: number) => {
-            const scan = scanDialogueQuoteState(subtitle?.text, expectedClose)
-            flags.set(index, scan.isDialogue)
-            expectedClose = scan.nextClose
-        })
-        return flags
-    }, [localSubtitles])
+    const aiDialogueParts = useMemo(() => mapDialogueAnnotations(localSubtitles || [],
+        selectedProject?.project?.project_payload?.structure?.dialogue_annotations), [localSubtitles, selectedProject])
 
-    const subtitleDialogueCandidates = useMemo(() => detectDialogueCandidates(localSubtitles), [localSubtitles])
+    const renderAiDialogue = (subtitle: any, index: number) => {
+        const parts = aiDialogueParts.get(index)
+        if (!parts) return <span title="AI 대사 분석이 없거나 대본이 변경됐습니다. 재분석이 필요합니다.">{subtitle.text}</span>
+        return parts.map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
+            title={part.dialogue ? `AI 확인 대사 · ${part.speaker}` : undefined}>{part.text}</span>)
+    }
+
+    // No heuristic candidates. Keep existing manual override controls available.
+    const subtitleDialogueCandidates = new Map<number, Array<{ start: number; end: number; reason: string }>>()
 
     const isSubtitleDialogue = (subtitle: any, index: number) => {
         if (typeof subtitle?.dialogue_override === 'boolean') return subtitle.dialogue_override
-        return Boolean(subtitleDialogueFlags.get(index) || hasDialogueQuoteText(subtitle?.text))
+        const parts = aiDialogueParts.get(index)
+        return Boolean(parts?.some(p => p.dialogue) && parts.every(p => p.dialogue || !p.text.replace(/[\s"'“”‘’「」『』]/g, '')))
     }
 
     const pendingDialogueCandidateIndexes = new Set(localSubtitles.flatMap((subtitle, index) => (
@@ -2480,6 +2483,8 @@ export default function StdPortalPage() {
     }
 
     const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal: AbortSignal; strict: boolean }) => {
+        updatedSubtitles = splitSubtitleDialogueBlocks(updatedSubtitles,
+            selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
         setLocalSubtitles(updatedSubtitles)
         setIsSubtitleSaved(true)
         setSelectedProject((prev: any) => {
@@ -6073,10 +6078,12 @@ export default function StdPortalPage() {
         const firstIsDialogue = isSubtitleDialogue(selectedItems[0], firstIndex)
         const isSameVoiceType = selectedItems.every((item, position) => (
             isSubtitleDialogue(item, indexes[position]) === firstIsDialogue
+            && (!firstIsDialogue || aiDialogueParts.get(indexes[position])?.find(p => p.dialogue)?.speaker
+                === aiDialogueParts.get(firstIndex)?.find(p => p.dialogue)?.speaker)
         ))
 
         if (!isContiguous || !isSameScene || !isSameVoiceType) {
-            setMessage('같은 씬의 연속된 내레이션끼리 또는 대사끼리만 합칠 수 있습니다.')
+            setMessage('같은 씬의 연속된 내레이션끼리 또는 같은 화자의 대사끼리만 합칠 수 있습니다.')
             return
         }
 
@@ -8453,7 +8460,7 @@ export default function StdPortalPage() {
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
                                                                         const isDialogueBlock = typeof item.dialogue_override === 'boolean'
                                                                             ? item.dialogue_override
-                                                                            : Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
+                                                                            : isSubtitleDialogue(item, item.subtitleIndex)
                                                                         const candidates = pendingDialogueCandidateIndexes.has(item.subtitleIndex) && !isDialogueBlock
                                                                             ? subtitleDialogueCandidates.get(item.subtitleIndex) || [] : []
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
@@ -8495,7 +8502,7 @@ export default function StdPortalPage() {
                                                                                         })
                                                                                         parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
                                                                                         return parts
-                                                                                    })() : renderDialogueHighlightedText(item.text, -1, isDialogueBlock)}
+                                                                                    })() : renderAiDialogue(item, item.subtitleIndex)}
                                                                                     {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
                                                                                         <span className="ml-2 inline-flex items-center gap-2 text-[10px]">
                                                                                             {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>대사 후보</span>}
@@ -8545,7 +8552,7 @@ export default function StdPortalPage() {
                                                             ) : (
                                                                 <>
                                                                     <div className="text-xs text-white leading-relaxed font-sans">
-                                                                        {renderDialogueHighlightedText(groupText)}
+                                                                        {group.subtitles.map((item: any) => <span key={item.subtitleIndex}>{renderAiDialogue(item, item.subtitleIndex)}{' '}</span>)}
                                                                     </div>
                                                                     {group.subtitles.length > 1 && (
                                                                         <div className="mt-2 flex flex-wrap gap-1">

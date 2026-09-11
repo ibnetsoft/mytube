@@ -20,6 +20,7 @@ from typing import Any
 
 from worker_config import OUTPUT_DIR, PROJECT_ROOT
 from senior_script_guard import PROFILE as SENIOR_PROFILE, contract as senior_contract, text_issues, review_issues
+from codex_dialogue import ASTRA_MODEL, DIALOGUE_TASK, validate_dialogue
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -633,10 +634,11 @@ class CodexStagedContentRunner:
         self.config = config or CodexContentConfig.from_environment()
 
     def _stage(self, job_id: str, name: str, context: dict[str, Any], task: str) -> dict[str, Any]:
+        model = ASTRA_MODEL if name.startswith('02') else self.config.model
         work_dir = OUTPUT_DIR / "codex_stage_requests"
         work_dir.mkdir(parents=True, exist_ok=True)
         # Changed instructions, rewritten text and QA feedback must never hit an old response.
-        fingerprint = hashlib.sha256(json.dumps([SENIOR_PROFILE, "supplied-legacy-only-v2", context, task], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+        fingerprint = hashlib.sha256(json.dumps([SENIOR_PROFILE, "astra-dialogue-v1", model, context, task], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
         request_path = work_dir / f"{job_id}.{name}.{fingerprint}.input.json"
         request_path.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
         last_error = ""
@@ -663,8 +665,8 @@ class CodexStagedContentRunner:
                        "Apply legacy_stage_directives and legacy_quality_contract when actually supplied in the context; absent legacy fields impose no additional requirements. "
                        + task + retry + " Return JSON only. Do not create or save media files or modify repository files.")
             command = [self.config.executable, "exec", "--ephemeral", "--sandbox", "read-only", "--color", "never", "-C", str(PROJECT_ROOT), "--output-last-message", str(response_path)]
-            if self.config.model:
-                command.extend(["--model", self.config.model])
+            if model:
+                command.extend(["--model", model])
             command.append(prompt)
             completed = subprocess.run(command, cwd=str(PROJECT_ROOT), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=self.config.timeout_seconds, check=False)
             if completed.returncode == 0 and response_path.exists():
@@ -776,6 +778,17 @@ class CodexStagedContentRunner:
             parts.append(text)
         script = "\n\n".join(parts)
         character_context = {**script_context, "script": script}
+        dialogue_context = {**character_context, 'scenes': scenes}
+        for attempt in range(2):
+            dialogue_result = self._stage(job_id, '02e_dialogue', dialogue_context, DIALOGUE_TASK)
+            try:
+                structure['dialogue_annotations'] = validate_dialogue(dialogue_result, scenes)
+                structure['script_model'] = ASTRA_MODEL
+                break
+            except ValueError as exc:
+                if attempt:
+                    raise CodexContentError(str(exc)) from exc
+                dialogue_context['validation_feedback'] = str(exc)
         identity = self._stage(job_id, "02d_character_identity", character_context,
             "From the FINAL reviewed script, finalize the main character and up to two recurring supporting characters. "
             "Preserve established identities; do not invent people or change relationships. Return {main_character:{...}, supporting_characters:[...]}. "
