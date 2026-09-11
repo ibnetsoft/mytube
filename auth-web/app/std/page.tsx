@@ -100,6 +100,7 @@ import {
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
 import { detectDialogueCandidates } from '@/lib/stdDialogueCandidates'
+import { abortable, measureSubtitleDurations, readAudioDuration } from '@/lib/stdTimingSync'
 import { calculateLongformPayoutByScenes } from '@/lib/stdPayoutPolicy'
 
 type Topic = {
@@ -916,11 +917,16 @@ export default function StdPortalPage() {
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
     const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
     const [isSubtitleSyncing, setIsSubtitleSyncing] = useState(false)
+    const [subtitleSyncProgress, setSubtitleSyncProgress] = useState('')
+    const subtitleSyncControllerRef = useRef<AbortController | null>(null)
     const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
     const [voicePickerDraft, setVoicePickerDraft] = useState('')
     const [voicePickerSearch, setVoicePickerSearch] = useState('')
     const [voicePickerPreviewUrl, setVoicePickerPreviewUrl] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
+    const subtitleSyncContextRef = useRef({ subtitles: localSubtitles, projectId: selectedProject?.project?.id })
+    subtitleSyncContextRef.current = { subtitles: localSubtitles, projectId: selectedProject?.project?.id }
+    useEffect(() => () => subtitleSyncControllerRef.current?.abort(new Error('페이지를 떠나 보정이 취소되었습니다.')), [selectedProject?.project?.id, currentNav])
     const savedStudioNarrator = localSubtitles.find(sub => isVoiceStudioVoice(String(sub?.voice_id || '')))
     useEffect(() => {
         setVrewNarrationVoice(savedStudioNarrator?.voice_id || 'gemini:Charon')
@@ -2424,6 +2430,13 @@ export default function StdPortalPage() {
         return Boolean(subtitleDialogueFlags.get(index) || hasDialogueQuoteText(subtitle?.text))
     }
 
+    const pendingDialogueCandidateIndexes = new Set(localSubtitles.flatMap((subtitle, index) => (
+        subtitle.dialogue_override === undefined
+        && !isSubtitleDialogue(subtitle, index)
+        && (subtitleDialogueCandidates.get(index)?.length || 0) > 0
+            ? [index] : []
+    )))
+
     const hasDistinctDialogueVoiceAssignment = () => {
         const narrationVoiceIds = new Set(
             localSubtitles
@@ -2466,7 +2479,7 @@ export default function StdPortalPage() {
         setPlaybackTime(subtitle?.start_num ?? Number(subtitle?.start_time) ?? 0)
     }
 
-    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[]) => {
+    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal: AbortSignal; strict: boolean }) => {
         setLocalSubtitles(updatedSubtitles)
         setIsSubtitleSaved(true)
         setSelectedProject((prev: any) => {
@@ -2495,6 +2508,7 @@ export default function StdPortalPage() {
         try {
             const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
                 method: 'PATCH',
+                signal: options?.signal,
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
                     progress_payload: {
@@ -2512,6 +2526,7 @@ export default function StdPortalPage() {
             console.warn('[STD subtitles] failed to persist subtitle voice state:', error)
             setIsSubtitleSaved(false)
             setMessage('성우 설정을 서버에 저장하지 못했습니다. 다시 적용해 주세요.')
+            if (options?.strict) throw error
         }
     }
 
@@ -2934,8 +2949,9 @@ export default function StdPortalPage() {
         }
     }
 
-    const fetchVrewAudioBlobUrl = async (audioUrl: string) => {
+    const fetchVrewAudioBlobUrl = async (audioUrl: string, signal?: AbortSignal) => {
         const res = await fetch(audioUrl, {
+            signal,
             headers: {
                 ...authedJsonHeaders,
                 Accept: 'audio/mpeg',
@@ -2973,7 +2989,8 @@ export default function StdPortalPage() {
         return url
     }
 
-    const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number) => {
+    const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number, signal?: AbortSignal) => {
+        if (signal?.aborted) throw signal.reason
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
         if (!selectedProject) throw new Error('프로젝트가 선택되지 않았습니다.')
@@ -2986,7 +3003,7 @@ export default function StdPortalPage() {
             return vrewAudioCacheRef.current[cacheKey]
         }
         const inFlightRequest = vrewAudioPromiseRef.current.get(cacheKey)
-        if (inFlightRequest) {
+        if (inFlightRequest && !signal) {
             return await inFlightRequest
         }
 
@@ -2995,6 +3012,7 @@ export default function StdPortalPage() {
             const requestSegmentAudio = async (bypassCache = false) => {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
+                signal,
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
                     mode: 'vrew_segment_preview_fast',
@@ -3030,7 +3048,7 @@ export default function StdPortalPage() {
                     console.warn('[STD Vrew subtitles] background segment cache failed:', error)
                 })
                 } else if (isSameOriginApiAudioUrl(audioUrl)) {
-                    audioUrl = await fetchVrewAudioBlobUrl(audioUrl)
+                    audioUrl = await fetchVrewAudioBlobUrl(audioUrl, signal)
                 }
                 return audioUrl
             }
@@ -3040,10 +3058,15 @@ export default function StdPortalPage() {
             try {
                 audioUrl = await resolvePayloadAudioUrl(payload)
             } catch (error) {
+                if (signal?.aborted) throw signal.reason
                 if (!payload?.cached) throw error
                 vrewBypassCachedSegmentAudioRef.current = true
                 payload = await requestSegmentAudio(true)
                 audioUrl = await resolvePayloadAudioUrl(payload)
+            }
+            if (signal?.aborted) {
+                if (audioUrl.startsWith('blob:')) URL.revokeObjectURL(audioUrl)
+                throw signal.reason
             }
             vrewAudioCacheRef.current[cacheKey] = audioUrl
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
@@ -3220,64 +3243,49 @@ export default function StdPortalPage() {
     }
 
     const syncSubtitleTimingsToNarration = async () => {
-        if (!localSubtitles.length || isSubtitleSyncing) return
+        if (!localSubtitles.length || subtitleSyncControllerRef.current) return
+        const controller = new AbortController()
+        subtitleSyncControllerRef.current = controller
+        const snapshot = localSubtitles
+        const projectId = selectedProject?.project?.id
         stopVrewPlayback()
         setIsSubtitleSyncing(true)
-
-        const getAudioDuration = async (audioUrl: string) => await new Promise<number>((resolve, reject) => {
-            const audio = new Audio()
-            const cleanup = () => {
-                audio.onloadedmetadata = null
-                audio.onerror = null
-                audio.removeAttribute('src')
-                audio.load()
-            }
-            audio.preload = 'metadata'
-            audio.onloadedmetadata = () => {
-                const duration = Number(audio.duration)
-                cleanup()
-                if (Number.isFinite(duration) && duration > 0) {
-                    resolve(duration)
-                } else {
-                    reject(new Error('음성 길이를 읽을 수 없습니다.'))
-                }
-            }
-            audio.onerror = () => {
-                cleanup()
-                reject(new Error('음성 길이를 읽는 중 오류가 발생했습니다.'))
-            }
-            audio.src = audioUrl
-            audio.load()
-        })
-
+        setSubtitleSyncProgress(`음성 길이 측정 0/${snapshot.length}`)
+        const timer = window.setTimeout(() => controller.abort(new Error('전체 보정 시간이 5분을 초과했습니다. 다시 시도해 주세요.')), 300_000)
         try {
-            let elapsed = 0
-            const syncedSubtitles: any[] = []
-            for (let index = 0; index < localSubtitles.length; index += 1) {
-                const subtitle = localSubtitles[index]
-                setMessage(`자막 싱크 보정 중... (${index + 1}/${localSubtitles.length})`)
-                const audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
-                const audioDuration = await getAudioDuration(audioUrl)
-                const start = Math.round(elapsed * 1000) / 1000
-                elapsed += audioDuration
-                const end = Math.round(elapsed * 1000) / 1000
-                syncedSubtitles.push({
-                    ...subtitle,
-                    start_num: start,
-                    end_num: end,
-                    start_time: start.toFixed(3),
-                    end_time: end.toFixed(3),
-                })
+            const durations = await measureSubtitleDurations(snapshot, async (subtitle, index, signal) => {
+                const url = await getOrCreateVrewSegmentAudioUrl(subtitle, index, signal)
+                return readAudioDuration(url, signal)
+            }, controller.signal, completed => {
+                setSubtitleSyncProgress(`음성 길이 측정 ${completed}/${snapshot.length}`)
+            })
+            if (controller.signal.aborted) throw controller.signal.reason
+            if (subtitleSyncContextRef.current.subtitles !== snapshot || subtitleSyncContextRef.current.projectId !== projectId) {
+                throw new Error('작업 중 자막이나 프로젝트가 변경되어 적용하지 않았습니다. 다시 실행해 주세요.')
             }
-
-            await persistVrewVoiceSubtitles(syncedSubtitles)
-            const nextIndex = Math.min(selectedSubIndex, syncedSubtitles.length - 1)
-            setSelectedSubIndex(Math.max(0, nextIndex))
-            setPlaybackTime(syncedSubtitles[Math.max(0, nextIndex)]?.start_num || 0)
-            setMessage(`음성 길이 기준으로 자막 ${syncedSubtitles.length}개 구간을 보정했습니다. (${elapsed.toFixed(1)}초)`)
+            let elapsed = 0
+            const syncedSubtitles = snapshot.map((subtitle, index) => {
+                const start = Math.round(elapsed * 1000) / 1000
+                elapsed += durations[index]
+                const end = Math.round(elapsed * 1000) / 1000
+                return { ...subtitle, start_num: start, end_num: end, start_time: start.toFixed(3), end_time: end.toFixed(3) }
+            })
+            setSubtitleSyncProgress('보정 결과 저장 중...')
+            await abortable(persistVrewVoiceSubtitles(syncedSubtitles, { signal: controller.signal, strict: true }), controller.signal)
+            const nextIndex = Math.max(0, Math.min(selectedSubIndex, syncedSubtitles.length - 1))
+            setSelectedSubIndex(nextIndex)
+            setPlaybackTime(syncedSubtitles[nextIndex]?.start_num || 0)
+            setSubtitleSyncProgress(`완료 · ${syncedSubtitles.length}개 · ${elapsed.toFixed(1)}초`)
+            setMessage('줄별 TTS 길이로 보정했습니다. 저장된 전체 음성에 맞춘 정밀 싱크는 아닙니다.')
         } catch (error: any) {
-            setMessage(`❌ 자막 싱크 보정 실패: ${error?.message || '음성 길이를 확인할 수 없습니다.'}`)
+            if (subtitleSyncContextRef.current.projectId === projectId) {
+                const detail = error?.message || '음성 길이를 확인할 수 없습니다.'
+                setSubtitleSyncProgress(detail)
+                setMessage(`음성 길이 보정 중단: ${detail}`)
+            }
         } finally {
+            window.clearTimeout(timer)
+            subtitleSyncControllerRef.current = null
             setIsSubtitleSyncing(false)
         }
     }
@@ -7735,6 +7743,11 @@ export default function StdPortalPage() {
                                                 <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap">
                                                     대사 {dialogueSubtitleCount}개
                                                 </span>
+                                                {pendingDialogueCandidateIndexes.size > 0 && (
+                                                    <span className="whitespace-nowrap text-[10px] font-bold text-amber-300" title="아직 대사로 지정하지 않은 자막 줄 수입니다.">
+                                                        · 후보 {pendingDialogueCandidateIndexes.size}개
+                                                    </span>
+                                                )}
                                                 {renderVoicePicker(
                                                     'bulk-dialogue',
                                                     vrewDialogueVoice || selectedVoice,
@@ -7743,10 +7756,28 @@ export default function StdPortalPage() {
                                                     'dialogue'
                                                 )}
                                             </div>
+                                            {pendingDialogueCandidateIndexes.size > 0 && (
+                                                <button
+                                                    type="button"
+                                                    title="노란색 후보가 포함된 자막 줄 전체를 대사로 지정합니다. 이후 대사 적용을 누르면 선택한 성우가 적용됩니다."
+                                                    onClick={() => {
+                                                        const updated = localSubtitles.map((subtitle, index) => (
+                                                            pendingDialogueCandidateIndexes.has(index)
+                                                                ? { ...subtitle, dialogue_override: true } : subtitle
+                                                        ))
+                                                        void persistVrewVoiceSubtitles(updated)
+                                                    }}
+                                                    className="h-8 rounded-md border border-amber-400/30 bg-amber-400/10 px-2.5 text-[11px] font-bold text-amber-200 hover:bg-amber-400/20"
+                                                >
+                                                    후보 {pendingDialogueCandidateIndexes.size}개 대사로 지정
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
-                                                className="h-8 px-2.5 rounded-md border border-violet-300/30 bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-bold shadow-sm shadow-violet-950/20 transition"
+                                                disabled={dialogueSubtitleCount === 0}
+                                                title={dialogueSubtitleCount === 0 ? '먼저 후보를 대사로 지정해 주세요.' : `확정된 대사 ${dialogueSubtitleCount}개에 선택한 성우를 적용합니다.`}
+                                                className="h-8 px-2.5 rounded-md border border-violet-300/30 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold shadow-sm shadow-violet-950/20 transition"
                                             >
                                                 대사 적용
                                             </button>
@@ -8127,10 +8158,14 @@ export default function StdPortalPage() {
                                             onClick={() => void syncSubtitleTimingsToNarration()}
                                             disabled={isSubtitleSyncing || localSubtitles.length === 0}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                                            title="현재 성우와 속도로 음성 길이를 측정해 자막 구간을 다시 맞춥니다"
+                                            title="줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다."
                                         >
-                                            {isSubtitleSyncing ? '자막 싱크 중...' : '자막 싱크'}
+                                            {isSubtitleSyncing ? '음성 길이 보정 중...' : '음성 길이 보정'}
                                         </button>
+                                        {isSubtitleSyncing && (
+                                            <button type="button" className="px-2 py-1 text-[11px] text-red-300" onClick={() => subtitleSyncControllerRef.current?.abort(new Error('사용자가 보정을 취소했습니다.'))}>취소</button>
+                                        )}
+                                        {subtitleSyncProgress && <span role="status" aria-live="polite" className="max-w-full text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
                                         <button
                                             type="button"
                                             onClick={() => void handleFinalizeSubtitlesAndTts()}
@@ -8419,7 +8454,7 @@ export default function StdPortalPage() {
                                                                         const isDialogueBlock = typeof item.dialogue_override === 'boolean'
                                                                             ? item.dialogue_override
                                                                             : Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
-                                                                        const candidates = item.dialogue_override === undefined && !isDialogueBlock
+                                                                        const candidates = pendingDialogueCandidateIndexes.has(item.subtitleIndex) && !isDialogueBlock
                                                                             ? subtitleDialogueCandidates.get(item.subtitleIndex) || [] : []
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
                                                                         return (
