@@ -7753,36 +7753,6 @@ export default function StdPortalPage() {
                                             <RefreshCw size={13} />
                                             {t('sub_restore_worker_script')}
                                         </button>
-                                        {selectedVoiceObj?.preview_url && (
-                                            <div className="ml-auto flex min-w-[300px] max-w-[420px] flex-1 items-center gap-2 rounded-lg border border-purple-400/25 bg-[#14181f] px-2 py-1.5 overflow-visible">
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[10px]">🎙</span>
-                                                        <span className="truncate text-[10px] font-black text-white">
-                                                            {t('sub_voice_preview')}
-                                                        </span>
-                                                        <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-bold text-purple-200">
-                                                            {selectedVoiceObj.gender === 'female' ? '여성' : selectedVoiceObj.gender === 'male' ? '남성' : '중성'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="truncate text-[10px] font-semibold text-cyan-100/80">
-                                                        {selectedVoiceObj.name}
-                                                    </div>
-                                                </div>
-                                                {renderVoicePicker(
-                                                    'preview-default-voice',
-                                                    selectedVoice,
-                                                    setSelectedVoice,
-                                                    '미리듣기 성우 변경'
-                                                )}
-                                                <audio
-                                                    key={selectedVoiceObj.id}
-                                                    controls
-                                                    src={selectedVoiceObj.preview_url}
-                                                    className="h-7 w-36 shrink-0"
-                                                />
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                                 {/* 1행: 외부오디오 | 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
