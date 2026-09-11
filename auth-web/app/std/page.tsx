@@ -841,7 +841,6 @@ export default function StdPortalPage() {
     const [audioDurationSeconds, setAudioDurationSeconds] = useState(0)
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [isBodyImageSectionOpen, setIsBodyImageSectionOpen] = useState(false)
-    const [dualFrameStates, setDualFrameStates] = useState<Record<number, boolean>>({})
     const projectMediaObjectUrlsRef = useRef<Record<string, string>>({})
 
     useEffect(() => {
@@ -9359,7 +9358,6 @@ export default function StdPortalPage() {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
                                     const videoPromptText = getSceneVideoPromptText(scene, sceneNum)
-                                    const isDual = Boolean(dualFrameStates[i])
                                     const isSelected = selectedSceneIndexes.includes(i)
 
                                     return (
@@ -9384,16 +9382,6 @@ export default function StdPortalPage() {
                                                         📄 {getSceneScriptStartText(scene, i)}
                                                     </span>
                                                 </div>
-                                                <label className="flex items-center gap-2 cursor-pointer bg-[#202632] px-2 py-1 rounded border border-white/5">
-                                                    <span className="text-[10px] font-bold text-gray-400">Dual Frame</span>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isDual}
-                                                        onChange={e => setDualFrameStates(prev => ({ ...prev, [i]: e.target.checked }))}
-                                                        className="sr-only peer"
-                                                    />
-                                                    <div className="relative w-7 h-4 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
-                                                </label>
                                             </div>
 
                                             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
