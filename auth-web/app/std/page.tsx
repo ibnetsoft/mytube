@@ -7697,8 +7697,8 @@ export default function StdPortalPage() {
                                                     applyVrewVoiceBulk('narration', id, direction)
                                                 }}
                                             />
-                                            <div className="flex items-center gap-1.5 rounded-md border border-emerald-400/20 bg-emerald-500/5 px-2 py-1">
-                                                <span className="text-[10px] font-bold text-emerald-200/80 whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1">
+                                                <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap">
                                                     대사 {dialogueSubtitleCount}개
                                                 </span>
                                                 {renderVoicePicker(
@@ -7712,7 +7712,7 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
-                                                className="h-8 px-2.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold transition"
+                                                className="h-8 px-2.5 rounded-md border border-violet-300/30 bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-bold shadow-sm shadow-violet-950/20 transition"
                                             >
                                                 대사 적용
                                             </button>
