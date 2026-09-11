@@ -6386,6 +6386,7 @@ export default function StdPortalPage() {
     // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일)
     const getProjectStepStatus = (proj: any, scenesList: any[] = [], currentAudio?: string, currentScript?: string, currentSubs?: any[], currentThumb?: string) => {
         const p = proj?.project || proj || {}
+        if (!proj?.project && p.step_status) return p.step_status
         const payload = p.project_payload || {}
         const scenes = scenesList.length > 0 ? scenesList : (proj?.scenes || [])
 
@@ -6413,7 +6414,7 @@ export default function StdPortalPage() {
 
         // 6. 자막: 자막 저장 완료 여부
         const isSubtitlesDone = Boolean(
-            isSubtitleSaved ||
+            (proj?.project && isSubtitleSaved) ||
             p.progress_payload?.subtitles_saved ||
             p.progress_payload?.subtitles_completed ||
             payload.subtitles_saved
@@ -10576,7 +10577,7 @@ export default function StdPortalPage() {
                                                     </td>
                                                     {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
                                                     {(() => {
-                                                        const pStatus = isSelectedProj
+                                                        const pStatus = isSelectedProj && !p.submitted_at
                                                              ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
                                                              : getProjectStepStatus(p)
                                                         const isSubmitted = Boolean(p.submitted_at)
@@ -10629,17 +10630,7 @@ export default function StdPortalPage() {
                                                                 {/* 제출 버튼 컬럼 */}
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                                     {isSubmitted ? (
-                                                                        <button
-                                                                            onClick={async () => {
-                                                                                const openedProject = await openProject(p.id)
-                                                                                if (openedProject) await submitProject(openedProject)
-                                                                            }}
-                                                                            disabled={Boolean(submittingProjectId)}
-                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-600/25 hover:bg-emerald-600/40 disabled:opacity-50 disabled:cursor-wait text-emerald-300 border border-emerald-500/50 shadow-md mx-auto cursor-pointer active:scale-95 transition-all"
-                                                                            title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다."
-                                                                        >
-                                                                            <span className="text-xs font-black leading-none text-emerald-300">⏎</span>
-                                                                        </button>
+                                                                        <span className="inline-flex rounded-lg bg-emerald-600/15 px-2 py-1 text-xs text-emerald-300" title="제출 완료 · 검수 상태는 변경되지 않습니다.">제출 완료</span>
                                                                     ) : submittingProjectId === String(p.id) ? (
                                                                         <button
                                                                             disabled

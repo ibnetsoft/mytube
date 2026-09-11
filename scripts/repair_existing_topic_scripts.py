@@ -621,7 +621,7 @@ def _sync_claimed_std_projects(
         headers=headers,
         params={
             "topic_queue_id": f"eq.{quote(str(topic_id), safe='')}",
-            "select": "id,source_payload,project_payload,progress_payload,updated_at",
+            "select": "id,status,submitted_at,source_payload,project_payload,progress_payload,updated_at",
         },
         timeout=60,
     )
@@ -630,6 +630,8 @@ def _sync_claimed_std_projects(
     projects = response.json()
     if not isinstance(projects, list):
         raise RuntimeError(f"STD project lookup for topic {topic_id} returned invalid JSON")
+    if any(p.get("submitted_at") or p.get("status") in {"review_requested", "submitted", "approved", "completed", "paid", "canceled", "cancelled"} for p in projects):
+        raise CodexContentError("Submitted projects are protected from script repair")
     if expected_projects is not None:
         expected = {p["id"]: p.get("updated_at") for p in expected_projects}
         if {p["id"]: p.get("updated_at") for p in projects} != expected:
@@ -664,7 +666,7 @@ def _sync_claimed_std_projects(
         }
         version_filter = "&updated_at=eq." + quote(str(project["updated_at"]), safe="") if project.get("updated_at") else "&updated_at=is.null"
         update = requests.patch(
-            f"{base_url}/rest/v1/std_projects?id=eq.{quote(str(project['id']), safe='')}{version_filter}",
+            f"{base_url}/rest/v1/std_projects?id=eq.{quote(str(project['id']), safe='')}{version_filter}&submitted_at=is.null&status=not.in.(review_requested,submitted,approved,completed,paid,canceled,cancelled)",
             headers=headers,
             json={
                 "source_payload": updated_source,
@@ -701,9 +703,11 @@ def _update_row(base_url: str, headers: dict[str, str], row: dict[str, Any], sec
     if any(fresh.get(key) != row.get(key) for key in ("pregenerated_script", "pregenerated_structure", "status")):
         raise CodexContentError("Topic changed during generation; refusing to overwrite newer content")
     project_response = requests.get(f"{base_url}/rest/v1/std_projects", headers=headers,
-        params={"select": "id,source_payload,project_payload,progress_payload,updated_at", "topic_queue_id": f"eq.{row['id']}"}, timeout=60)
+        params={"select": "id,status,submitted_at,source_payload,project_payload,progress_payload,updated_at", "topic_queue_id": f"eq.{row['id']}"}, timeout=60)
     project_response.raise_for_status()
     projects = project_response.json()
+    if any(p.get("submitted_at") or p.get("status") in {"review_requested", "submitted", "approved", "completed", "paid", "canceled", "cancelled"} for p in projects):
+        raise CodexContentError("Submitted projects are protected from script repair")
     for project in projects:
         editor = project.get("project_payload") or {}
         source = project.get("source_payload") or {}
