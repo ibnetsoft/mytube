@@ -1,5 +1,6 @@
 'use client'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
+import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
 
 const STD_OFFICIAL_CATEGORIES = [
@@ -1190,7 +1191,7 @@ export default function StdPortalPage() {
         if (Number.isFinite(designStep) && designStep > 0) setThumbStep(Math.floor(designStep))
         const nextLayers = normalizeThumbTextLayers(design.text_layers || design.textLayers || [])
         if (nextLayers.length > 0) setThumbTextLayers(nextLayers)
-        const designBgUrl = sanitizeAssetUrl(design.editor_bg_url || design.bg_url || design.thumbnail_url || projectPayload.thumbnail_url || progressPayload.thumbnail_url)
+        const designBgUrl = persistentThumbnailUrl(design.editor_bg_url, design.bg_url, design.thumbnail_url, projectPayload.thumbnail_url, progressPayload.thumbnail_url)
         if (designBgUrl) {
             setThumbBgUrl(designBgUrl)
             setThumbBgUploadFile(null)
@@ -3437,10 +3438,11 @@ export default function StdPortalPage() {
         const thumbnailAsset = assets.find((asset: any) =>
             String(asset?.asset_type || '').toLowerCase() === 'thumbnail' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        const editorThumbnailUrl = sanitizeAssetUrl(projectPayload?.project?.project_payload?.thumbnail_design?.editor_bg_url)
-        const fallbackThumbnailUrl = sanitizeAssetUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
-        if (editorThumbnailUrl || restoredThumbnailUrl || fallbackThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset)) {
-            setThumbBgUrl(editorThumbnailUrl || restoredThumbnailUrl || assetDisplayUrl(projectId, thumbnailAsset) || fallbackThumbnailUrl)
+        const editorThumbnailUrl = persistentThumbnailUrl(projectPayload?.project?.project_payload?.thumbnail_design?.editor_bg_url)
+        const fallbackThumbnailUrl = persistentThumbnailUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
+        const restoredEditorUrl = editorThumbnailUrl || restoredThumbnailUrl || persistentThumbnailUrl(assetDisplayUrl(projectId, thumbnailAsset), fallbackThumbnailUrl)
+        if (restoredEditorUrl) {
+            setThumbBgUrl(restoredEditorUrl)
             setThumbBgUploadFile(null)
         }
 
@@ -5331,7 +5333,7 @@ export default function StdPortalPage() {
         event.target.value = ''
     }
 
-    const uploadThumbnailBgToDrive = async (file: File, updateEditorPreview = true) => {
+    const uploadThumbnailBgToDrive = async (file: File, updateEditorPreview = true, backgroundOnly = false) => {
         if (!selectedProject?.project?.id) return
         setUploadingKey('thumbnail-upload')
         setMessage('썸네일 이미지를 업로드하는 중...')
@@ -5341,7 +5343,7 @@ export default function StdPortalPage() {
                 method: 'POST',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
-                    asset_type: 'thumbnail',
+                    asset_type: backgroundOnly ? 'original' : 'thumbnail',
                     mime_type: mimeType,
                     file_name: file.name,
                     file_size: file.size,
@@ -5369,7 +5371,7 @@ export default function StdPortalPage() {
                 body: JSON.stringify({
                     drive_file_id: null,
                     target_folder_id: '',
-                    asset_type: 'thumbnail',
+                    asset_type: backgroundOnly ? 'original' : 'thumbnail',
                     mime_type: mimeType,
                     file_name: file.name,
                     file_size: file.size,
@@ -5384,6 +5386,10 @@ export default function StdPortalPage() {
             }
 
             const persistedThumbnailUrl = assetDisplayUrl(selectedProject.project.id, completePayload.asset) || ''
+            if (backgroundOnly) {
+                setSelectedProject(prev => prev ? { ...prev, assets: [completePayload.asset, ...prev.assets] } : prev)
+                return persistedThumbnailUrl
+            }
             setSelectedProject(prev => {
                 if (!prev) return prev
                 const updated = {
@@ -5467,8 +5473,9 @@ export default function StdPortalPage() {
     const markThumbnailConfirmed = async (thumbnailUrlOverride?: string, editorBgUrlOverride?: string) => {
         if (!selectedProject?.project?.id) return
         const confirmedAt = new Date().toISOString()
-        const savedThumbnailUrl = thumbnailUrlOverride || thumbBgUrl || ''
-        const editorBgUrl = editorBgUrlOverride || thumbBgUrl || ''
+        const savedThumbnailUrl = persistentThumbnailUrl(thumbnailUrlOverride, thumbBgUrl)
+        const editorBgUrl = persistentThumbnailUrl(editorBgUrlOverride, thumbBgUrl)
+        if (!savedThumbnailUrl || !editorBgUrl) throw new Error('썸네일과 편집 배경을 먼저 영구 저장해야 합니다.')
         const thumbnailDesign = {
             title: thumbTitle,
             layout: thumbLayout,
@@ -10072,7 +10079,17 @@ export default function StdPortalPage() {
                                         type="button"
                                             onClick={async () => {
                                                 try {
-                                                    const editorBackgroundUrl = thumbBgUrl
+                                                    let editorBackgroundUrl = persistentThumbnailUrl(thumbBgUrl)
+                                                    if (!editorBackgroundUrl) {
+                                                        const backgroundResponse = await fetch(thumbBgUrl)
+                                                        if (!backgroundResponse.ok) throw new Error('편집 배경 이미지를 읽지 못했습니다.')
+                                                        const backgroundBlob = await backgroundResponse.blob()
+                                                        if (!backgroundBlob.type.startsWith('image/')) throw new Error('편집 배경이 이미지가 아닙니다.')
+                                                        const extension = backgroundBlob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+                                                        const backgroundFile = new File([backgroundBlob], `thumbnail_background_${Date.now()}.${extension}`, { type: backgroundBlob.type })
+                                                        editorBackgroundUrl = await uploadThumbnailBgToDrive(backgroundFile, false, true) || ''
+                                                        if (!editorBackgroundUrl) throw new Error('편집 배경 영구 저장에 실패했습니다.')
+                                                    }
                                                     const finalThumbnailFile = await createFinalThumbnailFile()
                                                     const persistedThumbnailUrl = await uploadThumbnailBgToDrive(finalThumbnailFile, false)
                                                     if (!persistedThumbnailUrl) throw new Error('최종 썸네일 파일 URL을 받지 못했습니다.')
