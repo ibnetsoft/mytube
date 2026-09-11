@@ -8137,7 +8137,7 @@ export default function StdPortalPage() {
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
                             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
-                                <div className="bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-[360px] lg:min-h-0">
+                                <div className="order-2 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-[360px] lg:order-none lg:min-h-0">
                                     <div className="flex min-h-[57px] flex-col items-start gap-2 p-2.5 sm:p-3 border-b border-white/5 bg-[#14181f] sm:flex-row sm:items-center sm:justify-between">
                                         <div className="flex min-w-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap">
                                             <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
@@ -8490,10 +8490,10 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="min-w-0 lg:min-h-0 lg:overflow-hidden">
-                                    <div className="flex flex-col gap-3 w-full lg:max-h-full lg:overflow-y-auto">
+                                <div className="contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
+                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
-                                    <div className="bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col">
+                                    <div className="order-1 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
@@ -8681,7 +8681,7 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 탭: 자막 편집 / 배경음/효과음 */}
-                                    <div className="bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow flex flex-col gap-3">
+                                    <div className="order-3 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow flex flex-col gap-3 lg:order-none">
                                         <div className="flex items-center gap-4 border-b border-white/5 pb-2 text-xs font-bold">
                                             <button
                                                 onClick={() => setSubEditTab('subtitle')}
