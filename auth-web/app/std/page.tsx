@@ -84,6 +84,7 @@ import {
     Wand2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
+import { findExactSubtitleScene, subtitlesMatchSceneManifest } from '@/lib/stdSubtitleSceneIntegrity'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles,
@@ -2025,13 +2026,6 @@ export default function StdPortalPage() {
         return [...structureScenes, ...payloadScenes]
     }
 
-    const findSceneByNumber = (scenes: any[], sceneNumber: number) => {
-        return (scenes || []).find((scene: any, index: number) => {
-            const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
-            return candidate === sceneNumber
-        })
-    }
-
     const sceneVisualSignature = useMemo(() => {
         const payloadScenes = getProjectPayloadScenes()
         return [...(selectedProject?.scenes || []), ...payloadScenes]
@@ -2045,18 +2039,11 @@ export default function StdPortalPage() {
 
     const subtitleSceneVisual = (subtitle: any, subtitleIndex: number, scenes = selectedProject?.scenes || []) => {
         const requestedSceneNumber = Number(subtitle?.scene_number || subtitle?.scene || subtitle?.sceneNumber)
-        const fallbackSceneNumber = subtitleIndex + 1
         const sceneNumber = Number.isFinite(requestedSceneNumber) && requestedSceneNumber > 0
             ? requestedSceneNumber
-            : fallbackSceneNumber
+            : 0
         const payloadScenes = getProjectPayloadScenes()
-        const matchedScene = findSceneByNumber(scenes, sceneNumber)
-            || findSceneByNumber(payloadScenes, sceneNumber)
-            || scenes[sceneNumber - 1]
-            || payloadScenes[sceneNumber - 1]
-            || scenes[0]
-            || payloadScenes[0]
-            || {}
+        const matchedScene = findExactSubtitleScene(subtitle, scenes, payloadScenes)
         return {
             scene_number: sceneNumber,
             image_url: runtimeAssetUrl(matchedScene?.image_url || matchedScene?.image || matchedScene?.metadata?.image_url) || '',
@@ -2070,8 +2057,8 @@ export default function StdPortalPage() {
             return {
                 ...subtitle,
                 scene_number: Number(subtitle?.scene_number || visual.scene_number),
-                image_url: visual.image_url || runtimeAssetUrl(subtitle?.image_url || subtitle?.image) || '',
-                video_url: visual.video_url || runtimeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
+                image_url: visual.image_url,
+                video_url: visual.video_url,
             }
         })
         return repairSubtitleItemQuoteBoundaries(normalizedSceneSubtitles)
@@ -2171,8 +2158,8 @@ export default function StdPortalPage() {
                     end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
                     start_time: sub?.start_time || '0.0',
                     end_time: sub?.end_time || '0.0',
-                    image_url: visual.image_url || sub?.image_url || '',
-                    video_url: visual.video_url || sub?.video_url || null,
+                    image_url: visual.image_url,
+                    video_url: visual.video_url,
                     is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
                     subtitles: [],
                 }
@@ -2182,8 +2169,8 @@ export default function StdPortalPage() {
             group.lastIndex = index
             group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
             group.end_time = sub?.end_time || group.end_time
-            if (!group.image_url && (visual.image_url || sub?.image_url)) group.image_url = visual.image_url || sub.image_url
-            if (!group.video_url && (visual.video_url || sub?.video_url)) group.video_url = visual.video_url || sub.video_url
+            if (!group.image_url && visual.image_url) group.image_url = visual.image_url
+            if (!group.video_url && visual.video_url) group.video_url = visual.video_url
             group.subtitles.push({ ...sub, subtitleIndex: index })
         })
         return groups
@@ -3918,6 +3905,7 @@ export default function StdPortalPage() {
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
         const canReuseSavedSubtitles = Array.isArray(savedSubtitles)
             && savedSubtitles.length > 0
+            && subtitlesMatchSceneManifest(savedSubtitles, scenes)
             && subtitleSnapshotMatchesScript(currentScript, savedSubtitles)
         const subs = canReuseSavedSubtitles
             ? savedSubtitles
@@ -4708,7 +4696,7 @@ export default function StdPortalPage() {
             return
         }
 
-        const baseSubtitles = localSubtitles.length > 0
+        const baseSubtitles = subtitlesMatchSceneManifest(localSubtitles, scenes)
             ? localSubtitles
             : generateSynchronizedSubtitles(
                 selectedProject.project?.project_payload?.script || customScriptText || '',
@@ -4913,7 +4901,8 @@ export default function StdPortalPage() {
                 const storedServerSubtitles = Array.isArray(payload.project?.project_payload?.subtitles)
                     ? payload.project.project_payload.subtitles
                     : []
-                const projectSubtitles = subtitleSnapshotMatchesScript(fullScript, storedServerSubtitles)
+                const projectSubtitles = subtitlesMatchSceneManifest(storedServerSubtitles, normalizedScenes)
+                    && subtitleSnapshotMatchesScript(fullScript, storedServerSubtitles)
                     ? storedServerSubtitles
                     : generateSynchronizedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20)
 
@@ -6413,10 +6402,8 @@ export default function StdPortalPage() {
     }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
     const currentSubImageUrl = currentSubVisual.image_url
-        || runtimeAssetUrl(currentSub?.image_url || currentSub?.image)
         || ''
     const currentSubVideoCandidate = currentSubVisual.video_url
-        || runtimeAssetUrl(currentSub?.video_url || currentSub?.video)
         || ''
     const currentSubVideoUrl = isPlayablePreviewVideoUrl(currentSubVideoCandidate)
         ? currentSubVideoCandidate
