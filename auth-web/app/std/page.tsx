@@ -99,6 +99,7 @@ import {
 } from '@/lib/stdSubtitles'
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
+import { detectDialogueCandidates } from '@/lib/stdDialogueCandidates'
 import { calculateLongformPayoutByScenes } from '@/lib/stdPayoutPolicy'
 
 type Topic = {
@@ -2416,7 +2417,10 @@ export default function StdPortalPage() {
         return flags
     }, [localSubtitles])
 
+    const subtitleDialogueCandidates = useMemo(() => detectDialogueCandidates(localSubtitles), [localSubtitles])
+
     const isSubtitleDialogue = (subtitle: any, index: number) => {
+        if (typeof subtitle?.dialogue_override === 'boolean') return subtitle.dialogue_override
         return Boolean(subtitleDialogueFlags.get(index) || hasDialogueQuoteText(subtitle?.text))
     }
 
@@ -8412,7 +8416,11 @@ export default function StdPortalPage() {
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
-                                                                        const isDialogueBlock = Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
+                                                                        const isDialogueBlock = typeof item.dialogue_override === 'boolean'
+                                                                            ? item.dialogue_override
+                                                                            : Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
+                                                                        const candidates = item.dialogue_override === undefined && !isDialogueBlock
+                                                                            ? subtitleDialogueCandidates.get(item.subtitleIndex) || [] : []
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
                                                                         return (
                                                                             <div
@@ -8442,7 +8450,38 @@ export default function StdPortalPage() {
                                                                                     {lineIndex + 1}
                                                                                 </button>
                                                                                 <div className="min-w-0 text-[11px] text-white leading-relaxed font-sans sm:text-xs">
-                                                                                    {renderDialogueHighlightedText(item.text, -1, isDialogueBlock)}
+                                                                                    {candidates.length ? (() => {
+                                                                                        const parts: React.ReactNode[] = []
+                                                                                        let cursor = 0
+                                                                                        candidates.forEach((candidate, candidateIndex) => {
+                                                                                            parts.push(<span key={`plain-${candidateIndex}`}>{item.text.slice(cursor, candidate.start)}</span>)
+                                                                                            parts.push(<mark key={`candidate-${candidateIndex}`} title={candidate.reason} className="rounded bg-amber-400/15 text-amber-200">{item.text.slice(candidate.start, candidate.end)}</mark>)
+                                                                                            cursor = candidate.end
+                                                                                        })
+                                                                                        parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
+                                                                                        return parts
+                                                                                    })() : renderDialogueHighlightedText(item.text, -1, isDialogueBlock)}
+                                                                                    {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
+                                                                                        <span className="ml-2 inline-flex items-center gap-2 text-[10px]">
+                                                                                            {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>대사 후보</span>}
+                                                                                            <button type="button" className="text-emerald-300 underline" title="이 자막 줄 전체를 대사로 지정합니다. 목소리는 대사 일괄 적용으로 선택하세요." onClick={() => {
+                                                                                                const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: true } : sub)
+                                                                                                void persistVrewVoiceSubtitles(updated)
+                                                                                            }}>대사로 지정</button>
+                                                                                            <button type="button" className="text-gray-400 underline" onClick={() => {
+                                                                                                const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: false } : sub)
+                                                                                                void persistVrewVoiceSubtitles(updated)
+                                                                                            }}>내레이션</button>
+                                                                                            {typeof item.dialogue_override === 'boolean' && <button type="button" className="text-amber-300 underline" onClick={() => {
+                                                                                                const updated = localSubtitles.map((sub, index) => {
+                                                                                                    if (index !== item.subtitleIndex) return sub
+                                                                                                    const { dialogue_override, ...rest } = sub
+                                                                                                    return rest
+                                                                                                })
+                                                                                                void persistVrewVoiceSubtitles(updated)
+                                                                                            }}>자동 판별</button>}
+                                                                                        </span>
+                                                                                    )}
                                                                                 </div>
                                                                                 {!hasSingleGroupVoice && (
                                                                                     <span
