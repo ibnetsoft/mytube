@@ -2180,7 +2180,7 @@ export default function StdPortalPage() {
         ;(allVoices || []).forEach((voice: any) => {
             if (voice?.id) map.set(String(voice.id), String(voice.name || voice.id))
         })
-        VOICE_STUDIO_VOICES.forEach(voice => map.set(voice.id, `Voice Studio · ${voice.name}`))
+        VOICE_STUDIO_VOICES.forEach(voice => map.set(voice.id, voice.name))
         return map
     }, [allVoices])
 
