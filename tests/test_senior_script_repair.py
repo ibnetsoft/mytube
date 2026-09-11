@@ -75,3 +75,13 @@ def test_missing_legacy_timings_preserve_total_and_known_durations():
 def test_legacy_schedule_does_not_invent_twelve_hook_cuts():
     contract = repair._script_rhythm_contract({"target_duration_seconds": 300, "repair_scene_schedule": [{"duration_seconds": 25}] * 12})
     assert "no mandatory 5-second opening cuts" in contract
+
+def test_submitted_project_cannot_be_synchronized(monkeypatch):
+    class Response:
+        status_code = 200
+        def json(self):
+            return [{"id": "submitted-project", "status": "review_requested", "submitted_at": "2026-09-09T07:13:47Z"}]
+    monkeypatch.setattr(repair.requests, "get", lambda *a, **k: Response())
+    monkeypatch.setattr(repair.requests, "patch", lambda *a, **k: pytest.fail("Submitted project must never be patched"))
+    with pytest.raises(repair.CodexContentError, match="protected"):
+        repair._sync_claimed_std_projects("unused", {}, 3340, "new narration", {}, {})
