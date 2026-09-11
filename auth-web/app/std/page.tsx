@@ -8332,11 +8332,11 @@ export default function StdPortalPage() {
                                                             )}
                                                         </div>
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
-                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
+                                                            <div className="mb-1 flex items-center gap-1 sm:gap-2">
+                                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                                                                     Scene {sNum}
                                                                 </span>
-                                                                <span className="text-[10px] text-gray-500">
+                                                                <span className="hidden text-[10px] text-gray-500 sm:inline">
                                                                     {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
                                                                 </span>
                                                                 {isVrewSubtitleMode && segmentStatus && (
@@ -8354,13 +8354,13 @@ export default function StdPortalPage() {
                                                                 )}
                                                                 {isVrewSubtitleMode && (
                                                                     <div
-                                                                        className="ml-auto flex items-center gap-1 sm:gap-2"
+                                                                        className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2"
                                                                         onClick={(event) => event.stopPropagation()}
                                                                     >
                                                                         {hasSingleGroupVoice && (
                                                                             <span
                                                                                 title={groupVoiceNames[0]}
-                                                                                className="max-w-16 truncate rounded border border-cyan-400/20 bg-cyan-500/10 px-1.5 py-1 text-[9px] font-bold leading-none text-cyan-100 sm:max-w-24 sm:px-2 sm:text-[10px]"
+                                                                                className="max-w-14 truncate rounded border border-cyan-400/20 bg-cyan-500/10 px-1.5 py-1 text-[8px] font-bold leading-none text-cyan-100 min-[390px]:max-w-16 sm:max-w-24 sm:px-2 sm:text-[10px]"
                                                                             >
                                                                                 {groupVoiceNames[0]}
                                                                             </span>
@@ -8387,7 +8387,7 @@ export default function StdPortalPage() {
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
-                                                                                className={`grid ${hasSingleGroupVoice ? 'grid-cols-[1.25rem_minmax(0,1fr)_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_2rem]' : 'grid-cols-[1.25rem_minmax(0,1fr)_auto_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_auto_2rem]'} items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-1.5 ${
+                                                                                className={`grid ${hasSingleGroupVoice ? 'grid-cols-[1.25rem_minmax(0,1fr)_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_2rem]' : 'grid-cols-[1.25rem_minmax(0,1fr)_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_auto_2rem]'} items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-1.5 ${
                                                                                     isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
                                                                                         : isDialogueBlock
@@ -8417,7 +8417,7 @@ export default function StdPortalPage() {
                                                                                 {!hasSingleGroupVoice && (
                                                                                     <span
                                                                                         title={blockVoiceName}
-                                                                                        className={`max-w-24 truncate rounded border px-2 py-1 text-[10px] font-bold leading-none ${
+                                                                                        className={`hidden max-w-24 truncate rounded border px-2 py-1 text-[10px] font-bold leading-none sm:inline ${
                                                                                             isDialogueBlock
                                                                                                 ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
                                                                                                 : 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100'
