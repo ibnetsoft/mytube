@@ -1,5 +1,6 @@
 'use client'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
+import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
 
@@ -9195,7 +9196,7 @@ export default function StdPortalPage() {
                     {/* [이미지 생성 탭] */}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
-
+                            <StdCharacterReferences payload={selectedProject.project.project_payload} />
 
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">

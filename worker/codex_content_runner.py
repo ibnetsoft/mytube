@@ -2,8 +2,8 @@
 
 The YouTube Data API supplies evidence, then this module hands that evidence
 to a *local* Codex CLI session, which returns the creative
-package only: title, plan, script, scene prompts, and publish metadata.  It
-never asks Codex to create, crop, or save image assets.
+package: title, plan, script, verified character portraits, scene prompts,
+and publish metadata. Portraits use the native Codex image tool, never Gemini.
 """
 
 from __future__ import annotations
@@ -775,7 +775,20 @@ class CodexStagedContentRunner:
             scenes[index - 1]["narration"] = text
             parts.append(text)
         script = "\n\n".join(parts)
-        media_context = {**script_context, "script": script}
+        character_context = {**script_context, "script": script}
+        identity = self._stage(job_id, "02d_character_identity", character_context,
+            "From the FINAL reviewed script, finalize the main character and up to two recurring supporting characters. "
+            "Preserve established identities; do not invent people or change relationships. Return {main_character:{...}, supporting_characters:[...]}. "
+            "Every character must have name, role, gender, age_group, detailed English visual_dna_en, wardrobe_en, continuity_instruction. "
+            "Use the selected image style and era. These definitions will be rendered as actual reference portraits before scene prompts.")
+        from codex_character_assets import generate_character_references
+        anchors = generate_character_references(
+            {**character_context, **identity}, payload, self.config, OUTPUT_DIR / "codex_character_images")
+        script_context.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"])
+        structure.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"],
+                         character_anchors=anchors, character_reference_status="ready")
+        media_context = {**script_context, "script": script, "character_anchors": anchors,
+                         "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Never substitute a different character."}
         media_task = f"Create prompts only from each final scene_text. Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-12 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 13 onward must not contain video_prompt."
         media = {}
         for media_attempt in range(2):
@@ -911,9 +924,13 @@ class CodexStagedContentRunner:
         thumbnail_image_prompt = str(thumbnail_stage.get("thumbnail_image_prompt") or "").strip()
         if len(thumbnail_image_prompt) < 80:
             raise CodexContentError("thumbnail copy stage requires a detailed text-free thumbnail_image_prompt")
+        for grid in structure.get("image_grid_prompts") or []:
+            grid["character_references"] = [
+                {"character_key": c["character_key"], "name": c["name"], "image_url": c["image_url"]}
+                for c in [anchors["main_character"], *anchors["supporting_characters"]]]
         main = script_context["main_character"]
         supporting = script_context["supporting_characters"]
-        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": {"main_character": main, "supporting_characters": supporting, "max_character_anchors": 3}, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "media": media, "thumbnail_copy": thumbnail_stage}}
+        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
 
 
 class CodexTopicDiscoveryRunner:

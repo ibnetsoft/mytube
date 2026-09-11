@@ -110,6 +110,7 @@ hiddenimports = [
     "remote_drive_worker",
     "remote_drive_worker_process",
     "codex_content_runner",
+    "codex_character_assets",
     "googleapiclient.discovery",
     "googleapiclient.http",
     "google_auth_oauthlib.flow",

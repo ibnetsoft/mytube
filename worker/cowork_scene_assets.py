@@ -84,13 +84,33 @@ def _scene_number(scene: dict[str, Any], fallback: int) -> int:
 
 
 def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
-    row, structure, _, _ = _topic(topic_id)
+    row, structure, base_url, _ = _topic(topic_id)
     scenes = structure.get("scenes")
     grids = structure.get("image_grid_prompts")
     if not isinstance(scenes, list) or not scenes:
         raise RuntimeError("topic has no scenes")
     if not isinstance(grids, list) or not grids:
         raise RuntimeError("topic has no image_grid_prompts")
+
+    anchors = structure.get("character_anchors") or {}
+    characters = [anchors.get("main_character") or structure.get("main_character")] + list(
+        anchors.get("supporting_characters") or structure.get("supporting_characters") or [])
+    if not characters[0] or any(not isinstance(c, dict) or not c.get("image_url") for c in characters):
+        raise RuntimeError("Generate and publish principal character reference images before scene images")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    references = []
+    for index, character in enumerate(characters, 1):
+        url = character["image_url"]
+        if not url.startswith(base_url + "/storage/v1/object/public/content-assets/"):
+            raise RuntimeError("Character reference must use verified project Storage, not a temporary URL")
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
+        reference_path = destination.parent / f"character-reference-{index}.png"
+        reference_path.write_bytes(response.content)
+        from codex_character_assets import validate_portrait
+        validate_portrait(reference_path)
+        references.append({"name": character.get("name"), "character_key": character.get("character_key"),
+                           "image_url": url, "local_file": str(reference_path.resolve())})
 
     known_scenes = {_scene_number(scene, index) for index, scene in enumerate(scenes, start=1) if isinstance(scene, dict)}
     manifest_grids: list[dict[str, Any]] = []
@@ -113,6 +133,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
                 "scene_numbers": scene_numbers,
                 "prompt": prompt,
                 "raw_file": f"grid-{grid_number:03d}.png",
+                "character_references": references,
             }
         )
     missing = sorted(known_scenes - covered)
@@ -127,6 +148,8 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "bucket": bucket,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "scene_count": len(known_scenes),
+        "character_references": references,
+        "generation_instruction": "Attach the character_references local PNGs as reference images to EVERY grid generation. Preserve each named character's face, age and wardrobe. Generate still images only, never video clips.",
         "grids": manifest_grids,
     }
     destination.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

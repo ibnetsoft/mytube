@@ -9860,6 +9860,9 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
     # Do this before marking the local job completed so a cloud write cannot be
     # mistaken for a successful local-only run.
     _save_result_to_supabase("codex_content_generate", result_payload, job_log, strict=True)
+    from codex_character_assets import CharacterAssetStore
+    CharacterAssetStore().sync_matching_projects(
+        int(topic_queue_id), package["script"], package["character_anchors"], OUTPUT_DIR / "character_link_backups")
     job_store.transition(job_id, job_store.COMPLETED, reason="Codex content package complete", output_path=str(result_path))
     job_log.info(f"-> COMPLETED, Codex content package at {result_path}")
     return str(result_path), result_payload
