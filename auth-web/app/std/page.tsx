@@ -2510,7 +2510,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const applyVrewVoiceBulk = (target: 'narration' | 'dialogue' | 'all', voiceId: string) => {
+    const applyVrewVoiceBulk = (target: 'narration' | 'dialogue' | 'all', voiceId: string, directionOverride?: string) => {
         const nextVoiceId = String(voiceId || selectedVoice)
         const nextVoiceName = voiceNameById.get(nextVoiceId) || nextVoiceId
         if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
@@ -2525,7 +2525,7 @@ export default function StdPortalPage() {
                 ...item,
                 voice_id: nextVoiceId,
                 voice_name: nextVoiceName,
-                ...(target === 'narration' && isVoiceStudioVoice(nextVoiceId) ? {voice_direction: voiceStudioDirection} : {}),
+                ...(target === 'narration' && isVoiceStudioVoice(nextVoiceId) ? {voice_direction: directionOverride ?? voiceStudioDirection} : {}),
             }
             markVrewSegmentStale(updated, index)
             return updated
@@ -7675,87 +7675,77 @@ export default function StdPortalPage() {
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
                         const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
+                        const narrationVoiceId = isVoiceStudioVoice(vrewNarrationVoice) ? vrewNarrationVoice : 'gemini:Charon'
+                        const narrationVoiceName = voiceNameById.get(narrationVoiceId) || narrationVoiceId.replace('gemini:', '')
                         return (
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
                             <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-xl p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
-                                {isVrewSubtitleMode && (
-                                    <div className="flex flex-wrap items-end gap-2 pb-2 border-b border-white/10">
-                                        <div className="flex items-end gap-2">
-                                            <label className="block text-[10px] font-bold text-cyan-100/70 mb-1">
-                                                {tf('sub_narration_voice_count', { count: narrationSubtitleCount })}
-                                            </label>
-                                            <VoiceStudioPicker
-                                                value={isVoiceStudioVoice(vrewNarrationVoice) ? vrewNarrationVoice : 'gemini:Charon'}
-                                                direction={voiceStudioDirection}
-                                                headers={authedJsonHeaders}
-                                                onChange={(id, direction) => {setVrewNarrationVoice(id);setVoiceStudioDirection(direction)}}
-                                            />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => applyVrewVoiceBulk('narration', isVoiceStudioVoice(vrewNarrationVoice) ? vrewNarrationVoice : 'gemini:Charon')}
-                                            className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition"
-                                        >
-                                            {t('sub_apply_narration_voice')}
-                                        </button>
-                                        <div className="flex items-end gap-2">
-                                            <label className="block text-[10px] font-bold text-emerald-200/70 mb-1">
-                                                {tf('sub_dialogue_voice_count', { count: dialogueSubtitleCount })}
-                                            </label>
-                                            {renderVoicePicker(
-                                                'bulk-dialogue',
-                                                vrewDialogueVoice || selectedVoice,
-                                                setVrewDialogueVoice,
-                                                '대사 일괄 성우',
-                                                'dialogue'
-                                            )}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
-                                            className="px-3 py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold transition"
-                                        >
-                                            {t('sub_apply_dialogue_voice')}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => applyVrewVoiceBulk('all', selectedVoice)}
-                                            className="px-3 py-1.5 rounded-md border border-white/10 bg-[#14181f] hover:bg-[#202632] text-gray-100 text-[11px] font-bold transition"
-                                        >
-                                            {t('sub_restore_default_voice')}
-                                        </button>
-                                        {audioResultUrl && (
-                                            <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
-                                                {t('sub_tts_ready')}
-                                            </span>
-                                        )}
-                                        <div className="flex items-center gap-2 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1.5">
-                                            <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
-                                                {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
-                                            </span>
-                                            <input
-                                                type="range"
-                                                min="0.0"
-                                                max="1.0"
-                                                step="0.05"
-                                                value={elStability}
-                                                onChange={e => setElStability(e.target.value)}
-                                                className="h-1 w-20 cursor-pointer appearance-none rounded bg-gray-600 accent-purple-500"
-                                            />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={restoreOriginalWorkerScript}
-                                            className="h-8 px-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap"
-                                        >
-                                            <RefreshCw size={13} />
-                                            {t('sub_restore_worker_script')}
-                                        </button>
-                                    </div>
-                                )}
                                 {/* 1행: 외부오디오 | 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
                                 <div className="flex items-center gap-x-2.5 gap-y-1.5 flex-wrap">
+                                    {isVrewSubtitleMode && (
+                                        <>
+                                            <VoiceStudioPicker
+                                                value={narrationVoiceId}
+                                                direction={voiceStudioDirection}
+                                                headers={authedJsonHeaders}
+                                                buttonText={`내레이션 ${narrationSubtitleCount}개 · ${narrationVoiceName}`}
+                                                label={`내레이션 ${narrationSubtitleCount}개 성우 선택`}
+                                                onChange={(id, direction) => {
+                                                    setVrewNarrationVoice(id)
+                                                    setVoiceStudioDirection(direction)
+                                                    applyVrewVoiceBulk('narration', id, direction)
+                                                }}
+                                            />
+                                            <div className="flex items-center gap-1.5 rounded-md border border-emerald-400/20 bg-emerald-500/5 px-2 py-1">
+                                                <span className="text-[10px] font-bold text-emerald-200/80 whitespace-nowrap">
+                                                    대사 {dialogueSubtitleCount}개
+                                                </span>
+                                                {renderVoicePicker(
+                                                    'bulk-dialogue',
+                                                    vrewDialogueVoice || selectedVoice,
+                                                    setVrewDialogueVoice,
+                                                    '대사 일괄 성우',
+                                                    'dialogue'
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
+                                                className="h-8 px-2.5 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-bold transition"
+                                            >
+                                                대사 적용
+                                            </button>
+                                            {audioResultUrl && (
+                                                <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
+                                                    TTS 준비됨
+                                                </span>
+                                            )}
+                                            <div className="flex items-center gap-2 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1.5">
+                                                <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
+                                                    {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
+                                                </span>
+                                                <input
+                                                    type="range"
+                                                    min="0.0"
+                                                    max="1.0"
+                                                    step="0.05"
+                                                    value={elStability}
+                                                    onChange={e => setElStability(e.target.value)}
+                                                    className="h-1 w-20 cursor-pointer appearance-none rounded bg-gray-600 accent-purple-500"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={restoreOriginalWorkerScript}
+                                                className="h-8 px-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap"
+                                            >
+                                                <RefreshCw size={13} />
+                                                대본복구
+                                            </button>
+                                            <div className="w-px h-5 bg-white/10 shrink-0" />
+                                        </>
+                                    )}
                                     {/* 외부 오디오 업로드 */}
                                     <div className="flex items-center">
                                         <input
@@ -7771,7 +7761,9 @@ export default function StdPortalPage() {
                                             className="px-2.5 py-1.5 text-xs font-bold border border-gray-600 bg-transparent hover:bg-white/5 text-gray-200 hover:text-white rounded-md transition-all flex items-center gap-1.5 shrink-0"
                                             title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
                                         >
-                                            <span className="text-yellow-400">📁</span> {t('sub_external_audio_upload')}
+                                            <FileAudio size={14} className="text-yellow-300" />
+                                            <Upload size={13} className="text-yellow-300" />
+                                            <span>오디오</span>
                                         </button>
                                     </div>
 
@@ -7783,7 +7775,7 @@ export default function StdPortalPage() {
                                             className="text-[11px] font-medium bg-[#1c2027]/50 border border-indigo-500/40 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                                         >
                                             <option value="" className="bg-[#1c2027] text-white">
-                                                {t('sub_select_template')}
+                                                템플릿
                                             </option>
                                             {templatePresets.map(preset => (
                                                 <option key={preset.id} value={preset.id} className="bg-[#1c2027] text-white">
@@ -7794,9 +7786,10 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={loadTemplatePresetsFromStorage}
-                                            className="text-[10px] font-bold px-1.5 py-1 text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all"
+                                            className="h-7 w-7 inline-flex items-center justify-center text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all"
+                                            title="새로고침"
                                         >
-                                            {t('btn_refresh')}
+                                            <RefreshCw size={13} />
                                         </button>
                                     </div>
 
@@ -8085,22 +8078,25 @@ export default function StdPortalPage() {
                                                 alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
                                             }}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
+                                            title={t('sub_reset_reload')}
                                         >
-                                            {t('sub_reset_reload')}
+                                            초기화
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleSyncSubtitleSceneVisuals}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
+                                            title={t('sub_sync_ai_images')}
                                         >
-                                            {t('sub_sync_ai_images')}
+                                            이미지동기화
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
                                             className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
+                                            title={t('sub_sync_all_script')}
                                         >
-                                            <span>🔮</span> {t('sub_sync_all_script')}
+                                            <span>🔮</span> 대본동기화
                                         </button>
                                         <button
                                             type="button"
@@ -8131,7 +8127,7 @@ export default function StdPortalPage() {
                                                 ? '최종 자막 저장 및 TTS 생성'
                                                 : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
                                         >
-                                            {generatingTts ? t('sub_final_saving') : t('sub_final_save_tts')}
+                                            {generatingTts ? t('sub_final_saving') : '저장+TTS'}
                                         </button>
                                     </div>
                                 </div>
