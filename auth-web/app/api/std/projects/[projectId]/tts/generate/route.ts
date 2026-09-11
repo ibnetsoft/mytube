@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { completedScriptTtsProgress } from '@/lib/stdTtsCompletion'
 import { createHash } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -1035,7 +1036,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .update({
                 drive_folder_id: folders.projectFolderId,
                 progress_payload: {
-                    ...progressPayload,
+                    ...completedScriptTtsProgress(progressPayload, text, buildTtsText(project, scenes)),
                     std_drive: {
                         ...(progressPayload.std_drive || {}),
                         folder_ids: {

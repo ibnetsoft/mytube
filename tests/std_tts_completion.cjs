@@ -1,0 +1,18 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const ts = require(process.env.TYPESCRIPT_PATH || '../auth-web/node_modules/typescript');
+const file = path.join(__dirname, '../auth-web/lib/stdTtsCompletion.ts');
+const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS }});
+const exportsObject = {};
+new Function('exports', compiled.outputText)(exportsObject);
+const done = exportsObject.completedScriptTtsProgress;
+const stale = { script_changed_requires_audio_regeneration: true, tts_invalidated_at: 'old', tts_invalidated_reason: 'script changed', unrelated: 42 };
+assert.deepEqual(done(stale, '일부', '전체 대본'), stale);
+assert.deepEqual(done(stale, '', ''), stale);
+assert.deepEqual(done(stale, '이전 대본', '새 대본'), stale);
+assert.deepEqual(done(stale, '전체\n대본', '전체 대본'), { unrelated: 42, has_tts_audio: true, tts_completed: true, script_changed_requires_audio_regeneration: false });
+assert.equal(stale.tts_invalidated_at, 'old');
+const route = fs.readFileSync(path.join(__dirname, '../auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts'), 'utf8');
+assert.ok(route.indexOf('completedScriptTtsProgress(progressPayload') > route.indexOf("stage = 'update_project_tts_state'"));
+console.log('Full-script TTS completion regression tests passed');
