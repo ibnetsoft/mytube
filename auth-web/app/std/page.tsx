@@ -7930,10 +7930,9 @@ export default function StdPortalPage() {
                                             <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* 2행: 테두리 두께 / Y위치 / 배경 바 / 액션 버튼 6종 */}
-                                <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap pt-1.5 border-t border-white/5">
+                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+
                                     {/* 테두리 두께 & Y 위치 */}
                                     <div className="flex items-center gap-1 shrink-0">
                                         <span className="text-[10px] text-gray-400 font-bold">{t('sub_outline_short')}</span>
@@ -7984,7 +7983,7 @@ export default function StdPortalPage() {
 
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
 
-                                    {/* 배경 바 */}
+                                    {/* 배경 바 / 세로 여백 */}
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <span className="text-[10px] text-gray-400 font-bold">{t('sub_background_bar')}</span>
                                         <label className="relative inline-flex items-center cursor-pointer">
@@ -8041,22 +8040,6 @@ export default function StdPortalPage() {
                                                 className="w-8 text-center text-[11px] bg-transparent border-0 py-0.5 text-white focus:outline-none"
                                                 title="세로 여백/오프셋"
                                             />
-                                        </div>
-                                        <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
-                                            {renderVoicePicker(
-                                                'selected-scenes-bulk',
-                                                selectedSubtitleSceneVoiceId,
-                                                (nextVoiceId) => {
-                                                    if (selectedSubtitleSceneGroup) {
-                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
-                                                    }
-                                                },
-                                                `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
-                                                'default',
-                                                'left',
-                                                !hasSelectedSubtitleSections
-                                            )}
-                                            {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
                                         </div>
                                     </div>
 
@@ -8130,6 +8113,24 @@ export default function StdPortalPage() {
                                             {generatingTts ? t('sub_final_saving') : '저장+TTS'}
                                         </button>
                                     </div>
+                                </div>
+
+                                {/* 3행: 선택한 자막 섹션 전용 마이크 / 효과 */}
+                                <div className="flex items-center gap-1 pt-1.5 border-t border-white/5">
+                                    {renderVoicePicker(
+                                        'selected-scenes-bulk',
+                                        selectedSubtitleSceneVoiceId,
+                                        (nextVoiceId) => {
+                                            if (selectedSubtitleSceneGroup) {
+                                                void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
+                                            }
+                                        },
+                                        `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
+                                        'default',
+                                        'left',
+                                        !hasSelectedSubtitleSections
+                                    )}
+                                    {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
                                 </div>
                             </div>
 
