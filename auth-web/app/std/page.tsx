@@ -8455,7 +8455,7 @@ export default function StdPortalPage() {
                                                                                         let cursor = 0
                                                                                         candidates.forEach((candidate, candidateIndex) => {
                                                                                             parts.push(<span key={`plain-${candidateIndex}`}>{item.text.slice(cursor, candidate.start)}</span>)
-                                                                                            parts.push(<mark key={`candidate-${candidateIndex}`} title={candidate.reason} className="rounded bg-amber-400/15 text-amber-200">{item.text.slice(candidate.start, candidate.end)}</mark>)
+                                                                                            parts.push(<span key={`candidate-${candidateIndex}`} title={candidate.reason} className="text-amber-200">{item.text.slice(candidate.start, candidate.end)}</span>)
                                                                                             cursor = candidate.end
                                                                                         })
                                                                                         parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
