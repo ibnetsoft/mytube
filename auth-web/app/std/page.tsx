@@ -8256,7 +8256,7 @@ export default function StdPortalPage() {
                                                         onMouseLeave={() => setHoveredSubtitleSceneNumber(current => (
                                                             current === Number(sNum) ? null : current
                                                         ))}
-                                                        className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border flex items-start gap-2 sm:gap-3 cursor-pointer transition-all ${
+                                                        className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border flex flex-wrap items-start gap-2 sm:flex-nowrap sm:gap-3 cursor-pointer transition-all ${
                                                             isChecked
                                                                 ? 'bg-cyan-500/10 border-cyan-400/70 shadow-md'
                                                                 : isActive
@@ -8283,8 +8283,8 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         {/* 이미지와 구간 시간 */}
-                                                        <div className="w-24 shrink-0 self-start min-[390px]:w-28 sm:w-40">
-                                                            <div className="h-[54px] min-[390px]:h-[63px] sm:h-[90px] aspect-video rounded-md sm:rounded-lg overflow-hidden border border-white/10 relative">
+                                                        <div className="w-[calc(100%-2rem)] shrink-0 self-start min-[390px]:w-36 sm:w-40">
+                                                            <div className="aspect-video w-full rounded-md sm:rounded-lg overflow-hidden border border-white/10 relative">
                                                                 {group.video_url ? (
                                                                     <video
                                                                         key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
@@ -8331,7 +8331,7 @@ export default function StdPortalPage() {
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <div className="flex-1 min-w-0">
+                                                        <div className="w-full min-w-0 flex-none sm:flex-1">
                                                             <div className="mb-1 flex items-center gap-1 sm:gap-2">
                                                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                                                                     Scene {sNum}
