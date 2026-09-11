@@ -6659,6 +6659,28 @@ export default function StdPortalPage() {
         return unique
     }, [trendTopicPool, topicSearchQuery, topicLengthFilter])
 
+    const topicThumbnailUrl = (topic: any): string => {
+        const structure = topic?.pregenerated_structure || topic?.structure || {}
+        const scenes = [
+            ...(Array.isArray(topic?.scenes) ? topic.scenes : []),
+            ...(Array.isArray(topic?.pregenerated_scenes) ? topic.pregenerated_scenes : []),
+            ...(Array.isArray(structure?.scenes) ? structure.scenes : []),
+        ]
+        const firstScene = scenes.find((scene: any) => scene?.image_url || scene?.image || scene?.thumbnail_url || scene?.metadata?.image_url)
+        return sanitizeAssetUrl(
+            topic?.thumbnail_url
+            || topic?.thumbnail_image_url
+            || topic?.image_url
+            || topic?.thumb_url
+            || topic?.metadata?.thumbnail_url
+            || topic?.metadata?.image_url
+            || firstScene?.thumbnail_url
+            || firstScene?.image_url
+            || firstScene?.image
+            || firstScene?.metadata?.image_url
+        ) || ''
+    }
+
     const toggleSelectAll = () => {
         if (!selectedProject?.scenes) return
         if (selectedSceneIndexes.length === selectedProject.scenes.length) {
@@ -9679,16 +9701,18 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {displayedTopics.map(topic => (
+                                    {displayedTopics.map(topic => {
+                                        const thumbUrl = topicThumbnailUrl(topic)
+                                        return (
                                         <div
                                             key={topic.id}
                                             onClick={() => {
                                                 setSelectedTopicForModal(topic)
                                                 setTopicModalOpen(true)
                                             }}
-                                            className="bg-[#1c2027] border border-white/10 hover:border-indigo-500 rounded-2xl p-5 cursor-pointer hover:-translate-y-1.5 transition-all shadow-lg group flex flex-col justify-between relative overflow-hidden"
+                                            className="bg-[#1c2027] border border-white/10 hover:border-indigo-500 rounded-2xl p-4 cursor-pointer hover:-translate-y-1.5 transition-all shadow-lg group flex flex-col justify-between relative overflow-hidden"
                                         >
-                                            <div className="space-y-3">
+                                            <div className="space-y-2.5">
                                                 {/* 상단 뱃지 & 수당 */}
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 truncate max-w-[65%]">
@@ -9699,15 +9723,24 @@ export default function StdPortalPage() {
                                                     </span>
                                                 </div>
 
-                                                {/* 주제 제목 */}
-                                                <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 leading-snug">
-                                                    {topic.generated_title || topic.topic}
-                                                </h4>
-
+                                                {/* 썸네일 & 주제 제목 */}
+                                                <div className="flex min-h-[58px] items-start gap-3">
+                                                    {thumbUrl && (
+                                                        <div className="h-[58px] w-[82px] shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#0f141d]">
+                                                            <div
+                                                                className="h-full w-full bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
+                                                                style={{ backgroundImage: `url(${JSON.stringify(thumbUrl)})` }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <h4 className="min-w-0 flex-1 text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-3 leading-snug">
+                                                        {topic.generated_title || topic.topic}
+                                                    </h4>
+                                                </div>
                                             </div>
 
                                             {/* 하단 메타 태그 */}
-                                            <div className="mt-4 pt-3 border-t border-white/5">
+                                            <div className="mt-3 pt-2.5 border-t border-white/5">
                                                 <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
                                                     <span className="flex items-center gap-1">
                                                         <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
@@ -9716,7 +9749,8 @@ export default function StdPortalPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                        )
+                                    })}
                                 </div>
                             </div>
 
