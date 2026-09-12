@@ -28,3 +28,22 @@ creative quality. Real audience-approved good/bad scripts should be accumulated
 as a separate held-out evaluation corpus; do not label synthetic fixtures as
 measured senior-audience preference. No TTS generation or user-data backfill is
 triggered by this change. Restart the worker to load updated Python modules.
+
+## User-approved comparison example and incremental revisions
+
+The user preferred [3197's revised draft](script-revisions/3197-approved-20260912.md)
+to its previous version on 2026-09-12. This is one qualitative user preference,
+not a measured senior-audience score or an independent listener-gate pass.
+
+Use the example to discuss narrative cause and effect, protagonist agency,
+concrete lived experience, a smaller set of meaningful props, and reconciliation
+shown through changed behavior. Do not copy its plot, phrases, sentence endings,
+scene count, or length into unrelated categories. The blind reviewer must still
+receive only the candidate title and script; do not leak this preference as a
+hint that it should approve a particular candidate.
+
+For existing scripts, review one identified project, show a full proposed rewrite,
+and obtain approval before replacing its saved script. Back up prior data,
+preserve scene identities, invalidate outdated audio/annotations, and explicitly
+track visual/prompt/metadata dependencies needing revalidation. Do not silently
+rewrite other projects sharing a title or mark an approved draft as fully produced.
