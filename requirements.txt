@@ -53,3 +53,6 @@ pydub
 # Python 3.13 removed the stdlib audioop/pyaudioop modules (PEP 594);
 # this restores them for libraries (pydub) that still import pyaudioop.
 audioop-lts>=0.2.1; python_version >= "3.13"
+
+# Official Vertex TTS credentials (no browser automation dependency)
+google-auth>=2.29,<3

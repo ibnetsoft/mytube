@@ -169,6 +169,8 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 script: firstText(topic.pregenerated_script),
                 original_worker_script: firstText(topic.pregenerated_script),
                 structure: topic.pregenerated_structure || {},
+                character_anchors: topic.pregenerated_structure?.character_anchors || topic.progress_payload?.character_anchors || {},
+                supporting_characters: topic.pregenerated_structure?.supporting_characters || topic.progress_payload?.supporting_characters || [],
                 image_grid_prompts: imageGridPrompts,
                 image_style: summary.image_style,
                 main_character: topic.progress_payload?.main_character || topic.pregenerated_structure?.main_character || null,

@@ -9779,7 +9779,8 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
         **(payload.get("generation_models") if isinstance(payload.get("generation_models"), dict) else {}),
         "content_package": "codex-cli",
         "script_planning": "codex-cli",
-        "script_generation": "codex-cli",
+        "script_generation": "gpt-6-astra",
+        "dialogue_annotation": "gpt-6-astra",
         "scene_media_prompt_generation": "codex-cli",
         "publish_metadata": "codex-cli",
     }
@@ -9833,6 +9834,10 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
     if senior_errors:
         raise RuntimeError("Codex senior listening gate rejected save: " + "; ".join(senior_errors[:12]))
     package["generation_models"]["script_senior_review"] = "codex-cli"
+    # Official project-billed Voice Studio supersedes the browser prototype.
+    # A requested audio failure propagates before package completion.
+    from worker.voice_studio_runner import maybe_generate_voice_studio
+    maybe_generate_voice_studio(package, payload, OUTPUT_DIR / "voice_studio" / job_id)
     job_store.transition(job_id, job_store.UPLOADING, reason="saving Codex content package")
     write_state("running", job, 90, job_id)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -9860,6 +9865,9 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
     # Do this before marking the local job completed so a cloud write cannot be
     # mistaken for a successful local-only run.
     _save_result_to_supabase("codex_content_generate", result_payload, job_log, strict=True)
+    from codex_character_assets import CharacterAssetStore
+    CharacterAssetStore().sync_matching_projects(
+        int(topic_queue_id), package["script"], package["character_anchors"], OUTPUT_DIR / "character_link_backups")
     job_store.transition(job_id, job_store.COMPLETED, reason="Codex content package complete", output_path=str(result_path))
     job_log.info(f"-> COMPLETED, Codex content package at {result_path}")
     return str(result_path), result_payload

@@ -30,6 +30,9 @@ from hermes_autopilot import CATEGORIES, DEFAULT_CATEGORY_TARGET_DURATION_SECOND
 
 logger = get_logger("dashboard")
 app = FastAPI(title="AIR Worker Dashboard")
+from worker.voice_studio_dashboard import create_router as create_voice_studio_router
+from worker.voice_studio_ui import inject as inject_voice_studio_ui
+app.include_router(create_voice_studio_router(OUTPUT_DIR))
 autopilot_manager = HermesAutopilotManager()
 _MANAGER_RECOVERY_LOCK = threading.Lock()
 _MANAGER_RECOVERY_LAST_AT = 0.0
@@ -3771,7 +3774,7 @@ async def auth_logout(response: Response):
 @app.get("/")
 async def dashboard_page():
     return Response(
-        content=DASHBOARD_HTML.replace("__AIR_WORKER_PROFILE__", WORKER_PROFILE),
+        content=inject_voice_studio_ui(DASHBOARD_HTML).replace("__AIR_WORKER_PROFILE__", WORKER_PROFILE),
         media_type="text/html; charset=utf-8",
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",

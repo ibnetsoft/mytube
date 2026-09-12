@@ -44,6 +44,15 @@ python worker/cowork_thumbnail_asset.py publish --topic-id <TOPIC_ID> --image <G
 
 대본·문구 생성 후 상태는 `ready_for_cowork`가 됩니다. `publish`는 실제 이미지 파일을 1920×1080으로 맞춰 Storage에 저장하고, 완료 상태 및 `thumbnail_bg_url`을 기록합니다. 이미 클레임된 사용자 웹 프로젝트가 있어도 해당 프로젝트의 스냅샷을 함께 갱신하므로, 프로젝트를 새로 열면 썸네일 페이지의 16:9 캔버스가 이 URL을 배경으로 불러오며 Codex가 생성한 문구 후보를 바로 얹어 미리볼 수 있습니다.
 
+## CoWork 나레이션·대사 음성
+
+공식 Vertex AI Gemini TTS 기반 **Voice Studio**를 사용합니다. 목소리 프리셋,
+장면별 연기 지시, 구간 재생성, ElevenLabs 대사, 음성 합성을 지원합니다.
+사용자의 브라우저 조작이나 수동 파일 첨부는 필요하지 않습니다.
+[Voice Studio 설정·실행 안내](docs/VOICE_STUDIO.md)를 따릅니다.
+Cloud 프로젝트·인증·크레딧 적용을 확인한 후 `VOICE_STUDIO_ENABLED=1`로
+활성화합니다. 이전 브라우저 로그인/확장 초안은 운영 경로에서 제외했습니다.
+
 ## 다른 예시
 
 ```powershell

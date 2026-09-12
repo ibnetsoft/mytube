@@ -109,6 +109,12 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
         lambda style: "[Writing Style Directive]\n구수한 테스트 문체\nApply this style strictly throughout the script.",
     )
     calls = []
+    import codex_character_assets
+    def fake_characters(context, payload, config, output_dir):
+        calls.append(("02e_character_images", context))
+        return {"main_character": {"name": "연화", "character_key": "yeonhwa", "image_url": "https://assets.example/portrait.png"},
+                "supporting_characters": [], "character_image_generation": {"status": "ready"}}
+    monkeypatch.setattr(codex_character_assets, "generate_character_references", fake_characters)
 
     def fake_stage(self, job_id, name, context, task):
         calls.append((name, context))
@@ -138,7 +144,14 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
             elif review_failure == "evidence":
                 report["checks"]["relationships"]["evidence"] = ""
             return {"script_quality_report": report}
+        if name == '02e_dialogue':
+            return {'scenes': [{'scene_number': i, 'spans': []} for i in range(1, 29)]}
+        if name.startswith('02f_listener_'):
+            assert set(context) == {'title', 'sections'}
+            return {'verdict': 'pass', 'issues': [], 'strengths': [{'scene_order': 1,
+                'quote': context['sections'][0]['text'], 'reason': 'The protagonist and action are understandable.'}]}
         if name == "03_media":
+            assert context["character_anchors"]["character_image_generation"]["status"] == "ready"
             positions = ("Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right")
             grids = []
             for grid_number, start in enumerate(range(1, 29, 4), 1):
@@ -176,14 +189,18 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     package = runner_module.CodexStagedContentRunner().generate("staged-job", {"target_duration_seconds": 300, "upload_title": "테스트 제목", "title_generation": {"title_candidates": [{"title": "테스트 제목"}]}, "category_name": "옛날이야기", "script_style": "story"})
 
     scenes = package["structure"]["scenes"]
-    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert package['structure']['dialogue_annotations']['model'] == 'gpt-6-astra'
+    assert package["structure"]["character_reference_status"] == "ready"
+    assert package["character_anchors"]["character_image_generation"]["status"] == "ready"
+    assert package["structure"]["image_grid_prompts"][0]["character_references"][0]["image_url"]
     assert len(scenes) == 28
     assert [scene["duration_seconds"] for scene in scenes[:12]] == [5] * 12
     assert [scene["duration_seconds"] for scene in scenes[12:]] == [15] * 16
     assert all(scene["scene_text"] for scene in scenes)
     assert all(scene.get("video_prompt") for scene in scenes[:12])
     assert all("video_prompt" not in scene for scene in scenes[12:])
-    assert "연화" in calls[4][1]["script"]
+    assert "연화" in next(context for name, context in calls if name == '02e_dialogue')["script"]
     assert "Category narration voice: 옛날이야기" in calls[0][1]["category_narration_voice"]
     assert "구수한 테스트 문체" in calls[1][1]["script_style_directive"]
     assert "Script rhythm QA contract" in calls[2][1]["script_rhythm_contract"]

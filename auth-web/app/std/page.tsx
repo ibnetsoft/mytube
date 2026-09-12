@@ -1,5 +1,7 @@
 'use client'
+import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
+import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
 
@@ -82,6 +84,7 @@ import {
     Wand2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
+import { findExactSubtitleScene, subtitlesMatchSceneManifest } from '@/lib/stdSubtitleSceneIntegrity'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles,
@@ -2009,13 +2012,6 @@ export default function StdPortalPage() {
         return [...structureScenes, ...payloadScenes]
     }
 
-    const findSceneByNumber = (scenes: any[], sceneNumber: number) => {
-        return (scenes || []).find((scene: any, index: number) => {
-            const candidate = Number(scene?.scene_number || scene?.scene_order || index + 1)
-            return candidate === sceneNumber
-        })
-    }
-
     const sceneVisualSignature = useMemo(() => {
         const payloadScenes = getProjectPayloadScenes()
         return [...(selectedProject?.scenes || []), ...payloadScenes]
@@ -2029,18 +2025,11 @@ export default function StdPortalPage() {
 
     const subtitleSceneVisual = (subtitle: any, subtitleIndex: number, scenes = selectedProject?.scenes || []) => {
         const requestedSceneNumber = Number(subtitle?.scene_number || subtitle?.scene || subtitle?.sceneNumber)
-        const fallbackSceneNumber = subtitleIndex + 1
         const sceneNumber = Number.isFinite(requestedSceneNumber) && requestedSceneNumber > 0
             ? requestedSceneNumber
-            : fallbackSceneNumber
+            : 0
         const payloadScenes = getProjectPayloadScenes()
-        const matchedScene = findSceneByNumber(scenes, sceneNumber)
-            || findSceneByNumber(payloadScenes, sceneNumber)
-            || scenes[sceneNumber - 1]
-            || payloadScenes[sceneNumber - 1]
-            || scenes[0]
-            || payloadScenes[0]
-            || {}
+        const matchedScene = findExactSubtitleScene(subtitle, scenes, payloadScenes)
         return {
             scene_number: sceneNumber,
             image_url: runtimeAssetUrl(matchedScene?.image_url || matchedScene?.image || matchedScene?.metadata?.image_url) || '',
@@ -2054,11 +2043,12 @@ export default function StdPortalPage() {
             return {
                 ...subtitle,
                 scene_number: Number(subtitle?.scene_number || visual.scene_number),
-                image_url: visual.image_url || runtimeAssetUrl(subtitle?.image_url || subtitle?.image) || '',
-                video_url: visual.video_url || runtimeAssetUrl(subtitle?.video_url || subtitle?.video) || null,
+                image_url: visual.image_url,
+                video_url: visual.video_url,
             }
         })
-        return repairSubtitleItemQuoteBoundaries(normalizedSceneSubtitles)
+        return splitSubtitleDialogueBlocks(normalizedSceneSubtitles,
+            selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
     }
 
     const subtitleHasValidTiming = (subtitle: any) => {
@@ -2155,8 +2145,8 @@ export default function StdPortalPage() {
                     end_num: sub?.end_num ?? Number(sub?.end_time) ?? 0,
                     start_time: sub?.start_time || '0.0',
                     end_time: sub?.end_time || '0.0',
-                    image_url: visual.image_url || sub?.image_url || '',
-                    video_url: visual.video_url || sub?.video_url || null,
+                    image_url: visual.image_url,
+                    video_url: visual.video_url,
                     is_hook_zone: Boolean(sub?.is_hook_zone || normalizedSceneNumber <= 12),
                     subtitles: [],
                 }
@@ -2166,8 +2156,8 @@ export default function StdPortalPage() {
             group.lastIndex = index
             group.end_num = sub?.end_num ?? Number(sub?.end_time) ?? group.end_num
             group.end_time = sub?.end_time || group.end_time
-            if (!group.image_url && (visual.image_url || sub?.image_url)) group.image_url = visual.image_url || sub.image_url
-            if (!group.video_url && (visual.video_url || sub?.video_url)) group.video_url = visual.video_url || sub.video_url
+            if (!group.image_url && visual.image_url) group.image_url = visual.image_url
+            if (!group.video_url && visual.video_url) group.video_url = visual.video_url
             group.subtitles.push({ ...sub, subtitleIndex: index })
         })
         return groups
@@ -2402,19 +2392,20 @@ export default function StdPortalPage() {
         return scanDialogueQuoteState(text).isDialogue
     }
 
-    const subtitleDialogueFlags = useMemo(() => {
-        const flags = new Map<number, boolean>()
-        let expectedClose = ''
-        ;(localSubtitles || []).forEach((subtitle: any, index: number) => {
-            const scan = scanDialogueQuoteState(subtitle?.text, expectedClose)
-            flags.set(index, scan.isDialogue)
-            expectedClose = scan.nextClose
-        })
-        return flags
-    }, [localSubtitles])
+    const aiDialogueParts = useMemo(() => mapDialogueAnnotations(localSubtitles || [],
+        selectedProject?.project?.project_payload?.structure?.dialogue_annotations), [localSubtitles, selectedProject])
+
+    const renderAiDialogue = (subtitle: any, index: number) => {
+        const parts = aiDialogueParts.get(index)
+        if (!parts) return <span title="AI 대사 분석이 없거나 대본이 변경됐습니다. 재분석이 필요합니다.">{subtitle.text}</span>
+        return parts.map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
+            title={part.dialogue ? `AI 확인 대사 · ${part.speaker}` : undefined}>{part.text}</span>)
+    }
 
     const isSubtitleDialogue = (subtitle: any, index: number) => {
-        return Boolean(subtitleDialogueFlags.get(index) || hasDialogueQuoteText(subtitle?.text))
+        const parts = aiDialogueParts.get(index)
+        // Do not assign a character voice to narration in a mixed subtitle block.
+        return Boolean(parts?.some(p => p.dialogue) && parts.every(p => p.dialogue || !p.text.replace(/[\s"'“”‘’「」『』]/g, '')))
     }
 
     const hasDistinctDialogueVoiceAssignment = () => {
@@ -2460,6 +2451,8 @@ export default function StdPortalPage() {
     }
 
     const persistVrewVoiceSubtitles = async (updatedSubtitles: any[]) => {
+        updatedSubtitles = splitSubtitleDialogueBlocks(updatedSubtitles,
+            selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
         setLocalSubtitles(updatedSubtitles)
         setIsSubtitleSaved(true)
         setSelectedProject((prev: any) => {
@@ -3770,6 +3763,7 @@ export default function StdPortalPage() {
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
         const canReuseSavedSubtitles = Array.isArray(savedSubtitles)
             && savedSubtitles.length > 0
+            && subtitlesMatchSceneManifest(savedSubtitles, scenes)
             && subtitleSnapshotMatchesScript(currentScript, savedSubtitles)
         const subs = canReuseSavedSubtitles
             ? savedSubtitles
@@ -4560,7 +4554,7 @@ export default function StdPortalPage() {
             return
         }
 
-        const baseSubtitles = localSubtitles.length > 0
+        const baseSubtitles = subtitlesMatchSceneManifest(localSubtitles, scenes)
             ? localSubtitles
             : generateSynchronizedSubtitles(
                 selectedProject.project?.project_payload?.script || customScriptText || '',
@@ -4765,7 +4759,8 @@ export default function StdPortalPage() {
                 const storedServerSubtitles = Array.isArray(payload.project?.project_payload?.subtitles)
                     ? payload.project.project_payload.subtitles
                     : []
-                const projectSubtitles = subtitleSnapshotMatchesScript(fullScript, storedServerSubtitles)
+                const projectSubtitles = subtitlesMatchSceneManifest(storedServerSubtitles, normalizedScenes)
+                    && subtitleSnapshotMatchesScript(fullScript, storedServerSubtitles)
                     ? storedServerSubtitles
                     : generateSynchronizedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20)
 
@@ -5924,10 +5919,12 @@ export default function StdPortalPage() {
         const firstIsDialogue = isSubtitleDialogue(selectedItems[0], firstIndex)
         const isSameVoiceType = selectedItems.every((item, position) => (
             isSubtitleDialogue(item, indexes[position]) === firstIsDialogue
+            && (!firstIsDialogue || aiDialogueParts.get(indexes[position])?.find(p => p.dialogue)?.speaker
+                === aiDialogueParts.get(firstIndex)?.find(p => p.dialogue)?.speaker)
         ))
 
         if (!isContiguous || !isSameScene || !isSameVoiceType) {
-            setMessage('같은 씬의 연속된 내레이션끼리 또는 대사끼리만 합칠 수 있습니다.')
+            setMessage('같은 씬의 연속된 내레이션끼리 또는 같은 화자의 대사끼리만 합칠 수 있습니다.')
             return
         }
 
@@ -6265,10 +6262,8 @@ export default function StdPortalPage() {
     }
     const currentSubVisual = subtitleSceneVisual(currentSub, selectedSubIndex)
     const currentSubImageUrl = currentSubVisual.image_url
-        || runtimeAssetUrl(currentSub?.image_url || currentSub?.image)
         || ''
     const currentSubVideoCandidate = currentSubVisual.video_url
-        || runtimeAssetUrl(currentSub?.video_url || currentSub?.video)
         || ''
     const currentSubVideoUrl = isPlayablePreviewVideoUrl(currentSubVideoCandidate)
         ? currentSubVideoCandidate
@@ -8143,13 +8138,6 @@ export default function StdPortalPage() {
                                                     : segmentStatus === 'stale'
                                                     ? '재생성 필요'
                                                     : '오류'
-                                                const groupDialogueFlags = new Map<number, boolean>()
-                                                let groupExpectedClose = ''
-                                                group.subtitles.forEach((item: any) => {
-                                                    const scan = scanDialogueQuoteState(item?.text, groupExpectedClose)
-                                                    groupDialogueFlags.set(item.subtitleIndex, scan.isDialogue)
-                                                    groupExpectedClose = scan.nextClose
-                                                })
                                                 return (
                                                     <div
                                                         key={`scene-group-card-${sNum}`}
@@ -8288,7 +8276,7 @@ export default function StdPortalPage() {
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
-                                                                        const isDialogueBlock = Boolean(groupDialogueFlags.get(item.subtitleIndex) || isSubtitleDialogue(item, item.subtitleIndex))
+                                                                        const isDialogueBlock = isSubtitleDialogue(item, item.subtitleIndex)
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
                                                                         return (
                                                                             <div
@@ -8318,7 +8306,7 @@ export default function StdPortalPage() {
                                                                                     {lineIndex + 1}
                                                                                 </button>
                                                                                 <div className="min-w-0 text-xs text-white leading-relaxed font-sans">
-                                                                                    {renderDialogueHighlightedText(item.text, -1, isDialogueBlock)}
+                                                                                    {renderAiDialogue(item, item.subtitleIndex)}
                                                                                 </div>
                                                                                 {!hasSingleGroupVoice && (
                                                                                     <span
@@ -8347,7 +8335,7 @@ export default function StdPortalPage() {
                                                             ) : (
                                                                 <>
                                                                     <div className="text-xs text-white leading-relaxed font-sans">
-                                                                        {renderDialogueHighlightedText(groupText)}
+                                                                        {group.subtitles.map((item: any) => <span key={item.subtitleIndex}>{renderAiDialogue(item, item.subtitleIndex)}{' '}</span>)}
                                                                     </div>
                                                                     {group.subtitles.length > 1 && (
                                                                         <div className="mt-2 flex flex-wrap gap-1">
@@ -9082,7 +9070,7 @@ export default function StdPortalPage() {
                     {/* [이미지 생성 탭] */}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
-
+                            <StdCharacterReferences payload={selectedProject.project.project_payload} />
 
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">

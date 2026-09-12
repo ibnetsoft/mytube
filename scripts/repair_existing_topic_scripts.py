@@ -399,6 +399,10 @@ def _repair_with_codex(row: dict[str, Any], category_name: str, output_dir: Path
                "script_style_directive": _resolve_script_style_directive(row.get("assigned_script_style"))}
     context["legacy_stage_directives"] = "Existing narration repair: preserve supplied scene schedule and actual media assets; apply the supplied category and senior listening contracts."
     context["legacy_quality_contract"] = "Use senior_listening_v3, scene_budgets and script_rhythm_contract. Absent legacy rules impose no additional requirements."
+    if row.get("_material_repair_feedback"):
+        context["material_repair_feedback"] = row["_material_repair_feedback"]
+    if row.get("_review_research"):
+        context["supplemental_verified_research"] = row["_review_research"]
     context["generated_scene_asset_count"] = sum(bool(s.get("image_url") or s.get("video_url") or s.get("image_path") or s.get("video_path")) for s in scenes)
     if not context["generated_scene_asset_count"]:
         context["media_review_scope"] = "No generated scene assets are recorded. Do not fail narration because nonexistent images cannot be inspected. Preserve prompt data; note any future prompt alignment concern separately. Do not claim actual image pixels were verified."

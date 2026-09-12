@@ -2,8 +2,8 @@
 
 The YouTube Data API supplies evidence, then this module hands that evidence
 to a *local* Codex CLI session, which returns the creative
-package only: title, plan, script, scene prompts, and publish metadata.  It
-never asks Codex to create, crop, or save image assets.
+package: title, plan, script, verified character portraits, scene prompts,
+and publish metadata. Portraits use the native Codex image tool, never Gemini.
 """
 
 from __future__ import annotations
@@ -20,6 +20,8 @@ from typing import Any
 
 from worker_config import OUTPUT_DIR, PROJECT_ROOT
 from senior_script_guard import PROFILE as SENIOR_PROFILE, contract as senior_contract, text_issues, review_issues
+from codex_dialogue import ASTRA_MODEL, DIALOGUE_TASK, validate_dialogue
+from listener_review import improve_for_listener
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -633,10 +635,11 @@ class CodexStagedContentRunner:
         self.config = config or CodexContentConfig.from_environment()
 
     def _stage(self, job_id: str, name: str, context: dict[str, Any], task: str) -> dict[str, Any]:
+        model = ASTRA_MODEL if name.startswith('02') else self.config.model
         work_dir = OUTPUT_DIR / "codex_stage_requests"
         work_dir.mkdir(parents=True, exist_ok=True)
         # Changed instructions, rewritten text and QA feedback must never hit an old response.
-        fingerprint = hashlib.sha256(json.dumps([SENIOR_PROFILE, "supplied-legacy-only-v2", context, task], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+        fingerprint = hashlib.sha256(json.dumps([SENIOR_PROFILE, "astra-dialogue-v1", model, context, task], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
         request_path = work_dir / f"{job_id}.{name}.{fingerprint}.input.json"
         request_path.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
         last_error = ""
@@ -663,8 +666,8 @@ class CodexStagedContentRunner:
                        "Apply legacy_stage_directives and legacy_quality_contract when actually supplied in the context; absent legacy fields impose no additional requirements. "
                        + task + retry + " Return JSON only. Do not create or save media files or modify repository files.")
             command = [self.config.executable, "exec", "--ephemeral", "--sandbox", "read-only", "--color", "never", "-C", str(PROJECT_ROOT), "--output-last-message", str(response_path)]
-            if self.config.model:
-                command.extend(["--model", self.config.model])
+            if model:
+                command.extend(["--model", model])
             command.append(prompt)
             completed = subprocess.run(command, cwd=str(PROJECT_ROOT), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=self.config.timeout_seconds, check=False)
             if completed.returncode == 0 and response_path.exists():
@@ -763,6 +766,23 @@ class CodexStagedContentRunner:
                 "sections": qa_sections,
                 "script_rhythm_rejection": rhythm_warnings,
             }
+        try:
+            qa_sections, listener_audit = improve_for_listener(
+                lambda name, context, task: self._stage(job_id, name, context, task),
+                str(payload.get('upload_title') or payload.get('topic') or ''), qa_sections, scene_budgets)
+        except ValueError as exc:
+            raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
+        if listener_audit['selected'] == 'revision':
+            final_review = self._stage(job_id, '02i_post_listener_review', {
+                **script_context, 'sections': qa_sections,
+                'script': '\n\n'.join(s['text'] for s in qa_sections),
+            }, 'Independently recheck the exact revised script against the complete senior listening contract. '
+               'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.')
+            qa['script_quality_report'] = final_review.get('script_quality_report')
+            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + review_issues(qa['script_quality_report'])
+            if final_issues:
+                raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
+        structure['listener_quality_report'] = listener_audit
         parts = []
         for index, section in enumerate(qa_sections, 1):
             text = str((section or {}).get("text") or "").strip() if isinstance(section, dict) else ""
@@ -775,7 +795,31 @@ class CodexStagedContentRunner:
             scenes[index - 1]["narration"] = text
             parts.append(text)
         script = "\n\n".join(parts)
-        media_context = {**script_context, "script": script}
+        character_context = {**script_context, "script": script}
+        dialogue_context = {**character_context, 'scenes': scenes}
+        for attempt in range(2):
+            dialogue_result = self._stage(job_id, '02e_dialogue', dialogue_context, DIALOGUE_TASK)
+            try:
+                structure['dialogue_annotations'] = validate_dialogue(dialogue_result, scenes)
+                structure['script_model'] = ASTRA_MODEL
+                break
+            except ValueError as exc:
+                if attempt:
+                    raise CodexContentError(str(exc)) from exc
+                dialogue_context['validation_feedback'] = str(exc)
+        identity = self._stage(job_id, "02d_character_identity", character_context,
+            "From the FINAL reviewed script, finalize the main character and up to two recurring supporting characters. "
+            "Preserve established identities; do not invent people or change relationships. Return {main_character:{...}, supporting_characters:[...]}. "
+            "Every character must have name, role, gender, age_group, detailed English visual_dna_en, wardrobe_en, continuity_instruction. "
+            "Use the selected image style and era. These definitions will be rendered as actual reference portraits before scene prompts.")
+        from codex_character_assets import generate_character_references
+        anchors = generate_character_references(
+            {**character_context, **identity}, payload, self.config, OUTPUT_DIR / "codex_character_images")
+        script_context.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"])
+        structure.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"],
+                         character_anchors=anchors, character_reference_status="ready")
+        media_context = {**script_context, "script": script, "character_anchors": anchors,
+                         "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Never substitute a different character."}
         media_task = f"Create prompts only from each final scene_text. Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-12 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 13 onward must not contain video_prompt."
         media = {}
         for media_attempt in range(2):
@@ -911,9 +955,13 @@ class CodexStagedContentRunner:
         thumbnail_image_prompt = str(thumbnail_stage.get("thumbnail_image_prompt") or "").strip()
         if len(thumbnail_image_prompt) < 80:
             raise CodexContentError("thumbnail copy stage requires a detailed text-free thumbnail_image_prompt")
+        for grid in structure.get("image_grid_prompts") or []:
+            grid["character_references"] = [
+                {"character_key": c["character_key"], "name": c["name"], "image_url": c["image_url"]}
+                for c in [anchors["main_character"], *anchors["supporting_characters"]]]
         main = script_context["main_character"]
         supporting = script_context["supporting_characters"]
-        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": {"main_character": main, "supporting_characters": supporting, "max_character_anchors": 3}, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "media": media, "thumbnail_copy": thumbnail_stage}}
+        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
 
 
 class CodexTopicDiscoveryRunner:

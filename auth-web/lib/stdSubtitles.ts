@@ -129,19 +129,15 @@ export function getStandardSceneDuration(sceneNumber: number): number {
     return 60.0
 }
 
-export function estimateRequiredSceneCount(rawScriptText: string, existingSceneCount: number = BASE_STORY_SCENE_COUNT): number {
+export function estimateRequiredSceneCount(rawScriptText: string, existingSceneCount: number = 0): number {
     const textLength = normalizedScriptText(rawScriptText).length
     const explicitSceneCount = Number(existingSceneCount || 0)
     const minimumScenes = explicitSceneCount > 0 ? explicitSceneCount : BASE_STORY_SCENE_COUNT
     if (textLength <= 0) return minimumScenes
 
-    // CoWork also has short-form prepared projects, e.g. 5-minute stories with
-    // 28 real scenes. When a project already has an explicit short scene
-    // manifest, the scene count is authoritative; subtitles should split
-    // within those scenes, not create fake 29~53 scenes. Expanding a 28-scene
-    // project to the legacy 53-scene baseline spreads the final sentence into
-    // one-word, 20~30 second subtitle rows.
-    if (explicitSceneCount > 0 && explicitSceneCount < BASE_STORY_SCENE_COUNT) {
+    // An existing storyboard is authoritative at EVERY length, not only <53.
+    // Reading-time estimates must never invent scenes without matching assets.
+    if (Number.isInteger(explicitSceneCount) && explicitSceneCount > 0) {
         return explicitSceneCount
     }
 
@@ -553,6 +549,11 @@ export function partitionScriptByExistingSceneBoundaries(
     }
 
     const normalizedScenes = Array.from({ length: totalScenesCount }, (_, i) => scenes?.[i] || {})
+    const exactNarrations = normalizedScenes.map(sceneNarrationText)
+    if (exactNarrations.every(Boolean)
+        && normalizedScriptText(exactNarrations.join('\n\n')) === fullText) {
+        return exactNarrations
+    }
     const existingLengths = normalizedScenes.map(scene => sceneNarrationText(scene).length)
     const hasUsefulBoundaries = existingLengths.filter(length => length > 0).length >= Math.min(3, totalScenesCount)
     const weights = hasUsefulBoundaries
