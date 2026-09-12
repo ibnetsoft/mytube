@@ -102,3 +102,34 @@ def test_ffmpeg_renderer_produces_exact_duration_and_progress(tmp_path):
     assert _media_duration(_ffmpeg_executable(), output_path) == pytest.approx(2.0, abs=0.1)
     assert progress[0][0] == 50
     assert progress[-1][0] == 90
+
+
+@pytest.mark.parametrize('effect', ['none', 'zoom_in', 'zoom_out', 'pan_left', 'pan_right', 'pan_up', 'pan_down'])
+def test_scene_motion_moves_rendered_pixels_in_selected_direction(tmp_path, effect):
+    import subprocess
+    from PIL import Image, ImageDraw
+    from services.ffmpeg_slideshow_service import _image_filter
+
+    source = Image.new('RGB', (160, 90), 'black')
+    ImageDraw.Draw(source).rectangle((60, 30, 100, 60), fill='white')
+    source_path = tmp_path / 'marker.png'
+    source.save(source_path)
+    output = subprocess.run([
+        _ffmpeg_executable(), '-v', 'error', '-loop', '1', '-i', str(source_path),
+        '-filter_complex', _image_filter(0, 'motion', 160, 90, 4, 1, effect),
+        '-map', '[motion]', '-frames:v', '4', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1',
+    ], capture_output=True, check=True, timeout=20).stdout
+    size = 160 * 90 * 3
+    boxes = [Image.frombytes('RGB', (160, 90), output[offset:offset + size]).convert('L').point(lambda value: 255 if value > 128 else 0).getbbox()
+             for offset in (0, 3 * size)]
+    first, last = boxes
+    assert first and last
+    if effect == 'none':
+        assert first == last
+    elif effect.startswith('zoom'):
+        first_width, last_width = first[2] - first[0], last[2] - last[0]
+        assert last_width > first_width if effect == 'zoom_in' else last_width < first_width
+    else:
+        axis = 0 if effect in ('pan_left', 'pan_right') else 1
+        displacement = (last[axis] + last[axis + 2]) - (first[axis] + first[axis + 2])
+        assert displacement < 0 if effect in ('pan_left', 'pan_up') else displacement > 0

@@ -104,6 +104,7 @@ import {
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
 import { detectDialogueCandidates } from '@/lib/stdDialogueCandidates'
+import { SCENE_MOTIONS, sceneMotion, sceneMotionStyle } from '@/lib/stdSceneMotion'
 import { abortable, measureSubtitleDurations, readAudioDuration } from '@/lib/stdTimingSync'
 import { calculateLongformPayoutByScenes } from '@/lib/stdPayoutPolicy'
 
@@ -2305,18 +2306,23 @@ export default function StdPortalPage() {
         }
     }
 
-    const applySelectedSceneTransition = async (effectId: string) => {
-        if (!selectedProject?.project?.id || selectedSubtitleSceneNumbers.length === 0) return
-        const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
+    const sceneEffectSavingRef = useRef(false)
+    const [isSceneEffectSaving, setIsSceneEffectSaving] = useState(false)
+    const applySelectedSceneTransition = async (effectId: string, field: 'transition_effect' | 'image_effect' = 'transition_effect', targets = selectedSubtitleSceneNumbers) => {
+        if (!selectedProject?.project?.id || targets.length === 0) return
+        if (sceneEffectSavingRef.current) return
+        sceneEffectSavingRef.current = true
+        setIsSceneEffectSaving(true)
+        const selectedSceneSet = new Set(targets.map(Number))
         const updateScenes = (scenes: any[]) => (scenes || []).map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_number || index + 1)
             if (!selectedSceneSet.has(sceneNumber)) return scene
             return {
                 ...scene,
-                transition_effect: effectId,
+                [field]: effectId,
                 metadata: {
                     ...(scene?.metadata || {}),
-                    transition_effect: effectId,
+                    [field]: effectId,
                 },
             }
         })
@@ -2343,10 +2349,8 @@ export default function StdPortalPage() {
             },
         }
 
-        setSelectedProject(updatedProject)
-        rememberProjectState(updatedProject)
         setIsTransitionPickerOpen(false)
-        setMessage(`선택한 씬 ${selectedSubtitleSceneNumbers.length}개에 ${sceneTransitionLabel(effectId)} 효과를 적용했습니다.`)
+        setMessage('씬 효과 저장 중...')
 
         try {
             const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
@@ -2364,9 +2368,27 @@ export default function StdPortalPage() {
                 }),
             })
             if (!response.ok) throw new Error(await response.text())
+            setSelectedProject(prev => {
+                if (prev?.project?.id !== updatedProject.project.id) return prev
+                const next = {
+                    ...prev,
+                    scenes: updateScenes(prev.scenes || []),
+                    project: { ...prev.project, project_payload: {
+                        ...(prev.project.project_payload || {}),
+                        scenes: updatedPayloadScenes,
+                        structure: { ...(prev.project.project_payload?.structure || {}), scenes: updatedStructureScenes },
+                    } },
+                }
+                rememberProjectState(next)
+                return next
+            })
+            setMessage(`씬 ${targets.length}개 효과를 저장했습니다.`)
         } catch (error) {
             console.warn('[STD subtitles] failed to persist scene transition effects:', error)
-            setMessage('화면 전환 효과 저장에 실패했습니다. 다시 시도해 주세요.')
+            setMessage('씬 효과 저장에 실패했습니다. 다시 선택해 주세요.')
+        } finally {
+            sceneEffectSavingRef.current = false
+            setIsSceneEffectSaving(false)
         }
     }
 
@@ -6425,6 +6447,12 @@ export default function StdPortalPage() {
         : ''
     const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
 
+    const previewMotionScene = selectedProject?.scenes?.find((scene: any) => Number(scene.scene_number) === currentPreviewSceneNumber)
+    const previewMotionGroup = subtitleSceneGroups.find(group => Number(group.scene_number) === currentPreviewSceneNumber)
+    const previewMotionStart = Number(previewMotionGroup?.start_num ?? currentSub.start_num ?? currentSub.start_time ?? 0)
+    const previewMotionEnd = Number(previewMotionGroup?.end_num ?? currentSub.end_num ?? currentSub.end_time ?? previewMotionStart + 1)
+    const previewImageMotionStyle = sceneMotionStyle(sceneMotion(previewMotionScene), playbackTime, previewMotionStart, previewMotionEnd)
+
     const previewTransitionLayerStyle = (effect: string, exiting: boolean) => {
         const transition = 'opacity 520ms ease-out, transform 520ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 520ms ease-out'
         if (!exiting) return { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1) rotate(0deg)', filter: 'none', transition }
@@ -8203,6 +8231,15 @@ export default function StdPortalPage() {
                                         !hasSelectedSubtitleSections
                                     )}
                                     {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
+                                    <label className="ml-2 flex items-center gap-1 text-[11px] text-cyan-200">
+                                        이미지 모션
+                                        <select aria-label="선택한 씬 이미지 모션" value="" disabled={!hasSelectedSubtitleSections || isSceneEffectSaving}
+                                            onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect')}
+                                            className="max-w-48 rounded border border-white/20 bg-[#14181f] p-1 text-white disabled:opacity-40">
+                                            <option value="">선택한 씬에 적용</option>
+                                            {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
+                                        </select>
+                                    </label>
                                 </div>
                             </div>
 
@@ -8300,6 +8337,7 @@ export default function StdPortalPage() {
                                                 const hasSingleGroupVoice = groupVoiceNames.length === 1
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
+                                                const motionEffect = sceneMotion(sceneRecord)
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey]
                                                 const segmentStatusLabel = segmentStatus === 'ready'
@@ -8442,6 +8480,19 @@ export default function StdPortalPage() {
                                                                     </div>
                                                                 )}
                                                             </div>
+                                                            {isVrewSubtitleMode && (
+                                                                <label className="mb-2 flex items-center gap-2 text-[10px] text-cyan-200">
+                                                                    이미지 모션
+                                                                    <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
+                                                                        disabled={Boolean(group.video_url) || isSceneEffectSaving}
+                                                                        title={group.video_url ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
+                                                                        onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect', [Number(sNum)])}
+                                                                        className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
+                                                                        {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
+                                                                    </select>
+                                                                    {group.video_url && <span className="text-gray-400">영상 원본 사용</span>}
+                                                                </label>
+                                                            )}
                                                             {isVrewSubtitleMode ? (
                                                                 <div className="space-y-1.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
@@ -8622,6 +8673,7 @@ export default function StdPortalPage() {
                                                 <img
                                                     src={currentSubImageUrl}
                                                     alt="Preview"
+                                                    style={previewImageMotionStyle}
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : selectedImageTemplatePreset && templateBgUrl ? (

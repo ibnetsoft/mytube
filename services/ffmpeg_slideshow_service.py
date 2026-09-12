@@ -348,28 +348,29 @@ def _image_filter(input_index, output_label, width, height, fps, duration, effec
         f"[{input_index}:v]scale={int(width * 1.12)}:{int(height * 1.12)}:"
         f"force_original_aspect_ratio=increase,crop={int(width * 1.12)}:{int(height * 1.12)}"
     )
-    frames = max(1, int(duration * fps))
+    frames = max(1, int(duration * fps) - 1)
+    progress = f"min(1,on/{frames})"
     if normalized in {"none", "static"}:
         return (
             f"{base},scale={width}:{height},fps={fps},trim=duration={duration:.3f},"
             f"setsar=1,format=yuv420p[{output_label}]"
         )
     if normalized in {"zoom_out"}:
-        zoom = "if(eq(on,0),1.10,max(1.0,pzoom-0.00035))"
+        zoom = f"1.15-0.15*{progress}"
         x_pos = "iw/2-(iw/zoom/2)"
         y_pos = "ih/2-(ih/zoom/2)"
     elif normalized in {"pan_left", "pan_right"}:
-        zoom = "1.10"
+        zoom = "1.20"
         progress = f"min(1,on/{frames})"
-        x_pos = f"(iw-iw/zoom)*{progress}" if normalized == "pan_right" else f"(iw-iw/zoom)*(1-{progress})"
+        x_pos = f"(iw-iw/zoom)*{progress}" if normalized == "pan_left" else f"(iw-iw/zoom)*(1-{progress})"
         y_pos = "ih/2-(ih/zoom/2)"
     elif normalized in {"pan_up", "scroll_up", "pan_down", "scroll_down"}:
-        zoom = "1.10"
+        zoom = "1.20"
         progress = f"min(1,on/{frames})"
         x_pos = "iw/2-(iw/zoom/2)"
-        y_pos = f"(ih-ih/zoom)*{progress}" if normalized in {"pan_down", "scroll_down"} else f"(ih-ih/zoom)*(1-{progress})"
+        y_pos = f"(ih-ih/zoom)*{progress}" if normalized in {"pan_up", "scroll_up"} else f"(ih-ih/zoom)*(1-{progress})"
     else:
-        zoom = "min(1.10,max(1.0,pzoom)+0.00035)"
+        zoom = f"1+0.15*{progress}"
         x_pos = "iw/2-(iw/zoom/2)"
         y_pos = "ih/2-(ih/zoom/2)"
     return (

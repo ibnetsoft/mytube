@@ -1,3 +1,4 @@
+import { sceneMotion } from './stdSceneMotion'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredVideoScene } from './stdPolicy'
@@ -424,7 +425,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         subtitle_sync_mode: 'audio_duration_weighted',
         render_settings: renderSettings,
         image_timing_starts: null,
-        image_effects: images.map(() => 'auto_classify'),
+        image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),
         bg_video_url: null,
@@ -653,7 +654,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         subtitle_sync_mode: 'audio_duration_weighted',
         render_settings: renderSettings,
         image_timing_starts: null,
-        image_effects: images.map(() => 'auto_classify'),
+        image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),
         bg_video_url: null,
