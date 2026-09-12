@@ -41,9 +41,6 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Missing topicId' }, { status: 400 })
         }
 
-        const targetMinutes = toBoundedInt(body.targetMinutes ?? body.target_minutes, 1, 180, 15)
-        const targetSceneCount = toBoundedInt(body.targetSceneCount ?? body.target_scene_count, 1, 400, 53)
-        const targetDurationSeconds = targetMinutes * 60
         const now = new Date().toISOString()
         const supabase = getAdmin()
 
@@ -57,6 +54,8 @@ export async function POST(req: Request) {
                 status,
                 assigned_at,
                 assigned_duration_minutes,
+                recommended_duration_minutes,
+                total_scenes,
                 assigned_script_style,
                 assigned_image_style,
                 language,
@@ -88,6 +87,8 @@ export async function POST(req: Request) {
                     status,
                     assigned_at,
                     assigned_duration_minutes,
+                    recommended_duration_minutes,
+                    total_scenes,
                     assigned_script_style,
                     assigned_image_style,
                     language,
@@ -109,12 +110,30 @@ export async function POST(req: Request) {
         if (!topic) {
             return NextResponse.json({ error: 'Topic not found' }, { status: 404 })
         }
-        if (topic.status !== 'pending' || String(topic.assigned_at || '').trim()) {
-            return NextResponse.json({ error: 'Only unclaimed pending topics can be repaired' }, { status: 409 })
+        const progressPayload = objectOrEmpty(topic.progress_payload)
+        const isHiddenRepairTopic = (
+            topic.status === 'excluded'
+            && (progressPayload.admin_hidden === true || progressPayload.admin_hidden === 'true')
+            && !String(topic.assigned_at || '').trim()
+        )
+        const isUnclaimedPendingTopic = topic.status === 'pending' && !String(topic.assigned_at || '').trim()
+        if (!isUnclaimedPendingTopic && !isHiddenRepairTopic) {
+            return NextResponse.json({ error: 'Only unclaimed pending or admin-hidden repair topics can be repaired' }, { status: 409 })
         }
 
-        const progressPayload = objectOrEmpty(topic.progress_payload)
         const previousStructure = objectOrEmpty(topic.pregenerated_structure)
+        const previousSceneCount = Array.isArray(previousStructure.scenes)
+            ? previousStructure.scenes.length
+            : Number(topic.total_scenes || previousStructure.scene_count || 0)
+        const fallbackMinutes = Number(topic.assigned_duration_minutes || topic.recommended_duration_minutes || 15)
+        const targetMinutes = toBoundedInt(body.targetMinutes ?? body.target_minutes, 1, 180, fallbackMinutes)
+        const targetSceneCount = toBoundedInt(
+            body.targetSceneCount ?? body.target_scene_count,
+            1,
+            400,
+            previousSceneCount > 0 ? previousSceneCount : 53,
+        )
+        const targetDurationSeconds = targetMinutes * 60
         const previousScript = String(topic.pregenerated_script || '').trim()
         const titleGeneration = objectOrEmpty(progressPayload.title_generation)
         const uploadTitle = String(topic.generated_title || titleGeneration.generated_title || topic.topic || '').trim()
@@ -138,9 +157,7 @@ export async function POST(req: Request) {
             repair_requested_at: now,
             repair_source_script: previousScript,
             previous_structure: previousStructure,
-            previous_scene_count: Array.isArray(previousStructure.scenes)
-                ? previousStructure.scenes.length
-                : Number(previousStructure.scene_count || 0),
+            previous_scene_count: previousSceneCount,
             target_duration_seconds: targetDurationSeconds,
             target_scene_count: targetSceneCount,
             script_style: topic.assigned_script_style || 'default',
@@ -161,6 +178,19 @@ export async function POST(req: Request) {
                 'Do not include planning notes, prompt labels, beat labels, camera instructions, or meta text inside the final narration script.',
                 'Regenerate image-grid prompts from the repaired scene plan so every scene is covered, then generate the final publish metadata package.'
             ].join(' ')
+        }
+
+        const { data: duplicate, error: duplicateError } = await supabase
+            .from('remote_hermes_queue')
+            .select('id,job_type,status')
+            .in('job_type', ['script_plan_generate', 'script_generate', 'publish_metadata_generate'])
+            .contains('payload', { topic_queue_id: topicId, repair_mode: true })
+            .in('status', ['pending', 'claimed', 'rendering', 'running'])
+            .limit(1)
+            .maybeSingle()
+        if (duplicateError) throw duplicateError
+        if (duplicate) {
+            return NextResponse.json({ error: `An active repair job already exists: ${duplicate.id}` }, { status: 409 })
         }
 
         let { data: job, error: jobError } = await supabase
