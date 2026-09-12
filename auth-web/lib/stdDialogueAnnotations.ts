@@ -68,7 +68,7 @@ export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any):
                 dialogue_speaker: group.speaker || null, dialogue_kind: group.dialogue ? 'dialogue' : 'narration',
                 dialogue_source: 'codex-ai', audio_regeneration_required: true}
             // An old audio clip includes the whole parent block, not this fragment.
-            for (const key of ['audio_url', 'tts_url', 'audio_asset_id', 'tts_asset_id', 'audio_duration']) delete item[key]
+            for (const key of ['audio_url', 'tts_url', 'audio_asset_id', 'tts_asset_id', 'audio_duration', 'dialogue_override']) delete item[key]
             return item
         })
     })

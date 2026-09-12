@@ -4,9 +4,9 @@ import { createPortal } from 'react-dom'
 import { Mic } from 'lucide-react'
 import { VOICE_STUDIO_VOICES } from '@/lib/voiceStudioCatalog'
 
-export default function VoiceStudioPicker({value, direction, onChange, headers, microphone = false, label, description}: {
+export default function VoiceStudioPicker({value, direction, onChange, headers, microphone = false, label, description, buttonText}: {
     value:string; direction:string; onChange:(id:string,direction:string)=>void; headers:Record<string,string>
-    microphone?:boolean; label?:string; description?:string
+    microphone?:boolean; label?:string; description?:string; buttonText?:string
 }) {
     const [open,setOpen]=useState(false), [search,setSearch]=useState(''), [gender,setGender]=useState('')
     const [draft,setDraft]=useState(value), [tone,setTone]=useState(direction), [busy,setBusy]=useState(''), [error,setError]=useState('')
@@ -25,7 +25,7 @@ export default function VoiceStudioPicker({value, direction, onChange, headers, 
         }catch(e:any){setError(e.message)}finally{setBusy('')}
     }
     return <>
-        <button type="button" aria-label={label} title={label} onClick={(event)=>{event.stopPropagation();setDraft(value);setTone(direction);setOpen(true)}} className={microphone ? 'w-8 h-8 rounded-md border border-white/10 bg-[#10141b] text-cyan-100 flex items-center justify-center hover:border-cyan-400/50' : 'px-3 py-1.5 rounded border border-cyan-500/40 text-cyan-200 text-xs'}>{microphone ? <Mic size={14}/> : <>Voice Studio · {value.replace('gemini:','')}</>}</button>
+        <button type="button" aria-label={label} title={label} onClick={(event)=>{event.stopPropagation();setDraft(value);setTone(direction);setOpen(true)}} className={microphone ? 'w-[30px] h-[30px] sm:w-8 sm:h-8 rounded-md border border-white/10 bg-[#10141b] text-cyan-100 flex items-center justify-center hover:border-cyan-400/50' : 'w-full max-w-full sm:w-auto sm:max-w-52 truncate px-3 py-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/10 text-cyan-100 text-xs font-bold hover:bg-cyan-500/20'}>{microphone ? <Mic size={14}/> : <>{buttonText || value.replace('gemini:','')}</>}</button>
         {open&&createPortal(<div onClick={event=>event.stopPropagation()} className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Voice Studio 내레이션 목소리">
             <div className="bg-[#1c2027] text-gray-100 [color-scheme:dark] border border-white/20 rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col p-5 gap-3">
                 <div className="flex justify-between"><h2 className="font-bold text-white">Voice Studio · 내레이션 목소리 30개</h2><button type="button" onClick={()=>{player.current?.pause();setOpen(false)}} aria-label="닫기">✕</button></div>
