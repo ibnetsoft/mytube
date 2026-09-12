@@ -10,6 +10,8 @@ import argparse
 import json
 import mimetypes
 import os
+import sys
+import hashlib
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -20,6 +22,8 @@ from PIL import Image, ImageFilter, ImageOps
 
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+from worker.thumbnail_contract import background_ready, can_sync_background
 BUCKET = "content-assets"
 WIDTH, HEIGHT = 1920, 1080
 
@@ -36,7 +40,7 @@ def _client() -> tuple[str, dict[str, str]]:
 def _topic(topic_id: str) -> tuple[dict[str, Any], str, dict[str, str]]:
     base_url, headers = _client()
     response = requests.get(
-        f"{base_url}/rest/v1/topics_queue?id=eq.{quote(str(topic_id), safe='')}&select=id,progress_payload",
+        f"{base_url}/rest/v1/topics_queue?id=eq.{quote(str(topic_id), safe='')}&select=id,progress_payload,pregenerated_script",
         headers=headers,
         timeout=60,
     )
@@ -61,6 +65,9 @@ def export_prompt(topic_id: str, output_path: Path) -> Path:
                 "topic_id": str(row["id"]),
                 "prompt": prompt,
                 "output": {
+                    "contract": "editable-background-v1",
+                    "final_render": "user_save_only",
+                    "text_layers": (progress.get("thumbnail_design") or {}).get("text_layers") or [],
                     "width": WIDTH,
                     "height": HEIGHT,
                     "text_in_image": False,
@@ -94,7 +101,7 @@ def _ensure_bucket(base_url: str, headers: dict[str, str]) -> None:
 def _thumbnail_metadata(progress: dict[str, Any], public_url: str) -> dict[str, Any]:
     """Build one canonical thumbnail result payload for queue and claimed projects."""
     return {
-        **progress,
+        **background_ready(progress, public_url),
         "thumbnail_bg_url": public_url,
         "thumbnail_bg_width": WIDTH,
         "thumbnail_bg_height": HEIGHT,
@@ -108,6 +115,8 @@ def _sync_claimed_std_projects(
     public_url: str,
     base_url: str,
     headers: dict[str, str],
+    queue_progress: dict[str, Any] | None = None,
+    source_script: str | None = None,
 ) -> int:
     """Make a newly rendered background visible to projects already claimed on STD web.
 
@@ -120,7 +129,9 @@ def _sync_claimed_std_projects(
         headers=headers,
         params={
             "topic_queue_id": f"eq.{topic_id}",
-            "select": "id,project_payload,progress_payload",
+            "select": "id,status,submitted_at,updated_at,project_payload,progress_payload",
+            "status": "in.(claimed,in_progress)",
+            "submitted_at": "is.null",
         },
         timeout=60,
     )
@@ -133,20 +144,28 @@ def _sync_claimed_std_projects(
     for project in rows:
         if not isinstance(project, dict) or not project.get("id"):
             continue
+        if not can_sync_background(project, source_script):
+            continue
         project_payload = project.get("project_payload") if isinstance(project.get("project_payload"), dict) else {}
         progress_payload = project.get("progress_payload") if isinstance(project.get("progress_payload"), dict) else {}
-        project_patch = _thumbnail_metadata(project_payload, public_url)
-        progress_patch = _thumbnail_metadata(progress_payload, public_url)
+        defaults = {k:v for k,v in (queue_progress or {}).items() if k.startswith('thumbnail_')}
+        project_patch = _thumbnail_metadata({**defaults, **project_payload}, public_url)
+        progress_patch = _thumbnail_metadata({**defaults, **progress_payload}, public_url)
         update = requests.patch(
             f"{base_url}/rest/v1/std_projects?id=eq.{quote(str(project['id']), safe='')}",
-            headers={**headers, "Content-Type": "application/json", "Prefer": "return=minimal"},
+            params={'updated_at':f"eq.{project['updated_at']}", 'status':f"eq.{project['status']}", 'submitted_at':'is.null'},
+            headers={**headers, "Content-Type": "application/json", "Prefer": "return=representation"},
             json={"project_payload": project_patch, "progress_payload": progress_patch},
             timeout=60,
         )
-        if update.status_code not in (200, 204):
+        if update.status_code != 200:
             raise RuntimeError(
                 f"claimed STD project thumbnail update failed: {update.status_code} {update.text[:300]}"
             )
+        saved = update.json()
+        if not saved: continue  # User edited the project; do not clobber it.
+        if saved[0].get('project_payload') != project_patch:
+            raise RuntimeError('Thumbnail draft readback mismatch')
         synced += 1
     return synced
 
@@ -174,7 +193,8 @@ def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False) ->
         )
     output_path = source_path.with_suffix(".thumbnail-bg.png")
     prepared.save(output_path, format="PNG", optimize=True)
-    object_path = f"topics/{row['id']}/thumbnail/background.png"
+    fingerprint = hashlib.sha256(output_path.read_bytes()).hexdigest()[:20]
+    object_path = f"topics/{row['id']}/thumbnail/background-{fingerprint}.png"
     with output_path.open("rb") as handle:
         upload = requests.post(
             f"{base_url}/storage/v1/object/{BUCKET}/{quote(object_path, safe='/')}",
@@ -195,7 +215,7 @@ def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False) ->
     )
     if update.status_code not in (200, 204):
         raise RuntimeError(f"thumbnail URL update failed: {update.status_code} {update.text[:300]}")
-    _sync_claimed_std_projects(str(row["id"]), public_url, base_url, headers)
+    _sync_claimed_std_projects(str(row["id"]), public_url, base_url, headers, patch, row.get('pregenerated_script'))
     return public_url
 
 

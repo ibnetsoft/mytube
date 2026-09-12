@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
+import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '@/lib/stdRenderQueue'
 
@@ -26,6 +27,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (project.submitted_at) {
         return NextResponse.json({ success: true, already_submitted: true, submitted_at: project.submitted_at })
     }
+    const thumbnailError = editableThumbnailError(
+        project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
+        project.project_payload?.thumbnail_url || project.progress_payload?.thumbnail_url,
+        true,
+    )
+    if (thumbnailError) return NextResponse.json({ success: false, error: thumbnailError }, { status: 409 })
     if (project.topic_queue_id) {
         const { data: sharedSubmission, error: sharedSubmissionError } = await supabaseAdmin
             .from('std_projects')

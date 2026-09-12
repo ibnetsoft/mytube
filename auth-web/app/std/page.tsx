@@ -4,6 +4,8 @@ import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDi
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
+import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
+import StdThumbnailPreview from '@/components/StdThumbnailPreview'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
 
 const STD_OFFICIAL_CATEGORIES = [
@@ -1143,6 +1145,8 @@ export default function StdPortalPage() {
     const [thumbStyle, setThumbStyle] = useState('realistic')
     const [thumbStep, setThumbStep] = useState<number>(1)
     const [thumbBgUrl, setThumbBgUrl] = useState('')
+    const [thumbnailSaving, setThumbnailSaving] = useState(false)
+    const thumbnailSaveLock = useRef(false)
     const [thumbBgUploadFile, setThumbBgUploadFile] = useState<File | null>(null)
     const titleSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const thumbnailDesignAppliedProjectRef = useRef('')
@@ -1159,6 +1163,13 @@ export default function StdPortalPage() {
         y: number
     }>>([])
 
+    useEffect(() => {
+        setThumbBgUrl(''); setThumbBgUploadFile(null); setThumbTextLayers([])
+        setThumbTitle(''); setThumbStep(1)
+        thumbnailDesignAppliedProjectRef.current = ''
+        codexThumbnailAppliedProjectRef.current = ''
+    }, [selectedProject?.project?.id, mediaSession])
+
     const normalizeThumbTextLayers = (layers: any[]) => {
         return (Array.isArray(layers) ? layers : [])
             .map((layer: any, index: number) => ({
@@ -1167,7 +1178,7 @@ export default function StdPortalPage() {
                 fontSize: Number(layer?.fontSize || 28),
                 color: String(layer?.color || '#ffffff'),
                 strokeColor: String(layer?.strokeColor || '#000000'),
-                strokeWidth: Number(layer?.strokeWidth || 3),
+                strokeWidth: Number(layer?.strokeWidth ?? 3),
                 fontFamily: String(layer?.fontFamily || 'GmarketSansBold'),
                 x: Number(layer?.x ?? 50),
                 y: Number(layer?.y ?? 50),
@@ -1219,8 +1230,8 @@ export default function StdPortalPage() {
         const designStep = Number(design.step)
         if (Number.isFinite(designStep) && designStep > 0) setThumbStep(Math.floor(designStep))
         const nextLayers = normalizeThumbTextLayers(design.text_layers || design.textLayers || [])
-        if (nextLayers.length > 0) setThumbTextLayers(nextLayers)
-        const designBgUrl = persistentThumbnailUrl(design.editor_bg_url, design.bg_url, design.thumbnail_url, projectPayload.thumbnail_url, progressPayload.thumbnail_url)
+        setThumbTextLayers(nextLayers)
+        const designBgUrl = thumbnailEditorBackground(projectPayload, progressPayload)
         if (designBgUrl) {
             setThumbBgUrl(designBgUrl)
             setThumbBgUploadFile(null)
@@ -1242,7 +1253,7 @@ export default function StdPortalPage() {
         const projectTitle = String(projectPayload.generated_title || selectedProject?.project?.title || '').trim()
         if (!hasSavedDesign && projectTitle) setThumbTitle(projectTitle)
         if (!hasSavedDesign && codexThumbnailData.hookTexts.length) {
-            setThumbTextLayers(codexThumbnailData.hookTexts.slice(0, 2).map((text, index) => ({
+            setThumbTextLayers(codexThumbnailData.hookTexts.slice(0, 1).map((text, index) => ({
                 id: `codex-layer-${projectId}-${index + 1}`,
                 text,
                 fontSize: index === 0 ? 34 : 26,
@@ -3467,9 +3478,7 @@ export default function StdPortalPage() {
         const thumbnailAsset = assets.find((asset: any) =>
             String(asset?.asset_type || '').toLowerCase() === 'thumbnail' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        const editorThumbnailUrl = persistentThumbnailUrl(projectPayload?.project?.project_payload?.thumbnail_design?.editor_bg_url)
-        const fallbackThumbnailUrl = persistentThumbnailUrl(projectPayload?.project?.progress_payload?.thumbnail_url)
-        const restoredEditorUrl = editorThumbnailUrl || restoredThumbnailUrl || persistentThumbnailUrl(assetDisplayUrl(projectId, thumbnailAsset), fallbackThumbnailUrl)
+        const restoredEditorUrl = thumbnailEditorBackground(projectPayload?.project?.project_payload, projectPayload?.project?.progress_payload)
         if (restoredEditorUrl) {
             setThumbBgUrl(restoredEditorUrl)
             setThumbBgUploadFile(null)
@@ -5385,6 +5394,11 @@ export default function StdPortalPage() {
 
     const uploadThumbnailBgToDrive = async (file: File, updateEditorPreview = true, backgroundOnly = false) => {
         if (!selectedProject?.project?.id) return
+        const requestScope = { ...mediaScopeRef.current }
+        const assertCurrent = () => {
+            if (requestScope.projectId !== selectedProject.project.id || !isCurrentMediaScope(requestScope, mediaScopeRef.current)) throw new Error('프로젝트가 변경되어 썸네일 저장을 중단했습니다.')
+        }
+        assertCurrent()
         setUploadingKey('thumbnail-upload')
         setMessage('썸네일 이미지를 업로드하는 중...')
         try {
@@ -5400,6 +5414,7 @@ export default function StdPortalPage() {
                 }),
             })
             const initPayload = await safeParseJson(initRes, '썸네일 업로드 준비 실패')
+            assertCurrent()
             if (!initRes.ok || initPayload.success === false || !initPayload.storage_upload_url) {
                 throw new Error(initPayload.error || '썸네일 업로드 준비 실패')
             }
@@ -5414,6 +5429,7 @@ export default function StdPortalPage() {
                 const storageError = await storageRes.text().catch(() => '')
                 throw new Error(storageError || `썸네일 Storage 업로드 실패 (${storageRes.status})`)
             }
+            assertCurrent()
 
             const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
                 method: 'POST',
@@ -5431,33 +5447,26 @@ export default function StdPortalPage() {
                 }),
             })
             const completePayload = await safeParseJson(completeRes, '썸네일 업로드 완료 처리 실패')
+            assertCurrent()
             if (!completeRes.ok || completePayload.success === false || !completePayload.asset) {
                 throw new Error(completePayload.error || '썸네일 업로드 완료 처리 실패')
             }
 
             const persistedThumbnailUrl = assetDisplayUrl(selectedProject.project.id, completePayload.asset) || ''
             if (backgroundOnly) {
-                setSelectedProject(prev => prev ? { ...prev, assets: [completePayload.asset, ...prev.assets] } : prev)
+                setSelectedProject(prev => prev && prev.project.id === requestScope.projectId ? { ...prev, assets: [completePayload.asset, ...prev.assets] } : prev)
                 return persistedThumbnailUrl
             }
             setSelectedProject(prev => {
-                if (!prev) return prev
+                if (!prev || prev.project.id !== requestScope.projectId) return prev
                 const updated = {
                     ...prev,
                     assets: [completePayload.asset, ...prev.assets.filter(a => a.asset_type !== 'thumbnail')],
-                    project: {
-                        ...prev.project,
-                        progress_payload: {
-                            ...(prev.project.progress_payload || {}),
-                            thumbnail_completed: true,
-                            thumbnail_url: persistedThumbnailUrl,
-                        },
-                    },
                 }
                 rememberProjectState(updated)
                 return updated
             })
-            if (updateEditorPreview) setThumbBgUrl(persistedThumbnailUrl)
+            // Never put a flattened final back underneath editable text layers.
             setThumbBgUploadFile(null)
             setMessage('썸네일 이미지가 Google Drive에 저장되었습니다.')
             return persistedThumbnailUrl
@@ -5466,67 +5475,22 @@ export default function StdPortalPage() {
         }
     }
 
-    const createFinalThumbnailFile = async () => {
-        const sourceUrl = String(thumbBgUrl || '').trim()
-        if (!sourceUrl) throw new Error('확정할 썸네일 배경 이미지가 없습니다.')
-
-        const source = await fetch(sourceUrl, {
-            headers: isSameOriginApiAudioUrl(sourceUrl) ? authedJsonHeaders : undefined,
-        })
-        if (!source.ok) throw new Error(`썸네일 배경 이미지를 불러오지 못했습니다. (${source.status})`)
-        const sourceBlob = await source.blob()
-        if (!sourceBlob.type.startsWith('image/')) throw new Error('썸네일 배경이 이미지 파일이 아닙니다.')
-
-        const imageUrl = URL.createObjectURL(sourceBlob)
-        try {
-            const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-                const element = new Image()
-                element.onload = () => resolve(element)
-                element.onerror = () => reject(new Error('썸네일 배경 이미지를 캔버스에 그리지 못했습니다.'))
-                element.src = imageUrl
-            })
-            const canvas = document.createElement('canvas')
-            canvas.width = 1280
-            canvas.height = 720
-            const context = canvas.getContext('2d')
-            if (!context) throw new Error('썸네일 캔버스를 만들지 못했습니다.')
-
-            const scale = Math.max(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight)
-            const drawWidth = image.naturalWidth * scale
-            const drawHeight = image.naturalHeight * scale
-            context.drawImage(image, (canvas.width - drawWidth) / 2, (canvas.height - drawHeight) / 2, drawWidth, drawHeight)
-
-            for (const layer of normalizeThumbTextLayers(thumbTextLayers)) {
-                const fontSize = Math.max(12, Number(layer.fontSize) || 28)
-                const strokeWidth = Math.max(0, Number(layer.strokeWidth) || 0)
-                context.font = `900 ${fontSize}px ${layer.fontFamily || 'sans-serif'}`
-                context.textAlign = 'center'
-                context.textBaseline = 'middle'
-                context.lineJoin = 'round'
-                context.fillStyle = layer.color || '#ffffff'
-                context.strokeStyle = layer.strokeColor || '#000000'
-                context.lineWidth = strokeWidth * 2
-                const x = (Number(layer.x) || 50) * canvas.width / 100
-                const y = (Number(layer.y) || 50) * canvas.height / 100
-                if (strokeWidth > 0) context.strokeText(layer.text, x, y)
-                context.fillText(layer.text, x, y)
-            }
-
-            const pngBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
-            if (!pngBlob) throw new Error('최종 썸네일 PNG 생성에 실패했습니다.')
-            return new File([pngBlob], `std_thumbnail_${Date.now()}.png`, { type: 'image/png' })
-        } finally {
-            URL.revokeObjectURL(imageUrl)
-        }
-    }
+    const createFinalThumbnailFile = async () => renderThumbnailFile(
+        thumbBgUrl, normalizeThumbTextLayers(thumbTextLayers),
+        isSameOriginApiAudioUrl(thumbBgUrl) ? authedJsonHeaders : undefined,
+    )
 
     const markThumbnailConfirmed = async (thumbnailUrlOverride?: string, editorBgUrlOverride?: string) => {
         if (!selectedProject?.project?.id) return
+        const requestScope = { ...mediaScopeRef.current }
         const confirmedAt = new Date().toISOString()
-        const savedThumbnailUrl = persistentThumbnailUrl(thumbnailUrlOverride, thumbBgUrl)
+        const savedThumbnailUrl = persistentThumbnailUrl(thumbnailUrlOverride)
         const editorBgUrl = persistentThumbnailUrl(editorBgUrlOverride, thumbBgUrl)
         if (!savedThumbnailUrl || !editorBgUrl) throw new Error('썸네일과 편집 배경을 먼저 영구 저장해야 합니다.')
         const thumbnailDesign = {
+            contract: THUMBNAIL_CONTRACT,
+            coordinate_width: 480,
+            render_status: 'completed',
             title: thumbTitle,
             layout: thumbLayout,
             style: thumbStyle,
@@ -5539,16 +5503,27 @@ export default function StdPortalPage() {
         }
         const progressPatch = {
             thumbnail_completed: true,
+            thumbnail_render_status: 'completed',
             thumbnail_url: savedThumbnailUrl,
             thumbnail_confirmed_at: confirmedAt,
         }
         const projectPayloadPatch = {
+            thumbnail_bg_url: editorBgUrl,
             thumbnail_url: savedThumbnailUrl,
             thumbnail_design: thumbnailDesign,
         }
 
+        const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
+            method: 'PATCH', headers: authedJsonHeaders,
+            body: JSON.stringify({ progress_payload: progressPatch, project_payload: projectPayloadPatch }),
+        })
+        const payload = await safeParseJson(res, '썸네일 완료 상태 저장 실패')
+        if (!res.ok || payload.success === false) throw new Error(payload.error || '썸네일 완료 상태 저장 실패')
+        if (!isCurrentMediaScope(requestScope, mediaScopeRef.current)) throw new Error('프로젝트가 변경되었습니다. 원래 프로젝트에만 저장했습니다.')
+        setThumbBgUrl(editorBgUrl)
+
         setSelectedProject(prev => {
-            if (!prev) return prev
+            if (!prev || prev.project.id !== requestScope.projectId) return prev
             const updated = {
                 ...prev,
                 project: {
@@ -5567,16 +5542,6 @@ export default function StdPortalPage() {
             return updated
         })
 
-        const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
-            method: 'PATCH',
-            headers: authedJsonHeaders,
-            body: JSON.stringify({
-                progress_payload: progressPatch,
-                project_payload: projectPayloadPatch,
-            }),
-        })
-        const payload = await safeParseJson(res, '썸네일 완료 상태 저장 실패')
-        if (!res.ok || payload.success === false) throw new Error(payload.error || '썸네일 완료 상태 저장 실패')
     }
 
     const handleBulkImageUpload = async (files: FileList | null) => {
@@ -10218,6 +10183,10 @@ export default function StdPortalPage() {
                                     <button
                                         type="button"
                                             onClick={async () => {
+                                                if (thumbnailSaveLock.current) return
+                                                thumbnailSaveLock.current = true
+                                                setThumbnailSaving(true)
+                                                const saveScope = { ...mediaScopeRef.current }
                                                 try {
                                                     let editorBackgroundUrl = persistentThumbnailUrl(thumbBgUrl)
                                                     if (!editorBackgroundUrl) {
@@ -10227,23 +10196,29 @@ export default function StdPortalPage() {
                                                         if (!backgroundBlob.type.startsWith('image/')) throw new Error('편집 배경이 이미지가 아닙니다.')
                                                         const extension = backgroundBlob.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
                                                         const backgroundFile = new File([backgroundBlob], `thumbnail_background_${Date.now()}.${extension}`, { type: backgroundBlob.type })
+                                                        if (!isCurrentMediaScope(saveScope, mediaScopeRef.current)) throw new Error('프로젝트가 변경되어 저장을 중단했습니다.')
                                                         editorBackgroundUrl = await uploadThumbnailBgToDrive(backgroundFile, false, true) || ''
                                                         if (!editorBackgroundUrl) throw new Error('편집 배경 영구 저장에 실패했습니다.')
                                                     }
                                                     const finalThumbnailFile = await createFinalThumbnailFile()
+                                                    if (!isCurrentMediaScope(saveScope, mediaScopeRef.current)) throw new Error('프로젝트가 변경되어 저장을 중단했습니다.')
                                                     const persistedThumbnailUrl = await uploadThumbnailBgToDrive(finalThumbnailFile, false)
                                                     if (!persistedThumbnailUrl) throw new Error('최종 썸네일 파일 URL을 받지 못했습니다.')
+                                                    if (!isCurrentMediaScope(saveScope, mediaScopeRef.current)) throw new Error('프로젝트가 변경되어 저장을 중단했습니다.')
                                                     await markThumbnailConfirmed(persistedThumbnailUrl, editorBackgroundUrl)
                                                     setMessage('최종 썸네일 이미지와 편집 디자인이 저장되었습니다.')
                                                     alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
-                                                } catch (error: any) {
+                                            } catch (error: any) {
                                                 alert(error.message || '썸네일 이미지 업로드에 실패했습니다.')
+                                            } finally {
+                                                thumbnailSaveLock.current = false
+                                                setThumbnailSaving(false)
                                             }
                                         }}
-                                        disabled={uploadingKey === 'thumbnail-upload'}
+                                        disabled={thumbnailSaving || uploadingKey === 'thumbnail-upload' || !thumbBgUrl}
                                         className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow transition disabled:opacity-60"
                                     >
-                                        {uploadingKey === 'thumbnail-upload' ? '업로드 중...' : '💾 최종 썸네일 확정 저장'}
+                                        {thumbnailSaving ? '합성·저장 중...' : '💾 최종 썸네일 확정 저장'}
                                     </button>
                                 </div>
 
@@ -10343,6 +10318,12 @@ export default function StdPortalPage() {
                                                                 }}
                                                                 className="w-full accent-purple-500 cursor-pointer"
                                                             />
+                                                            <label className="text-gray-500 block mb-1 mt-2">위치 X ({layer.x}%)</label>
+                                                            <input type="range" min="0" max="100" value={layer.x}
+                                                                onChange={e => {
+                                                                    const x = Number(e.target.value)
+                                                                    setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, x } : l))
+                                                                }} className="w-full accent-purple-500 cursor-pointer" />
                                                         </div>
                                                     </div>
 
@@ -10398,48 +10379,8 @@ export default function StdPortalPage() {
                                                 <span>📺 16:9 썸네일 미리보기</span>
                                                 <span className="text-[10px] text-gray-500 font-mono">1280 x 720 (HD)</span>
                                             </div>
-                                            <div className="relative aspect-video bg-black overflow-hidden select-none">
-                                                {/* 배경 이미지 */}
-                                                <img
-                                                    src={thumbBgUrl}
-                                                    alt="Thumbnail BG"
-                                                    className="w-full h-full object-cover"
-                                                    onError={event => {
-                                                        event.currentTarget.onerror = null
-                                                        const fallback = String(selectedProject?.scenes?.[0]?.image_url || '').trim()
-                                                        if (fallback && fallback !== thumbBgUrl) {
-                                                            setThumbBgUrl(fallback)
-                                                            setThumbBgUploadFile(null)
-                                                            setMessage('저장된 썸네일 배경을 불러오지 못해 1번 씬 이미지를 대신 표시했습니다.')
-                                                        }
-                                                    }}
-                                                />
-
-                                                {/* 텍스트 레이어 오버레이 */}
-                                                {thumbTextLayers.map(layer => (
-                                                    <div
-                                                        key={layer.id}
-                                                        className="absolute inset-x-4 text-center select-none pointer-events-none transition-all"
-                                                        style={{
-                                                            top: `${layer.y}%`,
-                                                            transform: 'translateY(-50%)',
-                                                            fontFamily: layer.fontFamily,
-                                                            color: layer.color,
-                                                            fontSize: `${layer.fontSize}px`,
-                                                            fontWeight: 'bold',
-                                                            textShadow: `
-                                                                -${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                                ${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                                -${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                                ${layer.strokeWidth}px ${layer.strokeWidth}px 0 ${layer.strokeColor},
-                                                                0 4px 10px rgba(0,0,0,0.8)
-                                                            `,
-                                                        }}
-                                                    >
-                                                        {layer.text}
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            <StdThumbnailPreview background={thumbBgUrl} layers={thumbTextLayers}
+                                                headers={isSameOriginApiAudioUrl(thumbBgUrl) ? authedJsonHeaders : undefined} />
                                         </div>
 
                                         {/* 하단 배경 교체 버튼들 */}

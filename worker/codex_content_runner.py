@@ -928,7 +928,11 @@ class CodexStagedContentRunner:
         thumbnail_task = (
             "Create exactly three ready-to-use thumbnail text candidates from the completed script. "
             "Return {'thumbnail_hook_texts':['candidate 1','candidate 2','candidate 3'],"
-            "'thumbnail_hook_reasoning':'one short sentence','thumbnail_image_prompt':'detailed English prompt'}. "
+            "'thumbnail_hook_reasoning':'one short sentence','thumbnail_image_prompt':'detailed English prompt',"
+            "'thumbnail_text_layers':[{'text':'chosen headline'},{'text':'optional complementary subheadline'}]}. "
+            "The text layers form ONE editable design, not a stack of competing candidates. "
+            "Never generate a flattened thumbnail or ask the image model to draw any headline. "
+            "Keep the background and overlay copy separate; final composition is rendered only when the user presses Save. "
             "thumbnail_image_prompt must describe one original, text-free 16:9 YouTube thumbnail background in English. "
             "It must make the title promise and strongest story conflict visually obvious, use the selected thumbnail style, "
             "and end with: no text, no letters, no words, no captions, no watermark. Every candidate must be in the requested language, "
@@ -961,7 +965,11 @@ class CodexStagedContentRunner:
                 for c in [anchors["main_character"], *anchors["supporting_characters"]]]
         main = script_context["main_character"]
         supporting = script_context["supporting_characters"]
-        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
+        from worker.thumbnail_contract import thumbnail_draft
+        design = thumbnail_draft(thumbnail_hook_texts, thumbnail_stage.get("thumbnail_text_layers"), str(payload.get("upload_title") or payload.get("topic") or ""))
+        design['layout'] = thumbnail_context['thumbnail_style']
+        design['style'] = str(payload.get('image_style') or 'realistic')
+        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_design": design, "thumbnail_completed": False, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
 
 
 class CodexTopicDiscoveryRunner:

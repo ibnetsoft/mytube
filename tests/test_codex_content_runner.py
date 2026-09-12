@@ -206,4 +206,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert "Script rhythm QA contract" in calls[2][1]["script_rhythm_contract"]
     assert package["thumbnail_hook_texts"] == ["우물의 비밀", "약속의 진실", "결말의 반전"]
     assert package["thumbnail_copy_source"] == "codex-cli"
+    assert package["thumbnail_completed"] is False
+    assert package["thumbnail_design"]["contract"] == "editable-background-v1"
+    assert package["thumbnail_design"]["thumbnail_url"] is None
     assert package["thumbnail_image_prompt"].startswith("A cinematic Korean folktale")

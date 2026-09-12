@@ -1,4 +1,5 @@
 import { canEditStdProject } from '@/lib/stdProjectEditPolicy'
+import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -313,10 +314,19 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     const incomingProgress = body?.progress_payload || {}
     const incomingProjectPayload = body?.project_payload || {}
+    if (incomingProjectPayload.thumbnail_design || incomingProgress.thumbnail_completed === true) {
+        const thumbnailError = editableThumbnailError(
+            incomingProjectPayload.thumbnail_design || project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
+            incomingProjectPayload.thumbnail_url || incomingProgress.thumbnail_url || project.project_payload?.thumbnail_url,
+            incomingProgress.thumbnail_completed,
+        )
+        if (thumbnailError) return NextResponse.json({ success: false, error: thumbnailError }, { status: 400 })
+    }
     const allowSceneUpdate = body?.allow_scene_update === true
     const allowSceneInsert = body?.allow_scene_insert === true
     const incomingScenes = allowSceneUpdate && Array.isArray(incomingProjectPayload?.scenes) ? incomingProjectPayload.scenes : []
     const allowedProgressKeys = new Set([
+        'thumbnail_render_status',
         'thumbnail_completed',
         'thumbnail_url',
         'thumbnail_confirmed_at',
@@ -336,6 +346,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'render_settings',
         'settings',
         'thumbnail_design',
+        'thumbnail_bg_url',
         'thumbnail_url',
         'bgm_sfx_saved',
     ])
