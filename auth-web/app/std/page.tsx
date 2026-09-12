@@ -8433,6 +8433,19 @@ export default function StdPortalPage() {
                                                                     {sceneTransitionLabel(transitionEffect)}
                                                                 </div>
                                                             )}
+                                                            {isVrewSubtitleMode && (
+                                                                <label className="mt-2 flex flex-col items-start gap-1 text-[9px] text-cyan-200">
+                                                                    이미지 모션
+                                                                    <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
+                                                                        disabled={Boolean(group.video_url) || isSceneEffectSaving}
+                                                                        title={group.video_url ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
+                                                                        onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect', [Number(sNum)])}
+                                                                        className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
+                                                                        {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
+                                                                    </select>
+                                                                    {group.video_url && <span className="text-gray-400">영상 원본 사용</span>}
+                                                                </label>
+                                                            )}
                                                         </div>
                                                         <div className="w-full min-w-0 flex-none sm:flex-1">
                                                             <div className="mb-1 flex items-center gap-1 sm:gap-2">
@@ -8480,21 +8493,8 @@ export default function StdPortalPage() {
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            {isVrewSubtitleMode && (
-                                                                <label className="mb-2 flex items-center gap-2 text-[10px] text-cyan-200">
-                                                                    이미지 모션
-                                                                    <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
-                                                                        disabled={Boolean(group.video_url) || isSceneEffectSaving}
-                                                                        title={group.video_url ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
-                                                                        onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect', [Number(sNum)])}
-                                                                        className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
-                                                                        {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
-                                                                    </select>
-                                                                    {group.video_url && <span className="text-gray-400">영상 원본 사용</span>}
-                                                                </label>
-                                                            )}
                                                             {isVrewSubtitleMode ? (
-                                                                <div className="space-y-1.5">
+                                                                <div className="space-y-0.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
@@ -8507,7 +8507,7 @@ export default function StdPortalPage() {
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
-                                                                                className={`grid ${hasSingleGroupVoice ? 'grid-cols-[1.25rem_minmax(0,1fr)_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_2rem]' : 'grid-cols-[1.25rem_minmax(0,1fr)_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_auto_2rem]'} items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-1.5 ${
+                                                                                className={`grid grid-cols-[1.25rem_minmax(0,1fr)] sm:grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-0.5 ${
                                                                                     isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
                                                                                         : isDialogueBlock
@@ -8543,6 +8543,16 @@ export default function StdPortalPage() {
                                                                                         parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
                                                                                         return parts
                                                                                     })() : renderAiDialogue(item, item.subtitleIndex)}
+                                                                                    <div className="ml-1.5 inline-flex align-middle" onClick={event => event.stopPropagation()}>
+                                                                                {renderVoicePicker(
+                                                                                    `block-${item.subtitleIndex}`,
+                                                                                    blockVoiceId,
+                                                                                    (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
+                                                                                    `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
+                                                                                    isDialogueBlock ? 'dialogue' : 'default',
+                                                                                    'left'
+                                                                                )}
+                                                                                    </div>
                                                                                     {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
                                                                                         <span className="ml-2 inline-flex items-center gap-2 text-[10px]">
                                                                                             {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>대사 후보</span>}
@@ -8564,7 +8574,6 @@ export default function StdPortalPage() {
                                                                                             }}>자동 판별</button>}
                                                                                         </span>
                                                                                     )}
-                                                                                </div>
                                                                                 {!hasSingleGroupVoice && (
                                                                                     <span
                                                                                         title={blockVoiceName}
@@ -8577,14 +8586,8 @@ export default function StdPortalPage() {
                                                                                         {blockVoiceName}
                                                                                     </span>
                                                                                 )}
-                                                                                {renderVoicePicker(
-                                                                                    `block-${item.subtitleIndex}`,
-                                                                                    blockVoiceId,
-                                                                                    (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
-                                                                                    `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
-                                                                                    isDialogueBlock ? 'dialogue' : 'default',
-                                                                                    'left'
-                                                                                )}
+                                                                                </div>
+
                                                                             </div>
                                                                         )
                                                                     })}
