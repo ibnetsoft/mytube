@@ -1,4 +1,5 @@
 'use client'
+import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -642,6 +643,12 @@ export default function StdPortalPage() {
     const [topics, setTopics] = useState<Topic[]>([])
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
+    const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
+    const mediaSession = JSON.stringify([token, user?.id || user?.email || '', isImpersonating ? impersonateEmail : ''])
+    if (mediaScopeRef.current.session !== mediaSession) {
+        mediaScopeRef.current = { session: mediaSession, projectId: '', generation: mediaScopeRef.current.generation + 1 }
+    }
+    mediaScopeRef.current.projectId = String(selectedProject?.project?.id || '')
 
     const projectStateCacheKey = (projectId: string | null | undefined) => {
         const id = String(projectId || '').trim()
@@ -3400,9 +3407,12 @@ export default function StdPortalPage() {
         const projectId = projectPayload?.project?.id
         const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
         if (!projectId) return
+        const requestScope = { ...mediaScopeRef.current, projectId: String(projectId) }
+        const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
 
         const mediaAssets = assets.filter((asset: any) =>
-            ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+            assetBelongsToProject(asset, projectId)
+            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
             && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
             && (asset?.id || asset?.drive_file_id)
         )
@@ -3423,6 +3433,7 @@ export default function StdPortalPage() {
                 const res = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers })
                 if (!res.ok) return null
                 const blob = await res.blob()
+                if (!isCurrent()) return null
                 const objectUrl = URL.createObjectURL(blob)
                 projectMediaObjectUrlsRef.current[cacheKey] = objectUrl
                 return { asset, objectUrl }
@@ -3432,6 +3443,7 @@ export default function StdPortalPage() {
         }))
 
         const restoredEntries = driveEntries
+        if (!isCurrent()) return
 
         const restoredMap = new Map<string, string>()
         let restoredThumbnailUrl = ''
@@ -3469,7 +3481,7 @@ export default function StdPortalPage() {
         setAudioResultUrl(restoredAudioUrl || audioPlaybackEndpoint(projectId, audioAsset) || '')
 
         setSelectedProject(prev => {
-            if (!prev || String(prev.project?.id || '') !== String(projectId)) return prev
+            if (!isCurrent() || !prev || String(prev.project?.id || '') !== String(projectId)) return prev
             const nextScenes = (prev.scenes || []).map((scene: any) => {
                 const sceneNumber = Number(scene?.scene_number)
                 const restoredImageUrl = restoredMap.get(`${sceneNumber}:image`)
@@ -4192,6 +4204,10 @@ export default function StdPortalPage() {
     }
 
     const signOut = async () => {
+        mediaScopeRef.current = { session: '', projectId: '', generation: mediaScopeRef.current.generation + 1 }
+        revokeProjectMediaObjectUrls()
+        localStorage.removeItem('std_active_project_state')
+        localStorage.removeItem('std_active_project_id')
         await supabase.auth.signOut()
         localStorage.removeItem('std_session_token')
         setToken('')
@@ -4866,6 +4882,9 @@ export default function StdPortalPage() {
         setMessage('')
         const targetToken = overrideToken || token
         const activeImpEmail = overrideImpEmail || (isImpersonating ? impersonateEmail : '')
+        const openGeneration = ++mediaScopeRef.current.generation
+        const isLatestOpen = () => openGeneration === mediaScopeRef.current.generation
+        setUploadingKey('')
         if (!activeImpEmail) rememberActiveProjectId(requestedProjectId)
         const impQuery = activeImpEmail ? `?impersonate=${encodeURIComponent(activeImpEmail)}` : ''
         const fetchHeaders: Record<string, string> = { Authorization: `Bearer ${targetToken}` }
@@ -4878,6 +4897,7 @@ export default function StdPortalPage() {
                 headers: fetchHeaders,
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
+            if (!isLatestOpen()) return null
             if (res.ok && payload?.project) {
                 const serverScenes = Array.isArray(payload.scenes) && payload.scenes.length > 0
                     ? payload.scenes
@@ -4956,6 +4976,7 @@ export default function StdPortalPage() {
             throw new Error(payload.error || '작업 조회 실패')
         } catch (error: any) {
             const urlProjectId = readUrlProjectId()
+            if (!isLatestOpen()) return null
             const canUseRememberedFallback = !urlProjectId || String(urlProjectId) !== String(requestedProjectId)
             if (canUseRememberedFallback) {
                 const remembered = readRememberedProjectState(requestedProjectId)
@@ -4969,7 +4990,7 @@ export default function StdPortalPage() {
             }
             setMessage(error.message || '작업 상세 조회 실패')
         } finally {
-            setProjectLoading(false)
+            if (isLatestOpen()) setProjectLoading(false)
         }
         return null
     }
@@ -4980,6 +5001,9 @@ export default function StdPortalPage() {
         file: File | null
     ): Promise<'synced' | false> => {
         if (!file || !selectedProject) return false
+        const requestScope = { ...mediaScopeRef.current }
+        const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
+        const uploadProjectId = selectedProject.project.id
         const sceneNum = scene?.scene_number || 1
         const lowerFileName = String(file.name || '').toLowerCase()
         const actualAssetType = file.type?.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/i.test(lowerFileName)
@@ -5003,9 +5027,10 @@ export default function StdPortalPage() {
         try {
             objectUrl = URL.createObjectURL(file)
             setSelectedProject(prev => {
-                if (!prev) return prev
+                if (!isCurrent() || !prev || prev.project.id !== uploadProjectId) return prev
                 const newAsset = {
                     id: localAssetId,
+                    project_id: uploadProjectId,
                     scene_number: sceneNum,
                     asset_type: actualAssetType,
                     file_name: file.name,
@@ -5039,6 +5064,7 @@ export default function StdPortalPage() {
                 if (!initRes.ok || initPayload.success === false || !initPayload.storage_upload_url) {
                     throw new Error(initPayload.error || 'Asset upload init failed')
                 }
+                if (!isCurrent()) throw new Error('Upload context changed')
 
                 setMessage(`파일 (${file.name}) Supabase Storage에 업로드 중...`)
                 const storageRes = await fetch(initPayload.storage_upload_url, {
@@ -5050,6 +5076,7 @@ export default function StdPortalPage() {
                     const storageError = await storageRes.text().catch(() => '')
                     throw new Error(storageError || 'Supabase Storage asset upload failed')
                 }
+                if (!isCurrent()) throw new Error('Upload context changed')
 
                 const completeRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/complete', {
                     method: 'POST',
@@ -5095,13 +5122,17 @@ export default function StdPortalPage() {
                 }
                 persistedAsset = uploadPayload.asset
             }
-            const assetCacheKey = projectAssetCacheKey(selectedProject.project.id, persistedAsset)
+            if (!assetBelongsToProject(persistedAsset, uploadProjectId)) {
+                throw new Error('업로드 결과의 프로젝트가 일치하지 않습니다.')
+            }
+            if (!isCurrent()) throw new Error('Upload context changed')
+            const assetCacheKey = projectAssetCacheKey(uploadProjectId, persistedAsset)
             if (assetCacheKey && objectUrl) {
                 projectMediaObjectUrlsRef.current[assetCacheKey] = objectUrl
             }
 
             setSelectedProject(prev => {
-                if (!prev) return prev
+                if (!isCurrent() || !prev || prev.project.id !== uploadProjectId) return prev
                 const persistedUrl = assetDisplayUrl(selectedProject.project.id, persistedAsset) || objectUrl
                 const updatedScenes = prev.scenes.map(s => {
                     if (s.scene_number !== sceneNum) return s
@@ -5141,7 +5172,7 @@ export default function StdPortalPage() {
         } catch (error: any) {
             if (objectUrl) {
                 setSelectedProject(prev => {
-                    if (!prev) return prev
+                    if (!isCurrent() || !prev || prev.project.id !== uploadProjectId) return prev
                     const updatedScenes = prev.scenes.map(s => {
                         if (s.scene_number !== sceneNum) return s
                         const imageUrl = actualAssetType === 'image' && s.image_url === objectUrl ? null : s.image_url
@@ -5169,10 +5200,10 @@ export default function StdPortalPage() {
                     URL.revokeObjectURL(objectUrl)
                 } catch {}
             }
-            setMessage(error.message || '업로드 실패')
+            if (isCurrent()) setMessage(error.message || '업로드 실패')
             return false
         } finally {
-            setUploadingKey('')
+            if (isCurrent()) setUploadingKey('')
         }
     }
 

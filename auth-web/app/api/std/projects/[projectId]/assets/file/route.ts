@@ -27,9 +27,8 @@ async function loadStdProject(projectId: string, employeeEmail: string) {
         return { data: null, error: null }
     }
 
-    if (employeeEmail && !employeeEmail.startsWith('admin') && !employeeEmail.startsWith('worker')) {
-        query = query.eq('employee_email', employeeEmail)
-    }
+    if (!employeeEmail) return { data: null, error: null }
+    query = query.eq('employee_email', employeeEmail)
 
     return await query.maybeSingle()
 }
@@ -61,7 +60,20 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             .maybeSingle()
         if (assetError) return NextResponse.json({ success: false, error: assetError.message }, { status: 500 })
         asset = assetRow
+    } else {
+        const { data: assetRow, error: assetError } = await supabaseAdmin
+            .from('std_project_assets')
+            .select('id,project_id,asset_type,drive_file_id,file_name,mime_type,status,metadata')
+            .eq('project_id', project.id)
+            .eq('drive_file_id', driveFileId)
+            .in('status', ['uploaded', 'assigned'])
+            .limit(1)
+            .maybeSingle()
+        if (assetError) return NextResponse.json({ success: false, error: assetError.message }, { status: 500 })
+        asset = assetRow
     }
+    // Never fall back to an unverified request file ID, including invalid assetId + driveFileId pairs.
+    if (!asset) return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 })
 
     const storageBucket = String(asset?.metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
     const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
@@ -79,7 +91,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     }
 
     if (!fileBuffer) {
-        const targetDriveFileId = asset?.drive_file_id || driveFileId
+        const targetDriveFileId = asset.drive_file_id
         if (!targetDriveFileId) return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 })
         try {
             fileBuffer = await downloadStdDriveFile(targetDriveFileId)
@@ -101,7 +113,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         headers: {
             'Content-Type': asset?.mime_type || 'application/octet-stream',
             'Content-Length': String(fileBuffer.length),
-            'Cache-Control': 'private, max-age=300',
+            'Cache-Control': 'private, no-store',
+            'Vary': 'Authorization, Cookie, x-impersonate-email',
             'Content-Disposition': `inline; filename="${encodeURIComponent(asset?.file_name || 'std_asset')}"`,
             'X-STD-Media-Source': source,
         },
