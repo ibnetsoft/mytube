@@ -57,3 +57,43 @@ def test_user_recommendations_only_return_pending_topics():
     source = (ROOT / "auth-web" / "lib" / "stdRecommendations.ts").read_text(encoding="utf-8")
 
     assert source.count(".eq('status', 'pending')") >= 2
+
+
+def test_codex_worker_center_separates_new_generation_and_hidden_repairs():
+    api = (ROOT / "auth-web" / "app" / "api" / "admin" / "codex-worker" / "route.ts").read_text(encoding="utf-8")
+    page = (ROOT / "auth-web" / "app" / "admin" / "codex-worker" / "page.tsx").read_text(encoding="utf-8")
+
+    assert "hide-visible-for-repair" in api
+    assert "repair_topics: repairTopics" in api
+    assert "visible_user_topics: visibleUserTopics" in api
+    assert "job.job_type === CODEX_JOB_TYPE ? 'new_generation' : 'repair'" in api
+    assert "REPAIR_PIPELINE_JOB_TYPES" in api
+    assert "기존 토픽 리페어 목록" in page
+    assert "신규 토픽 Codex 생성" in page
+    assert "'/api/admin/topics-queue/repair'" in page
+    assert "targetMinutes: topic.duration_minutes" in page
+    assert "targetSceneCount: topic.scene_count" in page
+
+
+def test_hidden_repair_topics_can_queue_without_becoming_visible():
+    repair = (ROOT / "auth-web" / "app" / "api" / "admin" / "topics-queue" / "repair" / "route.ts").read_text(encoding="utf-8")
+    complete = (ROOT / "auth-web" / "app" / "api" / "worker-central" / "jobs" / "[jobId]" / "complete" / "route.ts").read_text(encoding="utf-8")
+
+    assert "const isHiddenRepairTopic" in repair
+    assert "topic.status === 'excluded'" in repair
+    assert "admin_hidden" in repair
+    assert ".contains('payload', { topic_queue_id: topicId, repair_mode: true })" in repair
+    assert "previousSceneCount > 0 ? previousSceneCount : 53" in repair
+    assert "status: existingProgress.admin_hidden" in complete
+    assert "? 'excluded'" in complete
+    assert "repair_status: 'completed'" in complete
+
+
+def test_bulk_hide_is_reversible_and_clears_recommendation_cache():
+    source = (ROOT / "auth-web" / "app" / "api" / "admin" / "codex-worker" / "route.ts").read_text(encoding="utf-8")
+
+    assert "requireSuperAdmin(req)" in source
+    assert "admin_hidden_previous_status: 'pending'" in source
+    assert "repair_status: 'listed'" in source
+    assert ".from('user_topic_recommendations')" in source
+    assert ".in('topic_queue_id', hiddenIds)" in source

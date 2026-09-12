@@ -22,22 +22,40 @@ async function markPregeneratedFailed(jobId: string): Promise<void> {
         const topicQueueId = job.payload?.topic_queue_id
         if (!topicQueueId) return
 
+        const { data: existingTopic } = await supabaseAdmin
+            .from('topics_queue')
+            .select('progress_payload')
+            .eq('id', topicQueueId)
+            .maybeSingle()
+        const existingProgress = existingTopic?.progress_payload && typeof existingTopic.progress_payload === 'object'
+            ? existingTopic.progress_payload
+            : {}
+        const repairProgress = job.payload?.repair_mode ? {
+            progress_payload: {
+                ...existingProgress,
+                repair_status: 'failed',
+                repair_failed_at: new Date().toISOString(),
+                repair_failed_job_id: jobId,
+                repair_failed_job_type: job.job_type,
+            },
+        } : {}
+
         if (job.job_type === 'script_plan_generate') {
             const { error } = await supabaseAdmin
                 .from('topics_queue')
-                .update({ pregenerated_structure_status: 'failed' })
+                .update({ pregenerated_structure_status: 'failed', ...repairProgress })
                 .eq('id', topicQueueId)
             if (error) console.warn('[fail/route] pregenerated_structure_status update failed (non-fatal):', error.message)
         } else if (job.job_type === 'script_generate') {
             const { error } = await supabaseAdmin
                 .from('topics_queue')
-                .update({ pregenerated_script_status: 'failed' })
+                .update({ pregenerated_script_status: 'failed', ...repairProgress })
                 .eq('id', topicQueueId)
             if (error) console.warn('[fail/route] pregenerated_script_status update failed (non-fatal):', error.message)
         } else if (job.job_type === 'publish_metadata_generate') {
             const { error } = await supabaseAdmin
                 .from('topics_queue')
-                .update({ publish_metadata_status: 'failed' })
+                .update({ publish_metadata_status: 'failed', ...repairProgress })
                 .eq('id', topicQueueId)
             if (error) console.warn('[fail/route] publish_metadata_status update failed (non-fatal):', error.message)
         }
