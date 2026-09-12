@@ -21,6 +21,7 @@ from typing import Any
 from worker_config import OUTPUT_DIR, PROJECT_ROOT
 from senior_script_guard import PROFILE as SENIOR_PROFILE, contract as senior_contract, text_issues, review_issues
 from codex_dialogue import ASTRA_MODEL, DIALOGUE_TASK, validate_dialogue
+from listener_review import improve_for_listener
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -765,6 +766,23 @@ class CodexStagedContentRunner:
                 "sections": qa_sections,
                 "script_rhythm_rejection": rhythm_warnings,
             }
+        try:
+            qa_sections, listener_audit = improve_for_listener(
+                lambda name, context, task: self._stage(job_id, name, context, task),
+                str(payload.get('upload_title') or payload.get('topic') or ''), qa_sections, scene_budgets)
+        except ValueError as exc:
+            raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
+        if listener_audit['selected'] == 'revision':
+            final_review = self._stage(job_id, '02i_post_listener_review', {
+                **script_context, 'sections': qa_sections,
+                'script': '\n\n'.join(s['text'] for s in qa_sections),
+            }, 'Independently recheck the exact revised script against the complete senior listening contract. '
+               'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.')
+            qa['script_quality_report'] = final_review.get('script_quality_report')
+            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + review_issues(qa['script_quality_report'])
+            if final_issues:
+                raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
+        structure['listener_quality_report'] = listener_audit
         parts = []
         for index, section in enumerate(qa_sections, 1):
             text = str((section or {}).get("text") or "").strip() if isinstance(section, dict) else ""
