@@ -6091,6 +6091,11 @@ export default function StdPortalPage() {
         const lastIndex = indexes[indexes.length - 1]
         const isContiguous = indexes.every((index, position) => index === firstIndex + position)
         const selectedItems = indexes.map(index => localSubtitles[index]).filter(Boolean)
+        if (selectedItems.length !== indexes.length) {
+            setSelectedSubtitleBlockIndexes([])
+            setMessage('자막 목록이 변경됐습니다. 합칠 자막을 다시 선택해 주세요.')
+            return
+        }
         const sceneNumber = Number(selectedItems[0]?.scene_number)
         const isSameScene = selectedItems.every(item => Number(item?.scene_number) === sceneNumber)
         const firstIsDialogue = isSubtitleDialogue(selectedItems[0], firstIndex)
@@ -8455,6 +8460,15 @@ export default function StdPortalPage() {
                                                                 <span className="hidden text-[10px] text-gray-500 sm:inline">
                                                                     {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
                                                                 </span>
+                                                                {isVrewSubtitleMode && (
+                                                                    <button type="button"
+                                                                        disabled={selectedSubtitleBlockIndexes.length < 2 || !selectedSubtitleBlockIndexes.every(index => Number(localSubtitles[index]?.scene_number) === Number(sNum))}
+                                                                        title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
+                                                                        onClick={event => { event.stopPropagation(); void mergeSelectedSubtitleBlocks() }}
+                                                                        className="inline-flex shrink-0 items-center gap-1 rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-200 disabled:cursor-not-allowed disabled:opacity-35">
+                                                                        <Combine size={12} /> 합치기
+                                                                    </button>
+                                                                )}
                                                                 {isVrewSubtitleMode && segmentStatus && (
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                         segmentStatus === 'ready'
@@ -8507,6 +8521,13 @@ export default function StdPortalPage() {
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
+                                                                                onClick={event => {
+                                                                                    if ((event.target as HTMLElement).closest('button,select,input,textarea,a,[role="dialog"]')) return
+                                                                                    event.stopPropagation()
+                                                                                    selectSubtitleBlock(item.subtitleIndex, event.shiftKey)
+                                                                                }}
+                                                                                onMouseDown={event => { if (event.shiftKey) event.preventDefault() }}
+                                                                                title="클릭하여 선택 · Shift+클릭으로 연속된 자막 선택"
                                                                                 className={`grid grid-cols-[1.25rem_minmax(0,1fr)] sm:grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-0.5 ${
                                                                                     isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
