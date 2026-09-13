@@ -1002,7 +1002,14 @@ export default function StdPortalPage() {
     const [profileSavedMsg, setProfileSavedMsg] = useState('')
     const [pwSavedMsg, setPwSavedMsg] = useState('')
     const [walletAddress, setWalletAddress] = useState('')
+    const [withdrawAddress, setWithdrawAddress] = useState('')
     const [withdrawAmount, setWithdrawAmount] = useState('')
+    const [walletInfo, setWalletInfo] = useState<any>(null)
+    const [walletLoading, setWalletLoading] = useState(false)
+    const [walletMessage, setWalletMessage] = useState('')
+    const [withdrawAsset, setWithdrawAsset] = useState<'USDT' | 'AIR'>('USDT')
+    const [swapFromAsset, setSwapFromAsset] = useState<'AIR' | 'USDT'>('AIR')
+    const [swapAmount, setSwapAmount] = useState('')
     const [treeViewMode, setTreeViewMode] = useState<'list' | 'card'>('list')
     const [inquiryText, setInquiryText] = useState('')
     const [inquiryCategory, setInquiryCategory] = useState('시스템 문의')
@@ -4114,6 +4121,15 @@ export default function StdPortalPage() {
             setToken(accessToken)
             localStorage.setItem('std_session_token', accessToken)
             setUser(loggedInUser)
+            if (result.wallet || result.wallet_address) {
+                setWalletInfo({
+                    success: true,
+                    wallet: result.wallet || null,
+                    wallet_address: result.wallet_address || result.wallet?.address || '',
+                    balances: result.wallet?.assets || null,
+                })
+                setWalletAddress(result.wallet_address || result.wallet?.address || '')
+            }
             await loadStdData(accessToken)
         } catch (error: any) {
             const fallbackToken = `std_dev_token_${Date.now()}`
@@ -4130,6 +4146,50 @@ export default function StdPortalPage() {
             setLoading(false)
         }
     }
+
+    const walletApi = useCallback(async (action: string, params: Record<string, any> = {}) => {
+        const sessionToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('std_session_token') || '' : '')
+        const userEmail = String(user?.email || email || '').trim().toLowerCase()
+        if (!sessionToken || !userEmail) {
+            throw new Error('로그인 세션이 없습니다. 다시 로그인해주세요.')
+        }
+        const res = await fetch('/api/desktop-wallet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: userEmail,
+                session_token: sessionToken,
+                action,
+                ...params,
+            }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || '지갑 서버 요청에 실패했습니다.')
+        }
+        return data
+    }, [email, token, user?.email])
+
+    const loadStdWallet = useCallback(async () => {
+        if (!user?.email) return
+        setWalletLoading(true)
+        setWalletMessage('')
+        try {
+            const data = await walletApi('me')
+            setWalletInfo(data)
+            setWalletAddress(data.wallet_address || data.wallet?.address || '')
+        } catch (error: any) {
+            setWalletMessage(error?.message || '지갑 정보를 불러오지 못했습니다.')
+        } finally {
+            setWalletLoading(false)
+        }
+    }, [user?.email, walletApi])
+
+    useEffect(() => {
+        if (settingsSubTab === 'withdrawal' && user?.email && token) {
+            loadStdWallet()
+        }
+    }, [settingsSubTab, user?.email, token, loadStdWallet])
 
     
     const sendVerificationCode = async () => {
@@ -11653,7 +11713,7 @@ export default function StdPortalPage() {
                                         { id: 'basic', label: '■■ 기본 설정' },
                                         { id: 'orgchart', label: '조직도' },
                                         { id: 'history', label: '수당 내역 (History)' },
-                                        { id: 'withdrawal', label: 'USDT 출금 신청 (Withdrawal)' },
+                                        { id: 'withdrawal', label: '지갑 / 출금 (Wallet)' },
                                         { id: 'support', label: '💬 문의하기' },
                                         { id: 'announcements', label: '📢 공지사항' },
                                     ].map(tab => (
@@ -12001,21 +12061,73 @@ export default function StdPortalPage() {
                                     </div>
                                 )}
 
-                                {/* [탭 4: USDT 출금 신청] */}
+                                {/* [탭 4: AIR/USDT 지갑] */}
                                 {settingsSubTab === 'withdrawal' && (
                                     <div className="space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-gradient-to-br from-blue-900/30 to-cyan-900/20 rounded-2xl p-6 border border-blue-500/30 shadow-lg">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0">
+                                                    <div className="text-blue-300 text-xs font-medium mb-1">내 ERC20 지갑 주소</div>
+                                                    <div className="text-sm font-mono text-blue-100 break-all">{walletAddress || (walletLoading ? '생성/조회 중...' : '-')}</div>
+                                                    {walletMessage && <div className="mt-2 text-xs text-red-300">{walletMessage}</div>}
+                                                </div>
+                                                <div className="flex gap-2 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            if (!walletAddress) return
+                                                            await navigator.clipboard.writeText(walletAddress)
+                                                            alert('지갑 주소를 복사했습니다.')
+                                                        }}
+                                                        className="px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 text-xs font-bold"
+                                                    >
+                                                        주소 복사
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={walletLoading}
+                                                        onClick={async () => {
+                                                            setWalletLoading(true)
+                                                            setWalletMessage('')
+                                                            try {
+                                                                const data = await walletApi('sync_air_deposits')
+                                                                setWalletInfo((prev: any) => ({ ...(prev || {}), balances: data.balances || prev?.balances }))
+                                                                await loadStdWallet()
+                                                                alert(`AIR 입금 확인 완료: ${data.credited_count || 0}건 / ${data.credited_amount || 0} AIR`)
+                                                            } catch (error: any) {
+                                                                setWalletMessage(error?.message || 'AIR 입금 확인 실패')
+                                                            } finally {
+                                                                setWalletLoading(false)
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-xs font-bold disabled:opacity-50"
+                                                    >
+                                                        AIR 입금 확인
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="bg-gradient-to-br from-sky-900/40 to-blue-900/30 rounded-2xl p-6 border border-sky-500/30 shadow-lg">
+                                                <div className="text-sky-300 text-xs font-medium mb-1">AIR 잔액</div>
+                                                <div className="text-3xl font-black text-sky-300 flex items-baseline gap-1 font-mono">
+                                                    <span>{Number(walletInfo?.balances?.AIR?.available || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
+                                                    <span className="text-sm font-bold opacity-70">AIR</span>
+                                                </div>
+                                                <div className="text-[11px] text-sky-200/60 mt-1">잠김 {Number(walletInfo?.balances?.AIR?.locked || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })} AIR</div>
+                                            </div>
                                             <div className="bg-gradient-to-br from-green-900/40 to-emerald-900/30 rounded-2xl p-6 border border-green-500/30 shadow-lg">
-                                                <div className="text-green-300 text-xs font-medium mb-1">출금 가능 잔액</div>
+                                                <div className="text-green-300 text-xs font-medium mb-1">USDT 잔액</div>
                                                 <div className="text-3xl font-black text-green-400 flex items-baseline gap-1 font-mono">
-                                                    <span>15.000000</span>
+                                                    <span>{Number(walletInfo?.balances?.USDT?.available || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                                                     <span className="text-sm font-bold opacity-70">USDT</span>
                                                 </div>
                                             </div>
                                             <div className="bg-gradient-to-br from-indigo-900/30 to-blue-900/20 rounded-2xl p-6 border border-indigo-500/30 shadow-lg">
-                                                <div className="text-indigo-300 text-xs font-medium mb-1">출금 대기 중인 금액</div>
+                                                <div className="text-indigo-300 text-xs font-medium mb-1">USDT 잠김</div>
                                                 <div className="text-2xl font-bold text-indigo-400 flex items-baseline gap-1 font-mono">
-                                                    <span>0.000000</span>
+                                                    <span>{Number(walletInfo?.balances?.USDT?.locked || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                                                     <span className="text-sm font-bold opacity-70">USDT</span>
                                                 </div>
                                             </div>
@@ -12023,21 +12135,86 @@ export default function StdPortalPage() {
 
                                         <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                             <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                                <span>💳 USDT (TRC-20) 출금 신청</span>
+                                                <span>🔁 AIR / USDT 스왑</span>
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_160px] gap-3 max-w-2xl">
+                                                <select
+                                                    value={swapFromAsset}
+                                                    onChange={e => setSwapFromAsset(e.target.value as 'AIR' | 'USDT')}
+                                                    className="bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                >
+                                                    <option value="AIR">AIR → USDT</option>
+                                                    <option value="USDT">USDT → AIR</option>
+                                                </select>
+                                                <input
+                                                    type="number"
+                                                    value={swapAmount}
+                                                    onChange={e => setSwapAmount(e.target.value)}
+                                                    placeholder="스왑 수량"
+                                                    className="bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    disabled={walletLoading}
+                                                    onClick={async () => {
+                                                        if (!swapAmount || Number(swapAmount) <= 0) {
+                                                            alert('스왑 수량을 입력해주세요.')
+                                                            return
+                                                        }
+                                                        setWalletLoading(true)
+                                                        setWalletMessage('')
+                                                        try {
+                                                            const data = await walletApi('swap', { from_asset: swapFromAsset, amount: swapAmount })
+                                                            alert(`스왑 완료: ${data.swap?.net_to_amount || ''} ${data.swap?.to_asset || ''}`)
+                                                            setSwapAmount('')
+                                                            await loadStdWallet()
+                                                        } catch (error: any) {
+                                                            setWalletMessage(error?.message || '스왑 실패')
+                                                        } finally {
+                                                            setWalletLoading(false)
+                                                        }
+                                                    }}
+                                                    className="py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow transition-all disabled:opacity-50"
+                                                >
+                                                    스왑하기
+                                                </button>
+                                            </div>
+                                            <p className="text-[11px] text-gray-500">
+                                                AIR→USDT {walletInfo?.settings?.air_to_usdt_rate || '0'} / USDT→AIR {walletInfo?.settings?.usdt_to_air_rate || '0'} / 수수료 {walletInfo?.settings?.swap_fee_percent || '0'}%
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
+                                                <span>💳 AIR / USDT 보내기 신청</span>
                                             </h4>
                                             <div className="space-y-4 max-w-md">
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">수령할 TRC-20 지갑 주소</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">자산</label>
+                                                    <select
+                                                        value={withdrawAsset}
+                                                        onChange={e => setWithdrawAsset(e.target.value as 'USDT' | 'AIR')}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500"
+                                                    >
+                                                        <option value="USDT">USDT 보내기 신청 (BEP20)</option>
+                                                        <option value="AIR">AIR 보내기 신청 (ERC20)</option>
+                                                    </select>
+                                                    <p className="text-[11px] text-yellow-300/70 mt-1">
+                                                        네트워크: {withdrawAsset === 'USDT' ? 'BEP20 고정' : 'ERC20 고정'}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">받을 지갑 주소</label>
                                                     <input
                                                         type="text"
-                                                        value={walletAddress}
-                                                        onChange={e => setWalletAddress(e.target.value)}
-                                                        placeholder="T로 시작하는 TRC20 지갑 주소를 입력하세요"
+                                                        value={withdrawAddress}
+                                                        onChange={e => setWithdrawAddress(e.target.value)}
+                                                        placeholder="0x로 시작하는 지갑 주소"
                                                         className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-green-500"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">출금 신청 금액 (USDT)</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">보내기 신청 수량 ({withdrawAsset})</label>
                                                     <input
                                                         type="number"
                                                         value={withdrawAmount}
@@ -12048,19 +12225,36 @@ export default function StdPortalPage() {
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        if (!walletAddress) {
+                                                    disabled={walletLoading}
+                                                    onClick={async () => {
+                                                        if (!/^0x[a-fA-F0-9]{40}$/.test(withdrawAddress.trim())) {
                                                             alert('지갑 주소를 입력해주세요.')
                                                             return
                                                         }
-                                                        if (!withdrawAmount || Number(withdrawAmount) < 10) {
-                                                            alert('최소 10 USDT 이상 신청 가능합니다.')
+                                                        if (!withdrawAmount || Number(withdrawAmount) <= 0) {
+                                                            alert('신청 수량을 입력해주세요.')
                                                             return
                                                         }
-                                                        alert(`${withdrawAmount} USDT 출금 신청이 성공적으로 접수되었습니다. 관리자 승인 후 처리됩니다.`)
-                                                        setWithdrawAmount('')
+                                                        setWalletLoading(true)
+                                                        setWalletMessage('')
+                                                        try {
+                                                            await walletApi('withdraw', {
+                                                                asset: withdrawAsset,
+                                                                amount: withdrawAmount,
+                                                                to_address: withdrawAddress.trim(),
+                                                                network: withdrawAsset === 'USDT' ? 'BEP20' : 'ERC20',
+                                                            })
+                                                            alert(`${withdrawAmount} ${withdrawAsset} 보내기 신청이 접수되었습니다.`)
+                                                            setWithdrawAmount('')
+                                                            setWithdrawAddress('')
+                                                            await loadStdWallet()
+                                                        } catch (error: any) {
+                                                            setWalletMessage(error?.message || '출금 신청 실패')
+                                                        } finally {
+                                                            setWalletLoading(false)
+                                                        }
                                                     }}
-                                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold text-white shadow transition-all"
+                                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold text-white shadow transition-all disabled:opacity-50"
                                                 >
                                                     출금 신청하기
                                                 </button>
