@@ -8440,7 +8440,6 @@ export default function StdPortalPage() {
                                                             )}
                                                             {isVrewSubtitleMode && (
                                                                 <label className="mt-2 flex flex-col items-start gap-1 text-[9px] text-cyan-200">
-                                                                    이미지 모션
                                                                     <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
                                                                         disabled={Boolean(group.video_url) || isSceneEffectSaving}
                                                                         title={group.video_url ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
@@ -8448,7 +8447,6 @@ export default function StdPortalPage() {
                                                                         className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
                                                                         {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
                                                                     </select>
-                                                                    {group.video_url && <span className="text-gray-400">영상 원본 사용</span>}
                                                                 </label>
                                                             )}
                                                         </div>
