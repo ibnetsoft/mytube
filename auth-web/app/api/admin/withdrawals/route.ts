@@ -22,6 +22,46 @@ const getAdmin = () => createClient(
     { auth: { persistSession: false } }
 )
 
+const DECIMAL_SCALE = 18n
+const DECIMAL_FACTOR = 10n ** DECIMAL_SCALE
+
+function decimalToUnits(value: unknown): bigint {
+    const raw = String(value ?? '0').trim()
+    if (!raw || raw === '.') return 0n
+    const negative = raw.startsWith('-')
+    const unsigned = negative ? raw.slice(1) : raw
+    if (!/^\d*(\.\d*)?$/.test(unsigned)) throw new Error(`invalid_decimal:${raw}`)
+    const [wholeRaw, fracRaw = ''] = unsigned.split('.')
+    const whole = BigInt(wholeRaw || '0') * DECIMAL_FACTOR
+    const frac = BigInt((fracRaw.slice(0, Number(DECIMAL_SCALE)).padEnd(Number(DECIMAL_SCALE), '0')) || '0')
+    const units = whole + frac
+    return negative ? -units : units
+}
+
+function unitsToDecimal(units: bigint): string {
+    const negative = units < 0n
+    const abs = negative ? -units : units
+    const whole = abs / DECIMAL_FACTOR
+    const frac = abs % DECIMAL_FACTOR
+    const fracText = frac.toString().padStart(Number(DECIMAL_SCALE), '0').replace(/0+$/, '')
+    return `${negative ? '-' : ''}${whole.toString()}${fracText ? `.${fracText}` : ''}`
+}
+
+function addDecimal(a: unknown, b: unknown): string {
+    return unitsToDecimal(decimalToUnits(a) + decimalToUnits(b))
+}
+
+function subDecimal(a: unknown, b: unknown): string {
+    return unitsToDecimal(decimalToUnits(a) - decimalToUnits(b))
+}
+
+function mapWalletStatus(status: string) {
+    const normalized = String(status || '').toUpperCase()
+    if (normalized === 'COMPLETED') return 'completed'
+    if (['REJECTED', 'FAILED', 'CANCELED'].includes(normalized)) return 'rejected'
+    return 'pending'
+}
+
 // AIR-0221A hotfix: process_withdrawal_commission RPC was dropped in production
 // (migrations/air_0158c) but this route still called it. Reimplemented inline
 // using calculate_commission (still live) + direct UPDATE/INSERT, same behavior
@@ -101,7 +141,7 @@ export async function GET(req: Request) {
         if (isAuthResponse(requester)) return requester
 
         const supabase = getAdmin()
-        const { data: withdrawals, error: withdrawalError } = await supabase
+        const { data: legacyWithdrawals, error: withdrawalError } = await supabase
             .from('withdrawals')
             .select('*')
             .order('created_at', { ascending: false })
@@ -109,8 +149,42 @@ export async function GET(req: Request) {
 
         if (withdrawalError) throw withdrawalError
 
-        if (withdrawals && withdrawals.length > 0) {
-            const userIds = Array.from(new Set(withdrawals.map(w => w.user_id)))
+        const { data: walletWithdrawals, error: walletWithdrawalError } = await supabase
+            .from('wallet_withdrawal_requests')
+            .select('id,user_id,asset,network,to_address,requested_amount,fee_amount,net_amount,status,tx_hash,created_at,completed_at,rejected_at')
+            .order('created_at', { ascending: false })
+            .limit(100)
+
+        if (walletWithdrawalError) throw walletWithdrawalError
+
+        const combined: any[] = [
+            ...((legacyWithdrawals || []).map((w: any) => ({
+                ...w,
+                source: 'legacy',
+                network: w.network || 'BEP20',
+                asset: 'USDT',
+            }))),
+            ...((walletWithdrawals || []).map((w: any) => ({
+                id: `wallet:${w.id}`,
+                raw_id: w.id,
+                user_id: w.user_id,
+                amount: Number(w.requested_amount || 0),
+                dest_address: w.to_address,
+                status: mapWalletStatus(w.status),
+                wallet_status: w.status,
+                created_at: w.created_at,
+                processed_at: w.completed_at || w.rejected_at || null,
+                source: 'wallet',
+                asset: w.asset,
+                network: w.network,
+                fee_amount: Number(w.fee_amount || 0),
+                net_amount: Number(w.net_amount || 0),
+                tx_hash: w.tx_hash,
+            }))),
+        ].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 150)
+
+        if (combined.length > 0) {
+            const userIds = Array.from(new Set(combined.map(w => w.user_id).filter(Boolean)))
             const { data: profiles, error: profileError } = await supabase
                 .from('profiles')
                 .select('id, email')
@@ -118,7 +192,7 @@ export async function GET(req: Request) {
 
             if (!profileError && profiles) {
                 const profileMap = new Map(profiles.map(p => [p.id, p]))
-                withdrawals.forEach((w: any) => {
+                combined.forEach((w: any) => {
                     const prof = profileMap.get(w.user_id)
                     w.profiles = prof ? { email: prof.email } : null
                 })
@@ -127,7 +201,7 @@ export async function GET(req: Request) {
             }
         }
 
-        return NextResponse.json({ withdrawals: withdrawals || [] })
+        return NextResponse.json({ withdrawals: combined })
     } catch (e: any) {
         console.error('Failed to get withdrawals:', e)
         return NextResponse.json({ error: e.message }, { status: 500 })
@@ -148,6 +222,81 @@ export async function PATCH(req: Request) {
         }
 
         const supabase = getAdmin()
+        const idText = String(id)
+
+        if (idText.startsWith('wallet:')) {
+            const rawId = idText.replace(/^wallet:/, '')
+            const { data: withdrawal, error: fetchError } = await supabase
+                .from('wallet_withdrawal_requests')
+                .select('*')
+                .eq('id', rawId)
+                .single()
+            if (fetchError || !withdrawal) {
+                return NextResponse.json({ error: 'Wallet withdrawal not found' }, { status: 404 })
+            }
+            if (['COMPLETED', 'REJECTED', 'FAILED', 'CANCELED'].includes(String(withdrawal.status || '').toUpperCase())) {
+                return NextResponse.json({ success: true, data: withdrawal })
+            }
+
+            const { data: balance, error: balanceError } = await supabase
+                .from('wallet_balances')
+                .select('available_amount,locked_amount')
+                .eq('user_id', withdrawal.user_id)
+                .eq('asset', withdrawal.asset)
+                .single()
+            if (balanceError || !balance) throw balanceError || new Error('wallet_balance_not_found')
+
+            const requestedAmount = String(withdrawal.requested_amount || '0')
+            const nextLocked = subDecimal(balance.locked_amount || '0', requestedAmount)
+            const balancePatch: any = { locked_amount: nextLocked }
+            const requestPatch: any = {}
+            if (status === 'completed') {
+                requestPatch.status = 'COMPLETED'
+                requestPatch.completed_at = new Date().toISOString()
+                requestPatch.sent_at = requestPatch.completed_at
+            } else {
+                balancePatch.available_amount = addDecimal(balance.available_amount || '0', requestedAmount)
+                requestPatch.status = 'REJECTED'
+                requestPatch.rejected_at = new Date().toISOString()
+            }
+
+            const { error: updateBalanceError } = await supabase
+                .from('wallet_balances')
+                .update(balancePatch)
+                .eq('user_id', withdrawal.user_id)
+                .eq('asset', withdrawal.asset)
+            if (updateBalanceError) throw updateBalanceError
+
+            const { data: updated, error: updateRequestError } = await supabase
+                .from('wallet_withdrawal_requests')
+                .update(requestPatch)
+                .eq('id', rawId)
+                .select()
+            if (updateRequestError) throw updateRequestError
+
+            if (status === 'rejected') {
+                const { error: ledgerError } = await supabase
+                    .from('wallet_ledger')
+                    .insert({
+                        user_id: withdrawal.user_id,
+                        asset: withdrawal.asset,
+                        direction: 'credit',
+                        amount: requestedAmount,
+                        available_after: balancePatch.available_amount,
+                        locked_after: nextLocked,
+                        reason: 'withdrawal_reject_refund',
+                        reference_type: 'wallet_withdrawal_requests',
+                        reference_id: rawId,
+                        idempotency_key: `wallet_withdrawal_reject_refund:${rawId}`,
+                        metadata: { admin_action: 'rejected' },
+                    })
+                if (ledgerError && String(ledgerError.code || '') !== '23505') {
+                    console.error('wallet reject refund ledger insert failed:', ledgerError)
+                }
+            }
+
+            return NextResponse.json({ success: true, data: updated?.[0] || null })
+        }
 
         // 거절인 경우 상태만 업데이트
         if (status === 'rejected') {

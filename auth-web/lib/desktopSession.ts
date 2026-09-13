@@ -134,6 +134,7 @@ export type DesktopProfileSnapshot = {
     email: string
     isApproved: boolean
     profile: {
+        id: string
         preferred_language: string
         membership: string
         token_balance: number
@@ -154,7 +155,7 @@ export async function fetchDesktopProfileSnapshot(
 ): Promise<DesktopProfileSnapshot | null> {
     const { data: profile, error } = await supabaseAdmin
         .from('profiles')
-        .select('is_approved,membership,token_balance,preferred_languages,full_name,nationality,contact,referral_code,preferred_category_ids,preferred_video_length')
+        .select('id,is_approved,membership,token_balance,preferred_languages,full_name,nationality,contact,referral_code,preferred_category_ids,preferred_video_length')
         .eq('email', email)
         .maybeSingle()
 
@@ -204,6 +205,7 @@ export async function fetchDesktopProfileSnapshot(
         email,
         isApproved,
         profile: {
+            id: profile.id,
             preferred_language: preferredLang,
             membership: profile.membership || 'std',
             token_balance: profile.token_balance || 0,

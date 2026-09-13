@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { fetchDesktopProfileSnapshot, signDesktopSessionToken } from '@/lib/desktopSession'
+import { ensureStage1WalletForUser, publicStage1Wallet } from '@/lib/walletStage1'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,6 +63,8 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: false, error: '어드민 승인 대기 중이거나 비활성화된 계정입니다.' }, { status: 403 })
         }
 
+        const wallet = await ensureStage1WalletForUser(snapshot.profile.id)
+
         return NextResponse.json({
             success: true,
             preferred_language: snapshot.profile.preferred_language,
@@ -75,6 +78,8 @@ export async function POST(req: Request) {
             preferred_category_ids: snapshot.profile.preferred_category_ids,
             preferred_video_length: snapshot.profile.preferred_video_length,
             categories: snapshot.profile.categories,
+            wallet: publicStage1Wallet(wallet),
+            wallet_address: wallet?.address || '',
             // [AIR-0225B Batch A] Opaque, HMAC-signed - lets the desktop app
             // resume a session later (app relaunch, cookie-restored login)
             // without resending the password or the local backend needing

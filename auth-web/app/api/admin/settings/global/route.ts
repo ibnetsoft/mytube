@@ -32,7 +32,25 @@ const EXACT_KEYS = [
     // [AIR-0230] 모델별 단가표 - JSON 문자열로 저장 { [model_id]: { input_per_1k, output_per_1k, thinking_per_1k, currency } }
     'model_pricing',
     // 씬 전환 효과 - 유저 설정에서 어드민 전용 제어로 이전
-    'scene_transition_mode'
+    'scene_transition_mode',
+    // AIR wallet stage 1 settings
+    'wallet_erc20_rpc_url',
+    'wallet_erc20_rpc_fallback_url_1',
+    'wallet_erc20_rpc_fallback_url_2',
+    'wallet_erc20_rpc_fallback_url_3',
+    'wallet_chain_id',
+    'wallet_air_contract_address',
+    'wallet_usdt_contract_address',
+    'wallet_air_withdrawal_fee',
+    'wallet_usdt_withdrawal_fee',
+    'wallet_swap_fee_percent',
+    'wallet_min_air_withdrawal',
+    'wallet_min_usdt_withdrawal',
+    'wallet_air_to_usdt_rate',
+    'wallet_usdt_to_air_rate',
+    'wallet_deposits_enabled',
+    'wallet_swaps_enabled',
+    'wallet_withdrawals_enabled'
 ]
 
 const SECRET_KEYS = new Set([

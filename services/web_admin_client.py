@@ -527,6 +527,39 @@ class WebAdminClient:
         except Exception as e:
             return {"success": False, "error": f"추천인 서버 연결 오류: {e}"}
 
+    def desktop_wallet(
+        self,
+        email: str,
+        session_token: str,
+        action: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Stage 1 AIR/USDT wallet actions are handled by auth-web.
+
+        The local desktop backend never receives the Supabase service-role key
+        or wallet private keys. It sends the same HMAC session token used by
+        desktop-login/resync and proxies the resulting public wallet data.
+        """
+        try:
+            payload: Dict[str, Any] = {
+                "email": email,
+                "session_token": session_token,
+                "action": action,
+            }
+            payload.update(params or {})
+            response = requests.post(
+                f"{self.dashboard_url}/api/desktop-wallet",
+                json=payload,
+                headers=self.dashboard_headers(content_type=True),
+                timeout=max(self.timeout, 20),
+            )
+            data = response.json()
+            if not isinstance(data, dict):
+                return {"success": False, "error": "지갑 서버 응답 오류"}
+            return data
+        except Exception as e:
+            return {"success": False, "error": f"지갑 서버 연결 오류: {e}"}
+
     def desktop_support(
         self,
         email: str,

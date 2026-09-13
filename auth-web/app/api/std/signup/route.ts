@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { ensureStage1WalletForUser } from '@/lib/walletStage1'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,6 +133,8 @@ export async function POST(req: Request) {
             .from('profiles')
             .upsert(profilePayload, { onConflict: 'id' })
         if (upsertError) throw upsertError
+
+        await ensureStage1WalletForUser(profilePayload.id)
 
         return NextResponse.json({
             success: true,

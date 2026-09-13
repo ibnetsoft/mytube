@@ -13,11 +13,14 @@ referral.html)는 손대지 않았다. 실제 쿼리/집계/출금 잔액 검증
 auth-web/app/api/desktop-referrals/route.ts로 1:1 이식됐다.
 """
 from typing import Optional
+import re
 from fastapi import APIRouter, HTTPException, Query
 from services.auth_service import auth_service
 from services.web_admin_client import web_admin_client
 
 router = APIRouter(prefix="/user", tags=["referral"])
+BEP20_NETWORK = "BEP20"
+BEP20_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +105,7 @@ from pydantic import BaseModel
 class ReferralWithdrawalRequest(BaseModel):
     amount: float
     dest_address: str
+    network: Optional[str] = BEP20_NETWORK
 
 
 # ---------------------------------------------------------------------------
@@ -112,9 +116,18 @@ def request_referral_withdrawal(req: ReferralWithdrawalRequest):
     # 잔액/최소금액 검증은 이제 서버(auth-web)가 수행한다 - 변조된 클라이언트가
     # 검증을 건너뛰고 DB에 직접 쓰던 구멍이 이 이전으로 함께 막혔다. 검증 실패
     # 메시지는 success:False 응답으로 그대로 프론트에 전달한다 (기존 UX 유지).
+    network = (req.network or BEP20_NETWORK).strip().upper()
+    if network in {"BSC", "BSC_BEP20", "BEP-20"}:
+        network = BEP20_NETWORK
+    if network != BEP20_NETWORK:
+        return {"success": False, "error": "USDT 출금 네트워크는 BEP20만 지원합니다."}
+    dest_address = req.dest_address.strip()
+    if not BEP20_ADDRESS_RE.fullmatch(dest_address):
+        return {"success": False, "error": "BEP20 지갑 주소는 0x로 시작하는 42자리 주소여야 합니다."}
     return _bridge("withdraw", {
         "amount": float(req.amount),
-        "dest_address": req.dest_address.strip(),
+        "dest_address": dest_address,
+        "network": BEP20_NETWORK,
     })
 
 

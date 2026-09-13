@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { verifyApprovedDesktopSession } from '@/lib/desktopSession'
 
 export const dynamic = 'force-dynamic'
+const BEP20_NETWORK = 'BEP20'
+const BEP20_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/
 
 // [AIR-0225B Phase 1] Desktop app's referral/withdrawal features (세팅 페이지의
 // 조직도/수당 내역/USDT 출금 탭 + 구 /referral 대시보드), moved off
@@ -208,11 +210,16 @@ async function computeWithdrawalInfo(userId: string) {
 async function actionWithdraw(userId: string, params: any) {
     const amount = Number(params.amount)
     const destAddress = String(params.dest_address || '').trim()
+    const requestedNetwork = String(params.network || BEP20_NETWORK).trim().toUpperCase()
+    const network = ['BSC', 'BSC_BEP20', 'BEP-20'].includes(requestedNetwork) ? BEP20_NETWORK : requestedNetwork
     if (!Number.isFinite(amount) || amount <= 0) {
         return { success: false, error: '출금 금액은 0보다 커야 합니다.' }
     }
-    if (!destAddress) {
-        return { success: false, error: '지갑 주소를 입력해주세요.' }
+    if (network !== BEP20_NETWORK) {
+        return { success: false, error: 'USDT 출금 네트워크는 BEP20만 지원합니다.' }
+    }
+    if (!BEP20_ADDRESS_RE.test(destAddress)) {
+        return { success: false, error: 'BEP20 지갑 주소는 0x로 시작하는 42자리 주소여야 합니다.' }
     }
 
     const info = await computeWithdrawalInfo(userId)
@@ -243,7 +250,7 @@ async function actionWithdraw(userId: string, params: any) {
             commission_type: 'WITHDRAWAL',
             commission_tokens: -amount,
             status: 'PENDING',
-            metadata: { dest_address: destAddress },
+            metadata: { dest_address: destAddress, network: BEP20_NETWORK },
         })
         .select('id')
     if (legacyError) {
@@ -261,6 +268,7 @@ async function actionWithdraw(userId: string, params: any) {
                 wallet_address: destAddress,
                 status: 'REQUESTED',
                 metadata: {
+                    network: BEP20_NETWORK,
                     legacy_source: 'referral_negative_commission',
                     legacy_commission_id: legacyRows?.[0]?.id ?? null,
                 },
@@ -278,7 +286,7 @@ async function actionWithdraw(userId: string, params: any) {
 async function actionWithdrawalHistory(userId: string) {
     const { data: rows, error } = await supabaseAdmin
         .from('referral_withdrawals')
-        .select('id, amount, wallet_address, status, tx_hash, created_at')
+        .select('id, amount, wallet_address, status, tx_hash, created_at, metadata')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(100)
@@ -293,6 +301,7 @@ async function actionWithdrawalHistory(userId: string) {
             tx_hash: r.tx_hash,
             amount: r.amount,
             status: r.status,
+            network: r.metadata?.network || BEP20_NETWORK,
         })),
     }
 }

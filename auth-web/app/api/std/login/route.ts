@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { signDesktopSessionToken } from '@/lib/desktopSession'
+import { ensureStage1WalletForUser, publicStage1Wallet } from '@/lib/walletStage1'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,11 +65,14 @@ export async function POST(req: Request) {
 
         // 1. PIN 코드 또는 비밀번호 일치 확인
         if (profile && pinCode && (pinCode === inputPassword || pinCode === inputPassword.toLowerCase())) {
+            const wallet = await ensureStage1WalletForUser(profile.id)
             return NextResponse.json({
                 success: true,
                 auth_type: 'pin',
                 session_token: signDesktopSessionToken(normalizedEmail),
                 user: userPayload(profile),
+                wallet: publicStage1Wallet(wallet),
+                wallet_address: wallet?.address || '',
             })
         }
 
@@ -112,11 +116,15 @@ export async function POST(req: Request) {
                 resolvedProfile = data
             }
 
+            const wallet = resolvedProfile?.id ? await ensureStage1WalletForUser(resolvedProfile.id) : null
+
             return NextResponse.json({
                 success: true,
                 auth_type: 'desktop',
                 session_token: signDesktopSessionToken(normalizedEmail),
                 user: userPayload(resolvedProfile || fallbackProfile),
+                wallet: publicStage1Wallet(wallet),
+                wallet_address: wallet?.address || '',
             })
         }
 

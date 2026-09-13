@@ -394,6 +394,7 @@ from app.routers import learning as learning_router
 from app.routers import admin_tenant as admin_tenant_router  # [NEW]
 from app.routers import user_topics as user_topics_router  # [NEW]
 from app.routers import referral as referral_router
+from app.routers import wallet as wallet_router
 from app.routers import support as support_router
 from app.routers import announcements as announcements_router
 from app.routers import director_api
@@ -426,6 +427,7 @@ app.include_router(production_api_router.router, prefix="/api/production")  # [A
 app.include_router(prompt_package_api_router.router, prefix="/api/packages")  # [AIR-0207]
 app.include_router(asset_matching_api_router.router, prefix="/api/assets")  # [AIR-0207]
 app.include_router(render_api_router.router, prefix="/api/render")  # [AIR-0207]
+app.include_router(wallet_router.router)
 pages_router.init_pages(templates)
 repository_router.init_repository(templates)  # [AIR-0134]
 
