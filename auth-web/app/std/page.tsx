@@ -8926,32 +8926,48 @@ export default function StdPortalPage() {
                                                                                 >
                                                                                     {lineIndex + 1}
                                                                                 </button>
-                                                                                <div className="min-w-0 text-[11px] text-white leading-relaxed font-sans sm:text-xs">
-                                                                                    {candidates.length ? (() => {
-                                                                                        const parts: React.ReactNode[] = []
-                                                                                        let cursor = 0
-                                                                                        candidates.forEach((candidate, candidateIndex) => {
-                                                                                            parts.push(<span key={`plain-${candidateIndex}`}>{item.text.slice(cursor, candidate.start)}</span>)
-                                                                                            parts.push(<span key={`candidate-${candidateIndex}`} title={candidate.reason} className="text-amber-200">{item.text.slice(candidate.start, candidate.end)}</span>)
-                                                                                            cursor = candidate.end
-                                                                                        })
-                                                                                        parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
-                                                                                        return parts
-                                                                                    })() : renderAiDialogue(item, item.subtitleIndex)}
-                                                                                    <div className="ml-1.5 inline-flex align-middle" onClick={event => event.stopPropagation()}>
-                                                                                {renderVoicePicker(
-                                                                                    `block-${item.subtitleIndex}`,
-                                                                                    blockVoiceId,
-                                                                                    (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
-                                                                                    subtitleReviewCopy
-                                                                                        ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
-                                                                                        : `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
-                                                                                    isDialogueBlock ? 'dialogue' : 'default',
-                                                                                    'left'
-                                                                                )}
+                                                                                <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
+                                                                                    <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
+                                                                                        <span className="min-w-0 truncate" title={String(item.text || '')}>
+                                                                                            {candidates.length ? (() => {
+                                                                                                const parts: React.ReactNode[] = []
+                                                                                                let cursor = 0
+                                                                                                candidates.forEach((candidate, candidateIndex) => {
+                                                                                                    parts.push(<span key={`plain-${candidateIndex}`}>{item.text.slice(cursor, candidate.start)}</span>)
+                                                                                                    parts.push(<span key={`candidate-${candidateIndex}`} title={candidate.reason} className="text-amber-200">{item.text.slice(candidate.start, candidate.end)}</span>)
+                                                                                                    cursor = candidate.end
+                                                                                                })
+                                                                                                parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
+                                                                                                return parts
+                                                                                            })() : renderAiDialogue(item, item.subtitleIndex)}
+                                                                                        </span>
+                                                                                        <div className="ml-1.5 inline-flex shrink-0 align-middle" onClick={event => event.stopPropagation()}>
+                                                                                            {renderVoicePicker(
+                                                                                                `block-${item.subtitleIndex}`,
+                                                                                                blockVoiceId,
+                                                                                                (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
+                                                                                                subtitleReviewCopy
+                                                                                                    ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
+                                                                                                    : `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
+                                                                                                isDialogueBlock ? 'dialogue' : 'default',
+                                                                                                'left'
+                                                                                            )}
+                                                                                        </div>
                                                                                     </div>
+                                                                                    {subtitleReviewLocale && subtitleReviewCopy && (
+                                                                                        <div
+                                                                                            className="min-w-0 flex-1 truncate border-l border-sky-400/20 pl-2 text-sky-200"
+                                                                                            lang={subtitleReviewLocale}
+                                                                                            title={localizedTranslation || subtitleReviewCopy.pending}
+                                                                                        >
+                                                                                            <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
+                                                                                            {localizedTranslation || (translatingSubtitleLanguage === subtitleReviewLocale
+                                                                                                ? subtitleReviewCopy.translating
+                                                                                                : subtitleReviewCopy.pending)}
+                                                                                        </div>
+                                                                                    )}
                                                                                     {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
-                                                                                        <span className="ml-2 inline-flex items-center gap-2 text-[10px]">
+                                                                                        <span className="inline-flex shrink-0 items-center gap-2 text-[10px]">
                                                                                             {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>{subtitleReviewCopy?.candidate || '대사 후보'}</span>}
                                                                                             <button type="button" className="text-emerald-300 underline" title="이 자막 줄 전체를 대사로 지정합니다. 목소리는 대사 일괄 적용으로 선택하세요." onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: true } : sub)
@@ -8982,14 +8998,6 @@ export default function StdPortalPage() {
                                                                                     >
                                                                                         {blockVoiceName}
                                                                                     </span>
-                                                                                )}
-                                                                                {subtitleReviewLocale && subtitleReviewCopy && (
-                                                                                    <div className="mt-1 border-t border-white/5 pt-1 text-[11px] leading-relaxed text-sky-200 sm:text-xs" lang={subtitleReviewLocale}>
-                                                                                        <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
-                                                                                        {localizedTranslation || (translatingSubtitleLanguage === subtitleReviewLocale
-                                                                                            ? subtitleReviewCopy.translating
-                                                                                            : subtitleReviewCopy.pending)}
-                                                                                    </div>
                                                                                 )}
                                                                                 </div>
 
