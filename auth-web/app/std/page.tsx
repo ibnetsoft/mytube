@@ -702,6 +702,7 @@ export default function StdPortalPage() {
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
     const [message, setMessage] = useState('')
+    const [subtitleTranslationScope, setSubtitleTranslationScope] = useState<'thai_only' | 'all'>('thai_only')
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
     const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('ko')
@@ -719,7 +720,7 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
-    const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale) ? currentLocale : null
+    const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale) && (subtitleTranslationScope === 'all' || currentLocale === 'th') ? currentLocale : null
     const subtitleReviewCopy = subtitleReviewLocale ? SUBTITLE_REVIEW_COPY[subtitleReviewLocale] : null
     const tf = (key: string, values: Record<string, string | number>, fallback?: string) => (
         Object.entries(values).reduce(
@@ -1640,6 +1641,23 @@ export default function StdPortalPage() {
         }
         return headers
     }, [token, isImpersonating, impersonateEmail])
+
+    useEffect(() => {
+        if (!token) return
+        let cancelled = false
+        fetch('/api/std/subtitle-translation-settings', { headers: authedJsonHeaders })
+            .then(res => res.json())
+            .then(payload => {
+                if (cancelled || !payload?.success) return
+                setSubtitleTranslationScope(payload.scope === 'all' ? 'all' : 'thai_only')
+            })
+            .catch(() => {
+                if (!cancelled) setSubtitleTranslationScope('thai_only')
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [token, authedJsonHeaders])
 
     const persistedSubtitleTranslations = selectedProject?.project?.project_payload?.subtitle_translations
 

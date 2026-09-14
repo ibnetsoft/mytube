@@ -18,6 +18,9 @@ const MAX_BLOCKS = 500
 const MAX_BLOCK_TEXT = 1200
 const MAX_TOTAL_TEXT = 120_000
 const BATCH_SIZE = 30
+const SUBTITLE_TRANSLATION_MODEL_SETTING_KEY = 'sys_api_subtitle_translation_model'
+const DEFAULT_SUBTITLE_TRANSLATION_MODEL = 'gpt-5.3-codex-spark'
+const SUBTITLE_TRANSLATION_SCOPE_KEY = 'sys_api_subtitle_translation_scope'
 
 async function geminiApiKey(): Promise<string> {
     if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY
@@ -27,6 +30,15 @@ async function geminiApiKey(): Promise<string> {
         .eq('key', 'sys_api_gemini')
         .maybeSingle()
     return String(data?.value || '')
+}
+
+async function subtitleTranslationScope(): Promise<'thai_only' | 'all'> {
+    const { data } = await supabaseAdmin
+        .from('global_settings')
+        .select('value')
+        .eq('key', SUBTITLE_TRANSLATION_SCOPE_KEY)
+        .maybeSingle()
+    return String(data?.value || '').trim().toLowerCase() === 'all' ? 'all' : 'thai_only'
 }
 
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
@@ -43,6 +55,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'English, Vietnamese, or Thai subtitle blocks are required' }, { status: 400 })
     }
     const targetLanguage = body.target_language
+    const translationScope = await subtitleTranslationScope()
+    if (translationScope !== 'all' && targetLanguage !== 'th') {
+        return NextResponse.json({
+            success: false,
+            error: 'Subtitle translation is configured for Thai only',
+            scope: translationScope,
+        }, { status: 403 })
+    }
 
     const blocks = body.blocks.map((block: any) => ({
         index: Number(block?.index),
@@ -89,7 +109,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     if (missing.length > 0) {
         const apiKey = await geminiApiKey()
-        if (!apiKey) return NextResponse.json({ success: false, error: 'Translation API key is not configured' }, { status: 503 })
 
         for (let offset = 0; offset < missing.length; offset += BATCH_SIZE) {
             const batch = missing.slice(offset, offset + BATCH_SIZE)
@@ -97,9 +116,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             const raw = await generateJsonWithModelSetting(
                 supabaseAdmin,
                 buildSubtitleTranslationPrompt(source, targetLanguage),
-                'sys_api_translation_model',
+                SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
                 apiKey,
                 0.1,
+                { defaultModel: DEFAULT_SUBTITLE_TRANSLATION_MODEL, disableFallback: true },
             )
             const result = parseStrictTranslationResponse(raw, source)
             for (const item of result) translated.set(item.id.slice(1), item.translation)
@@ -132,6 +152,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         blocks: result,
         cached_count: blocks.length - missing.length,
         translated_count: missing.length,
+        model_setting_key: SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
+        default_model: DEFAULT_SUBTITLE_TRANSLATION_MODEL,
+        scope: translationScope,
         persisted: !persisted.error,
     })
 }
