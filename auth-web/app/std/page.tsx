@@ -11164,6 +11164,7 @@ export default function StdPortalPage() {
                                             <th className="px-1 py-2.5 w-12 text-center">자막</th>
                                             <th className="px-1 py-2.5 w-12 text-center">썸네일</th>
                                             <th className="px-2 py-2.5 w-24 text-center text-cyan-300 font-black tracking-wide">렌더</th>
+                                            <th className="px-2 py-2.5 w-16 text-center">비고</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
@@ -11197,6 +11198,11 @@ export default function StdPortalPage() {
                                                 || p.project_payload?.thumbnail_design?.bg_url
                                             )
                                             const submittedAt = p.submitted_at || p.shared_submission?.submitted_at
+                                            const latestSubmittedVersion = Math.max(
+                                                0,
+                                                Number(p.progress_payload?.latest_render_version) || 0,
+                                                submittedAt ? 1 : 0,
+                                            )
                                             return (
                                                 <tr
                                                     key={p.id || idx}
@@ -11334,6 +11340,9 @@ export default function StdPortalPage() {
                                                                         </button>
                                                                     )}
                                                                 </td>
+                                                                <td className="px-2 py-2 text-center font-mono text-[11px] font-bold text-cyan-300">
+                                                                    {latestSubmittedVersion > 0 ? `v${latestSubmittedVersion}` : ''}
+                                                                </td>
                                                             </>
                                                         )
                                                     })()}
@@ -11342,7 +11351,7 @@ export default function StdPortalPage() {
                                         })}
                                         {projects.length === 0 && (
                                             <tr>
-                                                <td colSpan={13} className="px-4 py-10 text-center text-xs text-gray-500">
+                                                <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
                                                     아직 생성된 프로젝트가 없습니다.
                                                 </td>
                                             </tr>
