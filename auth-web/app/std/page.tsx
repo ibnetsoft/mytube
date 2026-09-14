@@ -8617,7 +8617,7 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 3행: 선택한 자막 섹션 전용 마이크 / 효과 */}
-                                <div className="flex items-center gap-1 pt-1.5 border-t border-white/5">
+                                <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-white/5">
                                     {renderVoicePicker(
                                         'selected-scenes-bulk',
                                         selectedSubtitleSceneVoiceId,
@@ -8641,6 +8641,27 @@ export default function StdPortalPage() {
                                             {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
                                         </select>
                                     </label>
+                                    {isVrewSubtitleMode && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                disabled={selectedSubtitleBlockIndexes.length < 2}
+                                                title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
+                                                onClick={() => void mergeSelectedSubtitleBlocks()}
+                                                className="ml-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
+                                            >
+                                                <Combine size={13} /> {t('sub_merge_action')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={selectedSubtitleBlockIndexes.length !== 1}
+                                                onClick={() => void splitSelectedSubtitleBlock()}
+                                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                                            >
+                                                <Scissors size={13} /> {t('sub_split_action')}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
@@ -8675,26 +8696,8 @@ export default function StdPortalPage() {
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
                                                 {tf('sub_total_blocks', { count: localSubtitles.length })}
                                             </span>
-                                            {selectedSubtitleBlockIndexes.length === 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void splitSelectedSubtitleBlock()}
-                                                    className="h-7 px-2.5 rounded-md border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 text-[10px] font-bold flex items-center gap-1 transition"
-                                                >
-                                                    <Scissors size={13} />
-                                                    {t('sub_split_action')}
-                                                </button>
-                                            )}
                                             {selectedSubtitleBlockIndexes.length >= 2 && (
                                                 <>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void mergeSelectedSubtitleBlocks()}
-                                                        className="h-7 px-2.5 rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-[10px] font-bold flex items-center gap-1 transition"
-                                                    >
-                                                        <Combine size={13} />
-                                                        {t('sub_merge_action')}
-                                                    </button>
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">
                                                         {tf('sub_selected_blocks', { count: selectedSubtitleBlockIndexes.length })}
                                                     </span>
@@ -8846,15 +8849,6 @@ export default function StdPortalPage() {
                                                                 <span className="hidden text-[10px] text-gray-500 sm:inline">
                                                                     {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
                                                                 </span>
-                                                                {isVrewSubtitleMode && (
-                                                                    <button type="button"
-                                                                        disabled={selectedSubtitleBlockIndexes.length < 2 || !selectedSubtitleBlockIndexes.every(index => Number(localSubtitles[index]?.scene_number) === Number(sNum))}
-                                                                        title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
-                                                                        onClick={event => { event.stopPropagation(); void mergeSelectedSubtitleBlocks() }}
-                                                                        className="inline-flex shrink-0 items-center gap-1 rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-200 disabled:cursor-not-allowed disabled:opacity-35">
-                                                                        <Combine size={12} /> 합치기
-                                                                    </button>
-                                                                )}
                                                                 {isVrewSubtitleMode && segmentStatus && (
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                         segmentStatus === 'ready'
