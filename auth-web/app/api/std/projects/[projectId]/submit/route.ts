@@ -76,6 +76,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             error: 'Project has no scenes to render',
         }, { status: 409 })
     }
+    if (project.progress_payload?.script_changed_requires_audio_regeneration) {
+        return NextResponse.json({
+            success: false,
+            error: '대본이 변경되었습니다. 새 대본으로 TTS를 다시 생성한 뒤 렌더링해 주세요.',
+        }, { status: 409 })
+    }
 
     let assets = loadedAssets || []
     try {
@@ -193,6 +199,19 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: queueError?.message || 'Failed to enqueue render job' }, { status: 500 })
     }
 
+    const renderVersion = Number(renderQueueRow?.metadata?.render_version || renderQueueRow?.render_version || 1)
+    await supabaseAdmin
+        .from('std_project_submissions')
+        .update({
+            metadata: {
+                scene_count: scenes?.length || 0,
+                asset_count: assets?.length || 0,
+                render_version: renderVersion,
+                remote_render_queue_id: renderQueueRow?.id || null,
+            },
+        })
+        .eq('id', submission.id)
+
     await supabaseAdmin
         .from('std_projects')
         .update({
@@ -207,6 +226,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 remote_render_mode: renderQueueRow?.render_mode || 'drive_api',
                 remote_asset_file_id: renderQueueRow?.asset_file_id || null,
                 remote_asset_file_name: renderQueueRow?.asset_file_name || null,
+                latest_render_version: renderVersion,
+                editing_render_version: null,
+                rerender_draft: false,
                 admin_publish_status: 'render_pending',
                 submitted_to_render_queue_at: submittedAt,
             },
@@ -220,5 +242,5 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         console.error('[STD Submit] legacy sync failed:', syncError?.message)
     }
 
-    return NextResponse.json({ success: true, submission, render_queue: renderQueueRow })
+    return NextResponse.json({ success: true, submission, render_queue: renderQueueRow, render_version: renderVersion })
 }

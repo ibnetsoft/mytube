@@ -2,6 +2,7 @@ import { sceneMotion } from './stdSceneMotion'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredVideoScene } from './stdPolicy'
+import { nextStdRenderVersion, normalizeStdRenderHistory } from './stdRenderVersion'
 import {
     downloadStdDriveFile,
     driveFileLink,
@@ -33,6 +34,17 @@ export function stdWebPseudoProjectId(topicQueueId: any): number {
     const parsed = Number(topicQueueId)
     if (!Number.isFinite(parsed) || parsed <= 0) return 1_900_000_000
     return 1_000_000_000 + Math.floor(parsed)
+}
+
+export async function getStdProjectRenderHistory(projectId: string) {
+    const { data, error } = await supabaseAdmin
+        .from('remote_render_queue')
+        .select('id,status,progress,message,error_message,result_file_id,result_file_name,metadata,created_at,updated_at,completed_at,render_mode,asset_file_id,asset_file_name')
+        .contains('metadata', { std_web_project_id: projectId })
+        .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return normalizeStdRenderHistory(data || [])
 }
 
 function activeAsset(asset: any) {
@@ -682,25 +694,32 @@ export async function enqueueStdProjectRender(projectId: string) {
     const { project, scenes, assets } = await loadBundle(projectId)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')
 
-    const { data: existingRows } = await supabaseAdmin
+    const { data: activeRows, error: activeRowsError } = await supabaseAdmin
         .from('remote_render_queue')
         .select('*')
+        .contains('metadata', { std_web_project_id: project.id })
         .in('status', ['pending', 'rendering'])
-        .eq('render_mode', 'drive_api')
         .order('created_at', { ascending: false })
-        .limit(100)
-    const existingRow = (existingRows || []).find((row: any) => row?.metadata?.std_web_project_id === project.id)
-    if (existingRow) {
-        return existingRow
-    }
+    if (activeRowsError) throw activeRowsError
+    const existingRow = (activeRows || [])[0]
+    if (existingRow) return existingRow
+
+    const renderHistory = await getStdProjectRenderHistory(project.id)
+    const renderVersion = nextStdRenderVersion(renderHistory)
+    const previousRender = renderHistory[0] || null
 
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
     const taskId = randomUUID()
     const folders = await ensureStdProjectDriveFolders(project)
     const archivedAssets = await ensureStdGeneratedSceneAssetsArchived(project, scenes, assets)
-    const renderConfig = buildDriveFolderRenderConfig(project, scenes, archivedAssets, pseudoProjectId)
+    const renderConfig = {
+        ...buildDriveFolderRenderConfig(project, scenes, archivedAssets, pseudoProjectId),
+        render_version: renderVersion,
+        std_web_project_id: project.id,
+    }
     const scriptFile = await upsertStdDriveJsonFile(folders.projectFolderId, 'script.json', {
         project_id: project.id,
+        render_version: renderVersion,
         topic_queue_id: project.topic_queue_id,
         title: project.title,
         language: project.language || 'ko',
@@ -755,6 +774,8 @@ export async function enqueueStdProjectRender(projectId: string) {
         manifest_file_count: renderConfig.asset_manifest.files.length,
         source: 'picadiri_local_app',
         std_web_project_id: project.id,
+        render_version: renderVersion,
+        previous_render_queue_id: previousRender?.id || null,
         topic_queue_id: project.topic_queue_id,
         drive_folder_id: folders.projectFolderId,
         drive_folder_link: driveFolderLink(folders.projectFolderId),
@@ -810,6 +831,9 @@ export async function enqueueStdProjectRender(projectId: string) {
                     remote_publish_metadata_file_id: publishMetadataFile.id,
                     remote_publish_metadata_web_link: publishMetadataFile.webViewLink || driveFileLink(publishMetadataFile.id),
                     remote_render_queue_payload: payload,
+                    latest_render_version: renderVersion,
+                    editing_render_version: null,
+                    rerender_draft: false,
                     admin_publish_status: 'render_pending',
                     submitted_to_render_queue_at: now,
                 },

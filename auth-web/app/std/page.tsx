@@ -148,6 +148,7 @@ type SelectedProjectPayload = {
     project: StdProject & { project_payload?: any; review_notes?: string | null; reviewed_at?: string | null }
     scenes: any[]
     assets: any[]
+    render_history?: any[]
 }
 
 type MusicSubmission = {
@@ -5773,11 +5774,12 @@ export default function StdPortalPage() {
                     : '✅ 원격 렌더 큐에 성공적으로 등록되었습니다!'
             setMessage(submitMessage)
             await loadStdData(token, { showLoading: false })
+            await openProject(String(targetProject.project.id))
             alert(payload.already_submitted
                 ? '이미 원격 렌더 큐에 등록된 프로젝트입니다.'
                 : payload.shared_submission
                     ? '공동 작업자가 이미 제출한 프로젝트입니다.'
-                    : '프로젝트가 원격 렌더 큐에 등록되었습니다.')
+                    : `프로젝트 렌더링 v${payload.render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`)
         } catch (error: any) {
             const errorMessage = error?.message || '제출 실패'
             setMessage(`❌ ${errorMessage}`)
@@ -5790,6 +5792,31 @@ export default function StdPortalPage() {
 
     const handleStartRender = async () => {
         await submitProject()
+    }
+
+    const reopenProjectForRerender = async (projectId: string) => {
+        if (!projectId || loading) return
+        if (!confirm('기존 렌더 결과는 보관하고 이 프로젝트를 수정 가능한 상태로 다시 여시겠습니까?')) return
+        setLoading(true)
+        setMessage('기존 렌더 결과를 보관하고 다음 렌더 버전을 준비하고 있습니다...')
+        try {
+            const res = await fetch(`/api/std/projects/${projectId}/reopen`, {
+                method: 'POST',
+                headers: authedJsonHeaders,
+            })
+            const payload = await safeParseJson(res, '재렌더링 준비 실패')
+            if (!res.ok || payload.success === false) throw new Error(payload.error || '재렌더링 준비 실패')
+            await loadStdData(token, { showLoading: false })
+            await openProject(projectId)
+            setCurrentNav('image_gen')
+            setMessage(`렌더링 v${payload.next_render_version || 1} 수정본을 준비했습니다. 필요한 단계만 수정한 뒤 다시 렌더링하세요.`)
+        } catch (error: any) {
+            const errorMessage = error?.message || '재렌더링 준비 실패'
+            setMessage(`❌ ${errorMessage}`)
+            alert(errorMessage)
+        } finally {
+            setLoading(false)
+        }
     }
 
     const generateTts = async (skipScriptSync: boolean = false) => {
@@ -10806,7 +10833,7 @@ export default function StdPortalPage() {
                                             <th className="px-1 py-2.5 w-12 text-center">TTS</th>
                                             <th className="px-1 py-2.5 w-12 text-center">자막</th>
                                             <th className="px-1 py-2.5 w-12 text-center">썸네일</th>
-                                            <th className="px-2 py-2.5 w-16 text-center text-cyan-300 font-black tracking-wide">제출</th>
+                                            <th className="px-2 py-2.5 w-24 text-center text-cyan-300 font-black tracking-wide">렌더</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
@@ -10935,7 +10962,16 @@ export default function StdPortalPage() {
                                                                 {/* 제출 버튼 컬럼 */}
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                                     {isSubmitted ? (
-                                                                        <span className="inline-flex rounded-lg bg-emerald-600/15 px-2 py-1 text-xs text-emerald-300" title="제출 완료 · 검수 상태는 변경되지 않습니다.">제출 완료</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => reopenProjectForRerender(String(p.id))}
+                                                                            disabled={loading}
+                                                                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 px-2 py-1 text-[10px] font-bold text-indigo-300 hover:text-white border border-indigo-500/30 disabled:opacity-50 transition"
+                                                                            title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
+                                                                        >
+                                                                            <RefreshCw className="w-3 h-3" />
+                                                                            수정·재렌더
+                                                                        </button>
                                                                     ) : submittingProjectId === String(p.id) ? (
                                                                         <button
                                                                             disabled
@@ -11580,12 +11616,18 @@ export default function StdPortalPage() {
                                 {/* 렌더링 시작 버튼 */}
                                 <button
                                     type="button"
-                                    onClick={handleStartRender}
+                                    onClick={() => selectedProject.project.submitted_at
+                                        ? reopenProjectForRerender(String(selectedProject.project.id))
+                                        : handleStartRender()}
                                     disabled={isRendering}
                                     className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2 disabled:opacity-50 active:scale-95"
                                 >
                                     <span>🎬</span>
-                                    <span>{isRendering ? '영상 렌더링 진행 중...' : '최종 렌더링 시작'}</span>
+                                    <span>{isRendering
+                                        ? '영상 렌더링 진행 중...'
+                                        : selectedProject.project.submitted_at
+                                            ? '수정 후 재렌더링'
+                                            : `렌더링 v${selectedProject.project.progress_payload?.editing_render_version || ((selectedProject.project.progress_payload?.latest_render_version || 0) + 1)} 시작`}</span>
                                 </button>
                             </div>
 
@@ -11616,6 +11658,26 @@ export default function StdPortalPage() {
                                                 ⚙️ 인코더 libx264
                                             </div>
                                         </div>
+                                        {Boolean(selectedProject.render_history?.length) && (
+                                            <div className="border-t border-white/10 pt-3 space-y-2">
+                                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">렌더 버전 이력</div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selectedProject.render_history!.map((render: any) => (
+                                                        <a
+                                                            key={render.id}
+                                                            href={render.result_file_id ? `https://drive.google.com/file/d/${render.result_file_id}/view` : undefined}
+                                                            target={render.result_file_id ? '_blank' : undefined}
+                                                            rel={render.result_file_id ? 'noreferrer' : undefined}
+                                                            className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-bold ${render.result_file_id
+                                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                                                                : 'border-white/10 bg-white/5 text-gray-400 pointer-events-none'}`}
+                                                        >
+                                                            v{render.render_version} · {render.status === 'completed' ? '완료' : render.status === 'rendering' ? '렌더링 중' : render.status === 'pending' ? '대기 중' : render.status === 'failed' ? '실패' : render.status}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* 실시간 렌더 콘솔 로그 */}
