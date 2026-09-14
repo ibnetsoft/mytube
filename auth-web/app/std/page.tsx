@@ -13,7 +13,42 @@ import {
     selectFallbackAssetsForScenes,
     STD_INITIAL_MEDIA_SCENES,
 } from '@/lib/stdMediaLoading'
-import { subtitleTranslationKey, translationMapFromBlocks } from '@/lib/stdSubtitleTranslation'
+import {
+    isSubtitleTranslationLanguage,
+    SubtitleTranslationLanguage,
+    subtitleTranslationKey,
+    translationMapFromBlocks,
+} from '@/lib/stdSubtitleTranslation'
+
+const SUBTITLE_REVIEW_COPY: Record<SubtitleTranslationLanguage, {
+    code: string
+    name: string
+    translating: string
+    retry: string
+    candidate: string
+    markDialogue: string
+    markNarration: string
+    automatic: string
+    dialogueVoice: string
+    narrationVoice: string
+    pending: string
+}> = {
+    en: {
+        code: 'EN', name: '영어', translating: 'Translating…', retry: 'Translation failed · retry',
+        candidate: 'Possible dialogue', markDialogue: 'Mark as dialogue', markNarration: 'Narration', automatic: 'Auto detect',
+        dialogueVoice: 'Character voice', narrationVoice: 'Narration voice', pending: 'Waiting for translation',
+    },
+    vi: {
+        code: 'VI', name: '베트남어', translating: 'Đang dịch…', retry: 'Dịch thất bại · thử lại',
+        candidate: 'Có thể là lời thoại', markDialogue: 'Đánh dấu là lời thoại', markNarration: 'Lời dẫn', automatic: 'Tự động nhận diện',
+        dialogueVoice: 'Giọng nhân vật', narrationVoice: 'Giọng thuyết minh', pending: 'Đang chờ bản dịch',
+    },
+    th: {
+        code: 'TH', name: '태국어', translating: 'กำลังแปล…', retry: 'แปลไม่สำเร็จ · ลองอีกครั้ง',
+        candidate: 'คาดว่าเป็นบทพูด', markDialogue: 'กำหนดเป็นบทพูด', markNarration: 'คำบรรยาย', automatic: 'ตรวจอัตโนมัติ',
+        dialogueVoice: 'เสียงตัวละคร', narrationVoice: 'เสียงบรรยาย', pending: 'รอการแปล',
+    },
+}
 
 const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', key: 'cat_folktales', language: 'ko' },
@@ -684,6 +719,8 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
+    const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale) ? currentLocale : null
+    const subtitleReviewCopy = subtitleReviewLocale ? SUBTITLE_REVIEW_COPY[subtitleReviewLocale] : null
     const tf = (key: string, values: Record<string, string | number>, fallback?: string) => (
         Object.entries(values).reduce(
             (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
@@ -1003,11 +1040,11 @@ export default function StdPortalPage() {
     const [voicePickerSearch, setVoicePickerSearch] = useState('')
     const [voicePickerPreviewUrl, setVoicePickerPreviewUrl] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
-    const [thaiSubtitleTranslations, setThaiSubtitleTranslations] = useState<Record<string, string>>({})
-    const [isThaiSubtitleTranslating, setIsThaiSubtitleTranslating] = useState(false)
-    const [thaiSubtitleTranslationError, setThaiSubtitleTranslationError] = useState('')
-    const thaiSubtitleTranslationRequestRef = useRef('')
-    const thaiSubtitleTranslationControllerRef = useRef<AbortController | null>(null)
+    const [subtitleTranslations, setSubtitleTranslations] = useState<Partial<Record<SubtitleTranslationLanguage, Record<string, string>>>>({})
+    const [translatingSubtitleLanguage, setTranslatingSubtitleLanguage] = useState<SubtitleTranslationLanguage | null>(null)
+    const [subtitleTranslationError, setSubtitleTranslationError] = useState('')
+    const subtitleTranslationRequestRef = useRef('')
+    const subtitleTranslationControllerRef = useRef<AbortController | null>(null)
     const subtitleSyncContextRef = useRef({ subtitles: localSubtitles, projectId: selectedProject?.project?.id })
     subtitleSyncContextRef.current = { subtitles: localSubtitles, projectId: selectedProject?.project?.id }
     useEffect(() => () => subtitleSyncControllerRef.current?.abort(new Error('페이지를 떠나 보정이 취소되었습니다.')), [selectedProject?.project?.id, currentNav])
@@ -1604,21 +1641,23 @@ export default function StdPortalPage() {
         return headers
     }, [token, isImpersonating, impersonateEmail])
 
-    useEffect(() => {
-        thaiSubtitleTranslationControllerRef.current?.abort()
-        thaiSubtitleTranslationRequestRef.current = ''
-        setIsThaiSubtitleTranslating(false)
-        setThaiSubtitleTranslationError('')
-        setThaiSubtitleTranslations(translationMapFromBlocks(
-            selectedProject?.project?.project_payload?.subtitle_translations?.th?.blocks,
-        ))
-        return () => thaiSubtitleTranslationControllerRef.current?.abort()
-    }, [
-        selectedProject?.project?.id,
-        selectedProject?.project?.project_payload?.subtitle_translations?.th?.blocks,
-    ])
+    const persistedSubtitleTranslations = selectedProject?.project?.project_payload?.subtitle_translations
 
-    const translateThaiSubtitleBlocks = useCallback(async (force = false) => {
+    useEffect(() => {
+        subtitleTranslationControllerRef.current?.abort()
+        subtitleTranslationRequestRef.current = ''
+        setTranslatingSubtitleLanguage(null)
+        setSubtitleTranslationError('')
+        setSubtitleTranslations(Object.fromEntries(
+            (['en', 'vi', 'th'] as const).map(language => [
+                language,
+                translationMapFromBlocks(persistedSubtitleTranslations?.[language]?.blocks),
+            ]),
+        ))
+        return () => subtitleTranslationControllerRef.current?.abort()
+    }, [selectedProject?.project?.id, persistedSubtitleTranslations])
+
+    const translateSubtitleBlocks = useCallback(async (targetLanguage: SubtitleTranslationLanguage, force = false) => {
         const projectId = String(selectedProject?.project?.id || '')
         const blocks = localSubtitles.map((subtitle: any, index: number) => ({
             index,
@@ -1626,29 +1665,30 @@ export default function StdPortalPage() {
         })).filter(block => block.source_text)
         if (!projectId || blocks.length === 0) return
 
-        const signature = `${projectId}|${blocks.map(block => `${block.index}:${block.source_text}`).join('\u0001')}`
-        if (!force && thaiSubtitleTranslationRequestRef.current === signature) return
-        thaiSubtitleTranslationControllerRef.current?.abort()
+        const signature = `${projectId}|${targetLanguage}|${blocks.map(block => `${block.index}:${block.source_text}`).join('\u0001')}`
+        if (!force && subtitleTranslationRequestRef.current === signature) return
+        subtitleTranslationControllerRef.current?.abort()
         const controller = new AbortController()
-        thaiSubtitleTranslationControllerRef.current = controller
-        thaiSubtitleTranslationRequestRef.current = signature
-        setIsThaiSubtitleTranslating(true)
-        setThaiSubtitleTranslationError('')
+        subtitleTranslationControllerRef.current = controller
+        subtitleTranslationRequestRef.current = signature
+        setTranslatingSubtitleLanguage(targetLanguage)
+        setSubtitleTranslationError('')
         try {
             const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/subtitle-translations`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
                 signal: controller.signal,
-                body: JSON.stringify({ target_language: 'th', blocks }),
+                body: JSON.stringify({ target_language: targetLanguage, blocks }),
             })
-            const payload = await safeParseJson(response, '태국어 자막 번역에 실패했습니다.')
-            if (!response.ok || !payload?.success) throw new Error(payload?.error || '태국어 자막 번역에 실패했습니다.')
+            const languageName = SUBTITLE_REVIEW_COPY[targetLanguage].name
+            const payload = await safeParseJson(response, `${languageName} 자막 번역에 실패했습니다.`)
+            if (!response.ok || !payload?.success) throw new Error(payload?.error || `${languageName} 자막 번역에 실패했습니다.`)
             const translatedMap = translationMapFromBlocks(payload.blocks)
             if (Object.keys(translatedMap).length !== blocks.length) {
                 throw new Error('일부 자막 블록의 번역이 누락되었습니다.')
             }
             if (controller.signal.aborted) return
-            setThaiSubtitleTranslations(translatedMap)
+            setSubtitleTranslations(prev => ({ ...prev, [targetLanguage]: translatedMap }))
             setSelectedProject((prev: any) => {
                 if (!prev || String(prev.project?.id || '') !== projectId) return prev
                 return {
@@ -1659,7 +1699,7 @@ export default function StdPortalPage() {
                             ...(prev.project.project_payload || {}),
                             subtitle_translations: {
                                 ...(prev.project.project_payload?.subtitle_translations || {}),
-                                th: {
+                                [targetLanguage]: {
                                     version: 1,
                                     updated_at: new Date().toISOString(),
                                     blocks: payload.blocks,
@@ -1670,31 +1710,32 @@ export default function StdPortalPage() {
                 }
             })
             setMessage(payload.translated_count > 0
-                ? `자막 ${payload.translated_count}개를 블록 그대로 태국어로 번역했습니다.`
-                : '저장된 태국어 자막 번역을 불러왔습니다.')
+                ? `자막 ${payload.translated_count}개를 블록 그대로 ${languageName}로 번역했습니다.`
+                : `저장된 ${languageName} 자막 번역을 불러왔습니다.`)
         } catch (error: any) {
             if (controller.signal.aborted) return
-            thaiSubtitleTranslationRequestRef.current = ''
-            const errorMessage = error?.message || '태국어 자막 번역에 실패했습니다.'
-            setThaiSubtitleTranslationError(errorMessage)
+            subtitleTranslationRequestRef.current = ''
+            const errorMessage = error?.message || '자막 번역에 실패했습니다.'
+            setSubtitleTranslationError(errorMessage)
             setMessage(`❌ ${errorMessage}`)
         } finally {
-            if (thaiSubtitleTranslationControllerRef.current === controller) {
-                setIsThaiSubtitleTranslating(false)
+            if (subtitleTranslationControllerRef.current === controller) {
+                setTranslatingSubtitleLanguage(null)
             }
         }
     }, [selectedProject?.project?.id, localSubtitles, authedJsonHeaders])
 
     useEffect(() => {
-        if (currentLocale !== 'th' || currentNav !== 'subtitle_vrew' || localSubtitles.length === 0) return
+        if (!subtitleReviewLocale || currentNav !== 'subtitle_vrew' || localSubtitles.length === 0) return
+        const activeTranslations = subtitleTranslations[subtitleReviewLocale] || {}
         const hasMissingTranslation = localSubtitles.some((subtitle: any, index: number) => {
             const sourceText = String(subtitle?.text || '').trim()
-            return sourceText && !thaiSubtitleTranslations[subtitleTranslationKey(index, sourceText)]
+            return sourceText && !activeTranslations[subtitleTranslationKey(index, sourceText)]
         })
         if (!hasMissingTranslation) return
-        const timer = window.setTimeout(() => void translateThaiSubtitleBlocks(false), 700)
+        const timer = window.setTimeout(() => void translateSubtitleBlocks(subtitleReviewLocale, false), 700)
         return () => window.clearTimeout(timer)
-    }, [currentLocale, currentNav, localSubtitles, thaiSubtitleTranslations, translateThaiSubtitleBlocks])
+    }, [subtitleReviewLocale, currentNav, localSubtitles, subtitleTranslations, translateSubtitleBlocks])
 
     const safeParseJson = async (res: Response, fallbackErrMsg: string) => {
         try {
@@ -8510,18 +8551,20 @@ export default function StdPortalPage() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => currentLocale === 'th'
-                                                ? void translateThaiSubtitleBlocks(true)
-                                                : alert('현재는 태국어 모드에서 블록 단위 자막 번역을 지원합니다.')}
-                                            disabled={isThaiSubtitleTranslating || localSubtitles.length === 0}
-                                            title={currentLocale === 'th' ? '원문 블록 경계를 유지하여 태국어로 다시 번역합니다.' : undefined}
+                                            onClick={() => subtitleReviewLocale
+                                                ? void translateSubtitleBlocks(subtitleReviewLocale, true)
+                                                : alert('영어, 베트남어 또는 태국어 모드를 선택해 주세요.')}
+                                            disabled={Boolean(translatingSubtitleLanguage) || localSubtitles.length === 0}
+                                            title={subtitleReviewCopy ? `원문 블록 경계를 유지하여 ${subtitleReviewCopy.name}로 다시 번역합니다.` : undefined}
                                             className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all disabled:cursor-not-allowed disabled:opacity-45"
                                         >
-                                            {isThaiSubtitleTranslating && currentLocale === 'th' ? '태국어 번역 중...' : t('sub_translate')}
+                                            {translatingSubtitleLanguage && subtitleReviewLocale === translatingSubtitleLanguage
+                                                ? subtitleReviewCopy?.translating
+                                                : t('sub_translate')}
                                         </button>
-                                        {currentLocale === 'th' && thaiSubtitleTranslationError && (
-                                            <span className="max-w-52 truncate text-[10px] text-red-300" title={thaiSubtitleTranslationError}>
-                                                번역 실패 · 버튼을 눌러 재시도
+                                        {subtitleReviewLocale && subtitleTranslationError && (
+                                            <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
+                                                {subtitleReviewCopy?.retry}
                                             </span>
                                         )}
                                         <button
@@ -8843,10 +8886,12 @@ export default function StdPortalPage() {
                                                                         const candidates = pendingDialogueCandidateIndexes.has(item.subtitleIndex) && !isDialogueBlock
                                                                             ? subtitleDialogueCandidates.get(item.subtitleIndex) || [] : []
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
-                                                                        const thaiTranslation = thaiSubtitleTranslations[subtitleTranslationKey(
-                                                                            item.subtitleIndex,
-                                                                            String(item.text || '').trim(),
-                                                                        )]
+                                                                        const localizedTranslation = subtitleReviewLocale
+                                                                            ? subtitleTranslations[subtitleReviewLocale]?.[subtitleTranslationKey(
+                                                                                item.subtitleIndex,
+                                                                                String(item.text || '').trim(),
+                                                                            )]
+                                                                            : ''
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
@@ -8898,8 +8943,8 @@ export default function StdPortalPage() {
                                                                                     `block-${item.subtitleIndex}`,
                                                                                     blockVoiceId,
                                                                                     (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
-                                                                                    currentLocale === 'th'
-                                                                                        ? (isDialogueBlock ? 'เสียงตัวละคร' : 'เสียงบรรยาย')
+                                                                                    subtitleReviewCopy
+                                                                                        ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
                                                                                         : `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
                                                                                     isDialogueBlock ? 'dialogue' : 'default',
                                                                                     'left'
@@ -8907,15 +8952,15 @@ export default function StdPortalPage() {
                                                                                     </div>
                                                                                     {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
                                                                                         <span className="ml-2 inline-flex items-center gap-2 text-[10px]">
-                                                                                            {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>{currentLocale === 'th' ? 'คาดว่าเป็นบทพูด' : '대사 후보'}</span>}
+                                                                                            {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>{subtitleReviewCopy?.candidate || '대사 후보'}</span>}
                                                                                             <button type="button" className="text-emerald-300 underline" title="이 자막 줄 전체를 대사로 지정합니다. 목소리는 대사 일괄 적용으로 선택하세요." onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: true } : sub)
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>{currentLocale === 'th' ? 'กำหนดเป็นบทพูด' : '대사로 지정'}</button>
+                                                                                            }}>{subtitleReviewCopy?.markDialogue || '대사로 지정'}</button>
                                                                                             <button type="button" className="text-gray-400 underline" onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: false } : sub)
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>{currentLocale === 'th' ? 'คำบรรยาย' : '내레이션'}</button>
+                                                                                            }}>{subtitleReviewCopy?.markNarration || '내레이션'}</button>
                                                                                             {typeof item.dialogue_override === 'boolean' && <button type="button" className="text-amber-300 underline" onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => {
                                                                                                     if (index !== item.subtitleIndex) return sub
@@ -8923,7 +8968,7 @@ export default function StdPortalPage() {
                                                                                                     return rest
                                                                                                 })
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>{currentLocale === 'th' ? 'ตรวจอัตโนมัติ' : '자동 판별'}</button>}
+                                                                                            }}>{subtitleReviewCopy?.automatic || '자동 판별'}</button>}
                                                                                         </span>
                                                                                     )}
                                                                                 {!hasSingleGroupVoice && (
@@ -8938,10 +8983,12 @@ export default function StdPortalPage() {
                                                                                         {blockVoiceName}
                                                                                     </span>
                                                                                 )}
-                                                                                {currentLocale === 'th' && (
-                                                                                    <div className="mt-1 border-t border-white/5 pt-1 text-[11px] leading-relaxed text-sky-200 sm:text-xs" lang="th">
-                                                                                        <span className="mr-1.5 text-[9px] font-bold text-sky-400">TH</span>
-                                                                                        {thaiTranslation || (isThaiSubtitleTranslating ? 'กำลังแปล…' : 'รอการแปล')}
+                                                                                {subtitleReviewLocale && subtitleReviewCopy && (
+                                                                                    <div className="mt-1 border-t border-white/5 pt-1 text-[11px] leading-relaxed text-sky-200 sm:text-xs" lang={subtitleReviewLocale}>
+                                                                                        <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
+                                                                                        {localizedTranslation || (translatingSubtitleLanguage === subtitleReviewLocale
+                                                                                            ? subtitleReviewCopy.translating
+                                                                                            : subtitleReviewCopy.pending)}
                                                                                     </div>
                                                                                 )}
                                                                                 </div>

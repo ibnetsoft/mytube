@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { generateJsonWithModelSetting } from '@/lib/aiRouter'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import {
-    buildThaiSubtitleTranslationPrompt,
+    buildSubtitleTranslationPrompt,
+    isSubtitleTranslationLanguage,
     parseStrictTranslationResponse,
     SubtitleTranslationBlock,
     subtitleTranslationKey,
@@ -38,9 +39,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     } catch {
         return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
-    if (body?.target_language !== 'th' || !Array.isArray(body?.blocks)) {
-        return NextResponse.json({ success: false, error: 'Thai subtitle blocks are required' }, { status: 400 })
+    if (!isSubtitleTranslationLanguage(body?.target_language) || !Array.isArray(body?.blocks)) {
+        return NextResponse.json({ success: false, error: 'English, Vietnamese, or Thai subtitle blocks are required' }, { status: 400 })
     }
+    const targetLanguage = body.target_language
 
     const blocks = body.blocks.map((block: any) => ({
         index: Number(block?.index),
@@ -76,7 +78,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
-    const cachedBlocks = project.project_payload?.subtitle_translations?.th?.blocks
+    const cachedBlocks = project.project_payload?.subtitle_translations?.[targetLanguage]?.blocks
     const cached = translationMapFromBlocks(cachedBlocks)
     const translated = new Map<string, string>()
     const missing = blocks.filter((block: any) => {
@@ -94,7 +96,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             const source = batch.map((block: any) => ({ id: `b${block.index}`, text: block.source_text }))
             const raw = await generateJsonWithModelSetting(
                 supabaseAdmin,
-                buildThaiSubtitleTranslationPrompt(source),
+                buildSubtitleTranslationPrompt(source, targetLanguage),
                 'sys_api_translation_model',
                 apiKey,
                 0.1,
@@ -117,7 +119,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     const latestPayload = latest.data?.project_payload || project.project_payload || {}
     const nextTranslations = {
         ...(latestPayload.subtitle_translations || {}),
-        th: { version: 1, updated_at: new Date().toISOString(), blocks: result },
+        [targetLanguage]: { version: 1, updated_at: new Date().toISOString(), blocks: result },
     }
     const persisted = await supabaseAdmin
         .from('std_projects')
@@ -126,7 +128,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     return NextResponse.json({
         success: true,
-        target_language: 'th',
+        target_language: targetLanguage,
         blocks: result,
         cached_count: blocks.length - missing.length,
         translated_count: missing.length,

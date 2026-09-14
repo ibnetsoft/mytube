@@ -4,6 +4,18 @@ export type SubtitleTranslationBlock = {
     translated_text: string
 }
 
+export const SUBTITLE_TRANSLATION_LANGUAGES = {
+    en: 'English',
+    vi: 'Vietnamese',
+    th: 'Thai',
+} as const
+
+export type SubtitleTranslationLanguage = keyof typeof SUBTITLE_TRANSLATION_LANGUAGES
+
+export function isSubtitleTranslationLanguage(value: unknown): value is SubtitleTranslationLanguage {
+    return Object.prototype.hasOwnProperty.call(SUBTITLE_TRANSLATION_LANGUAGES, String(value || ''))
+}
+
 export function subtitleTranslationKey(index: number, sourceText: string): string {
     return `${Math.floor(Number(index))}\u0000${String(sourceText || '')}`
 }
@@ -45,8 +57,12 @@ export function parseStrictTranslationResponse(
     return result
 }
 
-export function buildThaiSubtitleTranslationPrompt(blocks: Array<{ id: string; text: string }>): string {
-    return `You are translating Korean video subtitle blocks into Thai for a human dialogue reviewer.
+export function buildSubtitleTranslationPrompt(
+    blocks: Array<{ id: string; text: string }>,
+    targetLanguage: SubtitleTranslationLanguage,
+): string {
+    const languageName = SUBTITLE_TRANSLATION_LANGUAGES[targetLanguage]
+    return `You are translating Korean video subtitle blocks into ${languageName} for a human dialogue reviewer.
 
 Translate each block independently and faithfully. The reviewer must be able to tell whether the text is character dialogue or narration.
 
@@ -55,7 +71,7 @@ Strict rules:
 2. Never merge, split, summarize, omit, or move content between blocks.
 3. Preserve direct speech as direct speech. Preserve quotation marks, speaker labels, sentence boundaries, tone, and emotional cues.
 4. Do not turn narration into dialogue or dialogue into narration.
-5. Translate the complete text of each block into natural Thai. Do not classify the block and do not add explanations.
+5. Translate the complete text of each block into natural ${languageName}. Do not classify the block and do not add explanations.
 6. Return only valid JSON in this shape: {"translations":[{"id":"b0","translation":"..."}]}
 
 Input blocks:
