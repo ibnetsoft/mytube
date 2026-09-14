@@ -256,6 +256,7 @@ async function syncPregeneratedScript(jobId: string): Promise<void> {
                     sfx_cues: sfxCues,
                     sfx_cues_json: sfxCuesJson,
                     defer_ready_until_quality_gate: Boolean(jobPayload.defer_ready_until_quality_gate),
+                    repair_mode: Boolean(jobPayload.repair_mode),
                     language: jobPayload.language,
                 },
                 status: 'pending',
@@ -317,10 +318,19 @@ async function syncPublishMetadata(jobId: string): Promise<void> {
             pregenerated_structure_status: structure ? 'ready' : existingProgress.pregenerated_structure_status,
             prepared_topic_ready: true,
             prepared_topic_ready_at: new Date().toISOString(),
+            ...((job.payload?.repair_mode || existingProgress.repair_status === 'queued') ? {
+                repair_status: 'completed',
+                repair_completed_at: new Date().toISOString(),
+                repair_completed_job_id: jobId,
+            } : {}),
         }
 
         const updatePayload: Record<string, any> = {
-            status: 'pending',
+            // Admin-hidden repair rows stay excluded until an administrator
+            // explicitly restores them after reviewing the repaired package.
+            status: existingProgress.admin_hidden === true || existingProgress.admin_hidden === 'true'
+                ? 'excluded'
+                : 'pending',
             publish_metadata: publishMetadata,
             publish_metadata_status: 'ready',
             progress_payload: progressPayload,
