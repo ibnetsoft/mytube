@@ -7,6 +7,12 @@ import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
 import StdThumbnailPreview from '@/components/StdThumbnailPreview'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
+import {
+    directStorageUrl,
+    prioritizedSceneNumbers,
+    selectFallbackAssetsForScenes,
+    STD_INITIAL_MEDIA_SCENES,
+} from '@/lib/stdMediaLoading'
 
 const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', key: 'cat_folktales', language: 'ko' },
@@ -107,6 +113,64 @@ import { detectDialogueCandidates } from '@/lib/stdDialogueCandidates'
 import { SCENE_MOTIONS, sceneMotion, sceneMotionStyle } from '@/lib/stdSceneMotion'
 import { abortable, measureSubtitleDurations, readAudioDuration } from '@/lib/stdTimingSync'
 import { calculateLongformPayoutByScenes } from '@/lib/stdPayoutPolicy'
+
+function LazySceneMedia({
+    imageUrl,
+    videoUrl,
+    shouldPlay = false,
+    priority = false,
+}: {
+    imageUrl?: string | null
+    videoUrl?: string | null
+    shouldPlay?: boolean
+    priority?: boolean
+}) {
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const [shouldLoad, setShouldLoad] = useState(priority || shouldPlay)
+
+    useEffect(() => {
+        if (priority || shouldPlay) {
+            setShouldLoad(true)
+            return
+        }
+        const element = containerRef.current
+        if (!element || typeof IntersectionObserver === 'undefined') {
+            setShouldLoad(true)
+            return
+        }
+        const observer = new IntersectionObserver(entries => {
+            if (!entries.some(entry => entry.isIntersecting)) return
+            setShouldLoad(true)
+            observer.disconnect()
+        }, { rootMargin: '900px 0px' })
+        observer.observe(element)
+        return () => observer.disconnect()
+    }, [priority, shouldPlay])
+
+    return (
+        <div ref={containerRef} className="w-full h-full bg-[#0b0e14]">
+            {shouldLoad && videoUrl ? (
+                <video
+                    src={videoUrl}
+                    className="w-full h-full object-cover"
+                    autoPlay={shouldPlay}
+                    muted
+                    playsInline
+                    preload={shouldPlay ? 'auto' : 'metadata'}
+                />
+            ) : shouldLoad && imageUrl ? (
+                <img
+                    src={imageUrl}
+                    alt=""
+                    loading={priority ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchPriority={priority ? 'high' : 'low'}
+                    className="w-full h-full object-cover"
+                />
+            ) : null}
+        </div>
+    )
+}
 
 type Topic = {
     id: number
@@ -726,7 +790,8 @@ export default function StdPortalPage() {
             String(asset?.asset_type || '').toLowerCase() === 'thumbnail'
             && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        const persistentThumbnailUrl = projectAssetFileUrl(projectId, thumbnailAsset)
+        const persistentThumbnailUrl = sanitizeAssetUrl(directStorageUrl(thumbnailAsset))
+            || projectAssetFileUrl(projectId, thumbnailAsset)
             || sanitizeAssetUrl(projectPayload.project?.progress_payload?.thumbnail_url)
 
         return {
@@ -737,8 +802,8 @@ export default function StdPortalPage() {
                 const videoAsset = latestBySceneType.get(`${sceneNumber}:video`)
                 return {
                     ...scene,
-                    image_url: projectAssetFileUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image),
-                    video_url: projectAssetFileUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video),
+                    image_url: sanitizeAssetUrl(directStorageUrl(imageAsset)) || projectAssetFileUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image),
+                    video_url: sanitizeAssetUrl(directStorageUrl(videoAsset)) || projectAssetFileUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video),
                 }
             }),
             project: {
@@ -924,6 +989,7 @@ export default function StdPortalPage() {
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
     const previewVideoIdentityRef = useRef('')
     const previewTransitionVisualRef = useRef<{ sceneNumber: number; imageUrl: string; videoUrl: string } | null>(null)
+    const previewPrefetchRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
@@ -1806,7 +1872,8 @@ export default function StdPortalPage() {
     }
 
     const assetDisplayUrl = (projectId: string | null | undefined, asset: any): string | null => {
-        return projectAssetFileUrl(projectId, asset)
+        return sanitizeAssetUrl(directStorageUrl(asset))
+            || projectAssetFileUrl(projectId, asset)
             || sanitizeAssetUrl(
                 asset?.metadata?.thumbnail_link ||
                 asset?.metadata?.web_view_link ||
@@ -3443,7 +3510,8 @@ export default function StdPortalPage() {
 
     const restorePersistedProjectMedia = async (
         projectPayload: SelectedProjectPayload,
-        headers: Record<string, string>
+        headers: Record<string, string>,
+        options: { sceneNumbers?: number[]; includeProjectAssets?: boolean } = {},
     ) => {
         const projectId = projectPayload?.project?.id
         const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
@@ -3451,14 +3519,14 @@ export default function StdPortalPage() {
         const requestScope = { ...mediaScopeRef.current, projectId: String(projectId) }
         const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
 
-        const mediaAssets = assets.filter((asset: any) =>
-            assetBelongsToProject(asset, projectId)
-            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
-            && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
-            && (asset?.id || asset?.drive_file_id)
+        const scopedAssets = assets.filter((asset: any) => assetBelongsToProject(asset, projectId))
+        const mediaAssets = selectFallbackAssetsForScenes(
+            scopedAssets,
+            options.sceneNumbers || STD_INITIAL_MEDIA_SCENES,
+            options.includeProjectAssets !== false,
         )
 
-        const driveEntries = await Promise.all(mediaAssets.map(async (asset: any) => {
+        const restoreAsset = async (asset: any) => {
             const cacheKey = projectAssetCacheKey(projectId, asset)
             if (!cacheKey) return null
             if (projectMediaObjectUrlsRef.current[cacheKey]) {
@@ -3481,7 +3549,14 @@ export default function StdPortalPage() {
             } catch {
                 return null
             }
-        }))
+        }
+        const driveEntries: Array<{ asset: any; objectUrl: string } | null> = []
+        const concurrency = 2
+        for (let offset = 0; offset < mediaAssets.length; offset += concurrency) {
+            const batch = await Promise.all(mediaAssets.slice(offset, offset + concurrency).map(restoreAsset))
+            driveEntries.push(...batch)
+            if (!isCurrent()) return
+        }
 
         const restoredEntries = driveEntries
         if (!isCurrent()) return
@@ -3517,7 +3592,12 @@ export default function StdPortalPage() {
         const audioAsset = assets.find((asset: any) =>
             String(asset?.asset_type || '').toLowerCase() === 'audio' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        setAudioResultUrl(restoredAudioUrl || audioPlaybackEndpoint(projectId, audioAsset) || '')
+        setAudioResultUrl(
+            sanitizeAssetUrl(directStorageUrl(audioAsset))
+            || restoredAudioUrl
+            || audioPlaybackEndpoint(projectId, audioAsset)
+            || ''
+        )
 
         setSelectedProject(prev => {
             if (!isCurrent() || !prev || String(prev.project?.id || '') !== String(projectId)) return prev
@@ -6539,6 +6619,67 @@ export default function StdPortalPage() {
         : ''
     const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
 
+    useEffect(() => {
+        const cache = previewPrefetchRef.current
+        return () => {
+            cache.forEach(media => {
+                if (media instanceof HTMLVideoElement) {
+                    media.pause()
+                    media.removeAttribute('src')
+                    media.load()
+                } else {
+                    media.src = ''
+                }
+            })
+            cache.clear()
+        }
+    }, [selectedProject?.project?.id])
+
+    useEffect(() => {
+        if (currentNav !== 'subtitle_vrew' || !selectedProject?.project?.id) return
+        const scenes = selectedProject.scenes || []
+        const priorityNumbers = prioritizedSceneNumbers(currentPreviewSceneNumber, scenes.length)
+
+        void restorePersistedProjectMedia(selectedProject, authedJsonHeaders, {
+            sceneNumbers: priorityNumbers,
+            includeProjectAssets: false,
+        })
+
+        for (const sceneNumber of priorityNumbers) {
+            if (sceneNumber === currentPreviewSceneNumber) continue
+            const scene = scenes.find((item: any, index: number) => Number(item?.scene_number || item?.scene_order || index + 1) === sceneNumber)
+            const videoUrl = isPlayablePreviewVideoUrl(scene?.video_url) ? String(scene.video_url) : ''
+            const imageUrl = String(scene?.image_url || '')
+            const url = videoUrl || imageUrl
+            if (!url || url.startsWith('blob:') || previewPrefetchRef.current.has(url)) continue
+
+            if (videoUrl) {
+                const video = document.createElement('video')
+                video.preload = 'metadata'
+                video.muted = true
+                video.src = videoUrl
+                video.load()
+                previewPrefetchRef.current.set(url, video)
+            } else {
+                const image = new window.Image()
+                image.decoding = 'async'
+                image.fetchPriority = sceneNumber <= 4 ? 'high' : 'low'
+                image.src = imageUrl
+                previewPrefetchRef.current.set(url, image)
+            }
+        }
+
+        while (previewPrefetchRef.current.size > 12) {
+            const oldestKey = previewPrefetchRef.current.keys().next().value
+            if (!oldestKey) break
+            const media = previewPrefetchRef.current.get(oldestKey)
+            if (media instanceof HTMLVideoElement) media.pause()
+            previewPrefetchRef.current.delete(oldestKey)
+        }
+    // Asset URL updates are the result of this loader; restarting on those updates would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentNav, currentPreviewSceneNumber, selectedProject?.project?.id])
+
     const previewMotionScene = selectedProject?.scenes?.find((scene: any) => Number(scene.scene_number) === currentPreviewSceneNumber)
     const previewMotionGroup = subtitleSceneGroups.find(group => Number(group.scene_number) === currentPreviewSceneNumber)
     const previewMotionStart = Number(previewMotionGroup?.start_num ?? currentSub.start_num ?? currentSub.start_time ?? 0)
@@ -8480,21 +8621,13 @@ export default function StdPortalPage() {
                                                         {/* 이미지와 구간 시간 */}
                                                         <div className="w-[calc(100%-2rem)] shrink-0 self-start min-[390px]:w-36 sm:w-40">
                                                             <div className="aspect-video w-full rounded-md sm:rounded-lg overflow-hidden border border-white/10 relative">
-                                                                {group.video_url ? (
-                                                                    <video
-                                                                        key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
-                                                                        src={group.video_url}
-                                                                        className="w-full h-full object-cover"
-                                                                        autoPlay={shouldPlayThumbnailVideo}
-                                                                        muted
-                                                                        playsInline
-                                                                        preload={shouldPlayThumbnailVideo ? 'auto' : 'metadata'}
-                                                                    />
-                                                                ) : group.image_url ? (
-                                                                    <img src={group.image_url} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <div className="w-full h-full bg-[#0b0e14]" />
-                                                                )}
+                                                                <LazySceneMedia
+                                                                    key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
+                                                                    videoUrl={group.video_url}
+                                                                    imageUrl={group.image_url}
+                                                                    shouldPlay={shouldPlayThumbnailVideo}
+                                                                    priority={Number(sNum) <= 4 || isActive}
+                                                                />
                                                                 {group.video_url ? (
                                                                     <span className="absolute top-0.5 right-0.5 bg-purple-700/90 text-white text-[8px] font-bold px-1 rounded">
                                                                         영상 완료
@@ -8782,6 +8915,9 @@ export default function StdPortalPage() {
                                                 <img
                                                     src={currentSubImageUrl}
                                                     alt="Preview"
+                                                    loading="eager"
+                                                    decoding="async"
+                                                    fetchPriority="high"
                                                     style={previewImageMotionStyle}
                                                     className="w-full h-full object-cover"
                                                 />
@@ -8816,6 +8952,7 @@ export default function StdPortalPage() {
                                                         <img
                                                             src={previewTransition.imageUrl}
                                                             alt=""
+                                                            decoding="async"
                                                             className="w-full h-full object-cover"
                                                             style={previewTransitionLayerStyle(previewTransition.effect, previewTransition.exiting)}
                                                         />
@@ -9651,7 +9788,14 @@ export default function StdPortalPage() {
                                                     )}
                                                     {scene.image_url ? (
                                                         <>
-                                                            <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
+                                                            <img
+                                                                src={scene.image_url}
+                                                                alt={`Scene ${sceneNum}`}
+                                                                loading={sceneNum <= 4 ? 'eager' : 'lazy'}
+                                                                decoding="async"
+                                                                fetchPriority={sceneNum <= 4 ? 'high' : 'low'}
+                                                                className="w-full h-full object-cover"
+                                                            />
                                                             {scene.video_url && (
                                                                 <>
                                                                     <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
