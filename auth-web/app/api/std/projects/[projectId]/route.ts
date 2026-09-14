@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
+import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 
 export const dynamic = 'force-dynamic'
 
@@ -273,9 +274,16 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         console.warn('[STD Project] render history unavailable:', renderHistoryError?.message)
     }
 
+    const protectedProject = {
+        ...project,
+        project_payload: protectCharacterReferenceUrls(project.project_payload, project.id),
+        source_payload: protectCharacterReferenceUrls(project.source_payload, project.id),
+        progress_payload: protectCharacterReferenceUrls(project.progress_payload, project.id),
+    }
+
     return NextResponse.json({
         success: true,
-        project,
+        project: protectedProject,
         scenes: (scenes || []).map((scene, index) => hydrateSceneMedia(
             scene,
             assets || [],
@@ -468,6 +476,11 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 ...projectPayloadPatch.structure,
             }
             : currentStructure
+        // Character references are worker-owned high-resolution assets. Never
+        // persist the protected browser thumbnail URL over the canonical URL.
+        if (currentStructure.character_anchors) {
+            nextStructure.character_anchors = currentStructure.character_anchors
+        }
         if (persistableScenes.length > 0) {
             nextStructure.scenes = persistableScenes
         }

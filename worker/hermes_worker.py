@@ -7696,9 +7696,7 @@ async def _generate_character_anchor_images(
         )
         if not images_bytes:
             raise RuntimeError(f"character reference image generation failed for {character.get('name') or character_key}")
-        from codex_character_assets import optimize_portrait_bytes
-        optimized_image, optimization = optimize_portrait_bytes(images_bytes[0])
-        bucket, object_path, image_url = _upload_topic_character_image(topic_queue_id, character_key, optimized_image)
+        bucket, object_path, image_url = _upload_topic_character_image(topic_queue_id, character_key, images_bytes[0])
         character.update({
             "character_key": character_key,
             "prompt_en": character.get("prompt_en") or character.get("visual_dna_en") or "",
@@ -7708,7 +7706,6 @@ async def _generate_character_anchor_images(
             "storage_object_path": object_path,
             "image_generation_status": "ready",
             "image_generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "image_optimization": optimization,
         })
         enriched.append(character)
     return enriched

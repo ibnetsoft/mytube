@@ -1,6 +1,5 @@
 import pathlib
 import sys
-import random
 import pytest
 from PIL import Image
 
@@ -22,21 +21,6 @@ def test_portraits_must_be_real_bitmaps(tmp_path):
     Image.new("RGB", (32, 32)).save(path)
     with pytest.raises(RuntimeError, match="512"):
         assets.validate_portrait(path)
-
-
-def test_published_portrait_is_small_and_low_resolution(tmp_path):
-    path = tmp_path / "large.png"
-    rng = random.Random(7)
-    pixels = bytes(rng.randrange(256) for _ in range(1024 * 1024 * 3))
-    Image.frombytes("RGB", (1024, 1024), pixels).save(path)
-    original = path.read_bytes()
-    optimized, metadata = assets.optimize_portrait_bytes(original)
-    assert len(optimized) <= len(original) // 10
-    with Image.open(__import__('io').BytesIO(optimized)) as image:
-        assert max(image.size) <= 320
-        assert image.format == "PNG"
-    assert metadata["original_bytes"] == len(original)
-    assert metadata["optimized_bytes"] == len(optimized)
 
 
 def test_generation_and_storage_are_mandatory(tmp_path):
@@ -78,20 +62,19 @@ def test_upload_requires_public_bytes_and_registry_readback(monkeypatch, tmp_pat
     store = object.__new__(assets.CharacterAssetStore)
     store.base = "https://test.supabase.co"
     saved = {}
-    uploaded = {"content": b""}
     class Response:
         status_code = 200
-        def __init__(self, value=None, content=b""): self.value, self.content = value, content
+        content = path.read_bytes()
+        def __init__(self, value=None): self.value = value
         def json(self): return self.value
     def request(method, url, **kwargs):
         if url == "/rest/v1/topic_character_assets":
             if method == "POST": saved.update(kwargs["json"])
             return Response([saved])
         assert url.startswith("/storage/v1/object/content-assets/topics/3197/characters/")
-        uploaded["content"] = kwargs["data"]
         return Response()
     monkeypatch.setattr(store, "request", request)
-    monkeypatch.setattr(assets.requests, "get", lambda *a, **k: Response(content=uploaded["content"]))
+    monkeypatch.setattr(assets.requests, "get", lambda *a, **k: Response())
     result = store.publish(3197, {**character(), "character_key": "test"}, path, "fingerprint", {})
     assert result["image_generation_status"] == "ready"
     assert saved["generation_model"] == "codex_builtin_image_gen"

@@ -11,7 +11,6 @@ import json
 import os
 import re
 import subprocess
-from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,6 @@ import requests
 from PIL import Image
 
 VERSION = "codex-character-images-v1"
-PUBLISHED_MAX_EDGE = 320
 
 
 def digest(value: Any) -> str:
@@ -34,37 +32,6 @@ def validate_portrait(path: Path) -> bytes:
         if max(image.size) / min(image.size) > 2:
             raise RuntimeError("Character reference has invalid portrait proportions")
     return path.read_bytes()
-
-
-def optimize_portrait_bytes(data: bytes, max_edge: int = PUBLISHED_MAX_EDGE) -> tuple[bytes, dict]:
-    """Make a compact PNG reference while retaining enough facial detail for scene generation."""
-    if not data:
-        raise RuntimeError("Character reference image is empty")
-    with Image.open(BytesIO(data)) as source:
-        source.load()
-        original_size = source.size
-        image = source.convert("RGB")
-        image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
-        resized_size = image.size
-
-        target_bytes = max(12_000, len(data) // 10)
-        candidates: list[bytes] = []
-        for colors in (256, 192, 128, 96, 64):
-            reduced = image.quantize(colors=colors, method=Image.Quantize.MEDIANCUT)
-            output = BytesIO()
-            reduced.save(output, format="PNG", optimize=True, compress_level=9)
-            encoded = output.getvalue()
-            candidates.append(encoded)
-            if len(encoded) <= target_bytes:
-                break
-        optimized = min(candidates, key=len)
-    return optimized, {
-        "original_bytes": len(data),
-        "optimized_bytes": len(optimized),
-        "original_dimensions": list(original_size),
-        "optimized_dimensions": list(resized_size),
-        "target_ratio": 0.1,
-    }
 
 
 class NativeCodexImageGenerator:
@@ -130,8 +97,7 @@ class CharacterAssetStore:
         return response
 
     def publish(self, topic_id: int, character: dict, path: Path, fingerprint: str, payload: dict) -> dict:
-        original = validate_portrait(path)
-        data, optimization = optimize_portrait_bytes(original)
+        data = validate_portrait(path)
         sha = hashlib.sha256(data).hexdigest()
         key = character["character_key"]
         object_path = f"topics/{topic_id}/characters/{key}-{sha[:20]}.png"
@@ -152,8 +118,7 @@ class CharacterAssetStore:
         record.update(topic_queue_id=topic_id, category=str(payload.get("category") or ""),
                       image_style=str(payload.get("image_style") or "realistic"),
                       usage_context={"reference_fingerprint": fingerprint, "sha256": sha,
-                                     "stage": "after_script_before_media_prompts",
-                                     "image_optimization": optimization})
+                                     "stage": "after_script_before_media_prompts"})
         self.request("POST", "/rest/v1/topic_character_assets", params={"on_conflict": "topic_queue_id,character_key"},
                      headers={"Prefer": "resolution=merge-duplicates,return=representation"}, json=record)
         rows = self.request("GET", "/rest/v1/topic_character_assets",

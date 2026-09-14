@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 
 export default function StdCharacterReferences({ payload }: { payload: any }) {
@@ -17,16 +16,18 @@ export default function StdCharacterReferences({ payload }: { payload: any }) {
                 {characters.map((character: any, index: number) => {
                     const url = persistentThumbnailUrl(character.image_url)
                     return <div key={character.character_key || `${character.name}-${index}`} className="flex min-w-0 items-center gap-2 rounded-lg bg-black/20 p-2">
-                        {url ? <a href={url} target="_blank" rel="noopener noreferrer">
-                            <Image
+                        {url ? <div className="h-14 w-14 shrink-0 overflow-hidden rounded">
+                            {/* The authenticated proxy already returns a fixed 64px asset. */}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
                                 src={url}
                                 alt={`${character.name || '캐릭터'} 기준 이미지`}
                                 width={56}
                                 height={56}
-                                quality={55}
-                                className="h-14 w-14 shrink-0 rounded object-cover"
+                                className="h-14 w-14 object-cover"
+                                draggable={false}
                             />
-                        </a> : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-black/20 text-center text-[9px] text-amber-300">미생성</div>}
+                        </div> : <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-black/20 text-center text-[9px] text-amber-300">미생성</div>}
                         <div className="min-w-0">
                             <p className="truncate text-xs font-bold text-white">{character.name || '캐릭터'}</p>
                             <p className="line-clamp-2 text-[10px] leading-tight text-gray-400">{character.role || ''}</p>
