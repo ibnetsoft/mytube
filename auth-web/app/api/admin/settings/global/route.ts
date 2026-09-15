@@ -8,7 +8,7 @@ const GLOBAL_SETTINGS_CACHE_KEY = 'admin:settings:global'
 const GLOBAL_SETTINGS_CACHE_TTL_SECONDS = 300
 
 const KEYS = [
-    'gemini', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'elevenlabs_keys', 'topview', 'topview_uid',
+    'gemini', 'openai', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'elevenlabs_keys', 'topview', 'topview_uid',
     'suno', 'suno_base_url', 'music_provider',
     'google_drive_client_id', 'google_drive_client_secret', 'google_drive_refresh_token', 'google_drive_root_folder_id',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
@@ -17,6 +17,7 @@ const KEYS = [
     'longform_duration_lock_enabled',
     'topic_generation_model', 'title_generation_model', 'script_planning_model',
     'script_generation_model', 'image_prompt_model', 'translation_model',
+    'subtitle_translation_model', 'subtitle_translation_scope',
     'image_generation_model', 'video_generation_model',
     'drive_render_queue_path', 'use_external_render'
 ]
@@ -32,11 +33,30 @@ const EXACT_KEYS = [
     // [AIR-0230] 모델별 단가표 - JSON 문자열로 저장 { [model_id]: { input_per_1k, output_per_1k, thinking_per_1k, currency } }
     'model_pricing',
     // 씬 전환 효과 - 유저 설정에서 어드민 전용 제어로 이전
-    'scene_transition_mode'
+    'scene_transition_mode',
+    // AIR wallet stage 1 settings
+    'wallet_erc20_rpc_url',
+    'wallet_erc20_rpc_fallback_url_1',
+    'wallet_erc20_rpc_fallback_url_2',
+    'wallet_erc20_rpc_fallback_url_3',
+    'wallet_chain_id',
+    'wallet_air_contract_address',
+    'wallet_usdt_contract_address',
+    'wallet_air_withdrawal_fee',
+    'wallet_usdt_withdrawal_fee',
+    'wallet_swap_fee_percent',
+    'wallet_min_air_withdrawal',
+    'wallet_min_usdt_withdrawal',
+    'wallet_air_to_usdt_rate',
+    'wallet_usdt_to_air_rate',
+    'wallet_deposits_enabled',
+    'wallet_swaps_enabled',
+    'wallet_withdrawals_enabled'
 ]
 
 const SECRET_KEYS = new Set([
     'gemini',
+    'openai',
     'youtube',
     'youtube_keys',
     'claude',
@@ -53,6 +73,7 @@ const MODEL_KEYS = new Set([
     'script_generation_model',
     'image_prompt_model',
     'translation_model',
+    'subtitle_translation_model',
     'image_generation_model',
     'video_generation_model',
 ])

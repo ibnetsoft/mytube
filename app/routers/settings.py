@@ -13,11 +13,114 @@ from app.modes import DEFAULT_APP_MODE, normalize_app_mode
 import csv
 import io
 from datetime import datetime
+import re
 
 router = APIRouter(prefix="/api/settings", tags=["Settings"])
 
 
 STANDARD_MEMBERSHIPS = {"std", "standard"}
+BEP20_NETWORK = "BEP20"
+BEP20_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+
+AIR_WALLET_DEFAULT_CONTRACT = "0xC0d415c55576596437e865533Dd2730293999EDf"
+WALLET_SETTING_DEFAULTS = {
+    "wallet_erc20_rpc_url": "",
+    "wallet_erc20_rpc_fallback_url_1": "",
+    "wallet_erc20_rpc_fallback_url_2": "",
+    "wallet_erc20_rpc_fallback_url_3": "",
+    "wallet_chain_id": "1",
+    "wallet_air_contract_address": AIR_WALLET_DEFAULT_CONTRACT,
+    "wallet_usdt_contract_address": "",
+    "wallet_air_withdrawal_fee": "0",
+    "wallet_usdt_withdrawal_fee": "0",
+    "wallet_swap_fee_percent": "0",
+    "wallet_min_air_withdrawal": "0",
+    "wallet_min_usdt_withdrawal": "10",
+    "wallet_air_to_usdt_rate": "0",
+    "wallet_usdt_to_air_rate": "0",
+    "wallet_deposits_enabled": "true",
+    "wallet_swaps_enabled": "true",
+    "wallet_withdrawals_enabled": "true",
+}
+
+
+def _load_wallet_global_settings() -> Dict[str, Any]:
+    values: Dict[str, Any] = {}
+    try:
+        from services.web_admin_client import web_admin_client
+        if web_admin_client.has_supabase():
+            values.update(web_admin_client.fetch_global_setting_values(list(WALLET_SETTING_DEFAULTS.keys())))
+    except Exception as e:
+        print(f"[WalletSettings] Failed to load remote wallet settings: {e}")
+
+    for key, default in WALLET_SETTING_DEFAULTS.items():
+        if values.get(key) in (None, ""):
+            try:
+                values[key] = db.get_global_setting(key, default)
+            except Exception as e:
+                print(f"[WalletSettings] Failed to load local wallet setting {key}: {e}")
+                values[key] = default
+    values["wallet_erc20_rpc_urls"] = _get_wallet_rpc_urls(values)
+    return values
+
+
+def _get_wallet_rpc_urls(settings: Optional[Dict[str, Any]] = None) -> list[str]:
+    wallet_settings = settings or {}
+    urls = [
+        wallet_settings.get("wallet_erc20_rpc_url"),
+        wallet_settings.get("wallet_erc20_rpc_fallback_url_1"),
+        wallet_settings.get("wallet_erc20_rpc_fallback_url_2"),
+        wallet_settings.get("wallet_erc20_rpc_fallback_url_3"),
+    ]
+    result = []
+    seen = set()
+    for url in urls:
+        normalized = str(url or "").strip()
+        if normalized and normalized not in seen:
+            result.append(normalized)
+            seen.add(normalized)
+    return result
+
+
+def _normalize_withdrawal_network(network: Optional[str]) -> str:
+    normalized = (network or BEP20_NETWORK).strip().upper()
+    if normalized in {"BSC", "BSC_BEP20", "BEP-20"}:
+        normalized = BEP20_NETWORK
+    if normalized != BEP20_NETWORK:
+        raise HTTPException(status_code=400, detail="USDT 출금 네트워크는 BEP20만 지원합니다.")
+    return BEP20_NETWORK
+
+
+def _validate_bep20_address(address: str) -> str:
+    normalized = (address or "").strip()
+    if not BEP20_ADDRESS_RE.fullmatch(normalized):
+        raise HTTPException(status_code=400, detail="BEP20 지갑 주소는 0x로 시작하는 42자리 주소여야 합니다.")
+    return normalized
+
+
+async def _wallet_rpc_call(method: str, params: Optional[list] = None, timeout: float = 8.0) -> Dict[str, Any]:
+    wallet_settings = _load_wallet_global_settings()
+    rpc_urls = wallet_settings.get("wallet_erc20_rpc_urls") or []
+    if not rpc_urls:
+        raise HTTPException(status_code=503, detail="ERC20 RPC URL이 설정되어 있지 않습니다.")
+
+    last_error = ""
+    payload = {"jsonrpc": "2.0", "id": int(time.time() * 1000), "method": method, "params": params or []}
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for idx, rpc_url in enumerate(rpc_urls):
+            try:
+                response = await client.post(rpc_url, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                if data.get("error"):
+                    last_error = str(data.get("error"))
+                    continue
+                data["_rpc_url_index"] = idx
+                return data
+            except Exception as e:
+                last_error = str(e)
+                continue
+    raise HTTPException(status_code=503, detail=f"사용 가능한 ERC20 RPC URL이 없습니다: {last_error}")
 
 
 def _is_standard_member() -> bool:
@@ -138,6 +241,7 @@ class GlobalSettings(BaseModel):
 @router.get("")
 async def get_global_settings_api():
     """글로벌 설정 조회 (Project 1 + Global Table)"""
+    wallet_conf = _load_wallet_global_settings()
     # 1. Load Global Table Settings
     global_conf = {
         "app_mode": db.get_global_setting("app_mode", None), # Use None to allow fallback
@@ -197,7 +301,8 @@ async def get_global_settings_api():
         "longform_min_duration_minutes": os.getenv("LONGFORM_MIN_DURATION_MINUTES") or db.get_global_setting("longform_min_duration_minutes", "15"),
         "longform_base_payout": os.getenv("LONGFORM_BASE_PAYOUT") or db.get_global_setting("longform_base_payout", "10000"),
         "longform_extra_minute_payout": os.getenv("LONGFORM_EXTRA_MINUTE_PAYOUT") or db.get_global_setting("longform_extra_minute_payout", "500"),
-        "longform_duration_lock_enabled": os.getenv("LONGFORM_DURATION_LOCK_ENABLED") or db.get_global_setting("longform_duration_lock_enabled", "true")
+        "longform_duration_lock_enabled": os.getenv("LONGFORM_DURATION_LOCK_ENABLED") or db.get_global_setting("longform_duration_lock_enabled", "true"),
+        **wallet_conf,
     }
     
     # 2. Load Default Settings (stored in Project 1 by convention)
@@ -270,12 +375,19 @@ async def get_global_settings_api():
     merged["longform_base_payout"] = global_conf["longform_base_payout"]
     merged["longform_extra_minute_payout"] = global_conf["longform_extra_minute_payout"]
     merged["longform_duration_lock_enabled"] = global_conf["longform_duration_lock_enabled"]
+    for key in WALLET_SETTING_DEFAULTS:
+        merged[key] = global_conf[key]
     
     # [NEW] Add Current API Keys Status
     api_status = config.get_api_keys_status()
     merged["api_status"] = api_status
     
     return merged
+
+
+@router.get("/wallet-config")
+async def get_wallet_config_api():
+    return {"status": "success", "settings": _load_wallet_global_settings()}
 
 @router.post("")
 async def save_global_settings_api(settings: GlobalSettings):
@@ -1166,6 +1278,7 @@ from pydantic import BaseModel
 class WithdrawalRequest(BaseModel):
     amount: float
     destination_address: str
+    network: Optional[str] = BEP20_NETWORK
 
 @router.post("/api/withdrawal/request")
 async def request_withdrawal(req: WithdrawalRequest):
@@ -1194,16 +1307,21 @@ async def request_withdrawal(req: WithdrawalRequest):
         if current_balance < amount:
             return {"success": False, "error": "잔액이 부족합니다."}
 
-        withdrawal_id = web_admin_client.submit_withdrawal_request(email, amount, req.destination_address)
+        _normalize_withdrawal_network(req.network)
+        dest_address = _validate_bep20_address(req.destination_address)
+
+        withdrawal_id = web_admin_client.submit_withdrawal_request(email, amount, dest_address)
         if not withdrawal_id:
             return {"success": False, "error": "출금 신청 기록 중 오류가 발생했습니다. (테이블이 존재하는지 확인하세요)"}
 
         new_balance = round(max(0.0, current_balance - amount), 2)
-        success = web_admin_client.sync_wallet_info(email, new_balance, req.destination_address)
+        success = web_admin_client.sync_wallet_info(email, new_balance, dest_address)
         if not success:
             return {"success": False, "error": "출금 신청 후 잔액 동기화 중 오류가 발생했습니다."}
 
-        return {"success": True, "new_balance": new_balance, "id": withdrawal_id}
+        return {"success": True, "new_balance": new_balance, "id": withdrawal_id, "network": BEP20_NETWORK}
+    except HTTPException as e:
+        return {"success": False, "error": e.detail}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -1250,6 +1368,7 @@ async def get_my_history():
 class WithdrawalRequest(BaseModel):
     amount: float
     dest_address: str
+    network: Optional[str] = BEP20_NETWORK
 
 @router.post("/withdrawal")
 async def request_withdrawal(req: WithdrawalRequest):
@@ -1266,25 +1385,28 @@ async def request_withdrawal(req: WithdrawalRequest):
         
     if req.amount > current_balance:
         raise HTTPException(status_code=400, detail=f"출금 가능 잔액({current_balance} USDT)이 부족합니다.")
-        
+
+    _normalize_withdrawal_network(req.network)
+    dest_address = _validate_bep20_address(req.dest_address)
+
     # Save destination address to global setting for convenience
-    db.set_global_setting(f"wallet_dest_{email}", req.dest_address)
+    db.set_global_setting(f"wallet_dest_{email}", dest_address)
         
     # [MIGRATION] Send to Supabase Web Admin
     from services.web_admin_client import web_admin_client
     if web_admin_client.has_supabase():
-        withdrawal_id = web_admin_client.submit_withdrawal_request(email, req.amount, req.dest_address)
+        withdrawal_id = web_admin_client.submit_withdrawal_request(email, req.amount, dest_address)
         if not withdrawal_id:
             raise HTTPException(status_code=500, detail="출금 신청을 서버로 전송하는 중 오류가 발생했습니다.")
         new_balance = round(max(0.0, current_balance - req.amount), 2)
-        web_admin_client.sync_wallet_info(email, new_balance, req.dest_address)
+        web_admin_client.sync_wallet_info(email, new_balance, dest_address)
     else:
-        withdrawal_id = db.create_withdrawal(email, req.amount, req.dest_address)
+        withdrawal_id = db.create_withdrawal(email, req.amount, dest_address)
         if not withdrawal_id:
             raise HTTPException(status_code=500, detail="출금 신청 처리 중 오류가 발생했습니다.")
         
     # Update local wallet_info cache to trigger balance refresh or just let next fetch recalculate
-    return {"status": "success", "message": "출금 신청이 완료되었습니다.", "id": withdrawal_id}
+    return {"status": "success", "message": "출금 신청이 완료되었습니다.", "id": withdrawal_id, "network": BEP20_NETWORK}
 
 @router.get("/withdrawal-history")
 async def get_withdrawal_history():
@@ -1310,7 +1432,8 @@ async def get_withdrawal_history():
                 "created_at": w.get("created_at") or w.get("date"),
                 "destination_address": w.get("dest_address") or w.get("destination_address"),
                 "amount": w.get("amount"),
-                "status": w.get("status") or "completed"
+                "status": w.get("status") or "completed",
+                "network": w.get("network") or BEP20_NETWORK,
             })
 
     return {"status": "success", "withdrawals": withdrawals}

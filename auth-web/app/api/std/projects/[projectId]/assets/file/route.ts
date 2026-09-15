@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { downloadStdDriveFile } from '@/lib/stdGoogleDrive'
+import { downloadStdDriveFile, downloadStdDriveFileChunk } from '@/lib/stdGoogleDrive'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -53,7 +53,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (assetId) {
         const { data: assetRow, error: assetError } = await supabaseAdmin
             .from('std_project_assets')
-            .select('id,project_id,asset_type,drive_file_id,file_name,mime_type,status,metadata')
+            .select('id,project_id,asset_type,drive_file_id,file_name,mime_type,status,metadata,updated_at')
             .eq('id', assetId)
             .eq('project_id', project.id)
             .in('status', ['uploaded', 'assigned'])
@@ -63,7 +63,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     } else {
         const { data: assetRow, error: assetError } = await supabaseAdmin
             .from('std_project_assets')
-            .select('id,project_id,asset_type,drive_file_id,file_name,mime_type,status,metadata')
+            .select('id,project_id,asset_type,drive_file_id,file_name,mime_type,status,metadata,updated_at')
             .eq('project_id', project.id)
             .eq('drive_file_id', driveFileId)
             .in('status', ['uploaded', 'assigned'])
@@ -75,18 +75,45 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     // Never fall back to an unverified request file ID, including invalid assetId + driveFileId pairs.
     if (!asset) return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 })
 
+    const etag = `"${asset.id}-${String(asset.updated_at || '').replace(/[^0-9]/g, '')}"`
+    const requestedRange = req.headers.get('range')
+    if (!requestedRange && req.headers.get('if-none-match') === etag) {
+        return new NextResponse(null, {
+            status: 304,
+            headers: { ETag: etag, 'Cache-Control': 'private, max-age=86400' },
+        })
+    }
+
     const storageBucket = String(asset?.metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
     const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
+    const storagePublicUrl = String(asset?.metadata?.storage_public_url || '').trim()
     let fileBuffer: Buffer | null = null
     let source = ''
+    let responseStatus = 200
+    let contentRange: string | null = null
+    let upstreamContentLength: string | null = null
+    let upstreamContentType: string | null = null
 
     if (storagePath) {
-        const { data, error } = await supabaseAdmin.storage.from(storageBucket).download(storagePath)
-        if (data && !error) {
-            fileBuffer = Buffer.from(await data.arrayBuffer())
-            source = 'storage'
-        } else {
-            console.warn('[STD Asset File] Storage download failed; trying Drive:', error?.message || 'storage_asset_missing')
+        if (requestedRange && storagePublicUrl && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+            const rangedResponse = await fetch(storagePublicUrl, { headers: { Range: requestedRange } }).catch(() => null)
+            if (rangedResponse?.ok) {
+                fileBuffer = Buffer.from(await rangedResponse.arrayBuffer())
+                responseStatus = rangedResponse.status === 206 ? 206 : 200
+                contentRange = rangedResponse.headers.get('content-range')
+                upstreamContentLength = rangedResponse.headers.get('content-length')
+                upstreamContentType = rangedResponse.headers.get('content-type')
+                source = 'storage'
+            }
+        }
+        if (!fileBuffer) {
+            const { data, error } = await supabaseAdmin.storage.from(storageBucket).download(storagePath)
+            if (data && !error) {
+                fileBuffer = Buffer.from(await data.arrayBuffer())
+                source = 'storage'
+            } else {
+                console.warn('[STD Asset File] Storage download failed; trying Drive:', error?.message || 'storage_asset_missing')
+            }
         }
     }
 
@@ -94,7 +121,16 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         const targetDriveFileId = asset.drive_file_id
         if (!targetDriveFileId) return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 })
         try {
-            fileBuffer = await downloadStdDriveFile(targetDriveFileId)
+            if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+                const chunk = await downloadStdDriveFileChunk(targetDriveFileId, requestedRange)
+                fileBuffer = chunk.buffer
+                responseStatus = chunk.status === 206 ? 206 : 200
+                contentRange = chunk.contentRange
+                upstreamContentLength = chunk.contentLength
+                upstreamContentType = chunk.contentType
+            } else {
+                fileBuffer = await downloadStdDriveFile(targetDriveFileId)
+            }
             source = 'drive'
         } catch (error: any) {
             console.warn('[STD Asset File] Drive download failed:', error?.message)
@@ -110,10 +146,14 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     }
 
     return new NextResponse(new Uint8Array(fileBuffer), {
+        status: responseStatus,
         headers: {
-            'Content-Type': asset?.mime_type || 'application/octet-stream',
-            'Content-Length': String(fileBuffer.length),
-            'Cache-Control': 'private, no-store',
+            'Content-Type': upstreamContentType || asset?.mime_type || 'application/octet-stream',
+            'Content-Length': upstreamContentLength || String(fileBuffer.length),
+            'Cache-Control': 'private, max-age=86400',
+            ETag: etag,
+            'Accept-Ranges': 'bytes',
+            ...(contentRange ? { 'Content-Range': contentRange } : {}),
             'Vary': 'Authorization, Cookie, x-impersonate-email',
             'Content-Disposition': `inline; filename="${encodeURIComponent(asset?.file_name || 'std_asset')}"`,
             'X-STD-Media-Source': source,

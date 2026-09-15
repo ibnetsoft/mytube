@@ -222,22 +222,43 @@ export async function getStdDriveFileMetadata(fileId: string): Promise<DriveFile
     )
 }
 
-export async function downloadStdDriveFile(fileId: string): Promise<Buffer> {
+export async function downloadStdDriveFileChunk(fileId: string, range?: string | null): Promise<{
+    buffer: Buffer
+    status: number
+    contentRange: string | null
+    contentLength: string | null
+    contentType: string | null
+}> {
     const encoded = encodeURIComponent(fileId)
     let lastError = 'drive_download_failed'
     for (let attempt = 0; attempt < 2; attempt += 1) {
         const token = await getStdDriveAccessToken()
         const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encoded}?alt=media&supportsAllDrives=true`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: {
+                Authorization: `Bearer ${token}`,
+                ...(range ? { Range: range } : {}),
+            },
             cache: 'no-store',
         })
-        if (res.ok) return Buffer.from(await res.arrayBuffer())
+        if (res.ok) {
+            return {
+                buffer: Buffer.from(await res.arrayBuffer()),
+                status: res.status,
+                contentRange: res.headers.get('content-range'),
+                contentLength: res.headers.get('content-length'),
+                contentType: res.headers.get('content-type'),
+            }
+        }
 
         const detail = await res.text()
         lastError = `drive_download_failed: HTTP ${res.status} ${detail.slice(0, 200)}`
         if (res.status !== 401) break
     }
     throw new Error(lastError)
+}
+
+export async function downloadStdDriveFile(fileId: string): Promise<Buffer> {
+    return (await downloadStdDriveFileChunk(fileId)).buffer
 }
 
 export async function uploadStdDriveBuffer(

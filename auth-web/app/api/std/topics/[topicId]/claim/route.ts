@@ -9,6 +9,7 @@ import {
     requireStdUser,
 } from '@/lib/stdWeb'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
+import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 
 export const dynamic = 'force-dynamic'
 
@@ -235,5 +236,14 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         console.error('[STD Claim] legacy sync failed:', syncError?.message)
     }
 
-    return NextResponse.json({ success: true, project, scene_count: sceneCount })
+    return NextResponse.json({
+        success: true,
+        project: {
+            ...project,
+            project_payload: protectCharacterReferenceUrls(project.project_payload, project.id),
+            source_payload: protectCharacterReferenceUrls(project.source_payload, project.id),
+            progress_payload: protectCharacterReferenceUrls(project.progress_payload, project.id),
+        },
+        scene_count: sceneCount,
+    })
 }

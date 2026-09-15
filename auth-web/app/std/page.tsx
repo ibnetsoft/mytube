@@ -7,6 +7,48 @@ import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
 import StdThumbnailPreview from '@/components/StdThumbnailPreview'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
+import {
+    directStorageUrl,
+    prioritizedSceneNumbers,
+    selectFallbackAssetsForScenes,
+    STD_INITIAL_MEDIA_SCENES,
+} from '@/lib/stdMediaLoading'
+import {
+    isSubtitleTranslationLanguage,
+    SubtitleTranslationLanguage,
+    subtitleTranslationKey,
+    translationMapFromBlocks,
+} from '@/lib/stdSubtitleTranslation'
+
+const SUBTITLE_REVIEW_COPY: Record<SubtitleTranslationLanguage, {
+    code: string
+    name: string
+    translating: string
+    retry: string
+    candidate: string
+    markDialogue: string
+    markNarration: string
+    automatic: string
+    dialogueVoice: string
+    narrationVoice: string
+    pending: string
+}> = {
+    en: {
+        code: 'EN', name: '영어', translating: 'Translating…', retry: 'Translation failed · retry',
+        candidate: 'Possible dialogue', markDialogue: 'Mark as dialogue', markNarration: 'Narration', automatic: 'Auto detect',
+        dialogueVoice: 'Character voice', narrationVoice: 'Narration voice', pending: 'Waiting for translation',
+    },
+    vi: {
+        code: 'VI', name: '베트남어', translating: 'Đang dịch…', retry: 'Dịch thất bại · thử lại',
+        candidate: 'Có thể là lời thoại', markDialogue: 'Đánh dấu là lời thoại', markNarration: 'Lời dẫn', automatic: 'Tự động nhận diện',
+        dialogueVoice: 'Giọng nhân vật', narrationVoice: 'Giọng thuyết minh', pending: 'Đang chờ bản dịch',
+    },
+    th: {
+        code: 'TH', name: '태국어', translating: 'กำลังแปล…', retry: 'แปลไม่สำเร็จ · ลองอีกครั้ง',
+        candidate: 'คาดว่าเป็นบทพูด', markDialogue: 'กำหนดเป็นบทพูด', markNarration: 'คำบรรยาย', automatic: 'ตรวจอัตโนมัติ',
+        dialogueVoice: 'เสียงตัวละคร', narrationVoice: 'เสียงบรรยาย', pending: 'รอการแปล',
+    },
+}
 
 const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', key: 'cat_folktales', language: 'ko' },
@@ -50,7 +92,34 @@ const sceneTransitionLabel = (effectId: string) => (
     SCENE_TRANSITION_EFFECTS.find(effect => effect.id === effectId)?.label || effectId
 )
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+const TRANSITION_PREVIEW_BACKGROUNDS: Record<string, string> = {
+    diagonal_wipe: 'linear-gradient(135deg, #d8dee4 0 45%, #7c8f9c 46% 100%)',
+    morph: 'radial-gradient(ellipse at 35% 50%, #dbe1e5 0 28%, transparent 30%), radial-gradient(ellipse at 70% 50%, #879aa6 0 35%, #bcc7ce 37%)',
+    darken: 'linear-gradient(90deg, #dce2e6, #242a30)',
+    brighten: 'linear-gradient(90deg, #667681, #f7f9fa)',
+    color_blend: 'linear-gradient(120deg, #8da2ae, #d9c3b0 50%, #c7d3d9)',
+    grayscale_fade: 'linear-gradient(90deg, #f0f2f3, #8f989e 52%, #42494f)',
+    wipe_down: 'linear-gradient(180deg, #8396a2 0 48%, #e4e8eb 50% 100%)',
+    focus: 'radial-gradient(circle at center, #f1f3f4 0 22%, #afb9bf 24% 42%, #657680 70%)',
+    ripple: 'repeating-radial-gradient(circle at center, #e5e9eb 0 8px, #91a2ac 9px 17px)',
+    clockwise: 'conic-gradient(from 20deg, #e8ebed 0 28%, #93a4ae 29% 62%, #c8d0d5 63%)',
+    blinds: 'repeating-linear-gradient(180deg, #e6eaec 0 6px, #9eacb4 7px 12px)',
+    circle_spread: 'radial-gradient(circle at center, #e9edef 0 34%, #879aa5 36% 54%, #d4dade 56%)',
+    horizontal_lines: 'repeating-linear-gradient(180deg, #f2f4f5 0 2px, #a4b1b8 3px 5px)',
+    push: 'linear-gradient(90deg, #6f828e 0 44%, #f0f2f3 45% 52%, #b7c1c7 53%)',
+    zoom: 'radial-gradient(circle at center, #f2f4f5 0 18%, #9cabb4 20% 38%, #dce1e4 40% 58%, #70838f 60%)',
+    wipe_left: 'linear-gradient(90deg, #e6eaec 0 48%, #80939f 50% 100%)',
+    wipe_right: 'linear-gradient(90deg, #80939f 0 48%, #e6eaec 50% 100%)',
+    wipe_up: 'linear-gradient(0deg, #8396a2 0 48%, #e4e8eb 50% 100%)',
+    none: 'linear-gradient(135deg, #98a8b1 0 49%, #dfe4e7 50% 100%)',
+    dissolve: 'radial-gradient(circle at 20% 30%, #fff 0 2px, transparent 3px), radial-gradient(circle at 60% 65%, #fff 0 3px, transparent 4px), radial-gradient(circle at 80% 25%, #fff 0 2px, transparent 3px), #8fa0aa',
+    blur: 'radial-gradient(ellipse at center, #e9edef 0 18%, #b7c1c7 38%, #778a96 75%)',
+    directional_warp: 'linear-gradient(145deg, #e5e9eb 0 30%, #8fa0aa 32% 42%, #d4dade 44% 58%, #718590 60%)',
+    static: 'repeating-linear-gradient(0deg, #e8ecee 0 1px, #71838e 2px 3px, #bfc9ce 4px 6px)',
+    mosaic: 'conic-gradient(#e8ecee 25%, #899ba5 0 50%, #c4cdd2 0 75%, #6f838f 0) 0 0 / 22px 22px',
+}
+
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
     AlertCircle,
@@ -104,8 +173,67 @@ import {
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
 import { detectDialogueCandidates } from '@/lib/stdDialogueCandidates'
+import { SCENE_MOTIONS, sceneMotion, sceneMotionStyle } from '@/lib/stdSceneMotion'
 import { abortable, measureSubtitleDurations, readAudioDuration } from '@/lib/stdTimingSync'
 import { calculateLongformPayoutByScenes } from '@/lib/stdPayoutPolicy'
+
+function LazySceneMedia({
+    imageUrl,
+    videoUrl,
+    shouldPlay = false,
+    priority = false,
+}: {
+    imageUrl?: string | null
+    videoUrl?: string | null
+    shouldPlay?: boolean
+    priority?: boolean
+}) {
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const [shouldLoad, setShouldLoad] = useState(priority || shouldPlay)
+
+    useEffect(() => {
+        if (priority || shouldPlay) {
+            setShouldLoad(true)
+            return
+        }
+        const element = containerRef.current
+        if (!element || typeof IntersectionObserver === 'undefined') {
+            setShouldLoad(true)
+            return
+        }
+        const observer = new IntersectionObserver(entries => {
+            if (!entries.some(entry => entry.isIntersecting)) return
+            setShouldLoad(true)
+            observer.disconnect()
+        }, { rootMargin: '900px 0px' })
+        observer.observe(element)
+        return () => observer.disconnect()
+    }, [priority, shouldPlay])
+
+    return (
+        <div ref={containerRef} className="w-full h-full bg-[#0b0e14]">
+            {shouldLoad && videoUrl ? (
+                <video
+                    src={videoUrl}
+                    className="w-full h-full object-cover"
+                    autoPlay={shouldPlay}
+                    muted
+                    playsInline
+                    preload={shouldPlay ? 'auto' : 'metadata'}
+                />
+            ) : shouldLoad && imageUrl ? (
+                <img
+                    src={imageUrl}
+                    alt=""
+                    loading={priority ? 'eager' : 'lazy'}
+                    decoding="async"
+                    fetchPriority={priority ? 'high' : 'low'}
+                    className="w-full h-full object-cover"
+                />
+            ) : null}
+        </div>
+    )
+}
 
 type Topic = {
     id: number
@@ -147,6 +275,7 @@ type SelectedProjectPayload = {
     project: StdProject & { project_payload?: any; review_notes?: string | null; reviewed_at?: string | null }
     scenes: any[]
     assets: any[]
+    render_history?: any[]
 }
 
 type MusicSubmission = {
@@ -600,6 +729,7 @@ export default function StdPortalPage() {
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
     const [message, setMessage] = useState('')
+    const [subtitleTranslationScope, setSubtitleTranslationScope] = useState<'thai_only' | 'all'>('thai_only')
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
     const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('ko')
@@ -617,6 +747,8 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
+    const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale) && (subtitleTranslationScope === 'all' || currentLocale === 'th') ? currentLocale : null
+    const subtitleReviewCopy = subtitleReviewLocale ? SUBTITLE_REVIEW_COPY[subtitleReviewLocale] : null
     const tf = (key: string, values: Record<string, string | number>, fallback?: string) => (
         Object.entries(values).reduce(
             (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
@@ -724,7 +856,8 @@ export default function StdPortalPage() {
             String(asset?.asset_type || '').toLowerCase() === 'thumbnail'
             && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        const persistentThumbnailUrl = projectAssetFileUrl(projectId, thumbnailAsset)
+        const persistentThumbnailUrl = sanitizeAssetUrl(directStorageUrl(thumbnailAsset))
+            || projectAssetFileUrl(projectId, thumbnailAsset)
             || sanitizeAssetUrl(projectPayload.project?.progress_payload?.thumbnail_url)
 
         return {
@@ -735,8 +868,8 @@ export default function StdPortalPage() {
                 const videoAsset = latestBySceneType.get(`${sceneNumber}:video`)
                 return {
                     ...scene,
-                    image_url: projectAssetFileUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image),
-                    video_url: projectAssetFileUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video),
+                    image_url: sanitizeAssetUrl(directStorageUrl(imageAsset)) || projectAssetFileUrl(projectId, imageAsset) || sanitizeAssetUrl(scene?.image_url || scene?.image),
+                    video_url: sanitizeAssetUrl(directStorageUrl(videoAsset)) || projectAssetFileUrl(projectId, videoAsset) || sanitizeAssetUrl(scene?.video_url || scene?.video),
                 }
             }),
             project: {
@@ -849,7 +982,6 @@ export default function StdPortalPage() {
     const [selectedVoice, setSelectedVoice] = useState(STD_DEFAULT_VOICE_ID)
     const [vrewNarrationVoice, setVrewNarrationVoice] = useState('')
     const [voiceStudioDirection, setVoiceStudioDirection] = useState('')
-    const [vrewDialogueVoice, setVrewDialogueVoice] = useState('')
     const ttsSpeed = String(Math.max(0.7, Math.min(1.2, Number(
         selectedProject?.project?.project_payload?.tts_speed
         || selectedProject?.project?.progress_payload?.tts_speed
@@ -877,10 +1009,6 @@ export default function StdPortalPage() {
     useEffect(() => {
         setIsBodyImageSectionOpen(false)
     }, [selectedProject?.project?.id])
-
-    useEffect(() => {
-        setVrewDialogueVoice(prev => prev || selectedVoice)
-    }, [selectedVoice])
 
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
@@ -919,9 +1047,11 @@ export default function StdPortalPage() {
     const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const previewBgmAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
     const previewVideoIdentityRef = useRef('')
     const previewTransitionVisualRef = useRef<{ sceneNumber: number; imageUrl: string; videoUrl: string } | null>(null)
+    const previewPrefetchRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
@@ -934,6 +1064,11 @@ export default function StdPortalPage() {
     const [voicePickerSearch, setVoicePickerSearch] = useState('')
     const [voicePickerPreviewUrl, setVoicePickerPreviewUrl] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
+    const [subtitleTranslations, setSubtitleTranslations] = useState<Partial<Record<SubtitleTranslationLanguage, Record<string, string>>>>({})
+    const [translatingSubtitleLanguage, setTranslatingSubtitleLanguage] = useState<SubtitleTranslationLanguage | null>(null)
+    const [subtitleTranslationError, setSubtitleTranslationError] = useState('')
+    const subtitleTranslationRequestRef = useRef('')
+    const subtitleTranslationControllerRef = useRef<AbortController | null>(null)
     const subtitleSyncContextRef = useRef({ subtitles: localSubtitles, projectId: selectedProject?.project?.id })
     subtitleSyncContextRef.current = { subtitles: localSubtitles, projectId: selectedProject?.project?.id }
     useEffect(() => () => subtitleSyncControllerRef.current?.abort(new Error('페이지를 떠나 보정이 취소되었습니다.')), [selectedProject?.project?.id, currentNav])
@@ -1001,7 +1136,14 @@ export default function StdPortalPage() {
     const [profileSavedMsg, setProfileSavedMsg] = useState('')
     const [pwSavedMsg, setPwSavedMsg] = useState('')
     const [walletAddress, setWalletAddress] = useState('')
+    const [withdrawAddress, setWithdrawAddress] = useState('')
     const [withdrawAmount, setWithdrawAmount] = useState('')
+    const [walletInfo, setWalletInfo] = useState<any>(null)
+    const [walletLoading, setWalletLoading] = useState(false)
+    const [walletMessage, setWalletMessage] = useState('')
+    const [withdrawAsset, setWithdrawAsset] = useState<'USDT' | 'AIR'>('USDT')
+    const [swapFromAsset, setSwapFromAsset] = useState<'AIR' | 'USDT'>('AIR')
+    const [swapAmount, setSwapAmount] = useState('')
     const [treeViewMode, setTreeViewMode] = useState<'list' | 'card'>('list')
     const [inquiryText, setInquiryText] = useState('')
     const [inquiryCategory, setInquiryCategory] = useState('시스템 문의')
@@ -1523,6 +1665,119 @@ export default function StdPortalPage() {
         return headers
     }, [token, isImpersonating, impersonateEmail])
 
+    useEffect(() => {
+        if (!token) return
+        let cancelled = false
+        fetch('/api/std/subtitle-translation-settings', { headers: authedJsonHeaders })
+            .then(res => res.json())
+            .then(payload => {
+                if (cancelled || !payload?.success) return
+                setSubtitleTranslationScope(payload.scope === 'all' ? 'all' : 'thai_only')
+            })
+            .catch(() => {
+                if (!cancelled) setSubtitleTranslationScope('thai_only')
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [token, authedJsonHeaders])
+
+    const persistedSubtitleTranslations = selectedProject?.project?.project_payload?.subtitle_translations
+
+    useEffect(() => {
+        subtitleTranslationControllerRef.current?.abort()
+        subtitleTranslationRequestRef.current = ''
+        setTranslatingSubtitleLanguage(null)
+        setSubtitleTranslationError('')
+        setSubtitleTranslations(Object.fromEntries(
+            (['en', 'vi', 'th'] as const).map(language => [
+                language,
+                translationMapFromBlocks(persistedSubtitleTranslations?.[language]?.blocks),
+            ]),
+        ))
+        return () => subtitleTranslationControllerRef.current?.abort()
+    }, [selectedProject?.project?.id, persistedSubtitleTranslations])
+
+    const translateSubtitleBlocks = useCallback(async (targetLanguage: SubtitleTranslationLanguage, force = false) => {
+        const projectId = String(selectedProject?.project?.id || '')
+        const blocks = localSubtitles.map((subtitle: any, index: number) => ({
+            index,
+            source_text: String(subtitle?.text || '').trim(),
+        })).filter(block => block.source_text)
+        if (!projectId || blocks.length === 0) return
+
+        const signature = `${projectId}|${targetLanguage}|${blocks.map(block => `${block.index}:${block.source_text}`).join('\u0001')}`
+        if (!force && subtitleTranslationRequestRef.current === signature) return
+        subtitleTranslationControllerRef.current?.abort()
+        const controller = new AbortController()
+        subtitleTranslationControllerRef.current = controller
+        subtitleTranslationRequestRef.current = signature
+        setTranslatingSubtitleLanguage(targetLanguage)
+        setSubtitleTranslationError('')
+        try {
+            const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/subtitle-translations`, {
+                method: 'POST',
+                headers: authedJsonHeaders,
+                signal: controller.signal,
+                body: JSON.stringify({ target_language: targetLanguage, blocks }),
+            })
+            const languageName = SUBTITLE_REVIEW_COPY[targetLanguage].name
+            const payload = await safeParseJson(response, `${languageName} 자막 번역에 실패했습니다.`)
+            if (!response.ok || !payload?.success) throw new Error(payload?.error || `${languageName} 자막 번역에 실패했습니다.`)
+            const translatedMap = translationMapFromBlocks(payload.blocks)
+            if (Object.keys(translatedMap).length !== blocks.length) {
+                throw new Error('일부 자막 블록의 번역이 누락되었습니다.')
+            }
+            if (controller.signal.aborted) return
+            setSubtitleTranslations(prev => ({ ...prev, [targetLanguage]: translatedMap }))
+            setSelectedProject((prev: any) => {
+                if (!prev || String(prev.project?.id || '') !== projectId) return prev
+                return {
+                    ...prev,
+                    project: {
+                        ...prev.project,
+                        project_payload: {
+                            ...(prev.project.project_payload || {}),
+                            subtitle_translations: {
+                                ...(prev.project.project_payload?.subtitle_translations || {}),
+                                [targetLanguage]: {
+                                    version: 1,
+                                    updated_at: new Date().toISOString(),
+                                    blocks: payload.blocks,
+                                },
+                            },
+                        },
+                    },
+                }
+            })
+            setMessage(payload.translated_count > 0
+                ? `자막 ${payload.translated_count}개를 블록 그대로 ${languageName}로 번역했습니다.`
+                : `저장된 ${languageName} 자막 번역을 불러왔습니다.`)
+        } catch (error: any) {
+            if (controller.signal.aborted) return
+            subtitleTranslationRequestRef.current = ''
+            const errorMessage = error?.message || '자막 번역에 실패했습니다.'
+            setSubtitleTranslationError(errorMessage)
+            setMessage(`❌ ${errorMessage}`)
+        } finally {
+            if (subtitleTranslationControllerRef.current === controller) {
+                setTranslatingSubtitleLanguage(null)
+            }
+        }
+    }, [selectedProject?.project?.id, localSubtitles, authedJsonHeaders])
+
+    useEffect(() => {
+        if (!subtitleReviewLocale || currentNav !== 'subtitle_vrew' || localSubtitles.length === 0) return
+        const activeTranslations = subtitleTranslations[subtitleReviewLocale] || {}
+        const hasMissingTranslation = localSubtitles.some((subtitle: any, index: number) => {
+            const sourceText = String(subtitle?.text || '').trim()
+            return sourceText && !activeTranslations[subtitleTranslationKey(index, sourceText)]
+        })
+        if (!hasMissingTranslation) return
+        const timer = window.setTimeout(() => void translateSubtitleBlocks(subtitleReviewLocale, false), 700)
+        return () => window.clearTimeout(timer)
+    }, [subtitleReviewLocale, currentNav, localSubtitles, subtitleTranslations, translateSubtitleBlocks])
+
     const safeParseJson = async (res: Response, fallbackErrMsg: string) => {
         try {
             const text = await res.text()
@@ -1797,7 +2052,8 @@ export default function StdPortalPage() {
     }
 
     const assetDisplayUrl = (projectId: string | null | undefined, asset: any): string | null => {
-        return projectAssetFileUrl(projectId, asset)
+        return sanitizeAssetUrl(directStorageUrl(asset))
+            || projectAssetFileUrl(projectId, asset)
             || sanitizeAssetUrl(
                 asset?.metadata?.thumbnail_link ||
                 asset?.metadata?.web_view_link ||
@@ -2305,18 +2561,23 @@ export default function StdPortalPage() {
         }
     }
 
-    const applySelectedSceneTransition = async (effectId: string) => {
-        if (!selectedProject?.project?.id || selectedSubtitleSceneNumbers.length === 0) return
-        const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
+    const sceneEffectSavingRef = useRef(false)
+    const [isSceneEffectSaving, setIsSceneEffectSaving] = useState(false)
+    const applySelectedSceneTransition = async (effectId: string, field: 'transition_effect' | 'image_effect' = 'transition_effect', targets = selectedSubtitleSceneNumbers) => {
+        if (!selectedProject?.project?.id || targets.length === 0) return
+        if (sceneEffectSavingRef.current) return
+        sceneEffectSavingRef.current = true
+        setIsSceneEffectSaving(true)
+        const selectedSceneSet = new Set(targets.map(Number))
         const updateScenes = (scenes: any[]) => (scenes || []).map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_number || index + 1)
             if (!selectedSceneSet.has(sceneNumber)) return scene
             return {
                 ...scene,
-                transition_effect: effectId,
+                [field]: effectId,
                 metadata: {
                     ...(scene?.metadata || {}),
-                    transition_effect: effectId,
+                    [field]: effectId,
                 },
             }
         })
@@ -2343,10 +2604,8 @@ export default function StdPortalPage() {
             },
         }
 
-        setSelectedProject(updatedProject)
-        rememberProjectState(updatedProject)
         setIsTransitionPickerOpen(false)
-        setMessage(`선택한 씬 ${selectedSubtitleSceneNumbers.length}개에 ${sceneTransitionLabel(effectId)} 효과를 적용했습니다.`)
+        setMessage('씬 효과 저장 중...')
 
         try {
             const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
@@ -2364,9 +2623,27 @@ export default function StdPortalPage() {
                 }),
             })
             if (!response.ok) throw new Error(await response.text())
+            setSelectedProject(prev => {
+                if (prev?.project?.id !== updatedProject.project.id) return prev
+                const next = {
+                    ...prev,
+                    scenes: updateScenes(prev.scenes || []),
+                    project: { ...prev.project, project_payload: {
+                        ...(prev.project.project_payload || {}),
+                        scenes: updatedPayloadScenes,
+                        structure: { ...(prev.project.project_payload?.structure || {}), scenes: updatedStructureScenes },
+                    } },
+                }
+                rememberProjectState(next)
+                return next
+            })
+            setMessage(`씬 ${targets.length}개 효과를 저장했습니다.`)
         } catch (error) {
             console.warn('[STD subtitles] failed to persist scene transition effects:', error)
-            setMessage('화면 전환 효과 저장에 실패했습니다. 다시 시도해 주세요.')
+            setMessage('씬 효과 저장에 실패했습니다. 다시 선택해 주세요.')
+        } finally {
+            sceneEffectSavingRef.current = false
+            setIsSceneEffectSaving(false)
         }
     }
 
@@ -2653,7 +2930,7 @@ export default function StdPortalPage() {
             <span
                 key={`${index}-${token}`}
                 title={token}
-                className={`inline-flex h-8 max-w-full items-center rounded-md border border-white/10 bg-[#10151d] px-3 text-xs leading-none text-gray-200 shadow-sm transition ${
+                className={`inline-flex h-6 max-w-full items-center rounded border border-white/10 bg-[#10151d] px-2 text-[11px] leading-none text-gray-200 shadow-sm transition ${
                     index === activeTokenIndex
                         ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-100'
                         : 'hover:border-white/20 hover:bg-[#161c26]'
@@ -2863,8 +3140,17 @@ export default function StdPortalPage() {
         )
     }
 
-    const renderSelectedSceneTransitionPicker = (disabled = false) => (
-        <div className="relative inline-flex">
+    const renderSelectedSceneTransitionPicker = (disabled = false) => {
+        const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
+        const selectedTransitions = (selectedProject?.scenes || [])
+            .filter((scene: any, index: number) => selectedSceneSet.has(Number(scene?.scene_number || index + 1)))
+            .map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || 'none'))
+        const activeTransition = selectedTransitions.length > 0 && selectedTransitions.every(effect => effect === selectedTransitions[0])
+            ? selectedTransitions[0]
+            : ''
+
+        return (
+        <div className="inline-flex">
             <button
                 type="button"
                 disabled={disabled}
@@ -2884,32 +3170,119 @@ export default function StdPortalPage() {
                 <Sparkles size={12} />
                 효과
             </button>
-            {!disabled && isTransitionPickerOpen && (
+            {!disabled && isTransitionPickerOpen && typeof document !== 'undefined' && createPortal(
                 <div
-                    className="absolute left-0 top-full mt-1 z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
-                    onClick={(event) => event.stopPropagation()}
+                    className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget && !isSceneEffectSaving) setIsTransitionPickerOpen(false)
+                    }}
                 >
-                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 border-b border-white/5">
-                        선택한 씬 {selectedSubtitleSceneNumbers.length}개 화면 전환
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="화면 전환 효과 선택"
+                        className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#11151b] shadow-2xl"
+                        onMouseDown={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-base font-black text-white">화면 전환</h3>
+                                <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-black text-violet-200">BETA</span>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={isSceneEffectSaving}
+                                onClick={() => setIsTransitionPickerOpen(false)}
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-xl text-gray-400 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+                                aria-label="닫기"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 border-b border-white/5 bg-black/15 px-4 py-2.5">
+                            <div>
+                                <div className="text-[10px] font-bold text-gray-500">적용 범위</div>
+                                <div className="mt-0.5 text-xs font-black text-cyan-200">선택한 씬 {selectedSubtitleSceneNumbers.length}개</div>
+                            </div>
+                            {isSceneEffectSaving && (
+                                <span className="text-xs font-bold text-violet-200">효과 저장 중...</span>
+                            )}
+                        </div>
+                        <div className="overflow-y-auto p-4">
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
+                                {SCENE_TRANSITION_EFFECTS.map(effect => {
+                                    const selected = activeTransition === effect.id
+                                    return (
+                                        <button
+                                            key={effect.id}
+                                            type="button"
+                                            disabled={isSceneEffectSaving}
+                                            onClick={() => void applySelectedSceneTransition(effect.id)}
+                                            className="group min-w-0 text-left disabled:cursor-wait disabled:opacity-55"
+                                        >
+                                            <div
+                                                className={`relative aspect-[1.55] overflow-hidden rounded-lg border-2 transition ${
+                                                    selected
+                                                        ? 'border-cyan-400 ring-2 ring-cyan-400/20'
+                                                        : 'border-transparent group-hover:border-violet-400/70'
+                                                }`}
+                                                style={{ background: TRANSITION_PREVIEW_BACKGROUNDS[effect.id] || '#9aa8b0' }}
+                                            >
+                                                <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-black/10" />
+                                                {selected && (
+                                                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-white shadow">
+                                                        <Check size={13} strokeWidth={3} />
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className={`mt-1.5 truncate text-center text-[11px] font-bold ${selected ? 'text-cyan-200' : 'text-gray-200'}`}>
+                                                {effect.label}
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
                     </div>
-                    {SCENE_TRANSITION_EFFECTS.map(effect => (
-                        <button
-                            key={effect.id}
-                            type="button"
-                            onClick={() => void applySelectedSceneTransition(effect.id)}
-                            className="w-full text-left px-2 py-1.5 rounded text-[11px] text-gray-200 hover:bg-violet-500/20 hover:text-violet-100 transition"
-                        >
-                            {effect.label}
-                        </button>
-                    ))}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
-    )
+        )
+    }
 
     const markVrewSegmentStale = (subtitle: any, index: number) => {
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'stale' }))
+    }
+
+    const stopPreviewBgm = (reset = false) => {
+        const audio = previewBgmAudioRef.current
+        if (!audio) return
+        audio.pause()
+        if (reset) audio.currentTime = 0
+    }
+
+    const playPreviewBgm = (timelineTime: number) => {
+        const audio = previewBgmAudioRef.current
+        if (!audio) return
+        const volume = Number(bgmSfxSettings.bgm_volume ?? 0.25)
+        audio.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0.25))
+
+        const seekToTimeline = () => {
+            const duration = Number(audio.duration)
+            if (Number.isFinite(duration) && duration > 0) {
+                audio.currentTime = Math.max(0, timelineTime) % duration
+            }
+        }
+        if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            seekToTimeline()
+        } else {
+            audio.addEventListener('loadedmetadata', seekToTimeline, { once: true })
+        }
+        void audio.play().catch(error => {
+            console.warn('[STD preview] BGM playback failed:', error)
+        })
     }
 
     const stopVrewPlayback = () => {
@@ -2924,6 +3297,7 @@ export default function StdPortalPage() {
             vrewAudioRef.current.load()
             vrewAudioRef.current = null
         }
+        stopPreviewBgm()
         vrewPreviewVideoRef.current?.pause()
         setIsPlayingPreview(false)
         setVrewActiveTokenIndex(-1)
@@ -3168,7 +3542,9 @@ export default function StdPortalPage() {
                     audio.currentTime = Math.min(startTime, Math.max(0, Number(audio.duration) || 0))
                     syncPlaybackProgress()
                     vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
+                    playPreviewBgm(startTime)
                     audio.play().catch(error => {
+                        stopPreviewBgm()
                         cleanup()
                         reject(error)
                     })
@@ -3186,6 +3562,7 @@ export default function StdPortalPage() {
             })
 
             if (vrewPlaybackCancelRef.current === cancelToken) {
+                stopPreviewBgm()
                 setIsPlayingPreview(false)
                 setMessage('자막 미리듣기가 완료되었습니다.')
             }
@@ -3240,7 +3617,9 @@ export default function StdPortalPage() {
                 }
                 syncPlaybackProgress()
                 vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
+                if (index === Math.max(0, startIndex)) playPreviewBgm(baseStart)
                 audio.play().catch(error => {
+                    stopPreviewBgm()
                     cleanup()
                     reject(error)
                 })
@@ -3248,6 +3627,7 @@ export default function StdPortalPage() {
         }
 
         if (vrewPlaybackCancelRef.current === cancelToken) {
+            stopPreviewBgm()
             setIsPlayingPreview(false)
             setMessage('자막 미리듣기가 완료되었습니다.')
         }
@@ -3413,7 +3793,8 @@ export default function StdPortalPage() {
 
     const restorePersistedProjectMedia = async (
         projectPayload: SelectedProjectPayload,
-        headers: Record<string, string>
+        headers: Record<string, string>,
+        options: { sceneNumbers?: number[]; includeProjectAssets?: boolean } = {},
     ) => {
         const projectId = projectPayload?.project?.id
         const assets = Array.isArray(projectPayload?.assets) ? projectPayload.assets : []
@@ -3421,14 +3802,14 @@ export default function StdPortalPage() {
         const requestScope = { ...mediaScopeRef.current, projectId: String(projectId) }
         const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
 
-        const mediaAssets = assets.filter((asset: any) =>
-            assetBelongsToProject(asset, projectId)
-            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
-            && ['image', 'video', 'thumbnail', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())
-            && (asset?.id || asset?.drive_file_id)
+        const scopedAssets = assets.filter((asset: any) => assetBelongsToProject(asset, projectId))
+        const mediaAssets = selectFallbackAssetsForScenes(
+            scopedAssets,
+            options.sceneNumbers || STD_INITIAL_MEDIA_SCENES,
+            options.includeProjectAssets !== false,
         )
 
-        const driveEntries = await Promise.all(mediaAssets.map(async (asset: any) => {
+        const restoreAsset = async (asset: any) => {
             const cacheKey = projectAssetCacheKey(projectId, asset)
             if (!cacheKey) return null
             if (projectMediaObjectUrlsRef.current[cacheKey]) {
@@ -3451,7 +3832,14 @@ export default function StdPortalPage() {
             } catch {
                 return null
             }
-        }))
+        }
+        const driveEntries: Array<{ asset: any; objectUrl: string } | null> = []
+        const concurrency = 2
+        for (let offset = 0; offset < mediaAssets.length; offset += concurrency) {
+            const batch = await Promise.all(mediaAssets.slice(offset, offset + concurrency).map(restoreAsset))
+            driveEntries.push(...batch)
+            if (!isCurrent()) return
+        }
 
         const restoredEntries = driveEntries
         if (!isCurrent()) return
@@ -3487,7 +3875,12 @@ export default function StdPortalPage() {
         const audioAsset = assets.find((asset: any) =>
             String(asset?.asset_type || '').toLowerCase() === 'audio' && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
         )
-        setAudioResultUrl(restoredAudioUrl || audioPlaybackEndpoint(projectId, audioAsset) || '')
+        setAudioResultUrl(
+            sanitizeAssetUrl(directStorageUrl(audioAsset))
+            || restoredAudioUrl
+            || audioPlaybackEndpoint(projectId, audioAsset)
+            || ''
+        )
 
         setSelectedProject(prev => {
             if (!isCurrent() || !prev || String(prev.project?.id || '') !== String(projectId)) return prev
@@ -4092,6 +4485,15 @@ export default function StdPortalPage() {
             setToken(accessToken)
             localStorage.setItem('std_session_token', accessToken)
             setUser(loggedInUser)
+            if (result.wallet || result.wallet_address) {
+                setWalletInfo({
+                    success: true,
+                    wallet: result.wallet || null,
+                    wallet_address: result.wallet_address || result.wallet?.address || '',
+                    balances: result.wallet?.assets || null,
+                })
+                setWalletAddress(result.wallet_address || result.wallet?.address || '')
+            }
             await loadStdData(accessToken)
         } catch (error: any) {
             const fallbackToken = `std_dev_token_${Date.now()}`
@@ -4108,6 +4510,50 @@ export default function StdPortalPage() {
             setLoading(false)
         }
     }
+
+    const walletApi = useCallback(async (action: string, params: Record<string, any> = {}) => {
+        const sessionToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('std_session_token') || '' : '')
+        const userEmail = String(user?.email || email || '').trim().toLowerCase()
+        if (!sessionToken || !userEmail) {
+            throw new Error('로그인 세션이 없습니다. 다시 로그인해주세요.')
+        }
+        const res = await fetch('/api/desktop-wallet', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: userEmail,
+                session_token: sessionToken,
+                action,
+                ...params,
+            }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || '지갑 서버 요청에 실패했습니다.')
+        }
+        return data
+    }, [email, token, user?.email])
+
+    const loadStdWallet = useCallback(async () => {
+        if (!user?.email) return
+        setWalletLoading(true)
+        setWalletMessage('')
+        try {
+            const data = await walletApi('me')
+            setWalletInfo(data)
+            setWalletAddress(data.wallet_address || data.wallet?.address || '')
+        } catch (error: any) {
+            setWalletMessage(error?.message || '지갑 정보를 불러오지 못했습니다.')
+        } finally {
+            setWalletLoading(false)
+        }
+    }, [user?.email, walletApi])
+
+    useEffect(() => {
+        if (settingsSubTab === 'withdrawal' && user?.email && token) {
+            loadStdWallet()
+        }
+    }, [settingsSubTab, user?.email, token, loadStdWallet])
 
     
     const sendVerificationCode = async () => {
@@ -5691,11 +6137,12 @@ export default function StdPortalPage() {
                     : '✅ 원격 렌더 큐에 성공적으로 등록되었습니다!'
             setMessage(submitMessage)
             await loadStdData(token, { showLoading: false })
+            await openProject(String(targetProject.project.id))
             alert(payload.already_submitted
                 ? '이미 원격 렌더 큐에 등록된 프로젝트입니다.'
                 : payload.shared_submission
                     ? '공동 작업자가 이미 제출한 프로젝트입니다.'
-                    : '프로젝트가 원격 렌더 큐에 등록되었습니다.')
+                    : `프로젝트 렌더링 v${payload.render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`)
         } catch (error: any) {
             const errorMessage = error?.message || '제출 실패'
             setMessage(`❌ ${errorMessage}`)
@@ -5708,6 +6155,31 @@ export default function StdPortalPage() {
 
     const handleStartRender = async () => {
         await submitProject()
+    }
+
+    const reopenProjectForRerender = async (projectId: string) => {
+        if (!projectId || loading) return
+        if (!confirm('기존 렌더 결과는 보관하고 이 프로젝트를 수정 가능한 상태로 다시 여시겠습니까?')) return
+        setLoading(true)
+        setMessage('기존 렌더 결과를 보관하고 다음 렌더 버전을 준비하고 있습니다...')
+        try {
+            const res = await fetch(`/api/std/projects/${projectId}/reopen`, {
+                method: 'POST',
+                headers: authedJsonHeaders,
+            })
+            const payload = await safeParseJson(res, '재렌더링 준비 실패')
+            if (!res.ok || payload.success === false) throw new Error(payload.error || '재렌더링 준비 실패')
+            await loadStdData(token, { showLoading: false })
+            await openProject(projectId)
+            setCurrentNav('image_gen')
+            setMessage(`렌더링 v${payload.next_render_version || 1} 수정본을 준비했습니다. 필요한 단계만 수정한 뒤 다시 렌더링하세요.`)
+        } catch (error: any) {
+            const errorMessage = error?.message || '재렌더링 준비 실패'
+            setMessage(`❌ ${errorMessage}`)
+            alert(errorMessage)
+        } finally {
+            setLoading(false)
+        }
     }
 
     const generateTts = async (skipScriptSync: boolean = false) => {
@@ -6069,6 +6541,11 @@ export default function StdPortalPage() {
         const lastIndex = indexes[indexes.length - 1]
         const isContiguous = indexes.every((index, position) => index === firstIndex + position)
         const selectedItems = indexes.map(index => localSubtitles[index]).filter(Boolean)
+        if (selectedItems.length !== indexes.length) {
+            setSelectedSubtitleBlockIndexes([])
+            setMessage('자막 목록이 변경됐습니다. 합칠 자막을 다시 선택해 주세요.')
+            return
+        }
         const sceneNumber = Number(selectedItems[0]?.scene_number)
         const isSameScene = selectedItems.every(item => Number(item?.scene_number) === sceneNumber)
         const firstIsDialogue = isSubtitleDialogue(selectedItems[0], firstIndex)
@@ -6424,6 +6901,73 @@ export default function StdPortalPage() {
         ? currentSubVideoCandidate
         : ''
     const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
+
+    useEffect(() => {
+        const cache = previewPrefetchRef.current
+        return () => {
+            cache.forEach(media => {
+                if (media instanceof HTMLVideoElement) {
+                    media.pause()
+                    media.removeAttribute('src')
+                    media.load()
+                } else {
+                    media.src = ''
+                }
+            })
+            cache.clear()
+        }
+    }, [selectedProject?.project?.id])
+
+    useEffect(() => {
+        if (currentNav !== 'subtitle_vrew' || !selectedProject?.project?.id) return
+        const scenes = selectedProject.scenes || []
+        const priorityNumbers = prioritizedSceneNumbers(currentPreviewSceneNumber, scenes.length)
+
+        void restorePersistedProjectMedia(selectedProject, authedJsonHeaders, {
+            sceneNumbers: priorityNumbers,
+            includeProjectAssets: false,
+        })
+
+        for (const sceneNumber of priorityNumbers) {
+            if (sceneNumber === currentPreviewSceneNumber) continue
+            const scene = scenes.find((item: any, index: number) => Number(item?.scene_number || item?.scene_order || index + 1) === sceneNumber)
+            const videoUrl = isPlayablePreviewVideoUrl(scene?.video_url) ? String(scene.video_url) : ''
+            const imageUrl = String(scene?.image_url || '')
+            const url = videoUrl || imageUrl
+            if (!url || url.startsWith('blob:') || previewPrefetchRef.current.has(url)) continue
+
+            if (videoUrl) {
+                const video = document.createElement('video')
+                video.preload = 'metadata'
+                video.muted = true
+                video.src = videoUrl
+                video.load()
+                previewPrefetchRef.current.set(url, video)
+            } else {
+                const image = new window.Image()
+                image.decoding = 'async'
+                image.fetchPriority = sceneNumber <= 4 ? 'high' : 'low'
+                image.src = imageUrl
+                previewPrefetchRef.current.set(url, image)
+            }
+        }
+
+        while (previewPrefetchRef.current.size > 12) {
+            const oldestKey = previewPrefetchRef.current.keys().next().value
+            if (!oldestKey) break
+            const media = previewPrefetchRef.current.get(oldestKey)
+            if (media instanceof HTMLVideoElement) media.pause()
+            previewPrefetchRef.current.delete(oldestKey)
+        }
+    // Asset URL updates are the result of this loader; restarting on those updates would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentNav, currentPreviewSceneNumber, selectedProject?.project?.id])
+
+    const previewMotionScene = selectedProject?.scenes?.find((scene: any) => Number(scene.scene_number) === currentPreviewSceneNumber)
+    const previewMotionGroup = subtitleSceneGroups.find(group => Number(group.scene_number) === currentPreviewSceneNumber)
+    const previewMotionStart = Number(previewMotionGroup?.start_num ?? currentSub.start_num ?? currentSub.start_time ?? 0)
+    const previewMotionEnd = Number(previewMotionGroup?.end_num ?? currentSub.end_num ?? currentSub.end_time ?? previewMotionStart + 1)
+    const previewImageMotionStyle = sceneMotionStyle(sceneMotion(previewMotionScene), playbackTime, previewMotionStart, previewMotionEnd)
 
     const previewTransitionLayerStyle = (effect: string, exiting: boolean) => {
         const transition = 'opacity 520ms ease-out, transform 520ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 520ms ease-out'
@@ -7746,44 +8290,7 @@ export default function StdPortalPage() {
                                                 <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap">
                                                     대사 {dialogueSubtitleCount}개
                                                 </span>
-                                                {pendingDialogueCandidateIndexes.size > 0 && (
-                                                    <span className="whitespace-nowrap text-[10px] font-bold text-amber-300" title="아직 대사로 지정하지 않은 자막 줄 수입니다.">
-                                                        · 후보 {pendingDialogueCandidateIndexes.size}개
-                                                    </span>
-                                                )}
-                                                {renderVoicePicker(
-                                                    'bulk-dialogue',
-                                                    vrewDialogueVoice || selectedVoice,
-                                                    setVrewDialogueVoice,
-                                                    '대사 일괄 성우',
-                                                    'dialogue'
-                                                )}
                                             </div>
-                                            {pendingDialogueCandidateIndexes.size > 0 && (
-                                                <button
-                                                    type="button"
-                                                    title="노란색 후보가 포함된 자막 줄 전체를 대사로 지정합니다. 이후 대사 적용을 누르면 선택한 성우가 적용됩니다."
-                                                    onClick={() => {
-                                                        const updated = localSubtitles.map((subtitle, index) => (
-                                                            pendingDialogueCandidateIndexes.has(index)
-                                                                ? { ...subtitle, dialogue_override: true } : subtitle
-                                                        ))
-                                                        void persistVrewVoiceSubtitles(updated)
-                                                    }}
-                                                    className="h-8 rounded-md border border-amber-400/30 bg-amber-400/10 px-2.5 text-[11px] font-bold text-amber-200 hover:bg-amber-400/20"
-                                                >
-                                                    후보 {pendingDialogueCandidateIndexes.size}개 대사로 지정
-                                                </button>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
-                                                disabled={dialogueSubtitleCount === 0}
-                                                title={dialogueSubtitleCount === 0 ? '먼저 후보를 대사로 지정해 주세요.' : `확정된 대사 ${dialogueSubtitleCount}개에 선택한 성우를 적용합니다.`}
-                                                className="h-8 px-2.5 rounded-md border border-violet-300/30 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold shadow-sm shadow-violet-950/20 transition"
-                                            >
-                                                대사 적용
-                                            </button>
                                             {audioResultUrl && (
                                                 <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
                                                     TTS 준비됨
@@ -8151,11 +8658,22 @@ export default function StdPortalPage() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => alert('선택한 언어로 자막 번역 작업이 완료되었습니다.')}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all"
+                                            onClick={() => subtitleReviewLocale
+                                                ? void translateSubtitleBlocks(subtitleReviewLocale, true)
+                                                : alert('영어, 베트남어 또는 태국어 모드를 선택해 주세요.')}
+                                            disabled={Boolean(translatingSubtitleLanguage) || localSubtitles.length === 0}
+                                            title={subtitleReviewCopy ? `원문 블록 경계를 유지하여 ${subtitleReviewCopy.name}로 다시 번역합니다.` : undefined}
+                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all disabled:cursor-not-allowed disabled:opacity-45"
                                         >
-                                            {t('sub_translate')}
+                                            {translatingSubtitleLanguage && subtitleReviewLocale === translatingSubtitleLanguage
+                                                ? subtitleReviewCopy?.translating
+                                                : t('sub_translate')}
                                         </button>
+                                        {subtitleReviewLocale && subtitleTranslationError && (
+                                            <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
+                                                {subtitleReviewCopy?.retry}
+                                            </span>
+                                        )}
                                         <button
                                             type="button"
                                             onClick={() => void syncSubtitleTimingsToNarration()}
@@ -8188,7 +8706,7 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 3행: 선택한 자막 섹션 전용 마이크 / 효과 */}
-                                <div className="flex items-center gap-1 pt-1.5 border-t border-white/5">
+                                <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-white/5">
                                     {renderVoicePicker(
                                         'selected-scenes-bulk',
                                         selectedSubtitleSceneVoiceId,
@@ -8203,6 +8721,36 @@ export default function StdPortalPage() {
                                         !hasSelectedSubtitleSections
                                     )}
                                     {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
+                                    <label className="ml-2 flex items-center gap-1 text-[11px] text-cyan-200">
+                                        이미지 모션
+                                        <select aria-label="선택한 씬 이미지 모션" value="" disabled={!hasSelectedSubtitleSections || isSceneEffectSaving}
+                                            onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect')}
+                                            className="max-w-48 rounded border border-white/20 bg-[#14181f] p-1 text-white disabled:opacity-40">
+                                            <option value="">선택한 씬에 적용</option>
+                                            {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
+                                        </select>
+                                    </label>
+                                    {isVrewSubtitleMode && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                disabled={selectedSubtitleBlockIndexes.length < 2}
+                                                title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
+                                                onClick={() => void mergeSelectedSubtitleBlocks()}
+                                                className="ml-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
+                                            >
+                                                <Combine size={13} /> {t('sub_merge_action')}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={selectedSubtitleBlockIndexes.length !== 1}
+                                                onClick={() => void splitSelectedSubtitleBlock()}
+                                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                                            >
+                                                <Scissors size={13} /> {t('sub_split_action')}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
@@ -8237,26 +8785,8 @@ export default function StdPortalPage() {
                                             <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
                                                 {tf('sub_total_blocks', { count: localSubtitles.length })}
                                             </span>
-                                            {selectedSubtitleBlockIndexes.length === 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void splitSelectedSubtitleBlock()}
-                                                    className="h-7 px-2.5 rounded-md border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 text-[10px] font-bold flex items-center gap-1 transition"
-                                                >
-                                                    <Scissors size={13} />
-                                                    {t('sub_split_action')}
-                                                </button>
-                                            )}
                                             {selectedSubtitleBlockIndexes.length >= 2 && (
                                                 <>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void mergeSelectedSubtitleBlocks()}
-                                                        className="h-7 px-2.5 rounded-md border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25 text-[10px] font-bold flex items-center gap-1 transition"
-                                                    >
-                                                        <Combine size={13} />
-                                                        {t('sub_merge_action')}
-                                                    </button>
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">
                                                         {tf('sub_selected_blocks', { count: selectedSubtitleBlockIndexes.length })}
                                                     </span>
@@ -8300,6 +8830,7 @@ export default function StdPortalPage() {
                                                 const hasSingleGroupVoice = groupVoiceNames.length === 1
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
+                                                const motionEffect = sceneMotion(sceneRecord)
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey]
                                                 const segmentStatusLabel = segmentStatus === 'ready'
@@ -8350,21 +8881,13 @@ export default function StdPortalPage() {
                                                         {/* 이미지와 구간 시간 */}
                                                         <div className="w-[calc(100%-2rem)] shrink-0 self-start min-[390px]:w-36 sm:w-40">
                                                             <div className="aspect-video w-full rounded-md sm:rounded-lg overflow-hidden border border-white/10 relative">
-                                                                {group.video_url ? (
-                                                                    <video
-                                                                        key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
-                                                                        src={group.video_url}
-                                                                        className="w-full h-full object-cover"
-                                                                        autoPlay={shouldPlayThumbnailVideo}
-                                                                        muted
-                                                                        playsInline
-                                                                        preload={shouldPlayThumbnailVideo ? 'auto' : 'metadata'}
-                                                                    />
-                                                                ) : group.image_url ? (
-                                                                    <img src={group.image_url} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <div className="w-full h-full bg-[#0b0e14]" />
-                                                                )}
+                                                                <LazySceneMedia
+                                                                    key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
+                                                                    videoUrl={group.video_url}
+                                                                    imageUrl={group.image_url}
+                                                                    shouldPlay={shouldPlayThumbnailVideo}
+                                                                    priority={Number(sNum) <= 4 || isActive}
+                                                                />
                                                                 {group.video_url ? (
                                                                     <span className="absolute top-0.5 right-0.5 bg-purple-700/90 text-white text-[8px] font-bold px-1 rounded">
                                                                         영상 완료
@@ -8394,6 +8917,17 @@ export default function StdPortalPage() {
                                                                 >
                                                                     {sceneTransitionLabel(transitionEffect)}
                                                                 </div>
+                                                            )}
+                                                            {isVrewSubtitleMode && (
+                                                                <label className="mt-2 flex flex-col items-start gap-1 text-[9px] text-cyan-200">
+                                                                    <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
+                                                                        disabled={Boolean(group.video_url) || isSceneEffectSaving}
+                                                                        title={group.video_url ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
+                                                                        onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect', [Number(sNum)])}
+                                                                        className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
+                                                                        {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
+                                                                    </select>
+                                                                </label>
                                                             )}
                                                         </div>
                                                         <div className="w-full min-w-0 flex-none sm:flex-1">
@@ -8443,7 +8977,7 @@ export default function StdPortalPage() {
                                                                 )}
                                                             </div>
                                                             {isVrewSubtitleMode ? (
-                                                                <div className="space-y-1.5">
+                                                                <div className="space-y-0.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
@@ -8453,10 +8987,23 @@ export default function StdPortalPage() {
                                                                         const candidates = pendingDialogueCandidateIndexes.has(item.subtitleIndex) && !isDialogueBlock
                                                                             ? subtitleDialogueCandidates.get(item.subtitleIndex) || [] : []
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
+                                                                        const localizedTranslation = subtitleReviewLocale
+                                                                            ? subtitleTranslations[subtitleReviewLocale]?.[subtitleTranslationKey(
+                                                                                item.subtitleIndex,
+                                                                                String(item.text || '').trim(),
+                                                                            )]
+                                                                            : ''
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
-                                                                                className={`grid ${hasSingleGroupVoice ? 'grid-cols-[1.25rem_minmax(0,1fr)_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_2rem]' : 'grid-cols-[1.25rem_minmax(0,1fr)_2rem] sm:grid-cols-[1.5rem_minmax(0,1fr)_auto_2rem]'} items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-1.5 ${
+                                                                                onClick={event => {
+                                                                                    if ((event.target as HTMLElement).closest('button,select,input,textarea,a,[role="dialog"]')) return
+                                                                                    event.stopPropagation()
+                                                                                    selectSubtitleBlock(item.subtitleIndex, event.shiftKey)
+                                                                                }}
+                                                                                onMouseDown={event => { if (event.shiftKey) event.preventDefault() }}
+                                                                                title="클릭하여 선택 · Shift+클릭으로 연속된 자막 선택"
+                                                                                className={`grid grid-cols-[1.25rem_minmax(0,1fr)] sm:grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-0.5 ${
                                                                                     isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
                                                                                         : isDialogueBlock
@@ -8480,29 +9027,57 @@ export default function StdPortalPage() {
                                                                                 >
                                                                                     {lineIndex + 1}
                                                                                 </button>
-                                                                                <div className="min-w-0 text-[11px] text-white leading-relaxed font-sans sm:text-xs">
-                                                                                    {candidates.length ? (() => {
-                                                                                        const parts: React.ReactNode[] = []
-                                                                                        let cursor = 0
-                                                                                        candidates.forEach((candidate, candidateIndex) => {
-                                                                                            parts.push(<span key={`plain-${candidateIndex}`}>{item.text.slice(cursor, candidate.start)}</span>)
-                                                                                            parts.push(<span key={`candidate-${candidateIndex}`} title={candidate.reason} className="text-amber-200">{item.text.slice(candidate.start, candidate.end)}</span>)
-                                                                                            cursor = candidate.end
-                                                                                        })
-                                                                                        parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
-                                                                                        return parts
-                                                                                    })() : renderAiDialogue(item, item.subtitleIndex)}
+                                                                                <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
+                                                                                    <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
+                                                                                        <span className="min-w-0 truncate" title={String(item.text || '')}>
+                                                                                            {candidates.length ? (() => {
+                                                                                                const parts: React.ReactNode[] = []
+                                                                                                let cursor = 0
+                                                                                                candidates.forEach((candidate, candidateIndex) => {
+                                                                                                    parts.push(<span key={`plain-${candidateIndex}`}>{item.text.slice(cursor, candidate.start)}</span>)
+                                                                                                    parts.push(<span key={`candidate-${candidateIndex}`} title={candidate.reason} className="text-amber-200">{item.text.slice(candidate.start, candidate.end)}</span>)
+                                                                                                    cursor = candidate.end
+                                                                                                })
+                                                                                                parts.push(<span key="tail">{item.text.slice(cursor)}</span>)
+                                                                                                return parts
+                                                                                            })() : renderAiDialogue(item, item.subtitleIndex)}
+                                                                                        </span>
+                                                                                        <div className="ml-1.5 inline-flex shrink-0 align-middle" onClick={event => event.stopPropagation()}>
+                                                                                            {renderVoicePicker(
+                                                                                                `block-${item.subtitleIndex}`,
+                                                                                                blockVoiceId,
+                                                                                                (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
+                                                                                                subtitleReviewCopy
+                                                                                                    ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
+                                                                                                    : `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
+                                                                                                isDialogueBlock ? 'dialogue' : 'default',
+                                                                                                'left'
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    {subtitleReviewLocale && subtitleReviewCopy && (
+                                                                                        <div
+                                                                                            className="min-w-0 flex-1 truncate border-l border-sky-400/20 pl-2 text-sky-200"
+                                                                                            lang={subtitleReviewLocale}
+                                                                                            title={localizedTranslation || subtitleReviewCopy.pending}
+                                                                                        >
+                                                                                            <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
+                                                                                            {localizedTranslation || (translatingSubtitleLanguage === subtitleReviewLocale
+                                                                                                ? subtitleReviewCopy.translating
+                                                                                                : subtitleReviewCopy.pending)}
+                                                                                        </div>
+                                                                                    )}
                                                                                     {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
-                                                                                        <span className="ml-2 inline-flex items-center gap-2 text-[10px]">
-                                                                                            {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>대사 후보</span>}
+                                                                                        <span className="inline-flex shrink-0 items-center gap-2 text-[10px]">
+                                                                                            {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>{subtitleReviewCopy?.candidate || '대사 후보'}</span>}
                                                                                             <button type="button" className="text-emerald-300 underline" title="이 자막 줄 전체를 대사로 지정합니다. 목소리는 대사 일괄 적용으로 선택하세요." onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: true } : sub)
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>대사로 지정</button>
+                                                                                            }}>{subtitleReviewCopy?.markDialogue || '대사로 지정'}</button>
                                                                                             <button type="button" className="text-gray-400 underline" onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: false } : sub)
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>내레이션</button>
+                                                                                            }}>{subtitleReviewCopy?.markNarration || '내레이션'}</button>
                                                                                             {typeof item.dialogue_override === 'boolean' && <button type="button" className="text-amber-300 underline" onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => {
                                                                                                     if (index !== item.subtitleIndex) return sub
@@ -8510,10 +9085,9 @@ export default function StdPortalPage() {
                                                                                                     return rest
                                                                                                 })
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>자동 판별</button>}
+                                                                                            }}>{subtitleReviewCopy?.automatic || '자동 판별'}</button>}
                                                                                         </span>
                                                                                     )}
-                                                                                </div>
                                                                                 {!hasSingleGroupVoice && (
                                                                                     <span
                                                                                         title={blockVoiceName}
@@ -8526,14 +9100,8 @@ export default function StdPortalPage() {
                                                                                         {blockVoiceName}
                                                                                     </span>
                                                                                 )}
-                                                                                {renderVoicePicker(
-                                                                                    `block-${item.subtitleIndex}`,
-                                                                                    blockVoiceId,
-                                                                                    (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
-                                                                                    `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
-                                                                                    isDialogueBlock ? 'dialogue' : 'default',
-                                                                                    'left'
-                                                                                )}
+                                                                                </div>
+
                                                                             </div>
                                                                         )
                                                                     })}
@@ -8593,7 +9161,17 @@ export default function StdPortalPage() {
                                 <div className="contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
                                     <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
-                                    <div className="order-1 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
+                                    <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
+                                        {bgmAsset && (
+                                            <audio
+                                                ref={previewBgmAudioRef}
+                                                src={assetPlaybackUrl(bgmAsset)}
+                                                preload="auto"
+                                                loop
+                                                className="hidden"
+                                                aria-hidden="true"
+                                            />
+                                        )}
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
@@ -8622,6 +9200,10 @@ export default function StdPortalPage() {
                                                 <img
                                                     src={currentSubImageUrl}
                                                     alt="Preview"
+                                                    loading="eager"
+                                                    decoding="async"
+                                                    fetchPriority="high"
+                                                    style={previewImageMotionStyle}
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : selectedImageTemplatePreset && templateBgUrl ? (
@@ -8655,6 +9237,7 @@ export default function StdPortalPage() {
                                                         <img
                                                             src={previewTransition.imageUrl}
                                                             alt=""
+                                                            decoding="async"
                                                             className="w-full h-full object-cover"
                                                             style={previewTransitionLayerStyle(previewTransition.effect, previewTransition.exiting)}
                                                         />
@@ -8722,7 +9305,7 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {/* 커스텀 플레이어 바 */}
-                                        <div className="p-2.5 sm:p-3 bg-[#13171e] border-t border-white/5 flex flex-col gap-2">
+                                        <div className="p-2 bg-[#13171e] border-t border-white/5 flex flex-col gap-1.5">
                                             <div
                                                 onClick={(e) => {
                                                     const rect = e.currentTarget.getBoundingClientRect()
@@ -8738,7 +9321,7 @@ export default function StdPortalPage() {
                                                     style={{ width: `${Math.min(100, (playbackTime / totalDuration) * 100)}%` }}
                                                 />
                                             </div>
-                                            <div className="flex flex-col gap-2 text-[11px] text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="flex flex-col gap-1 text-[11px] text-gray-400 sm:flex-row sm:items-center sm:justify-between">
                                                 <div className="flex min-w-0 items-center gap-2">
                                                     <button
                                                         onClick={isVrewSubtitleMode ? handleToggleVrewPlayback : () => setIsPlayingPreview(!isPlayingPreview)}
@@ -8760,6 +9343,7 @@ export default function StdPortalPage() {
                                                     <button
                                                         onClick={() => {
                                                             stopVrewPlayback()
+                                                            stopPreviewBgm(true)
                                                             previewVideoIdentityRef.current = ''
                                                             if (vrewPreviewVideoRef.current) {
                                                                 vrewPreviewVideoRef.current.dataset.finished = ''
@@ -8781,8 +9365,8 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 탭: 자막 편집 / 배경음/효과음 */}
-                                    <div className="order-3 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow flex flex-col gap-3 lg:order-none">
-                                        <div className="flex items-center gap-4 border-b border-white/5 pb-2 text-xs font-bold">
+                                    <div className="order-3 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl p-2.5 shadow flex flex-col gap-2 lg:order-none">
+                                        <div className="flex items-center gap-4 border-b border-white/5 pb-1 text-xs font-bold">
                                             <button
                                                 onClick={() => setSubEditTab('subtitle')}
                                                 className={`pb-1 transition-colors ${
@@ -8802,8 +9386,8 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {subEditTab === 'subtitle' ? (
-                                            <div className="space-y-3">
-                                                <div className="flex flex-col gap-2 text-xs font-bold text-white min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+                                            <div className="space-y-2">
+                                                <div className="flex flex-col gap-1.5 text-xs font-bold text-white min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                                                     <span>{t('sub_selected_range_edit')}</span>
                                                     <div className="grid grid-cols-3 gap-1 min-[420px]:flex min-[420px]:items-center">
                                                         <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
@@ -8818,13 +9402,13 @@ export default function StdPortalPage() {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
+                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-white/5">
                                                     <span className="text-blue-400 font-bold">{t('sub_current_image')}</span>
                                                     <span className="font-mono">{currentSub.start_time}s ~ {currentSub.end_time}s</span>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
+                                                <div className="grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
+                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-white/5">
                                                         <span className="shrink-0 text-gray-300 font-bold">{t('sub_start_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{currentSub.start_time}s</span>
@@ -8833,7 +9417,7 @@ export default function StdPortalPage() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-red-500/20">
+                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-red-500/20">
                                                         <span className="shrink-0 text-red-400 font-bold">{t('sub_end_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{currentSub.end_time}s</span>
@@ -8844,7 +9428,7 @@ export default function StdPortalPage() {
                                                 </div>
 
                                                 {/* Vrew 스타일 자막 토큰 에디터 */}
-                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-2">
+                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-1.5">
                                                     {isSubtitleTextEditing ? (
                                                         <textarea
                                                             ref={subtitleTextEditorRef}
@@ -8865,14 +9449,14 @@ export default function StdPortalPage() {
                                                                 if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
                                                                 setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
                                                             }}
-                                                            className="w-full min-h-16 resize-none overflow-hidden rounded-md border border-blue-500 bg-[#10151d] px-3 py-2 text-xs leading-5 text-white focus:outline-none"
+                                                            className="w-full min-h-12 resize-none overflow-hidden rounded-md border border-blue-500 bg-[#10151d] px-2 py-1.5 text-xs leading-5 text-white focus:outline-none"
                                                         />
                                                     ) : (
-                                                        <div className="flex items-start gap-2">
+                                                        <div className="flex items-start gap-1.5">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsSubtitleTextEditing(true)}
-                                                                className="flex min-h-10 flex-1 flex-wrap content-start gap-1.5 rounded-md text-left"
+                                                                className="flex min-h-7 flex-1 flex-wrap content-start gap-1 rounded-md text-left"
                                                                 title="자막 텍스트 편집"
                                                             >
                                                                 {renderVrewSubtitleTokenEditor(
@@ -8886,7 +9470,7 @@ export default function StdPortalPage() {
                                                                 type="button"
                                                                 onClick={() => setIsSubtitleTextEditing(true)}
                                                                 title="자막 텍스트 편집"
-                                                                className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-white/20 hover:bg-[#202632] hover:text-white"
+                                                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-white/20 hover:bg-[#202632] hover:text-white"
                                                             >
                                                                 <Pencil size={14} />
                                                             </button>
@@ -8999,11 +9583,6 @@ export default function StdPortalPage() {
                                                             className="mt-3 h-8 w-full"
                                                         />
                                                     )}
-                                                </div>
-
-                                                <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] leading-5 text-blue-100">
-                                                    업로드한 파일은 프로젝트 Google Drive 폴더의 <span className="font-mono">04_audio</span>에 저장되고,
-                                                    렌더 제출 시 워커가 Drive에서 내려받아 기존 믹서로 적용합니다.
                                                 </div>
                                             </div>
                                         )}
@@ -9490,7 +10069,14 @@ export default function StdPortalPage() {
                                                     )}
                                                     {scene.image_url ? (
                                                         <>
-                                                            <img src={scene.image_url} alt={`Scene ${sceneNum}`} className="w-full h-full object-cover" />
+                                                            <img
+                                                                src={scene.image_url}
+                                                                alt={`Scene ${sceneNum}`}
+                                                                loading={sceneNum <= 4 ? 'eager' : 'lazy'}
+                                                                decoding="async"
+                                                                fetchPriority={sceneNum <= 4 ? 'high' : 'low'}
+                                                                className="w-full h-full object-cover"
+                                                            />
                                                             {scene.video_url && (
                                                                 <>
                                                                     <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
@@ -10672,7 +11258,8 @@ export default function StdPortalPage() {
                                             <th className="px-1 py-2.5 w-12 text-center">TTS</th>
                                             <th className="px-1 py-2.5 w-12 text-center">자막</th>
                                             <th className="px-1 py-2.5 w-12 text-center">썸네일</th>
-                                            <th className="px-2 py-2.5 w-16 text-center text-cyan-300 font-black tracking-wide">제출</th>
+                                            <th className="px-2 py-2.5 w-24 text-center text-cyan-300 font-black tracking-wide">렌더</th>
+                                            <th className="px-2 py-2.5 w-16 text-center">비고</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
@@ -10706,6 +11293,11 @@ export default function StdPortalPage() {
                                                 || p.project_payload?.thumbnail_design?.bg_url
                                             )
                                             const submittedAt = p.submitted_at || p.shared_submission?.submitted_at
+                                            const latestSubmittedVersion = Math.max(
+                                                0,
+                                                Number(p.progress_payload?.latest_render_version) || 0,
+                                                submittedAt ? 1 : 0,
+                                            )
                                             return (
                                                 <tr
                                                     key={p.id || idx}
@@ -10801,7 +11393,16 @@ export default function StdPortalPage() {
                                                                 {/* 제출 버튼 컬럼 */}
                                                                 <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                                     {isSubmitted ? (
-                                                                        <span className="inline-flex rounded-lg bg-emerald-600/15 px-2 py-1 text-xs text-emerald-300" title="제출 완료 · 검수 상태는 변경되지 않습니다.">제출 완료</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => reopenProjectForRerender(String(p.id))}
+                                                                            disabled={loading}
+                                                                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 px-2 py-1 text-[10px] font-bold text-indigo-300 hover:text-white border border-indigo-500/30 disabled:opacity-50 transition"
+                                                                            title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
+                                                                        >
+                                                                            <RefreshCw className="w-3 h-3" />
+                                                                            수정·재렌더
+                                                                        </button>
                                                                     ) : submittingProjectId === String(p.id) ? (
                                                                         <button
                                                                             disabled
@@ -10834,6 +11435,9 @@ export default function StdPortalPage() {
                                                                         </button>
                                                                     )}
                                                                 </td>
+                                                                <td className="px-2 py-2 text-center font-mono text-[11px] font-bold text-cyan-300">
+                                                                    {latestSubmittedVersion > 0 ? `v${latestSubmittedVersion}` : ''}
+                                                                </td>
                                                             </>
                                                         )
                                                     })()}
@@ -10842,7 +11446,7 @@ export default function StdPortalPage() {
                                         })}
                                         {projects.length === 0 && (
                                             <tr>
-                                                <td colSpan={13} className="px-4 py-10 text-center text-xs text-gray-500">
+                                                <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
                                                     아직 생성된 프로젝트가 없습니다.
                                                 </td>
                                             </tr>
@@ -11446,12 +12050,18 @@ export default function StdPortalPage() {
                                 {/* 렌더링 시작 버튼 */}
                                 <button
                                     type="button"
-                                    onClick={handleStartRender}
+                                    onClick={() => selectedProject.project.submitted_at
+                                        ? reopenProjectForRerender(String(selectedProject.project.id))
+                                        : handleStartRender()}
                                     disabled={isRendering}
                                     className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2 disabled:opacity-50 active:scale-95"
                                 >
                                     <span>🎬</span>
-                                    <span>{isRendering ? '영상 렌더링 진행 중...' : '최종 렌더링 시작'}</span>
+                                    <span>{isRendering
+                                        ? '영상 렌더링 진행 중...'
+                                        : selectedProject.project.submitted_at
+                                            ? '수정 후 재렌더링'
+                                            : `렌더링 v${selectedProject.project.progress_payload?.editing_render_version || ((selectedProject.project.progress_payload?.latest_render_version || 0) + 1)} 시작`}</span>
                                 </button>
                             </div>
 
@@ -11482,6 +12092,26 @@ export default function StdPortalPage() {
                                                 ⚙️ 인코더 libx264
                                             </div>
                                         </div>
+                                        {Boolean(selectedProject.render_history?.length) && (
+                                            <div className="border-t border-white/10 pt-3 space-y-2">
+                                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">렌더 버전 이력</div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {selectedProject.render_history!.map((render: any) => (
+                                                        <a
+                                                            key={render.id}
+                                                            href={render.result_file_id ? `https://drive.google.com/file/d/${render.result_file_id}/view` : undefined}
+                                                            target={render.result_file_id ? '_blank' : undefined}
+                                                            rel={render.result_file_id ? 'noreferrer' : undefined}
+                                                            className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-bold ${render.result_file_id
+                                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                                                                : 'border-white/10 bg-white/5 text-gray-400 pointer-events-none'}`}
+                                                        >
+                                                            v{render.render_version} · {render.status === 'completed' ? '완료' : render.status === 'rendering' ? '렌더링 중' : render.status === 'pending' ? '대기 중' : render.status === 'failed' ? '실패' : render.status}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* 실시간 렌더 콘솔 로그 */}
@@ -11579,7 +12209,7 @@ export default function StdPortalPage() {
                                         { id: 'basic', label: '■■ 기본 설정' },
                                         { id: 'orgchart', label: '조직도' },
                                         { id: 'history', label: '수당 내역 (History)' },
-                                        { id: 'withdrawal', label: 'USDT 출금 신청 (Withdrawal)' },
+                                        { id: 'withdrawal', label: '지갑 / 출금 (Wallet)' },
                                         { id: 'support', label: '💬 문의하기' },
                                         { id: 'announcements', label: '📢 공지사항' },
                                     ].map(tab => (
@@ -11927,21 +12557,73 @@ export default function StdPortalPage() {
                                     </div>
                                 )}
 
-                                {/* [탭 4: USDT 출금 신청] */}
+                                {/* [탭 4: AIR/USDT 지갑] */}
                                 {settingsSubTab === 'withdrawal' && (
                                     <div className="space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-gradient-to-br from-blue-900/30 to-cyan-900/20 rounded-2xl p-6 border border-blue-500/30 shadow-lg">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0">
+                                                    <div className="text-blue-300 text-xs font-medium mb-1">내 ERC20 지갑 주소</div>
+                                                    <div className="text-sm font-mono text-blue-100 break-all">{walletAddress || (walletLoading ? '생성/조회 중...' : '-')}</div>
+                                                    {walletMessage && <div className="mt-2 text-xs text-red-300">{walletMessage}</div>}
+                                                </div>
+                                                <div className="flex gap-2 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            if (!walletAddress) return
+                                                            await navigator.clipboard.writeText(walletAddress)
+                                                            alert('지갑 주소를 복사했습니다.')
+                                                        }}
+                                                        className="px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 text-xs font-bold"
+                                                    >
+                                                        주소 복사
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={walletLoading}
+                                                        onClick={async () => {
+                                                            setWalletLoading(true)
+                                                            setWalletMessage('')
+                                                            try {
+                                                                const data = await walletApi('sync_air_deposits')
+                                                                setWalletInfo((prev: any) => ({ ...(prev || {}), balances: data.balances || prev?.balances }))
+                                                                await loadStdWallet()
+                                                                alert(`AIR 입금 확인 완료: ${data.credited_count || 0}건 / ${data.credited_amount || 0} AIR`)
+                                                            } catch (error: any) {
+                                                                setWalletMessage(error?.message || 'AIR 입금 확인 실패')
+                                                            } finally {
+                                                                setWalletLoading(false)
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-xs font-bold disabled:opacity-50"
+                                                    >
+                                                        AIR 입금 확인
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="bg-gradient-to-br from-sky-900/40 to-blue-900/30 rounded-2xl p-6 border border-sky-500/30 shadow-lg">
+                                                <div className="text-sky-300 text-xs font-medium mb-1">AIR 잔액</div>
+                                                <div className="text-3xl font-black text-sky-300 flex items-baseline gap-1 font-mono">
+                                                    <span>{Number(walletInfo?.balances?.AIR?.available || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
+                                                    <span className="text-sm font-bold opacity-70">AIR</span>
+                                                </div>
+                                                <div className="text-[11px] text-sky-200/60 mt-1">잠김 {Number(walletInfo?.balances?.AIR?.locked || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })} AIR</div>
+                                            </div>
                                             <div className="bg-gradient-to-br from-green-900/40 to-emerald-900/30 rounded-2xl p-6 border border-green-500/30 shadow-lg">
-                                                <div className="text-green-300 text-xs font-medium mb-1">출금 가능 잔액</div>
+                                                <div className="text-green-300 text-xs font-medium mb-1">USDT 잔액</div>
                                                 <div className="text-3xl font-black text-green-400 flex items-baseline gap-1 font-mono">
-                                                    <span>15.000000</span>
+                                                    <span>{Number(walletInfo?.balances?.USDT?.available || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                                                     <span className="text-sm font-bold opacity-70">USDT</span>
                                                 </div>
                                             </div>
                                             <div className="bg-gradient-to-br from-indigo-900/30 to-blue-900/20 rounded-2xl p-6 border border-indigo-500/30 shadow-lg">
-                                                <div className="text-indigo-300 text-xs font-medium mb-1">출금 대기 중인 금액</div>
+                                                <div className="text-indigo-300 text-xs font-medium mb-1">USDT 잠김</div>
                                                 <div className="text-2xl font-bold text-indigo-400 flex items-baseline gap-1 font-mono">
-                                                    <span>0.000000</span>
+                                                    <span>{Number(walletInfo?.balances?.USDT?.locked || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                                                     <span className="text-sm font-bold opacity-70">USDT</span>
                                                 </div>
                                             </div>
@@ -11949,21 +12631,86 @@ export default function StdPortalPage() {
 
                                         <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                             <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                                <span>💳 USDT (TRC-20) 출금 신청</span>
+                                                <span>🔁 AIR / USDT 스왑</span>
+                                            </h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_160px] gap-3 max-w-2xl">
+                                                <select
+                                                    value={swapFromAsset}
+                                                    onChange={e => setSwapFromAsset(e.target.value as 'AIR' | 'USDT')}
+                                                    className="bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                >
+                                                    <option value="AIR">AIR → USDT</option>
+                                                    <option value="USDT">USDT → AIR</option>
+                                                </select>
+                                                <input
+                                                    type="number"
+                                                    value={swapAmount}
+                                                    onChange={e => setSwapAmount(e.target.value)}
+                                                    placeholder="스왑 수량"
+                                                    className="bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    disabled={walletLoading}
+                                                    onClick={async () => {
+                                                        if (!swapAmount || Number(swapAmount) <= 0) {
+                                                            alert('스왑 수량을 입력해주세요.')
+                                                            return
+                                                        }
+                                                        setWalletLoading(true)
+                                                        setWalletMessage('')
+                                                        try {
+                                                            const data = await walletApi('swap', { from_asset: swapFromAsset, amount: swapAmount })
+                                                            alert(`스왑 완료: ${data.swap?.net_to_amount || ''} ${data.swap?.to_asset || ''}`)
+                                                            setSwapAmount('')
+                                                            await loadStdWallet()
+                                                        } catch (error: any) {
+                                                            setWalletMessage(error?.message || '스왑 실패')
+                                                        } finally {
+                                                            setWalletLoading(false)
+                                                        }
+                                                    }}
+                                                    className="py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow transition-all disabled:opacity-50"
+                                                >
+                                                    스왑하기
+                                                </button>
+                                            </div>
+                                            <p className="text-[11px] text-gray-500">
+                                                AIR→USDT {walletInfo?.settings?.air_to_usdt_rate || '0'} / USDT→AIR {walletInfo?.settings?.usdt_to_air_rate || '0'} / 수수료 {walletInfo?.settings?.swap_fee_percent || '0'}%
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
+                                            <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
+                                                <span>💳 AIR / USDT 보내기 신청</span>
                                             </h4>
                                             <div className="space-y-4 max-w-md">
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">수령할 TRC-20 지갑 주소</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">자산</label>
+                                                    <select
+                                                        value={withdrawAsset}
+                                                        onChange={e => setWithdrawAsset(e.target.value as 'USDT' | 'AIR')}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500"
+                                                    >
+                                                        <option value="USDT">USDT 보내기 신청 (BEP20)</option>
+                                                        <option value="AIR">AIR 보내기 신청 (ERC20)</option>
+                                                    </select>
+                                                    <p className="text-[11px] text-yellow-300/70 mt-1">
+                                                        네트워크: {withdrawAsset === 'USDT' ? 'BEP20 고정' : 'ERC20 고정'}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">받을 지갑 주소</label>
                                                     <input
                                                         type="text"
-                                                        value={walletAddress}
-                                                        onChange={e => setWalletAddress(e.target.value)}
-                                                        placeholder="T로 시작하는 TRC20 지갑 주소를 입력하세요"
+                                                        value={withdrawAddress}
+                                                        onChange={e => setWithdrawAddress(e.target.value)}
+                                                        placeholder="0x로 시작하는 지갑 주소"
                                                         className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-green-500"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">출금 신청 금액 (USDT)</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">보내기 신청 수량 ({withdrawAsset})</label>
                                                     <input
                                                         type="number"
                                                         value={withdrawAmount}
@@ -11974,19 +12721,36 @@ export default function StdPortalPage() {
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => {
-                                                        if (!walletAddress) {
+                                                    disabled={walletLoading}
+                                                    onClick={async () => {
+                                                        if (!/^0x[a-fA-F0-9]{40}$/.test(withdrawAddress.trim())) {
                                                             alert('지갑 주소를 입력해주세요.')
                                                             return
                                                         }
-                                                        if (!withdrawAmount || Number(withdrawAmount) < 10) {
-                                                            alert('최소 10 USDT 이상 신청 가능합니다.')
+                                                        if (!withdrawAmount || Number(withdrawAmount) <= 0) {
+                                                            alert('신청 수량을 입력해주세요.')
                                                             return
                                                         }
-                                                        alert(`${withdrawAmount} USDT 출금 신청이 성공적으로 접수되었습니다. 관리자 승인 후 처리됩니다.`)
-                                                        setWithdrawAmount('')
+                                                        setWalletLoading(true)
+                                                        setWalletMessage('')
+                                                        try {
+                                                            await walletApi('withdraw', {
+                                                                asset: withdrawAsset,
+                                                                amount: withdrawAmount,
+                                                                to_address: withdrawAddress.trim(),
+                                                                network: withdrawAsset === 'USDT' ? 'BEP20' : 'ERC20',
+                                                            })
+                                                            alert(`${withdrawAmount} ${withdrawAsset} 보내기 신청이 접수되었습니다.`)
+                                                            setWithdrawAmount('')
+                                                            setWithdrawAddress('')
+                                                            await loadStdWallet()
+                                                        } catch (error: any) {
+                                                            setWalletMessage(error?.message || '출금 신청 실패')
+                                                        } finally {
+                                                            setWalletLoading(false)
+                                                        }
                                                     }}
-                                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold text-white shadow transition-all"
+                                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold text-white shadow transition-all disabled:opacity-50"
                                                 >
                                                     출금 신청하기
                                                 </button>

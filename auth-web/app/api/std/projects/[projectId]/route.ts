@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
+import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
+import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 
 export const dynamic = 'force-dynamic'
 
@@ -265,15 +267,30 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         }
     }
 
+    let renderHistory: any[] = []
+    try {
+        renderHistory = await getStdProjectRenderHistory(project.id)
+    } catch (renderHistoryError: any) {
+        console.warn('[STD Project] render history unavailable:', renderHistoryError?.message)
+    }
+
+    const protectedProject = {
+        ...project,
+        project_payload: protectCharacterReferenceUrls(project.project_payload, project.id),
+        source_payload: protectCharacterReferenceUrls(project.source_payload, project.id),
+        progress_payload: protectCharacterReferenceUrls(project.progress_payload, project.id),
+    }
+
     return NextResponse.json({
         success: true,
-        project,
+        project: protectedProject,
         scenes: (scenes || []).map((scene, index) => hydrateSceneMedia(
             scene,
             assets || [],
             sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))
         )),
         assets: assets || [],
+        render_history: renderHistory,
     })
 }
 
@@ -356,6 +373,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const projectPayloadPatch = Object.fromEntries(
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
+    const scriptChanged = Object.prototype.hasOwnProperty.call(projectPayloadPatch, 'script')
+        && String(projectPayloadPatch.script || '').trim() !== String(project.project_payload?.script || '').trim()
     if (!allowSceneUpdate) {
         delete (projectPayloadPatch as any).scenes
         if (
@@ -432,10 +451,21 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const updatePayload: Record<string, any> = {
         updated_at: new Date().toISOString(),
     }
-    if (Object.keys(progressPatch).length > 0) {
+    if (Object.keys(progressPatch).length > 0 || scriptChanged) {
         updatePayload.progress_payload = {
             ...(project.progress_payload || {}),
             ...progressPatch,
+            ...(scriptChanged ? {
+                has_tts_audio: false,
+                tts_completed: false,
+                script_changed_requires_audio_regeneration: true,
+                tts_invalidated_at: new Date().toISOString(),
+                tts_invalidated_reason: 'script_changed',
+                ...(!Array.isArray(projectPayloadPatch.subtitles) ? {
+                    subtitles_saved: false,
+                    subtitles_completed: false,
+                } : {}),
+            } : {}),
         }
     }
     if (Object.keys(projectPayloadPatch).length > 0 || normalizedScenes.length > 0) {
@@ -446,6 +476,11 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 ...projectPayloadPatch.structure,
             }
             : currentStructure
+        // Character references are worker-owned high-resolution assets. Never
+        // persist the protected browser thumbnail URL over the canonical URL.
+        if (currentStructure.character_anchors) {
+            nextStructure.character_anchors = currentStructure.character_anchors
+        }
         if (persistableScenes.length > 0) {
             nextStructure.scenes = persistableScenes
         }

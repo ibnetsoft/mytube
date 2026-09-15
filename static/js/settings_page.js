@@ -1949,6 +1949,11 @@
             return;
         }
 
+        if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+            Utils.showToast('BEP20 지갑 주소는 0x로 시작하는 42자리 주소여야 합니다.', 'warning');
+            return;
+        }
+
         if (amount <= 0) {
             Utils.showToast(window.i18n?.err_invalid_amount || 'Please enter a valid withdrawal amount.', 'warning');
             return;
@@ -1969,7 +1974,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     amount: amount,
-                    dest_address: address
+                    dest_address: address,
+                    network: 'BEP20'
                 })
             });
 

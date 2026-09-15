@@ -86,6 +86,8 @@ class Config:
     SCRIPT_PLANNING_MODEL = os.getenv("SCRIPT_PLANNING_MODEL", "gemini-3.6-flash")
     IMAGE_PROMPT_MODEL = os.getenv("IMAGE_PROMPT_MODEL", "gemini-3.6-flash")
     TRANSLATION_MODEL = os.getenv("TRANSLATION_MODEL", "gemini-3.6-flash")
+    SUBTITLE_TRANSLATION_MODEL = os.getenv("SUBTITLE_TRANSLATION_MODEL", "gpt-5.3-codex-spark")
+    SUBTITLE_TRANSLATION_SCOPE = os.getenv("SUBTITLE_TRANSLATION_SCOPE", "thai_only")
     IMAGE_GENERATION_MODEL = os.getenv("IMAGE_GENERATION_MODEL", "gemini-3.1-flash-image-preview")  # 이미지 생성 모델
     VIDEO_GENERATION_MODEL = os.getenv("VIDEO_GENERATION_MODEL", "veo-3.1-fast-generate-preview")  # 영상 생성 모델
 
@@ -251,6 +253,7 @@ class Config:
             'HERMES_ORCHESTRATOR_MODEL', 'HERMES_ORCHESTRATOR_FALLBACK_MODEL',
             'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL', 'SCRIPT_PLANNING_MODEL',
             'SCRIPT_GENERATION_MODEL', 'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
+            'SUBTITLE_TRANSLATION_MODEL', 'SUBTITLE_TRANSLATION_SCOPE',
             'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',
         }
         loaded = []
@@ -265,6 +268,7 @@ class Config:
                     'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL',
                     'SCRIPT_PLANNING_MODEL', 'SCRIPT_GENERATION_MODEL',
                     'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
+                    'SUBTITLE_TRANSLATION_MODEL', 'SUBTITLE_TRANSLATION_SCOPE',
                 }
                 if key_name in local_override_keys and os.getenv(key_name, '').strip():
                     continue
@@ -304,6 +308,7 @@ class Config:
             "SCRIPT_GENERATION_MODEL",
             "IMAGE_PROMPT_MODEL",
             "TRANSLATION_MODEL",
+            "SUBTITLE_TRANSLATION_MODEL",
         ):
             current = str(getattr(cls, key_name, "") or "").strip()
             replacement = replacements.get(current.lower())
@@ -379,6 +384,7 @@ class Config:
             'HERMES_ORCHESTRATOR_MODEL', 'HERMES_ORCHESTRATOR_FALLBACK_MODEL',
             'TOPIC_GENERATION_MODEL', 'TITLE_GENERATION_MODEL', 'SCRIPT_PLANNING_MODEL',
             'SCRIPT_GENERATION_MODEL', 'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
+            'SUBTITLE_TRANSLATION_MODEL', 'SUBTITLE_TRANSLATION_SCOPE',
             'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',
         ]
 

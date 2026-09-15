@@ -2,6 +2,7 @@ import { summarizeStdProject } from '@/lib/stdProjectStepStatus'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,7 @@ export async function GET(req: Request) {
             const { project_payload, ...summary } = project
             return {
                 ...summary,
+                progress_payload: protectCharacterReferenceUrls(summary.progress_payload, project.id),
                 step_status: summarizeStdProject(project, assets.filter(asset => asset.project_id === project.id)),
                 shared_submission: sharedSubmission && sharedSubmission.id !== project.id
                     ? { project_id: sharedSubmission.id, submitted_at: sharedSubmission.submitted_at }

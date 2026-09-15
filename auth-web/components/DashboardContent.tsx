@@ -94,6 +94,12 @@ interface WithdrawalReq {
     commission_usd?: number
     net_usd?: number
     tenant_key?: string
+    source?: 'legacy' | 'wallet'
+    asset?: 'AIR' | 'USDT'
+    network?: string
+    fee_amount?: number
+    net_amount?: number
+    wallet_status?: string
     profiles?: {
         email: string
     }
@@ -415,13 +421,30 @@ export default function DashboardContent() {
         // [AIR-0230] 모델별 단가표(JSON 문자열): { [model_id]: { input_per_1k, output_per_1k, thinking_per_1k, currency } }
         model_pricing: '{}',
         drive_render_queue_path: '',
-        use_external_render: 'false'
+        use_external_render: 'false',
+        wallet_erc20_rpc_url: '',
+        wallet_erc20_rpc_fallback_url_1: '',
+        wallet_erc20_rpc_fallback_url_2: '',
+        wallet_erc20_rpc_fallback_url_3: '',
+        wallet_chain_id: '1',
+        wallet_air_contract_address: '0xC0d415c55576596437e865533Dd2730293999EDf',
+        wallet_usdt_contract_address: '',
+        wallet_air_withdrawal_fee: '0',
+        wallet_usdt_withdrawal_fee: '0',
+        wallet_swap_fee_percent: '0',
+        wallet_min_air_withdrawal: '0',
+        wallet_min_usdt_withdrawal: '10',
+        wallet_air_to_usdt_rate: '0',
+        wallet_usdt_to_air_rate: '0',
+        wallet_deposits_enabled: 'true',
+        wallet_swaps_enabled: 'true',
+        wallet_withdrawals_enabled: 'true'
     })
     const [sysKeysSaving, setSysKeysSaving] = useState(false)
     const [sysKeysSaved, setSysKeysSaved] = useState(false)
     const [newPricingModelId, setNewPricingModelId] = useState('')
     const [legalActiveTab, setLegalActiveTab] = useState<'ko' | 'en' | 'vi' | 'th'>('ko')
-    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'drive' | 'voices' | 'music' | 'video' | 'legal' | 'policy' | 'pricing'>('ai')
+    const [apiSettingsTab, setApiSettingsTab] = useState<'ai' | 'drive' | 'voices' | 'music' | 'video' | 'wallet' | 'legal' | 'policy' | 'pricing'>('ai')
 
     // Style Presets state
     const [stylePresets, setStylePresets] = useState<any[]>([])
@@ -1409,7 +1432,24 @@ export default function DashboardContent() {
                 video_generation_model: data.video_generation_model || 'veo-3.1-fast-generate-preview',
                 model_pricing: data.model_pricing || '{}',
                 drive_render_queue_path: data.drive_render_queue_path || '',
-                use_external_render: data.use_external_render || 'false'
+                use_external_render: data.use_external_render || 'false',
+                wallet_erc20_rpc_url: data.wallet_erc20_rpc_url || '',
+                wallet_erc20_rpc_fallback_url_1: data.wallet_erc20_rpc_fallback_url_1 || '',
+                wallet_erc20_rpc_fallback_url_2: data.wallet_erc20_rpc_fallback_url_2 || '',
+                wallet_erc20_rpc_fallback_url_3: data.wallet_erc20_rpc_fallback_url_3 || '',
+                wallet_chain_id: data.wallet_chain_id || '1',
+                wallet_air_contract_address: data.wallet_air_contract_address || '0xC0d415c55576596437e865533Dd2730293999EDf',
+                wallet_usdt_contract_address: data.wallet_usdt_contract_address || '',
+                wallet_air_withdrawal_fee: data.wallet_air_withdrawal_fee || '0',
+                wallet_usdt_withdrawal_fee: data.wallet_usdt_withdrawal_fee || '0',
+                wallet_swap_fee_percent: data.wallet_swap_fee_percent || '0',
+                wallet_min_air_withdrawal: data.wallet_min_air_withdrawal || '0',
+                wallet_min_usdt_withdrawal: data.wallet_min_usdt_withdrawal || '10',
+                wallet_air_to_usdt_rate: data.wallet_air_to_usdt_rate || '0',
+                wallet_usdt_to_air_rate: data.wallet_usdt_to_air_rate || '0',
+                wallet_deposits_enabled: data.wallet_deposits_enabled || 'true',
+                wallet_swaps_enabled: data.wallet_swaps_enabled || 'true',
+                wallet_withdrawals_enabled: data.wallet_withdrawals_enabled || 'true'
             });
         } catch (e) {
             // Silently ignore errors to prevent console spam
@@ -5147,7 +5187,7 @@ export default function DashboardContent() {
                 {activeTab === 'withdrawals' && (
                     <div className="bg-[#0f172a]/20 border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="px-10 py-6 border-b border-white/5 bg-black/20 flex justify-between items-center">
-                            <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">수당 출금 요청 리스트</h3>
+                            <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em]">출금 요청 리스트</h3>
                             <button onClick={fetchWithdrawals} className="px-6 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white text-sm font-black rounded-xl border border-blue-500/20 transition-all uppercase tracking-widest">새로고침</button>
                         </div>
                         <table className="w-full text-left">
@@ -5155,8 +5195,9 @@ export default function DashboardContent() {
                                 <tr>
                                     <th className="px-6 py-5 whitespace-nowrap">신청일자</th>
                                     <th className="px-6 py-5 whitespace-nowrap">이메일</th>
+                                    <th className="px-6 py-5 text-center whitespace-nowrap">네트워크</th>
                                     <th className="px-6 py-5 whitespace-nowrap">출금 주소</th>
-                                    <th className="px-6 py-5 text-right whitespace-nowrap">금액 (USDT)</th>
+                                    <th className="px-6 py-5 text-right whitespace-nowrap">금액</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">수수료율</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">수수료</th>
                                     <th className="px-6 py-5 text-right whitespace-nowrap">실지급액</th>
@@ -5172,8 +5213,16 @@ export default function DashboardContent() {
                                     <tr key={w.id} className="hover:bg-white/[0.03] transition-colors group">
                                         <td className="px-6 py-5 text-sm text-gray-400">{new Date(w.created_at).toLocaleString()}</td>
                                         <td className="px-6 py-5 text-base font-bold text-blue-400">{w.profiles?.email || 'N/A'}</td>
+                                        <td className="px-6 py-5 text-center">
+                                            <span className="px-2 py-1 rounded-lg bg-yellow-500/20 text-yellow-300 text-[10px] font-black">{w.network || 'BEP20'}</span>
+                                        </td>
                                         <td className="px-6 py-5 text-sm font-mono text-gray-300 max-w-[200px] truncate">{w.dest_address}</td>
-                                        <td className="px-6 py-5 text-right text-base font-black text-green-400">{w.amount} USDT</td>
+                                        <td className="px-6 py-5 text-right text-base font-black text-green-400">
+                                            {w.net_amount ?? w.amount} {w.asset || 'USDT'}
+                                            {w.source === 'wallet' && Number(w.fee_amount || 0) > 0 && (
+                                                <div className="text-[10px] text-red-300 font-bold">수수료 {w.fee_amount} {w.asset}</div>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-5 text-right text-xs text-orange-400">
                                             {w.commission_percent ? `${w.commission_percent}%` : '-'}
                                         </td>
@@ -5187,6 +5236,9 @@ export default function DashboardContent() {
                                             {w.status === 'pending' && <span className="px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm font-bold">대기중</span>}
                                             {w.status === 'completed' && <span className="px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-sm font-bold">완료</span>}
                                             {w.status === 'rejected' && <span className="px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-sm font-bold">{t('admin.reject')}</span>}
+                                            {w.source === 'wallet' && w.wallet_status && (
+                                                <div className="text-[10px] text-gray-500 mt-1">{w.wallet_status}</div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-5 text-center">
                                             {w.status === 'pending' && (
@@ -5200,7 +5252,7 @@ export default function DashboardContent() {
                                 ))}
                                 {withdrawals.length === 0 && (
                                     <tr>
-                                        <td colSpan={9} className="px-6 py-10 text-center text-gray-500 text-base font-bold">출금 신청 내역이 없습니다.</td>
+                                        <td colSpan={13} className="px-6 py-10 text-center text-gray-500 text-base font-bold">출금 신청 내역이 없습니다.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -5404,6 +5456,7 @@ export default function DashboardContent() {
                                     { key: 'voices', icon: '🎙️', label: '성우/TTS' },
                                     { key: 'music',  icon: '🎵', label: '음악' },
                                     { key: 'video',  icon: '🎬', label: '영상/결제' },
+                                    { key: 'wallet', icon: '💳', label: '지갑' },
                                     { key: 'legal',  icon: '📋', label: '약관' },
                                     { key: 'policy', icon: '⚙️', label: '운영정책' },
                                     { key: 'pricing', icon: '💵', label: '모델 단가' },
@@ -6053,6 +6106,122 @@ export default function DashboardContent() {
                                                 </select>
                                                 <p className="text-[9px] text-gray-600 mt-1">유저앱에서 로컬 FFmpeg 대신 구글 드라이브 큐를 태워 외부 GPU로 렌더링할지 선택합니다.</p>
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── 탭: 지갑 ── */}
+                            {apiSettingsTab === 'wallet' && (
+                                <div className="space-y-5 animate-in fade-in duration-200">
+                                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 space-y-4">
+                                        <div>
+                                            <h4 className="text-xs font-black text-emerald-300 uppercase tracking-widest">ERC20 Wallet Stage 1</h4>
+                                            <p className="text-[10px] text-gray-500 mt-1">회원별 ERC20 주소 발급, AIR 입금 감지, AIR/USDT 스왑, 출금 신청에 공통 적용할 운영값입니다.</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="md:col-span-2 rounded-xl border border-emerald-500/10 bg-black/20 p-4">
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">ERC20 RPC URL Pool</label>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    {([
+                                                        ['wallet_erc20_rpc_url', 'Primary RPC URL'],
+                                                        ['wallet_erc20_rpc_fallback_url_1', 'Fallback RPC URL 1'],
+                                                        ['wallet_erc20_rpc_fallback_url_2', 'Fallback RPC URL 2'],
+                                                        ['wallet_erc20_rpc_fallback_url_3', 'Fallback RPC URL 3'],
+                                                    ] as const).map(([key, label]) => (
+                                                        <div key={key}>
+                                                            <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block">{label}</label>
+                                                            <input
+                                                                type="url"
+                                                                value={(sysKeys as any)[key]}
+                                                                onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                                placeholder="https://..."
+                                                                className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300 font-mono"
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[9px] text-gray-600 mt-2">서버는 Primary부터 순서대로 사용하고, 요청 실패 시 Fallback 1 → 2 → 3 순서로 대체합니다.</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Chain ID</label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={sysKeys.wallet_chain_id}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, wallet_chain_id: e.target.value }))}
+                                                    placeholder="1"
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300 font-mono"
+                                                />
+                                                <p className="text-[9px] text-gray-600 mt-1">Ethereum mainnet은 1입니다. 테스트넷 사용 시 해당 Chain ID로 바꿉니다.</p>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">AIR Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys.wallet_air_contract_address}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, wallet_air_contract_address: e.target.value }))}
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300 font-mono"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">USDT Contract Address</label>
+                                                <input
+                                                    type="text"
+                                                    value={sysKeys.wallet_usdt_contract_address}
+                                                    onChange={e => setSysKeys(prev => ({ ...prev, wallet_usdt_contract_address: e.target.value }))}
+                                                    placeholder="0xdAC17F958D2ee523a2206206994597C13D831ec7"
+                                                    className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 text-gray-300 font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 space-y-4">
+                                        <h4 className="text-xs font-black text-cyan-300 uppercase tracking-widest">Fees, Minimums & Swap Rates</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                            {([
+                                                ['wallet_air_withdrawal_fee', 'AIR 출금 수수료', '0.000001'],
+                                                ['wallet_usdt_withdrawal_fee', 'USDT 출금 수수료', '0.01'],
+                                                ['wallet_swap_fee_percent', '스왑 수수료 (%)', '0.01'],
+                                                ['wallet_min_air_withdrawal', 'AIR 최소 출금액', '0.000001'],
+                                                ['wallet_min_usdt_withdrawal', 'USDT 최소 출금액', '0.01'],
+                                                ['wallet_air_to_usdt_rate', 'AIR → USDT 환율', '0.000001'],
+                                                ['wallet_usdt_to_air_rate', 'USDT → AIR 환율', '0.000001'],
+                                            ] as const).map(([key, label, step]) => (
+                                                <div key={key}>
+                                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{label}</label>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step={step}
+                                                        value={(sysKeys as any)[key]}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-gray-300 font-mono"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+                                        <h4 className="text-xs font-black text-gray-300 uppercase tracking-widest">Feature Switches</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            {([
+                                                ['wallet_deposits_enabled', 'AIR 입금 감지 활성화'],
+                                                ['wallet_swaps_enabled', 'AIR/USDT 스왑 활성화'],
+                                                ['wallet_withdrawals_enabled', '출금 신청 활성화'],
+                                            ] as const).map(([key, label]) => (
+                                                <label key={key} className="flex items-center gap-3 text-xs font-bold text-gray-300 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={String((sysKeys as any)[key]) !== 'false'}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: String(e.target.checked) }))}
+                                                        className="w-4 h-4 rounded text-emerald-500 bg-black border-white/10 cursor-pointer"
+                                                    />
+                                                    {label}
+                                                </label>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>

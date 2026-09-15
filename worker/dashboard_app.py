@@ -2616,6 +2616,7 @@ _MODEL_SETTING_KEYS = {
     "SCRIPT_GENERATION_MODEL",
     "SCRIPT_PLANNING_MODEL",
     "IMAGE_PROMPT_MODEL",
+    "SUBTITLE_TRANSLATION_MODEL",
 }
 
 
@@ -2633,6 +2634,7 @@ async def api_get_settings(
         ("GEMINI_API_KEY_FREE", "Gemini 무료 키"),
         ("GEMINI_API_KEY_PAID", "Gemini 후불 키"),
         ("CLAUDE_API_KEY", "Claude API 키"),
+        ("OPENAI_API_KEY", "OpenAI/Codex API 키"),
         ("DEEPSEEK_API_KEY", "DeepSeek API 키"),
         ("DEEPSEEK_BASE_URL", "DeepSeek Base URL"),
         ("GLM_API_KEY", "GLM API 키"),
@@ -2648,6 +2650,8 @@ async def api_get_settings(
         ("SCRIPT_GENERATION_MODEL", "대본 생성 모델"),
         ("SCRIPT_PLANNING_MODEL", "대본 구조 모델"),
         ("IMAGE_PROMPT_MODEL", "이미지/영상 프롬프트 모델"),
+        ("SUBTITLE_TRANSLATION_MODEL", "자막 번역 모델"),
+        ("SUBTITLE_TRANSLATION_SCOPE", "자막 번역 범위"),
     ]
     result = []
     for attr, label in keys:
@@ -2674,11 +2678,12 @@ async def api_set_setting(
 
     allowed = {
         "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
-        "GEMINI_API_KEY", "GEMINI_API_KEY_FREE", "GEMINI_API_KEY_PAID", "CLAUDE_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
+        "GEMINI_API_KEY", "GEMINI_API_KEY_FREE", "GEMINI_API_KEY_PAID", "CLAUDE_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL",
         "GLM_API_KEY", "GLM_BASE_URL", "YOUTUBE_API_KEY", "YOUTUBE_API_KEYS",
         "ELEVENLABS_API_KEY", "SUNO_API_KEY",
         "HERMES_ORCHESTRATOR_MODEL", "HERMES_ORCHESTRATOR_FALLBACK_MODEL",
         "TOPIC_GENERATION_MODEL", "TITLE_GENERATION_MODEL", "SCRIPT_GENERATION_MODEL", "SCRIPT_PLANNING_MODEL", "IMAGE_PROMPT_MODEL",
+        "SUBTITLE_TRANSLATION_MODEL", "SUBTITLE_TRANSLATION_SCOPE",
     }
     if key not in allowed:
         return {"error": f"허용되지 않은 설정 키: {key}"}
@@ -7276,6 +7281,7 @@ const settingLabels = {
   'GEMINI_API_KEY_FREE': 'Gemini 무료 API Key',
   'GEMINI_API_KEY_PAID': 'Gemini 후불 API Key',
   'CLAUDE_API_KEY': 'Claude API Key',
+  'OPENAI_API_KEY': 'OpenAI/Codex API Key',
   'DEEPSEEK_API_KEY': 'DeepSeek API Key',
   'DEEPSEEK_BASE_URL': 'DeepSeek Base URL',
   'GLM_API_KEY': 'GLM API Key',
@@ -7291,6 +7297,8 @@ const settingLabels = {
   'SCRIPT_GENERATION_MODEL': '대본 생성 모델',
   'SCRIPT_PLANNING_MODEL': '구조 생성 모델',
   'IMAGE_PROMPT_MODEL': '이미지/영상 프롬프트 모델',
+  'SUBTITLE_TRANSLATION_MODEL': '자막 번역 모델',
+  'SUBTITLE_TRANSLATION_SCOPE': '자막 번역 범위',
 };
 
 /* Icons for API keys vs model settings */
@@ -7301,6 +7309,7 @@ const settingIcons = {
   'GEMINI_API_KEY_FREE': '&#x1F4E7;',
   'GEMINI_API_KEY_PAID': '&#x1F4B3;',
   'CLAUDE_API_KEY': '&#x1F4E7;',
+  'OPENAI_API_KEY': '&#x1F916;',
   'DEEPSEEK_API_KEY': '&#x1F4E7;',
   'DEEPSEEK_BASE_URL': '&#x1F310;',
   'GLM_API_KEY': '&#x1F4E7;',
@@ -7316,6 +7325,8 @@ const settingIcons = {
   'SCRIPT_GENERATION_MODEL': '&#x1F916;',
   'SCRIPT_PLANNING_MODEL': '&#x1F916;',
   'IMAGE_PROMPT_MODEL': '&#x1F3A8;',
+  'SUBTITLE_TRANSLATION_MODEL': '&#x1F310;',
+  'SUBTITLE_TRANSLATION_SCOPE': '&#x1F310;',
 };
 
 /* Track original values for dirty detection */
@@ -7709,6 +7720,7 @@ async function loadSettings() {
   settingsOriginal = {};
 
   const modelOptions = [
+    ['gpt-5.3-codex-spark', 'Codex 5.3 Spark'],
     ['gemini-3.6-flash', 'Gemini 3.6 Flash'],
     ['gemini-3-flash-preview', 'Gemini 3 Flash Preview'],
     ['claude-haiku-4-5-20251001', 'Claude Haiku 4.5'],
@@ -7725,6 +7737,7 @@ async function loadSettings() {
     'SCRIPT_GENERATION_MODEL',
     'SCRIPT_PLANNING_MODEL',
     'IMAGE_PROMPT_MODEL',
+    'SUBTITLE_TRANSLATION_MODEL',
   ]);
 
   let html = '';
@@ -7738,6 +7751,13 @@ async function loadSettings() {
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;resize:vertical;"
           >${escapeHtml(item.value || '')}</textarea>
           <div style="margin-top:4px;color:#8b949e;font-size:12px;">최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용됩니다.</div>`
+      : item.key === 'SUBTITLE_TRANSLATION_SCOPE'
+      ? `<select id="setting-${escapeHtml(item.key)}" class="setting-input"
+            style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;">
+            <option value="thai_only" ${String(item.value || 'thai_only') !== 'all' ? 'selected' : ''}>태국어만 번역 (기본값)</option>
+            <option value="all" ${item.value === 'all' ? 'selected' : ''}>모든 지원 언어 번역 (EN/VI/TH)</option>
+          </select>
+          <div style="margin-top:4px;color:#8b949e;font-size:12px;">태국 작업자 검수용 기본값은 태국어만입니다.</div>`
       : modelSettingKeys.has(item.key)
       ? `<select id="setting-${escapeHtml(item.key)}" class="setting-input"
             style="width:100%;padding:8px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e1e4e8;font-size:13px;font-family:monospace;outline:none;">
@@ -7769,6 +7789,7 @@ async function loadSettings() {
     'GEMINI_API_KEY_FREE',
     'GEMINI_API_KEY_PAID',
     'CLAUDE_API_KEY',
+    'OPENAI_API_KEY',
     'DEEPSEEK_API_KEY',
     'DEEPSEEK_BASE_URL',
     'GLM_API_KEY',
