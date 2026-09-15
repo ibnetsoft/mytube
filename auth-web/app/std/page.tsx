@@ -1020,6 +1020,7 @@ export default function StdPortalPage() {
     const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const previewBgmAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
     const previewVideoIdentityRef = useRef('')
     const previewTransitionVisualRef = useRef<{ sceneNumber: number; imageUrl: string; videoUrl: string } | null>(null)
@@ -3161,6 +3162,35 @@ export default function StdPortalPage() {
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'stale' }))
     }
 
+    const stopPreviewBgm = (reset = false) => {
+        const audio = previewBgmAudioRef.current
+        if (!audio) return
+        audio.pause()
+        if (reset) audio.currentTime = 0
+    }
+
+    const playPreviewBgm = (timelineTime: number) => {
+        const audio = previewBgmAudioRef.current
+        if (!audio) return
+        const volume = Number(bgmSfxSettings.bgm_volume ?? 0.25)
+        audio.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0.25))
+
+        const seekToTimeline = () => {
+            const duration = Number(audio.duration)
+            if (Number.isFinite(duration) && duration > 0) {
+                audio.currentTime = Math.max(0, timelineTime) % duration
+            }
+        }
+        if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+            seekToTimeline()
+        } else {
+            audio.addEventListener('loadedmetadata', seekToTimeline, { once: true })
+        }
+        void audio.play().catch(error => {
+            console.warn('[STD preview] BGM playback failed:', error)
+        })
+    }
+
     const stopVrewPlayback = () => {
         vrewPlaybackCancelRef.current += 1
         if (vrewProgressTimerRef.current) {
@@ -3173,6 +3203,7 @@ export default function StdPortalPage() {
             vrewAudioRef.current.load()
             vrewAudioRef.current = null
         }
+        stopPreviewBgm()
         vrewPreviewVideoRef.current?.pause()
         setIsPlayingPreview(false)
         setVrewActiveTokenIndex(-1)
@@ -3417,7 +3448,9 @@ export default function StdPortalPage() {
                     audio.currentTime = Math.min(startTime, Math.max(0, Number(audio.duration) || 0))
                     syncPlaybackProgress()
                     vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
+                    playPreviewBgm(startTime)
                     audio.play().catch(error => {
+                        stopPreviewBgm()
                         cleanup()
                         reject(error)
                     })
@@ -3435,6 +3468,7 @@ export default function StdPortalPage() {
             })
 
             if (vrewPlaybackCancelRef.current === cancelToken) {
+                stopPreviewBgm()
                 setIsPlayingPreview(false)
                 setMessage('자막 미리듣기가 완료되었습니다.')
             }
@@ -3489,7 +3523,9 @@ export default function StdPortalPage() {
                 }
                 syncPlaybackProgress()
                 vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
+                if (index === Math.max(0, startIndex)) playPreviewBgm(baseStart)
                 audio.play().catch(error => {
+                    stopPreviewBgm()
                     cleanup()
                     reject(error)
                 })
@@ -3497,6 +3533,7 @@ export default function StdPortalPage() {
         }
 
         if (vrewPlaybackCancelRef.current === cancelToken) {
+            stopPreviewBgm()
             setIsPlayingPreview(false)
             setMessage('자막 미리듣기가 완료되었습니다.')
         }
@@ -9031,6 +9068,16 @@ export default function StdPortalPage() {
                                     <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
+                                        {bgmAsset && (
+                                            <audio
+                                                ref={previewBgmAudioRef}
+                                                src={assetPlaybackUrl(bgmAsset)}
+                                                preload="auto"
+                                                loop
+                                                className="hidden"
+                                                aria-hidden="true"
+                                            />
+                                        )}
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
@@ -9202,6 +9249,7 @@ export default function StdPortalPage() {
                                                     <button
                                                         onClick={() => {
                                                             stopVrewPlayback()
+                                                            stopPreviewBgm(true)
                                                             previewVideoIdentityRef.current = ''
                                                             if (vrewPreviewVideoRef.current) {
                                                                 vrewPreviewVideoRef.current.dataset.finished = ''
