@@ -1020,6 +1020,7 @@ export default function StdPortalPage() {
     const subtitleTextEditorRef = useRef<HTMLTextAreaElement | null>(null)
     const [isSubtitleTextEditing, setIsSubtitleTextEditing] = useState(false)
     const [isTransitionPickerOpen, setIsTransitionPickerOpen] = useState(false)
+    const [isMotionPickerOpen, setIsMotionPickerOpen] = useState(false)
     const [subFontFamily, setSubFontFamily] = useState('GmarketSansBold')
     const [subFontSize, setSubFontSize] = useState('5.4')
     const [subLineSpacing, setSubLineSpacing] = useState('0.1')
@@ -1096,6 +1097,7 @@ export default function StdPortalPage() {
         setSelectedSubtitleSceneNumbers([])
         setHoveredSubtitleSceneNumber(null)
         setIsTransitionPickerOpen(false)
+        setIsMotionPickerOpen(false)
     }, [selectedProject?.project?.id])
 
     useEffect(() => {
@@ -2605,6 +2607,7 @@ export default function StdPortalPage() {
         }
 
         setIsTransitionPickerOpen(false)
+        setIsMotionPickerOpen(false)
         setMessage('씬 효과 저장 중...')
 
         try {
@@ -3159,6 +3162,7 @@ export default function StdPortalPage() {
                     event.stopPropagation()
                     if (disabled) return
                     setOpenVoicePickerKey('')
+                    setIsMotionPickerOpen(false)
                     setIsTransitionPickerOpen(prev => !prev)
                 }}
                 className={`h-7 px-2 rounded-md border flex items-center gap-1 text-[10px] font-bold transition ${
@@ -3248,6 +3252,126 @@ export default function StdPortalPage() {
                 document.body
             )}
         </div>
+        )
+    }
+
+    const renderSelectedSceneMotionPicker = (disabled = false) => {
+        const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
+        const selectedMotions = (selectedProject?.scenes || [])
+            .filter((scene: any, index: number) => selectedSceneSet.has(Number(scene?.scene_number || index + 1)))
+            .map((scene: any) => sceneMotion(scene))
+        const activeMotion = selectedMotions.length > 0 && selectedMotions.every(motion => motion === selectedMotions[0])
+            ? selectedMotions[0]
+            : ''
+        const motionSymbol = (motionId: string) => {
+            if (motionId === 'zoom_in') return '＋'
+            if (motionId === 'zoom_out') return '−'
+            if (motionId === 'pan_left') return '←'
+            if (motionId === 'pan_right') return '→'
+            if (motionId === 'pan_up') return '↑'
+            if (motionId === 'pan_down') return '↓'
+            return 'Ⅱ'
+        }
+
+        return (
+            <div className="inline-flex">
+                <button
+                    type="button"
+                    disabled={disabled}
+                    title={disabled ? '자막 섹션을 선택하면 이미지 모션을 적용할 수 있습니다.' : '선택한 씬 이미지 모션'}
+                    onClick={(event) => {
+                        event.stopPropagation()
+                        if (disabled) return
+                        setOpenVoicePickerKey('')
+                        setIsTransitionPickerOpen(false)
+                        setIsMotionPickerOpen(prev => !prev)
+                    }}
+                    className={`h-7 px-2 rounded-md border flex items-center gap-1 text-[10px] font-bold transition ${
+                        disabled
+                            ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
+                            : 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'
+                    }`}
+                >
+                    <ImageIcon size={12} />
+                    이미지 모션
+                </button>
+                {!disabled && isMotionPickerOpen && typeof document !== 'undefined' && createPortal(
+                    <div
+                        className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm"
+                        onMouseDown={(event) => {
+                            if (event.target === event.currentTarget && !isSceneEffectSaving) setIsMotionPickerOpen(false)
+                        }}
+                    >
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="이미지 모션 선택"
+                            className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#11151b] shadow-2xl"
+                            onMouseDown={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-base font-black text-white">이미지 모션</h3>
+                                    <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-black text-cyan-200">BETA</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={isSceneEffectSaving}
+                                    onClick={() => setIsMotionPickerOpen(false)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-full text-xl text-gray-400 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+                                    aria-label="닫기"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 border-b border-white/5 bg-black/15 px-4 py-2.5">
+                                <div>
+                                    <div className="text-[10px] font-bold text-gray-500">적용 범위</div>
+                                    <div className="mt-0.5 text-xs font-black text-cyan-200">선택한 씬 {selectedSubtitleSceneNumbers.length}개</div>
+                                </div>
+                                {isSceneEffectSaving && (
+                                    <span className="text-xs font-bold text-cyan-200">모션 저장 중...</span>
+                                )}
+                            </div>
+                            <div className="overflow-y-auto p-4">
+                                <div className="flex flex-wrap justify-center gap-x-4 gap-y-4">
+                                    {SCENE_MOTIONS.map(motion => {
+                                        const selected = activeMotion === motion.id
+                                        return (
+                                            <button
+                                                key={motion.id}
+                                                type="button"
+                                                disabled={isSceneEffectSaving}
+                                                onClick={() => void applySelectedSceneTransition(motion.id, 'image_effect')}
+                                                className="group w-16 shrink-0 text-left disabled:cursor-wait disabled:opacity-55"
+                                            >
+                                                <div className={`relative flex aspect-[1.55] items-center justify-center overflow-hidden rounded-lg border-2 bg-gradient-to-br from-slate-200 via-slate-400 to-slate-600 transition ${
+                                                    selected
+                                                        ? 'border-cyan-400 ring-2 ring-cyan-400/20'
+                                                        : 'border-transparent group-hover:border-cyan-400/70'
+                                                }`}>
+                                                    <div className={`flex h-6 w-9 items-center justify-center rounded border border-white/60 bg-white/20 text-lg font-black text-white shadow ${motion.id.startsWith('zoom_') ? 'scale-110' : ''}`}>
+                                                        {motionSymbol(motion.id)}
+                                                    </div>
+                                                    {selected && (
+                                                        <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-white shadow">
+                                                            <Check size={10} strokeWidth={3} />
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className={`mt-1 truncate text-center text-[9px] font-bold ${selected ? 'text-cyan-200' : 'text-gray-200'}`} title={motion.label}>
+                                                    {motion.label}
+                                                </div>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+            </div>
         )
     }
 
@@ -8721,15 +8845,9 @@ export default function StdPortalPage() {
                                         !hasSelectedSubtitleSections
                                     )}
                                     {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
-                                    <label className="ml-2 flex items-center gap-1 text-[11px] text-cyan-200">
-                                        이미지 모션
-                                        <select aria-label="선택한 씬 이미지 모션" value="" disabled={!hasSelectedSubtitleSections || isSceneEffectSaving}
-                                            onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect')}
-                                            className="max-w-48 rounded border border-white/20 bg-[#14181f] p-1 text-white disabled:opacity-40">
-                                            <option value="">선택한 씬에 적용</option>
-                                            {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
-                                        </select>
-                                    </label>
+                                    <div className="ml-1">
+                                        {renderSelectedSceneMotionPicker(!hasSelectedSubtitleSections)}
+                                    </div>
                                     {isVrewSubtitleMode && (
                                         <>
                                             <button
