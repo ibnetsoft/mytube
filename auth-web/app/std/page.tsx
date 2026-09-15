@@ -3181,7 +3181,7 @@ export default function StdPortalPage() {
                         role="dialog"
                         aria-modal="true"
                         aria-label="화면 전환 효과 선택"
-                        className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#11151b] shadow-2xl"
+                        className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#11151b] shadow-2xl"
                         onMouseDown={(event) => event.stopPropagation()}
                     >
                         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
@@ -3209,7 +3209,7 @@ export default function StdPortalPage() {
                             )}
                         </div>
                         <div className="overflow-y-auto p-4">
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
+                            <div className="flex flex-wrap justify-center gap-x-4 gap-y-4">
                                 {SCENE_TRANSITION_EFFECTS.map(effect => {
                                     const selected = activeTransition === effect.id
                                     return (
@@ -3218,7 +3218,7 @@ export default function StdPortalPage() {
                                             type="button"
                                             disabled={isSceneEffectSaving}
                                             onClick={() => void applySelectedSceneTransition(effect.id)}
-                                            className="group min-w-0 text-left disabled:cursor-wait disabled:opacity-55"
+                                            className="group w-16 shrink-0 text-left disabled:cursor-wait disabled:opacity-55"
                                         >
                                             <div
                                                 className={`relative aspect-[1.55] overflow-hidden rounded-lg border-2 transition ${
@@ -3230,12 +3230,12 @@ export default function StdPortalPage() {
                                             >
                                                 <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-black/10" />
                                                 {selected && (
-                                                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-white shadow">
-                                                        <Check size={13} strokeWidth={3} />
+                                                    <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-white shadow">
+                                                        <Check size={10} strokeWidth={3} />
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className={`mt-1.5 truncate text-center text-[11px] font-bold ${selected ? 'text-cyan-200' : 'text-gray-200'}`}>
+                                            <div className={`mt-1 truncate text-center text-[9px] font-bold ${selected ? 'text-cyan-200' : 'text-gray-200'}`}>
                                                 {effect.label}
                                             </div>
                                         </button>
