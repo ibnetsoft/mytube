@@ -92,6 +92,33 @@ const sceneTransitionLabel = (effectId: string) => (
     SCENE_TRANSITION_EFFECTS.find(effect => effect.id === effectId)?.label || effectId
 )
 
+const TRANSITION_PREVIEW_BACKGROUNDS: Record<string, string> = {
+    diagonal_wipe: 'linear-gradient(135deg, #d8dee4 0 45%, #7c8f9c 46% 100%)',
+    morph: 'radial-gradient(ellipse at 35% 50%, #dbe1e5 0 28%, transparent 30%), radial-gradient(ellipse at 70% 50%, #879aa6 0 35%, #bcc7ce 37%)',
+    darken: 'linear-gradient(90deg, #dce2e6, #242a30)',
+    brighten: 'linear-gradient(90deg, #667681, #f7f9fa)',
+    color_blend: 'linear-gradient(120deg, #8da2ae, #d9c3b0 50%, #c7d3d9)',
+    grayscale_fade: 'linear-gradient(90deg, #f0f2f3, #8f989e 52%, #42494f)',
+    wipe_down: 'linear-gradient(180deg, #8396a2 0 48%, #e4e8eb 50% 100%)',
+    focus: 'radial-gradient(circle at center, #f1f3f4 0 22%, #afb9bf 24% 42%, #657680 70%)',
+    ripple: 'repeating-radial-gradient(circle at center, #e5e9eb 0 8px, #91a2ac 9px 17px)',
+    clockwise: 'conic-gradient(from 20deg, #e8ebed 0 28%, #93a4ae 29% 62%, #c8d0d5 63%)',
+    blinds: 'repeating-linear-gradient(180deg, #e6eaec 0 6px, #9eacb4 7px 12px)',
+    circle_spread: 'radial-gradient(circle at center, #e9edef 0 34%, #879aa5 36% 54%, #d4dade 56%)',
+    horizontal_lines: 'repeating-linear-gradient(180deg, #f2f4f5 0 2px, #a4b1b8 3px 5px)',
+    push: 'linear-gradient(90deg, #6f828e 0 44%, #f0f2f3 45% 52%, #b7c1c7 53%)',
+    zoom: 'radial-gradient(circle at center, #f2f4f5 0 18%, #9cabb4 20% 38%, #dce1e4 40% 58%, #70838f 60%)',
+    wipe_left: 'linear-gradient(90deg, #e6eaec 0 48%, #80939f 50% 100%)',
+    wipe_right: 'linear-gradient(90deg, #80939f 0 48%, #e6eaec 50% 100%)',
+    wipe_up: 'linear-gradient(0deg, #8396a2 0 48%, #e4e8eb 50% 100%)',
+    none: 'linear-gradient(135deg, #98a8b1 0 49%, #dfe4e7 50% 100%)',
+    dissolve: 'radial-gradient(circle at 20% 30%, #fff 0 2px, transparent 3px), radial-gradient(circle at 60% 65%, #fff 0 3px, transparent 4px), radial-gradient(circle at 80% 25%, #fff 0 2px, transparent 3px), #8fa0aa',
+    blur: 'radial-gradient(ellipse at center, #e9edef 0 18%, #b7c1c7 38%, #778a96 75%)',
+    directional_warp: 'linear-gradient(145deg, #e5e9eb 0 30%, #8fa0aa 32% 42%, #d4dade 44% 58%, #718590 60%)',
+    static: 'repeating-linear-gradient(0deg, #e8ecee 0 1px, #71838e 2px 3px, #bfc9ce 4px 6px)',
+    mosaic: 'conic-gradient(#e8ecee 25%, #899ba5 0 50%, #c4cdd2 0 75%, #6f838f 0) 0 0 / 22px 22px',
+}
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -3113,8 +3140,17 @@ export default function StdPortalPage() {
         )
     }
 
-    const renderSelectedSceneTransitionPicker = (disabled = false) => (
-        <div className="relative inline-flex">
+    const renderSelectedSceneTransitionPicker = (disabled = false) => {
+        const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
+        const selectedTransitions = (selectedProject?.scenes || [])
+            .filter((scene: any, index: number) => selectedSceneSet.has(Number(scene?.scene_number || index + 1)))
+            .map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || 'none'))
+        const activeTransition = selectedTransitions.length > 0 && selectedTransitions.every(effect => effect === selectedTransitions[0])
+            ? selectedTransitions[0]
+            : ''
+
+        return (
+        <div className="inline-flex">
             <button
                 type="button"
                 disabled={disabled}
@@ -3134,28 +3170,86 @@ export default function StdPortalPage() {
                 <Sparkles size={12} />
                 효과
             </button>
-            {!disabled && isTransitionPickerOpen && (
+            {!disabled && isTransitionPickerOpen && typeof document !== 'undefined' && createPortal(
                 <div
-                    className="absolute left-0 top-full mt-1 z-50 w-64 max-w-[min(16rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0f131a] shadow-2xl p-1"
-                    onClick={(event) => event.stopPropagation()}
+                    className="fixed inset-0 z-[110] flex items-center justify-center bg-black/75 p-3 backdrop-blur-sm"
+                    onMouseDown={(event) => {
+                        if (event.target === event.currentTarget && !isSceneEffectSaving) setIsTransitionPickerOpen(false)
+                    }}
                 >
-                    <div className="px-2 py-1.5 text-[10px] font-bold text-gray-400 border-b border-white/5">
-                        선택한 씬 {selectedSubtitleSceneNumbers.length}개 화면 전환
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="화면 전환 효과 선택"
+                        className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-[#11151b] shadow-2xl"
+                        onMouseDown={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-base font-black text-white">화면 전환</h3>
+                                <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-black text-violet-200">BETA</span>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={isSceneEffectSaving}
+                                onClick={() => setIsTransitionPickerOpen(false)}
+                                className="flex h-8 w-8 items-center justify-center rounded-full text-xl text-gray-400 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+                                aria-label="닫기"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 border-b border-white/5 bg-black/15 px-4 py-2.5">
+                            <div>
+                                <div className="text-[10px] font-bold text-gray-500">적용 범위</div>
+                                <div className="mt-0.5 text-xs font-black text-cyan-200">선택한 씬 {selectedSubtitleSceneNumbers.length}개</div>
+                            </div>
+                            {isSceneEffectSaving && (
+                                <span className="text-xs font-bold text-violet-200">효과 저장 중...</span>
+                            )}
+                        </div>
+                        <div className="overflow-y-auto p-4">
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4">
+                                {SCENE_TRANSITION_EFFECTS.map(effect => {
+                                    const selected = activeTransition === effect.id
+                                    return (
+                                        <button
+                                            key={effect.id}
+                                            type="button"
+                                            disabled={isSceneEffectSaving}
+                                            onClick={() => void applySelectedSceneTransition(effect.id)}
+                                            className="group min-w-0 text-left disabled:cursor-wait disabled:opacity-55"
+                                        >
+                                            <div
+                                                className={`relative aspect-[1.55] overflow-hidden rounded-lg border-2 transition ${
+                                                    selected
+                                                        ? 'border-cyan-400 ring-2 ring-cyan-400/20'
+                                                        : 'border-transparent group-hover:border-violet-400/70'
+                                                }`}
+                                                style={{ background: TRANSITION_PREVIEW_BACKGROUNDS[effect.id] || '#9aa8b0' }}
+                                            >
+                                                <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-black/10" />
+                                                {selected && (
+                                                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500 text-white shadow">
+                                                        <Check size={13} strokeWidth={3} />
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className={`mt-1.5 truncate text-center text-[11px] font-bold ${selected ? 'text-cyan-200' : 'text-gray-200'}`}>
+                                                {effect.label}
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
                     </div>
-                    {SCENE_TRANSITION_EFFECTS.map(effect => (
-                        <button
-                            key={effect.id}
-                            type="button"
-                            onClick={() => void applySelectedSceneTransition(effect.id)}
-                            className="w-full text-left px-2 py-1.5 rounded text-[11px] text-gray-200 hover:bg-violet-500/20 hover:text-violet-100 transition"
-                        >
-                            {effect.label}
-                        </button>
-                    ))}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
-    )
+        )
+    }
 
     const markVrewSegmentStale = (subtitle: any, index: number) => {
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
