@@ -2907,7 +2907,7 @@ export default function StdPortalPage() {
             <span
                 key={`${index}-${token}`}
                 title={token}
-                className={`inline-flex h-8 max-w-full items-center rounded-md border border-white/10 bg-[#10151d] px-3 text-xs leading-none text-gray-200 shadow-sm transition ${
+                className={`inline-flex h-6 max-w-full items-center rounded border border-white/10 bg-[#10151d] px-2 text-[11px] leading-none text-gray-200 shadow-sm transition ${
                     index === activeTokenIndex
                         ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-100'
                         : 'hover:border-white/20 hover:bg-[#161c26]'
@@ -9072,7 +9072,7 @@ export default function StdPortalPage() {
                                 <div className="contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
                                     <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto">
                                     {/* 16:9 캔버스 프리뷰 */}
-                                    <div className="order-1 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
+                                    <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
@@ -9206,7 +9206,7 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {/* 커스텀 플레이어 바 */}
-                                        <div className="p-2.5 sm:p-3 bg-[#13171e] border-t border-white/5 flex flex-col gap-2">
+                                        <div className="p-2 bg-[#13171e] border-t border-white/5 flex flex-col gap-1.5">
                                             <div
                                                 onClick={(e) => {
                                                     const rect = e.currentTarget.getBoundingClientRect()
@@ -9222,7 +9222,7 @@ export default function StdPortalPage() {
                                                     style={{ width: `${Math.min(100, (playbackTime / totalDuration) * 100)}%` }}
                                                 />
                                             </div>
-                                            <div className="flex flex-col gap-2 text-[11px] text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="flex flex-col gap-1 text-[11px] text-gray-400 sm:flex-row sm:items-center sm:justify-between">
                                                 <div className="flex min-w-0 items-center gap-2">
                                                     <button
                                                         onClick={isVrewSubtitleMode ? handleToggleVrewPlayback : () => setIsPlayingPreview(!isPlayingPreview)}
@@ -9265,8 +9265,8 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 탭: 자막 편집 / 배경음/효과음 */}
-                                    <div className="order-3 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow flex flex-col gap-3 lg:order-none">
-                                        <div className="flex items-center gap-4 border-b border-white/5 pb-2 text-xs font-bold">
+                                    <div className="order-3 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl p-2.5 shadow flex flex-col gap-2 lg:order-none">
+                                        <div className="flex items-center gap-4 border-b border-white/5 pb-1 text-xs font-bold">
                                             <button
                                                 onClick={() => setSubEditTab('subtitle')}
                                                 className={`pb-1 transition-colors ${
@@ -9286,8 +9286,8 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {subEditTab === 'subtitle' ? (
-                                            <div className="space-y-3">
-                                                <div className="flex flex-col gap-2 text-xs font-bold text-white min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+                                            <div className="space-y-2">
+                                                <div className="flex flex-col gap-1.5 text-xs font-bold text-white min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                                                     <span>{t('sub_selected_range_edit')}</span>
                                                     <div className="grid grid-cols-3 gap-1 min-[420px]:flex min-[420px]:items-center">
                                                         <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
@@ -9302,13 +9302,13 @@ export default function StdPortalPage() {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
+                                                <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-white/5">
                                                     <span className="text-blue-400 font-bold">{t('sub_current_image')}</span>
                                                     <span className="font-mono">{currentSub.start_time}s ~ {currentSub.end_time}s</span>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-white/5">
+                                                <div className="grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
+                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-white/5">
                                                         <span className="shrink-0 text-gray-300 font-bold">{t('sub_start_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{currentSub.start_time}s</span>
@@ -9317,7 +9317,7 @@ export default function StdPortalPage() {
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] p-2 rounded border border-red-500/20">
+                                                    <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-red-500/20">
                                                         <span className="shrink-0 text-red-400 font-bold">{t('sub_end_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{currentSub.end_time}s</span>
@@ -9328,7 +9328,7 @@ export default function StdPortalPage() {
                                                 </div>
 
                                                 {/* Vrew 스타일 자막 토큰 에디터 */}
-                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-2">
+                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-1.5">
                                                     {isSubtitleTextEditing ? (
                                                         <textarea
                                                             ref={subtitleTextEditorRef}
@@ -9349,14 +9349,14 @@ export default function StdPortalPage() {
                                                                 if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
                                                                 setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
                                                             }}
-                                                            className="w-full min-h-16 resize-none overflow-hidden rounded-md border border-blue-500 bg-[#10151d] px-3 py-2 text-xs leading-5 text-white focus:outline-none"
+                                                            className="w-full min-h-12 resize-none overflow-hidden rounded-md border border-blue-500 bg-[#10151d] px-2 py-1.5 text-xs leading-5 text-white focus:outline-none"
                                                         />
                                                     ) : (
-                                                        <div className="flex items-start gap-2">
+                                                        <div className="flex items-start gap-1.5">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsSubtitleTextEditing(true)}
-                                                                className="flex min-h-10 flex-1 flex-wrap content-start gap-1.5 rounded-md text-left"
+                                                                className="flex min-h-7 flex-1 flex-wrap content-start gap-1 rounded-md text-left"
                                                                 title="자막 텍스트 편집"
                                                             >
                                                                 {renderVrewSubtitleTokenEditor(
@@ -9370,7 +9370,7 @@ export default function StdPortalPage() {
                                                                 type="button"
                                                                 onClick={() => setIsSubtitleTextEditing(true)}
                                                                 title="자막 텍스트 편집"
-                                                                className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-white/20 hover:bg-[#202632] hover:text-white"
+                                                                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-white/20 hover:bg-[#202632] hover:text-white"
                                                             >
                                                                 <Pencil size={14} />
                                                             </button>
