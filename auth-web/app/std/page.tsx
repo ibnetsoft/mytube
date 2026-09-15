@@ -1700,9 +1700,15 @@ export default function StdPortalPage() {
         return () => subtitleTranslationControllerRef.current?.abort()
     }, [selectedProject?.project?.id, persistedSubtitleTranslations])
 
-    const translateSubtitleBlocks = useCallback(async (targetLanguage: SubtitleTranslationLanguage, force = false) => {
+    const translateSubtitleBlocks = useCallback(async (
+        targetLanguage: SubtitleTranslationLanguage,
+        force = false,
+        sourceSubtitles?: any[],
+        options?: { preferGemini?: boolean },
+    ) => {
         const projectId = String(selectedProject?.project?.id || '')
-        const blocks = localSubtitles.map((subtitle: any, index: number) => ({
+        const subtitlesForTranslation = Array.isArray(sourceSubtitles) ? sourceSubtitles : localSubtitles
+        const blocks = subtitlesForTranslation.map((subtitle: any, index: number) => ({
             index,
             source_text: String(subtitle?.text || '').trim(),
         })).filter(block => block.source_text)
@@ -1721,7 +1727,11 @@ export default function StdPortalPage() {
                 method: 'POST',
                 headers: authedJsonHeaders,
                 signal: controller.signal,
-                body: JSON.stringify({ target_language: targetLanguage, blocks }),
+                body: JSON.stringify({
+                    target_language: targetLanguage,
+                    blocks,
+                    ...(options?.preferGemini ? { prefer_gemini: true } : {}),
+                }),
             })
             const languageName = SUBTITLE_REVIEW_COPY[targetLanguage].name
             const payload = await safeParseJson(response, `${languageName} 자막 번역에 실패했습니다.`)
@@ -6704,6 +6714,9 @@ export default function StdPortalPage() {
         setSelectedSubtitleBlockIndexes([firstIndex])
         subtitleBlockSelectionAnchorRef.current = firstIndex
         await persistVrewVoiceSubtitles(updatedSubtitles)
+        if (subtitleReviewLocale) {
+            void translateSubtitleBlocks(subtitleReviewLocale, true, updatedSubtitles, { preferGemini: true })
+        }
         setMessage(`씬 ${sceneNumber}의 자막 ${selectedItems.length}개를 하나로 합쳤습니다.`)
     }
 
@@ -6775,6 +6788,9 @@ export default function StdPortalPage() {
         subtitleBlockSelectionAnchorRef.current = subtitleIndex
         subtitleTextSelectionRef.current = null
         await persistVrewVoiceSubtitles(updatedSubtitles)
+        if (subtitleReviewLocale) {
+            void translateSubtitleBlocks(subtitleReviewLocale, true, updatedSubtitles, { preferGemini: true })
+        }
         setMessage(`씬 ${Number(subtitle.scene_number)}의 자막을 2개로 분리했습니다.`)
     }
 

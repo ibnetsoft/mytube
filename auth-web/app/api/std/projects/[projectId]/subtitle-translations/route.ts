@@ -20,6 +20,8 @@ const MAX_TOTAL_TEXT = 120_000
 const BATCH_SIZE = 30
 const SUBTITLE_TRANSLATION_MODEL_SETTING_KEY = 'sys_api_subtitle_translation_model'
 const DEFAULT_SUBTITLE_TRANSLATION_MODEL = 'gpt-5.3-codex-spark'
+const SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY = 'sys_api_subtitle_edit_translation_model'
+const DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL = 'gemini-3.6-flash'
 const SUBTITLE_TRANSLATION_SCOPE_KEY = 'sys_api_subtitle_translation_scope'
 
 async function geminiApiKey(): Promise<string> {
@@ -55,6 +57,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'English, Vietnamese, or Thai subtitle blocks are required' }, { status: 400 })
     }
     const targetLanguage = body.target_language
+    const preferGeminiForSubtitleEdit = body?.prefer_gemini === true
     const translationScope = await subtitleTranslationScope()
     if (translationScope !== 'all' && targetLanguage !== 'th') {
         return NextResponse.json({
@@ -100,11 +103,36 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     const cachedBlocks = project.project_payload?.subtitle_translations?.[targetLanguage]?.blocks
     const cached = translationMapFromBlocks(cachedBlocks)
+    const reusableBySource = new Map<string, string[]>()
+    if (Array.isArray(cachedBlocks)) {
+        for (const block of cachedBlocks) {
+            const sourceText = String(block?.source_text || '').trim()
+            const translatedText = String(block?.translated_text || '').trim()
+            if (!sourceText || !translatedText) continue
+            const existing = reusableBySource.get(sourceText) || []
+            existing.push(translatedText)
+            reusableBySource.set(sourceText, existing)
+        }
+    }
     const translated = new Map<string, string>()
     const missing = blocks.filter((block: any) => {
         const cachedText = cached[subtitleTranslationKey(block.index, block.source_text)]
-        if (cachedText) translated.set(String(block.index), cachedText)
-        return !cachedText
+        if (cachedText) {
+            translated.set(String(block.index), cachedText)
+            return false
+        }
+        // Subtitle merge/split can shift every following index even when the
+        // source text itself did not change. Reuse those exact-text translations
+        // so Gemini only translates the newly created/edited block.
+        const reusable = reusableBySource.get(block.source_text) || []
+        const reusableText = reusable.shift()
+        if (reusable.length > 0) reusableBySource.set(block.source_text, reusable)
+        else reusableBySource.delete(block.source_text)
+        if (reusableText) {
+            translated.set(String(block.index), reusableText)
+            return false
+        }
+        return true
     })
 
     if (missing.length > 0) {
@@ -116,10 +144,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             const raw = await generateJsonWithModelSetting(
                 supabaseAdmin,
                 buildSubtitleTranslationPrompt(source, targetLanguage),
-                SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
+                preferGeminiForSubtitleEdit ? SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY : SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
                 apiKey,
                 0.1,
-                { defaultModel: DEFAULT_SUBTITLE_TRANSLATION_MODEL, disableFallback: true },
+                {
+                    defaultModel: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,
+                    disableFallback: !preferGeminiForSubtitleEdit,
+                },
             )
             const result = parseStrictTranslationResponse(raw, source)
             for (const item of result) translated.set(item.id.slice(1), item.translation)
@@ -152,8 +183,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         blocks: result,
         cached_count: blocks.length - missing.length,
         translated_count: missing.length,
-        model_setting_key: SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
-        default_model: DEFAULT_SUBTITLE_TRANSLATION_MODEL,
+        model_setting_key: preferGeminiForSubtitleEdit ? SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY : SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
+        default_model: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,
         scope: translationScope,
         persisted: !persisted.error,
     })
