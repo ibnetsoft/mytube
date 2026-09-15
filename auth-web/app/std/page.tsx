@@ -955,7 +955,6 @@ export default function StdPortalPage() {
     const [selectedVoice, setSelectedVoice] = useState(STD_DEFAULT_VOICE_ID)
     const [vrewNarrationVoice, setVrewNarrationVoice] = useState('')
     const [voiceStudioDirection, setVoiceStudioDirection] = useState('')
-    const [vrewDialogueVoice, setVrewDialogueVoice] = useState('')
     const ttsSpeed = String(Math.max(0.7, Math.min(1.2, Number(
         selectedProject?.project?.project_payload?.tts_speed
         || selectedProject?.project?.progress_payload?.tts_speed
@@ -983,10 +982,6 @@ export default function StdPortalPage() {
     useEffect(() => {
         setIsBodyImageSectionOpen(false)
     }, [selectedProject?.project?.id])
-
-    useEffect(() => {
-        setVrewDialogueVoice(prev => prev || selectedVoice)
-    }, [selectedVoice])
 
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
     const [selectedSubIndex, setSelectedSubIndex] = useState(0)
@@ -8164,44 +8159,7 @@ export default function StdPortalPage() {
                                                 <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap">
                                                     대사 {dialogueSubtitleCount}개
                                                 </span>
-                                                {pendingDialogueCandidateIndexes.size > 0 && (
-                                                    <span className="whitespace-nowrap text-[10px] font-bold text-amber-300" title="아직 대사로 지정하지 않은 자막 줄 수입니다.">
-                                                        · 후보 {pendingDialogueCandidateIndexes.size}개
-                                                    </span>
-                                                )}
-                                                {renderVoicePicker(
-                                                    'bulk-dialogue',
-                                                    vrewDialogueVoice || selectedVoice,
-                                                    setVrewDialogueVoice,
-                                                    '대사 일괄 성우',
-                                                    'dialogue'
-                                                )}
                                             </div>
-                                            {pendingDialogueCandidateIndexes.size > 0 && (
-                                                <button
-                                                    type="button"
-                                                    title="노란색 후보가 포함된 자막 줄 전체를 대사로 지정합니다. 이후 대사 적용을 누르면 선택한 성우가 적용됩니다."
-                                                    onClick={() => {
-                                                        const updated = localSubtitles.map((subtitle, index) => (
-                                                            pendingDialogueCandidateIndexes.has(index)
-                                                                ? { ...subtitle, dialogue_override: true } : subtitle
-                                                        ))
-                                                        void persistVrewVoiceSubtitles(updated)
-                                                    }}
-                                                    className="h-8 rounded-md border border-amber-400/30 bg-amber-400/10 px-2.5 text-[11px] font-bold text-amber-200 hover:bg-amber-400/20"
-                                                >
-                                                    후보 {pendingDialogueCandidateIndexes.size}개 대사로 지정
-                                                </button>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => applyVrewVoiceBulk('dialogue', vrewDialogueVoice || selectedVoice)}
-                                                disabled={dialogueSubtitleCount === 0}
-                                                title={dialogueSubtitleCount === 0 ? '먼저 후보를 대사로 지정해 주세요.' : `확정된 대사 ${dialogueSubtitleCount}개에 선택한 성우를 적용합니다.`}
-                                                className="h-8 px-2.5 rounded-md border border-violet-300/30 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold shadow-sm shadow-violet-950/20 transition"
-                                            >
-                                                대사 적용
-                                            </button>
                                             {audioResultUrl && (
                                                 <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
                                                     TTS 준비됨
