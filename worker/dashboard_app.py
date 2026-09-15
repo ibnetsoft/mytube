@@ -1957,6 +1957,58 @@ def api_rendering_jobs(limit: int = 30):
     }
 
 
+def _merged_history_jobs(limit: int = 100) -> list[dict]:
+    """Combine durable local worker history with the legacy Drive render queue."""
+    safe_limit = max(1, min(int(limit), 500))
+    local_jobs = [_prune_job_for_list(job) for job in job_store.list_jobs(limit=safe_limit)]
+    remote_jobs = _fetch_remote_drive_render_queue(limit=safe_limit)
+
+    known_remote_ids = {
+        str(value)
+        for job in local_jobs
+        for value in (job.get("job_id"), job.get("remote_job_id"))
+        if value
+    }
+    merged = list(local_jobs)
+    for job in remote_jobs:
+        remote_id = str(job.get("raw_id") or job.get("job_id") or "")
+        if remote_id and remote_id in known_remote_ids:
+            continue
+        merged.append(job)
+
+    def sort_value(job: dict) -> float:
+        value = job.get("created_at") or job.get("started_at") or 0
+        if isinstance(value, (int, float)):
+            return float(value)
+        try:
+            import datetime
+            return datetime.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+        except (TypeError, ValueError):
+            return 0.0
+
+    merged.sort(key=sort_value, reverse=True)
+    return merged[:safe_limit]
+
+
+@app.get("/api/history-jobs")
+def api_history_jobs(
+    limit: int = 100,
+    status: str | None = None,
+    job_type: str | None = None,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    requested_limit = max(1, min(int(limit), 500))
+    jobs = _merged_history_jobs(limit=500 if status or job_type else requested_limit)
+    if status:
+        expected_status = str(status).upper()
+        jobs = [job for job in jobs if str(job.get("status") or "").upper() == expected_status]
+    if job_type:
+        jobs = [job for job in jobs if str(job.get("job_type") or "") == job_type]
+    return {"jobs": jobs[:requested_limit]}
+
+
 @app.get("/api/jobs/{job_id}")
 async def api_job_detail(
     job_id: str,
@@ -1966,7 +2018,17 @@ async def api_job_detail(
     require_auth(authorization, cookie)
     job = job_store.get_job(job_id)
     if not job:
-        return {"error": "not found"}
+        job = next(
+            (
+                item for item in _fetch_remote_drive_render_queue(limit=500)
+                if str(item.get("raw_id") or item.get("job_id") or "") == str(job_id)
+            ),
+            None,
+        )
+        if not job:
+            return {"error": "not found"}
+        job["transitions"] = []
+        return job
     job["transitions"] = job_store.transition_history(job_id)
     result = _read_job_result(job_id)
     if result:
@@ -4547,6 +4609,7 @@ tr:hover { background: #161b22; }
               <select id="hist-filter-type" onchange="loadHistory()">
                 <option value="">전체</option>
                 <option value="render_video">영상 렌더링</option>
+                <option value="drive_api_render">Drive API 렌더링</option>
                 <option value="topic_research">주제 탐색</option>
                 <option value="topic_benchmark_analyze">고성과 영상 분석</option>
                 <option value="web_research">Gemini 웹 자료 조사</option>
@@ -5255,6 +5318,7 @@ const STATUS_LABELS = {
 };
 const JOB_TYPE_LABELS = {
   render_video: '영상 렌더링',
+  drive_api_render: 'Drive API 렌더링',
   topic_research: '주제 탐색',
   topic_benchmark_analyze: '고성과 영상 분석',
   web_research: 'Gemini 웹 자료 조사',
@@ -5267,6 +5331,7 @@ const JOB_TYPE_LABELS = {
 };
 const JOB_TYPE_DESCRIPTIONS = {
   render_video: '대본과 미디어를 조합해 최종 영상을 만들고 있습니다.',
+  drive_api_render: 'STD에서 제출된 프로젝트의 최종 영상을 만들고 있습니다.',
   topic_research: '키워드와 시청자 반응을 바탕으로 콘텐츠 주제를 찾고 있습니다.',
   topic_benchmark_analyze: 'YouTube 고성과 영상의 제목, 구성, 반응을 분석하고 있습니다.',
   web_research: 'Gemini가 기사·논문·공식 자료를 검색해 대본 근거와 출처를 정리하고 있습니다.',
@@ -5295,7 +5360,7 @@ function jobCategory(job) {
 }
 function jobTitle(job) {
   const payload = job?.payload || {};
-  return String(payload.upload_title || payload.generated_title || '').trim();
+  return String(payload.upload_title || payload.generated_title || job?.project_name || '').trim();
 }
 function jobDescription(job) {
   const type = job?.job_type;
@@ -5307,6 +5372,7 @@ function jobDescription(job) {
   ].filter(Boolean).join(' · ');
   const descriptions = {
     render_video: '최종 영상 렌더링 및 결과 파일 저장',
+    drive_api_render: 'Drive API 최종 영상 렌더링 및 결과 파일 저장',
     topic_research: '키워드·카테고리 관련 주제 자료 조사',
     topic_benchmark_analyze: '고성과 영상의 제목·구성·반응 분석',
     web_research: '제목과 카테고리에 필요한 웹 자료 조사',
@@ -6594,12 +6660,12 @@ async function saveGeneratedScript() {
 function loadHistory() {
   const status = document.getElementById('hist-filter-status')?.value || '';
   const type = document.getElementById('hist-filter-type')?.value || '';
-  let url = '/api/jobs?limit=100';
+  let url = '/api/history-jobs?limit=100';
   if (status) url += `&status=${status}`;
+  if (type) url += `&job_type=${encodeURIComponent(type)}`;
   api('GET', url).then(data => {
     if (!data) return;
     let jobs = filterJobsForWorkerProfile(data.jobs || []);
-    if (type) jobs = jobs.filter(j => j.job_type === type);
     const el = document.getElementById('history-jobs-container');
     const empty = document.getElementById('history-empty');
     if (!el) return;
@@ -6850,6 +6916,7 @@ async function showJobDetail(jobId) {
     <tr><th>완료</th><td>${fmtTime(data.completed_at)}</td></tr>
     ${data.error_message ? `<tr><th>오류</th><td style="color:#f85149">${escapeHtml(data.error_message)}</td></tr>` : ''}
     ${data.output_path ? `<tr><th>출력</th><td>${escapeHtml(data.output_path)}</td></tr>` : ''}
+    ${data.result_url ? `<tr><th>결과</th><td><a href="${escapeHtml(data.result_url)}" target="_blank" rel="noopener noreferrer" style="color:#58a6ff">렌더 영상 열기</a></td></tr>` : ''}
   </table>`;
 
   // Payload

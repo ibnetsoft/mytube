@@ -70,3 +70,48 @@ def test_api_rendering_jobs_endpoint_returns_combined_queue_structure():
     assert 'pending_count' in data
     assert 'total_count' in data
     assert isinstance(data['jobs'], list)
+
+
+def test_history_jobs_merges_remote_renders_and_deduplicates_local_mirrors(monkeypatch):
+    local_job = {
+        'job_id': 'local-1',
+        'remote_job_id': 'remote-1',
+        'job_type': 'render_video',
+        'status': 'COMPLETED',
+        'source': 'central_server',
+        'payload': {},
+        'created_at': 100.0,
+    }
+    remote_duplicate = {
+        'job_id': 'remote-1',
+        'raw_id': 'remote-1',
+        'job_type': 'drive_api_render',
+        'status': 'COMPLETED',
+        'source': 'web_std',
+        'created_at': '2026-09-14T00:00:00+00:00',
+    }
+    remote_history = {
+        'job_id': 'remote-2',
+        'raw_id': 'remote-2',
+        'job_type': 'drive_api_render',
+        'status': 'FAILED',
+        'source': 'web_std',
+        'created_at': '2026-09-15T00:00:00+00:00',
+    }
+    monkeypatch.setattr(dashboard_app.job_store, 'list_jobs', lambda status=None, limit=100: [local_job])
+    monkeypatch.setattr(
+        dashboard_app,
+        '_fetch_remote_drive_render_queue',
+        lambda limit=100: [remote_history, remote_duplicate],
+    )
+
+    client = TestClient(dashboard_app.app)
+    response = client.get('/api/history-jobs?limit=100')
+
+    assert response.status_code == 200
+    jobs = response.json()['jobs']
+    assert [job['job_id'] for job in jobs] == ['remote-2', 'local-1']
+    assert sum(job.get('remote_job_id') == 'remote-1' or job['job_id'] == 'remote-1' for job in jobs) == 1
+
+    filtered = client.get('/api/history-jobs?limit=100&status=FAILED&job_type=drive_api_render')
+    assert [job['job_id'] for job in filtered.json()['jobs']] == ['remote-2']
