@@ -57,3 +57,28 @@ def test_user_recommendations_only_return_pending_topics():
     source = (ROOT / "auth-web" / "lib" / "stdRecommendations.ts").read_text(encoding="utf-8")
 
     assert source.count(".eq('status', 'pending')") >= 2
+
+
+def test_codex_worker_admin_can_bulk_hide_visible_topics_for_repair():
+    source = (ROOT / "auth-web" / "app" / "api" / "admin" / "codex-worker" / "route.ts").read_text(encoding="utf-8")
+    page = (ROOT / "auth-web" / "app" / "admin" / "codex-worker" / "page.tsx").read_text(encoding="utf-8")
+
+    assert "hide-visible-for-repair" in source
+    assert "repair_status: 'listed'" in source
+    assert "status: 'excluded'" in source
+    assert ".from('user_topic_recommendations')" in source
+    assert ".delete()" in source
+    assert "visible_user_topics" in source
+
+    assert "기존 토픽 리페어 목록" in page
+    assert "현재 노출 토픽 전체 가림" in page
+    assert "'/api/admin/topics-queue/repair'" in page
+
+
+def test_codex_worker_admin_lists_repair_jobs_separately_from_normal_generation():
+    source = (ROOT / "auth-web" / "app" / "api" / "admin" / "codex-worker" / "route.ts").read_text(encoding="utf-8")
+
+    assert "const CODEX_JOB_TYPE = 'codex_content_generate'" in source
+    assert "const REPAIR_JOB_TYPE = 'script_plan_generate'" in source
+    assert "isRepairJob" in source
+    assert "repair_topics: repairTopics" in source

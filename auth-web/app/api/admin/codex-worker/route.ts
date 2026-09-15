@@ -5,6 +5,8 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 export const dynamic = 'force-dynamic'
 
 const CODEX_JOB_TYPE = 'codex_content_generate'
+const REPAIR_JOB_TYPE = 'script_plan_generate'
+const DASHBOARD_JOB_TYPES = [CODEX_JOB_TYPE, REPAIR_JOB_TYPE]
 const ACTIVE_JOB_STATUSES = ['pending', 'claimed', 'rendering', 'running']
 
 const asObject = (value: unknown): Record<string, any> => (
@@ -38,6 +40,35 @@ function topicPayload(topic: any, categoryName: string, requesterEmail: string) 
     }
 }
 
+function isRepairJob(job: any): boolean {
+    return job?.job_type === REPAIR_JOB_TYPE && asObject(job?.payload).repair_mode === true
+}
+
+function isVisibleUserTopic(topic: any): boolean {
+    const assignee = String(topic?.assigned_employee_email || '').trim()
+    const assignedAt = topic?.assigned_at
+    const hasAssignedAt = assignedAt !== null && assignedAt !== undefined && String(assignedAt).trim().length > 0
+    return String(topic?.status || '').toLowerCase() === 'pending' && !hasAssignedAt && assignee.length === 0
+}
+
+async function loadVisibleTopicsForRepair() {
+    const rows: any[] = []
+    for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await supabaseAdmin
+            .from('topics_queue')
+            .select('id,status,assigned_at,assigned_employee_email,progress_payload,generated_title')
+            .eq('status', 'pending')
+            .is('assigned_at', null)
+            .or('assigned_employee_email.is.null,assigned_employee_email.eq.')
+            .not('generated_title', 'is', null)
+            .range(offset, offset + 999)
+        if (error) throw error
+        rows.push(...((data || []).filter(isVisibleUserTopic)))
+        if (!data || data.length < 1000) break
+    }
+    return rows
+}
+
 export async function GET(req: NextRequest) {
     const requester = await requireAdmin(req)
     if (isAuthResponse(requester)) return requester
@@ -47,15 +78,15 @@ export async function GET(req: NextRequest) {
             supabaseAdmin.from('categories').select('id,name').limit(100),
             supabaseAdmin
                 .from('topics_queue')
-                .select('id,topic,generated_title,category_id,status,language,assigned_duration_minutes,recommended_duration_minutes,pregenerated_script_status,pregenerated_structure_status,pregenerated_structure,progress_payload,created_at')
+                .select('id,topic,generated_title,category_id,status,assigned_at,assigned_employee_email,language,assigned_duration_minutes,recommended_duration_minutes,pregenerated_script_status,pregenerated_structure_status,pregenerated_structure,progress_payload,created_at')
                 .order('created_at', { ascending: false })
-                .limit(100),
+                .limit(300),
             supabaseAdmin
                 .from('remote_hermes_queue')
                 .select('id,job_type,status,worker_status,progress,message,error_message,payload,worker_id,created_at,completed_at,attempt_number')
-                .eq('job_type', CODEX_JOB_TYPE)
+                .in('job_type', DASHBOARD_JOB_TYPES)
                 .order('created_at', { ascending: false })
-                .limit(100),
+                .limit(300),
             supabaseAdmin.from('workers').select('worker_id,worker_group,last_heartbeat_at,allowed_job_types').order('registered_at', { ascending: false }),
         ])
         if (categoriesError) throw categoriesError
@@ -70,10 +101,13 @@ export async function GET(req: NextRequest) {
             online: Boolean(worker.last_heartbeat_at) && now - new Date(worker.last_heartbeat_at).getTime() < 90_000,
             supports_codex: Array.isArray(worker.allowed_job_types) && worker.allowed_job_types.includes(CODEX_JOB_TYPE),
         }))
-        const jobRows = (jobs || []).map(job => ({
-            ...job,
-            topic_queue_id: String(asObject(job.payload).topic_queue_id || ''),
-        }))
+        const jobRows = (jobs || [])
+            .filter(job => job.job_type === CODEX_JOB_TYPE || isRepairJob(job))
+            .map(job => ({
+                ...job,
+                topic_queue_id: String(asObject(job.payload).topic_queue_id || ''),
+                repair_mode: isRepairJob(job),
+            }))
         const latestJobByTopic = new Map<string, any>()
         for (const job of jobRows) {
             if (job.topic_queue_id && !latestJobByTopic.has(job.topic_queue_id)) latestJobByTopic.set(job.topic_queue_id, job)
@@ -97,11 +131,14 @@ export async function GET(req: NextRequest) {
                 thumbnail_status: progress.thumbnail_generation_status || (progress.thumbnail_bg_url ? 'completed' : 'not_started'),
                 thumbnail_url: progress.thumbnail_bg_url || '',
                 worker_id: '',
+                hidden: topic.status === 'excluded' || progress.admin_hidden === true || progress.admin_hidden === 'true',
+                repair_status: progress.repair_status || '',
                 latest_job: latestJobByTopic.get(String(topic.id)) || null,
                 created_at: topic.created_at,
             }
         })
         const activeJobs = jobRows.filter(job => ACTIVE_JOB_STATUSES.includes(String(job.status || '').toLowerCase()))
+        const repairTopics = topicRows.filter(topic => topic.hidden || topic.repair_status)
 
         return NextResponse.json({
             generated_at: new Date().toISOString(),
@@ -111,10 +148,13 @@ export async function GET(req: NextRequest) {
                 active_jobs: activeJobs.length,
                 failed_jobs: jobRows.filter(job => ['failed', 'error'].includes(String(job.status || '').toLowerCase())).length,
                 thumbnails_completed: topicRows.filter(topic => topic.thumbnail_status === 'completed').length,
+                repair_topics: repairTopics.length,
+                visible_user_topics: topicRows.filter(isVisibleUserTopic).length,
             },
             workers: workerRows,
             jobs: jobRows,
             topics: topicRows,
+            repair_topics: repairTopics,
         })
     } catch (error: any) {
         console.error('[codex-worker] status load failed:', error)
@@ -213,6 +253,41 @@ export async function POST(req: NextRequest) {
                 progress_payload: { ...progress, codex_generation_status: 'queued', codex_generation_job_id: job.id, codex_generation_requested_at: new Date().toISOString() },
             }).eq('id', topicId)
             return NextResponse.json({ success: true, action: 'queue', job })
+        }
+
+        if (action === 'hide-visible-for-repair') {
+            const topics = await loadVisibleTopicsForRepair()
+            const now = new Date().toISOString()
+            if (!topics.length) {
+                return NextResponse.json({ success: true, action, hidden_count: 0, topic_ids: [] })
+            }
+
+            const updates = await Promise.all(topics.map(topic => {
+                const progressPayload = {
+                    ...asObject(topic.progress_payload),
+                    admin_hidden: true,
+                    admin_hidden_at: now,
+                    admin_hidden_previous_status: topic.status || 'pending',
+                    repair_status: 'listed',
+                    repair_listed_at: now,
+                    repair_listed_by: requester.user.email,
+                }
+                return supabaseAdmin
+                    .from('topics_queue')
+                    .update({ status: 'excluded', progress_payload: progressPayload })
+                    .eq('id', topic.id)
+            }))
+
+            const failed = updates.find(result => result.error)
+            if (failed?.error) throw failed.error
+
+            const topicIds = topics.map(topic => topic.id)
+            await supabaseAdmin
+                .from('user_topic_recommendations')
+                .delete()
+                .in('topic_queue_id', topicIds)
+
+            return NextResponse.json({ success: true, action, hidden_count: topicIds.length, topic_ids: topicIds })
         }
 
         return NextResponse.json({ error: 'Unsupported action' }, { status: 400 })

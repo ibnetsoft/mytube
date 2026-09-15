@@ -210,3 +210,14 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert package["thumbnail_design"]["contract"] == "editable-background-v1"
     assert package["thumbnail_design"]["thumbnail_url"] is None
     assert package["thumbnail_image_prompt"].startswith("A cinematic Korean folktale")
+
+    calls.clear()
+    draft = runner_module.CodexStagedContentRunner().generate("local-script", {
+        "target_duration_seconds": 300, "upload_title": "테스트 제목", "category_id": 2,
+    }, script_only=True)
+    assert draft["production_ready"] is False
+    assert draft["script_model"] == "gpt-6-astra"
+    assert draft["structure"]["dialogue_annotations"]["model"] == "gpt-6-astra"
+    assert len(draft["structure"]["scenes"]) == 28
+    assert not any(name in ("02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy") for name, _ in calls)
+    assert "02f_listener_engagement" in [name for name, _ in calls]
