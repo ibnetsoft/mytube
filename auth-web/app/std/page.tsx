@@ -9442,11 +9442,6 @@ export default function StdPortalPage() {
                                                         />
                                                     )}
                                                 </div>
-
-                                                <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[11px] leading-5 text-blue-100">
-                                                    업로드한 파일은 프로젝트 Google Drive 폴더의 <span className="font-mono">04_audio</span>에 저장되고,
-                                                    렌더 제출 시 워커가 Drive에서 내려받아 기존 믹서로 적용합니다.
-                                                </div>
                                             </div>
                                         )}
                                     </div>
