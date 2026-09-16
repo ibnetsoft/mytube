@@ -3566,8 +3566,9 @@ export default function StdPortalPage() {
                 return audioUrl
             }
 
-            const payload = await requestSegmentAudio()
-            const audioUrl = await resolvePayloadAudioUrl(payload)
+            const audioUrl = await resolveStoredSegmentAudio(requestSegmentAudio, resolvePayloadAudioUrl, () => {
+                setMessage('이전 음성 파일에 접근할 수 없어 이 구간을 다시 생성해 Supabase에 저장하고 있습니다.')
+            })
             if (signal?.aborted) {
                 if (audioUrl.startsWith('blob:')) URL.revokeObjectURL(audioUrl)
                 throw signal.reason

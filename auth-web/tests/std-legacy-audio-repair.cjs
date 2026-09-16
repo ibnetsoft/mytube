@@ -1,5 +1,6 @@
 const fs = require('fs'), ts = require('typescript'), assert = require('node:assert/strict');
 const api = {};
+assert.match(fs.readFileSync('auth-web/app/std/page.tsx', 'utf8'), /await resolveStoredSegmentAudio\(requestSegmentAudio, resolvePayloadAudioUrl/);
 new Function('exports', ts.transpile(fs.readFileSync('auth-web/lib/stdPreviewAudio.ts', 'utf8'), { module: 1, target: 7 }))(api);
 (async () => {
     const legacy = { cached: true, asset: { drive_file_id: 'old', metadata: {} } };
