@@ -9170,7 +9170,7 @@ export default function StdPortalPage() {
                                 <div className="std-subtitle-preview contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
                                     <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                     {/* 16:9 캔버스 프리뷰 */}
-                                    <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
+                                    <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-b-lg sm:rounded-b-xl overflow-hidden shadow flex flex-col lg:order-none">
                                         {bgmAsset && (
                                             <audio
                                                 ref={previewBgmAudioRef}
