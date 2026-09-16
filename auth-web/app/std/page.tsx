@@ -4,6 +4,7 @@ import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
+import { bindNarrationPlayback, narrationLoadError } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -1042,6 +1043,8 @@ export default function StdPortalPage() {
     const [subBgVOffset, setSubBgVOffset] = useState('0')
     const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
+    const [isNarrationPlaying, setIsNarrationPlaying] = useState(false)
+    const [previewAudioError, setPreviewAudioError] = useState('')
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [previewTransition, setPreviewTransition] = useState<{
         key: number
@@ -3431,6 +3434,7 @@ export default function StdPortalPage() {
     }
 
     const stopVrewPlayback = () => {
+        setIsNarrationPlaying(false)
         vrewPlaybackCancelRef.current += 1
         if (vrewProgressTimerRef.current) {
             clearInterval(vrewProgressTimerRef.current)
@@ -3468,7 +3472,7 @@ export default function StdPortalPage() {
         })
         if (!res.ok) {
             const errorText = await res.text().catch(() => '')
-            throw new Error(errorText || `자막 구간 음성 파일을 불러오지 못했습니다. (${res.status})`)
+            throw new Error(narrationLoadError(errorText, res.status))
         }
         const audioBlob = await res.blob()
         if (audioBlob.size < 256) throw new Error('자막 구간 음성 파일이 비어 있습니다.')
@@ -3602,6 +3606,8 @@ export default function StdPortalPage() {
         const cancelToken = vrewPlaybackCancelRef.current + 1
         vrewPlaybackCancelRef.current = cancelToken
         setIsPlayingPreview(true)
+        setIsNarrationPlaying(false)
+        setPreviewAudioError('')
 
         const savedNarrationUrl = await getSavedNarrationAudioUrl()
         if (vrewPlaybackCancelRef.current !== cancelToken) return
@@ -3613,8 +3619,14 @@ export default function StdPortalPage() {
             await new Promise<void>((resolve, reject) => {
                 const audio = new Audio(savedNarrationUrl)
                 vrewAudioRef.current = audio
+                const unbindPlayback = bindNarrationPlayback(audio, () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
+                    setIsNarrationPlaying(true)
+                    playPreviewBgm(audio.currentTime)
+                }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
                 audio.preload = 'auto'
                 const cleanup = () => {
+                    unbindPlayback()
                     if (vrewProgressTimerRef.current) {
                         clearInterval(vrewProgressTimerRef.current)
                         vrewProgressTimerRef.current = null
@@ -3647,7 +3659,6 @@ export default function StdPortalPage() {
                     audio.currentTime = startTime
                     syncPlaybackProgress()
                     vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
-                    playPreviewBgm(startTime)
                     audio.play().catch(error => {
                         stopPreviewBgm()
                         cleanup()
@@ -3695,7 +3706,13 @@ export default function StdPortalPage() {
                 const scheduledEnd = Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1)
                 const scheduledDuration = Math.max(0.1, scheduledEnd - baseStart)
                 const tokenCount = Math.max(1, vrewTextTokens(subtitle?.text || '').length)
+                const unbindPlayback = bindNarrationPlayback(audio, () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
+                    setIsNarrationPlaying(true)
+                    playPreviewBgm(baseStart + scheduledDuration * (audio.currentTime / (audio.duration || scheduledDuration)))
+                }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
                 const cleanup = () => {
+                    unbindPlayback()
                     if (vrewProgressTimerRef.current) {
                         clearInterval(vrewProgressTimerRef.current)
                         vrewProgressTimerRef.current = null
@@ -3722,7 +3739,6 @@ export default function StdPortalPage() {
                 }
                 syncPlaybackProgress()
                 vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
-                if (index === Math.max(0, startIndex)) playPreviewBgm(baseStart)
                 audio.play().catch(error => {
                     stopPreviewBgm()
                     cleanup()
@@ -3747,6 +3763,7 @@ export default function StdPortalPage() {
             stopVrewPlayback()
             const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
             setMessage(`❌ ${messageText}`)
+            setPreviewAudioError(messageText)
         })
     }
 
@@ -9250,9 +9267,10 @@ export default function StdPortalPage() {
                                                 aria-hidden="true"
                                             />
                                         )}
+                                        {previewAudioError && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
                                         <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
                                             cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
-                                            headers={authedJsonHeaders} time={playbackTime} playing={isPlayingPreview} onError={setMessage} />
+                                            headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
