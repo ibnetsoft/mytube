@@ -24,6 +24,6 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  failUpload=true;let failed=await call(route(),{...body,text:'저장 실패 검사'});assert.equal(failed.status,500);assert.equal(assets.length,3,'Failed save must not be reported as persisted');
  failUpload=false; const full=await call(route(),{...body,mode:'full'});assert.equal(full.status,200);assert.equal(full.data.asset.asset_type,'audio');assert.equal(full.data.asset.metadata.storage_bucket,'content-assets');assert.match(full.data.persisted_audio_url,/assets\/file/);assert.equal(full.data.drive_file,null);
  const page=fs.readFileSync('auth-web/app/std/page.tsx','utf8');assert(!page.includes('prefetchVrewSegment(selectedSubIndex)'));assert(!page.includes('requestSegmentAudio(true)'));assert(!page.includes('persistVrewSegmentAudio'));
- console.log('PASS: persistent reuse across reload, moved block reuse, Korean/voice invalidation, save failure, no selection auto-generation or failed-read regeneration');
+ console.log('PASS: persistent reuse across reload, moved block reuse, Korean/voice invalidation, save failure, no selection auto-generation');
 })().catch(e=>{console.error(e);process.exit(1)});
 

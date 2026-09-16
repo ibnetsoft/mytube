@@ -4,7 +4,7 @@ import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
-import { bindNarrationPlayback, narrationLoadError } from '@/lib/stdPreviewAudio'
+import { bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -3472,7 +3472,9 @@ export default function StdPortalPage() {
         })
         if (!res.ok) {
             const errorText = await res.text().catch(() => '')
-            throw new Error(narrationLoadError(errorText, res.status))
+            const error = new Error(narrationLoadError(errorText, res.status)) as Error & { code?: string }
+            if (/invalid_grant|drive_credentials_not_configured|drive_admin_credentials_incomplete/.test(errorText)) error.code = 'legacy_drive_auth_failed'
+            throw error
         }
         const audioBlob = await res.blob()
         if (audioBlob.size < 256) throw new Error('자막 구간 음성 파일이 비어 있습니다.')
@@ -3523,13 +3525,14 @@ export default function StdPortalPage() {
 
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
         const generationPromise = (async () => {
-            const requestSegmentAudio = async () => {
+            const requestSegmentAudio = async (repairLegacy = false) => {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
                 signal,
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
                     mode: 'vrew_segment_preview_fast',
+                    bypass_cache: repairLegacy,
                     provider: isVoiceStudioVoice(voiceId) ? 'voice_studio' : voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                     direction: String(subtitle?.voice_direction || ''),
                     voice_id: voiceId,

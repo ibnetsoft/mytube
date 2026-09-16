@@ -16,3 +16,20 @@ export function narrationLoadError(body: string, status: number) {
     }
     return `저장된 음성 파일을 불러오지 못했습니다. (${status}) 잠시 후 다시 시도해 주세요.`
 }
+
+export async function resolveStoredSegmentAudio(
+    request: (repairLegacy?: boolean) => Promise<any>,
+    read: (payload: any) => Promise<string>,
+    onRepair: () => void,
+) {
+    const payload = await request()
+    try {
+        return await read(payload)
+    } catch (error: any) {
+        const legacyDriveOnly = payload.cached && payload.asset?.drive_file_id && !payload.asset?.metadata?.storage_path
+        if (!legacyDriveOnly || error?.code !== 'legacy_drive_auth_failed') throw error
+        onRepair()
+        // One repair only. The server must persist the new audio before reporting success.
+        return await read(await request(true))
+    }
+}
