@@ -119,3 +119,47 @@ body {
 .subtitle-navy-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #102a4d;
 }
+
+/* Keep the subtitle header, controls and list on one shared right edge.
+   The preview owns the full-height right column on desktop. */
+@media (min-width: 1024px) {
+  .std-subtitle-workspace {
+    --subtitle-preview-width: 430px;
+    --subtitle-column-gap: 12px;
+    --subtitle-page-inset: 24px;
+  }
+
+  .std-subtitle-workspace > .std-global-header {
+    margin-right: calc(var(--subtitle-preview-width) + var(--subtitle-column-gap) + var(--subtitle-page-inset));
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .std-subtitle-controls {
+    width: calc(100% - var(--subtitle-preview-width) - var(--subtitle-column-gap));
+    min-width: 0;
+  }
+
+  .std-subtitle-body {
+    grid-template-columns: minmax(0, 1fr) var(--subtitle-preview-width);
+  }
+
+  .std-subtitle-preview {
+    position: fixed;
+    top: 0;
+    right: var(--subtitle-page-inset);
+    bottom: var(--subtitle-page-inset);
+    width: var(--subtitle-preview-width);
+    z-index: 20;
+  }
+}
+
+@media (min-width: 1280px) {
+  .std-subtitle-workspace {
+    --subtitle-preview-width: 450px;
+  }
+}

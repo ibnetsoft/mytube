@@ -7976,7 +7976,7 @@ export default function StdPortalPage() {
     }
 
     return (
-        <div className="h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none">
+        <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             {isImpersonating && (
                 <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
                     <div className="flex items-center gap-2.5">
@@ -8004,7 +8004,7 @@ export default function StdPortalPage() {
                 </div>
             )}
             {/* 1. 상단 글로벌 헤더 */}
-            <header className="h-12 bg-[#181d26] border-b border-white/10 px-3 sm:px-4 flex items-center justify-between shrink-0 z-30">
+            <header className="std-global-header h-12 bg-[#181d26] border-b border-white/10 px-3 sm:px-4 flex items-center justify-between shrink-0 z-30">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     {/* 모바일 햄버거 메뉴 버튼 */}
                     <button
@@ -8332,7 +8332,7 @@ export default function StdPortalPage() {
                 </aside>
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
-                <main className={`flex-1 flex flex-col bg-[#14181f] space-y-3 sm:space-y-6 ${
+                <main className={`min-w-0 flex-1 flex flex-col bg-[#14181f] space-y-3 sm:space-y-6 ${
                     currentNav === 'subtitle_vrew'
                         ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
@@ -8375,7 +8375,7 @@ export default function StdPortalPage() {
                         return (
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
-                            <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
+                            <div className="std-subtitle-controls relative z-30 bg-[#1c2027] border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
                                 {/* 1행: 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
                                 <div className="flex items-stretch sm:items-center gap-x-2.5 gap-y-1.5 flex-wrap">
                                     {isVrewSubtitleMode && (
@@ -8788,7 +8788,7 @@ export default function StdPortalPage() {
                             </div>
 
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
-                            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+                            <div className="std-subtitle-body grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
                                 <div className="order-2 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-[360px] lg:order-none lg:min-h-0">
                                     <div className="flex min-h-[57px] flex-col items-start gap-2 p-2.5 sm:p-3 border-b border-white/5 bg-[#14181f] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -9253,7 +9253,7 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
-                                <div className="contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
+                                <div className="std-subtitle-preview contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
                                     <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
