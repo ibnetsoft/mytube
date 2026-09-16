@@ -8161,34 +8161,42 @@ export default function StdPortalPage() {
                                 <button
                                     type="button"
                                     onClick={() => setCurrentLocale('ko')}
-                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'ko' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    aria-label="한국어"
+                                    aria-pressed={currentLocale === 'ko'}
+                                    className={`rounded p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'ko' ? 'bg-blue-500/15 ring-1 ring-blue-400' : 'opacity-70 hover:opacity-100'}`}
                                     title="한국어"
                                 >
-                                    🇰🇷
+                                    <img src="/flags/kr.svg" alt="" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px]" />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setCurrentLocale('en')}
-                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'en' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    aria-label="English"
+                                    aria-pressed={currentLocale === 'en'}
+                                    className={`rounded p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'en' ? 'bg-blue-500/15 ring-1 ring-blue-400' : 'opacity-70 hover:opacity-100'}`}
                                     title="English"
                                 >
-                                    🇺🇸
+                                    <img src="/flags/us.svg" alt="" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px]" />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setCurrentLocale('vi')}
-                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'vi' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    aria-label="Tiếng Việt"
+                                    aria-pressed={currentLocale === 'vi'}
+                                    className={`rounded p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'vi' ? 'bg-blue-500/15 ring-1 ring-blue-400' : 'opacity-70 hover:opacity-100'}`}
                                     title="Tiếng Việt"
                                 >
-                                    🇻🇳
+                                    <img src="/flags/vn.svg" alt="" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px]" />
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setCurrentLocale('th')}
-                                    className={`cursor-pointer hover:scale-125 transition-transform ${currentLocale === 'th' ? 'scale-110 ring-1 ring-blue-400 rounded-full' : 'opacity-60'}`}
+                                    aria-label="ภาษาไทย"
+                                    aria-pressed={currentLocale === 'th'}
+                                    className={`rounded p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'th' ? 'bg-blue-500/15 ring-1 ring-blue-400' : 'opacity-70 hover:opacity-100'}`}
                                     title="ภาษาไทย"
                                 >
-                                    🇹🇭
+                                    <img src="/flags/th.svg" alt="" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px]" />
                                 </button>
                             </div>
                         </div>
