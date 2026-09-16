@@ -2981,13 +2981,21 @@ export default function StdPortalPage() {
         title: string,
         tone: 'default' | 'dialogue' = 'default',
         _openDirection: 'left' | 'right' = 'right',
-        disabled = false
+        disabled = false,
+        options: { buttonLabel?: string; elevenLabsOnly?: boolean } = {}
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
         const isOpen = !disabled && openVoicePickerKey === pickerKey
-        const draftVoiceId = voicePickerDraft || voiceId
-        const draftVoice = allVoices.find((voice: any) => String(voice.id) === draftVoiceId)
-        const filteredVoices = allVoices.filter((voice: any) => {
+        const availableVoices = options.elevenLabsOnly
+            ? allVoices.filter((voice: any) => {
+                const id = String(voice.id || '').toLowerCase()
+                return voice.category !== 'google' && !id.startsWith('google') && !id.startsWith('gemini:')
+            })
+            : allVoices
+        const requestedVoiceId = voicePickerDraft || voiceId
+        const draftVoiceId = availableVoices.some((voice: any) => String(voice.id) === requestedVoiceId) ? requestedVoiceId : ''
+        const draftVoice = availableVoices.find((voice: any) => String(voice.id) === draftVoiceId)
+        const filteredVoices = availableVoices.filter((voice: any) => {
             const query = voicePickerSearch.trim().toLowerCase()
             if (!query) return true
             return [
@@ -3019,7 +3027,7 @@ export default function StdPortalPage() {
                         setVoicePickerPreviewUrl('')
                         setOpenVoicePickerKey(pickerKey)
                     }}
-                    className={`w-8 h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
+                    className={`${options.buttonLabel ? 'px-2.5 gap-1.5' : 'w-8'} h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
                         disabled
                             ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
                             : tone === 'dialogue'
@@ -3028,6 +3036,7 @@ export default function StdPortalPage() {
                     }`}
                 >
                     <Mic size={14} />
+                    {options.buttonLabel && <span>{options.buttonLabel}</span>}
                 </button>
                 {!disabled && isOpen && typeof document !== 'undefined' && createPortal(
                     <div
@@ -8907,7 +8916,11 @@ export default function StdPortalPage() {
                                                         'selected-blocks-bulk',
                                                         selectedSubtitleBlockVoiceId,
                                                         (nextVoiceId) => void setSelectedSubtitleBlocksVoice(nextVoiceId),
-                                                        `선택한 자막 ${selectedSubtitleBlockIndexes.length}개 성우`
+                                                        `ElevenLabs · 선택한 자막 ${selectedSubtitleBlockIndexes.length}개 대사 성우`,
+                                                        'dialogue',
+                                                        'right',
+                                                        false,
+                                                        { buttonLabel: '대사', elevenLabsOnly: true }
                                                     )}
                                                 </>
                                             )}
