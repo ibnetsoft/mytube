@@ -8395,8 +8395,10 @@ export default function StdPortalPage() {
                 </aside>
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
-                <main className={`flex-1 flex flex-col bg-[#14181f] p-2 sm:p-5 md:p-6 space-y-3 sm:space-y-6 ${
-                    currentNav === 'subtitle_vrew' ? 'overflow-y-auto lg:overflow-hidden' : 'overflow-y-auto'
+                <main className={`flex-1 flex flex-col bg-[#14181f] space-y-3 sm:space-y-6 ${
+                    currentNav === 'subtitle_vrew'
+                        ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:overflow-hidden'
+                        : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
@@ -9311,7 +9313,7 @@ export default function StdPortalPage() {
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
                                 <div className="contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
-                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto">
+                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl overflow-hidden shadow flex flex-col lg:order-none">
                                         {bgmAsset && (
