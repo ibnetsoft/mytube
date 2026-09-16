@@ -1051,7 +1051,6 @@ export default function StdPortalPage() {
     const vrewAudioCacheRef = useRef<Record<string, string>>({})
     const vrewAudioPromiseRef = useRef<Map<string, Promise<string>>>(new Map())
     const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
-    const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const previousBgmVolumeRef = useRef(0.08)
     const [bgmLoop, setBgmLoop] = useState(true)
@@ -3469,39 +3468,6 @@ export default function StdPortalPage() {
         setVrewActiveTokenIndex(-1)
     }
 
-    const persistVrewSegmentAudio = async (
-        audioBlob: Blob,
-        payload: any,
-        subtitle: any,
-        index: number,
-        voiceId: string
-    ) => {
-        if (!selectedProject?.project?.id || payload?.cached || !payload?.cache_key) return
-        const fileName = String(payload?.file_name || `vrew_segment_${index + 1}.mp3`)
-        const form = new FormData()
-        form.set('file', new File([audioBlob], fileName, { type: audioBlob.type || 'audio/mpeg' }))
-        form.set('file_name', fileName)
-        form.set('cache_key', String(payload.cache_key))
-        form.set('segment_index', String(index))
-        form.set('provider', voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs')
-        form.set('voice_id', voiceId)
-        form.set('model_id', 'eleven_multilingual_v2')
-        form.set('speed', String(Number(ttsSpeed)))
-        form.set('stability', String(Number(elStability)))
-        form.set('style', String(Number(elStyle)))
-        form.set('text', String(subtitle?.text || ''))
-
-        const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/cache-segment`, {
-            method: 'POST',
-            headers: authedUploadHeaders,
-            body: form,
-        })
-        if (!res.ok) {
-            const errorPayload = await safeParseJson(res, '자막 구간 음성 캐시 저장 실패')
-            throw new Error(errorPayload?.error || `자막 구간 음성 캐시 저장 실패 (${res.status})`)
-        }
-    }
-
     const isSameOriginApiAudioUrl = (audioUrl: string) => {
         if (audioUrl.startsWith('/api/')) return true
         try {
@@ -3567,13 +3533,13 @@ export default function StdPortalPage() {
             return vrewAudioCacheRef.current[cacheKey]
         }
         const inFlightRequest = vrewAudioPromiseRef.current.get(cacheKey)
-        if (inFlightRequest && !signal) {
+        if (inFlightRequest) {
             return await inFlightRequest
         }
 
         setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
         const generationPromise = (async () => {
-            const requestSegmentAudio = async (bypassCache = false) => {
+            const requestSegmentAudio = async () => {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
                 signal,
@@ -3590,7 +3556,6 @@ export default function StdPortalPage() {
                     text,
                     segment_index: index,
                     cache_key: cacheKey,
-                    bypass_cache: bypassCache,
                     multi_voice: false,
                     voice_map: {},
                 }),
@@ -3608,26 +3573,14 @@ export default function StdPortalPage() {
                     const inlineAudioRes = await fetch(audioUrl)
                 const audioBlob = await inlineAudioRes.blob()
                 audioUrl = URL.createObjectURL(audioBlob)
-                void persistVrewSegmentAudio(audioBlob, payload, subtitle, index, voiceId).catch(error => {
-                    console.warn('[STD Vrew subtitles] background segment cache failed:', error)
-                })
                 } else if (isSameOriginApiAudioUrl(audioUrl)) {
                     audioUrl = await fetchVrewAudioBlobUrl(audioUrl, signal)
                 }
                 return audioUrl
             }
 
-            let payload = await requestSegmentAudio(vrewBypassCachedSegmentAudioRef.current)
-            let audioUrl = ''
-            try {
-                audioUrl = await resolvePayloadAudioUrl(payload)
-            } catch (error) {
-                if (signal?.aborted) throw signal.reason
-                if (!payload?.cached) throw error
-                vrewBypassCachedSegmentAudioRef.current = true
-                payload = await requestSegmentAudio(true)
-                audioUrl = await resolvePayloadAudioUrl(payload)
-            }
+            const payload = await requestSegmentAudio()
+            const audioUrl = await resolvePayloadAudioUrl(payload)
             if (signal?.aborted) {
                 if (audioUrl.startsWith('blob:')) URL.revokeObjectURL(audioUrl)
                 throw signal.reason
@@ -3865,22 +3818,8 @@ export default function StdPortalPage() {
         }
     }
 
-    useEffect(() => {
-        if (currentNav !== 'subtitle_vrew' || !localSubtitles[selectedSubIndex]) return
-        const timeout = window.setTimeout(() => prefetchVrewSegment(selectedSubIndex), 250)
-        return () => window.clearTimeout(timeout)
-        // Request identity is fully represented by the dependencies below.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        currentNav,
-        selectedSubIndex,
-        selectedProject?.project?.id,
-        localSubtitles,
-        selectedVoice,
-        ttsSpeed,
-        elStability,
-        elStyle,
-    ])
+    // Loading/selecting subtitles must not call paid synthesis. Prefetch only during playback.
+
 
     useEffect(() => {
         return () => {

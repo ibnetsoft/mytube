@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { completedScriptTtsProgress } from '@/lib/stdTtsCompletion'
 import { createHash } from 'crypto'
+import { segmentAudioKey, legacySegmentMatches, persistSegmentAudio } from '@/lib/stdSegmentAudioCache'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import {
@@ -670,23 +671,16 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const segmentPreview = body?.mode === 'vrew_segment_preview' || fastSegmentPreview || body?.segment_preview === true
         const bypassSegmentCache = Boolean(body?.bypass_cache)
         const segmentIndex = Number(body?.segment_index)
-        const segmentCacheKey = segmentPreview
-            ? safeFileKey(String(body?.cache_key || createHash('sha1')
-                .update(JSON.stringify({
-                    text,
-                    provider,
-                    voiceId,
-                    modelId,
-                    speed: projectTtsSpeed,
-                    direction: String(body?.direction || ''),
-                    stability: body?.stability ?? null,
-                    style: body?.style ?? null,
-                }))
-                .digest('hex')))
-            : ''
+        const segmentIdentity = {
+            text, provider, voiceId, modelId, speed: projectTtsSpeed,
+            direction: String(body?.direction || ''),
+            stability: body?.stability ?? null, style: body?.style ?? null,
+            language: String(project.language || 'ko'),
+        }
+        const segmentCacheKey = segmentPreview ? segmentAudioKey(segmentIdentity) : ''
         if (segmentPreview && segmentCacheKey && !bypassSegmentCache) {
             stage = 'lookup_segment_cache'
-            const { data: cachedAsset, error: cachedAssetError } = await supabaseAdmin
+            let { data: cachedAsset, error: cachedAssetError } = await supabaseAdmin
                 .from('std_project_assets')
                 .select('*')
                 .eq('project_id', project.id)
@@ -698,8 +692,19 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 .limit(1)
                 .maybeSingle()
             if (cachedAssetError) throw cachedAssetError
-            if (cachedAsset?.drive_file_id) {
-                const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?driveFileId=${encodeURIComponent(cachedAsset.drive_file_id)}`
+            // Reuse older Drive caches only when their full synthesis settings match.
+            if (!cachedAsset && body?.cache_key) {
+                const legacy = await supabaseAdmin.from('std_project_assets').select('*')
+                    .eq('project_id', project.id).eq('asset_type', 'other')
+                    .in('status', ['uploaded', 'assigned'])
+                    .eq('metadata->>kind', 'vrew_segment_tts')
+                    .eq('metadata->>cache_key', safeFileKey(String(body.cache_key)))
+                    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+                if (legacy.error) throw legacy.error
+                if (legacySegmentMatches(legacy.data?.metadata, segmentIdentity)) cachedAsset = legacy.data
+            }
+            if (cachedAsset?.drive_file_id || cachedAsset?.metadata?.storage_path) {
+                const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(cachedAsset.id)}`
                 return NextResponse.json({
                     success: true,
                     cached: true,
@@ -812,20 +817,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             ? `vrew_segment_${safeProjectKey}_${Number.isFinite(segmentIndex) ? String(segmentIndex + 1).padStart(4, '0') : '0000'}_${segmentHash}.mp3`
             : `std_tts_${safeProjectKey}_${Date.now()}.mp3`
         if (fastSegmentPreview) {
-            if (audioBuffer.length > MAX_INLINE_AUDIO_BYTES) {
-                throw new Error('자막 미리듣기 음성 크기가 즉시 재생 한도를 초과했습니다.')
-            }
+            stage = 'persist_segment_audio'
+            const asset = await persistSegmentAudio(supabaseAdmin, {
+                projectId: project.id, cacheKey: segmentCacheKey, identity: segmentIdentity,
+                audioBuffer, fileName, segmentIndex, generatedBy: auth.requester.email,
+            })
+            const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
             return NextResponse.json({
-                success: true,
-                segment_preview: true,
-                cached: false,
-                persistence_pending: true,
-                file_name: fileName,
-                cache_key: segmentCacheKey,
-                audio_url: `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`,
-                elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
-                elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-                message: '자막 구간 TTS 음성을 즉시 생성했습니다.',
+                success: true, segment_preview: true, cached: false,
+                persistence_pending: false, asset, file_name: fileName,
+                cache_key: segmentCacheKey, audio_url: audioUrl,
+                message: '자막 구간 음성을 저장했습니다.',
             })
         }
         stage = 'ensure_drive_folders'
