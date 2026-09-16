@@ -821,6 +821,8 @@ export default function StdPortalPage() {
     const projectAssetFileUrl = (projectId: string | null | undefined, asset: any): string | null => {
         const id = String(projectId || '').trim()
         if (!id || !asset) return null
+        const externallyUploaded = /^(server_supabase|browser_supabase|browser_drive)/.test(String(asset?.metadata?.upload_mode || ''))
+        if (!externallyUploaded && localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return null
         const assetId = String(asset?.id || '').trim()
         const driveFileId = String(asset?.drive_file_id || '').trim()
         const impersonateSuffix = isImpersonating && impersonateEmail
@@ -1050,6 +1052,7 @@ export default function StdPortalPage() {
     const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const [previewBgmUrl, setPreviewBgmUrl] = useState('')
     const previewBgmAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
     const previewVideoIdentityRef = useRef('')
@@ -3427,6 +3430,7 @@ export default function StdPortalPage() {
         }
         void audio.play().catch(error => {
             console.warn('[STD preview] BGM playback failed:', error)
+            setMessage('배경음 재생에 실패했습니다. 파일을 다시 업로드하거나 로그인 상태를 확인해 주세요.')
         })
     }
 
@@ -3509,8 +3513,6 @@ export default function StdPortalPage() {
     }
 
     const getSavedNarrationAudioUrl = async () => {
-        // A saved audio asset may predate the current Voice Studio casting.
-        if (localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return null
         const projectId = String(selectedProject?.project?.id || '').trim()
         const asset = (selectedProject?.assets || []).find((item: any) =>
             String(item?.asset_type || '').toLowerCase() === 'audio'
@@ -3523,7 +3525,9 @@ export default function StdPortalPage() {
             return vrewFinalNarrationAudioRef.current.url
         }
 
-        const endpoint = `/api/std/projects/${encodeURIComponent(projectId)}/tts/audio?assetId=${encodeURIComponent(assetId)}`
+        const storedUrl = directStorageUrl(asset)
+        if (storedUrl) return storedUrl
+        const endpoint = `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?assetId=${encodeURIComponent(assetId)}`
         const url = await fetchVrewAudioBlobUrl(endpoint)
         const previous = vrewFinalNarrationAudioRef.current
         if (previous?.url) URL.revokeObjectURL(previous.url)
@@ -3684,7 +3688,12 @@ export default function StdPortalPage() {
                     setVrewActiveTokenIndex(vrewActiveTokenAtPlaybackTime(localSubtitles[activeIndex], time))
                 }
                 audio.onloadedmetadata = () => {
-                    audio.currentTime = Math.min(startTime, Math.max(0, Number(audio.duration) || 0))
+                    if (Number.isFinite(audio.duration) && startTime >= audio.duration) {
+                        cleanup()
+                        reject(new Error('선택한 자막 시간이 오디오 길이를 넘었습니다. 앞쪽 자막을 선택해 재생해 주세요.'))
+                        return
+                    }
+                    audio.currentTime = startTime
                     syncPlaybackProgress()
                     vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
                     playPreviewBgm(startTime)
@@ -4932,29 +4941,13 @@ export default function StdPortalPage() {
         const file = e.target.files?.[0]
         if (!file) return
         if (!selectedProject?.project?.id) return
-        const fakeUrl = URL.createObjectURL(file)
-        setAudioResultUrl(fakeUrl)
         setUploadingKey('audio-upload')
         try {
-            const form = new FormData()
-            form.set('file', file)
-            form.set('asset_type', 'audio')
-            form.set('mime_type', file.type || 'audio/mpeg')
-            form.set('file_name', file.name)
-            form.set('file_size', String(file.size))
-
-            const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
-                method: 'POST',
-                headers: authedUploadHeaders,
-                body: form,
-            })
-            const uploadPayload = await safeParseJson(uploadRes, 'Audio upload failed')
-            if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
-                throw new Error(uploadPayload.error || 'Audio upload failed')
-            }
-
+            const asset = await uploadDriveAudioAsset(file, 'audio')
+            const uploadPayload = { asset }
+            setAudioResultUrl(directStorageUrl(asset) || assetPlaybackUrl(asset))
             setSelectedProject(prev => {
-                if (!prev) return prev
+                if (!prev || prev.project.id !== selectedProject.project.id) return prev
                 const updated = {
                     ...prev,
                     assets: [
@@ -4974,16 +4967,17 @@ export default function StdPortalPage() {
                 rememberProjectState(updated)
                 return updated
             })
+            setMessage(`외부 오디오 '${file.name}'이 저장되어 미리보기에 적용되었습니다.`)
         } catch (error: any) {
             setMessage(error.message || 'Audio upload failed')
         } finally {
             setUploadingKey('')
             e.target.value = ''
         }
-        alert(`외부 오디오 파일 '${file.name}'이(가) 업로드되었습니다.`)
     }
 
     const assetPlaybackUrl = (asset: any) => {
+        if (directStorageUrl(asset)) return directStorageUrl(asset)
         if (!selectedProject?.project?.id || !asset?.id) return ''
         return `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
     }
@@ -5024,26 +5018,31 @@ export default function StdPortalPage() {
         }
     }
 
-    const uploadDriveAudioAsset = async (file: File, assetType: 'bgm' | 'sfx', sceneNumber?: number | null) => {
-        if (!selectedProject?.project?.id) throw new Error('Project not selected')
-        const form = new FormData()
-        form.set('file', file)
-        form.set('asset_type', assetType)
-        form.set('mime_type', file.type || 'audio/mpeg')
-        form.set('file_name', file.name)
-        form.set('file_size', String(file.size))
-        if (sceneNumber != null && Number.isFinite(sceneNumber)) form.set('scene_number', String(sceneNumber))
-
-        const uploadRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/upload', {
-            method: 'POST',
-            headers: authedUploadHeaders,
-            body: form,
-        })
-        const uploadPayload = await safeParseJson(uploadRes, `${assetType.toUpperCase()} upload failed`)
-        if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
-            throw new Error(uploadPayload.error || `${assetType.toUpperCase()} upload failed`)
+    const uploadDriveAudioAsset = async (file: File, assetType: 'audio' | 'bgm' | 'sfx', sceneNumber?: number | null) => {
+        const projectId = selectedProject?.project?.id
+        if (!projectId) throw new Error('Project not selected')
+        const details = {
+            asset_type: assetType, mime_type: file.type || 'audio/mpeg',
+            file_name: file.name, file_size: file.size, scene_number: sceneNumber ?? null,
         }
-        return uploadPayload.asset
+        const initRes = await fetch(`/api/std/projects/${projectId}/assets/init`, {
+            method: 'POST', headers: authedJsonHeaders, body: JSON.stringify(details),
+        })
+        const init = await safeParseJson(initRes, '오디오 업로드 준비 실패')
+        if (!initRes.ok || !init.storage_upload_url) throw new Error(init.error || '오디오 업로드 준비 실패')
+        // Send binary data directly to storage, avoiding the server request-size limit.
+        const uploadRes = await fetch(init.storage_upload_url, {
+            method: 'PUT', headers: { 'Content-Type': details.mime_type }, body: file,
+        })
+        if (!uploadRes.ok) throw new Error(`오디오 파일 업로드 실패 (${uploadRes.status})`)
+        const completeRes = await fetch(`/api/std/projects/${projectId}/assets/complete`, {
+            method: 'POST', headers: authedJsonHeaders,
+            body: JSON.stringify({ ...details, storage_bucket: init.storage_bucket,
+                storage_path: init.storage_path, storage_public_url: init.storage_public_url }),
+        })
+        const complete = await safeParseJson(completeRes, '오디오 저장 실패')
+        if (!completeRes.ok || !complete.asset) throw new Error(complete.error || '오디오 저장 실패')
+        return complete.asset
     }
 
     const handleUploadBgmFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -5060,7 +5059,7 @@ export default function StdPortalPage() {
                 bgm_file_name: asset.file_name || file.name,
                 bgm_volume: currentSettings.bgm_volume ?? 0.25,
             }, nextAssets)
-            setMessage(`BGM '${file.name}'이 Google Drive에 저장되었습니다.`)
+            setMessage(`BGM '${file.name}'이 저장되어 미리보기에 적용되었습니다.`)
         } catch (error: any) {
             setMessage(error?.message || 'BGM upload failed')
         } finally {
@@ -7222,6 +7221,22 @@ export default function StdPortalPage() {
     const bgmAsset = selectedProject?.assets?.find((asset: any) =>
         asset.asset_type === 'bgm' && asset.id === bgmSfxSettings.bgm_asset_id
     )
+    useEffect(() => {
+        let cancelled = false
+        let blobUrl = ''
+        setPreviewBgmUrl(directStorageUrl(bgmAsset))
+        if (bgmAsset?.id && !directStorageUrl(bgmAsset)) {
+            void fetchVrewAudioBlobUrl(assetPlaybackUrl(bgmAsset)).then(url => {
+                if (cancelled) { URL.revokeObjectURL(url); return }
+                blobUrl = url
+                setPreviewBgmUrl(url)
+            }).catch(() => {
+                if (!cancelled) setMessage('배경음 파일을 불러오지 못했습니다. Google Drive 연결을 확인하거나 다시 업로드해 주세요.')
+            })
+        }
+        return () => { cancelled = true; if (blobUrl) URL.revokeObjectURL(blobUrl) }
+    }, [selectedProject?.project?.id, bgmAsset?.id, bgmAsset?.metadata?.storage_public_url, authedJsonHeaders])
+
     const sfxCues = Array.isArray(bgmSfxSettings.sfx_cues) ? bgmSfxSettings.sfx_cues : []
     const currentSfxCue = sfxCues.find((cue: any) => Number(cue?.subtitle_index) === selectedSubIndex)
     const currentSfxAsset = currentSfxCue?.asset_id
@@ -9302,7 +9317,7 @@ export default function StdPortalPage() {
                                         {bgmAsset && (
                                             <audio
                                                 ref={previewBgmAudioRef}
-                                                src={assetPlaybackUrl(bgmAsset)}
+                                                src={previewBgmUrl || undefined}
                                                 preload="auto"
                                                 loop
                                                 className="hidden"
