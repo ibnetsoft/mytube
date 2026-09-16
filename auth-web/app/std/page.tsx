@@ -2590,6 +2590,7 @@ export default function StdPortalPage() {
     const sceneEffectSavingRef = useRef(false)
     const [isSceneEffectSaving, setIsSceneEffectSaving] = useState(false)
     const applySelectedSceneTransition = async (effectId: string, field: 'transition_effect' | 'image_effect' = 'transition_effect', targets = selectedSubtitleSceneNumbers) => {
+        targets = field === 'image_effect' ? targets.filter(sceneNumber => Number(sceneNumber) > 12) : targets
         if (!selectedProject?.project?.id || targets.length === 0) return
         if (sceneEffectSavingRef.current) return
         sceneEffectSavingRef.current = true
@@ -9053,7 +9054,7 @@ export default function StdPortalPage() {
                                                                     {sceneTransitionLabel(transitionEffect)}
                                                                 </div>
                                                             )}
-                                                            {isVrewSubtitleMode && (
+                                                            {isVrewSubtitleMode && !isHook && (
                                                                 <label className="mt-2 flex flex-col items-start gap-1 text-[9px] text-cyan-200">
                                                                     <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
                                                                         disabled={Boolean(group.video_url) || isSceneEffectSaving}
