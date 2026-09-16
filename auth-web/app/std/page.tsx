@@ -4257,10 +4257,10 @@ export default function StdPortalPage() {
                 return `${path}${path.includes('?') ? '&' : '?'}${impersonateQuery}`
             }
             const [meRes, topicsRes, projectsRes, voicesRes] = await Promise.allSettled([
-                fetch(withImpersonation('/api/std/me'), { headers }),
-                fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers }),
-                fetch(withImpersonation('/api/std/projects'), { headers }),
-                fetch(withImpersonation('/api/std/voices'), { headers }),
+                fetch(withImpersonation('/api/std/me'), { headers, signal: AbortSignal.timeout(15000) }),
+                fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers, signal: AbortSignal.timeout(15000) }),
+                fetch(withImpersonation('/api/std/projects'), { headers, signal: AbortSignal.timeout(15000) }),
+                fetch(withImpersonation('/api/std/voices'), { headers, signal: AbortSignal.timeout(15000) }),
             ])
 
             let meData: any = {}
@@ -4295,12 +4295,14 @@ export default function StdPortalPage() {
                     if (mapped.length > 0) setSelectedCategories(mapped)
                 }
             } else {
-                if (!isImpersonating) {
+                if (!isImpersonating && meRes.status === 'fulfilled' && [401, 403].includes(meRes.value.status)) {
                     setUser(null)
                     setToken('')
                     localStorage.removeItem('std_session_token')
+                    setMessage('로그인 세션이 만료됐습니다. 다시 로그인해 주세요.')
                     return
                 }
+                throw new Error('인증 서버가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.')
             }
 
             const loadedTopics = Array.isArray(topicPayload?.topics) ? topicPayload.topics : []
@@ -4378,6 +4380,7 @@ export default function StdPortalPage() {
             }
         } catch (error: any) {
             console.warn('[loadStdData] warning:', error?.message)
+            setMessage(error?.message || '서버 연결에 실패했습니다. 다시 시도해 주세요.')
         } finally {
             if (showLoading) setLoading(false)
         }
@@ -4414,9 +4417,9 @@ export default function StdPortalPage() {
                         'x-impersonate-email': cleanEmail,
                     }
                     const [meRes, pRes, tRes] = await Promise.allSettled([
-                        fetch(`/api/std/me?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
-                        fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
-                        fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers }),
+                        fetch(`/api/std/me?impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
+                        fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
+                        fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
                     ])
                     const meData = meRes.status === 'fulfilled' ? await meRes.value.json().catch(() => ({})) : {}
                     const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
@@ -4611,9 +4614,10 @@ export default function StdPortalPage() {
     }, [selectedProject])
 
     const signIn = async () => {
+        if (loading) return
         setLoading(true)
         setMessage('')
-        const targetEmail = email.trim().toLowerCase() || 'ejsh0519@naver.com'
+        const targetEmail = email.trim().toLowerCase()
         localStorage.setItem('std_last_email', targetEmail)
 
         // 아이디 / 비밀번호 저장 처리
@@ -4636,23 +4640,17 @@ export default function StdPortalPage() {
         try {
             const res = await fetch('/api/std/login', {
                 method: 'POST',
+                signal: AbortSignal.timeout(15000),
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: targetEmail, password: password || '1234' }),
+                body: JSON.stringify({ email: targetEmail, password }),
             })
-            const result = await res.json().catch(() => ({}))
+            const result = await res.json().catch(() => { throw new Error('로그인 서버가 정상 응답을 보내지 않았습니다. 잠시 후 다시 시도해 주세요.') })
             
-            if (result.error && !result.success) {
-                setMessage(result.error)
-                return
+            if (!res.ok || !result.success || !result.session_token || !result.user?.id) {
+                throw new Error(result.error || '로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.')
             }
-
-            const accessToken = result.session_token || `std_dev_token_${Date.now()}`
-            const loggedInUser = result.user || {
-                id: 'worker-' + Date.now(),
-                email: targetEmail,
-                full_name: '김호',
-                membership: 'std',
-            }
+            const accessToken = result.session_token
+            const loggedInUser = result.user
 
             setToken(accessToken)
             localStorage.setItem('std_session_token', accessToken)
@@ -4666,18 +4664,11 @@ export default function StdPortalPage() {
                 })
                 setWalletAddress(result.wallet_address || result.wallet?.address || '')
             }
-            await loadStdData(accessToken)
+            void loadStdData(accessToken, { showLoading: false })
         } catch (error: any) {
-            const fallbackToken = `std_dev_token_${Date.now()}`
-            const fallbackUser = {
-                id: 'worker-temp',
-                email: targetEmail,
-                full_name: '김호',
-                membership: 'std',
-            }
-            setToken(fallbackToken)
-            localStorage.setItem('std_session_token', fallbackToken)
-            setUser(fallbackUser)
+            setMessage(error?.name === 'TimeoutError' || error?.name === 'AbortError'
+                ? '로그인 서버가 15초 안에 응답하지 않았습니다. 잠시 후 다시 로그인해 주세요.'
+                : error?.message || '로그인 서버에 연결하지 못했습니다. 다시 시도해 주세요.')
         } finally {
             setLoading(false)
         }
@@ -5478,6 +5469,7 @@ export default function StdPortalPage() {
 
             const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
                 headers: fetchHeaders,
+                signal: AbortSignal.timeout(20000),
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (!isLatestOpen()) return null

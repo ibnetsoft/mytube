@@ -42,11 +42,11 @@ async function fetchProfileByEmail(email: string) {
             .maybeSingle()
         if (error) {
             console.warn('[StdLogin] fetchProfileByEmail error:', error.message)
-            return null
+            throw new Error('로그인 DB에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.')
         }
         return data
     } catch {
-        return null
+        throw new Error('로그인 DB에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.')
     }
 }
 
@@ -95,8 +95,7 @@ export async function POST(req: Request) {
             authData = authResult.data
             authError = authResult.error
         } catch {
-            authData = { session: null, user: null }
-            authError = null
+            throw new Error('인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.')
         }
 
         if (!authError && authData?.session?.access_token && authData?.user?.email) {
@@ -128,28 +127,14 @@ export async function POST(req: Request) {
             })
         }
 
-        // Allow arbitrary login for development/testing
         return NextResponse.json({
-            success: true,
-            auth_type: 'pin',
-            session_token: signDesktopSessionToken(normalizedEmail),
-            user: userPayload(profile || fallbackProfile),
-        })
+            success: false,
+            error: authError?.status >= 500
+                ? '인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+                : '이메일 또는 비밀번호를 확인해 주세요.',
+        }, { status: authError?.status >= 500 ? 503 : 401 })
     } catch (error: any) {
-        console.error('[StdLogin] fallback error:', error?.message)
-        const body = await req.clone().json().catch(() => ({}))
-        const normalizedEmail = String(body?.email || 'worker@airstudio.io').trim().toLowerCase()
-        return NextResponse.json({
-            success: true,
-            auth_type: 'pin',
-            session_token: signDesktopSessionToken(normalizedEmail),
-            user: {
-                id: 'temp-worker',
-                email: normalizedEmail,
-                full_name: normalizedEmail.split('@')[0] || 'STD 작업자',
-                membership: 'std',
-                signup_status: 'approved',
-            },
-        })
+        console.error('[StdLogin] error:', error?.message)
+        return NextResponse.json({ success: false, error: '로그인 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.' }, { status: 503 })
     }
 }
