@@ -8422,7 +8422,7 @@ export default function StdPortalPage() {
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
                             <div className="relative z-30 bg-[#1c2027] border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
-                                {/* 1행: 외부오디오 | 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
+                                {/* 1행: 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
                                 <div className="flex items-stretch sm:items-center gap-x-2.5 gap-y-1.5 flex-wrap">
                                     {isVrewSubtitleMode && (
                                         <>
@@ -8443,11 +8443,6 @@ export default function StdPortalPage() {
                                                     대사 {dialogueSubtitleCount}개
                                                 </span>
                                             </div>
-                                            {audioResultUrl && (
-                                                <span className="text-[10px] font-bold text-emerald-200 bg-emerald-500/10 border border-emerald-300/20 rounded px-2 py-1">
-                                                    TTS 준비됨
-                                                </span>
-                                            )}
                                             <div className="flex w-full items-center gap-2 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1.5 sm:w-auto">
                                                 <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
                                                     {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
@@ -8473,27 +8468,6 @@ export default function StdPortalPage() {
                                             <div className="w-px h-5 bg-white/10 shrink-0" />
                                         </>
                                     )}
-                                    {/* 외부 오디오 업로드 */}
-                                    <div className="flex w-[calc(50%-0.375rem)] items-center sm:w-auto">
-                                        <input
-                                            type="file"
-                                            id="audioUploadInput"
-                                            accept="audio/*"
-                                            className="hidden"
-                                            onChange={handleUploadExternalAudio}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => document.getElementById('audioUploadInput')?.click()}
-                                            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-gray-600 bg-transparent px-2.5 py-1.5 text-xs font-bold text-gray-200 transition-all hover:bg-white/5 hover:text-white sm:w-auto sm:shrink-0"
-                                            title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
-                                        >
-                                            <FileAudio size={14} className="text-yellow-300" />
-                                            <Upload size={13} className="text-yellow-300" />
-                                            <span>오디오</span>
-                                        </button>
-                                    </div>
-
                                     {/* 템플릿 선택 & 새로고침 */}
                                     <div className="flex w-[calc(50%-0.375rem)] items-center gap-1 sm:w-auto sm:shrink-0">
                                         <select
@@ -9643,6 +9617,26 @@ export default function StdPortalPage() {
                                             </div>
                                         ) : (
                                             <div className="space-y-3">
+                                                {/* 외부 오디오 업로드 */}
+                                                <div className="flex justify-end">
+                                                    <input
+                                                        type="file"
+                                                        id="audioUploadInput"
+                                                        accept="audio/*"
+                                                        className="hidden"
+                                                        onChange={handleUploadExternalAudio}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => document.getElementById('audioUploadInput')?.click()}
+                                                        className="flex w-full items-center justify-center gap-1.5 rounded-md border border-gray-600 bg-transparent px-2.5 py-1.5 text-xs font-bold text-gray-200 transition-all hover:bg-white/5 hover:text-white sm:w-auto sm:shrink-0"
+                                                        title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
+                                                    >
+                                                        <FileAudio size={14} className="text-yellow-300" />
+                                                        <Upload size={13} className="text-yellow-300" />
+                                                        <span>오디오</span>
+                                                    </button>
+                                                </div>
                                                 <div className="rounded-lg border border-white/10 bg-[#14181f] p-3">
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div className="min-w-0">
