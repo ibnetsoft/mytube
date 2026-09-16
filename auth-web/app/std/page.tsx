@@ -9201,12 +9201,17 @@ export default function StdPortalPage() {
                                                                                         <div
                                                                                             className="min-w-0 flex-1 truncate border-l border-sky-400/20 pl-2 text-sky-200"
                                                                                             lang={subtitleReviewLocale}
-                                                                                            title={localizedTranslation || subtitleReviewCopy.pending}
+                                                                                            title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
                                                                                             <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
-                                                                                            {localizedTranslation || (translatingSubtitleLanguage === subtitleReviewLocale
-                                                                                                ? subtitleReviewCopy.translating
-                                                                                                : subtitleReviewCopy.pending)}
+                                                                                            {localizedTranslation || (subtitleTranslationError
+                                                                                                ? <button type="button" className="text-red-300 underline" onClick={(event) => {
+                                                                                                    event.stopPropagation()
+                                                                                                    void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { preferGemini: true })
+                                                                                                }}>{subtitleReviewCopy.retry}</button>
+                                                                                                : translatingSubtitleLanguage === subtitleReviewLocale
+                                                                                                    ? subtitleReviewCopy.translating
+                                                                                                    : subtitleReviewCopy.pending)}
                                                                                         </div>
                                                                                     )}
                                                                                     {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (

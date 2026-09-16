@@ -26,6 +26,7 @@ const DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL = 'gemini-3.6-flash'
 const SUBTITLE_TRANSLATION_SCOPE_KEY = 'sys_api_subtitle_translation_scope'
 
 async function geminiApiKey(): Promise<string> {
+    if (process.env.SUBTITLE_TRANSLATION_GEMINI_API_KEY) return process.env.SUBTITLE_TRANSLATION_GEMINI_API_KEY
     if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY
     const { data } = await supabaseAdmin
         .from('global_settings')
@@ -113,26 +114,37 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return !cachedText
     })
 
-    if (missing.length > 0) {
-        const apiKey = await geminiApiKey()
+    try {
+        if (missing.length > 0) {
+            const apiKey = await geminiApiKey()
 
-        for (let offset = 0; offset < missing.length; offset += BATCH_SIZE) {
-            const batch = missing.slice(offset, offset + BATCH_SIZE)
-            const source = batch.map((block: any) => ({ id: `b${block.index}`, text: block.source_text }))
-            const raw = await generateJsonWithModelSetting(
-                supabaseAdmin,
-                buildSubtitleTranslationPrompt(source, targetLanguage),
-                preferGeminiForSubtitleEdit ? SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY : SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
-                apiKey,
-                0.1,
-                {
-                    defaultModel: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,
-                    disableFallback: !preferGeminiForSubtitleEdit,
-                },
-            )
-            const result = parseStrictTranslationResponse(raw, source)
-            for (const item of result) translated.set(item.id.slice(1), item.translation)
+            for (let offset = 0; offset < missing.length; offset += BATCH_SIZE) {
+                const batch = missing.slice(offset, offset + BATCH_SIZE)
+                const source = batch.map((block: any) => ({ id: `b${block.index}`, text: block.source_text }))
+                const raw = await generateJsonWithModelSetting(
+                    supabaseAdmin,
+                    buildSubtitleTranslationPrompt(source, targetLanguage),
+                    preferGeminiForSubtitleEdit ? SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY : SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
+                    apiKey,
+                    0.1,
+                    {
+                        defaultModel: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,
+                        disableFallback: !preferGeminiForSubtitleEdit,
+                    },
+                )
+                const result = parseStrictTranslationResponse(raw, source)
+                for (const item of result) translated.set(item.id.slice(1), item.translation)
+            }
         }
+    } catch (error: any) {
+        const blocked = String(error?.message || '').includes('API_KEY_SERVICE_BLOCKED')
+        console.error('[subtitle-translations] generation failed', { status: error?.status, blocked })
+        return NextResponse.json({
+            success: false,
+            error: blocked
+                ? 'Gemini 자막 번역 키의 API 사용 권한이 차단되어 있습니다. 관리자 키 설정을 확인해 주세요.'
+                : '자막 번역 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+        }, { status: 502 })
     }
 
     const result: SubtitleTranslationBlock[] = blocks.map((block: any) => ({

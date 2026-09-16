@@ -50,10 +50,24 @@ console.log('subtitle merge/split preserves every unchanged translation before a
 
 // Execute the route's cache selection so the regression also covers API input.
 const route = fs.readFileSync(require.resolve('../app/api/std/projects/[projectId]/subtitle-translations/route.ts'), 'utf8')
-const selection = route.slice(route.indexOf('    const cachedBlocks ='), route.indexOf('    if (missing.length > 0)'))
+const selection = route.slice(route.indexOf('    const cachedBlocks ='), route.indexOf('    try {', route.indexOf('    const cachedBlocks =')))
 const selectMissing = new Function('project', 'targetLanguage', 'blocks', 'translationMapFromBlocks', 'remapSubtitleTranslations', 'subtitleTranslationKey',
     ts.transpile(selection + '\nreturn missing', { target: ts.ScriptTarget.ES2020 }))
 const missing = selectMissing({ project_payload: { subtitle_translations: { th: { blocks: saved } } } }, 'th',
     merged.map((source_text, index) => ({ index, source_text })), translationMapFromBlocks, remapSubtitleTranslations, subtitleTranslationKey)
 assert.deepEqual(missing, [{ index: 1, source_text: merged[1] }])
 console.log('API translates only the merged sentence in a 316-block project')
+
+async function verifyTranslationKey() {
+    const keySource = route.slice(route.indexOf('async function geminiApiKey'), route.indexOf('async function subtitleTranslationScope'))
+    const env = { SUBTITLE_TRANSLATION_GEMINI_API_KEY: 'translation-key', GEMINI_API_KEY: 'general-key' }
+    const lookup = () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { value: 'stored-key' } }) }) }) })
+    const getKey = new Function('process', 'supabaseAdmin', ts.transpile(keySource + '\nreturn geminiApiKey', { target: ts.ScriptTarget.ES2020 }))({ env }, { from: lookup })
+    assert.equal(await getKey(), 'translation-key')
+    delete env.SUBTITLE_TRANSLATION_GEMINI_API_KEY
+    assert.equal(await getKey(), 'general-key')
+    delete env.GEMINI_API_KEY
+    assert.equal(await getKey(), 'stored-key')
+    console.log('translation-specific credential takes priority without changing other AI calls')
+}
+verifyTranslationKey().catch(error => { console.error(error); process.exitCode = 1 })
