@@ -9616,131 +9616,39 @@ export default function StdPortalPage() {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="space-y-3">
-                                                {/* 외부 오디오 업로드 */}
-                                                <div className="flex justify-end">
-                                                    <input
-                                                        type="file"
-                                                        id="audioUploadInput"
-                                                        accept="audio/*"
-                                                        className="hidden"
-                                                        onChange={handleUploadExternalAudio}
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => document.getElementById('audioUploadInput')?.click()}
-                                                        className="flex w-full items-center justify-center gap-1.5 rounded-md border border-gray-600 bg-transparent px-2.5 py-1.5 text-xs font-bold text-gray-200 transition-all hover:bg-white/5 hover:text-white sm:w-auto sm:shrink-0"
-                                                        title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
-                                                    >
-                                                        <FileAudio size={14} className="text-yellow-300" />
-                                                        <Upload size={13} className="text-yellow-300" />
-                                                        <span>오디오</span>
-                                                    </button>
-                                                </div>
-                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-3">
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-2 text-xs font-black text-white">
-                                                                <Music size={15} className="text-cyan-300" />
-                                                                <span>BGM 배경음</span>
-                                                            </div>
-                                                            <div className="mt-1 truncate text-[11px] text-gray-400">
-                                                                {bgmAsset?.file_name || bgmSfxSettings.bgm_file_name || 'Google Drive에 업로드된 BGM이 없습니다.'}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex shrink-0 items-center gap-2">
-                                                            <input
-                                                                id="std-bgm-upload"
-                                                                type="file"
-                                                                accept="audio/*"
-                                                                className="hidden"
-                                                                onChange={handleUploadBgmFile}
-                                                            />
-                                                            {bgmAsset && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={clearBgmSetting}
-                                                                    title="BGM 적용 해제"
-                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-red-400/50 hover:text-red-300"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            )}
-                                                            <label
-                                                                htmlFor="std-bgm-upload"
-                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
-                                                                    uploadingKey === 'bgm-upload'
-                                                                        ? 'cursor-wait border-cyan-500/30 bg-cyan-500/10 text-cyan-200'
-                                                                        : 'cursor-pointer border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20'
-                                                                }`}
-                                                            >
-                                                                <Upload size={13} />
-                                                                {uploadingKey === 'bgm-upload' ? '업로드 중' : 'Drive 업로드'}
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    {bgmAsset && (
-                                                        <audio
-                                                            src={assetPlaybackUrl(bgmAsset)}
-                                                            controls
-                                                            className="mt-3 h-8 w-full"
-                                                        />
-                                                    )}
-                                                </div>
-
-                                                <div className="rounded-lg border border-white/10 bg-[#14181f] p-3">
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-2 text-xs font-black text-white">
-                                                                <FileAudio size={15} className="text-purple-300" />
-                                                                <span>현재 자막 SFX</span>
-                                                                <span className="rounded bg-[#0f1420] px-1.5 py-0.5 font-mono text-[10px] text-gray-400">
-                                                                    {formatTime(Number(currentSub.start_num ?? currentSub.start_time ?? 0) || 0)}
-                                                                </span>
-                                                            </div>
-                                                            <div className="mt-1 truncate text-[11px] text-gray-400">
-                                                                {currentSfxAsset?.file_name || currentSfxCue?.file_name || '선택한 자막 구간에 적용된 효과음이 없습니다.'}
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex shrink-0 items-center gap-2">
-                                                            <input
-                                                                id="std-sfx-upload"
-                                                                type="file"
-                                                                accept="audio/*"
-                                                                className="hidden"
-                                                                onChange={handleUploadCurrentSfxFile}
-                                                            />
-                                                            {currentSfxCue && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={clearCurrentSfxSetting}
-                                                                    title="현재 자막 SFX 해제"
-                                                                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-red-400/50 hover:text-red-300"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            )}
-                                                            <label
-                                                                htmlFor="std-sfx-upload"
-                                                                className={`flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-black transition ${
-                                                                    uploadingKey === 'sfx-upload'
-                                                                        ? 'cursor-wait border-purple-500/30 bg-purple-500/10 text-purple-200'
-                                                                        : 'cursor-pointer border-purple-500/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20'
-                                                                }`}
-                                                            >
-                                                                <Upload size={13} />
-                                                                {uploadingKey === 'sfx-upload' ? '업로드 중' : 'Drive 업로드'}
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    {currentSfxAsset && (
-                                                        <audio
-                                                            src={assetPlaybackUrl(currentSfxAsset)}
-                                                            controls
-                                                            className="mt-3 h-8 w-full"
-                                                        />
-                                                    )}
-                                                </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <input id="audioUploadInput" type="file" accept="audio/*" className="hidden" onChange={handleUploadExternalAudio} />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => document.getElementById('audioUploadInput')?.click()}
+                                                    className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-gray-600 px-2 text-[11px] font-bold text-gray-200 transition hover:bg-white/5 hover:text-white"
+                                                    title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
+                                                >
+                                                    <Upload size={13} className="shrink-0 text-yellow-300" />
+                                                    오디오
+                                                </button>
+                                                <input id="std-bgm-upload" type="file" accept="audio/*" className="hidden" onChange={handleUploadBgmFile} disabled={uploadingKey === 'bgm-upload'} />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => document.getElementById('std-bgm-upload')?.click()}
+                                                    disabled={uploadingKey === 'bgm-upload'}
+                                                    aria-busy={uploadingKey === 'bgm-upload'}
+                                                    className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] font-black text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
+                                                >
+                                                    <Upload size={13} className="shrink-0" />
+                                                    BGM배경음
+                                                </button>
+                                                <input id="std-sfx-upload" type="file" accept="audio/*" className="hidden" onChange={handleUploadCurrentSfxFile} disabled={uploadingKey === 'sfx-upload'} />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => document.getElementById('std-sfx-upload')?.click()}
+                                                    disabled={uploadingKey === 'sfx-upload'}
+                                                    aria-busy={uploadingKey === 'sfx-upload'}
+                                                    className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-purple-500/30 bg-purple-500/10 px-2 text-[11px] font-black text-purple-200 transition hover:bg-purple-500/20 disabled:cursor-wait disabled:opacity-60"
+                                                >
+                                                    <Upload size={13} className="shrink-0" />
+                                                    자막SFX
+                                                </button>
                                             </div>
                                         )}
                                     </div>
