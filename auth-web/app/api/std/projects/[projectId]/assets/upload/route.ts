@@ -1,3 +1,4 @@
+import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -269,7 +270,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 project_id: project.id,
                 scene_id: scene?.id || null,
                 scene_number: sceneNumber,
-                asset_type: assetType,
+                asset_type: audioAssetStorageFields(assetType).asset_type,
                 drive_file_id: driveFile?.id || null,
                 drive_folder_id: targetFolderId || project.drive_folder_id || null,
                 file_name: driveFile?.name || fileName,
@@ -285,6 +286,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     storage_bucket: CONTENT_ASSETS_BUCKET,
                     storage_path: storagePath,
                     storage_public_url: publicUrlData.publicUrl,
+                    ...audioAssetStorageFields(assetType).metadata,
                     uploaded_by: auth.requester.email,
                     upload_mode: driveFile ? 'server_supabase_then_drive' : 'server_supabase_storage',
                 },

@@ -10,7 +10,7 @@ async function main() {
     const directStorageUrl = a => a?.metadata?.storage_public_url || ''
     const asset = {id:'a', asset_type:'audio', status:'uploaded', metadata:{upload_mode:'server_supabase_storage', storage_public_url:'https://storage.example/audio.mp3'}}
     let fetched
-    const context = {selectedProject:{project:{id:'p'},assets:[asset]},localSubtitles:[{voice_id:'studio'}],isVoiceStudioVoice:()=>true,
+    const context = {selectedProject:{project:{id:'p'},assets:[asset]},localSubtitles:[{voice_id:'studio'}],isVoiceStudioVoice:()=>false,
         directStorageUrl,vrewFinalNarrationAudioRef:{current:null},URL:{revokeObjectURL:()=>{}},fetchVrewAudioBlobUrl:async url => {fetched=url;return 'blob:audio'}}
     const getAudio = compile('    const getSavedNarrationAudioUrl =','    const getOrCreateVrewSegmentAudioUrl','getSavedNarrationAudioUrl',context)
     assert.equal(await getAudio(),'https://storage.example/audio.mp3')
@@ -18,21 +18,18 @@ async function main() {
     delete asset.metadata.storage_public_url
     assert.equal(await getAudio(),'blob:audio')
     assert.match(fetched,/assets\/file\?assetId=a/)
-    let messages=[],audioUrl='',project=context.selectedProject,fail=true
+    const studioAudio = compile('    const getSavedNarrationAudioUrl =','    const getOrCreateVrewSegmentAudioUrl','getSavedNarrationAudioUrl', {...context,isVoiceStudioVoice:()=>true})
+    assert.equal(await studioAudio(),null,'Voice Studio narration must not be replaced by uploaded music')
+    let backgroundUpload
     const upload = compile('    const handleUploadExternalAudio =','    const assetPlaybackUrl','handleUploadExternalAudio',{
-        selectedProject:project,uploadDriveAudioAsset:async()=>{if(fail)throw Error('upload failed');return asset},directStorageUrl,
-        assetPlaybackUrl:()=>'/assets/file?assetId=a',setAudioResultUrl:u=>audioUrl=u,setUploadingKey:()=>{},
-        setSelectedProject:fn=>project=fn(project),rememberProjectState:()=>{},setMessage:m=>messages.push(m),
+        handleUploadBgmFile:async event=>{backgroundUpload=event},
     })
-    await upload({target:{files:[{name:'test.mp3'}],value:'test'}})
-    assert.deepEqual(messages,['upload failed']);assert.equal(audioUrl,'')
-    fail=false;messages=[]
-    await upload({target:{files:[{name:'test.mp3'}],value:'test'}})
-    assert.equal(audioUrl,'/assets/file?assetId=a');assert.equal(project.assets[0].id,'a')
-    assert.match(messages[0],/미리보기에 적용/)
+    const event={target:{files:[{name:'music.mp3'}]}}
+    await upload(event)
+    assert.equal(backgroundUpload,event,'Audio button must use background upload, not replace narration')
     const calls=[]
     const uploadDirect = compile('    const uploadDriveAudioAsset =','    const handleUploadBgmFile','uploadDriveAudioAsset',{
-        selectedProject:project,authedJsonHeaders:{Authorization:'test'},safeParseJson:async r=>r.data,
+        selectedProject:context.selectedProject,authedJsonHeaders:{Authorization:'test'},safeParseJson:async r=>r.data,
         fetch:async(url,options)=>{calls.push({url,...options});if(url.endsWith('/init'))return {ok:true,data:{storage_upload_url:'https://storage.example/upload',storage_path:'p/file'}};
             if(url.endsWith('/complete'))return {ok:true,data:{asset}};return {ok:true}},
     })
@@ -44,10 +41,10 @@ async function main() {
     let played = false
     const bgm = {duration:30,readyState:1,currentTime:0,volume:1,play:()=>{played=true;return Promise.resolve()}}
     const playBgm = compile('    const playPreviewBgm =','    const stopVrewPlayback','playPreviewBgm',{
-        previewBgmAudioRef:{current:bgm},bgmSfxSettings:{bgm_volume:0.25},HTMLMediaElement:{HAVE_METADATA:1},setMessage:()=>{},
+        previewBgmAudioRef:{current:bgm},bgmVolume:0.08,backgroundVolume:v=>v,HTMLMediaElement:{HAVE_METADATA:1},setMessage:()=>{},
     })
     playBgm(65)
-    assert.equal(played,true);assert.equal(bgm.currentTime,5);assert.equal(bgm.volume,0.25)
-    console.log('PASS: Storage audio overrides generated voices, authenticated fallback, no false upload success, direct large-file upload')
+    assert.equal(played,true);assert.equal(bgm.currentTime,5);assert.equal(bgm.volume,0.08)
+    console.log('PASS: Narration preserved, music routed to BGM, default background gain 8%, authenticated fallback and direct upload')
 }
 main().catch(e=>{console.error(e);process.exitCode=1})

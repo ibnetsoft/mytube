@@ -1,0 +1,26 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const ts = require('typescript')
+const compile = s => ts.transpile(s, {target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS})
+const api = {}
+new Function('exports',compile(fs.readFileSync(require.resolve('../lib/stdAudioMix.ts'),'utf8')))(api)
+assert.equal(api.backgroundVolume(undefined),0.08)
+assert.equal(api.backgroundVolume(0),0)
+assert.equal(api.backgroundVolume(2),1)
+assert.equal(api.backgroundVolume(-1),0)
+assert.equal(api.audioAssetRole({asset_type:'audio'}),'audio')
+for(const role of ['bgm','sfx']) {
+    const saved=api.audioAssetStorageFields(role)
+    assert.equal(saved.asset_type,'other')
+    assert.equal(api.audioAssetRole(saved),role)
+}
+const queue=fs.readFileSync(require.resolve('../lib/stdRenderQueue.ts'),'utf8')
+const section=queue.slice(queue.indexOf('    const audioEffectAssets ='),queue.indexOf('    const savedSfxCues ='))
+const build=new Function('activeAssets','projectRenderSettings','project','storageSourceForAsset','audioManifestPath',compile('const manifestFiles=[];'+section+'\nreturn {bgmPath,manifestFiles}'))
+const storageAsset={id:'bgm',asset_type:'bgm',metadata:{storage_path:'project/music.mp3'}}
+const result=volume=>build([storageAsset],{bgm_asset_id:'bgm',bgm_volume:volume},{},a=>a?.metadata?.storage_path?{bucket:'content-assets',path:a.metadata.storage_path}:null,()=> 'audio/music.mp3')
+assert.equal(result(0).bgmPath,'')
+assert.equal(result(0).manifestFiles.length,0,'Mute must not be replaced by worker defaults')
+assert.equal(result(0.08).manifestFiles[0].supabase_path,'project/music.mp3')
+assert.equal(result(0.5).bgmPath,'audio/music.mp3')
+console.log('PASS: DB-compatible audio roles, volume clamping, zero-volume render mute, Storage-only BGM manifest')

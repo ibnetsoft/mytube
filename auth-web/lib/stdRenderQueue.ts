@@ -1,3 +1,4 @@
+import { audioAssetRole } from './stdAudioMix'
 import { sceneMotion } from './stdSceneMotion'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
@@ -334,7 +335,7 @@ async function loadBundle(projectId: string) {
 
 async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
     const entries: ZipEntry[] = []
-    const activeAssets = (assets || []).filter(activeAsset)
+    const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const audioAsset = activeAssets.find(isAudioAsset)
 
@@ -463,7 +464,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
 }
 
 function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
-    const activeAssets = (assets || []).filter(activeAsset)
+    const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const audioAsset = activeAssets.find(isAudioAsset)
 
@@ -542,14 +543,14 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
     }
     const audioEffectAssets = activeAssets.filter((asset: any) => {
         const type = String(asset.asset_type || '').toLowerCase()
-        return ['bgm', 'sfx'].includes(type) && String(asset.drive_file_id || '').trim()
+        return ['bgm', 'sfx'].includes(type) && (String(asset.drive_file_id || '').trim() || storageSourceForAsset(asset))
     })
     const assetById = new Map(audioEffectAssets.map((asset: any) => [String(asset.id), asset]))
     const bgmAssetId = String(projectRenderSettings.bgm_asset_id || project.project_payload?.bgm_asset_id || '').trim()
     const bgmAsset = bgmAssetId ? assetById.get(bgmAssetId) : null
     const bgmDriveFileId = String(projectRenderSettings.bgm_drive_file_id || '').trim()
     let bgmPath = ''
-    if (bgmAsset?.drive_file_id || bgmDriveFileId) {
+    if (Number(projectRenderSettings.bgm_volume ?? 0.08) > 0 && (bgmAsset || bgmDriveFileId)) {
         bgmPath = bgmAsset ? audioManifestPath(bgmAsset, 'bgm') : 'audio/library-bgm.mp3'
         const bgmStorage = bgmAsset ? storageSourceForAsset(bgmAsset) : null
         manifestFiles.push({
@@ -572,7 +573,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         const assetId = String(cue.asset_id || '').trim()
         const asset = assetId ? assetById.get(assetId) : null
         const libraryKey = String(cue.library_key || cue.key || '').trim()
-        if (!asset?.drive_file_id) {
+        if (!asset?.drive_file_id && !storageSourceForAsset(asset)) {
             const driveFileId = String(cue.drive_file_id || '').trim()
             if (driveFileId) {
                 const path = `audio/sfx-library-${index + 1}.mp3`
@@ -648,7 +649,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         language: project.language || 'ko',
         ...(bgmPath ? {
             bgm_path: bgmPath,
-            bgm_volume: clampNumber(projectRenderSettings.bgm_volume, 0.25, 0, 1),
+            bgm_volume: clampNumber(projectRenderSettings.bgm_volume, 0.08, 0, 1),
         } : {}),
     }
 

@@ -1,4 +1,5 @@
 'use client'
+import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
@@ -821,8 +822,6 @@ export default function StdPortalPage() {
     const projectAssetFileUrl = (projectId: string | null | undefined, asset: any): string | null => {
         const id = String(projectId || '').trim()
         if (!id || !asset) return null
-        const externallyUploaded = /^(server_supabase|browser_supabase|browser_drive)/.test(String(asset?.metadata?.upload_mode || ''))
-        if (!externallyUploaded && localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return null
         const assetId = String(asset?.id || '').trim()
         const driveFileId = String(asset?.drive_file_id || '').trim()
         const impersonateSuffix = isImpersonating && impersonateEmail
@@ -1052,6 +1051,8 @@ export default function StdPortalPage() {
     const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const [bgmVolume, setBgmVolume] = useState(0.08)
+    const [savingBgmVolume, setSavingBgmVolume] = useState(false)
     const [previewBgmUrl, setPreviewBgmUrl] = useState('')
     const previewBgmAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -3415,8 +3416,7 @@ export default function StdPortalPage() {
     const playPreviewBgm = (timelineTime: number) => {
         const audio = previewBgmAudioRef.current
         if (!audio) return
-        const volume = Number(bgmSfxSettings.bgm_volume ?? 0.25)
-        audio.volume = Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 0.25))
+        audio.volume = backgroundVolume(bgmVolume)
 
         const seekToTimeline = () => {
             const duration = Number(audio.duration)
@@ -3514,6 +3514,7 @@ export default function StdPortalPage() {
     }
 
     const getSavedNarrationAudioUrl = async () => {
+        if (localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return null
         const projectId = String(selectedProject?.project?.id || '').trim()
         const asset = (selectedProject?.assets || []).find((item: any) =>
             String(item?.asset_type || '').toLowerCase() === 'audio'
@@ -4938,43 +4939,9 @@ export default function StdPortalPage() {
         }
     }
 
+    // User-uploaded music belongs to the background track, never the TTS track.
     const handleUploadExternalAudio = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
-        if (!selectedProject?.project?.id) return
-        setUploadingKey('audio-upload')
-        try {
-            const asset = await uploadDriveAudioAsset(file, 'audio')
-            const uploadPayload = { asset }
-            setAudioResultUrl(directStorageUrl(asset) || assetPlaybackUrl(asset))
-            setSelectedProject(prev => {
-                if (!prev || prev.project.id !== selectedProject.project.id) return prev
-                const updated = {
-                    ...prev,
-                    assets: [
-                        uploadPayload.asset,
-                        ...prev.assets.filter(a => a.asset_type !== 'audio'),
-                    ],
-                    project: {
-                        ...prev.project,
-                        progress_payload: {
-                            ...(prev.project.progress_payload || {}),
-                            has_tts_audio: true,
-                            tts_asset_id: uploadPayload.asset.id,
-                            tts_drive_file_id: uploadPayload.asset.drive_file_id,
-                        },
-                    },
-                }
-                rememberProjectState(updated)
-                return updated
-            })
-            setMessage(`외부 오디오 '${file.name}'이 저장되어 미리보기에 적용되었습니다.`)
-        } catch (error: any) {
-            setMessage(error.message || 'Audio upload failed')
-        } finally {
-            setUploadingKey('')
-            e.target.value = ''
-        }
+        await handleUploadBgmFile(e)
     }
 
     const assetPlaybackUrl = (asset: any) => {
@@ -5019,7 +4986,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const uploadDriveAudioAsset = async (file: File, assetType: 'audio' | 'bgm' | 'sfx', sceneNumber?: number | null) => {
+    const uploadDriveAudioAsset = async (file: File, assetType: 'bgm' | 'sfx', sceneNumber?: number | null) => {
         const projectId = selectedProject?.project?.id
         if (!projectId) throw new Error('Project not selected')
         const details = {
@@ -5053,12 +5020,12 @@ export default function StdPortalPage() {
         try {
             const asset = await uploadDriveAudioAsset(file, 'bgm')
             const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-            const nextAssets = [asset, ...selectedProject.assets.filter(a => a.asset_type !== 'bgm')]
+            const nextAssets = [asset, ...selectedProject.assets.filter(a => audioAssetRole(a) !== 'bgm')]
             await updateBgmSfxSettings({
                 ...currentSettings,
                 bgm_asset_id: asset.id,
                 bgm_file_name: asset.file_name || file.name,
-                bgm_volume: currentSettings.bgm_volume ?? 0.25,
+                bgm_volume: currentSettings.bgm_volume ?? 0.08,
             }, nextAssets)
             setMessage(`BGM '${file.name}'이 저장되어 미리보기에 적용되었습니다.`)
         } catch (error: any) {
@@ -7219,8 +7186,25 @@ export default function StdPortalPage() {
         void video.play().catch(() => {})
     }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
+    useEffect(() => {
+        setBgmVolume(backgroundVolume(bgmSfxSettings.bgm_volume))
+    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume])
+
+    useEffect(() => {
+        if (previewBgmAudioRef.current) previewBgmAudioRef.current.volume = backgroundVolume(bgmVolume)
+    }, [bgmVolume])
+
+    const saveBgmVolume = async () => {
+        setSavingBgmVolume(true)
+        try {
+            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume) })
+            setMessage(`배경음 볼륨 ${Math.round(bgmVolume * 100)}%를 저장했습니다.`)
+        } catch (error: any) {
+            setMessage(error?.message || '배경음 볼륨 저장 실패')
+        } finally { setSavingBgmVolume(false) }
+    }
     const bgmAsset = selectedProject?.assets?.find((asset: any) =>
-        asset.asset_type === 'bgm' && asset.id === bgmSfxSettings.bgm_asset_id
+        audioAssetRole(asset) === 'bgm' && asset.id === bgmSfxSettings.bgm_asset_id
     )
     useEffect(() => {
         let cancelled = false
@@ -9632,13 +9616,14 @@ export default function StdPortalPage() {
                                                 </div>
                                             </div>
                                         ) : (
+                                            <div className="space-y-3">
                                             <div className="grid grid-cols-3 gap-2">
                                                 <input id="audioUploadInput" type="file" accept="audio/*" className="hidden" onChange={handleUploadExternalAudio} />
                                                 <button
                                                     type="button"
                                                     onClick={() => document.getElementById('audioUploadInput')?.click()}
                                                     className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-gray-600 px-2 text-[11px] font-bold text-gray-200 transition hover:bg-white/5 hover:text-white"
-                                                    title="직접 녹음/보유한 외부 오디오 파일을 업로드합니다."
+                                                    title="배경 오디오를 업로드합니다. 내레이션은 유지됩니다."
                                                 >
                                                     <Upload size={13} className="shrink-0 text-yellow-300" />
                                                     오디오
@@ -9665,6 +9650,20 @@ export default function StdPortalPage() {
                                                     <Upload size={13} className="shrink-0" />
                                                     자막SFX
                                                 </button>
+                                            </div>
+                                                <div className="flex items-center gap-2 text-[11px] text-gray-300">
+                                                    <label htmlFor="std-bgm-volume" className="shrink-0">배경음 볼륨</label>
+                                                    <input id="std-bgm-volume" type="range" min="0" max="100" step="1"
+                                                        value={Math.round(bgmVolume * 100)} disabled={savingBgmVolume}
+                                                        onChange={event => setBgmVolume(backgroundVolume(Number(event.target.value) / 100))}
+                                                        className="h-1 min-w-0 flex-1 cursor-pointer accent-cyan-400" />
+                                                    <span className="w-8 text-right tabular-nums">{Math.round(bgmVolume * 100)}%</span>
+                                                    <button type="button" disabled={savingBgmVolume || uploadingKey !== ''}
+                                                        onClick={() => void saveBgmVolume()}
+                                                        className="rounded border border-cyan-500/30 px-2 py-1 text-cyan-200 disabled:opacity-50">
+                                                        {savingBgmVolume ? '저장 중' : '저장'}
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

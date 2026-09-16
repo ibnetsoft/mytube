@@ -1,3 +1,4 @@
+import { audioAssetStorageFields, audioAssetRole } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -42,7 +43,7 @@ async function archiveSupabaseAssetToDrive(project: any, asset: any) {
     }
 
     const folders = await ensureStdProjectDriveFolders(project)
-    const targetFolderId = folderForAssetType(folders, String(asset.asset_type || 'original'))
+    const targetFolderId = folderForAssetType(folders, audioAssetRole(asset) || 'original')
     const driveFile = await uploadStdDriveBuffer(
         targetFolderId,
         String(asset.file_name || 'asset'),
@@ -276,7 +277,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
         if (existingAsset && (
             Number(existingAsset.scene_number) !== Number(sceneNumber)
-            || String(existingAsset.asset_type) !== assetType
+            || audioAssetRole(existingAsset) !== assetType
         )) {
             return NextResponse.json({ success: false, error: 'Drive file is already assigned to another asset' }, { status: 409 })
         }
@@ -300,7 +301,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 project_id: project.id,
                 scene_id: scene?.id || null,
                 scene_number: sceneNumber,
-                asset_type: assetType,
+                asset_type: audioAssetStorageFields(assetType).asset_type,
                 drive_file_id: metadata?.id || null,
                 drive_folder_id: targetFolderId || metadata?.parents?.[0] || project.drive_folder_id || null,
                 file_name: metadata?.name || body?.file_name || 'asset',
@@ -318,6 +319,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         storage_path: storagePath,
                         storage_public_url: storagePublicUrl || supabaseAdmin.storage.from(CONTENT_ASSETS_BUCKET).getPublicUrl(storagePath).data.publicUrl,
                     } : {}),
+                    ...audioAssetStorageFields(assetType).metadata,
                     uploaded_by: auth.requester.email,
                     upload_mode: isSupabaseAsset && metadata ? 'browser_supabase_then_drive' : (isSupabaseAsset ? 'browser_supabase_storage' : 'browser_drive_resumable'),
                 },
