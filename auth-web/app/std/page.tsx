@@ -8848,54 +8848,13 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
 
-                                {/* 3행: 선택한 자막 섹션 전용 마이크 / 효과 */}
-                                <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-white/5">
-                                    {renderVoicePicker(
-                                        'selected-scenes-bulk',
-                                        selectedSubtitleSceneVoiceId,
-                                        (nextVoiceId) => {
-                                            if (selectedSubtitleSceneGroup) {
-                                                void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
-                                            }
-                                        },
-                                        `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
-                                        'default',
-                                        'left',
-                                        !hasSelectedSubtitleSections
-                                    )}
-                                    {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
-                                    <div className="ml-1">
-                                        {renderSelectedSceneMotionPicker(!hasSelectedSubtitleSections)}
-                                    </div>
-                                    {isVrewSubtitleMode && (
-                                        <>
-                                            <button
-                                                type="button"
-                                                disabled={selectedSubtitleBlockIndexes.length < 2}
-                                                title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
-                                                onClick={() => void mergeSelectedSubtitleBlocks()}
-                                                className="ml-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
-                                            >
-                                                <Combine size={13} /> {t('sub_merge_action')}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                disabled={selectedSubtitleBlockIndexes.length !== 1}
-                                                onClick={() => void splitSelectedSubtitleBlock()}
-                                                className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
-                                            >
-                                                <Scissors size={13} /> {t('sub_split_action')}
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
                             </div>
 
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
                             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
                                 <div className="order-2 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-[360px] lg:order-none lg:min-h-0">
-                                    <div className="flex min-h-[57px] flex-col items-start gap-2 p-2.5 sm:p-3 border-b border-white/5 bg-[#14181f] sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex min-h-[57px] flex-col items-start gap-2 p-2.5 sm:p-3 border-b border-white/5 bg-[#14181f] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                                         <div className="flex min-w-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap">
                                             <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
                                                 <input
@@ -8943,7 +8902,45 @@ export default function StdPortalPage() {
                                                 </>
                                             )}
                                         </div>
-                                        <div className="flex w-full items-center gap-1.5 sm:w-auto">
+                                        <div className="flex w-full flex-wrap items-center gap-1.5 sm:ml-auto sm:w-auto sm:shrink-0">
+                                            {renderVoicePicker(
+                                                'selected-scenes-bulk',
+                                                selectedSubtitleSceneVoiceId,
+                                                (nextVoiceId) => {
+                                                    if (selectedSubtitleSceneGroup) {
+                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
+                                                    }
+                                                },
+                                                `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
+                                                'default',
+                                                'left',
+                                                !hasSelectedSubtitleSections
+                                            )}
+                                            {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
+                                            <div className="ml-1">
+                                                {renderSelectedSceneMotionPicker(!hasSelectedSubtitleSections)}
+                                            </div>
+                                            {isVrewSubtitleMode && (
+                                                <>
+                                                    <button
+                                                        type="button"
+                                                        disabled={selectedSubtitleBlockIndexes.length < 2}
+                                                        title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
+                                                        onClick={() => void mergeSelectedSubtitleBlocks()}
+                                                        className="ml-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
+                                                    >
+                                                        <Combine size={13} /> {t('sub_merge_action')}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        disabled={selectedSubtitleBlockIndexes.length !== 1}
+                                                        onClick={() => void splitSelectedSubtitleBlock()}
+                                                        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                                                    >
+                                                        <Scissors size={13} /> {t('sub_split_action')}
+                                                    </button>
+                                                </>
+                                            )}
                                             <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 flex-1 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded sm:flex-none">{t('sub_add_action')}</button>
                                             <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="h-7 flex-1 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded sm:flex-none">{t('sub_delete_selected')}</button>
                                         </div>
