@@ -51,9 +51,9 @@ console.log('subtitle merge/split preserves every unchanged translation before a
 // Execute the route's cache selection so the regression also covers API input.
 const route = fs.readFileSync(require.resolve('../app/api/std/projects/[projectId]/subtitle-translations/route.ts'), 'utf8')
 const selection = route.slice(route.indexOf('    const cachedBlocks ='), route.indexOf('    try {', route.indexOf('    const cachedBlocks =')))
-const selectMissing = new Function('project', 'targetLanguage', 'blocks', 'translationMapFromBlocks', 'remapSubtitleTranslations', 'subtitleTranslationKey',
+const selectMissing = new Function('targets', 'project', 'targetLanguage', 'blocks', 'translationMapFromBlocks', 'remapSubtitleTranslations', 'subtitleTranslationKey',
     ts.transpile(selection + '\nreturn missing', { target: ts.ScriptTarget.ES2020 }))
-const missing = selectMissing({ project_payload: { subtitle_translations: { th: { blocks: saved } } } }, 'th',
+const missing = selectMissing(null, { project_payload: { subtitle_translations: { th: { blocks: saved } } } }, 'th',
     merged.map((source_text, index) => ({ index, source_text })), translationMapFromBlocks, remapSubtitleTranslations, subtitleTranslationKey)
 assert.deepEqual(missing, [{ index: 1, source_text: merged[1] }])
 console.log('API translates only the merged sentence in a 316-block project')
@@ -71,3 +71,12 @@ async function verifyTranslationKey() {
     console.log('translation-specific credential takes priority without changing other AI calls')
 }
 verifyTranslationKey().catch(error => { console.error(error); process.exitCode = 1 })
+
+const { subtitleTranslationIndexes } = moduleBox.exports
+const manualRows = [{ text: 'normal' }, { text: 'merged one', translation_manual: true }, { text: 'merged two', translation_manual: true }]
+assert.deepEqual(Array.from(subtitleTranslationIndexes(manualRows)), [0])
+assert.deepEqual(Array.from(subtitleTranslationIndexes(JSON.parse(JSON.stringify(manualRows)), 2)), [2])
+const targetedMissing = selectMissing(new Set([2]), { project_payload: {} }, 'th',
+    manualRows.map((s, index) => ({ index, source_text: s.text })), translationMapFromBlocks, remapSubtitleTranslations, subtitleTranslationKey)
+assert.deepEqual(targetedMissing.map(b => b.index), [2])
+console.log('manual merged blocks stay out of automatic requests; clicking targets only one row')

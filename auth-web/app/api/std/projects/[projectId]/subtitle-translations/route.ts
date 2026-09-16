@@ -103,6 +103,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
+    const requestedIndexes = body.translate_indexes === undefined ? null : body.translate_indexes
+    if (requestedIndexes !== null && (!Array.isArray(requestedIndexes)
+        || requestedIndexes.some((index: any) => !Number.isInteger(index) || !blocks.some((block: any) => block.index === index)))) {
+        return NextResponse.json({ success: false, error: 'Invalid translation indexes' }, { status: 400 })
+    }
+    const targets = requestedIndexes === null ? null : new Set<number>(requestedIndexes)
     const cachedBlocks = project.project_payload?.subtitle_translations?.[targetLanguage]?.blocks
     const cached = translationMapFromBlocks(remapSubtitleTranslations(
         Array.isArray(cachedBlocks) ? cachedBlocks : [], blocks,
@@ -111,7 +117,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     const missing = blocks.filter((block: any) => {
         const cachedText = cached[subtitleTranslationKey(block.index, block.source_text)]
         if (cachedText) translated.set(String(block.index), cachedText)
-        return !cachedText
+        return !cachedText && (targets === null || targets.has(block.index))
     })
 
     try {
@@ -152,7 +158,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         source_text: block.source_text,
         translated_text: translated.get(String(block.index)) || '',
     }))
-    if (result.some(block => !block.translated_text)) {
+    if (result.some(block => !block.translated_text && (targets === null || targets.has(block.index)))) {
         return NextResponse.json({ success: false, error: 'Some subtitle blocks were not translated' }, { status: 502 })
     }
 
@@ -171,7 +177,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         success: true,
         target_language: targetLanguage,
         blocks: result,
-        cached_count: blocks.length - missing.length,
+        cached_count: result.filter(block => block.translated_text).length - missing.length,
         translated_count: missing.length,
         model_setting_key: preferGeminiForSubtitleEdit ? SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY : SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
         default_model: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,

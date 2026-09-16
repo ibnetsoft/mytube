@@ -19,6 +19,7 @@ import {
     subtitleTranslationKey,
     translationMapFromBlocks,
     remapSubtitleTranslationMap,
+    subtitleTranslationIndexes,
 } from '@/lib/stdSubtitleTranslation'
 
 const SUBTITLE_REVIEW_COPY: Record<SubtitleTranslationLanguage, {
@@ -1711,7 +1712,7 @@ export default function StdPortalPage() {
         targetLanguage: SubtitleTranslationLanguage,
         force = false,
         sourceSubtitles?: any[],
-        options?: { preferGemini?: boolean },
+        options?: { preferGemini?: boolean; targetIndex?: number },
     ) => {
         const projectId = String(selectedProject?.project?.id || '')
         const subtitlesForTranslation = Array.isArray(sourceSubtitles) ? sourceSubtitles : localSubtitles
@@ -1719,7 +1720,8 @@ export default function StdPortalPage() {
             index,
             source_text: String(subtitle?.text || '').trim(),
         })).filter(block => block.source_text)
-        if (!projectId || blocks.length === 0) return
+        const translateIndexes = subtitleTranslationIndexes(subtitlesForTranslation, options?.targetIndex)
+        if (!projectId || blocks.length === 0 || translateIndexes.length === 0) return
 
         const signature = `${projectId}|${targetLanguage}|${blocks.map(block => `${block.index}:${block.source_text}`).join('\u0001')}`
         if (!force && subtitleTranslationRequestRef.current === signature) return
@@ -1736,6 +1738,7 @@ export default function StdPortalPage() {
                 signal: controller.signal,
                 body: JSON.stringify({
                     target_language: targetLanguage,
+                    translate_indexes: translateIndexes,
                     blocks,
                     ...(options?.preferGemini || persistedSubtitleTranslations?.[targetLanguage]?.blocks?.length
                         ? { prefer_gemini: true } : {}),
@@ -1745,7 +1748,7 @@ export default function StdPortalPage() {
             const payload = await safeParseJson(response, `${languageName} 자막 번역에 실패했습니다.`)
             if (!response.ok || !payload?.success) throw new Error(payload?.error || `${languageName} 자막 번역에 실패했습니다.`)
             const translatedMap = translationMapFromBlocks(payload.blocks)
-            if (Object.keys(translatedMap).length !== blocks.length) {
+            if (blocks.some(block => translateIndexes.includes(block.index) && !translatedMap[subtitleTranslationKey(block.index, block.source_text)])) {
                 throw new Error('일부 자막 블록의 번역이 누락되었습니다.')
             }
             if (controller.signal.aborted) return
@@ -1791,7 +1794,7 @@ export default function StdPortalPage() {
         const activeTranslations = alignedSubtitleTranslations[subtitleReviewLocale] || {}
         const hasMissingTranslation = localSubtitles.some((subtitle: any, index: number) => {
             const sourceText = String(subtitle?.text || '').trim()
-            return sourceText && !activeTranslations[subtitleTranslationKey(index, sourceText)]
+            return !subtitle.translation_manual && sourceText && !activeTranslations[subtitleTranslationKey(index, sourceText)]
         })
         if (!hasMissingTranslation) return
         const timer = window.setTimeout(() => void translateSubtitleBlocks(subtitleReviewLocale, false), 700)
@@ -6707,6 +6710,7 @@ export default function StdPortalPage() {
         const lastItem = selectedItems[selectedItems.length - 1]
         const mergedItem = {
             ...firstItem,
+            translation_manual: true,
             text: selectedItems.map(item => String(item?.text || '').trim()).filter(Boolean).join(' '),
             end_time: lastItem.end_time,
             end_num: lastItem.end_num,
@@ -6721,10 +6725,10 @@ export default function StdPortalPage() {
         setSelectedSubIndex(firstIndex)
         setSelectedSubtitleBlockIndexes([firstIndex])
         subtitleBlockSelectionAnchorRef.current = firstIndex
+        subtitleTranslationControllerRef.current?.abort()
+        subtitleTranslationRequestRef.current = ''
+        setTranslatingSubtitleLanguage(null)
         await persistVrewVoiceSubtitles(updatedSubtitles)
-        if (subtitleReviewLocale) {
-            void translateSubtitleBlocks(subtitleReviewLocale, true, updatedSubtitles, { preferGemini: true })
-        }
         setMessage(`씬 ${sceneNumber}의 자막 ${selectedItems.length}개를 하나로 합쳤습니다.`)
     }
 
@@ -9204,10 +9208,22 @@ export default function StdPortalPage() {
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
                                                                                             <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
-                                                                                            {localizedTranslation || (subtitleTranslationError
+                                                                                            {localizedTranslation || (item.translation_manual ? (
+                                                                                                <span className="inline-flex items-center gap-1.5">
+                                                                                                    <span>{subtitleReviewLocale === 'th' ? 'แปล' : subtitleReviewLocale === 'vi' ? 'Dịch' : 'Translate'}</span>
+                                                                                                    <button type="button" aria-label={subtitleReviewLocale === 'th' ? 'แปล' : 'Translate'}
+                                                                                                        title={subtitleTranslationError || (subtitleReviewLocale === 'th' ? 'แปล' : 'Translate')}
+                                                                                                        disabled={translatingSubtitleLanguage !== null}
+                                                                                                        className="rounded p-1 hover:bg-sky-400/10 disabled:opacity-50"
+                                                                                                        onClick={(event) => {
+                                                                                                            event.stopPropagation()
+                                                                                                            void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { preferGemini: true, targetIndex: item.subtitleIndex })
+                                                                                                        }}><RefreshCw size={13} /></button>
+                                                                                                </span>
+                                                                                            ) : subtitleTranslationError
                                                                                                 ? <button type="button" className="text-red-300 underline" onClick={(event) => {
                                                                                                     event.stopPropagation()
-                                                                                                    void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { preferGemini: true })
+                                                                                                    void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { preferGemini: true, targetIndex: item.subtitleIndex })
                                                                                                 }}>{subtitleReviewCopy.retry}</button>
                                                                                                 : translatingSubtitleLanguage === subtitleReviewLocale
                                                                                                     ? subtitleReviewCopy.translating

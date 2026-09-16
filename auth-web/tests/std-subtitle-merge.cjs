@@ -21,6 +21,7 @@ async function main() {
     assert.deepEqual(selection, [3, 4])
     const merge = compileBetween('    const mergeSelectedSubtitleBlocks =', '    const splitSelectedSubtitleBlock', 'mergeSelectedSubtitleBlocks', {
         selectedSubtitleBlockIndexes: selection, localSubtitles: rows,
+        subtitleTranslationControllerRef: { current: null }, subtitleTranslationRequestRef: { current: '' }, setTranslatingSubtitleLanguage: () => {},
         subtitleReviewLocale: 'th', translateSubtitleBlocks: (...args) => { translationRequest = args },
         isSubtitleDialogue: () => true, aiDialogueParts: new Map([[3, [{dialogue: true, speaker: '노인'}]], [4, [{dialogue: true, speaker: '노인'}]]]),
         currentNav: 'subtitle_vrew', isPlayingPreview: false, stopVrewPlayback: () => {},
@@ -30,9 +31,8 @@ async function main() {
     })
     await merge()
     assert.equal(saved.length, 7)
-    assert.equal(translationRequest[0], 'th')
-    assert.equal(translationRequest[2], saved)
-    assert.equal(translationRequest[3].preferGemini, true)
+    assert.equal(translationRequest, undefined, 'Merging must not call translation')
+    assert.equal(saved[3].translation_manual, true, 'Manual translation survives save and reload')
     assert.equal(saved.filter(item => item.scene_number === 31).length, 7)
     assert.equal(saved[3].text, '그 밤에 네 울음이 그리 작더니.')
     assert.equal(saved[3].start_num, 6)

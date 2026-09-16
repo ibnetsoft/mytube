@@ -116,3 +116,8 @@ export function remapSubtitleTranslationMap(
     return translationMapFromBlocks(remapSubtitleTranslations(blocks,
         subtitles.map((subtitle, index) => ({ index, source_text: String(subtitle.text || '').trim() }))))
 }
+
+export function subtitleTranslationIndexes(subtitles: Array<{ text?: string; translation_manual?: boolean }>, targetIndex?: number): number[] {
+    return subtitles.flatMap((subtitle, index) => String(subtitle.text || '').trim()
+        && (targetIndex !== undefined ? index === targetIndex : !subtitle.translation_manual) ? [index] : [])
+}
