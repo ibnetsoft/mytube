@@ -46,7 +46,6 @@ const TOPICS_QUEUE_LIST_SELECT = `
     assigned_employee_email,
     status,
     created_at,
-    updated_at,
     is_auto_generated,
     assigned_script_style,
     assigned_image_style,

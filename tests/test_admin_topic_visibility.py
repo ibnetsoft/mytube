@@ -17,6 +17,10 @@ def test_admin_topic_visibility_uses_excluded_status_and_superadmin_auth():
 def test_admin_topic_queue_loads_hidden_rows_for_management():
     source = (ROOT / "auth-web" / "app" / "api" / "admin" / "topics-queue" / "route.ts").read_text(encoding="utf-8")
 
+    # Production topics_queue has no updated_at column (SQLSTATE 42703).
+    projection = source.split("const TOPICS_QUEUE_LIST_SELECT = `", 1)[1].split("`", 1)[0]
+    assert "updated_at" not in projection
+
     assert "['pending', 'assigned', 'excluded']" in source
     assert "topic?.status === 'excluded'" in source
 
