@@ -783,9 +783,7 @@ export default function StdPortalPage() {
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
-    // Profile hydration does not change the authenticated session. Including user.id
-    // here invalidates the first project request when /me resolves during startup.
-    const mediaSession = JSON.stringify([token, isImpersonating ? impersonateEmail : ''])
+    const mediaSession = JSON.stringify([token, user?.id || user?.email || '', isImpersonating ? impersonateEmail : ''])
     if (mediaScopeRef.current.session !== mediaSession) {
         mediaScopeRef.current = { session: mediaSession, projectId: '', generation: mediaScopeRef.current.generation + 1 }
     }
@@ -1073,6 +1071,9 @@ export default function StdPortalPage() {
     const [subtitleSyncProgress, setSubtitleSyncProgress] = useState('')
     const subtitleSyncControllerRef = useRef<AbortController | null>(null)
     const [openVoicePickerKey, setOpenVoicePickerKey] = useState('')
+    const [voicePickerDraft, setVoicePickerDraft] = useState('')
+    const [voicePickerSearch, setVoicePickerSearch] = useState('')
+    const [voicePickerPreviewUrl, setVoicePickerPreviewUrl] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
     const [subtitleTranslations, setSubtitleTranslations] = useState<Partial<Record<SubtitleTranslationLanguage, Record<string, string>>>>({})
     const [translatingSubtitleLanguage, setTranslatingSubtitleLanguage] = useState<SubtitleTranslationLanguage | null>(null)
@@ -2679,7 +2680,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const setSubtitleBlockVoice = async (subtitleIndex: number, voiceId: string, direction?: string) => {
+    const setSubtitleBlockVoice = async (subtitleIndex: number, voiceId: string) => {
         const nextVoiceId = String(voiceId || selectedVoice)
         const targetIndex = Number(subtitleIndex)
         if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex >= localSubtitles.length) return
@@ -2689,7 +2690,6 @@ export default function StdPortalPage() {
             return {
                 ...item,
                 voice_id: nextVoiceId,
-                ...(direction !== undefined ? { voice_direction: direction } : {}),
                 voice_name: voiceNameById.get(nextVoiceId) || nextVoiceId,
             }
         })
@@ -2977,29 +2977,210 @@ export default function StdPortalPage() {
     const renderVoicePicker = (
         pickerKey: string,
         voiceId: string,
-        onSelect: (voiceId: string, direction?: string) => void,
+        onSelect: (voiceId: string) => void,
         title: string,
         tone: 'default' | 'dialogue' = 'default',
         _openDirection: 'left' | 'right' = 'right',
         disabled = false,
         options: { buttonLabel?: string; elevenLabsOnly?: boolean } = {}
-    ) => (
-        <VoiceStudioPicker
-            key={pickerKey}
-            microphone
-            value={voiceId}
-            direction={localSubtitles.find(item => item.voice_id === voiceId)?.voice_direction || ''}
-            voices={allVoices}
-            headers={authedJsonHeaders}
-            initialTab={pickerKey === 'selected-scenes-bulk' || pickerKey.startsWith('scene-') ? 'narration' : 'dialogue'}
-            label={title}
-            buttonText={options.buttonLabel}
-            disabled={disabled}
-            open={!disabled && openVoicePickerKey === pickerKey}
-            onOpenChange={open => setOpenVoicePickerKey(open ? pickerKey : '')}
-            onChange={onSelect}
-        />
-    )
+    ) => {
+        const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
+        const isOpen = !disabled && openVoicePickerKey === pickerKey
+        const availableVoices = options.elevenLabsOnly
+            ? allVoices.filter((voice: any) => {
+                const id = String(voice.id || '').toLowerCase()
+                return voice.category !== 'google' && !id.startsWith('google') && !id.startsWith('gemini:')
+            })
+            : allVoices
+        const requestedVoiceId = voicePickerDraft || voiceId
+        const draftVoiceId = availableVoices.some((voice: any) => String(voice.id) === requestedVoiceId) ? requestedVoiceId : ''
+        const draftVoice = availableVoices.find((voice: any) => String(voice.id) === draftVoiceId)
+        const filteredVoices = availableVoices.filter((voice: any) => {
+            const query = voicePickerSearch.trim().toLowerCase()
+            if (!query) return true
+            return [
+                voice?.name,
+                voice?.description,
+                voice?.gender,
+                voice?.id,
+            ].some(value => String(value || '').toLowerCase().includes(query))
+        })
+        const closePicker = () => {
+            setOpenVoicePickerKey('')
+            setVoicePickerPreviewUrl('')
+        }
+        return (
+            <div className="relative inline-flex">
+                <button
+                    type="button"
+                    disabled={disabled}
+                    title={disabled ? '자막 섹션을 선택하면 성우를 변경할 수 있습니다.' : `${title}: ${currentVoiceName}`}
+                    onClick={(event) => {
+                        event.stopPropagation()
+                        if (disabled) return
+                        if (isOpen) {
+                            closePicker()
+                            return
+                        }
+                        setVoicePickerDraft(voiceId)
+                        setVoicePickerSearch('')
+                        setVoicePickerPreviewUrl('')
+                        setOpenVoicePickerKey(pickerKey)
+                    }}
+                    className={`${options.buttonLabel ? 'px-2.5 gap-1.5' : 'w-8'} h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
+                        disabled
+                            ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
+                            : tone === 'dialogue'
+                            ? 'bg-emerald-500/10 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/20'
+                            : 'bg-[#10141b] border-white/10 text-cyan-100 hover:bg-[#202632] hover:border-cyan-400/50'
+                    }`}
+                >
+                    <Mic size={14} />
+                    {options.buttonLabel && <span>{options.buttonLabel}</span>}
+                </button>
+                {!disabled && isOpen && typeof document !== 'undefined' && createPortal(
+                    <div
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={title}
+                        onClick={closePicker}
+                    >
+                        <div
+                            className="flex max-h-[85vh] w-full max-w-3xl flex-col gap-3 rounded-xl border border-white/20 bg-[#1c2027] p-5 text-gray-100 shadow-2xl [color-scheme:dark]"
+                            onClick={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <h2 className="truncate text-sm font-black text-white">{title}</h2>
+                                    <p className="mt-1 text-xs text-gray-400">
+                                        현재 선택: <span className="font-bold text-cyan-200">{currentVoiceName}</span>
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closePicker}
+                                    className="h-8 rounded-md border border-white/10 px-3 text-xs font-bold text-gray-200 hover:bg-white/10"
+                                >
+                                    닫기
+                                </button>
+                            </div>
+                            <input
+                                value={voicePickerSearch}
+                                onChange={event => setVoicePickerSearch(event.target.value)}
+                                placeholder="성우 이름, 설명 검색"
+                                className="w-full rounded-md border border-white/10 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-cyan-400/60 focus:outline-none"
+                            />
+                            <div className="grid gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                                {filteredVoices.map((voice: any) => {
+                                    const optionId = String(voice.id)
+                                    const active = optionId === draftVoiceId
+                                    const previewUrl = String(voice.preview_url || '').trim()
+                                    return (
+                                        <div
+                                            key={optionId}
+                                            className={`rounded-lg border p-3 transition ${
+                                                active
+                                                    ? 'border-cyan-400 bg-cyan-500/15'
+                                                    : tone === 'dialogue'
+                                                    ? 'border-emerald-400/20 bg-black/15 hover:border-emerald-400/40'
+                                                    : 'border-white/10 bg-black/15 hover:border-cyan-400/40'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <div className="truncate text-sm font-bold text-white">{voice.name || optionId}</div>
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {voice.gender && (
+                                                            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-gray-300">
+                                                                {voice.gender === 'female' ? '여성' : voice.gender === 'male' ? '남성' : voice.gender}
+                                                            </span>
+                                                        )}
+                                                        {active && (
+                                                            <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-bold text-cyan-100">
+                                                                선택됨
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setVoicePickerDraft(optionId)}
+                                                    className={`shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
+                                                        active
+                                                            ? 'bg-cyan-500 text-white'
+                                                            : 'border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10'
+                                                    }`}
+                                                >
+                                                    선택
+                                                </button>
+                                            </div>
+                                            {voice.description && (
+                                                <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-gray-400">
+                                                    {voice.description}
+                                                </p>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={!previewUrl}
+                                                onClick={() => {
+                                                    setVoicePickerDraft(optionId)
+                                                    setVoicePickerPreviewUrl(previewUrl)
+                                                }}
+                                                className="mt-2 inline-flex h-7 items-center gap-1 rounded-md border border-white/10 px-2 text-[11px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                                title={previewUrl ? '성우 샘플 미리듣기' : '제공된 미리듣기 샘플이 없습니다.'}
+                                            >
+                                                <Play size={12} />
+                                                미리듣기
+                                            </button>
+                                        </div>
+                                    )
+                                })}
+                                {filteredVoices.length === 0 && (
+                                    <div className="col-span-full rounded-lg border border-white/10 bg-black/15 p-6 text-center text-sm text-gray-400">
+                                        검색 결과가 없습니다.
+                                    </div>
+                                )}
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                                <div className="mb-2 truncate text-xs font-bold text-gray-300">
+                                    미리듣기: {voicePickerPreviewUrl ? (draftVoice?.name || '선택한 성우') : '샘플을 선택해 주세요'}
+                                </div>
+                                <audio
+                                    key={voicePickerPreviewUrl || 'empty-preview'}
+                                    controls
+                                    autoPlay={Boolean(voicePickerPreviewUrl)}
+                                    src={voicePickerPreviewUrl || undefined}
+                                    className="h-9 w-full"
+                                />
+                            </div>
+                            <div className="flex items-center justify-end gap-2">
+                                <button
+                                    type="button"
+                                    onClick={closePicker}
+                                    className="rounded-md border border-white/10 px-4 py-2 text-sm font-bold text-gray-200 hover:bg-white/10"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={!draftVoiceId}
+                                    onClick={() => {
+                                        onSelect(draftVoiceId)
+                                        closePicker()
+                                    }}
+                                    className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    선택 완료
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
+            </div>
+        )
+    }
 
     const renderSelectedSceneTransitionPicker = (disabled = false) => {
         const selectedSceneSet = new Set(selectedSubtitleSceneNumbers.map(Number))
@@ -4075,20 +4256,11 @@ export default function StdPortalPage() {
                 if (!impersonateQuery) return path
                 return `${path}${path.includes('?') ? '&' : '?'}${impersonateQuery}`
             }
-            // Voice-provider requests must not hold up opening the project editor.
-            void fetch(withImpersonation('/api/std/voices'), { headers, signal: AbortSignal.timeout(20000) })
-                .then(async response => {
-                    if (!response.ok) return
-                    const voiceData = await safeParseJson(response, '')
-                    if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
-                        setAllVoices(voiceData.voices)
-                        setSelectedVoice(prev => voiceData.voices.some((voice: any) => voice.id === prev) ? prev : voiceData.voices[0].id)
-                    }
-                }).catch(() => {})
-            const [meRes, topicsRes, projectsRes] = await Promise.allSettled([
-                fetch(withImpersonation('/api/std/me'), { headers, signal: AbortSignal.timeout(15000) }),
-                fetch(withImpersonation('/api/std/topics?limit=50'), { headers, signal: AbortSignal.timeout(15000) }),
-                fetch(withImpersonation('/api/std/projects'), { headers, signal: AbortSignal.timeout(15000) }),
+            const [meRes, topicsRes, projectsRes, voicesRes] = await Promise.allSettled([
+                fetch(withImpersonation('/api/std/me'), { headers }),
+                fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers }),
+                fetch(withImpersonation('/api/std/projects'), { headers }),
+                fetch(withImpersonation('/api/std/voices'), { headers }),
             ])
 
             let meData: any = {}
@@ -4098,6 +4270,13 @@ export default function StdPortalPage() {
             if (meRes.status === 'fulfilled') meData = await safeParseJson(meRes.value, '')
             if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
             if (projectsRes.status === 'fulfilled') projectPayload = await safeParseJson(projectsRes.value, '')
+            if (voicesRes.status === 'fulfilled') {
+                const voiceData = await safeParseJson(voicesRes.value, '')
+                if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
+                    setAllVoices(voiceData.voices)
+                    setSelectedVoice(prev => voiceData.voices.some((voice: any) => voice.id === prev) ? prev : voiceData.voices[0].id)
+                }
+            }
 
             if (meData?.user) {
                 setUser(meData.user)
@@ -4116,14 +4295,12 @@ export default function StdPortalPage() {
                     if (mapped.length > 0) setSelectedCategories(mapped)
                 }
             } else {
-                const unauthorized = meRes.status === 'fulfilled' && [401, 403].includes(meRes.value.status)
-                if (!isImpersonating && unauthorized) {
+                if (!isImpersonating) {
                     setUser(null)
                     setToken('')
                     localStorage.removeItem('std_session_token')
                     return
                 }
-                throw new Error('사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
             }
 
             const loadedTopics = Array.isArray(topicPayload?.topics) ? topicPayload.topics : []
@@ -4201,7 +4378,6 @@ export default function StdPortalPage() {
             }
         } catch (error: any) {
             console.warn('[loadStdData] warning:', error?.message)
-            setMessage(error?.message || '프로젝트를 불러오지 못했습니다. 다시 시도해 주세요.')
         } finally {
             if (showLoading) setLoading(false)
         }
@@ -5302,7 +5478,6 @@ export default function StdPortalPage() {
 
             const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
                 headers: fetchHeaders,
-                signal: AbortSignal.timeout(25000),
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (!isLatestOpen()) return null
@@ -6465,7 +6640,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const setSelectedSubtitleBlocksVoice = async (voiceId: string, direction?: string) => {
+    const setSelectedSubtitleBlocksVoice = async (voiceId: string) => {
         if (selectedSubtitleBlockIndexes.length < 2) return
         const nextVoiceId = String(voiceId || selectedVoice)
         const nextVoiceName = voiceNameById.get(nextVoiceId) || nextVoiceId
@@ -6477,7 +6652,6 @@ export default function StdPortalPage() {
             const updated = {
                 ...item,
                 voice_id: nextVoiceId,
-                ...(direction !== undefined ? { voice_direction: direction } : {}),
                 voice_name: nextVoiceName,
             }
             markVrewSegmentStale(updated, index)
@@ -8252,16 +8426,6 @@ export default function StdPortalPage() {
                         ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
-                    {currentNav === 'subtitle_vrew' && !selectedProject && (
-                        <section className="rounded-xl border border-white/10 bg-[#1c2027] p-6 text-sm text-gray-300" aria-live="polite">
-                            <h2 className="font-bold text-white">{loading || projectLoading ? '프로젝트를 불러오는 중입니다…' : '자막 편집 프로젝트를 불러오지 못했습니다.'}</h2>
-                            <p className="mt-2 text-xs text-gray-400">{message || '프로젝트를 선택하면 자막 편집 화면이 표시됩니다.'}</p>
-                            <div className="mt-4 flex gap-2">
-                                <button type="button" disabled={loading || projectLoading} onClick={() => void loadStdData(token)} className="rounded-lg bg-cyan-600 px-4 py-2 text-white disabled:opacity-40">다시 불러오기</button>
-                                <button type="button" onClick={() => setCurrentNav('projects')} className="rounded-lg border border-white/15 px-4 py-2">프로젝트 목록</button>
-                            </div>
-                        </section>
-                    )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
                         const isVrewSubtitleMode = true
@@ -8306,7 +8470,6 @@ export default function StdPortalPage() {
                                     {isVrewSubtitleMode && (
                                         <>
                                             <VoiceStudioPicker
-                                                voices={allVoices}
                                                 value={narrationVoiceId}
                                                 direction={voiceStudioDirection}
                                                 headers={authedJsonHeaders}
@@ -8752,7 +8915,7 @@ export default function StdPortalPage() {
                                                     {renderVoicePicker(
                                                         'selected-blocks-bulk',
                                                         selectedSubtitleBlockVoiceId,
-                                                        (nextVoiceId, direction) => void setSelectedSubtitleBlocksVoice(nextVoiceId, direction),
+                                                        (nextVoiceId) => void setSelectedSubtitleBlocksVoice(nextVoiceId),
                                                         `ElevenLabs · 선택한 자막 ${selectedSubtitleBlockIndexes.length}개 대사 성우`,
                                                         'dialogue',
                                                         'right',
@@ -8773,9 +8936,9 @@ export default function StdPortalPage() {
                                             {renderVoicePicker(
                                                 'selected-scenes-bulk',
                                                 selectedSubtitleSceneVoiceId,
-                                                (nextVoiceId, direction) => {
+                                                (nextVoiceId) => {
                                                     if (selectedSubtitleSceneGroup) {
-                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId, direction)
+                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
                                                     }
                                                 },
                                                 `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
@@ -8966,7 +9129,6 @@ export default function StdPortalPage() {
                                                                             </span>
                                                                         )}
                                                                         <VoiceStudioPicker
-                                                                            voices={allVoices}
                                                                             microphone
                                                                             buttonText="내레이션"
                                                                             label={`씬 ${sNum} Google 내레이션 성우 선택`}
@@ -9049,7 +9211,7 @@ export default function StdPortalPage() {
                                                                                             {renderVoicePicker(
                                                                                                 `block-${item.subtitleIndex}`,
                                                                                                 blockVoiceId,
-                                                                                                (nextVoiceId, direction) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId, direction),
+                                                                                                (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
                                                                                                 `ElevenLabs · ${subtitleReviewCopy
                                                                                                     ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
                                                                                                     : `${isDialogueBlock ? '대사' : '내레이션'} 성우`}`,
@@ -9168,7 +9330,7 @@ export default function StdPortalPage() {
                                                             {renderVoicePicker(
                                                                 `scene-${sNum}`,
                                                                 groupVoiceId,
-                                                                (nextVoiceId, direction) => void setSubtitleGroupVoice(group, nextVoiceId, direction),
+                                                                (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
                                                                 `씬 ${sNum} 전체 성우`
                                                             )}
                                                         </div>
