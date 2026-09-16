@@ -1,0 +1,16 @@
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const ts=require('typescript');
+const source=fs.readFileSync('auth-web/app/std/page.tsx','utf8');
+const expr=source.match(/const mediaSession = (.+)/)[1];
+const session=new Function('token','user','isImpersonating','impersonateEmail',`return ${expr}`);
+assert.equal(session('token-a',null,false,''),session('token-a',{id:'loaded-user'},false,''),'Loading /me must not invalidate the in-flight project request');
+assert.notEqual(session('token-a',{},false,''),session('token-b',{},false,''),'New login must invalidate old media requests');
+assert.notEqual(session('token-a',{},true,'first@example.test'),session('token-a',{},true,'second@example.test'),'Impersonation switch must invalidate old requests');
+const load=source.slice(source.indexOf('const loadStdData ='),source.indexOf('    useEffect(() => {',source.indexOf('const loadStdData =')));
+assert.match(load,/void fetch\(withImpersonation\('\/api\/std\/voices'\)/);
+assert.ok(!load.includes('projectsRes, voicesRes'));
+assert.match(source,/currentNav === 'subtitle_vrew' && !selectedProject/);
+const syntax=ts.transpileModule(source,{fileName:'page.tsx',reportDiagnostics:true,compilerOptions:{jsx:ts.JsxEmit.Preserve,target:ts.ScriptTarget.ES2020}});
+assert.deepEqual((syntax.diagnostics||[]).filter(d=>d.category===ts.DiagnosticCategory.Error),[]);
+console.log('PASS: profile hydration, login switch, impersonation isolation, independent voice loading, empty editor recovery, TSX syntax');

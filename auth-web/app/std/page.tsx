@@ -783,7 +783,9 @@ export default function StdPortalPage() {
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
-    const mediaSession = JSON.stringify([token, user?.id || user?.email || '', isImpersonating ? impersonateEmail : ''])
+    // Profile hydration does not change the authenticated session. Including user.id
+    // here invalidates the first project request when /me resolves during startup.
+    const mediaSession = JSON.stringify([token, isImpersonating ? impersonateEmail : ''])
     if (mediaScopeRef.current.session !== mediaSession) {
         mediaScopeRef.current = { session: mediaSession, projectId: '', generation: mediaScopeRef.current.generation + 1 }
     }
@@ -4073,11 +4075,20 @@ export default function StdPortalPage() {
                 if (!impersonateQuery) return path
                 return `${path}${path.includes('?') ? '&' : '?'}${impersonateQuery}`
             }
-            const [meRes, topicsRes, projectsRes, voicesRes] = await Promise.allSettled([
-                fetch(withImpersonation('/api/std/me'), { headers }),
-                fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers }),
-                fetch(withImpersonation('/api/std/projects'), { headers }),
-                fetch(withImpersonation('/api/std/voices'), { headers }),
+            // Voice-provider requests must not hold up opening the project editor.
+            void fetch(withImpersonation('/api/std/voices'), { headers, signal: AbortSignal.timeout(20000) })
+                .then(async response => {
+                    if (!response.ok) return
+                    const voiceData = await safeParseJson(response, '')
+                    if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
+                        setAllVoices(voiceData.voices)
+                        setSelectedVoice(prev => voiceData.voices.some((voice: any) => voice.id === prev) ? prev : voiceData.voices[0].id)
+                    }
+                }).catch(() => {})
+            const [meRes, topicsRes, projectsRes] = await Promise.allSettled([
+                fetch(withImpersonation('/api/std/me'), { headers, signal: AbortSignal.timeout(15000) }),
+                fetch(withImpersonation('/api/std/topics?limit=50'), { headers, signal: AbortSignal.timeout(15000) }),
+                fetch(withImpersonation('/api/std/projects'), { headers, signal: AbortSignal.timeout(15000) }),
             ])
 
             let meData: any = {}
@@ -4087,13 +4098,6 @@ export default function StdPortalPage() {
             if (meRes.status === 'fulfilled') meData = await safeParseJson(meRes.value, '')
             if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
             if (projectsRes.status === 'fulfilled') projectPayload = await safeParseJson(projectsRes.value, '')
-            if (voicesRes.status === 'fulfilled') {
-                const voiceData = await safeParseJson(voicesRes.value, '')
-                if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
-                    setAllVoices(voiceData.voices)
-                    setSelectedVoice(prev => voiceData.voices.some((voice: any) => voice.id === prev) ? prev : voiceData.voices[0].id)
-                }
-            }
 
             if (meData?.user) {
                 setUser(meData.user)
@@ -4112,12 +4116,14 @@ export default function StdPortalPage() {
                     if (mapped.length > 0) setSelectedCategories(mapped)
                 }
             } else {
-                if (!isImpersonating) {
+                const unauthorized = meRes.status === 'fulfilled' && [401, 403].includes(meRes.value.status)
+                if (!isImpersonating && unauthorized) {
                     setUser(null)
                     setToken('')
                     localStorage.removeItem('std_session_token')
                     return
                 }
+                throw new Error('사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
             }
 
             const loadedTopics = Array.isArray(topicPayload?.topics) ? topicPayload.topics : []
@@ -4195,6 +4201,7 @@ export default function StdPortalPage() {
             }
         } catch (error: any) {
             console.warn('[loadStdData] warning:', error?.message)
+            setMessage(error?.message || '프로젝트를 불러오지 못했습니다. 다시 시도해 주세요.')
         } finally {
             if (showLoading) setLoading(false)
         }
@@ -5295,6 +5302,7 @@ export default function StdPortalPage() {
 
             const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
                 headers: fetchHeaders,
+                signal: AbortSignal.timeout(25000),
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (!isLatestOpen()) return null
@@ -8244,6 +8252,16 @@ export default function StdPortalPage() {
                         ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
+                    {currentNav === 'subtitle_vrew' && !selectedProject && (
+                        <section className="rounded-xl border border-white/10 bg-[#1c2027] p-6 text-sm text-gray-300" aria-live="polite">
+                            <h2 className="font-bold text-white">{loading || projectLoading ? '프로젝트를 불러오는 중입니다…' : '자막 편집 프로젝트를 불러오지 못했습니다.'}</h2>
+                            <p className="mt-2 text-xs text-gray-400">{message || '프로젝트를 선택하면 자막 편집 화면이 표시됩니다.'}</p>
+                            <div className="mt-4 flex gap-2">
+                                <button type="button" disabled={loading || projectLoading} onClick={() => void loadStdData(token)} className="rounded-lg bg-cyan-600 px-4 py-2 text-white disabled:opacity-40">다시 불러오기</button>
+                                <button type="button" onClick={() => setCurrentNav('projects')} className="rounded-lg border border-white/15 px-4 py-2">프로젝트 목록</button>
+                            </div>
+                        </section>
+                    )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
                         const isVrewSubtitleMode = true
