@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40">
+<defs><clipPath id="bounds"><path d="M0 0h60v40H0z"/></clipPath><clipPath id="diagonals"><path d="M30 20H60V40zM30 20V40H0zM30 20H0V0zM30 20V0H60z"/></clipPath></defs>
+<g clip-path="url(#bounds)"><path fill="#012169" d="M0 0h60v40H0z"/><path stroke="#fff" stroke-width="8" d="m0 0 60 40M60 0 0 40"/><path clip-path="url(#diagonals)" stroke="#c8102e" stroke-width="5.333" d="m0 0 60 40M60 0 0 40"/><path stroke="#fff" stroke-width="13.333" d="M30 0v40M0 20h60"/><path stroke="#c8102e" stroke-width="8" d="M30 0v40M0 20h60"/></g>
+</svg>

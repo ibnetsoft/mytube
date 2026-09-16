@@ -8176,7 +8176,7 @@ export default function StdPortalPage() {
                                     className={`rounded p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'en' ? 'bg-blue-500/15 ring-1 ring-blue-400' : 'opacity-70 hover:opacity-100'}`}
                                     title="English"
                                 >
-                                    <img src="/flags/us.svg" alt="" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px]" />
+                                    <img src="/flags/gb.svg" alt="" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px]" />
                                 </button>
                                 <button
                                     type="button"
