@@ -1,9 +1,11 @@
 'use client'
 import { Fragment, useState } from 'react'
+import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import { subtitleWords, sfxSubtitleIndex, wordBoundaryTime } from '@/lib/stdSfxCues'
 
 export default function SubtitleSfxEditor({ subtitle, subtitleIndex, subtitles, assets, cues, selectedAssetId,
-    onSelect, onSave, onEdit, activeTokenIndex, onError }: {
+    onSelect, onSave, onEdit, activeTokenIndex, onError, projectId, headers, onPreviewOpen }: {
+    projectId: string; headers: Record<string, string>; onPreviewOpen: () => void;
     subtitle: any; subtitleIndex: number; subtitles: any[]; assets: any[]; cues: any[]; selectedAssetId: string;
     onSelect: (id: string) => void; onSave: (cues: any[]) => Promise<void>; onEdit: () => void;
     activeTokenIndex: number; onError: (message: string) => void;
@@ -28,11 +30,8 @@ export default function SubtitleSfxEditor({ subtitle, subtitleIndex, subtitles, 
         }])
     }
     return <div className="min-w-0 flex-1 space-y-2">
-        <select aria-label="삽입할 효과음" value={selectedAssetId} onChange={e => onSelect(e.target.value)}
-            disabled={saving} className="w-full rounded border border-purple-500/30 bg-[#10151d] p-1.5 text-[11px] text-purple-200">
-            <option value="">{assets.length ? '효과음 선택 → 단어 사이 + 클릭' : '배경음/효과음 탭에서 자막SFX를 업로드하세요'}</option>
-            {assets.map(a => <option key={a.id} value={a.id}>{a.file_name}</option>)}
-        </select>
+        <SubtitleSfxPicker assets={assets} value={selectedAssetId} projectId={projectId} headers={headers}
+            disabled={saving} onChange={onSelect} onOpen={onPreviewOpen} />
         <div className="flex flex-wrap items-center gap-1" aria-label="단어 사이 효과음 삽입">
             {Array.from({ length: words.length + 1 }, (_, boundary) => <Fragment key={boundary}>
                 {current.filter(c => Number(c.word_boundary ?? 0) === boundary).map(c => <button key={c.id}

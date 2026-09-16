@@ -9473,6 +9473,7 @@ export default function StdPortalPage() {
                                                     ) : (
                                                         <div className="flex items-start gap-1.5">
                                                             <SubtitleSfxEditor
+                                                                projectId={selectedProject.project.id} headers={authedJsonHeaders} onPreviewOpen={stopVrewPlayback}
                                                                 key={selectedProject?.project?.id}
                                                                 subtitle={currentSub} subtitleIndex={selectedSubIndex} subtitles={localSubtitles}
                                                                 assets={(selectedProject?.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
