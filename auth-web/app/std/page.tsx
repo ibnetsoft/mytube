@@ -2,6 +2,7 @@
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
+import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
@@ -9512,6 +9513,8 @@ export default function StdPortalPage() {
                                                     </span>
                                                 </div>
                                             </div>
+                                            {bgmAsset && <BackgroundAudioWaveform src={previewBgmUrl} time={playbackTime}
+                                                timelineDuration={totalDuration} muted={bgmVolume === 0} />}
                                         </div>
                                     </div>
 
