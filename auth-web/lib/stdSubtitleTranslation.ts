@@ -77,3 +77,42 @@ Strict rules:
 Input blocks:
 ${JSON.stringify(blocks)}`
 }
+
+// Match unchanged blocks in sequence, consuming each saved occurrence once.
+// Indexes are positions, not identities: merging a block shifts the entire suffix.
+export function remapSubtitleTranslations(
+    saved: SubtitleTranslationBlock[],
+    current: Array<{ index: number; source_text: string }>,
+): SubtitleTranslationBlock[] {
+    const old = [...saved].sort((a, b) => a.index - b.index)
+    const lengths = Array.from({ length: old.length + 1 }, () => new Uint16Array(current.length + 1))
+    for (let i = old.length - 1; i >= 0; i--) {
+        for (let j = current.length - 1; j >= 0; j--) {
+            lengths[i][j] = old[i].source_text === current[j].source_text
+                ? 1 + lengths[i + 1][j + 1]
+                : Math.max(lengths[i + 1][j], lengths[i][j + 1])
+        }
+    }
+    const result: SubtitleTranslationBlock[] = []
+    let i = 0, j = 0
+    while (i < old.length && j < current.length) {
+        if (old[i].source_text === current[j].source_text) {
+            result.push({ ...current[j], translated_text: old[i].translated_text })
+            i++; j++
+        } else if (lengths[i + 1][j] >= lengths[i][j + 1]) i++
+        else j++
+    }
+    return result
+}
+
+export function remapSubtitleTranslationMap(
+    saved: Record<string, string>,
+    subtitles: Array<{ text?: string }>,
+): Record<string, string> {
+    const blocks = Object.entries(saved).map(([key, translated_text]) => {
+        const separator = key.indexOf('\u0000')
+        return { index: Number(key.slice(0, separator)), source_text: key.slice(separator + 1), translated_text }
+    })
+    return translationMapFromBlocks(remapSubtitleTranslations(blocks,
+        subtitles.map((subtitle, index) => ({ index, source_text: String(subtitle.text || '').trim() }))))
+}

@@ -18,6 +18,7 @@ import {
     SubtitleTranslationLanguage,
     subtitleTranslationKey,
     translationMapFromBlocks,
+    remapSubtitleTranslationMap,
 } from '@/lib/stdSubtitleTranslation'
 
 const SUBTITLE_REVIEW_COPY: Record<SubtitleTranslationLanguage, {
@@ -1684,6 +1685,12 @@ export default function StdPortalPage() {
         }
     }, [token, authedJsonHeaders])
 
+    const alignedSubtitleTranslations = useMemo(() => Object.fromEntries(
+        (['en', 'vi', 'th'] as const).map(language => [language,
+            remapSubtitleTranslationMap(subtitleTranslations[language] || {}, localSubtitles),
+        ]),
+    ), [subtitleTranslations, localSubtitles])
+
     const persistedSubtitleTranslations = selectedProject?.project?.project_payload?.subtitle_translations
 
     useEffect(() => {
@@ -1730,7 +1737,8 @@ export default function StdPortalPage() {
                 body: JSON.stringify({
                     target_language: targetLanguage,
                     blocks,
-                    ...(options?.preferGemini ? { prefer_gemini: true } : {}),
+                    ...(options?.preferGemini || persistedSubtitleTranslations?.[targetLanguage]?.blocks?.length
+                        ? { prefer_gemini: true } : {}),
                 }),
             })
             const languageName = SUBTITLE_REVIEW_COPY[targetLanguage].name
@@ -1776,11 +1784,11 @@ export default function StdPortalPage() {
                 setTranslatingSubtitleLanguage(null)
             }
         }
-    }, [selectedProject?.project?.id, localSubtitles, authedJsonHeaders])
+    }, [selectedProject?.project?.id, localSubtitles, authedJsonHeaders, persistedSubtitleTranslations])
 
     useEffect(() => {
         if (!subtitleReviewLocale || currentNav !== 'subtitle_vrew' || localSubtitles.length === 0) return
-        const activeTranslations = subtitleTranslations[subtitleReviewLocale] || {}
+        const activeTranslations = alignedSubtitleTranslations[subtitleReviewLocale] || {}
         const hasMissingTranslation = localSubtitles.some((subtitle: any, index: number) => {
             const sourceText = String(subtitle?.text || '').trim()
             return sourceText && !activeTranslations[subtitleTranslationKey(index, sourceText)]
@@ -1788,7 +1796,7 @@ export default function StdPortalPage() {
         if (!hasMissingTranslation) return
         const timer = window.setTimeout(() => void translateSubtitleBlocks(subtitleReviewLocale, false), 700)
         return () => window.clearTimeout(timer)
-    }, [subtitleReviewLocale, currentNav, localSubtitles, subtitleTranslations, translateSubtitleBlocks])
+    }, [subtitleReviewLocale, currentNav, localSubtitles, alignedSubtitleTranslations, translateSubtitleBlocks])
 
     const safeParseJson = async (res: Response, fallbackErrMsg: string) => {
         try {
@@ -9122,7 +9130,7 @@ export default function StdPortalPage() {
                                                                             ? subtitleDialogueCandidates.get(item.subtitleIndex) || [] : []
                                                                         const isBlockSelected = selectedSubtitleBlockIndexes.includes(item.subtitleIndex)
                                                                         const localizedTranslation = subtitleReviewLocale
-                                                                            ? subtitleTranslations[subtitleReviewLocale]?.[subtitleTranslationKey(
+                                                                            ? alignedSubtitleTranslations[subtitleReviewLocale]?.[subtitleTranslationKey(
                                                                                 item.subtitleIndex,
                                                                                 String(item.text || '').trim(),
                                                                             )]

@@ -10,7 +10,7 @@ function compileBetween(start, end, name, context) {
 }
 async function main() {
     const rows = Array.from({length: 8}, (_, index) => ({id: `row-${index}`, scene_number: 31, text: index === 3 ? '그' : index === 4 ? '밤에 네 울음이 그리 작더니.' : `문장 ${index}`, start_num: index * 2, end_num: index * 2 + 2, start_time: String(index * 2), end_time: String(index * 2 + 2), voice_id: 'actor'}))
-    let selection = [], saved, selectedIndex, stale
+    let selection = [], saved, selectedIndex, stale, translationRequest
     const anchor = {current: null}
     const select = compileBetween('    const selectSubtitleBlock =', '    const persistVrewVoiceSubtitles', 'selectSubtitleBlock', {
         localSubtitles: rows, subtitleBlockSelectionAnchorRef: anchor,
@@ -21,6 +21,7 @@ async function main() {
     assert.deepEqual(selection, [3, 4])
     const merge = compileBetween('    const mergeSelectedSubtitleBlocks =', '    const splitSelectedSubtitleBlock', 'mergeSelectedSubtitleBlocks', {
         selectedSubtitleBlockIndexes: selection, localSubtitles: rows,
+        subtitleReviewLocale: 'th', translateSubtitleBlocks: (...args) => { translationRequest = args },
         isSubtitleDialogue: () => true, aiDialogueParts: new Map([[3, [{dialogue: true, speaker: '노인'}]], [4, [{dialogue: true, speaker: '노인'}]]]),
         currentNav: 'subtitle_vrew', isPlayingPreview: false, stopVrewPlayback: () => {},
         markVrewSegmentStale: item => {stale = item}, setSelectedSubIndex: value => {selectedIndex = value},
@@ -29,6 +30,9 @@ async function main() {
     })
     await merge()
     assert.equal(saved.length, 7)
+    assert.equal(translationRequest[0], 'th')
+    assert.equal(translationRequest[2], saved)
+    assert.equal(translationRequest[3].preferGemini, true)
     assert.equal(saved.filter(item => item.scene_number === 31).length, 7)
     assert.equal(saved[3].text, '그 밤에 네 울음이 그리 작더니.')
     assert.equal(saved[3].start_num, 6)

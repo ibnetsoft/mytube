@@ -8,6 +8,7 @@ import {
     SubtitleTranslationBlock,
     subtitleTranslationKey,
     translationMapFromBlocks,
+    remapSubtitleTranslations,
 } from '@/lib/stdSubtitleTranslation'
 import { requireStdUser } from '@/lib/stdWeb'
 
@@ -102,37 +103,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
     const cachedBlocks = project.project_payload?.subtitle_translations?.[targetLanguage]?.blocks
-    const cached = translationMapFromBlocks(cachedBlocks)
-    const reusableBySource = new Map<string, string[]>()
-    if (Array.isArray(cachedBlocks)) {
-        for (const block of cachedBlocks) {
-            const sourceText = String(block?.source_text || '').trim()
-            const translatedText = String(block?.translated_text || '').trim()
-            if (!sourceText || !translatedText) continue
-            const existing = reusableBySource.get(sourceText) || []
-            existing.push(translatedText)
-            reusableBySource.set(sourceText, existing)
-        }
-    }
+    const cached = translationMapFromBlocks(remapSubtitleTranslations(
+        Array.isArray(cachedBlocks) ? cachedBlocks : [], blocks,
+    ))
     const translated = new Map<string, string>()
     const missing = blocks.filter((block: any) => {
         const cachedText = cached[subtitleTranslationKey(block.index, block.source_text)]
-        if (cachedText) {
-            translated.set(String(block.index), cachedText)
-            return false
-        }
-        // Subtitle merge/split can shift every following index even when the
-        // source text itself did not change. Reuse those exact-text translations
-        // so Gemini only translates the newly created/edited block.
-        const reusable = reusableBySource.get(block.source_text) || []
-        const reusableText = reusable.shift()
-        if (reusable.length > 0) reusableBySource.set(block.source_text, reusable)
-        else reusableBySource.delete(block.source_text)
-        if (reusableText) {
-            translated.set(String(block.index), reusableText)
-            return false
-        }
-        return true
+        if (cachedText) translated.set(String(block.index), cachedText)
+        return !cachedText
     })
 
     if (missing.length > 0) {
