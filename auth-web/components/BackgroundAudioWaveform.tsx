@@ -8,8 +8,8 @@ function clock(seconds: number) {
     return `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`
 }
 
-export default function BackgroundAudioWaveform({ src, time, timelineDuration, muted }: {
-    src: string; time: number; timelineDuration: number; muted: boolean
+export default function BackgroundAudioWaveform({ src, time, timelineDuration, muted, loop = true }: {
+    src: string; time: number; timelineDuration: number; muted: boolean; loop?: boolean
 }) {
     const [wave, setWave] = useState<{ src: string; peaks: number[]; duration: number } | null>(null)
     const [error, setError] = useState('')
@@ -38,7 +38,7 @@ export default function BackgroundAudioWaveform({ src, time, timelineDuration, m
     }, [src])
 
     const current = wave?.src === src ? wave : null
-    const position = backgroundTrackPosition(time, current?.duration || 0)
+    const position = backgroundTrackPosition(time, current?.duration || 0, loop)
     const progress = current?.duration ? position / current.duration * 640 : 0
     const bars = current?.peaks.map((peak, i) => {
         const height = Math.max(1, peak * 42)
@@ -47,7 +47,7 @@ export default function BackgroundAudioWaveform({ src, time, timelineDuration, m
     })
     return <div className="mt-2 border-t border-white/10 pt-2" aria-label="배경음 파형">
         <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-cyan-200">
-            <span>배경음{muted ? ' · 음소거' : ''}{current && timelineDuration > current.duration ? ' · 반복 재생' : ''}</span>
+            <span>배경음{muted ? ' · 음소거' : ''}{loop && current && timelineDuration > current.duration ? ' · 반복 재생' : !loop ? ' · 한 번 재생' : ''}</span>
             {current && <span className="font-mono tabular-nums">{clock(position)} / {clock(current.duration)}</span>}
         </div>
         {current ? <svg viewBox="0 0 640 48" preserveAspectRatio="none" className="h-10 w-full rounded bg-black/20"

@@ -13,3 +13,6 @@ assert.equal(api.backgroundTrackPosition(30, 30), 0)
 assert.equal(api.backgroundTrackPosition(-2, 30), 0)
 assert.equal(api.backgroundTrackPosition(10, 0), 0)
 console.log('PASS: real sample peaks, both stereo channels, silence, short files and loop position')
+
+assert.equal(api.backgroundTrackPosition(65, 30, false), 30)
+assert.equal(api.backgroundTrackPosition(10, 30, false), 10)

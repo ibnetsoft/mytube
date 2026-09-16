@@ -1054,6 +1054,7 @@ export default function StdPortalPage() {
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const previousBgmVolumeRef = useRef(0.08)
+    const [bgmLoop, setBgmLoop] = useState(true)
     const [bgmVolume, setBgmVolume] = useState(0.08)
     const [savingBgmVolume, setSavingBgmVolume] = useState(false)
     const [previewBgmUrl, setPreviewBgmUrl] = useState('')
@@ -3420,22 +3421,25 @@ export default function StdPortalPage() {
         const audio = previewBgmAudioRef.current
         if (!audio) return
         audio.volume = backgroundVolume(bgmVolume)
+        audio.loop = bgmLoop
 
-        const seekToTimeline = () => {
+        const seekAndPlay = () => {
             const duration = Number(audio.duration)
             if (Number.isFinite(duration) && duration > 0) {
-                audio.currentTime = Math.max(0, timelineTime) % duration
+                if (!bgmLoop && timelineTime >= duration) {
+                    audio.pause()
+                    audio.currentTime = duration
+                    return
+                }
+                audio.currentTime = bgmLoop ? Math.max(0, timelineTime) % duration : Math.max(0, timelineTime)
             }
+            void audio.play().catch(error => {
+                console.warn('[STD preview] BGM playback failed:', error)
+                setMessage('배경음 재생에 실패했습니다. 파일을 다시 업로드하거나 로그인 상태를 확인해 주세요.')
+            })
         }
-        if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
-            seekToTimeline()
-        } else {
-            audio.addEventListener('loadedmetadata', seekToTimeline, { once: true })
-        }
-        void audio.play().catch(error => {
-            console.warn('[STD preview] BGM playback failed:', error)
-            setMessage('배경음 재생에 실패했습니다. 파일을 다시 업로드하거나 로그인 상태를 확인해 주세요.')
-        })
+        if (audio.readyState >= HTMLMediaElement.HAVE_METADATA) seekAndPlay()
+        else audio.addEventListener('loadedmetadata', seekAndPlay, { once: true })
     }
 
     const stopVrewPlayback = () => {
@@ -7190,15 +7194,28 @@ export default function StdPortalPage() {
     }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
+        setBgmLoop(bgmSfxSettings.bgm_loop !== false)
         const volume = backgroundVolume(bgmSfxSettings.bgm_volume)
         previousBgmVolumeRef.current = volume > 0 ? volume : 0.08
         setBgmVolume(volume)
-    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume])
+    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume, bgmSfxSettings.bgm_loop])
 
     useEffect(() => {
         if (bgmVolume > 0) previousBgmVolumeRef.current = bgmVolume
         if (previewBgmAudioRef.current) previewBgmAudioRef.current.volume = backgroundVolume(bgmVolume)
     }, [bgmVolume])
+
+    useEffect(() => {
+        const audio = previewBgmAudioRef.current
+        if (!audio) return
+        audio.loop = bgmLoop
+        if (isPlayingPreview) {
+            if (!bgmLoop && Number.isFinite(audio.duration) && playbackTime >= audio.duration) {
+                audio.pause()
+                audio.currentTime = audio.duration
+            } else playPreviewBgm(playbackTime)
+        }
+    }, [bgmLoop])
 
     const toggleBgmMute = () => {
         if (bgmVolume > 0) {
@@ -7212,8 +7229,8 @@ export default function StdPortalPage() {
     const saveBgmVolume = async () => {
         setSavingBgmVolume(true)
         try {
-            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume) })
-            setMessage(`배경음 볼륨 ${Math.round(bgmVolume * 100)}%를 저장했습니다.`)
+            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop })
+            setMessage(`배경음 ${Math.round(bgmVolume * 100)}% · ${bgmLoop ? '반복 켜짐' : '한 번 재생'} 설정을 저장했습니다.`)
         } catch (error: any) {
             setMessage(error?.message || '배경음 볼륨 저장 실패')
         } finally { setSavingBgmVolume(false) }
@@ -9318,7 +9335,7 @@ export default function StdPortalPage() {
                                                 ref={previewBgmAudioRef}
                                                 src={previewBgmUrl || undefined}
                                                 preload="auto"
-                                                loop
+                                                loop={bgmLoop}
                                                 className="hidden"
                                                 aria-hidden="true"
                                             />
@@ -9513,7 +9530,7 @@ export default function StdPortalPage() {
                                                 </div>
                                             </div>
                                             {bgmAsset && <BackgroundAudioWaveform src={previewBgmUrl} time={playbackTime}
-                                                timelineDuration={totalDuration} muted={bgmVolume === 0} />}
+                                                timelineDuration={totalDuration} muted={bgmVolume === 0} loop={bgmLoop} />}
                                         </div>
                                     </div>
 
@@ -9677,6 +9694,11 @@ export default function StdPortalPage() {
                                                         SFX · {currentSfxAsset?.file_name || currentSfxCue?.file_name}
                                                     </div>
                                                 )}
+                                                <label className="flex items-center gap-1.5 text-[11px] text-cyan-200">
+                                                    <input type="checkbox" checked={bgmLoop} disabled={savingBgmVolume}
+                                                        onChange={event => setBgmLoop(event.target.checked)} className="accent-cyan-400" />
+                                                    배경음 반복
+                                                </label>
                                                 <div className="flex items-center gap-2 text-[11px] text-gray-300">
                                                     <button type="button" onClick={toggleBgmMute} disabled={savingBgmVolume}
                                                         aria-label={bgmVolume === 0 ? '배경음 음소거 해제' : '배경음 음소거'}

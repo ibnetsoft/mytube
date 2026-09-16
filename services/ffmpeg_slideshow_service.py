@@ -554,7 +554,9 @@ def render_ffmpeg_slideshow(
     bgm_path = _resolve_audio_asset(temp_dir, _setting(subtitle_settings or {}, "bgm_path"))
     if bgm_path:
         bgm_index = audio_index + 1
-        command.extend(["-stream_loop", "-1", "-i", bgm_path])
+        if _setting(subtitle_settings or {}, "bgm_loop", default=True):
+            command.extend(["-stream_loop", "-1"])
+        command.extend(["-i", bgm_path])
         bgm_volume = float(_setting(subtitle_settings or {}, "bgm_volume", default=0.25) or 0.25)
         filters.append(
             f"[{bgm_index}:a]volume={max(0.0, min(1.0, bgm_volume)):.3f},"

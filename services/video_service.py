@@ -1192,7 +1192,13 @@ class VideoService:
                     except ValueError:
                         bgm_volume = 0.3
                     
-                    bgm_clip = AudioFileClip(bgm_path).with_duration(audio.duration).with_volume(bgm_volume)
+                    bgm_clip = AudioFileClip(bgm_path)
+                    if subtitle_settings.get("bgm_loop", True):
+                        from moviepy.audio.fx.AudioLoop import AudioLoop
+                        bgm_clip = bgm_clip.with_effects([AudioLoop(duration=audio.duration)])
+                    else:
+                        bgm_clip = bgm_clip.with_duration(min(bgm_clip.duration, audio.duration))
+                    bgm_clip = bgm_clip.with_volume(bgm_volume)
                     from moviepy.audio.AudioClip import CompositeAudioClip
                     audio = CompositeAudioClip([audio, bgm_clip])
                     print(f"🎵 [BGM QA Mixer] Mixed into final: {os.path.basename(bgm_path)} at volume {bgm_volume}")

@@ -41,10 +41,19 @@ async function main() {
     let played = false
     const bgm = {duration:30,readyState:1,currentTime:0,volume:1,play:()=>{played=true;return Promise.resolve()}}
     const playBgm = compile('    const playPreviewBgm =','    const stopVrewPlayback','playPreviewBgm',{
-        previewBgmAudioRef:{current:bgm},bgmVolume:0.08,backgroundVolume:v=>v,HTMLMediaElement:{HAVE_METADATA:1},setMessage:()=>{},
+        previewBgmAudioRef:{current:bgm},bgmLoop:true,bgmVolume:0.08,backgroundVolume:v=>v,HTMLMediaElement:{HAVE_METADATA:1},setMessage:()=>{},
     })
     playBgm(65)
     assert.equal(played,true);assert.equal(bgm.currentTime,5);assert.equal(bgm.volume,0.08)
+    played=false
+    bgm.pause=()=>{}
+    const playOnce=compile('    const playPreviewBgm =','    const stopVrewPlayback','playPreviewBgm',{
+        previewBgmAudioRef:{current:bgm},bgmLoop:false,bgmVolume:0.08,backgroundVolume:v=>v,HTMLMediaElement:{HAVE_METADATA:1},setMessage:()=>{},
+    })
+    playOnce(65)
+    assert.equal(played,false);assert.equal(bgm.currentTime,30)
+    playOnce(10)
+    assert.equal(played,true);assert.equal(bgm.currentTime,10)
     console.log('PASS: Narration preserved, music routed to BGM, default background gain 8%, authenticated fallback and direct upload')
 }
 main().catch(e=>{console.error(e);process.exitCode=1})

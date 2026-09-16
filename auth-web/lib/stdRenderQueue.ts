@@ -650,6 +650,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         ...(bgmPath ? {
             bgm_path: bgmPath,
             bgm_volume: clampNumber(projectRenderSettings.bgm_volume, 0.08, 0, 1),
+            bgm_loop: projectRenderSettings.bgm_loop !== false,
         } : {}),
     }
 

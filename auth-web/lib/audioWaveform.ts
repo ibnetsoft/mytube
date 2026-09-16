@@ -13,6 +13,8 @@ export function audioWaveformPeaks(channels: Float32Array[], count = 160): numbe
     })
 }
 
-export function backgroundTrackPosition(time: number, duration: number): number {
-    return duration > 0 && Number.isFinite(time) ? Math.max(0, time) % duration : 0
+export function backgroundTrackPosition(time: number, duration: number, loop = true): number {
+    return duration > 0 && Number.isFinite(time)
+        ? loop ? Math.max(0, time) % duration : Math.min(duration, Math.max(0, time))
+        : 0
 }
