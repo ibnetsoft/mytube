@@ -157,6 +157,7 @@ import {
     Upload,
     Video,
     Volume2,
+    VolumeX,
     Wand2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
@@ -1051,6 +1052,7 @@ export default function StdPortalPage() {
     const vrewFinalNarrationAudioRef = useRef<{ assetId: string; url: string } | null>(null)
     const vrewBypassCachedSegmentAudioRef = useRef(false)
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const previousBgmVolumeRef = useRef(0.08)
     const [bgmVolume, setBgmVolume] = useState(0.08)
     const [savingBgmVolume, setSavingBgmVolume] = useState(false)
     const [previewBgmUrl, setPreviewBgmUrl] = useState('')
@@ -7187,12 +7189,24 @@ export default function StdPortalPage() {
     }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
-        setBgmVolume(backgroundVolume(bgmSfxSettings.bgm_volume))
+        const volume = backgroundVolume(bgmSfxSettings.bgm_volume)
+        previousBgmVolumeRef.current = volume > 0 ? volume : 0.08
+        setBgmVolume(volume)
     }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume])
 
     useEffect(() => {
+        if (bgmVolume > 0) previousBgmVolumeRef.current = bgmVolume
         if (previewBgmAudioRef.current) previewBgmAudioRef.current.volume = backgroundVolume(bgmVolume)
     }, [bgmVolume])
+
+    const toggleBgmMute = () => {
+        if (bgmVolume > 0) {
+            previousBgmVolumeRef.current = bgmVolume
+            setBgmVolume(0)
+        } else {
+            setBgmVolume(backgroundVolume(previousBgmVolumeRef.current) || 0.08)
+        }
+    }
 
     const saveBgmVolume = async () => {
         setSavingBgmVolume(true)
@@ -9651,7 +9665,24 @@ export default function StdPortalPage() {
                                                     자막SFX
                                                 </button>
                                             </div>
+                                                {(bgmAsset?.file_name || bgmSfxSettings.bgm_file_name) && (
+                                                    <div className="truncate text-[11px] text-cyan-200" title={bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}>
+                                                        BGM · {bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}
+                                                    </div>
+                                                )}
+                                                {(currentSfxAsset?.file_name || currentSfxCue?.file_name) && (
+                                                    <div className="truncate text-[11px] text-purple-200" title={currentSfxAsset?.file_name || currentSfxCue?.file_name}>
+                                                        SFX · {currentSfxAsset?.file_name || currentSfxCue?.file_name}
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center gap-2 text-[11px] text-gray-300">
+                                                    <button type="button" onClick={toggleBgmMute} disabled={savingBgmVolume}
+                                                        aria-label={bgmVolume === 0 ? '배경음 음소거 해제' : '배경음 음소거'}
+                                                        aria-pressed={bgmVolume === 0}
+                                                        title={bgmVolume === 0 ? '배경음 음소거 해제' : '배경음 음소거'}
+                                                        className="shrink-0 rounded border border-cyan-500/30 p-1.5 text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50">
+                                                        {bgmVolume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                                                    </button>
                                                     <label htmlFor="std-bgm-volume" className="shrink-0">배경음 볼륨</label>
                                                     <input id="std-bgm-volume" type="range" min="0" max="100" step="1"
                                                         value={Math.round(bgmVolume * 100)} disabled={savingBgmVolume}
