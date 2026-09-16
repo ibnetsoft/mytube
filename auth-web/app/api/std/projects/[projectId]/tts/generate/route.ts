@@ -6,8 +6,6 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import {
     driveFileLink,
-    ensureStdProjectDriveFolders,
-    uploadStdDriveBuffer,
 } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { parseScriptToVoiceSegments, ScriptVoiceSegment } from '@/lib/stdMultiVoice'
@@ -22,7 +20,6 @@ const DEFAULT_ELEVENLABS_VOICE_ID = 'FGY2WhTYpPnrIDTdsKH5'
 const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2'
 const FALLBACK_ELEVENLABS_MODEL_IDS = ['eleven_v3', 'eleven_multilingual_v2']
 const MAX_CHARS_PER_REQUEST = 4500
-const MAX_INLINE_AUDIO_BYTES = 2_500_000
 const ELEVENLABS_KEY_INSPECTION_TTL_MS = 60_000
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -816,7 +813,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const fileName = segmentPreview
             ? `vrew_segment_${safeProjectKey}_${Number.isFinite(segmentIndex) ? String(segmentIndex + 1).padStart(4, '0') : '0000'}_${segmentHash}.mp3`
             : `std_tts_${safeProjectKey}_${Date.now()}.mp3`
-        if (fastSegmentPreview) {
+        if (segmentPreview) {
             stage = 'persist_segment_audio'
             const asset = await persistSegmentAudio(supabaseAdmin, {
                 projectId: project.id, cacheKey: segmentCacheKey, identity: segmentIdentity,
@@ -830,272 +827,59 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 message: '자막 구간 음성을 저장했습니다.',
             })
         }
-        stage = 'ensure_drive_folders'
-        let folders: any = null
-        let driveFile: any = null
-        try {
-            folders = await ensureStdProjectDriveFolders(project)
-            stage = 'upload_drive_file'
-            driveFile = await uploadStdDriveBuffer(
-                folders.originalsFolderId,
-                fileName,
-                audioBuffer,
-                'audio/mpeg',
-                `AIR STD web TTS audio for project ${project.id}`
-            )
-        } catch (driveError: any) {
-            console.error('[STD TTS] Google Drive upload failed; refusing transient-only success:', driveError?.message)
-            if (audioBuffer.length <= MAX_INLINE_AUDIO_BYTES) {
-                return NextResponse.json({
-                    success: true,
-                    warning: 'TTS audio was generated, but Google Drive storage failed.',
-                    code: 'tts_drive_upload_failed_inline_audio_returned',
-                    stage,
-                    detail: driveError?.message || null,
-                    asset: null,
-                    drive_file: null,
-                    audio_url: `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`,
-                    download_url: '',
-                    persisted_audio_url: '',
-                    web_view_link: '',
-                    elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
-                    elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-                    message: 'TTS 음성은 생성되었지만 Google Drive 저장은 실패했습니다.',
-                })
-            }
-            return NextResponse.json({
-                success: false,
-                error: 'TTS audio was generated, but Google Drive storage failed. Please retry.',
-                code: 'tts_drive_upload_failed',
-                stage,
-                detail: driveError?.message || null,
+        stage = 'persist_narration_storage'
+        const storagePath = `std/${project.id}/tts/${fileName}`
+        const { error: uploadError } = await supabaseAdmin.storage.from('content-assets')
+            .upload(storagePath, audioBuffer, { contentType: 'audio/mpeg', upsert: false })
+        if (uploadError) throw new Error(`음성 파일 저장 실패: ${uploadError.message}`)
+        const { data: asset, error: assetError } = await supabaseAdmin.from('std_project_assets').insert({
+            project_id: project.id, scene_id: null, scene_number: null, asset_type: 'audio',
+            file_name: fileName, mime_type: 'audio/mpeg', file_size: audioBuffer.length,
+            status: 'uploaded', uploaded_by: auth.requester.user.id,
+            metadata: {
+                storage_bucket: 'content-assets', storage_path: storagePath,
+                provider, voice_id: voiceId, model_id: modelId, tts_speed: projectTtsSpeed,
+                multi_voice: multiVoice, voice_map: voiceMap, voice_segments: voiceSegments,
+                text_length: text.length, chunk_count: chunkCount, generated_by: auth.requester.email,
                 elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                 elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-            }, { status: 502 })
-        }
-
-        if (segmentPreview) {
-            let asset: any = null
-            try {
-                stage = 'replace_existing_segment_cache'
-                await supabaseAdmin
-                    .from('std_project_assets')
-                    .update({ status: 'replaced', updated_at: now })
-                    .eq('project_id', project.id)
-                    .eq('asset_type', 'other')
-                    .eq('metadata->>kind', 'vrew_segment_tts')
-                    .eq('metadata->>cache_key', segmentCacheKey)
-                    .in('status', ['uploaded', 'assigned'])
-
-                stage = 'insert_segment_cache_asset'
-                const { data: insertedAsset, error: assetError } = await supabaseAdmin
-                    .from('std_project_assets')
-                    .insert({
-                        project_id: project.id,
-                        scene_id: null,
-                        scene_number: Number.isFinite(segmentIndex) ? segmentIndex + 1 : null,
-                        asset_type: 'other',
-                        drive_file_id: driveFile.id,
-                        drive_folder_id: folders.originalsFolderId,
-                        file_name: driveFile.name || fileName,
-                        mime_type: 'audio/mpeg',
-                        file_size: driveFile.size ? Number(driveFile.size) : audioBuffer.length,
-                        status: 'uploaded',
-                        uploaded_by: auth.requester.user.id,
-                        metadata: {
-                            kind: 'vrew_segment_tts',
-                            cache_key: segmentCacheKey,
-                            segment_index: Number.isFinite(segmentIndex) ? segmentIndex : null,
-                            provider,
-                            voice_id: voiceId,
-                            model_id: modelId,
-                            tts_speed: projectTtsSpeed,
-                            stability: body?.stability == null ? null : Number(body.stability),
-                            style: body?.style == null ? null : Number(body.style),
-                            text,
-                            text_length: text.length,
-                            generated_by: auth.requester.email,
-                            web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-                            elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
-                            elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-                        },
-                    })
-                    .select('*')
-                    .single()
-                if (assetError) throw assetError
-                asset = insertedAsset
-            } catch (assetError: any) {
-                console.warn('[STD TTS] Vrew segment asset row could not be saved; continuing with Drive file playback', assetError?.message)
-            }
-
-            const progressPayload = project.progress_payload || {}
-            const previousCache = progressPayload.vrew_segment_audio_cache || {}
-            stage = 'update_segment_cache_state'
-            await supabaseAdmin
-                .from('std_projects')
-                .update({
-                    drive_folder_id: folders.projectFolderId,
-                    progress_payload: {
-                        ...progressPayload,
-                        std_drive: {
-                            ...(progressPayload.std_drive || {}),
-                            folder_ids: {
-                                project: folders.projectFolderId,
-                                images: folders.imagesFolderId,
-                                videos: folders.videosFolderId,
-                                originals: folders.originalsFolderId,
-                                audio: folders.audioFolderId,
-                            },
-                        },
-                        vrew_segment_audio_cache: {
-                            ...previousCache,
-                            [segmentCacheKey]: {
-                                asset_id: asset?.id || null,
-                                drive_file_id: driveFile.id,
-                                file_name: driveFile.name || fileName,
-                                voice_id: voiceId,
-                                text_hash: createHash('sha1').update(text).digest('hex'),
-                                generated_at: now,
-                            },
-                        },
-                    },
-                    updated_at: now,
-                })
-                .eq('id', project.id)
-
-            const audioUrl = asset?.id
-                ? `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
-                : `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?driveFileId=${encodeURIComponent(driveFile.id)}`
-            return NextResponse.json({
-                success: true,
-                segment_preview: true,
-                asset,
-                drive_file: driveFile,
-                audio_url: audioUrl,
-                download_url: audioUrl,
-                persisted_audio_url: audioUrl,
-                web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-                elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
-                elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-                message: 'Vrew 구간 TTS 음성이 Google Drive에 저장되었습니다.',
-            })
-        }
-
-        let asset: any = null
-        try {
-            stage = 'replace_existing_audio_assets'
-            await supabaseAdmin
-                .from('std_project_assets')
-                .update({ status: 'replaced', updated_at: now })
-                .eq('project_id', project.id)
-                .eq('asset_type', 'audio')
-                .in('status', ['uploaded', 'assigned'])
-
-            stage = 'insert_audio_asset'
-            const { data: insertedAsset, error: assetError } = await supabaseAdmin
-                .from('std_project_assets')
-                .insert({
-                    project_id: project.id,
-                    scene_id: null,
-                    scene_number: null,
-                    asset_type: 'audio',
-                    drive_file_id: driveFile.id,
-                    drive_folder_id: folders.originalsFolderId,
-                    file_name: driveFile.name || fileName,
-                    mime_type: 'audio/mpeg',
-                    file_size: driveFile.size ? Number(driveFile.size) : audioBuffer.length,
-                    status: 'uploaded',
-                    uploaded_by: auth.requester.user.id,
-                    metadata: {
-                        provider,
-                        voice_id: voiceId,
-                        model_id: modelId,
-                        tts_speed: projectTtsSpeed,
-                        multi_voice: multiVoice,
-                        voice_map: voiceMap,
-                        voice_segments: voiceSegments,
-                        text_length: text.length,
-                        chunk_count: chunkCount,
-                        elevenlabs_key_preflight: elevenLabsKeyInspections,
-                        elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
-                        elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-                        generated_by: auth.requester.email,
-                        web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-                    },
-                })
-                .select('*')
-                .single()
-            if (assetError) throw assetError
-            asset = insertedAsset
-        } catch (assetError: any) {
-            console.warn('[STD TTS] asset row could not be saved; continuing with Drive file playback', assetError?.message)
-        }
-
-        const progressPayload = project.progress_payload || {}
-        stage = 'update_project_tts_state'
-        await supabaseAdmin
-            .from('std_projects')
-            .update({
-                drive_folder_id: folders.projectFolderId,
-                progress_payload: {
-                    ...completedScriptTtsProgress(progressPayload, text, buildTtsText(project, scenes)),
-                    std_drive: {
-                        ...(progressPayload.std_drive || {}),
-                        folder_ids: {
-                            project: folders.projectFolderId,
-                            images: folders.imagesFolderId,
-                            videos: folders.videosFolderId,
-                            originals: folders.originalsFolderId,
-                            audio: folders.audioFolderId,
-                        },
-                    },
-                    has_tts_audio: true,
-                    tts_generated_at: now,
-                    tts_asset_id: asset?.id || null,
-                    tts_drive_file_id: driveFile.id,
-                    tts_file_name: driveFile.name || fileName,
-                    voice_id: voiceId,
-                    tts_speed: projectTtsSpeed,
-                    multi_voice: multiVoice,
-                    voice_map: voiceMap,
-                    voice_segments: voiceSegments,
-                    elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
-                    elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
-                },
-                project_payload: {
-                    ...(project.project_payload || {}),
-                    audio_url: driveFile.webViewLink || driveFileLink(driveFile.id),
-                    tts_url: driveFile.webViewLink || driveFileLink(driveFile.id),
-                    voice_id: voiceId,
-                    tts_speed: projectTtsSpeed,
-                    multi_voice: multiVoice,
-                    voice_map: voiceMap,
-                    voice_segments: voiceSegments,
-                },
-                updated_at: now,
-            })
-            .eq('id', project.id)
+            },
+        }).select('*').single()
+        if (assetError) throw assetError
+        // Retire old narration only after the replacement is durably saved.
+        const { error: replaceError } = await supabaseAdmin.from('std_project_assets')
+            .update({ status: 'replaced', updated_at: now }).eq('project_id', project.id)
+            .eq('asset_type', 'audio').neq('id', asset.id).in('status', ['uploaded', 'assigned'])
+        if (replaceError) throw replaceError
+        const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
+        const { error: stateError } = await supabaseAdmin.from('std_projects').update({
+            progress_payload: {
+                ...completedScriptTtsProgress(project.progress_payload || {}, text, buildTtsText(project, scenes)),
+                has_tts_audio: true, tts_generated_at: now, tts_asset_id: asset.id,
+                tts_drive_file_id: null, tts_file_name: fileName,
+                voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
+                voice_map: voiceMap, voice_segments: voiceSegments,
+            },
+            project_payload: { ...(project.project_payload || {}), audio_url: audioUrl, tts_url: audioUrl,
+                voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
+                voice_map: voiceMap, voice_segments: voiceSegments },
+            updated_at: now,
+        }).eq('id', project.id)
+        if (stateError) throw stateError
 
         try {
             stage = 'sync_legacy'
             await syncStdProjectToLegacy(project.id)
         } catch {}
 
-        const audioUrl = asset?.id
-            ? `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?assetId=${encodeURIComponent(asset.id)}`
-            : `/api/std/projects/${encodeURIComponent(project.id)}/tts/audio?driveFileId=${encodeURIComponent(driveFile.id)}`
-        const inlineAudioUrl = audioBuffer.length <= MAX_INLINE_AUDIO_BYTES
-            ? `data:audio/mpeg;base64,${audioBuffer.toString('base64')}`
-            : ''
-
         return NextResponse.json({
             success: true,
             asset,
-            drive_file: driveFile,
-            audio_url: inlineAudioUrl || audioUrl,
+            drive_file: null,
+            audio_url: audioUrl,
             download_url: audioUrl,
             persisted_audio_url: audioUrl,
-            web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
+            web_view_link: '',
             elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
             elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
             message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',

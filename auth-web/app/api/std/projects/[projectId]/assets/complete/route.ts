@@ -331,7 +331,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             asset = insertedAsset
         }
 
-        if (isSupabaseAsset && !asset.drive_file_id) {
+        if (isSupabaseAsset && !asset.drive_file_id && !['audio', 'bgm', 'sfx'].includes(assetType)) {
             try {
                 asset = await archiveSupabaseAssetToDrive(project, asset)
             } catch (driveArchiveError: any) {

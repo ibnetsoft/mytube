@@ -38,8 +38,8 @@ export default function SubtitleSfxEditor({ subtitle, subtitleIndex, subtitles, 
                 {current.filter(c => Number(c.word_boundary ?? 0) === boundary).map(c => <button key={c.id}
                     type="button" disabled={saving} onClick={() => void save(cues.filter(item => item.id !== c.id))}
                     title={`${c.file_name} · 클릭하여 삽입 삭제`} aria-label={`${c.file_name} 효과음 삭제`}
-                    className="max-w-full truncate rounded border border-purple-400/40 bg-purple-500/15 px-1.5 py-1 text-[10px] text-purple-200">
-                    ♪ {c.file_name} ×
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-purple-400/60 bg-purple-500/15 text-sm text-purple-200 hover:bg-purple-500/30">
+                    <span aria-hidden="true">★</span>
                 </button>)}
                 {selectedAssetId && <button type="button" disabled={saving} onClick={() => insert(boundary)}
                     aria-label={`${boundary}번째 단어 뒤 효과음 삽입`} title={`${wordBoundaryTime(subtitle, boundary).toFixed(2)}초에 효과음 삽입`}

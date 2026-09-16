@@ -132,6 +132,19 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
                 fileBuffer = await downloadStdDriveFile(targetDriveFileId)
             }
             source = 'drive'
+            // Retain readable legacy audio in Storage so later playback needs no Drive token.
+            if (!requestedRange && String(asset.mime_type || '').startsWith('audio/')) {
+                const migratedPath = `std/${project.id}/audio/${asset.id}`
+                const { error: saveError } = await supabaseAdmin.storage.from(CONTENT_ASSETS_BUCKET)
+                    .upload(migratedPath, fileBuffer, { contentType: asset.mime_type, upsert: true })
+                if (!saveError) {
+                    const { error: metadataError } = await supabaseAdmin.from('std_project_assets').update({
+                        metadata: { ...asset.metadata, storage_bucket: CONTENT_ASSETS_BUCKET, storage_path: migratedPath },
+                        updated_at: new Date().toISOString(),
+                    }).eq('id', asset.id).eq('project_id', project.id)
+                    if (metadataError) console.warn('[STD Asset File] Audio migration metadata failed:', metadataError.message)
+                } else console.warn('[STD Asset File] Audio migration deferred:', saveError.message)
+            }
         } catch (error: any) {
             console.warn('[STD Asset File] Drive download failed:', error?.message)
             if (isMediaRestoreRequest) {

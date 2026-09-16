@@ -334,13 +334,23 @@ async function loadBundle(projectId: string) {
     return { project, scenes: scenes || [], assets: assets || [] }
 }
 
+async function downloadRenderAudio(asset: any): Promise<Buffer> {
+    const storage = storageSourceForAsset(asset)
+    if (storage) {
+        const { data, error } = await supabaseAdmin.storage.from(storage.bucket).download(storage.path)
+        if (error || !data) throw new Error(error?.message || '렌더 음성 파일을 불러오지 못했습니다.')
+        return Buffer.from(await data.arrayBuffer())
+    }
+    return downloadStdDriveFile(asset.drive_file_id)
+}
+
 async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
     const entries: ZipEntry[] = []
     const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const audioAsset = activeAssets.find(isAudioAsset)
 
-    if (!audioAsset?.drive_file_id) {
+    if (!audioAsset?.drive_file_id && !storageSourceForAsset(audioAsset)) {
         throw new Error('렌더용 오디오 파일이 없습니다. 기존 렌더 큐와 동일하게 제출하려면 ZIP 안에 audio/* TTS 파일이 필요합니다.')
     }
 
@@ -348,7 +358,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     const audioFilename = `audio_${pseudoProjectId}${audioExt}`
     entries.push({
         path: `audio/${audioFilename}`,
-        data: await downloadStdDriveFile(audioAsset.drive_file_id),
+        data: await downloadRenderAudio(audioAsset),
     })
 
     const images: Array<string | null> = []
@@ -469,8 +479,8 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const audioAsset = activeAssets.find(isAudioAsset)
 
-    if (!audioAsset?.drive_file_id) {
-        throw new Error('렌더용 오디오 파일이 없습니다. TTS 파일이 Google Drive에 저장되어야 제출할 수 있습니다.')
+    if (!audioAsset?.drive_file_id && !storageSourceForAsset(audioAsset)) {
+        throw new Error('렌더용 오디오 파일이 없습니다. 저장된 TTS 파일이 있어야 제출할 수 있습니다.')
     }
 
     const manifestFiles: any[] = []

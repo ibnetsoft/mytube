@@ -280,7 +280,11 @@ class RemoteDriveWorker:
                 pass
 
     def _download_asset_with_fallback(self, job_id, drive_file_id, destination_path, *, storage_source=None, label):
-        """Prefer Drive, but keep rendering when repeated transient Drive reads fail."""
+        """Read Storage first; Drive is only for legacy or missing Storage files."""
+        if storage_source and self._download_from_supabase_storage(storage_source, destination_path):
+            return "supabase_storage"
+        if not drive_file_id:
+            raise RuntimeError(f"Supabase 에셋 다운로드 실패: {label}")
         attempts = max(1, int(os.getenv("REMOTE_RENDER_DRIVE_DOWNLOAD_ATTEMPTS", "3")))
         for attempt in range(1, attempts + 1):
             try:
@@ -328,15 +332,16 @@ class RemoteDriveWorker:
         for index, item in enumerate(files, start=1):
             drive_file_id = item.get("drive_file_id")
             relative_path = item.get("path")
-            if not drive_file_id or not relative_path:
-                raise RuntimeError("렌더 에셋 목록에 Drive 파일 ID 또는 경로가 없습니다.")
+            has_storage = item.get("supabase_bucket") and item.get("supabase_path")
+            if (not drive_file_id and not has_storage) or not relative_path:
+                raise RuntimeError("렌더 에셋 목록에 저장소 위치 또는 경로가 없습니다.")
             local_rel_path = self._safe_manifest_path(relative_path)
             local_path = os.path.join(temp_dir, local_rel_path)
             progress = 6 + int((index / max(total, 1)) * 12)
             self.update_job(
                 job_id,
                 progress=progress,
-                message=f"Google Drive 에셋 다운로드 중... ({index}/{total})",
+                message=f"렌더 에셋 다운로드 중... ({index}/{total})",
             )
             storage_source = {
                 "bucket": item.get("supabase_bucket"),

@@ -240,6 +240,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         let driveFile: Awaited<ReturnType<typeof uploadStdDriveBuffer>> | null = null
         let driveBackupError = ''
         try {
+            if (!['audio', 'bgm', 'sfx'].includes(assetType)) {
             folders = await ensureStdProjectDriveFolders(project)
             targetFolderId = folderForAssetType(folders, assetType)
             driveFile = await uploadStdDriveBuffer(
@@ -249,6 +250,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 mimeType,
                 `AIR Studio STD ${assetType} asset for project ${project.id}`
             )
+            }
         } catch (driveError: any) {
             driveBackupError = String(driveError?.message || 'drive_archive_upload_failed')
             console.warn('[STD AssetUpload] Drive archive copy failed; keeping Supabase asset:', driveBackupError)
