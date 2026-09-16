@@ -7975,6 +7975,55 @@ export default function StdPortalPage() {
         )
     }
 
+    const sidebarAccount = (
+        <div className="std-sidebar-account flex min-w-0 flex-1 items-center justify-between gap-2">
+            <div className="min-w-0">
+                <div className="text-xs font-bold text-white truncate">{user?.full_name || '사용자'}</div>
+                <div className="text-[10px] text-gray-400 truncate">{user?.email}</div>
+            </div>
+            <button type="button" onClick={signOut} title="로그아웃" aria-label="로그아웃"
+                className="shrink-0 p-1.5 rounded text-gray-400 hover:bg-red-500/10 hover:text-red-400">
+                <LogOut className="h-3.5 w-3.5" />
+            </button>
+        </div>
+    )
+    const sidebarProgress = (() => {
+        const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+        const steps = [
+        { id: 'topics', label: '주제', isDone: status.isTopicDone },
+        { id: 'topics', label: '기획', isDone: status.isPlanningDone },
+        { id: 'script_gen', label: '대본', isDone: status.isScriptDone },
+        { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
+        { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
+        { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
+        ]
+        return (
+        <div className="std-sidebar-progress grid grid-cols-6 gap-1 px-2 py-3 border-b border-white/5 text-[10px] text-gray-400 font-medium">
+            {steps.map((step, idx) => {
+                const isCurrent = currentNav === step.id
+                return (
+                    <button
+                        key={idx}
+                        onClick={() => { setCurrentNav(step.id as any); setMobileMenuOpen(false) }}
+                        className={`flex flex-col items-center gap-0.5 transition-colors ${
+                            isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
+                        }`}
+                    >
+                        <div className={`w-3.5 h-3.5 lg:w-4 lg:h-4 rounded-full flex items-center justify-center text-[8px] lg:text-[9px] font-bold ${
+                            step.isDone
+                                ? 'bg-emerald-500 text-black shadow-sm'
+                                : 'bg-white/10 text-gray-500 border border-white/20'
+                        }`}>
+                            {step.isDone ? '✓' : '○'}
+                        </div>
+                        <span className={`text-[9px] lg:text-[10px] ${step.isDone ? 'text-gray-200' : 'text-gray-500'}`}>{step.label}</span>
+                    </button>
+                )
+            })}
+        </div>
+        )
+    })()
+
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             {isImpersonating && (
@@ -8003,136 +8052,8 @@ export default function StdPortalPage() {
                     </div>
                 </div>
             )}
-            {/* 1. 상단 글로벌 헤더 */}
-            <header className="std-global-header h-12 bg-[#181d26] border-b border-white/10 px-3 sm:px-4 flex items-center justify-between shrink-0 z-30">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    {/* 모바일 햄버거 메뉴 버튼 */}
-                    <button
-                        type="button"
-                        onClick={() => setMobileMenuOpen(prev => !prev)}
-                        className="md:hidden p-1 text-gray-300 hover:text-white rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-sm font-bold w-8 h-8 shrink-0 active:scale-95 transition-transform"
-                        title="메뉴 열기"
-                    >
-                        {mobileMenuOpen ? '✕' : '☰'}
-                    </button>
-                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                    <span className="font-bold text-xs sm:text-sm tracking-wide text-blue-400 shrink-0">AIR STUDIO</span>
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
-                        STD
-                    </span>
-                    <span className="text-gray-500 text-xs hidden lg:inline">|</span>
-                    <span className="text-xs text-gray-300 font-medium hidden lg:inline truncate max-w-[280px]">
-                        <strong className="text-blue-400">{t('active_project')}:</strong> {selectedProject?.project?.title || '아내의 장례식 날, 30년 숨긴 첫사랑의 편지가 열렸다'} <span className="text-gray-400 font-mono">({selectedProject?.project?.status || 'image_prompted'})</span>
-                    </span>
-                </div>
-
-                {/* 상단 단계별 상태 체크 스텝퍼 */}
-                {(() => {
-                    const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-                    const steps = [
-                        { id: 'topics', label: '주제', isDone: status.isTopicDone },
-                        { id: 'topics', label: '기획', isDone: status.isPlanningDone },
-                        { id: 'script_gen', label: '대본', isDone: status.isScriptDone },
-                        { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
-                        { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
-                        { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
-                    ]
-                    return (
-                        <div className="hidden md:flex items-center gap-1.5 lg:gap-2.5 text-[10px] lg:text-[11px] text-gray-400 font-medium">
-                            {steps.map((step, idx) => {
-                                const isCurrent = currentNav === step.id
-                                return (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCurrentNav(step.id as any)}
-                                        className={`flex flex-col items-center gap-0.5 transition-colors ${
-                                            isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
-                                        }`}
-                                    >
-                                        <div className={`w-3.5 h-3.5 lg:w-4 lg:h-4 rounded-full flex items-center justify-center text-[8px] lg:text-[9px] font-bold ${
-                                            step.isDone
-                                                ? 'bg-emerald-500 text-black shadow-sm'
-                                                : 'bg-white/10 text-gray-500 border border-white/20'
-                                        }`}>
-                                            {step.isDone ? '✓' : '○'}
-                                        </div>
-                                        <span className={`text-[9px] lg:text-[10px] ${step.isDone ? 'text-gray-200' : 'text-gray-500'}`}>{step.label}</span>
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    )
-                })()}
-
-                <div className="flex items-center gap-1.5 sm:gap-3">
-                    {/* 언어 선택 드롭다운 (KO, EN, VI, TH) */}
-                    <div className="flex items-center bg-[#14181f] border border-white/10 rounded-lg px-1.5 sm:px-2 py-1">
-                        <select
-                            value={currentLocale}
-                            onChange={(e) => setCurrentLocale(e.target.value as SupportedLocale)}
-                            className="bg-transparent text-[11px] sm:text-xs text-white focus:outline-none cursor-pointer"
-                        >
-                            <option value="ko" className="bg-[#1c2027] text-white">🇰🇷 KO</option>
-                            <option value="en" className="bg-[#1c2027] text-white">🇺🇸 EN</option>
-                            <option value="vi" className="bg-[#1c2027] text-white">🇻🇳 VI</option>
-                            <option value="th" className="bg-[#1c2027] text-white">🇹🇭 TH</option>
-                        </select>
-                    </div>
-
-                    <button
-                        onClick={() => loadStdData(token)}
-                        disabled={loading}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 rounded text-[11px] sm:text-xs font-medium text-gray-300 transition-all"
-                        title={t('btn_refresh')}
-                    >
-                        <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-                        <span className="hidden sm:inline">{t('btn_refresh')}</span>
-                    </button>
-                    <div className="h-3.5 w-px bg-white/10 hidden sm:block" />
-                    <div className="text-right hidden sm:block">
-                        <div className="text-xs font-bold text-white leading-none">{user?.full_name || '김호'}</div>
-                        <div className="text-[10px] text-gray-400 truncate max-w-[120px] leading-tight">{user?.email || 'ejsh0519@naver.com'}</div>
-                    </div>
-                    <button
-                        onClick={signOut}
-                        className="p-1.5 hover:bg-red-500/10 text-gray-400 hover:text-red-400 rounded transition-all"
-                        title="로그아웃"
-                    >
-                        <LogOut className="h-3.5 w-3.5" />
-                    </button>
-                </div>
-            </header>
-
-            {/* 모바일 전용 가로 스크롤 스텝퍼 바 */}
-            {(() => {
-                const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-                const steps = [
-                    { id: 'topics', label: '주제', isDone: status.isTopicDone },
-                    { id: 'topics', label: '기획', isDone: status.isPlanningDone },
-                    { id: 'script_gen', label: '대본', isDone: status.isScriptDone },
-                    { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
-                    { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
-                    { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
-                ]
-                return (
-                    <div className="md:hidden bg-[#14181f] border-b border-white/10 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
-                        {steps.map((step, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => { setCurrentNav(step.id as any); setMobileMenuOpen(false); }}
-                                className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${
-                                    currentNav === step.id
-                                        ? 'bg-blue-600/30 text-blue-300 border-blue-500/50'
-                                        : 'bg-[#1c222c] text-gray-400 border-white/5'
-                                }`}
-                            >
-                                <span className={`w-1.5 h-1.5 rounded-full ${step.isDone ? 'bg-emerald-400 shadow-sm' : 'bg-gray-600'}`} />
-                                <span>{step.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                )
-            })()}
+            <button type="button" onClick={() => setMobileMenuOpen(true)} title="메뉴 열기" aria-label="메뉴 열기"
+                className="fixed bottom-3 left-3 z-40 md:hidden rounded-lg border border-white/20 bg-[#202632] px-3 py-2 text-white shadow-lg">☰</button>
 
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
             <div className="flex-1 flex overflow-hidden relative">
@@ -8147,7 +8068,7 @@ export default function StdPortalPage() {
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="p-3 border-b border-white/10 flex items-center justify-between">
-                                <span className="font-bold text-sm text-blue-400">AIR STUDIO STD</span>
+                                {sidebarAccount}
                                 <button
                                     type="button"
                                     onClick={() => setMobileMenuOpen(false)}
@@ -8162,10 +8083,7 @@ export default function StdPortalPage() {
                                     <span>모드</span>
                                     <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">롱폼</span>
                                 </div>
-                                <div className="flex items-center justify-between text-gray-400">
-                                    <span>사용자</span>
-                                    <span className="text-gray-200 font-bold truncate max-w-[120px]">{user?.full_name || '김호'}</span>
-                                </div>
+
                             </div>
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
@@ -8186,7 +8104,8 @@ export default function StdPortalPage() {
                                 </select>
                             </div>
 
-                            <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
+                            {sidebarProgress}
+                    <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                                 {[
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
@@ -8217,14 +8136,7 @@ export default function StdPortalPage() {
                                 })}
                             </nav>
 
-                            <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center justify-between">
-                                <button
-                                    onClick={signOut}
-                                    className="text-red-400 hover:text-red-300 font-bold text-xs flex items-center gap-1"
-                                >
-                                    <LogOut className="h-3.5 w-3.5" />
-                                    <span>로그아웃</span>
-                                </button>
+                            <div className="p-3 border-t border-white/5 text-[11px] text-gray-400">
                                 <span className="text-[10px] text-gray-500 font-mono">{STD_BUILD_LABEL}</span>
                             </div>
                         </aside>
@@ -8233,6 +8145,7 @@ export default function StdPortalPage() {
 
                 {/* 데스크톱 좌측 고정 사이드바 (md 이상에서만 표시) */}
                 <aside className="hidden md:flex w-56 bg-[#161a22] border-r border-white/10 flex-col shrink-0">
+                    <div className="p-3 border-b border-white/10">{sidebarAccount}</div>
                     <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
                         <div className="flex items-center justify-between text-gray-400">
                             <span>모드</span>
@@ -8297,6 +8210,7 @@ export default function StdPortalPage() {
                         </div>
                     </div>
 
+                    {sidebarProgress}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
                             { id: 'topics', label: t('nav_topics') },
