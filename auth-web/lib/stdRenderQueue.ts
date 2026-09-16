@@ -1,3 +1,4 @@
+import { resolveSfxCues } from '@/lib/stdSfxCues'
 import { audioAssetRole } from './stdAudioMix'
 import { sceneMotion } from './stdSceneMotion'
 import { randomUUID } from 'crypto'
@@ -568,7 +569,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         ? projectRenderSettings.sfx_cues
         : (Array.isArray(project.project_payload?.sfx_cues) ? project.project_payload.sfx_cues : [])
     const sfxCues: any[] = []
-    savedSfxCues.forEach((cue: any, index: number) => {
+    resolveSfxCues(savedSfxCues, project.project_payload?.subtitles || subtitles).forEach((cue: any, index: number) => {
         if (!cue || cue.enabled === false) return
         const assetId = String(cue.asset_id || '').trim()
         const asset = assetId ? assetById.get(assetId) : null

@@ -2,6 +2,8 @@
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
+import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
+import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -1056,6 +1058,7 @@ export default function StdPortalPage() {
     const [bgmLoop, setBgmLoop] = useState(true)
     const [bgmVolume, setBgmVolume] = useState(0.08)
     const [savingBgmVolume, setSavingBgmVolume] = useState(false)
+    const [selectedSfxAssetId, setSelectedSfxAssetId] = useState('')
     const [previewBgmUrl, setPreviewBgmUrl] = useState('')
     const previewBgmAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -2946,29 +2949,6 @@ export default function StdPortalPage() {
                 ].filter(Boolean).join(' ') || undefined}
             >
                 {part.text}
-            </span>
-        ))
-    }
-
-    const renderVrewSubtitleTokenEditor = (text: string, activeTokenIndex = -1) => {
-        const tokens = String(text || '').trim().match(/\S+/g) || []
-        if (!tokens.length) {
-            return (
-                <span className="text-[11px] text-gray-500">자막 내용 없음</span>
-            )
-        }
-
-        return tokens.map((token, index) => (
-            <span
-                key={`${index}-${token}`}
-                title={token}
-                className={`inline-flex h-6 max-w-full items-center rounded border border-white/10 bg-[#10151d] px-2 text-[11px] leading-none text-gray-200 shadow-sm transition ${
-                    index === activeTokenIndex
-                        ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-100'
-                        : 'hover:border-white/20 hover:bg-[#161c26]'
-                }`}
-            >
-                <span className="truncate">{token}</span>
             </span>
         ))
     }
@@ -4896,11 +4876,12 @@ export default function StdPortalPage() {
         return `/api/std/projects/${encodeURIComponent(selectedProject.project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
     }
 
-    const updateBgmSfxSettings = async (nextRenderSettings: any, nextAssets?: any[]) => {
+    const updateBgmSfxSettings = async (nextRenderSettings: any, nextAssets?: any[], nextSubtitles?: any[]) => {
         if (!selectedProject?.project?.id) return
         const nextProjectPayload = {
             ...(selectedProject.project.project_payload || {}),
             render_settings: nextRenderSettings,
+            ...(nextSubtitles ? { subtitles: nextSubtitles } : {}),
             bgm_sfx_saved: true,
         }
         const nextProject = {
@@ -4915,8 +4896,6 @@ export default function StdPortalPage() {
                 project_payload: nextProjectPayload,
             },
         }
-        setSelectedProject(nextProject)
-        rememberProjectState(nextProject)
 
         const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
             method: 'PATCH',
@@ -4930,6 +4909,8 @@ export default function StdPortalPage() {
         if (!res.ok || payload.success === false) {
             throw new Error(payload.error || 'BGM/SFX settings save failed')
         }
+        setSelectedProject(nextProject)
+        rememberProjectState(nextProject)
     }
 
     const uploadDriveAudioAsset = async (file: File, assetType: 'bgm' | 'sfx', sceneNumber?: number | null) => {
@@ -4985,34 +4966,15 @@ export default function StdPortalPage() {
     const handleUploadCurrentSfxFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file || !selectedProject?.project?.id) return
-        const subtitle = localSubtitles[selectedSubIndex] || {}
-        const sceneNumber = Number(subtitle.scene_number) || null
         setUploadingKey('sfx-upload')
         try {
-            const asset = await uploadDriveAudioAsset(file, 'sfx', sceneNumber)
-            const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-            const currentCues = Array.isArray(currentSettings.sfx_cues) ? currentSettings.sfx_cues : []
-            const start = Number(subtitle.start_num ?? subtitle.start_time ?? 0) || 0
-            const nextCue = {
-                id: `subtitle-${selectedSubIndex}`,
-                asset_id: asset.id,
-                file_name: asset.file_name || file.name,
-                scene_number: sceneNumber,
-                subtitle_index: selectedSubIndex,
-                start,
-                volume_db: -18,
-                enabled: true,
-            }
-            const nextCues = [
-                ...currentCues.filter((cue: any) => Number(cue?.subtitle_index) !== selectedSubIndex),
-                nextCue,
-            ].sort((a: any, b: any) => Number(a.start || 0) - Number(b.start || 0))
-            const nextAssets = [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)]
-            await updateBgmSfxSettings({
-                ...currentSettings,
-                sfx_cues: nextCues,
-            }, nextAssets)
-            setMessage(`현재 자막 구간에 SFX '${file.name}'을 적용했습니다.`)
+            const asset = await uploadDriveAudioAsset(file, 'sfx')
+            const nextProject = { ...selectedProject, assets: [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)] }
+            setSelectedProject(nextProject)
+            rememberProjectState(nextProject)
+            setSelectedSfxAssetId(asset.id)
+            setSubEditTab('subtitle')
+            setMessage(`효과음 '${file.name}'을 저장했습니다. 우측 단어 사이의 + 버튼으로 삽입하세요.`)
         } catch (error: any) {
             setMessage(error?.message || 'SFX upload failed')
         } finally {
@@ -7132,6 +7094,7 @@ export default function StdPortalPage() {
         if (video.dataset.finished === 'true') return
         void video.play().catch(() => {})
     }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
+    useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
         setBgmLoop(bgmSfxSettings.bgm_loop !== false)
@@ -9287,6 +9250,9 @@ export default function StdPortalPage() {
                                                 aria-hidden="true"
                                             />
                                         )}
+                                        <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
+                                            cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
+                                            headers={authedJsonHeaders} time={playbackTime} playing={isPlayingPreview} onError={setMessage} />
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
@@ -9570,19 +9536,18 @@ export default function StdPortalPage() {
                                                         />
                                                     ) : (
                                                         <div className="flex items-start gap-1.5">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setIsSubtitleTextEditing(true)}
-                                                                className="flex min-h-7 flex-1 flex-wrap content-start gap-1 rounded-md text-left"
-                                                                title="자막 텍스트 편집"
-                                                            >
-                                                                {renderVrewSubtitleTokenEditor(
-                                                                    currentSub.text,
-                                                                    isPlayingPreview
-                                                                        ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime)
-                                                                        : -1
-                                                                )}
-                                                            </button>
+                                                            <SubtitleSfxEditor
+                                                                key={selectedProject?.project?.id}
+                                                                subtitle={currentSub} subtitleIndex={selectedSubIndex} subtitles={localSubtitles}
+                                                                assets={(selectedProject?.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
+                                                                cues={sfxCues} selectedAssetId={selectedSfxAssetId} onSelect={setSelectedSfxAssetId}
+                                                                onEdit={() => setIsSubtitleTextEditing(true)} onError={setMessage}
+                                                                activeTokenIndex={isPlayingPreview ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime) : -1}
+                                                                onSave={async cues => {
+                                                                    await updateBgmSfxSettings({ ...bgmSfxSettings, sfx_cues: cues }, undefined, localSubtitles)
+                                                                    setMessage('효과음 위치를 저장했습니다.')
+                                                                }}
+                                                            />
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsSubtitleTextEditing(true)}
@@ -9631,6 +9596,12 @@ export default function StdPortalPage() {
                                                     자막SFX
                                                 </button>
                                             </div>
+                                                {(selectedProject?.assets || []).some(a => audioAssetRole(a) === 'sfx') && (
+                                                    <button type="button" onClick={() => setSubEditTab('subtitle')}
+                                                        className="text-left text-[11px] text-purple-200 underline underline-offset-2">
+                                                        저장된 효과음 선택 · 단어 사이에 배치 →
+                                                    </button>
+                                                )}
                                                 {(bgmAsset?.file_name || bgmSfxSettings.bgm_file_name) && (
                                                     <div className="truncate text-[11px] text-cyan-200" title={bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}>
                                                         BGM · {bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}
