@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { sfxDescriptionKo } from '@/lib/stdSfxDescriptions'
 
 export default function SubtitleSfxPicker({ assets, value, projectId, headers, disabled, onChange, onOpen }: {
     assets: any[]; value: string; projectId: string; headers: Record<string, string>; disabled?: boolean;
@@ -17,6 +18,7 @@ export default function SubtitleSfxPicker({ assets, value, projectId, headers, d
     const request = useRef<AbortController | null>(null)
     const urls = useRef<Record<string, string>>({})
     const selected = assets.find(asset => asset.id === value)
+    const matchesSearch = (asset: any) => `${asset.file_name} ${sfxDescriptionKo(asset)}`.toLowerCase().includes(search.trim().toLowerCase())
     useEffect(() => {
         if (!open) return
         const previous = document.activeElement as HTMLElement | null
@@ -83,18 +85,20 @@ export default function SubtitleSfxPicker({ assets, value, projectId, headers, d
                     <h2 id="sfx-picker-title" className="text-base font-bold">효과음 선택 <span className="text-xs text-purple-300">{assets.length}개</span></h2>
                     <button type="button" aria-label="효과음 팝업 닫기" onClick={() => setOpen(false)} className="rounded px-2 py-1 text-gray-400 hover:bg-white/10">✕</button>
                 </div>
-                <input aria-label="효과음 검색" placeholder="효과음 이름 검색" value={search} onChange={event => setSearch(event.target.value)} className="w-full rounded-lg border border-white/10 bg-black/25 p-2.5 text-sm outline-none focus:border-purple-400" />
+                <p className="text-[11px] text-gray-400">파일명을 바탕으로 작성한 설명입니다. 정확한 소리는 미리듣기로 확인해 주세요.</p>
+                <input aria-label="효과음 검색" placeholder="파일명 또는 한국어 설명 검색" value={search} onChange={event => setSearch(event.target.value)} className="w-full rounded-lg border border-white/10 bg-black/25 p-2.5 text-sm outline-none focus:border-purple-400" />
                 <div className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
-                    {assets.filter(asset => String(asset.file_name).toLowerCase().includes(search.toLowerCase())).map(asset => <div key={asset.id}
+                    {assets.filter(matchesSearch).map(asset => <div key={asset.id}
                         className={`min-w-0 rounded-xl border p-3 ${draft === asset.id ? 'border-purple-400 bg-purple-500/15' : 'border-white/10 bg-black/15'}`}>
                         <p className="break-all text-xs font-semibold leading-5">{asset.file_name}</p>
+                        <p className="mt-1 text-xs leading-5 text-purple-200">{sfxDescriptionKo(asset)}</p>
                         <div className="mt-3 flex items-center justify-between gap-2 text-xs">
                             <button type="button" disabled={busy === asset.id} onClick={() => void play(asset)} aria-label={`${asset.file_name} 미리듣기`} className="rounded border border-white/15 px-2.5 py-1.5 hover:bg-white/10 disabled:opacity-50">{busy === asset.id ? '불러오는 중…' : '▶ 미리듣기'}</button>
                             <button type="button" aria-pressed={draft === asset.id} onClick={() => setDraft(asset.id)} className="rounded bg-purple-500/20 px-2.5 py-1.5 text-purple-100">{draft === asset.id ? '✓ 선택됨' : '선택'}</button>
                         </div>
                     </div>)}
                     {!assets.length && <p className="py-5 text-sm text-gray-400 sm:col-span-2">배경음/효과음 탭에서 자막SFX를 업로드해 주세요.</p>}
-                    {!!assets.length && !assets.some(asset => String(asset.file_name).toLowerCase().includes(search.toLowerCase())) && <p className="py-5 text-sm text-gray-400 sm:col-span-2">검색 결과가 없습니다.</p>}
+                    {!!assets.length && !assets.some(matchesSearch) && <p className="py-5 text-sm text-gray-400 sm:col-span-2">검색 결과가 없습니다.</p>}
                 </div>
                 <div className="shrink-0 space-y-2 rounded-xl bg-black/20 p-3">
                     <p className="truncate text-xs text-gray-400">{sample || '미리듣기 버튼을 눌러 효과음을 확인하세요.'}</p>
