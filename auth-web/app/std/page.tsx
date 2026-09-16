@@ -9130,7 +9130,8 @@ export default function StdPortalPage() {
                                                                         )}
                                                                         <VoiceStudioPicker
                                                                             microphone
-                                                                            label={`씬 ${sNum} Voice Studio 성우 선택`}
+                                                                            buttonText="내레이션"
+                                                                            label={`씬 ${sNum} Google 내레이션 성우 선택`}
                                                                             description="이 섹션에 적용합니다. 여러 씬을 선택했다면 선택한 씬에 함께 적용합니다."
                                                                             value={isVoiceStudioVoice(groupVoiceId) ? groupVoiceId : 'gemini:Charon'}
                                                                             direction={group.subtitles.find((item: any) => isVoiceStudioVoice(item.voice_id))?.voice_direction || ''}
@@ -9211,11 +9212,13 @@ export default function StdPortalPage() {
                                                                                                 `block-${item.subtitleIndex}`,
                                                                                                 blockVoiceId,
                                                                                                 (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
-                                                                                                subtitleReviewCopy
+                                                                                                `ElevenLabs · ${subtitleReviewCopy
                                                                                                     ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
-                                                                                                    : `${isDialogueBlock ? '대사' : '내레이션'} 성우`,
+                                                                                                    : `${isDialogueBlock ? '대사' : '내레이션'} 성우`}`,
                                                                                                 isDialogueBlock ? 'dialogue' : 'default',
-                                                                                                'left'
+                                                                                                'left',
+                                                                                                false,
+                                                                                                { elevenLabsOnly: true }
                                                                                             )}
                                                                                         </div>
                                                                                     </div>
