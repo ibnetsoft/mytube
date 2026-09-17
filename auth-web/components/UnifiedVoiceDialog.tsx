@@ -64,7 +64,7 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
     const mismatch = Boolean(speakerContext?.gender && chosen && ((speakerContext.gender === 'male' && genderLabel(chosen) === '여성') || (speakerContext.gender === 'female' && genderLabel(chosen) === '남성')))
     const switchTab = (next: typeof tab) => {
         controller.current?.abort(); player.current?.pause(); setBusy(''); setError('')
-        setTab(next); setSearch(''); setGender('')
+        setTab(next); setSearch('')
     }
     const play = async (voice: PickerVoice) => {
         controller.current?.abort(); player.current?.pause()
@@ -101,7 +101,11 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
             <div role="tablist" aria-label="성우 제공사" className="flex gap-2">
                 {(['google', 'elevenlabs'] as const).map(provider => <button key={provider} type="button" role="tab" aria-selected={tab === provider} onClick={() => switchTab(provider)} className={`flex-1 rounded-lg border px-3 py-2 text-sm font-bold ${tab === provider ? 'border-cyan-400 bg-cyan-500/15 text-cyan-100' : 'border-white/10 text-gray-400'}`}>{provider === 'google' ? 'Google 성우' : 'ElevenLabs 성우'}</button>)}
             </div>
-            <div className="flex gap-2"><input aria-label="성우 검색" value={search} onChange={e => setSearch(e.target.value)} placeholder="성우 이름, 설명 검색" className="min-w-0 flex-1 rounded border border-white/10 bg-black/25 p-2 text-sm"/><select aria-label="성별" value={gender} onChange={e => setGender(e.target.value)} className="rounded bg-[#1c2027] p-2 text-xs"><option value="">전체</option><option>남성</option><option>여성</option></select></div>
+            <div className="flex flex-wrap gap-2"><input aria-label="성우 검색" value={search} onChange={e => setSearch(e.target.value)} placeholder="성우 이름, 설명 검색" className="min-w-0 flex-1 rounded border border-white/10 bg-black/25 p-2 text-sm"/>
+                <div role="group" aria-label="성별 필터" className="flex shrink-0 gap-1">
+                    {['', '여성', '남성'].map(filter => <button key={filter} type="button" aria-pressed={gender === filter} onClick={() => setGender(filter)} className={`rounded border px-3 py-2 text-xs font-bold transition ${gender === filter ? 'border-cyan-400 bg-cyan-500/15 text-cyan-100' : 'border-white/10 text-gray-400 hover:border-cyan-400/50 hover:text-white'}`}>{speakerContext?.thai ? (filter === '여성' ? 'หญิง' : filter === '남성' ? 'ชาย' : 'ทั้งหมด') : filter || '전체'}</button>)}
+                </div>
+            </div>
             <div role="tabpanel" aria-label={tab === 'google' ? 'Google 성우' : 'ElevenLabs 성우'} className="grid min-h-0 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
                 {visible.map(v => <div key={v.id} className={`flex flex-col rounded-lg border p-3 ${draft === v.id ? 'border-cyan-400 bg-cyan-500/15' : 'border-white/10 bg-black/15'}`}>
                     <p className="truncate text-sm font-bold" title={v.name}>{v.name || v.id}</p><p className="mt-1 text-[11px] text-gray-400">{genderLabel(v) || '성별 미지정'}</p>

@@ -32,17 +32,23 @@ function harness(initialTab,historyUserId,speakerContext){let state=[],refs=[],i
  ordered=history.render();await ordered.find(n=>n.type==='button'&&n.props.children==='선택 완료').props.onClick();
  assert.deepEqual(JSON.parse(storage.get('air:recent-voices:v1:user-a')),['eleven-2','eleven-1']);
  // Pick George (second card), then reopen: George must precede Sarah with no duplicate.
- ordered.filter(n=>n.type==='button'&&Object.hasOwn(n.props,'aria-pressed'))[1].props.onClick();
+ ordered.filter(n=>n.type==='button'&&['선택','✓ 선택됨'].includes(n.props.children))[1].props.onClick();
  ordered=history.render();await ordered.find(n=>n.type==='button'&&n.props.children==='선택 완료').props.onClick();
  const reopened=harness('elevenlabs','user-a');reopened.render();reopened.effects[0]();assert.deepEqual(names(reopened.render()),['George','Sarah']);
  const other=harness('elevenlabs','user-b');other.render();other.effects[0]();assert.deepEqual(names(other.render()),['George','Sarah']);
  storage.set('air:recent-voices:v1:user-a','invalid json');const corrupt=harness('elevenlabs','user-a');corrupt.render();corrupt.effects[0]();assert.deepEqual(names(corrupt.render()),['George','Sarah']);
  const mismatch=harness('elevenlabs',undefined,{name:'덕수',gender:'male',count:2,thai:true});let mt=mismatch.render();
- mt.filter(n=>n.type==='button'&&Object.hasOwn(n.props,'aria-pressed'))[1].props.onClick();mt=mismatch.render();
+ mt.filter(n=>n.type==='button'&&['선택','✓ 선택됨'].includes(n.props.children))[1].props.onClick();mt=mismatch.render();
  assert.equal(mt.find(n=>n.type==='button'&&n.props.children==='선택 완료').props.disabled,true);
  assert(mt.some(n=>n.props?.role==='alert'));
  mt.filter(n=>n.type==='input'&&n.props.type==='checkbox')[1].props.onChange({target:{checked:true}});mt=mismatch.render();
  assert.equal(mt.find(n=>n.type==='button'&&n.props.children==='선택 완료').props.disabled,false);
  await mt.find(n=>n.type==='button'&&n.props.children==='선택 완료').props.onClick();assert.equal(mismatch.applied[0][2],true);
- console.log('PASS: speaker gender mismatch requires explicit acknowledgment; recent confirmed order, persistence, account isolation, corrupt storage; initial provider tabs, single dialog, no automatic API calls, selection/cancel, preview cleanup and explicit sample');
+ const filters=harness('elevenlabs');let ft=filters.render();
+ const cardNames=t=>t.filter(n=>n.type==='p'&&n.props.title).map(n=>n.props.children);
+ ft.find(n=>n.type==='button'&&n.props.children==='여성').props.onClick();ft=filters.render();assert.deepEqual(cardNames(ft),['Sarah']);
+ ft.find(n=>n.type==='button'&&n.props.children==='남성').props.onClick();ft=filters.render();assert.deepEqual(cardNames(ft),['George']);
+ ft.find(n=>n.props?.role==='tab'&&n.props.children==='Google 성우').props.onClick();ft=filters.render();assert(cardNames(ft).includes('Charon'));assert(!cardNames(ft).includes('Achernar'));
+ ft.find(n=>n.type==='button'&&n.props.children==='전체').props.onClick();ft=filters.render();assert(cardNames(ft).includes('Achernar'));
+ console.log('PASS: visible gender filters and filter persistence across provider tabs; speaker gender mismatch requires explicit acknowledgment; recent confirmed order, persistence, account isolation, corrupt storage; initial provider tabs, single dialog, no automatic API calls, selection/cancel, preview cleanup and explicit sample');
 })().catch(e=>{console.error(e);process.exitCode=1});
