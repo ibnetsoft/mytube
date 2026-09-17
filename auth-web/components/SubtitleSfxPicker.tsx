@@ -97,7 +97,7 @@ export default function SubtitleSfxPicker({ assets, value, projectId, headers, d
                             <button type="button" aria-pressed={draft === asset.id} onClick={() => setDraft(asset.id)} className="rounded bg-purple-500/20 px-2.5 py-1.5 text-purple-100">{draft === asset.id ? '✓ 선택됨' : '선택'}</button>
                         </div>
                     </div>)}
-                    {!assets.length && <p className="py-5 text-sm text-gray-400 sm:col-span-2">배경음/효과음 탭에서 자막SFX를 업로드해 주세요.</p>}
+                    {!assets.length && <p className="py-5 text-sm text-gray-400 sm:col-span-2">등록된 효과음이 없습니다.</p>}
                     {!!assets.length && !assets.some(matchesSearch) && <p className="py-5 text-sm text-gray-400 sm:col-span-2">검색 결과가 없습니다.</p>}
                 </div>
                 <div className="shrink-0 space-y-2 rounded-xl bg-black/20 p-3">

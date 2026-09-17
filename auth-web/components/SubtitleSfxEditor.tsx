@@ -50,6 +50,6 @@ export default function SubtitleSfxEditor({ subtitle, subtitleIndex, subtitles, 
             </Fragment>)}
         </div>
         {saving && <p role="status" className="text-[10px] text-purple-200">효과음 위치 저장 중…</p>}
-        {selectedAssetId && <p className="text-[10px] text-gray-400">+ 삽입 · 효과음 클릭으로 삭제 · 위치 자동 저장</p>}
+        {(selectedAssetId || current.length > 0) && <p className="text-[10px] text-gray-400">+ 삽입 · 단어 사이의 ★ 클릭으로 효과음 삭제 · 자동 저장</p>}
     </div>
 }

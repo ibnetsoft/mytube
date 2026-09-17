@@ -9507,7 +9507,7 @@ export default function StdPortalPage() {
                                             </div>
                                         ) : (
                                             <div className="space-y-3">
-                                            <div className="grid grid-cols-3 gap-2">
+                                            <div className="grid grid-cols-2 gap-2">
                                                 <input id="audioUploadInput" type="file" accept="audio/*" className="hidden" onChange={handleUploadExternalAudio} />
                                                 <button
                                                     type="button"
@@ -9528,17 +9528,6 @@ export default function StdPortalPage() {
                                                 >
                                                     <Upload size={13} className="shrink-0" />
                                                     BGM배경음
-                                                </button>
-                                                <input id="std-sfx-upload" type="file" accept="audio/*" className="hidden" onChange={handleUploadCurrentSfxFile} disabled={uploadingKey === 'sfx-upload'} />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => document.getElementById('std-sfx-upload')?.click()}
-                                                    disabled={uploadingKey === 'sfx-upload'}
-                                                    aria-busy={uploadingKey === 'sfx-upload'}
-                                                    className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-purple-500/30 bg-purple-500/10 px-2 text-[11px] font-black text-purple-200 transition hover:bg-purple-500/20 disabled:cursor-wait disabled:opacity-60"
-                                                >
-                                                    <Upload size={13} className="shrink-0" />
-                                                    자막SFX
                                                 </button>
                                             </div>
                                                 {(selectedProject?.assets || []).some(a => audioAssetRole(a) === 'sfx') && (
