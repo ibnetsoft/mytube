@@ -4,10 +4,24 @@ import { createPortal } from 'react-dom'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
 
 export type PickerVoice = { id: string; name?: string; gender?: string; description?: string; preview_url?: string; category?: string }
-export default function UnifiedVoiceDialog({ value, direction = '', voices, initialTab, title, description, headers, onApply, onClose, editDirection = false }: {
+export default function UnifiedVoiceDialog({ value, direction = '', voices, initialTab, title, description, headers, onApply, onClose, editDirection = false, historyUserId }: {
     value: string; direction?: string; voices: PickerVoice[]; initialTab: 'google' | 'elevenlabs'; title: string;
-    description?: string; editDirection?: boolean; headers: Record<string, string>; onApply: (id: string, direction: string) => void | Promise<void>; onClose: () => void;
+    historyUserId?: string; description?: string; editDirection?: boolean; headers: Record<string, string>; onApply: (id: string, direction: string) => void | Promise<void>; onClose: () => void;
 }) {
+    const historyKey = historyUserId ? `air:recent-voices:v1:${historyUserId}` : ''
+    const readHistory = (): string[] => {
+        try {
+            const stored = historyKey ? JSON.parse(localStorage.getItem(historyKey) || '[]') : []
+            return Array.isArray(stored) ? [...new Set(stored.filter((id): id is string => typeof id === 'string'))].slice(0, 200) : []
+        } catch { return [] }
+    }
+    const [recent, setRecent] = useState<string[]>([])
+    useEffect(() => { setRecent(readHistory()) }, [historyKey])
+    const rememberVoice = (id: string) => {
+        if (!historyKey) return
+        const next = [id, ...readHistory().filter(previous => previous !== id)].slice(0, 200)
+        try { localStorage.setItem(historyKey, JSON.stringify(next)) } catch { /* Storage may be disabled. Voice application still succeeds. */ }
+    }
     const [tab, setTab] = useState(initialTab)
     const [draft, setDraft] = useState(value), [tone, setTone] = useState(direction)
     const [search, setSearch] = useState(''), [gender, setGender] = useState('')
@@ -38,9 +52,11 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
     const isGoogle = (v: PickerVoice) => isVoiceStudioVoice(v.id) || v.id.toLowerCase().startsWith('google') || v.category === 'google'
     const catalog: PickerVoice[] = [...new Map([...VOICE_STUDIO_VOICES, ...voices].map(v => [v.id, v])).values()]
     const genderLabel = (v: PickerVoice) => v.gender === 'male' ? '남성' : v.gender === 'female' ? '여성' : v.gender || ''
+    const ranks = new Map(recent.map((id, index) => [id, index]))
     const visible = catalog.filter(v => (tab === 'google' ? isGoogle(v) : !isGoogle(v))
         && (!gender || genderLabel(v) === gender)
         && `${v.name || ''} ${v.description || ''} ${v.id}`.toLowerCase().includes(search.trim().toLowerCase()))
+        .sort((a, b) => (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity))
     const chosen = catalog.find(v => v.id === draft)
     const switchTab = (next: typeof tab) => {
         controller.current?.abort(); player.current?.pause(); setBusy(''); setError('')
@@ -89,7 +105,7 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
             {tab === 'google' && <p className="text-[11px] text-gray-400">Google 샘플은 미리듣기를 누를 때만 요청하며, 최초 생성 시 사용료가 발생할 수 있습니다.</p>}
             {editDirection && isVoiceStudioVoice(draft) && <label className="text-xs">말투·감정<input value={tone} maxLength={500} onChange={e => setTone(e.target.value)} placeholder="예: 담담하고 따뜻하게" className="mt-1 w-full rounded bg-black/25 p-2" /></label>}
             {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
-            <div className="flex shrink-0 items-center justify-end gap-2 text-xs"><span className="mr-auto truncate text-cyan-200">선택: {chosen?.name || '성우를 선택해 주세요'}</span><button type="button" disabled={saving} onClick={onClose} className="rounded border border-white/10 px-3 py-2">취소</button><button type="button" disabled={!chosen || saving} onClick={async () => { setSaving(true); setError(''); try { await onApply(draft, tone); onClose() } catch { setError('성우 저장에 실패했습니다. 다시 시도해 주세요.') } finally { setSaving(false) } }} className="rounded bg-emerald-600 px-4 py-2 font-bold disabled:opacity-40">{saving ? '저장 중…' : '선택 완료'}</button></div>
+            <div className="flex shrink-0 items-center justify-end gap-2 text-xs"><span className="mr-auto truncate text-cyan-200">선택: {chosen?.name || '성우를 선택해 주세요'}</span><button type="button" disabled={saving} onClick={onClose} className="rounded border border-white/10 px-3 py-2">취소</button><button type="button" disabled={!chosen || saving} onClick={async () => { setSaving(true); setError(''); try { await onApply(draft, tone); rememberVoice(draft); onClose() } catch { setError('성우 저장에 실패했습니다. 다시 시도해 주세요.') } finally { setSaving(false) } }} className="rounded bg-emerald-600 px-4 py-2 font-bold disabled:opacity-40">{saving ? '저장 중…' : '선택 완료'}</button></div>
         </div>
     </div>, document.body)
 }

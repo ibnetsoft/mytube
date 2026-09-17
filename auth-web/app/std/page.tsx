@@ -3002,7 +3002,7 @@ export default function StdPortalPage() {
                     <Mic size={14} />
                     {options.buttonLabel && <span>{options.buttonLabel}</span>}
                 </button>
-                {isOpen && <UnifiedVoiceDialog value={voiceId} voices={allVoices}
+                {isOpen && <UnifiedVoiceDialog historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email} value={voiceId} voices={allVoices}
                     initialTab={options.elevenLabsOnly || tone === 'dialogue' ? 'elevenlabs' : 'google'}
                     title={title.replace(/^ElevenLabs · /, '')} headers={authedJsonHeaders}
                     description={pickerKey.startsWith('block-') ? '이 자막 한 줄에만 적용합니다. 다른 자막의 성우는 유지됩니다.' : '선택한 대상의 성우를 변경합니다.'}
@@ -8154,7 +8154,7 @@ export default function StdPortalPage() {
                                 <div className="flex items-stretch sm:items-center gap-x-2.5 gap-y-1.5 flex-wrap">
                                     {isVrewSubtitleMode && (
                                         <>
-                                            <VoiceStudioPicker
+                                            <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                 voices={allVoices}
                                                 value={narrationVoiceId}
                                                 direction={voiceStudioDirection}
@@ -8814,7 +8814,7 @@ export default function StdPortalPage() {
                                                                                 {groupVoiceNames[0]}
                                                                             </span>
                                                                         )}
-                                                                        <VoiceStudioPicker
+                                                                        <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                                             voices={allVoices}
                                                                             microphone
                                                                             buttonText="내레이션"
