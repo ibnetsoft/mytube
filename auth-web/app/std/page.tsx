@@ -8,6 +8,9 @@ import { bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } 
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
+import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
+import { charactersFromPayload } from '@/lib/stdCharacterProtection'
+import { subtitleSpeaker, assignSpeakerVoice } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
@@ -2748,8 +2751,27 @@ export default function StdPortalPage() {
         return scanDialogueQuoteState(text).isDialogue
     }
 
+    const [speakerEditorIndex, setSpeakerEditorIndex] = useState<number | null>(null)
     const aiDialogueParts = useMemo(() => mapDialogueAnnotations(localSubtitles || [],
         selectedProject?.project?.project_payload?.structure?.dialogue_annotations), [localSubtitles, selectedProject])
+
+    const speakerCharacters = charactersFromPayload(selectedProject?.project?.project_payload)
+    const subtitleSpeakers = localSubtitles.map((subtitle: any, index: number) => subtitle.dialogue_override === false ? null : subtitleSpeaker(subtitle, aiDialogueParts.get(index), speakerCharacters))
+    const speakerNames = [...new Set([...speakerCharacters.map(c => String(c.name || '').trim()), ...subtitleSpeakers.map(s => s?.name || '')].filter(Boolean))]
+    const applySubtitleSpeakerVoice = async (index: number, voiceId: string, allSpeaker = false) => {
+        if (isPlayingPreview) stopVrewPlayback()
+        const updated = assignSpeakerVoice(localSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, subtitleSpeakers)
+        updated.forEach((item, i) => { if (item !== localSubtitles[i]) markVrewSegmentStale(item, i) })
+        await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+    }
+    const saveSubtitleSpeaker = async (index: number, name: string, gender: string) => {
+        // Persist editorial attribution separately; never rewrite text, translations or audio.
+        const updated = localSubtitles.map((item: any, i: number) => {
+            if (i !== index && subtitleSpeakers[i]?.name !== name) return item
+            return { ...item, editor_speaker: { name, gender, text: item.text } }
+        })
+        await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+    }
 
     const renderAiDialogue = (subtitle: any, index: number) => {
         const parts = aiDialogueParts.get(index)
@@ -2960,12 +2982,12 @@ export default function StdPortalPage() {
     const renderVoicePicker = (
         pickerKey: string,
         voiceId: string,
-        onSelect: (voiceId: string) => void,
+        onSelect: (voiceId: string, allSpeaker?: boolean) => void | Promise<void>,
         title: string,
         tone: 'default' | 'dialogue' = 'default',
         _openDirection: 'left' | 'right' = 'right',
         disabled = false,
-        options: { buttonLabel?: string; elevenLabsOnly?: boolean } = {}
+        options: { buttonLabel?: string; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
         const isOpen = !disabled && openVoicePickerKey === pickerKey
@@ -3002,11 +3024,15 @@ export default function StdPortalPage() {
                     <Mic size={14} />
                     {options.buttonLabel && <span>{options.buttonLabel}</span>}
                 </button>
+                {speakerEditorIndex !== null && pickerKey === `block-${speakerEditorIndex}` && <SubtitleSpeakerEditor
+                    speaker={subtitleSpeakers[speakerEditorIndex]} names={speakerNames} thai={currentLocale === 'th'}
+                    onSave={(name, gender) => saveSubtitleSpeaker(speakerEditorIndex, name, gender)} onClose={() => setSpeakerEditorIndex(null)} />}
                 {isOpen && <UnifiedVoiceDialog historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email} value={voiceId} voices={allVoices}
                     initialTab={options.elevenLabsOnly || tone === 'dialogue' ? 'elevenlabs' : 'google'}
                     title={title.replace(/^ElevenLabs · /, '')} headers={authedJsonHeaders}
-                    description={pickerKey.startsWith('block-') ? '이 자막 한 줄에만 적용합니다. 다른 자막의 성우는 유지됩니다.' : '선택한 대상의 성우를 변경합니다.'}
-                    onApply={(id) => onSelect(id)} onClose={closePicker} />}
+                    speakerContext={options.speakerContext}
+                    description={options.speakerContext?.name ? (options.speakerContext.thai ? 'เลือกเสียงให้ตัวละคร หรือยกเลิกการเลือกใช้กับทุกประโยคเพื่อเปลี่ยนเฉพาะบรรทัดนี้' : '인물별 성우를 선택합니다. 전체 적용을 해제하면 이 자막만 변경합니다.') : pickerKey.startsWith('block-') ? '이 자막 한 줄에만 적용합니다. 다른 자막의 성우는 유지됩니다.' : '선택한 대상의 성우를 변경합니다.'}
+                    onApply={(id, _direction, allSpeaker) => onSelect(id, allSpeaker)} onClose={closePicker} />}
 
             </div>
         )
@@ -8831,6 +8857,7 @@ export default function StdPortalPage() {
                                                             {isVrewSubtitleMode ? (
                                                                 <div className="space-y-0.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
+                                                                        const speakerInfo = subtitleSpeakers[item.subtitleIndex]
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
                                                                         const isDialogueBlock = typeof item.dialogue_override === 'boolean'
@@ -8881,6 +8908,7 @@ export default function StdPortalPage() {
                                                                                 </button>
                                                                                 <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
                                                                                     <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
+                                                                                        {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={currentLocale === 'th' ? 'แก้ไขข้อมูลผู้พูด (ไม่อ่านออกเสียง)' : '화자 정보 편집 (TTS·영상 자막 제외)'} className="mr-2 shrink-0 rounded border border-amber-300/30 px-1.5 py-1 text-[10px] text-amber-200">{speakerInfo?.label || (currentLocale === 'th' ? 'ยืนยันผู้พูด' : '화자 확인 필요')} · {speakerInfo?.gender === 'male' ? (currentLocale === 'th' ? 'ชาย' : '남성') : speakerInfo?.gender === 'female' ? (currentLocale === 'th' ? 'หญิง' : '여성') : '?'}</button>}
                                                                                         <span className="min-w-0 truncate" title={String(item.text || '')}>
                                                                                             {candidates.length ? (() => {
                                                                                                 const parts: React.ReactNode[] = []
@@ -8898,14 +8926,14 @@ export default function StdPortalPage() {
                                                                                             {renderVoicePicker(
                                                                                                 `block-${item.subtitleIndex}`,
                                                                                                 blockVoiceId,
-                                                                                                (nextVoiceId) => void setSubtitleBlockVoice(item.subtitleIndex, nextVoiceId),
+                                                                                                (nextVoiceId, allSpeaker) => applySubtitleSpeakerVoice(item.subtitleIndex, nextVoiceId, allSpeaker),
                                                                                                 `ElevenLabs · ${subtitleReviewCopy
                                                                                                     ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
                                                                                                     : `${isDialogueBlock ? '대사' : '내레이션'} 성우`}`,
                                                                                                 isDialogueBlock ? 'dialogue' : 'default',
                                                                                                 'left',
                                                                                                 false,
-                                                                                                { elevenLabsOnly: true }
+                                                                                                { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerInfo?.label || '', gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
                                                                                             )}
                                                                                         </div>
                                                                                     </div>
