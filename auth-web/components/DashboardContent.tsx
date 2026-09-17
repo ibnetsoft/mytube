@@ -605,16 +605,22 @@ export default function DashboardContent() {
 
     const handleReconnectGoogleDrive = async () => {
         if (!canManageSystemSettings) return
+        if (!sysKeys.google_drive_client_id || !sysKeys.google_drive_client_secret) {
+            alert(isKor
+                ? 'Google Drive OAuth Client ID와 Client Secret을 먼저 입력하고 하단의 [설정 저장]을 완료해주세요.'
+                : 'Please enter Google Drive OAuth Client ID and Client Secret, and save settings first.')
+            return
+        }
         try {
             const response = await adminFetch('/api/admin/google-drive/oauth', { method: 'POST' })
             const payload = await response.json().catch(() => ({}))
             if (!response.ok || !payload?.authorization_url) {
-                alert(payload?.error || 'Google Drive 재연결을 시작하지 못했습니다.')
+                alert(payload?.error || (isKor ? 'Google Drive 재연결을 시작하지 못했습니다.' : 'Failed to initiate Google Drive reconnect.'))
                 return
             }
             window.location.assign(payload.authorization_url)
         } catch (error: any) {
-            alert(error?.message || 'Google Drive 재연결을 시작하지 못했습니다.')
+            alert(error?.message || (isKor ? 'Google Drive 재연결을 시작하지 못했습니다.' : 'Failed to initiate Google Drive reconnect.'))
         }
     }
 
@@ -3104,13 +3110,57 @@ export default function DashboardContent() {
         }
     }, [isAdmin, loading, globalPeriod, fetchGlobalStats]);
 
+    // Google Drive OAuth 콜백 결과 감지 및 사용자 피드백
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const driveOAuth = params.get('drive_oauth');
+        if (!driveOAuth) return;
+
+        // URL 쿼리 파라미터 제거
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('drive_oauth');
+        window.history.replaceState({}, '', newUrl.pathname + (newUrl.searchParams.toString() ? '?' + newUrl.searchParams.toString() : '') + newUrl.hash);
+
+        if (driveOAuth === 'connected') {
+            alert(isKor
+                ? '✅ Google Drive 연동이 완료되었습니다!\n렌더워커와 중앙 스튜디오에서 구글 드라이브를 안전하게 사용할 수 있습니다.'
+                : '✅ Google Drive connected successfully!\nBackground render workers and the studio are now connected.');
+            setActiveTab('api');
+            setApiSettingsTab('drive');
+            fetchSysKeys();
+        } else {
+            const errorDescriptions: Record<string, string> = {
+                client_not_configured: 'OAuth Client ID 또는 Client Secret이 저장되어 있지 않습니다. 먼저 값을 입력하고 하단의 [설정 저장]을 눌러주세요.',
+                state_mismatch: '보안 상태 토큰(State) 검증에 실패했습니다. 다시 시도해주세요.',
+                missing_code: 'Google로부터 인증 코드가 전달되지 않았습니다.',
+                token_exchange_failed: 'Google 토큰 교환 실패: Refresh Token을 발급받지 못했습니다.',
+                token_invalid_grant: 'Google 인증 실패 (invalid_grant): 인증 코드가 만료되었거나 이미 사용되었습니다.',
+                token_redirect_uri_mismatch: 'Google 클라우드 콘솔의 [승인된 리디렉션 URI]와 현재 도메인 주소가 일치하지 않습니다.',
+                save_failed: '데이터베이스에 토큰을 저장하는 도중 오류가 발생했습니다.',
+                access_denied: '사용자가 Google 계정 권한 승인을 취소했습니다.',
+            };
+            const desc = errorDescriptions[driveOAuth] || `오류 코드: ${driveOAuth}`;
+            alert((isKor
+                ? `❌ Google Drive 연동에 실패했습니다.\n\n원인: ${desc}\n\n※ 점검 사항:\n1. Google Cloud Console > [OAuth 동의 화면]이 "게시 상태: 프로덕션"인지 확인\n2. [승인된 리디렉션 URI]에 현재 접속 주소의 콜백(/api/admin/google-drive/oauth/callback)이 등록되었는지 확인`
+                : `❌ Google Drive connection failed.\n\nReason: ${desc}\n\nChecklist:\n1. Ensure OAuth consent screen is published to Production\n2. Ensure the redirect URI matches exactly in Google Cloud Console.`));
+            setActiveTab('api');
+            setApiSettingsTab('drive');
+        }
+    }, [isKor, fetchSysKeys]);
+
     if (loading) return <div className="min-h-screen bg-[#050505] text-white flex items-center justify-center font-black animate-pulse uppercase tracking-[0.5em]">{ui.authenticating}</div>;
     if (!user) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#111827] to-black px-4 py-10">
                 <div className="mx-auto flex min-h-[80vh] max-w-6xl items-center justify-center">
                     <div className="w-full max-w-md">
-                        <div className="mb-6 text-center">
+                        <div className="mb-6 text-center flex flex-col items-center justify-center">
+                            <img
+                                src="/img/air_logo.png"
+                                alt="AIR Studio Logo"
+                                className="w-20 h-20 rounded-full shadow-2xl shadow-cyan-500/30 ring-4 ring-cyan-400/20 object-contain mb-3"
+                            />
                             <div className="text-[11px] font-black uppercase tracking-[0.35em] text-blue-400">AIR STUDIO ADMIN</div>
                             <h1 className="mt-3 text-3xl font-black tracking-tight text-white">관리자 대시보드 로그인</h1>
                             <p className="mt-2 text-sm font-bold text-gray-500">`/dashboard`에서 바로 관리자 인증을 진행합니다.</p>
@@ -5629,14 +5679,50 @@ export default function DashboardContent() {
                             {apiSettingsTab === 'drive' && (
                                 <div className="space-y-5 animate-in fade-in duration-200">
                                     <div className="flex items-center justify-between gap-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
-                                        <h4 className="text-sm font-black text-cyan-200">Google Drive 공통 OAuth 설정</h4>
+                                        <div>
+                                            <div className="flex items-center gap-2.5">
+                                                <h4 className="text-sm font-black text-cyan-200">Google Drive 공통 OAuth 설정</h4>
+                                                {sysKeys.google_drive_refresh_token ? (
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/30">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                        연동 완료 (Connected)
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-bold text-amber-400 border border-amber-500/30">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                                                        미연동 (인증 필요)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="mt-1 text-xs text-cyan-100/70">
+                                                렌더워커 및 중앙 스튜디오가 영상을 업로드하고 에셋을 공유할 중앙 구글 드라이브를 연동합니다.
+                                            </p>
+                                        </div>
                                         <button
                                             type="button"
                                             onClick={handleReconnectGoogleDrive}
-                                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-500/25"
+                                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-500/25 whitespace-nowrap"
                                         >
-                                            Drive 재연결
+                                            {sysKeys.google_drive_refresh_token ? 'Drive 재연결' : 'Drive 계정 연동'}
                                         </button>
+                                    </div>
+
+                                    {/* Google Drive 운영 가이드 안내 배너 */}
+                                    <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 text-xs space-y-1.5 text-amber-200/80">
+                                        <div className="font-bold text-amber-300 flex items-center gap-1.5 text-[12px]">
+                                            <span>💡 구글 드라이브 연동 시 주의사항</span>
+                                        </div>
+                                        <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-200/70">
+                                            <li>
+                                                <b>7일 만료 방지:</b> Google Cloud Console &gt; <b>[OAuth 동의 화면]</b>에서 앱 상태가 <b>[게시 상태: 프로덕션]</b>으로 전환되어 있어야 토큰이 영구 유지됩니다. (테스트 상태는 7일 후 만료됨)
+                                            </li>
+                                            <li>
+                                                <b>승인된 리디렉션 URI:</b> Google Cloud Console 사용자 인증 정보에 <code>{typeof window !== 'undefined' ? `${window.location.origin}/api/admin/google-drive/oauth/callback` : '/api/admin/google-drive/oauth/callback'}</code> 가 등록되어 있어야 합니다.
+                                            </li>
+                                            <li>
+                                                <b>연동 순서:</b> Client ID와 Client Secret을 먼저 입력하고 페이지 최하단의 <b>[설정 저장]</b>을 누른 뒤, 상단의 <b>[Drive 재연결]</b> 버튼을 눌러주세요.
+                                            </li>
+                                        </ul>
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">

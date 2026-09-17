@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { getGoogleDriveConfig } from '@/lib/googleDriveConfig'
+import { deleteServerCache } from '@/lib/server-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,12 +59,22 @@ export async function GET(req: Request) {
         })
         const tokenPayload = await tokenResponse.json().catch(() => ({}))
         const refreshToken = String(tokenPayload?.refresh_token || '')
-        if (!tokenResponse.ok || !refreshToken) return redirect(req, 'token_exchange_failed')
+        if (!tokenResponse.ok || !refreshToken) {
+            console.error('[GoogleDriveOAuth] Callback token error:', {
+                status: tokenResponse.status,
+                error: tokenPayload?.error,
+                error_description: tokenPayload?.error_description,
+            })
+            const errCode = tokenPayload?.error ? `token_${tokenPayload.error}` : 'token_exchange_failed'
+            return redirect(req, errCode)
+        }
 
         const { error } = await supabaseAdmin
             .from('global_settings')
             .upsert({ key: 'sys_api_google_drive_refresh_token', value: refreshToken }, { onConflict: 'key' })
         if (error) throw error
+
+        await deleteServerCache('admin:settings:global')
 
         return redirect(req, 'connected')
     } catch {

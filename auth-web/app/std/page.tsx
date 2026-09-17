@@ -7356,6 +7356,15 @@ export default function StdPortalPage() {
 
                 <div className={`w-full max-w-md bg-[#1e293b]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10 ${isImpersonating ? 'mt-12' : ''}`}>
                     <div className="flex flex-col items-center">
+                        {/* AIR Logo */}
+                        <div className="mb-5 flex flex-col items-center">
+                            <img
+                                src="/img/air_logo.png"
+                                alt="AIR Logo"
+                                className="w-24 h-24 rounded-full shadow-2xl shadow-cyan-500/40 ring-4 ring-cyan-400/20 object-contain hover:scale-105 transition-transform duration-300"
+                            />
+                        </div>
+
                         {/* 상단 펄스 헤더 */}
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />

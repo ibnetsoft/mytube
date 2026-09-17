@@ -30,3 +30,24 @@ def test_admin_settings_offers_drive_reconnect_instead_of_refresh_token_entry():
     assert "handleReconnectGoogleDrive" in source
     assert 'Drive 재연결' in source
     assert "{ key: 'google_drive_refresh_token'" not in source
+
+
+def test_global_settings_protects_drive_refresh_token_from_blank_overwrite():
+    source = (ROOT / 'auth-web' / 'app' / 'api' / 'admin' / 'settings' / 'global' / 'route.ts').read_text(encoding='utf-8')
+
+    assert "'google_drive_refresh_token'" in source
+    assert "k === 'google_drive_refresh_token'" in source
+
+
+def test_drive_callback_invalidates_server_cache():
+    source = (ROOT / 'auth-web' / 'app' / 'api' / 'admin' / 'google-drive' / 'oauth' / 'callback' / 'route.ts').read_text(encoding='utf-8')
+
+    assert "deleteServerCache('admin:settings:global')" in source
+
+
+def test_dashboard_handles_drive_oauth_callback_feedback():
+    source = (ROOT / 'auth-web' / 'components' / 'DashboardContent.tsx').read_text(encoding='utf-8')
+
+    assert "params.get('drive_oauth')" in source
+    assert "newUrl.searchParams.delete('drive_oauth')" in source
+

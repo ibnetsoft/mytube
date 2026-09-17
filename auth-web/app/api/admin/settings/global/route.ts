@@ -64,6 +64,8 @@ const SECRET_KEYS = new Set([
     'elevenlabs_keys',
     'topview',
     'suno',
+    'google_drive_client_secret',
+    'google_drive_refresh_token',
 ])
 
 const MODEL_KEYS = new Set([
@@ -139,6 +141,7 @@ export async function POST(req: Request) {
         for (const k of KEYS) {
             if (body[k] === undefined) continue
             if (SECRET_KEYS.has(k) && isMaskedOrEmptySecretValue(body[k])) continue
+            if (k === 'google_drive_refresh_token' && (!body[k] || String(body[k]).trim() === '')) continue
             if (MODEL_KEYS.has(k) && looksLikeApiCredential(body[k])) {
                 return NextResponse.json(
                     { error: 'API keys cannot be saved as model IDs. Use the matching API key field.' },
