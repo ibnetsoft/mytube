@@ -10,7 +10,7 @@ import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
-import { subtitleSpeaker, assignSpeakerVoice } from '@/lib/stdSpeakerAssignment'
+import { subtitleSpeaker, assignSpeakerVoice, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
@@ -2505,6 +2505,14 @@ export default function StdPortalPage() {
             if (voice?.id) map.set(String(voice.id), String(voice.name || voice.id))
         })
         VOICE_STUDIO_VOICES.forEach(voice => map.set(voice.id, voice.name))
+        return map
+    }, [allVoices])
+
+    const voiceGenderById = useMemo(() => {
+        const map = new Map<string, string>()
+        ;[...VOICE_STUDIO_VOICES, ...(allVoices || [])].forEach(voice => {
+            if (voice?.id) map.set(String(voice.id), normalizeSpeakerGender(voice.gender))
+        })
         return map
     }, [allVoices])
 
@@ -8835,7 +8843,7 @@ export default function StdPortalPage() {
                                                                         {hasSingleGroupVoice && (
                                                                             <span
                                                                                 title={groupVoiceNames[0]}
-                                                                                className="max-w-14 truncate rounded border border-cyan-400/20 bg-cyan-500/10 px-1.5 py-1 text-[8px] font-bold leading-none text-cyan-100 min-[390px]:max-w-16 sm:max-w-24 sm:px-2 sm:text-[10px]"
+                                                                                className={`max-w-14 truncate rounded border px-1.5 py-1 text-[8px] font-bold leading-none min-[390px]:max-w-16 sm:max-w-24 sm:px-2 sm:text-[10px] ${voiceGenderById.get(groupVoiceId) === 'female' && group.subtitles.every((item: any) => isSubtitleDialogue(item, item.subtitleIndex)) ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100'}`}
                                                                             >
                                                                                 {groupVoiceNames[0]}
                                                                             </span>
@@ -8992,7 +9000,9 @@ export default function StdPortalPage() {
                                                                                         title={blockVoiceName}
                                                                                         className={`hidden max-w-24 truncate rounded border px-2 py-1 text-[10px] font-bold leading-none sm:inline ${
                                                                                             isDialogueBlock
-                                                                                                ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
+                                                                                                ? voiceGenderById.get(blockVoiceId) === 'female'
+                                                                                                    ? 'border-pink-400/40 bg-pink-500/15 text-pink-200'
+                                                                                                    : 'border-emerald-400/25 bg-emerald-500/10 text-emerald-100'
                                                                                                 : 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100'
                                                                                         }`}
                                                                                     >
