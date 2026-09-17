@@ -1075,7 +1075,7 @@ export default function StdPortalPage() {
     const previewPrefetchRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'generating' | 'ready' | 'stale' | 'error'>>({})
+    const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'loading' | 'generating' | 'ready' | 'stale' | 'error'>>({})
     const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
     const [isSubtitleSyncing, setIsSubtitleSyncing] = useState(false)
     const [subtitleSyncProgress, setSubtitleSyncProgress] = useState('')
@@ -3388,6 +3388,16 @@ export default function StdPortalPage() {
         return url
     }
 
+    const hasStoredSegment = (subtitle: any) => (selectedProject?.assets || []).some((asset: any) => {
+        const m = asset.metadata
+        return ['uploaded', 'assigned'].includes(asset.status) && (m?.storage_path || asset.drive_file_id)
+            && m?.kind === 'vrew_segment_tts' && m.text === String(subtitle?.text || '').trim()
+            && m.voice_id === String(subtitle?.voice_id || selectedVoice)
+            && m.model_id === 'eleven_multilingual_v2' && Number(m.tts_speed) === Number(ttsSpeed)
+            && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
+            && String(m.direction || '') === String(subtitle?.voice_direction || '')
+    })
+
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number, signal?: AbortSignal) => {
         if (signal?.aborted) throw signal.reason
         const text = String(subtitle?.text || '').trim()
@@ -3406,16 +3416,16 @@ export default function StdPortalPage() {
             return await inFlightRequest
         }
 
-        setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'generating' }))
+        setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'loading' }))
         const generationPromise = (async () => {
-            const requestSegmentAudio = async (repairLegacy = false) => {
+            const requestSegmentAudio = async () => {
             const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                 method: 'POST',
                 signal,
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
                     mode: 'vrew_segment_preview_fast',
-                    bypass_cache: repairLegacy,
+                    bypass_cache: false,
                     provider: isVoiceStudioVoice(voiceId) ? 'voice_studio' : voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                     direction: String(subtitle?.voice_direction || ''),
                     voice_id: voiceId,
@@ -3450,7 +3460,7 @@ export default function StdPortalPage() {
             }
 
             const audioUrl = await resolveStoredSegmentAudio(requestSegmentAudio, resolvePayloadAudioUrl, () => {
-                setMessage('이전 음성 파일에 접근할 수 없어 이 구간을 다시 생성해 Supabase에 저장하고 있습니다.')
+                setMessage('저장된 음성을 불러오지 못했습니다. 새 음성은 생성하지 않았습니다.')
             })
             if (signal?.aborted) {
                 if (audioUrl.startsWith('blob:')) URL.revokeObjectURL(audioUrl)
@@ -3471,21 +3481,6 @@ export default function StdPortalPage() {
                 vrewAudioPromiseRef.current.delete(cacheKey)
             }
         }
-    }
-
-    const prefetchVrewSegment = (index: number) => {
-        const hasSavedNarration = (selectedProject?.assets || []).some((asset: any) =>
-            String(asset?.asset_type || '').toLowerCase() === 'audio'
-            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
-        )
-        if (hasSavedNarration && !localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return
-        const subtitle = localSubtitles[index]
-        if (!subtitle) return
-        const cacheKey = vrewSegmentCacheKey(subtitle, index)
-        if (vrewAudioCacheRef.current[cacheKey] || vrewSegmentStatus[cacheKey] === 'generating') return
-        void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch(error => {
-            console.warn('[STD Vrew subtitles] segment prefetch failed:', error)
-        })
     }
 
     const playVrewSegmentsFrom = async (startIndex: number) => {
@@ -8718,11 +8713,13 @@ export default function StdPortalPage() {
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const motionEffect = sceneMotion(sceneRecord)
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
-                                                const segmentStatus = vrewSegmentStatus[segmentKey]
+                                                const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : undefined)
                                                 const segmentStatusLabel = segmentStatus === 'ready'
                                                     ? '음성 준비됨'
                                                     : segmentStatus === 'generating'
                                                     ? '생성 중'
+                                                    : segmentStatus === 'loading'
+                                                    ? '음성 확인·준비 중'
                                                     : segmentStatus === 'stale'
                                                     ? '재생성 필요'
                                                     : '오류'
@@ -8828,7 +8825,7 @@ export default function StdPortalPage() {
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                         segmentStatus === 'ready'
                                                                             ? 'bg-emerald-500/15 text-emerald-300'
-                                                                            : segmentStatus === 'generating'
+                                                                            : (segmentStatus === 'generating' || segmentStatus === 'loading')
                                                                             ? 'bg-cyan-500/15 text-cyan-300'
                                                                             : segmentStatus === 'stale'
                                                                             ? 'bg-amber-500/15 text-amber-300'

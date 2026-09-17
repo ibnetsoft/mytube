@@ -29,3 +29,5 @@ const page = fs.readFileSync('auth-web/app/std/page.tsx', 'utf8');
 assert.match(page, /playing=\{isVrewSubtitleMode \? isNarrationPlaying : isPlayingPreview\}/);
 assert.match(page, /previewAudioError && <div role="alert"/);
 console.log('PASS: narration loading/failure stays silent, playback resumes auxiliary layers, stop/dispose stops them, Drive recovery message visible');
+
+(async()=>{let calls=0,repairs=0;await assert.rejects(()=>api.resolveStoredSegmentAudio(async()=>{calls++;return {cached:true,asset:{drive_file_id:'old',metadata:{}}}},async()=>{throw Object.assign(new Error('auth'),{code:'legacy_drive_auth_failed'})},()=>repairs++));assert.equal(calls,1);assert.equal(repairs,0);console.log('PASS: Drive auth failure never requests paid regeneration');})().catch(e=>{console.error(e);process.exitCode=1});

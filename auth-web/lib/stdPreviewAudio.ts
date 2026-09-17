@@ -22,14 +22,7 @@ export async function resolveStoredSegmentAudio(
     read: (payload: any) => Promise<string>,
     onRepair: () => void,
 ) {
+    // Never spend TTS credits to repair a file access/authentication failure.
     const payload = await request()
-    try {
-        return await read(payload)
-    } catch (error: any) {
-        const legacyDriveOnly = payload.cached && payload.asset?.drive_file_id && !payload.asset?.metadata?.storage_path
-        if (!legacyDriveOnly || error?.code !== 'legacy_drive_auth_failed') throw error
-        onRepair()
-        // One repair only. The server must persist the new audio before reporting success.
-        return await read(await request(true))
-    }
+    return await read(payload)
 }

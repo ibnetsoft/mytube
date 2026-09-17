@@ -666,7 +666,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const voiceMap = body?.voice_map || {}
         const fastSegmentPreview = body?.mode === 'vrew_segment_preview_fast'
         const segmentPreview = body?.mode === 'vrew_segment_preview' || fastSegmentPreview || body?.segment_preview === true
-        const bypassSegmentCache = Boolean(body?.bypass_cache)
         const segmentIndex = Number(body?.segment_index)
         const segmentIdentity = {
             text, provider, voiceId, modelId, speed: projectTtsSpeed,
@@ -675,7 +674,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             language: String(project.language || 'ko'),
         }
         const segmentCacheKey = segmentPreview ? segmentAudioKey(segmentIdentity) : ''
-        if (segmentPreview && segmentCacheKey && !bypassSegmentCache) {
+        if (segmentPreview && segmentCacheKey) {
             stage = 'lookup_segment_cache'
             let { data: cachedAsset, error: cachedAssetError } = await supabaseAdmin
                 .from('std_project_assets')
@@ -689,16 +688,18 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 .limit(1)
                 .maybeSingle()
             if (cachedAssetError) throw cachedAssetError
-            // Reuse older Drive caches only when their full synthesis settings match.
-            if (!cachedAsset && body?.cache_key) {
+            // Match legacy recordings by content/settings, not their old subtitle index.
+            if (!cachedAsset) {
                 const legacy = await supabaseAdmin.from('std_project_assets').select('*')
                     .eq('project_id', project.id).eq('asset_type', 'other')
                     .in('status', ['uploaded', 'assigned'])
                     .eq('metadata->>kind', 'vrew_segment_tts')
-                    .eq('metadata->>cache_key', safeFileKey(String(body.cache_key)))
-                    .order('created_at', { ascending: false }).limit(1).maybeSingle()
+                    .eq('metadata->>text', segmentIdentity.text)
+                    .eq('metadata->>voice_id', segmentIdentity.voiceId)
+                    .order('created_at', { ascending: false }).limit(100)
                 if (legacy.error) throw legacy.error
-                if (legacySegmentMatches(legacy.data?.metadata, segmentIdentity)) cachedAsset = legacy.data
+                cachedAsset = (legacy.data || []).filter((asset: any) => legacySegmentMatches(asset.metadata, segmentIdentity))
+                    .sort((a: any, b: any) => Number(Boolean(b.metadata?.storage_path)) - Number(Boolean(a.metadata?.storage_path)))[0]
             }
             if (cachedAsset?.drive_file_id || cachedAsset?.metadata?.storage_path) {
                 const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(cachedAsset.id)}`
@@ -720,6 +721,19 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     message: 'Vrew 구간 TTS 캐시를 불러왔습니다.',
                 })
             }
+        }
+        if (segmentPreview) {
+            if (body?.cache_only) return NextResponse.json({ success: false, code: 'audio_not_cached', error: '저장된 구간 음성이 없습니다.' }, { status: 404 })
+            // Atomic create across server instances. Keep the claim even after failure:
+            // an uncertain provider response must never silently spend credits again.
+            const claim = await supabaseAdmin.storage.from('content-assets').upload(
+                `std/${project.id}/tts/claims/${segmentCacheKey}.json`,
+                Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
+                { contentType: 'application/json', upsert: false },
+            )
+            if (claim.error && !/duplicate|already exists|exists/i.test(claim.error.message || '') && String(claim.error.statusCode) !== '409') throw new Error('중복 생성 방지 상태를 확인할 수 없어 음성을 생성하지 않았습니다.')
+            if (claim.error) return NextResponse.json({ success: false, code: 'audio_generation_claimed',
+                error: '이 음성의 생성 요청이 이미 진행됐거나 저장 확인이 필요합니다. 중복 과금을 막기 위해 다시 생성하지 않았습니다. 잠시 후 재생을 시도하고, 계속되면 관리자에게 확인해 주세요.' }, { status: 409 })
         }
         const voiceSegments = Array.isArray(body?.voice_segments)
             ? body.voice_segments
