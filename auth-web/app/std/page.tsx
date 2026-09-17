@@ -8,6 +8,7 @@ import { bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } 
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
+import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
@@ -7061,6 +7062,7 @@ export default function StdPortalPage() {
     }, [selectedProject?.project?.id, bgmAsset?.id, bgmAsset?.metadata?.storage_public_url, authedJsonHeaders])
 
     const sfxCues = Array.isArray(bgmSfxSettings.sfx_cues) ? bgmSfxSettings.sfx_cues : []
+    const sfxSubtitleIndexes = new Set(sfxCues.filter((cue: any) => cue.enabled !== false).map((cue: any) => sfxSubtitleIndex(cue, localSubtitles)).filter((index: number) => index >= 0))
     const currentSfxCue = sfxCues.find((cue: any) => Number(cue?.subtitle_index) === selectedSubIndex)
     const currentSfxAsset = currentSfxCue?.asset_id
         ? selectedProject?.assets?.find((asset: any) => asset.id === currentSfxCue.asset_id)
@@ -8915,6 +8917,7 @@ export default function StdPortalPage() {
                                                                                     {lineIndex + 1}
                                                                                 </button>
                                                                                 <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
+                                                                                    {sfxSubtitleIndexes.has(item.subtitleIndex) && <span role="img" aria-label="효과음 있음" title="효과음이 배치된 자막" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/50 bg-purple-500/10 text-[11px] leading-none text-purple-100">★</span>}
                                                                                     <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
                                                                                         {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={currentLocale === 'th' ? 'แก้ไขข้อมูลผู้พูด (ไม่อ่านออกเสียง)' : '화자 정보 편집 (TTS·영상 자막 제외)'} className="mr-2 shrink-0 rounded border border-amber-300/30 px-1.5 py-1 text-[10px] text-amber-200">{speakerInfo?.label || (currentLocale === 'th' ? 'ยืนยันผู้พูด' : '화자 확인 필요')} · {speakerInfo?.gender === 'male' ? (currentLocale === 'th' ? 'ชาย' : '남성') : speakerInfo?.gender === 'female' ? (currentLocale === 'th' ? 'หญิง' : '여성') : '?'}</button>}
                                                                                         <span className="min-w-0 truncate" title={String(item.text || '')}>
