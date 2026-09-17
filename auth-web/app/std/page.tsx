@@ -8,6 +8,7 @@ import { bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } 
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
+import AiSfxPlanButton from '@/components/AiSfxPlanButton'
 import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
@@ -9419,6 +9420,11 @@ export default function StdPortalPage() {
                                                     BGM배경음
                                                 </button>
                                             </div>
+                                                {selectedProject && <AiSfxPlanButton key={selectedProject.project.id}
+                                                    projectId={selectedProject.project.id} headers={authedJsonHeaders}
+                                                    appliedJobId={bgmSfxSettings.sfx_plan?.job_id} subtitles={localSubtitles}
+                                                    beforeSave={() => handleSaveSubtitles(false)}
+                                                    onApplied={() => openProject(selectedProject.project.id)} />}
                                                 {(selectedProject?.assets || []).some(a => audioAssetRole(a) === 'sfx') && (
                                                     <button type="button" onClick={() => setSubEditTab('subtitle')}
                                                         className="text-left text-[11px] text-purple-200 underline underline-offset-2">
