@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
+import { assembleStoredNarration } from '@/lib/stdStoredNarration'
 import { completedScriptTtsProgress } from '@/lib/stdTtsCompletion'
 import { createHash } from 'crypto'
 import { segmentAudioKey, legacySegmentMatches, persistSegmentAudio } from '@/lib/stdSegmentAudioCache'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import {
-    driveFileLink,
+    driveFileLink, downloadStdDriveFile,
 } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { parseScriptToVoiceSegments, ScriptVoiceSegment } from '@/lib/stdMultiVoice'
@@ -618,6 +619,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
+    return runTts(body, auth, project)
+}
+
+async function runTts(body: any, auth: any, project: any) {
     let scenes: any[] = []
     if (!cleanTtsText(body?.text)) {
         const { data: scenesData, error: scenesError } = await supabaseAdmin
@@ -753,7 +758,35 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         let audioBuffer: Buffer
         let elevenLabsTrace: { keySlots: number[]; modelIds: string[] } | null = null
         let elevenLabsKeyInspections: any[] = []
-        if (provider === 'google_free' || voiceId.startsWith('google_')) {
+        let segmentReuse: { reused: number; generated: number } | null = null
+        if (!segmentPreview && voiceSegments.length) {
+            stage = 'assemble_saved_segments'
+            const assembled = await assembleStoredNarration(voiceSegments, {
+                resolve: async (segment, index, cacheOnly) => {
+                    const result = await runTts({
+                        ...body, text: segment.text, voice_id: segment.voiceId,
+                        provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
+                        direction: segment.direction, voice_segments: [], multi_voice: false,
+                        mode: 'vrew_segment_preview', segment_index: index, cache_only: cacheOnly,
+                    }, auth, project)
+                    const payload = await result.json()
+                    if (cacheOnly && result.status === 404 && payload.code === 'audio_not_cached') return null
+                    if (!result.ok || !payload.success || !payload.asset) throw new Error(payload.error || '저장된 구간 음성을 준비하지 못했습니다.')
+                    return { asset: payload.asset, cached: Boolean(payload.cached) }
+                },
+                read: async (asset) => {
+                    if (asset.metadata?.storage_path) {
+                        const { data, error } = await supabaseAdmin.storage.from(asset.metadata.storage_bucket || 'content-assets').download(asset.metadata.storage_path)
+                        if (error || !data) throw new Error('저장된 음성을 읽을 수 없습니다. 새로 생성하지 않았습니다. 저장소 연결을 확인해 주세요.')
+                        return Buffer.from(await data.arrayBuffer())
+                    }
+                    if (asset.drive_file_id) return downloadStdDriveFile(asset.drive_file_id)
+                    throw new Error('저장된 음성 파일 위치가 없습니다.')
+                },
+            })
+            audioBuffer = assembled.audioBuffer
+            segmentReuse = { reused: assembled.reused, generated: assembled.generated }
+        } else if (provider === 'google_free' || voiceId.startsWith('google_')) {
             stage = 'generate_google_free'
             const projectLang = String(
                 body?.target_language
@@ -854,6 +887,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 storage_bucket: 'content-assets', storage_path: storagePath,
                 provider, voice_id: voiceId, model_id: modelId, tts_speed: projectTtsSpeed,
                 multi_voice: multiVoice, voice_map: voiceMap, voice_segments: voiceSegments,
+                segment_reuse: segmentReuse,
                 text_length: text.length, chunk_count: chunkCount, generated_by: auth.requester.email,
                 elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                 elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],
@@ -890,6 +924,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             success: true,
             asset,
             drive_file: null,
+            segment_reuse: segmentReuse,
             audio_url: audioUrl,
             download_url: audioUrl,
             persisted_audio_url: audioUrl,

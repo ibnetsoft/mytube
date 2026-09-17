@@ -6148,7 +6148,13 @@ export default function StdPortalPage() {
                 })
             }
 
-            if (ttsProvider === 'google_free') {
+            const voiceSegments = subtitleVoiceSegments()
+            const hasSubtitleVoiceOverrides = voiceSegments.some(segment => segment.voice_id !== selectedVoice)
+            const useSubtitleVoiceSegments = currentNav === 'subtitle_vrew' && voiceSegments.length > 0
+                ? true
+                : hasSubtitleVoiceOverrides
+
+            if (ttsProvider === 'google_free' && !useSubtitleVoiceSegments) {
                 setMessage('🎙️ Google 무료 한국어 TTS 준비 중...')
                 // 180자 단위로 문장 분할
                 const cleanText = ttsText.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
@@ -6241,15 +6247,10 @@ export default function StdPortalPage() {
                         finalVoiceMap[char] = characterVoices[char] || selectedVoice
                     }
                 }
-                const voiceSegments = subtitleVoiceSegments()
-                const hasSubtitleVoiceOverrides = voiceSegments.some(segment => segment.voice_id !== selectedVoice)
-                const useSubtitleVoiceSegments = currentNav === 'subtitle_vrew' && voiceSegments.length > 0
-                    ? true
-                    : hasSubtitleVoiceOverrides
 
                 setMessage(
                     useSubtitleVoiceSegments
-                        ? `TTS generating with ${voiceSegments.length} subtitle voice segment(s)...`
+                        ? `저장된 음성 ${voiceSegments.length}개를 확인하고, 없는 구간만 생성합니다...`
                         : multiVoice
                         ? `TTS generating with narrator and ${detectedCharacters.length} character voice(s)...`
                         : 'TTS generating...'
@@ -6277,7 +6278,7 @@ export default function StdPortalPage() {
                     const detail = payload?.error || payload?.detail || payload?.raw || `${res.status} ${res.statusText}`
                     const stage = payload?.stage ? ` (${payload.stage})` : ''
                     const serverErrorMessage = `TTS generation failed${stage}: ${String(detail).slice(0, 600)}`
-                    if (voiceSegments.some(segment => isVoiceStudioVoice(segment.voice_id)) || !shouldUseBrowserElevenLabsFallback(serverErrorMessage)) {
+                    if (useSubtitleVoiceSegments || voiceSegments.some(segment => isVoiceStudioVoice(segment.voice_id)) || !shouldUseBrowserElevenLabsFallback(serverErrorMessage)) {
                         throw new Error(serverErrorMessage)
                     }
 
@@ -6325,7 +6326,7 @@ export default function StdPortalPage() {
                 const serverWarning = payload.warning ? ` ${String(payload.warning).slice(0, 160)}` : ''
                 setMessage(
                     useSubtitleVoiceSegments
-                        ? `TTS generated with ${voiceSegments.length} subtitle voice segment(s).${keyUsageLabel}${serverWarning}`
+                        ? `음성 준비 완료: 기존 ${payload.segment_reuse?.reused ?? 0}개 재사용 · 새로 ${payload.segment_reuse?.generated ?? 0}개 생성.${serverWarning}`
                         : multiVoice
                         ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).${keyUsageLabel}${serverWarning}`
                         : `${voiceObj.name} TTS audio generated.${keyUsageLabel}${serverWarning}`
