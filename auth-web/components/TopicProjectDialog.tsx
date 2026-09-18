@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { SupportedLocale } from '@/lib/i18n'
 import { stdUiText } from '@/lib/stdUiText'
 
-export type TopicProjectRow = { id: string; title: string; thumbnail: string; steps: boolean[] }
+export type TopicProjectRow = { id: string; title: string; thumbnail: string; steps: boolean[]; submitted?: boolean }
 const PAGE_SIZE = 10
 const stages = ['주제', '기획', '대본', '이미지', 'TTS', '자막', '썸네일']
+type ProjectTab = 'unfinished' | 'submitted'
 
 export default function TopicProjectDialog({ rows, activeId, locale, onClose, onSelect }: {
     rows: TopicProjectRow[]; activeId?: string; locale: SupportedLocale;
@@ -15,10 +16,16 @@ export default function TopicProjectDialog({ rows, activeId, locale, onClose, on
     const dialog = useRef<HTMLDialogElement>(null)
     const [query, setQuery] = useState('')
     const [page, setPage] = useState(0)
+    const [tab, setTab] = useState<ProjectTab>('unfinished')
     const [opening, setOpening] = useState('')
     const [failed, setFailed] = useState(false)
     const ui = (text: string) => stdUiText(locale, text)
-    const filtered = rows.filter(row => row.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+    const unfinishedCount = rows.filter(row => !row.submitted).length
+    const submittedCount = rows.length - unfinishedCount
+    const filtered = rows
+        .filter(row => tab === 'submitted' ? row.submitted : !row.submitted)
+        .filter(row => row.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+        .sort((a, b) => Number(b.id === activeId) - Number(a.id === activeId))
     const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
     const currentPage = Math.min(page, pageCount - 1)
     const visible = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
@@ -43,7 +50,18 @@ export default function TopicProjectDialog({ rows, activeId, locale, onClose, on
                 <h2 id="topic-project-title" className="text-lg font-bold">{ui('토픽')} · {ui('프로젝트 선택')}</h2>
                 <button type="button" disabled={!!opening} onClick={onClose} className="rounded border border-white/15 px-3 py-1.5 text-sm disabled:opacity-40">{ui('닫기')}</button>
             </header>
-            <div className="px-5 py-3">
+            <div className="space-y-3 px-5 py-3">
+                <div className="inline-flex rounded-lg border border-white/15 bg-black/20 p-1 text-xs font-bold">
+                    {[
+                        { id: 'unfinished' as const, label: ui('미완성'), count: unfinishedCount },
+                        { id: 'submitted' as const, label: ui('제출 완료'), count: submittedCount },
+                    ].map(item => (
+                        <button key={item.id} type="button" disabled={!!opening} onClick={() => { setTab(item.id); setPage(0) }}
+                            className={`rounded-md px-3 py-1.5 transition ${tab === item.id ? 'bg-blue-500 text-white' : 'text-gray-400 hover:bg-white/10 hover:text-gray-100'} disabled:opacity-40`}>
+                            {item.label} <span className="ml-1 opacity-80">{item.count}</span>
+                        </button>
+                    ))}
+                </div>
                 <input autoFocus value={query} onChange={e => { setQuery(e.target.value); setPage(0) }} aria-label={ui('영상 제목 검색')} placeholder={ui('영상 제목 검색')}
                     className="w-full rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none focus:border-blue-400" />
             </div>

@@ -706,7 +706,7 @@ async function runTts(body: any, auth: any, project: any) {
                 cachedAsset = (legacy.data || []).filter((asset: any) => legacySegmentMatches(asset.metadata, segmentIdentity))
                     .sort((a: any, b: any) => Number(Boolean(b.metadata?.storage_path)) - Number(Boolean(a.metadata?.storage_path)))[0]
             }
-            if (cachedAsset?.drive_file_id || cachedAsset?.metadata?.storage_path) {
+            if (cachedAsset?.metadata?.storage_path) {
                 const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(cachedAsset.id)}`
                 return NextResponse.json({
                     success: true,

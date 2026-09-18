@@ -7923,7 +7923,8 @@ export default function StdPortalPage() {
                     return { id: p.id, title: p.title, thumbnail: sanitizeAssetUrl(
                         p.progress_payload?.thumbnail_url || p.project_payload?.thumbnail_url
                         || p.project_payload?.thumbnail_design?.thumbnail_url || p.project_payload?.thumbnail_design?.bg_url) || '',
-                        steps: [status.isTopicDone, status.isPlanningDone, status.isScriptDone, status.isImageDone, status.isTtsDone, status.isSubtitlesDone, status.isThumbnailDone] }
+                        steps: [status.isTopicDone, status.isPlanningDone, status.isScriptDone, status.isImageDone, status.isTtsDone, status.isSubtitlesDone, status.isThumbnailDone],
+                        submitted: Boolean(p.submitted_at || p.shared_submission?.submitted_at) }
                 })}
                 onClose={() => setTopicProjectOpen(false)} onSelect={async id => Boolean(await openProject(id))} />}
             {isImpersonating && (
@@ -8092,11 +8093,8 @@ export default function StdPortalPage() {
                         <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
                         <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
                             className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
-                            {ui('토픽')}
+                            {getProjectSyncedTitle(selectedProject) || ui('토픽')}
                         </button>
-                        <div className="text-[10px] text-gray-400 mt-1 font-mono">
-                            Status: <span className="text-purple-400">{selectedProject?.project?.status || 'image_prompted'}</span>
-                        </div>
                     </div>
 
                     {sidebarProgress}
