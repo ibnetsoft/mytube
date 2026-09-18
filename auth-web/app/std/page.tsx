@@ -8508,76 +8508,7 @@ export default function StdPortalPage() {
 
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
 
-                                    {/* 액션 버튼 6종 */}
-                                    <div className="grid w-full grid-cols-3 gap-1.5 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const scenes = selectedProject?.scenes || []
-                                                const subs = generateSynchronizedSubtitles(
-                                                    selectedProject?.project?.project_payload?.script || customScriptText || '',
-                                                    scenes,
-                                                    Number(subMaxChars) || 20
-                                                )
-                                                setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
-                                                setSelectedSubIndex(0)
-                                                alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
-                                            }}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
-                                            title={t('sub_reset_reload')}
-                                        >
-                                            초기화
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleSyncSubtitleSceneVisuals}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
-                                            title={t('sub_sync_ai_images')}
-                                        >
-                                            이미지동기화
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
-                                            className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
-                                            title={t('sub_sync_all_script')}
-                                        >
-                                            <span>🔮</span> 대본동기화
-                                        </button>
-                                        {subtitleReviewLocale && subtitleTranslationError && (
-                                            <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
-                                                {subtitleReviewCopy?.retry}
-                                            </span>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => void syncSubtitleTimingsToNarration()}
-                                            disabled={isSubtitleSyncing || localSubtitles.length === 0}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                                            title="줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다."
-                                        >
-                                            {isSubtitleSyncing ? '음성 길이 보정 중...' : '음성 길이 보정'}
-                                        </button>
-                                        {isSubtitleSyncing && (
-                                            <button type="button" className="px-2 py-1 text-[11px] text-red-300" onClick={() => subtitleSyncControllerRef.current?.abort(new Error('사용자가 보정을 취소했습니다.'))}>취소</button>
-                                        )}
-                                        {subtitleSyncProgress && <span role="status" aria-live="polite" className="max-w-full text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleFinalizeSubtitlesAndTts()}
-                                            disabled={generatingTts || !canFinalizeSubtitlesAndTts}
-                                            className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition ${
-                                                generatingTts || !canFinalizeSubtitlesAndTts
-                                                    ? 'bg-gray-700 cursor-not-allowed opacity-60'
-                                                    : 'bg-violet-600 hover:bg-violet-500'
-                                            }`}
-                                            title={canFinalizeSubtitlesAndTts
-                                                ? '최종 자막 저장 및 TTS 생성'
-                                                : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
-                                        >
-                                            {generatingTts ? t('sub_final_saving') : '저장+TTS'}
-                                        </button>
-                                    </div>
+
                                 </div>
 
                             </div>
@@ -8677,6 +8608,76 @@ export default function StdPortalPage() {
                                             )}
                                         </div>
 
+                                        {/* 자막 동기화 및 저장 버튼 */}
+                                        <div className="grid w-full grid-cols-3 gap-1.5 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const scenes = selectedProject?.scenes || []
+                                                    const subs = generateSynchronizedSubtitles(
+                                                        selectedProject?.project?.project_payload?.script || customScriptText || '',
+                                                        scenes,
+                                                        Number(subMaxChars) || 20
+                                                    )
+                                                    setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
+                                                    setSelectedSubIndex(0)
+                                                    alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
+                                                }}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
+                                                title={t('sub_reset_reload')}
+                                            >
+                                                초기화
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleSyncSubtitleSceneVisuals}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
+                                                title={t('sub_sync_ai_images')}
+                                            >
+                                                이미지동기화
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
+                                                className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
+                                                title={t('sub_sync_all_script')}
+                                            >
+                                                <span>🔮</span> 대본동기화
+                                            </button>
+                                            {subtitleReviewLocale && subtitleTranslationError && (
+                                                <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
+                                                    {subtitleReviewCopy?.retry}
+                                                </span>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => void syncSubtitleTimingsToNarration()}
+                                                disabled={isSubtitleSyncing || localSubtitles.length === 0}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-45"
+                                                title="줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다."
+                                            >
+                                                {isSubtitleSyncing ? '음성 길이 보정 중...' : '음성 길이 보정'}
+                                            </button>
+                                            {isSubtitleSyncing && (
+                                                <button type="button" className="px-2 py-1 text-[11px] text-red-300" onClick={() => subtitleSyncControllerRef.current?.abort(new Error('사용자가 보정을 취소했습니다.'))}>취소</button>
+                                            )}
+                                            {subtitleSyncProgress && <span role="status" aria-live="polite" className="max-w-full text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleFinalizeSubtitlesAndTts()}
+                                                disabled={generatingTts || !canFinalizeSubtitlesAndTts}
+                                                className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition ${
+                                                    generatingTts || !canFinalizeSubtitlesAndTts
+                                                        ? 'bg-gray-700 cursor-not-allowed opacity-60'
+                                                        : 'bg-violet-600 hover:bg-violet-500'
+                                                }`}
+                                                title={canFinalizeSubtitlesAndTts
+                                                    ? '최종 자막 저장 및 TTS 생성'
+                                                    : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
+                                            >
+                                                {generatingTts ? t('sub_final_saving') : '저장+TTS'}
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* 자막 카드 목록 */}
