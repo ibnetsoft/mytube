@@ -17,7 +17,11 @@ GUARD = ('Instrumental background music only. No vocals, lyrics, spoken words or
          'Use a seamless loop-friendly ending.')
 
 
-def plan_package_bgm(runner, job_id, package):
+def plan_package_bgm(runner, job_id, package, *, enabled=False):
+    # Strict opt-in: missing flags, strings and legacy jobs must not spend CLI usage.
+    # Leave previously saved prompts intact when this run does not request one.
+    if enabled is not True:
+        return {'version': VERSION, 'status': 'skipped', 'audio_generated': False}
     script = str(package.get('script') or '').strip()
     fingerprint = hashlib.sha256(script.encode('utf-8')).hexdigest()
     structure = package.setdefault('structure', {})

@@ -1,7 +1,12 @@
 # Background music prompts from the script worker
 
-Both `script_generate` and `codex_content_generate` run `07_bgm_prompt` after
-the final script is validated. Codex reads the complete story and writes:
+Music prompts are optional and **off by default**. Only the explicit boolean
+`generate_bgm_prompt: true` enables `07_bgm_prompt` after final script validation
+for `script_generate`, `codex_content_generate`, and the local console's new-script
+workflow. Missing flags, false, and non-boolean values skip the model call and
+preserve existing saved prompts. The local console and legacy script dashboard
+provide an unchecked "배경음악 생성 프롬프트 만들기" checkbox.
+When enabled, Codex reads the complete story and writes:
 
 - `structure.bgm_prompt.prompt_en`: English prompt suitable for a music generator.
 - `structure.bgm_prompt.description_ko`: Korean explanation of the musical direction.

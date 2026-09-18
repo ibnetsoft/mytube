@@ -39,6 +39,9 @@ def produce(identity, request, snapshot, output, notify, sources=None):
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
                    'user_direction': request['notes']}
         package = runner.generate('local-' + identity, payload, script_only=True)
+        from worker.codex_bgm import plan_package_bgm
+        plan_package_bgm(runner, 'local-' + identity, package,
+                         enabled=request.get('generate_bgm_prompt') is True)
         package['remaining'] = ['캐릭터 참고 이미지 생성·저장', '장면 이미지·첫 12씬 영상 프롬프트',
                                 '메타데이터·썸네일 기획', '전체 장면 이미지 실제 생성·게시', '썸네일 배경 실제 생성·게시',
                                 '토픽 패키지/유저웹 연결', '사용자 썸네일 최종 저장']

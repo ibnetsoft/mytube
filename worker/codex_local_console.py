@@ -117,6 +117,7 @@ class StartRequest(BaseModel):
     category: str = Field(default='', max_length=80)
     category_id: str = Field(default='', max_length=16)
     duration_minutes: int = Field(default=15, ge=1, le=60)
+    generate_bgm_prompt: bool = Field(default=False, strict=True)
     notes: str = Field(default='', max_length=4000)
     source_ids: list[str] = Field(default_factory=list, max_length=12)
     grounded_type: Literal['sermon', 'education'] = 'sermon'

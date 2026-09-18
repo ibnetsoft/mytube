@@ -4353,6 +4353,7 @@ tr:hover { background: #161b22; }
             <label>장면 구성 (비워두면 주제로 자동 기획)</label>
             <textarea id="sg-structure" rows="4" placeholder='{"scenes": [{"scene_summary": "...", "scene_situation": "..."}]}'></textarea>
           </div>
+          <label><input type="checkbox" id="sg-bgm-prompt" /> 배경음악 생성 프롬프트 만들기 (선택 · 음악 파일은 생성하지 않음)</label>
           <button class="btn btn-primary" onclick="submitScriptGenerate()">대본 생성</button>
         </div>
       </div>
@@ -7179,6 +7180,7 @@ async function submitScriptGenerate() {
     structure: structure || null,
     target_duration_seconds: parseInt(document.getElementById('sg-duration').value) || 600,
     script_style: document.getElementById('sg-style').value,
+    generate_bgm_prompt: document.getElementById('sg-bgm-prompt').checked,
     language: 'ko',
     narration_mode: document.getElementById('sg-narration-mode').value,
     narration_pace: document.getElementById('sg-narration-pace').value || 'senior',
