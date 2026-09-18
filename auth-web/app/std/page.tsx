@@ -2792,9 +2792,15 @@ export default function StdPortalPage() {
 
     const renderAiDialogue = (subtitle: any, index: number) => {
         const parts = aiDialogueParts.get(index)
-        if (!parts) return <span title="AI 대사 분석이 없거나 대본이 변경됐습니다. 재분석이 필요합니다.">{subtitle.text}</span>
-        return parts.map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
-            title={part.dialogue ? `AI 확인 대사 · ${part.speaker}` : undefined}>{part.text}</span>)
+        if (parts && parts.length > 0 && parts.some(p => p.dialogue)) {
+            return parts.map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
+                title={part.dialogue ? `AI 확인 대사 · ${part.speaker}` : undefined}>{part.text}</span>)
+        }
+        if (isSubtitleDialogue(subtitle, index)) {
+            const speakerName = subtitleSpeakers[index]?.name || subtitle?.dialogue_speaker || '대사'
+            return <span className="text-yellow-300" title={`대사 · ${speakerName}`}>{subtitle.text}</span>
+        }
+        return <span>{subtitle.text}</span>
     }
 
     // No heuristic candidates. Keep existing manual override controls available.
@@ -2803,7 +2809,18 @@ export default function StdPortalPage() {
     const isSubtitleDialogue = (subtitle: any, index: number) => {
         if (typeof subtitle?.dialogue_override === 'boolean') return subtitle.dialogue_override
         const parts = aiDialogueParts.get(index)
-        return Boolean(parts?.some(p => p.dialogue) && parts.every(p => p.dialogue || !p.text.replace(/[\s"'“”‘’「」『』]/g, '')))
+        if (parts && parts.length > 0) {
+            const hasDialogue = parts.some(p => p.dialogue)
+            const cleanNonDialogue = parts.every(p => p.dialogue || !p.text.replace(/[\s"'“”‘’「」『』.,?!~…;:·\-–—]/gu, ''))
+            if (hasDialogue && cleanNonDialogue) return true
+            if (hasDialogue) return true
+        }
+        if (subtitle?.dialogue_speaker) return true
+        if (subtitle?.voice_id && (subtitle.voice_id !== selectedVoice && subtitle.voice_id !== vrewNarrationVoice)) {
+            return true
+        }
+        if (hasDialogueQuoteText(subtitle?.text || '')) return true
+        return false
     }
 
     const pendingDialogueCandidateIndexes = new Set(localSubtitles.flatMap((subtitle, index) => (
@@ -9563,7 +9580,12 @@ export default function StdPortalPage() {
                                                             onBlur={() => setIsSubtitleTextEditing(false)}
                                                             onChange={e => {
                                                                 const newText = e.target.value
-                                                                const updatedSub = { ...currentSub, text: newText }
+                                                                const wasDialogue = isSubtitleDialogue(currentSub, selectedSubIndex)
+                                                                const updatedSub = {
+                                                                    ...currentSub,
+                                                                    text: newText,
+                                                                    ...(wasDialogue ? { dialogue_override: true } : {}),
+                                                                }
                                                                 if (isVrewSubtitleMode && isPlayingPreview) stopVrewPlayback()
                                                                 if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
                                                                 setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
