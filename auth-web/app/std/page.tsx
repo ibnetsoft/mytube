@@ -1,4 +1,5 @@
 'use client'
+import TopicProjectDialog from '@/components/TopicProjectDialog'
 import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -791,6 +792,7 @@ export default function StdPortalPage() {
 
     // 2. 작업 데이터 상태
     const [topics, setTopics] = useState<Topic[]>([])
+    const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
@@ -7913,6 +7915,17 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
+            {topicProjectOpen && <TopicProjectDialog locale={currentLocale} activeId={selectedProject?.project?.id}
+                rows={projects.map((p: StdProject & { project_payload?: any }) => {
+                    const status = p.id === selectedProject?.project?.id && !p.submitted_at
+                        ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+                        : getProjectStepStatus(p)
+                    return { id: p.id, title: p.title, thumbnail: sanitizeAssetUrl(
+                        p.progress_payload?.thumbnail_url || p.project_payload?.thumbnail_url
+                        || p.project_payload?.thumbnail_design?.thumbnail_url || p.project_payload?.thumbnail_design?.bg_url) || '',
+                        steps: [status.isTopicDone, status.isPlanningDone, status.isScriptDone, status.isImageDone, status.isTtsDone, status.isSubtitlesDone, status.isThumbnailDone] }
+                })}
+                onClose={() => setTopicProjectOpen(false)} onSelect={async id => Boolean(await openProject(id))} />}
             {isImpersonating && (
                 <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
                     <div className="flex items-center gap-2.5">
@@ -7975,20 +7988,10 @@ export default function StdPortalPage() {
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
                                 <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
-                                <select
-                                    value={selectedProject?.project?.id || ''}
-                                    onChange={(e) => {
-                                        if (e.target.value) openProject(e.target.value)
-                                        setMobileMenuOpen(false)
-                                    }}
-                                    className="w-full bg-[#202632] border border-white/10 rounded p-1.5 text-xs text-white cursor-pointer focus:outline-none focus:border-blue-500 truncate"
-                                >
-                                    {projects.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.title}
-                                        </option>
-                                    ))}
-                                </select>
+                                <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
+                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
+                            {ui('토픽')}
+                        </button>
                             </div>
 
                             {sidebarProgress}
@@ -8087,19 +8090,10 @@ export default function StdPortalPage() {
 
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
                         <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
-                        <select
-                            value={selectedProject?.project?.id || ''}
-                            onChange={(e) => {
-                                if (e.target.value) openProject(e.target.value)
-                            }}
-                            className="w-full bg-[#202632] border border-white/10 rounded p-1.5 text-xs text-white cursor-pointer focus:outline-none focus:border-blue-500 truncate"
-                        >
-                            {projects.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.title}
-                                </option>
-                            ))}
-                        </select>
+                        <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
+                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
+                            {ui('토픽')}
+                        </button>
                         <div className="text-[10px] text-gray-400 mt-1 font-mono">
                             Status: <span className="text-purple-400">{selectedProject?.project?.status || 'image_prompted'}</span>
                         </div>
