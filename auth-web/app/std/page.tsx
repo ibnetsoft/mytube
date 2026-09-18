@@ -160,6 +160,7 @@ import {
     Pencil,
     Play,
     RefreshCw,
+    Save,
     Scissors,
     Send,
     Settings as SettingsIcon,
@@ -8186,7 +8187,8 @@ export default function StdPortalPage() {
                                                 value={narrationVoiceId}
                                                 direction={voiceStudioDirection}
                                                 headers={authedJsonHeaders}
-                                                buttonText={`${ui("내레이션")} ${narrationSubtitleCount} · ${narrationVoiceName}`}
+                                                buttonText={narrationVoiceName}
+                                                buttonClassName="h-7 max-w-36 truncate rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2.5 text-[11px] font-bold text-cyan-100 transition hover:bg-cyan-500/20"
                                                 label={`내레이션 ${narrationSubtitleCount}개 성우 선택`}
                                                 onChange={(id, direction) => {
                                                     setVrewNarrationVoice(id)
@@ -8199,27 +8201,28 @@ export default function StdPortalPage() {
                                                     {ui("대사")} {dialogueSubtitleCount}
                                                 </span>
                                             </div>
-                                            <div className="flex w-full items-center gap-2 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1.5 sm:w-auto">
+                                            <div className="flex w-full items-center gap-1.5 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1 sm:w-auto">
                                                 <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
                                                     {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
                                                 </span>
                                                 <input
-                                                    type="range"
+                                                    type="number"
                                                     min="0.0"
                                                     max="1.0"
                                                     step="0.05"
                                                     value={elStability}
-                                                    onChange={e => setElStability(e.target.value)}
-                                                    className="h-1 w-20 cursor-pointer appearance-none rounded bg-gray-600 accent-purple-500"
+                                                    onChange={e => setElStability(String(Math.max(0, Math.min(1, Number(e.target.value) || 0))))}
+                                                    className="h-5 w-12 rounded border border-gray-600 bg-[#0f131a] text-center text-[11px] text-white outline-none focus:border-purple-400"
+                                                    title={t('sub_stability')}
                                                 />
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={restoreOriginalWorkerScript}
-                                                className="h-8 px-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap"
+                                                className="flex h-7 items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 text-[11px] font-bold text-amber-300 transition hover:bg-amber-500/20"
                                             >
                                                 <RefreshCw size={13} />
-                                                {ui("대본복구")}
+                                                {ui("대본")}
                                             </button>
                                             <div className="w-px h-5 bg-white/10 shrink-0" />
                                         </>
@@ -8269,9 +8272,11 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={handleDeleteSubtitlePreset}
-                                            className="text-[10px] font-bold px-1.5 py-1 text-red-400 hover:text-white border border-red-900/50 hover:bg-red-900 rounded transition-all"
+                                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-900/50 text-red-400 transition-all hover:bg-red-900 hover:text-white"
+                                            title={t('btn_delete')}
+                                            aria-label={t('btn_delete')}
                                         >
-                                            {t('btn_delete')}
+                                            <Trash2 size={13} />
                                         </button>
                                         <input
                                             type="text"
@@ -8283,9 +8288,11 @@ export default function StdPortalPage() {
                                         <button
                                             type="button"
                                             onClick={handleSaveSubtitlePreset}
-                                            className="text-[11px] border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white px-2 py-1 rounded transition-all font-bold"
+                                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-gray-600 bg-transparent text-white transition-all hover:bg-[#0a0f1d]"
+                                            title={t('btn_save')}
+                                            aria-label={t('btn_save')}
                                         >
-                                            {t('btn_save')}
+                                            <Save size={13} />
                                         </button>
                                     </div>
 
@@ -8294,7 +8301,7 @@ export default function StdPortalPage() {
 
                                 <div className="flex items-stretch sm:items-center gap-x-2.5 gap-y-1.5 flex-wrap border-t border-white/5 pt-2">
                                     {/* 폰트 & 크기 & 자간 & 최대글자수 */}
-                                    <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="flex items-start gap-1.5 shrink-0">
                                         <select
                                             value={subFontFamily}
                                             onChange={e => {
@@ -8310,50 +8317,59 @@ export default function StdPortalPage() {
                                                 </option>
                                             ))}
                                         </select>
-                                        <input
-                                            type="number"
-                                            value={subFontSize}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubFontSize(value)
-                                                persistSubtitleRenderSettings({ subFontSize: value })
-                                            }}
-                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
-                                            step="0.1"
-                                            min="1"
-                                            max="20"
-                                            title="글자 크기 (%)"
-                                        />
-                                        <span className="text-[11px] text-gray-400">%</span>
-                                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{ui("줄간격")}</span>
-                                        <input
-                                            type="number"
-                                            value={subLineSpacing}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubLineSpacing(value)
-                                                persistSubtitleRenderSettings({ subLineSpacing: value })
-                                            }}
-                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
-                                            step="0.05"
-                                            min="-0.5"
-                                            max="1.5"
-                                            title="자간/행간 비율"
-                                        />
-                                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{ui("최대글자수")}</span>
-                                        <input
-                                            type="number"
-                                            value={subMaxChars}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubMaxChars(value)
-                                                persistSubtitleRenderSettings({ subMaxChars: value })
-                                            }}
-                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
-                                            min="20"
-                                            max="40"
-                                            title="한 자막 최대 글자 수 (롱폼)"
-                                        />
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={subFontSize}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubFontSize(value)
+                                                        persistSubtitleRenderSettings({ subFontSize: value })
+                                                    }}
+                                                    className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
+                                                    step="0.1"
+                                                    min="1"
+                                                    max="20"
+                                                    title="글자 크기 (%)"
+                                                />
+                                                <span className="text-[11px] text-gray-400">%</span>
+                                            </div>
+                                            <span className="text-[9px] text-gray-400">{ui("크기")}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <input
+                                                type="number"
+                                                value={subLineSpacing}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    setSubLineSpacing(value)
+                                                    persistSubtitleRenderSettings({ subLineSpacing: value })
+                                                }}
+                                                className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
+                                                step="0.05"
+                                                min="-0.5"
+                                                max="1.5"
+                                                title="자간/행간 비율"
+                                            />
+                                            <span className="text-[9px] text-gray-400">{ui("줄간격")}</span>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <input
+                                                type="number"
+                                                value={subMaxChars}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    setSubMaxChars(value)
+                                                    persistSubtitleRenderSettings({ subMaxChars: value })
+                                                }}
+                                                className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
+                                                min="20"
+                                                max="40"
+                                                title="한 자막 최대 글자 수 (롱폼)"
+                                            />
+                                            <span className="text-[9px] text-gray-400">{ui("최대글자수")}</span>
+                                        </div>
                                     </div>
 
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
@@ -8393,22 +8409,26 @@ export default function StdPortalPage() {
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
 
                                     {/* 테두리 두께 & Y 위치 */}
-                                    <div className="flex w-[calc(50%-0.375rem)] items-center gap-1 sm:w-auto sm:shrink-0">
-                                        <span className="text-[10px] text-gray-400 font-bold">{t('sub_outline_short')}</span>
-                                        <input
-                                            type="number"
-                                            value={subStrokeWidth}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubStrokeWidth(value)
-                                                persistSubtitleRenderSettings({ subStrokeWidth: value })
-                                            }}
-                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-0.5 text-white"
-                                            min="0"
-                                            max="15"
-                                            step="0.5"
-                                        />
-                                        <span className="text-[10px] text-gray-400">px</span>
+                                    <div className="flex w-[calc(50%-0.375rem)] items-start gap-1 sm:w-auto sm:shrink-0">
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <div className="flex items-center gap-1">
+                                                <input
+                                                    type="number"
+                                                    value={subStrokeWidth}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubStrokeWidth(value)
+                                                        persistSubtitleRenderSettings({ subStrokeWidth: value })
+                                                    }}
+                                                    className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-0.5 text-white"
+                                                    min="0"
+                                                    max="15"
+                                                    step="0.5"
+                                                />
+                                                <span className="text-[10px] text-gray-400">px</span>
+                                            </div>
+                                            <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
+                                        </div>
                                         <div className="flex flex-col items-center gap-0.5 ml-1">
                                             <button
                                                 type="button"
@@ -8443,21 +8463,23 @@ export default function StdPortalPage() {
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
 
                                     {/* 배경 바 / 세로 여백 */}
-                                    <div className="flex w-full items-center gap-1.5 overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0 sm:shrink-0">
-                                        <span className="text-[10px] text-gray-400 font-bold">{t('sub_background_bar')}</span>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={subBgStrip}
-                                                onChange={e => {
-                                                    const value = e.target.checked
-                                                    setSubBgStrip(value)
-                                                    persistSubtitleRenderSettings({ subBgStrip: value })
-                                                }}
-                                                className="sr-only peer"
-                                            />
-                                            <div className="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
-                                        </label>
+                                    <div className="flex w-full items-start gap-1.5 overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0 sm:shrink-0">
+                                        <div className="flex flex-col items-center gap-0.5">
+                                            <label className="relative inline-flex h-5 items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={subBgStrip}
+                                                    onChange={e => {
+                                                        const value = e.target.checked
+                                                        setSubBgStrip(value)
+                                                        persistSubtitleRenderSettings({ subBgStrip: value })
+                                                    }}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
+                                            </label>
+                                            <span className="text-[9px] text-gray-400">{t('sub_background_bar')}</span>
+                                        </div>
                                         <div className="flex flex-col items-center gap-0.5">
                                             <input
                                                 type="color"
