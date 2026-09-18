@@ -11258,11 +11258,11 @@ export default function StdPortalPage() {
                                                                             type="button"
                                                                             onClick={() => reopenProjectForRerender(String(p.id))}
                                                                             disabled={loading}
-                                                                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 px-2 py-1 text-[10px] font-bold text-indigo-300 hover:text-white border border-indigo-500/30 disabled:opacity-50 transition"
+                                                                            className="mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 text-[11px] font-black text-indigo-200 shadow-sm shadow-indigo-950/30 transition hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white active:scale-95 disabled:opacity-50"
                                                                             title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
                                                                         >
-                                                                            <RefreshCw className="w-3 h-3" />
-                                                                            수정·재렌더
+                                                                            <RefreshCw className="h-3.5 w-3.5" />
+                                                                            <span>Re</span>
                                                                         </button>
                                                                     ) : submittingProjectId === String(p.id) ? (
                                                                         <button
