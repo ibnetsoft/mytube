@@ -1057,6 +1057,7 @@ export default function StdPortalPage() {
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [isNarrationPlaying, setIsNarrationPlaying] = useState(false)
     const [previewAudioError, setPreviewAudioError] = useState('')
+    const [highlightSaveTts, setHighlightSaveTts] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [previewTransition, setPreviewTransition] = useState<{
         key: number
@@ -3449,7 +3450,10 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '자막 구간 TTS 생성 실패')
             if (!res.ok || payload?.success === false || !payload?.audio_url) {
-                throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
+                const err = new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
+                ;(err as any).code = payload?.code
+                ;(err as any).status = res.status
+                throw err
             }
                 return payload
             }
@@ -3500,7 +3504,14 @@ export default function StdPortalPage() {
         if (!subtitle) return
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
         if (vrewAudioCacheRef.current[cacheKey] || vrewSegmentStatus[cacheKey] === 'generating' || vrewSegmentStatus[cacheKey] === 'loading') return
-        void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch(error => {
+        void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch((error: any) => {
+            const isClaimedOrSaveNeeded = error?.code === 'audio_generation_claimed'
+                || error?.status === 409
+                || String(error?.message || '').includes('중복 과금')
+                || String(error?.message || '').includes('저장 확인이 필요')
+            if (isClaimedOrSaveNeeded) {
+                setHighlightSaveTts(true)
+            }
             console.warn('[STD Vrew subtitles] segment prefetch failed:', error)
         })
     }
@@ -3512,6 +3523,7 @@ export default function StdPortalPage() {
         setIsPlayingPreview(true)
         setIsNarrationPlaying(false)
         setPreviewAudioError('')
+        setHighlightSaveTts(false)
 
         const savedNarrationUrl = await getSavedNarrationAudioUrl()
         if (vrewPlaybackCancelRef.current !== cancelToken) return
@@ -3597,7 +3609,26 @@ export default function StdPortalPage() {
             setPlaybackTime(start)
             setMessage(`자막 미리듣기 준비 중... (${index + 1}/${localSubtitles.length})`)
 
-            const audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
+            let audioUrl = ''
+            try {
+                audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
+            } catch (err: any) {
+                const isClaimedOrSaveNeeded = err?.code === 'audio_generation_claimed'
+                    || err?.status === 409
+                    || String(err?.message || '').includes('중복 과금')
+                    || String(err?.message || '').includes('저장 확인이 필요')
+                    || String(err?.message || '').includes('audio_generation_claimed')
+                if (isClaimedOrSaveNeeded) {
+                    stopPreviewBgm()
+                    setIsPlayingPreview(false)
+                    setIsNarrationPlaying(false)
+                    setHighlightSaveTts(true)
+                    setPreviewAudioError('')
+                    setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+                    return
+                }
+                throw err
+            }
             if (vrewPlaybackCancelRef.current !== cancelToken) return
             for (let offset = 1; offset <= 3; offset += 1) {
                 prefetchVrewSegment(index + offset)
@@ -3665,9 +3696,21 @@ export default function StdPortalPage() {
         }
         void playVrewSegmentsFrom(selectedSubIndex).catch((error: any) => {
             stopVrewPlayback()
-            const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
-            setMessage(`❌ ${messageText}`)
-            setPreviewAudioError(messageText)
+            const isClaimedOrSaveNeeded = error?.code === 'audio_generation_claimed'
+                || error?.status === 409
+                || String(error?.message || '').includes('중복 과금')
+                || String(error?.message || '').includes('저장 확인이 필요')
+                || String(error?.message || '').includes('audio_generation_claimed')
+
+            if (isClaimedOrSaveNeeded) {
+                setHighlightSaveTts(true)
+                setPreviewAudioError('')
+                setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+            } else {
+                const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
+                setMessage(`❌ ${messageText}`)
+                setPreviewAudioError(messageText)
+            }
         })
     }
 
@@ -6610,6 +6653,7 @@ export default function StdPortalPage() {
             return
         }
         setGeneratingTts(true)
+        setHighlightSaveTts(false)
         setMessage('자막 설정 저장 중...')
         try {
             await handleSaveSubtitles(false)
@@ -8836,15 +8880,18 @@ export default function StdPortalPage() {
                                                 type="button"
                                                 onClick={() => void handleFinalizeSubtitlesAndTts()}
                                                 disabled={generatingTts || !canFinalizeSubtitlesAndTts}
-                                                className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition ${
+                                                className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition-all duration-300 ${
                                                     generatingTts || !canFinalizeSubtitlesAndTts
                                                         ? 'bg-gray-700 cursor-not-allowed opacity-60'
+                                                        : highlightSaveTts
+                                                        ? 'bg-gradient-to-r from-violet-600 via-pink-500 via-amber-400 to-violet-600 animate-gradient-shift ring-2 ring-pink-400/90 shadow-[0_0_16px_rgba(236,72,153,0.9)] scale-105 hover:scale-110 active:scale-95'
                                                         : 'bg-violet-600 hover:bg-violet-500'
                                                 }`}
                                                 title={canFinalizeSubtitlesAndTts
-                                                    ? '최종 자막 저장 및 TTS 생성'
+                                                    ? (highlightSaveTts ? '음성 생성이 필요합니다! 클릭하여 최종 자막 및 TTS를 생성하세요' : '최종 자막 저장 및 TTS 생성')
                                                     : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
                                             >
+                                                {highlightSaveTts && !generatingTts && <span className="mr-1 inline-block animate-bounce">✨</span>}
                                                 {generatingTts ? t('sub_final_saving') : ui('저장+TTS')}
                                             </button>
                                         </div>
