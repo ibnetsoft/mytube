@@ -3021,7 +3021,7 @@ export default function StdPortalPage() {
         tone: 'default' | 'dialogue' = 'default',
         _openDirection: 'left' | 'right' = 'right',
         disabled = false,
-        options: { buttonLabel?: string; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
+        options: { buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
         const isOpen = !disabled && openVoicePickerKey === pickerKey
@@ -3030,7 +3030,7 @@ export default function StdPortalPage() {
             setVoicePickerPreviewUrl('')
         }
         return (
-            <div className="relative inline-flex">
+            <div className="relative inline-flex shrink-0">
                 <button
                     type="button"
                     disabled={disabled}
@@ -3047,15 +3047,20 @@ export default function StdPortalPage() {
                         setVoicePickerPreviewUrl('')
                         setOpenVoicePickerKey(pickerKey)
                     }}
-                    className={`${options.buttonLabel ? 'px-2.5 gap-1.5' : 'w-8'} h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
+                    className={`${options.buttonLabel ? 'px-2.5 gap-1.5' : options.countBadge !== undefined ? 'h-7 px-2 gap-1 min-w-[34px]' : 'h-7 w-7'} rounded-md border flex items-center justify-center text-[10px] font-black transition ${
                         disabled
                             ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
                             : tone === 'dialogue'
-                            ? 'bg-emerald-500/10 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/20'
+                            ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-200 hover:bg-emerald-500/25 shadow-sm'
                             : 'bg-[#10141b] border-white/10 text-cyan-100 hover:bg-[#202632] hover:border-cyan-400/50'
                     }`}
                 >
-                    <Mic size={14} />
+                    <Mic size={13} className="shrink-0" />
+                    {options.countBadge !== undefined && (
+                        <span className="text-[10px] font-black text-emerald-300 leading-none">
+                            {options.countBadge}
+                        </span>
+                    )}
                     {options.buttonLabel && <span>{options.buttonLabel}</span>}
                 </button>
                 {speakerEditorIndex !== null && pickerKey === `block-${speakerEditorIndex}` && <SubtitleSpeakerEditor
@@ -8743,9 +8748,9 @@ export default function StdPortalPage() {
                             <div className="std-subtitle-body grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
                                 <div className="order-2 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-[360px] lg:order-none lg:min-h-0">
-                                    <div className="flex min-h-[57px] flex-wrap items-center gap-2 p-2.5 sm:p-3 border-b border-white/5 bg-[#14181f]">
-                                        <div className="flex min-w-0 flex-wrap items-center gap-2 overflow-visible">
-                                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
+                                    <div className="flex min-h-[46px] sm:min-h-[50px] items-center justify-between gap-1.5 sm:gap-2 p-2 sm:p-2.5 border-b border-white/5 bg-[#14181f] overflow-x-auto subtitle-navy-scrollbar flex-nowrap">
+                                        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 overflow-visible shrink-0 flex-nowrap">
+                                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap shrink-0">
                                                 <input
                                                     type="checkbox"
                                                     ref={(element) => {
@@ -8770,7 +8775,7 @@ export default function StdPortalPage() {
                                                     <span>{t('sub_all')}</span>
                                                 )}
                                             </label>
-                                            <div className="flex flex-wrap items-center gap-1.5">
+                                            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-nowrap">
                                                 {renderVoicePicker(
                                                     'selected-scenes-bulk',
                                                     selectedSubtitleSceneVoiceId,
@@ -8785,7 +8790,7 @@ export default function StdPortalPage() {
                                                     !hasSelectedSubtitleSections
                                                 )}
                                                 {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
-                                                <div className="ml-1">
+                                                <div className="ml-0.5">
                                                     {renderSelectedSceneMotionPicker(!hasSelectedSubtitleSections)}
                                                 </div>
                                                 {isVrewSubtitleMode && (
@@ -8795,7 +8800,7 @@ export default function StdPortalPage() {
                                                             disabled={selectedSubtitleBlockIndexes.length < 2}
                                                             title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
                                                             onClick={() => void mergeSelectedSubtitleBlocks()}
-                                                            className="ml-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
+                                                            className="ml-0.5 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 sm:px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
                                                         >
                                                             <Combine size={13} /> {t('sub_merge_action')}
                                                         </button>
@@ -8803,13 +8808,13 @@ export default function StdPortalPage() {
                                                             type="button"
                                                             disabled={selectedSubtitleBlockIndexes.length !== 1}
                                                             onClick={() => void splitSelectedSubtitleBlock()}
-                                                            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                                                            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 sm:px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
                                                         >
                                                             <Scissors size={13} /> {t('sub_split_action')}
                                                         </button>
                                                     </>
                                                 )}
-                                                <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 flex-1 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded sm:flex-none">{t('sub_add_action')}</button>
+                                                <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 text-[11px] font-bold px-2.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded shrink-0">{t('sub_add_action')}</button>
                                                 <button
                                                     type="button"
                                                     onClick={() => alert('선택한 자막 레이어를 삭제합니다.')}
@@ -8819,13 +8824,8 @@ export default function StdPortalPage() {
                                                 >
                                                     <Trash2 size={13} />
                                                 </button>
-                                            </div>
-                                            {selectedSubtitleBlockIndexes.length >= 2 && (
-                                                <>
-                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">
-                                                        {tf('sub_selected_blocks', { count: selectedSubtitleBlockIndexes.length })}
-                                                    </span>
-                                                    {renderVoicePicker(
+                                                {selectedSubtitleBlockIndexes.length >= 2 && (
+                                                    renderVoicePicker(
                                                         'selected-blocks-bulk',
                                                         selectedSubtitleBlockVoiceId,
                                                         (nextVoiceId) => void setSelectedSubtitleBlocksVoice(nextVoiceId),
@@ -8833,14 +8833,14 @@ export default function StdPortalPage() {
                                                         'dialogue',
                                                         'right',
                                                         false,
-                                                        { buttonLabel: ui("대사"), elevenLabsOnly: true }
-                                                    )}
-                                                </>
-                                            )}
+                                                        { countBadge: selectedSubtitleBlockIndexes.length, elevenLabsOnly: true }
+                                                    )
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* 자막 동기화 및 저장 버튼 */}
-                                        <div className="grid w-full grid-cols-3 gap-1.5 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                                        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto flex-nowrap">
                                             <button
                                                 type="button"
                                                 onClick={() => {
