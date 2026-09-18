@@ -8141,7 +8141,7 @@ export default function StdPortalPage() {
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
                 <main className={`min-w-0 flex-1 flex flex-col bg-[#14181f] space-y-3 sm:space-y-6 ${
                     currentNav === 'subtitle_vrew'
-                        ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:overflow-hidden'
+                        ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:pb-0 lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
