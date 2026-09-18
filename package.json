@@ -1,5 +1,6 @@
 {
   "devDependencies": {
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "supabase": "^2.117.0"
   }
 }
