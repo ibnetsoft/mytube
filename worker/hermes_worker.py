@@ -9415,6 +9415,9 @@ Hard retry rules:
     from worker.codex_sfx import plan_package_sfx
     sfx_package = {"script": final_script, "structure": structure}
     plan_package_sfx(CodexStagedContentRunner(), job_id, sfx_package)
+    from worker.codex_bgm import plan_package_bgm
+    bgm_plan = plan_package_bgm(CodexStagedContentRunner(), job_id, sfx_package)
+    job_log.info(f"-> BGM PROMPT {bgm_plan['status']} (no audio generation)")
     sfx_cues = sfx_package["sfx_cues"]
     sfx_cues_json = sfx_package["sfx_cues_json"]
     job_log.info(f"-> CODEX SFX PLANNED ({len(sfx_cues)} cues)")
@@ -9789,6 +9792,9 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
     package["image_style_selection"] = package.get("image_style_selection") or payload.get("image_style_selection") or {}
     from worker.codex_sfx import plan_package_sfx
     plan_package_sfx(CodexStagedContentRunner(), job_id, package)
+    from worker.codex_bgm import plan_package_bgm
+    bgm_plan = plan_package_bgm(CodexStagedContentRunner(), job_id, package)
+    job_log.info(f"-> BGM PROMPT {bgm_plan['status']} (no audio generation)")
     package["generation_models"] = {
         **(payload.get("generation_models") if isinstance(payload.get("generation_models"), dict) else {}),
         "content_package": "codex-cli",
