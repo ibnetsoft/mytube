@@ -5,6 +5,16 @@ after finalized scene narration. The versioned plan lives in `structure.sfx_plan
 claiming a **new** project imports its selected shared assets and cues. Existing
 projects are never backfilled automatically.
 
+The dedicated local console also runs `finalize_sfx` automatically after final
+script/dialogue validation for both **new** and **repair** candidates. Repairs
+carry the updated scene structure (stable IDs/order), preserve manual placements
+and deletion markers, reuse exact matching AI anchors, and disable unresolved
+anchors with `needs_review`. Results include `candidate.json` and `sfx-plan.json`;
+the result screen shows status/count/review count. Failures remain explicit in
+the remaining-work list. This stage does not publish a local candidate: use the
+existing approval/application process to transfer the same plan and link assets.
+Music prompt generation stays independently opt-in (default off).
+
 The subtitle editor's **AI 효과음 구성** queues `sfx_plan_generate`. The worker reads
 the supplied script snapshot and catalog, produces an allow-listed, confidence-filtered
 plan, and returns it through the existing worker protocol. **구성 적용** checks ownership,

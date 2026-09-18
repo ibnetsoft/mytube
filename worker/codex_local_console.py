@@ -209,6 +209,8 @@ class Jobs:
                                 sources=json.loads((self.root / identity / 'references.json').read_text(encoding='utf-8'))
                                 if (self.root / identity / 'references.json').exists() else None)
             write_json(self.root / identity / 'candidate.json', candidate)
+            if candidate.get('sfx_plan'):
+                write_json(self.root / identity / 'sfx-plan.json', candidate['sfx_plan'])
             (self.root / identity / 'candidate.md').write_text(candidate['script'], encoding='utf-8')
             self.update(identity, status='awaiting_approval', stage='초안 저장 · 검토 대기',
                         candidate_hash=digest(candidate), remaining=candidate.get('remaining', []))
@@ -365,6 +367,9 @@ def detail(identity: str):
     candidate = json.loads(candidate_path.read_text(encoding='utf-8')) if candidate_path.exists() else {}
     snapshot = json.loads(snapshot_path.read_text(encoding='utf-8')) if snapshot_path.exists() else {}
     return {'job': dict(jobs.rows[identity]), 'script': candidate.get('script', ''),
+            'sfx_summary': {'status': (candidate.get('sfx_plan') or {}).get('status', 'not_run'),
+                            'count': len(candidate.get('sfx_cues') or []),
+                            'review_count': sum(bool(c.get('needs_review')) for c in candidate.get('sfx_cues') or [])},
             'original': snapshot.get('script', ''), 'remaining': candidate.get('remaining', []),
             'citations': candidate.get('sections', []) if candidate.get('source_manifest') else [],
             'sources': candidate.get('source_manifest', []), 'grounding_report': candidate.get('grounding_report')}
