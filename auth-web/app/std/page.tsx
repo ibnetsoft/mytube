@@ -8290,7 +8290,9 @@ export default function StdPortalPage() {
                                     </div>
 
                                     <div className="w-px h-5 bg-white/10 shrink-0" />
+                                </div>
 
+                                <div className="flex items-stretch sm:items-center gap-x-2.5 gap-y-1.5 flex-wrap border-t border-white/5 pt-2">
                                     {/* 폰트 & 크기 & 자간 & 최대글자수 */}
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <select
@@ -8897,7 +8899,7 @@ export default function StdPortalPage() {
                                                                                 <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
                                                                                     {sfxSubtitleIndexes.has(item.subtitleIndex) && <span role="img" aria-label={ui("효과음 있음")} title={ui("효과음이 배치된 자막")} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/50 bg-purple-500/10 text-[11px] leading-none text-purple-100">★</span>}
                                                                                     <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
-                                                                                        {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={currentLocale === 'th' ? 'แก้ไขข้อมูลผู้พูด (ไม่อ่านออกเสียง)' : '화자 정보 편집 (TTS·영상 자막 제외)'} className="mr-2 shrink-0 rounded border border-amber-300/30 px-1.5 py-1 text-[10px] text-amber-200">{speakerInfo?.label || (currentLocale === 'th' ? 'ยืนยันผู้พูด' : '화자 확인 필요')} · {speakerInfo?.gender === 'male' ? (currentLocale === 'th' ? 'ชาย' : '남성') : speakerInfo?.gender === 'female' ? (currentLocale === 'th' ? 'หญิง' : '여성') : '?'}</button>}
+                                                                                        {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={currentLocale === 'th' ? 'แก้ไขข้อมูลผู้พูด (ไม่อ่านออกเสียง)' : '화자 정보 편집 (TTS·영상 자막 제외)'} className={`mr-2 shrink-0 rounded border px-1.5 py-1 text-[10px] ${speakerInfo?.gender === 'female' ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : 'border-amber-300/30 text-amber-200'}`}>{speakerInfo?.label || (currentLocale === 'th' ? 'ยืนยันผู้พูด' : '화자 확인 필요')} · {speakerInfo?.gender === 'male' ? (currentLocale === 'th' ? 'ชาย' : '남성') : speakerInfo?.gender === 'female' ? (currentLocale === 'th' ? 'หญิง' : '여성') : '?'}</button>}
                                                                                         <span className="min-w-0 truncate" title={String(item.text || '')}>
                                                                                             {candidates.length ? (() => {
                                                                                                 const parts: React.ReactNode[] = []
