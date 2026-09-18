@@ -8544,19 +8544,6 @@ export default function StdPortalPage() {
                                         >
                                             <span>🔮</span> 대본동기화
                                         </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => subtitleReviewLocale
-                                                ? void translateSubtitleBlocks(subtitleReviewLocale, true)
-                                                : alert('영어, 베트남어 또는 태국어 모드를 선택해 주세요.')}
-                                            disabled={Boolean(translatingSubtitleLanguage) || localSubtitles.length === 0}
-                                            title={subtitleReviewCopy ? `원문 블록 경계를 유지하여 ${subtitleReviewCopy.name}로 다시 번역합니다.` : undefined}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                                        >
-                                            {translatingSubtitleLanguage && subtitleReviewLocale === translatingSubtitleLanguage
-                                                ? subtitleReviewCopy?.translating
-                                                : t('sub_translate')}
-                                        </button>
                                         {subtitleReviewLocale && subtitleTranslationError && (
                                             <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
                                                 {subtitleReviewCopy?.retry}
@@ -8620,12 +8607,8 @@ export default function StdPortalPage() {
                                                     aria-label="전체 씬 선택"
                                                     className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
                                                 />
-                                                {t('sub_select_all')}
+                                                {t('sub_all')}
                                             </label>
-                                            <h3 className="text-xs font-bold text-white">{t('sub_layer_list')}</h3>
-                                            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
-                                                {tf('sub_total_blocks', { count: localSubtitles.length })}
-                                            </span>
                                             {selectedSubtitleBlockIndexes.length >= 2 && (
                                                 <>
                                                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">
