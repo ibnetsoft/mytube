@@ -3490,6 +3490,21 @@ export default function StdPortalPage() {
         }
     }
 
+    const prefetchVrewSegment = (index: number) => {
+        const hasSavedNarration = (selectedProject?.assets || []).some((asset: any) =>
+            String(asset?.asset_type || '').toLowerCase() === 'audio'
+            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+        )
+        if (hasSavedNarration && !localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return
+        const subtitle = localSubtitles[index]
+        if (!subtitle) return
+        const cacheKey = vrewSegmentCacheKey(subtitle, index)
+        if (vrewAudioCacheRef.current[cacheKey] || vrewSegmentStatus[cacheKey] === 'generating' || vrewSegmentStatus[cacheKey] === 'loading') return
+        void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch(error => {
+            console.warn('[STD Vrew subtitles] segment prefetch failed:', error)
+        })
+    }
+
     const playVrewSegmentsFrom = async (startIndex: number) => {
         if (!localSubtitles.length) return
         const cancelToken = vrewPlaybackCancelRef.current + 1
