@@ -8556,7 +8556,11 @@ export default function StdPortalPage() {
                                                     aria-label={ui("전체 씬 선택")}
                                                     className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
                                                 />
-                                                {t('sub_all')}
+                                                {selectedSubtitleSceneNumbers.length > 0 ? (
+                                                    <span className="text-cyan-400 font-bold">{selectedSubtitleSceneNumbers.length}</span>
+                                                ) : (
+                                                    <span>{t('sub_all')}</span>
+                                                )}
                                             </label>
                                             <div className="flex flex-wrap items-center gap-1.5">
                                                 {renderVoicePicker(
@@ -8598,7 +8602,15 @@ export default function StdPortalPage() {
                                                     </>
                                                 )}
                                                 <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 flex-1 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded sm:flex-none">{t('sub_add_action')}</button>
-                                                <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="h-7 flex-1 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded sm:flex-none">{t('sub_delete_selected')}</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => alert('선택한 자막 레이어를 삭제합니다.')}
+                                                    className="h-7 w-7 inline-flex items-center justify-center bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white/80 hover:text-white rounded transition shrink-0"
+                                                    title={t('sub_delete_selected')}
+                                                    aria-label={t('sub_delete_selected')}
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
                                             </div>
                                             {selectedSubtitleBlockIndexes.length >= 2 && (
                                                 <>
@@ -8615,13 +8627,6 @@ export default function StdPortalPage() {
                                                         false,
                                                         { buttonLabel: ui("대사"), elevenLabsOnly: true }
                                                     )}
-                                                </>
-                                            )}
-                                            {selectedSubtitleSceneNumbers.length > 0 && (
-                                                <>
-                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
-                                                        {tf('sub_selected_scenes', { count: selectedSubtitleSceneNumbers.length })}
-                                                    </span>
                                                 </>
                                             )}
                                         </div>
@@ -8657,10 +8662,10 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
-                                                className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                                 title={t('sub_sync_all_script')}
                                             >
-                                                <span>🔮</span> {ui("대본동기화")}
+                                                {ui("대본동기화")}
                                             </button>
                                             {subtitleReviewLocale && subtitleTranslationError && (
                                                 <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
@@ -8671,7 +8676,7 @@ export default function StdPortalPage() {
                                                 type="button"
                                                 onClick={() => void syncSubtitleTimingsToNarration()}
                                                 disabled={isSubtitleSyncing || localSubtitles.length === 0}
-                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-45"
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all disabled:cursor-not-allowed disabled:opacity-45"
                                                 title="줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다."
                                             >
                                                 {isSubtitleSyncing ? ui("음성 길이 보정 중...") : ui("음성 길이 보정")}
