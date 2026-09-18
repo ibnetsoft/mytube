@@ -2815,10 +2815,7 @@ export default function StdPortalPage() {
             if (hasDialogue && cleanNonDialogue) return true
             if (hasDialogue) return true
         }
-        if (subtitle?.dialogue_speaker) return true
-        if (subtitle?.voice_id && (subtitle.voice_id !== selectedVoice && subtitle.voice_id !== vrewNarrationVoice)) {
-            return true
-        }
+        if (subtitle?.dialogue_speaker || subtitle?.editor_speaker?.name) return true
         if (hasDialogueQuoteText(subtitle?.text || '')) return true
         return false
     }
