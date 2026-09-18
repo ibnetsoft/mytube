@@ -47,7 +47,7 @@ export default function TopicProjectDialog({ rows, activeId, locale, onClose, on
         className="m-auto w-[min(1200px,96vw)] max-w-none overflow-hidden rounded-2xl border border-white/15 bg-[#161a22] p-0 text-gray-200 shadow-2xl backdrop:bg-black/75">
         <div className="flex max-h-[88dvh] flex-col">
             <header className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
-                <h2 id="topic-project-title" className="text-lg font-bold">{ui('토픽')} · {ui('프로젝트 선택')}</h2>
+                <h2 id="topic-project-title" className="text-lg font-bold">{ui('주제')} · {ui('프로젝트 선택')}</h2>
                 <button type="button" disabled={!!opening} onClick={onClose} className="rounded border border-white/15 px-3 py-1.5 text-sm disabled:opacity-40">{ui('닫기')}</button>
             </header>
             <div className="space-y-3 px-5 py-3">

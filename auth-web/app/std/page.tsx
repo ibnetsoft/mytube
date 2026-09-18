@@ -7958,8 +7958,66 @@ export default function StdPortalPage() {
                     </div>
                 </div>
             )}
-            <button type="button" onClick={() => setMobileMenuOpen(true)} title={ui("메뉴 열기")} aria-label={ui("메뉴 열기")}
-                className="fixed bottom-3 left-3 z-40 md:hidden rounded-lg border border-white/20 bg-[#202632] px-3 py-2 text-white shadow-lg">☰</button>
+            {/* 모바일 상단 네비게이션 헤더 (md 미만 모바일 전용) */}
+            <div className="md:hidden flex items-center justify-between px-3 py-2 bg-[#161a22] border-b border-white/10 shrink-0 z-30 shadow-md">
+                <div className="flex items-center gap-2 min-w-0">
+                    <button
+                        type="button"
+                        onClick={() => setMobileMenuOpen(true)}
+                        title={ui("메뉴 열기")}
+                        aria-label={ui("메뉴 열기")}
+                        className="p-1.5 rounded-lg border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                        <span className="text-xs font-black tracking-wider text-blue-400 shrink-0">AIR</span>
+                        <span className="text-xs text-gray-400 font-bold">·</span>
+                        <button
+                            type="button"
+                            onClick={() => setTopicProjectOpen(true)}
+                            className="text-xs font-bold text-gray-200 truncate hover:text-blue-300 transition-colors text-left"
+                            title={getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                        >
+                            {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                        </button>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setMobileMenuOpen(true)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md border border-white/10 bg-white/5 text-[11px] text-gray-300 font-bold hover:bg-white/10 active:scale-95 transition-all"
+                        title={ui("언어")}
+                    >
+                        <img
+                            src={`/flags/${currentLocale === 'ko' ? 'kr' : currentLocale === 'en' ? 'gb' : currentLocale === 'vi' ? 'vn' : 'th'}.svg`}
+                            alt=""
+                            aria-hidden="true"
+                            width={20}
+                            height={14}
+                            className="block h-3.5 w-5 rounded-[1px] object-cover"
+                        />
+                        <span className="uppercase text-[10px] text-gray-400">{currentLocale}</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* 모바일 플로팅 메뉴 열기 FAB (화면 하단 좌측) */}
+            <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                title={ui("메뉴 열기")}
+                aria-label={ui("메뉴 열기")}
+                className="fixed bottom-4 left-4 z-40 md:hidden flex items-center justify-center w-11 h-11 rounded-full border border-blue-400/30 bg-[#1e2430]/90 backdrop-blur-md text-white shadow-xl hover:bg-blue-600/30 active:scale-95 transition-all"
+            >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
 
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
             <div className="flex-1 flex overflow-hidden relative">
@@ -7970,7 +8028,7 @@ export default function StdPortalPage() {
                         onClick={() => setMobileMenuOpen(false)}
                     >
                         <aside
-                            className="w-64 max-w-[80vw] h-full bg-[#161a22] border-r border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200"
+                            className="w-64 max-w-[82vw] h-full bg-[#161a22] border-r border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200"
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="p-3 border-b border-white/10 flex items-center justify-between">
@@ -7978,26 +8036,72 @@ export default function StdPortalPage() {
                                 <button
                                     type="button"
                                     onClick={() => setMobileMenuOpen(false)}
-                                    className="p-1.5 text-gray-400 hover:text-white rounded-lg text-sm font-bold bg-white/5"
+                                    className="p-1.5 text-gray-400 hover:text-white rounded-lg text-sm font-bold bg-white/5 active:scale-95 transition-all ml-1"
+                                    title={ui("닫기")}
+                                    aria-label={ui("닫기")}
                                 >
                                     ✕
                                 </button>
                             </div>
 
-                            <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
+                            <div className="p-3 border-b border-white/5 space-y-2.5 text-[11px]">
                                 <div className="flex items-center justify-between text-gray-400">
                                     <span>{ui("모드")}</span>
                                     <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">{ui("롱폼")}</span>
                                 </div>
-
+                                <div className="flex items-center justify-between text-gray-400">
+                                    <span>{ui("언어")}</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('ko')}
+                                            aria-label="한국어"
+                                            aria-pressed={currentLocale === 'ko'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'ko' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="한국어"
+                                        >
+                                            <img src="/flags/kr.svg" alt="한국어" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('en')}
+                                            aria-label="English"
+                                            aria-pressed={currentLocale === 'en'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'en' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="English"
+                                        >
+                                            <img src="/flags/gb.svg" alt="English" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('vi')}
+                                            aria-label="Tiếng Việt"
+                                            aria-pressed={currentLocale === 'vi'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'vi' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="Tiếng Việt"
+                                        >
+                                            <img src="/flags/vn.svg" alt="Tiếng Việt" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('th')}
+                                            aria-label="ภาษาไทย"
+                                            aria-pressed={currentLocale === 'th'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'th' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="ภาษาไทย"
+                                        >
+                                            <img src="/flags/th.svg" alt="ภาษาไทย" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
                                 <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
                                 <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
-                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
-                            {ui('토픽')}
-                        </button>
+                                    className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
+                                    {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                                </button>
                             </div>
 
                             {sidebarProgress}
@@ -8032,8 +8136,9 @@ export default function StdPortalPage() {
                                 })}
                             </nav>
 
-                            <div className="p-3 border-t border-white/5 text-[11px] text-gray-400">
-                                <span className="text-[10px] text-gray-500 font-mono">{STD_BUILD_LABEL}</span>
+                            <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center gap-1.5 font-mono">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>{ui("연결됨")} {STD_BUILD_LABEL}</span>
                             </div>
                         </aside>
                     </div>
@@ -8097,8 +8202,8 @@ export default function StdPortalPage() {
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
                         <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
                         <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
-                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
-                            {getProjectSyncedTitle(selectedProject) || ui('토픽')}
+                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
+                            {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
                         </button>
                     </div>
 
