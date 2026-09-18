@@ -11,6 +11,7 @@ projects/
 auth-web/.next/
 auth-web/node_modules/
 __pycache__/
+__pycache__/
 *.pyc
 
 # This repository also contains the desktop application and generated media.
@@ -23,7 +24,10 @@ __pycache__/
 .claude/
 .vercel/
 .vscode/
+.codex-temp/
+.deploy-production/
 _dev/
+app/
 assets/
 !auth-web/app/api/std/projects/
 !auth-web/app/api/std/projects/**
