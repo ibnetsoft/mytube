@@ -7362,6 +7362,10 @@ export default function StdPortalPage() {
 
                 <div className={`w-full max-w-md bg-[#1e293b]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10 ${isImpersonating ? 'mt-12' : ''}`}>
                     <div className="flex flex-col items-center">
+                        {/* AIR Studio 로고 */}
+                        <div className="mb-3 flex items-center justify-center">
+                            <img src="/img/air_logo.png" alt="AIR Studio" className="w-20 h-20 rounded-full shadow-2xl shadow-blue-500/25 ring-2 ring-white/10" />
+                        </div>
                         {/* 상단 펄스 헤더 */}
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />

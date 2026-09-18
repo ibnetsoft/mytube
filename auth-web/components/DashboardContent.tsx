@@ -3110,7 +3110,8 @@ export default function DashboardContent() {
             <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#111827] to-black px-4 py-10">
                 <div className="mx-auto flex min-h-[80vh] max-w-6xl items-center justify-center">
                     <div className="w-full max-w-md">
-                        <div className="mb-6 text-center">
+                        <div className="mb-6 flex flex-col items-center text-center">
+                            <img src="/img/air_logo.png" alt="AIR Studio" className="w-16 h-16 rounded-full shadow-xl shadow-blue-500/25 ring-2 ring-white/10 mb-3" />
                             <div className="text-[11px] font-black uppercase tracking-[0.35em] text-blue-400">AIR STUDIO ADMIN</div>
                             <h1 className="mt-3 text-3xl font-black tracking-tight text-white">관리자 대시보드 로그인</h1>
                             <p className="mt-2 text-sm font-bold text-gray-500">`/dashboard`에서 바로 관리자 인증을 진행합니다.</p>
