@@ -13,6 +13,7 @@ import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
 import AiSfxPlanButton from '@/components/AiSfxPlanButton'
 import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
+import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -2789,6 +2790,22 @@ export default function StdPortalPage() {
         })
         await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
     }
+    const applySubtitleVolume = async (index: number, volume: number, allSpeaker = false) => {
+        const targetSpeaker = subtitleSpeakers[index]?.name
+        const updated = localSubtitles.map((item: any, i: number) => {
+            const matchesSpeaker = allSpeaker && targetSpeaker && subtitleSpeakers[i]?.name === targetSpeaker
+            if (i === index || matchesSpeaker) {
+                return {
+                    ...item,
+                    volume: volume,
+                    volume_ratio: Number((volume / 100).toFixed(2))
+                }
+            }
+            return item
+        })
+        await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+    }
+
 
     const renderAiDialogue = (subtitle: any, index: number) => {
         const parts = aiDialogueParts.get(index)
@@ -3655,6 +3672,8 @@ export default function StdPortalPage() {
 
             await new Promise<void>((resolve, reject) => {
                 const audio = new Audio(audioUrl)
+                const volPct = Number(subtitle?.volume ?? (subtitle?.volume_ratio ? subtitle.volume_ratio * 100 : 100))
+                audio.volume = Math.max(0, Math.min(1, (isNaN(volPct) ? 100 : volPct) / 100))
                 vrewAudioRef.current = audio
                 const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
                 const scheduledEnd = Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1)
@@ -9189,7 +9208,7 @@ export default function StdPortalPage() {
                                                                                                 return parts
                                                                                             })() : renderAiDialogue(item, item.subtitleIndex)}
                                                                                         </span>
-                                                                                        <div className="ml-1.5 inline-flex shrink-0 align-middle" onClick={event => event.stopPropagation()}>
+                                                                                        <div className="ml-1.5 inline-flex shrink-0 align-middle items-center gap-1" onClick={event => event.stopPropagation()}>
                                                                                             {renderVoicePicker(
                                                                                                 `block-${item.subtitleIndex}`,
                                                                                                 blockVoiceId,
@@ -9202,6 +9221,12 @@ export default function StdPortalPage() {
                                                                                                 false,
                                                                                                 { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerInfo?.label || '', gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
                                                                                             )}
+                                                                                            <SubtitleVolumePicker
+                                                                                                volume={item.volume ?? (item.volume_ratio ? Math.round(item.volume_ratio * 100) : 100)}
+                                                                                                speakerName={speakerInfo?.name}
+                                                                                                onChange={(nextVol, allSpeaker) => applySubtitleVolume(item.subtitleIndex, nextVol, allSpeaker)}
+                                                                                                title={isDialogueBlock ? `${speakerInfo?.name || '대사'} 볼륨 조절` : '내레이션 볼륨 조절'}
+                                                                                            />
                                                                                         </div>
                                                                                     </div>
                                                                                     {subtitleReviewLocale && subtitleReviewCopy && (
