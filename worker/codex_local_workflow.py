@@ -7,6 +7,31 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'worker'))
 
 
+def finalize_sfx(runner, identity, package, notify, snapshot=None):
+    from worker.codex_sfx import plan_package_sfx
+    existing = []
+    if snapshot:
+        row = snapshot.get('row') or {}
+        settings = (row.get('project_payload') or {}).get('render_settings') or {}
+        # Explicit empty lists are intentional user decisions, not missing data.
+        existing = settings.get('sfx_cues')
+        if not isinstance(existing, list):
+            old = snapshot.get('structure') or {}
+            existing = (old.get('sfx_plan') or {}).get('cues')
+        if not isinstance(existing, list):
+            existing = (row.get('progress_payload') or {}).get('sfx_cues') or []
+    notify('효과음 자동 구성 · 최종 대본 분석')
+    plan = plan_package_sfx(runner, 'local-' + identity, package, existing)
+    review_count = sum(bool(c.get('needs_review')) for c in plan['cues'])
+    package.setdefault('remaining', []).append('효과음 자막 위치·파일 연결 및 미리보기/렌더 검증')
+    if plan['status'] != 'ready':
+        package['remaining'].append('효과음 구성 재시도 필요: ' + plan['status'])
+    if review_count:
+        package['remaining'].append(f'기존 효과음 위치 재검토 {review_count}개')
+    notify(f"효과음 구성 {plan['status']} · {len(plan['cues'])}개 · 재검토 {review_count}개")
+    return package
+
+
 def produce(identity, request, snapshot, output, notify, sources=None):
     from codex_content_runner import (CodexStagedContentRunner, CodexContentConfig,
         _category_narration_voice, _script_rhythm_contract, _resolve_script_style_directive,
@@ -42,10 +67,13 @@ def produce(identity, request, snapshot, output, notify, sources=None):
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
                    'user_direction': request['notes']}
         package = runner.generate('local-' + identity, payload, script_only=True)
+        from worker.codex_bgm import plan_package_bgm
+        plan_package_bgm(runner, 'local-' + identity, package,
+                         enabled=request.get('generate_bgm_prompt') is True)
         package['remaining'] = ['캐릭터 참고 이미지 생성·저장', '장면 이미지·첫 12씬 영상 프롬프트',
                                 '메타데이터·썸네일 기획', '전체 장면 이미지 실제 생성·게시', '썸네일 배경 실제 생성·게시',
                                 '토픽 패키지/유저웹 연결', '사용자 썸네일 최종 저장']
-        return package
+        return finalize_sfx(runner, identity, package, notify)
 
     from scripts.repair_existing_topic_scripts import _repair_with_codex, _repair_scene_budgets, _duration_seconds
     row = copy.deepcopy(snapshot['row'])
@@ -86,10 +114,13 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         scene.update(scene_text=section['text'], narration=section['text'])
     dialogue = stage('02e_dialogue', {**context, 'scenes': scenes}, DIALOGUE_TASK)
     annotations = validate_dialogue(dialogue, scenes)
-    return {'script': context['script'], 'sections': sections, 'script_model': ASTRA_MODEL,
+    structure = copy.deepcopy(snapshot['structure'])
+    structure['scenes'] = scenes
+    package = {'script': context['script'], 'sections': sections, 'structure': structure, 'script_model': ASTRA_MODEL,
             'script_quality_report': review['script_quality_report'], 'listener_quality_report': listener,
             'dialogue_annotations': annotations, 'repair_report': report,
             'source_fingerprint': snapshot['fingerprint'],
             'remaining': ['사용자 대본 승인', '장면별 이미지·프롬프트 영향 평가', '최신 메타데이터·썸네일 검증',
                           '오래된 자막/음성 연결 정리', '대상 프로젝트에 승인본 적용',
                           '패키지·제출 건 동기화 확인', '유저웹 재접속 검증']}
+    return finalize_sfx(runner, identity, package, notify, snapshot)

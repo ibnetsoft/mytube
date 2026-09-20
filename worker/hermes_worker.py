@@ -143,6 +143,7 @@ _load_project_env()
 
 _shutdown_requested = False
 SUPPORTED_JOB_TYPES = [
+    "sfx_plan_generate",
     "topic_research",
     "topic_benchmark_analyze",
     "music_trend_analyze",
@@ -9410,13 +9411,17 @@ Hard retry rules:
     )
     if category_errors:
         raise RuntimeError(f"scene media prompt category QA failed: {category_errors[:8]}")
-    sfx_cues = build_hermes_sfx_cues(
-        final_script,
-        structure,
-        target_duration_seconds=duration_seconds,
-    )
-    sfx_cues_json = json.dumps(sfx_cues, ensure_ascii=False)
-    job_log.info(f"-> HERMES SFX PLANNED ({len(sfx_cues)} cues)")
+    from codex_content_runner import CodexStagedContentRunner
+    from worker.codex_sfx import plan_package_sfx
+    sfx_package = {"script": final_script, "structure": structure}
+    plan_package_sfx(CodexStagedContentRunner(), job_id, sfx_package)
+    from worker.codex_bgm import plan_package_bgm
+    bgm_plan = plan_package_bgm(CodexStagedContentRunner(), job_id, sfx_package,
+                                enabled=(job.get('payload') or {}).get('generate_bgm_prompt') is True)
+    job_log.info(f"-> BGM PROMPT {bgm_plan['status']} (no audio generation)")
+    sfx_cues = sfx_package["sfx_cues"]
+    sfx_cues_json = sfx_package["sfx_cues_json"]
+    job_log.info(f"-> CODEX SFX PLANNED ({len(sfx_cues)} cues)")
     category_for_gate = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
     script_stage_payload = {
         "topic_queue_id": topic_queue_id,
@@ -9628,6 +9633,23 @@ def _process_codex_topic_discover(job: dict, job_id: str, job_log) -> tuple[str,
     return str(result_path), result_payload
 
 
+def _process_sfx_plan_generate(job, job_id, job_log):
+    from codex_content_runner import CodexStagedContentRunner
+    from worker.codex_sfx import plan_sfx
+    payload = job.get("payload") or {}
+    job_store.transition(job_id, job_store.PREPARING, reason="Validating SFX plan inputs")
+    job_store.transition(job_id, job_store.RENDERING, reason="Planning subtitle SFX")
+    result = plan_sfx(CodexStagedContentRunner(), job_id, payload.get("units") or [],
+                      payload.get("catalog") or [], payload.get("existing_cues") or [])
+    result["snapshot"] = payload.get("snapshot")
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = RESULTS_DIR / f"{job_id}.json"
+    path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    job_store.transition(job_id, job_store.UPLOADING, reason="Saving SFX plan")
+    job_store.transition(job_id, job_store.COMPLETED, reason="SFX plan ready", output_path=str(path))
+    return str(path), result
+
+
 def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
     """Run Codex through the legacy plan → script → media → metadata contracts.
 
@@ -9769,12 +9791,12 @@ def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[st
     )
     package["image_style"] = package.get("image_style") or payload.get("image_style") or "realistic"
     package["image_style_selection"] = package.get("image_style_selection") or payload.get("image_style_selection") or {}
-    package["sfx_cues"] = build_hermes_sfx_cues(
-        str(package.get("script") or ""),
-        package.get("structure") if isinstance(package.get("structure"), dict) else {},
-        target_duration_seconds=int(payload.get("target_duration_seconds") or 0),
-    )
-    package["sfx_cues_json"] = json.dumps(package.get("sfx_cues") or [], ensure_ascii=False)
+    from worker.codex_sfx import plan_package_sfx
+    plan_package_sfx(CodexStagedContentRunner(), job_id, package)
+    from worker.codex_bgm import plan_package_bgm
+    bgm_plan = plan_package_bgm(CodexStagedContentRunner(), job_id, package,
+                                enabled=payload.get('generate_bgm_prompt') is True)
+    job_log.info(f"-> BGM PROMPT {bgm_plan['status']} (no audio generation)")
     package["generation_models"] = {
         **(payload.get("generation_models") if isinstance(payload.get("generation_models"), dict) else {}),
         "content_package": "codex-cli",
@@ -10217,7 +10239,9 @@ def process_one_job(job: dict) -> None:
         if invalid_models:
             raise RuntimeError(f"Invalid generation model settings: {', '.join(invalid_models)}")
 
-        if job_type == "topic_benchmark_analyze":
+        if job_type == "sfx_plan_generate":
+            output_ref, result_payload = _process_sfx_plan_generate(job, job_id, job_log)
+        elif job_type == "topic_benchmark_analyze":
             output_ref, result_payload = _process_topic_benchmark_analyze(job, job_id, job_log)
         elif job_type == "music_trend_analyze":
             output_ref, result_payload = _process_music_trend_analyze(job, job_id, job_log)

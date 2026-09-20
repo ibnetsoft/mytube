@@ -28,7 +28,11 @@ class TenantCreateRequest(BaseModel):
     tenant_key: str = Field(..., description="테넌트 키 (영문소문자, 숫자, 하이픈)")
     tenant_name: str = Field(..., description="테넌트 이름")
     brand_name: Optional[str] = Field(None, description="브랜드 이름")
-    commission_percent: float = Field(default=10, ge=0, le=100, description="수수료율 (%)")
+    setup_fee_usd: float = Field(default=0, ge=0, description="초기 세팅비 (USD/KRW)")
+    price_per_channel_usd: float = Field(default=0, ge=0, description="채널 1개당 월 구독료")
+    max_channels: int = Field(default=5, ge=1, le=20, description="최대 운영 가능 채널 수 (기본 5개)")
+    currency: str = Field(default="USD", description="통화 (USD/KRW)")
+    commission_percent: float = Field(default=0, ge=0, le=100, description="수수료율 (%)")
     min_commission_usd: float = Field(default=0, ge=0, description="최소 수수료 (USD)")
     license_tier: str = Field(default="standard", description="라이선스 티어")
 
@@ -138,6 +142,11 @@ async def create_tenant(req: TenantCreateRequest):
         "tenant_key": req.tenant_key,
         "tenant_name": req.tenant_name,
         "brand_name": req.brand_name or req.tenant_name,
+        "setup_fee_usd": req.setup_fee_usd,
+        "price_per_channel_usd": req.price_per_channel_usd,
+        "max_channels": req.max_channels,
+        "monthly_fee_usd": req.price_per_channel_usd * req.max_channels,
+        "currency": req.currency,
         "commission_percent": req.commission_percent,
         "min_commission_usd": req.min_commission_usd,
         "license_tier": req.license_tier,

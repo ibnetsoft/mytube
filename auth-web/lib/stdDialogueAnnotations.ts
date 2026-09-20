@@ -10,7 +10,51 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
         const source = Array.from(scene.source_text as string)
         const compact = source.map((char, i) => ({char, i})).filter(({char}) => !ignored(char))
         const displayed = rows.flatMap(({s}) => Array.from(String(s.text || '')).filter(c => !ignored(c))).join('')
-        if (compact.map(c => c.char).join('') !== displayed) continue // stale/edited script: no guessing
+        if (compact.map(c => c.char).join('') !== displayed) {
+            // Fallback for edited or rearranged subtitles:
+            // Match against confirmed span texts and speakers to preserve dialogue highlights
+            const confirmedSpans = scene.spans.filter((s: any) => s.status === 'confirmed' && s.speaker && typeof s.text === 'string' && s.text.trim())
+            if (!confirmedSpans.length) continue
+
+            const cleanPunct = (t: string) => t.replace(/[\s"'“”‘’「」『』.,?!~…;:·\-–—]/gu, '')
+
+            for (const { s, i } of rows) {
+                const subText = String(s.text || '')
+                const cleanSub = cleanPunct(subText)
+                if (!cleanSub) {
+                    result.set(i, [{ text: subText, dialogue: false }])
+                    continue
+                }
+
+                // 1. Direct span containment check
+                let matchedSpan = confirmedSpans.find((span: any) => {
+                    const cleanSpan = cleanPunct(String(span.text || ''))
+                    return cleanSpan && (cleanSpan.includes(cleanSub) || cleanSub.includes(cleanSpan))
+                })
+
+                // 2. Token/word overlap check if no direct containment
+                if (!matchedSpan) {
+                    const subWords = subText.split(/\s+/).filter(w => cleanPunct(w).length >= 2)
+                    if (subWords.length > 0) {
+                        for (const span of confirmedSpans) {
+                            const spanText = String(span.text || '')
+                            const matchingWords = subWords.filter(w => spanText.includes(cleanPunct(w)))
+                            if (matchingWords.length >= Math.ceil(subWords.length * 0.5)) {
+                                matchedSpan = span
+                                break
+                            }
+                        }
+                    }
+                }
+
+                if (matchedSpan) {
+                    result.set(i, [{ text: subText, dialogue: true, speaker: String(matchedSpan.speaker) }])
+                } else {
+                    result.set(i, [{ text: subText, dialogue: false }])
+                }
+            }
+            continue
+        }
         const spans = scene.spans.filter((s: any) => s.status === 'confirmed' && s.speaker &&
             Number.isInteger(s.start) && Number.isInteger(s.end) && s.start >= 0 && s.end > s.start &&
             source.slice(s.start, s.end).join('') === s.text)

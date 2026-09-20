@@ -1,4 +1,6 @@
 'use client'
+import TopicProjectDialog from '@/components/TopicProjectDialog'
+import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
@@ -8,8 +10,10 @@ import { bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } 
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
+import AiSfxPlanButton from '@/components/AiSfxPlanButton'
 import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
+import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -157,6 +161,7 @@ import {
     Pencil,
     Play,
     RefreshCw,
+    Save,
     Scissors,
     Send,
     Settings as SettingsIcon,
@@ -759,6 +764,7 @@ export default function StdPortalPage() {
         }
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
+    const ui = (text: string) => stdUiText(currentLocale, text)
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
     const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale) && (subtitleTranslationScope === 'all' || currentLocale === 'th') ? currentLocale : null
     const subtitleReviewCopy = subtitleReviewLocale ? SUBTITLE_REVIEW_COPY[subtitleReviewLocale] : null
@@ -788,6 +794,7 @@ export default function StdPortalPage() {
 
     // 2. 작업 데이터 상태
     const [topics, setTopics] = useState<Topic[]>([])
+    const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
@@ -968,6 +975,7 @@ export default function StdPortalPage() {
             || 'topics'
     })
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+    const [mobileSubtitlePanelOpen, setMobileSubtitlePanelOpen] = useState(false)
 
     useEffect(() => {
         try {
@@ -1050,6 +1058,7 @@ export default function StdPortalPage() {
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [isNarrationPlaying, setIsNarrationPlaying] = useState(false)
     const [previewAudioError, setPreviewAudioError] = useState('')
+    const [highlightSaveTts, setHighlightSaveTts] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [previewTransition, setPreviewTransition] = useState<{
         key: number
@@ -2781,12 +2790,34 @@ export default function StdPortalPage() {
         })
         await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
     }
+    const applySubtitleVolume = async (index: number, volume: number, allSpeaker = false) => {
+        const targetSpeaker = subtitleSpeakers[index]?.name
+        const updated = localSubtitles.map((item: any, i: number) => {
+            const matchesSpeaker = allSpeaker && targetSpeaker && subtitleSpeakers[i]?.name === targetSpeaker
+            if (i === index || matchesSpeaker) {
+                return {
+                    ...item,
+                    volume: volume,
+                    volume_ratio: Number((volume / 100).toFixed(2))
+                }
+            }
+            return item
+        })
+        await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+    }
+
 
     const renderAiDialogue = (subtitle: any, index: number) => {
         const parts = aiDialogueParts.get(index)
-        if (!parts) return <span title="AI 대사 분석이 없거나 대본이 변경됐습니다. 재분석이 필요합니다.">{subtitle.text}</span>
-        return parts.map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
-            title={part.dialogue ? `AI 확인 대사 · ${part.speaker}` : undefined}>{part.text}</span>)
+        if (parts && parts.length > 0 && parts.some(p => p.dialogue)) {
+            return parts.map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
+                title={part.dialogue ? `AI 확인 대사 · ${part.speaker}` : undefined}>{part.text}</span>)
+        }
+        if (isSubtitleDialogue(subtitle, index)) {
+            const speakerName = subtitleSpeakers[index]?.name || subtitle?.dialogue_speaker || '대사'
+            return <span className="text-yellow-300" title={`대사 · ${speakerName}`}>{subtitle.text}</span>
+        }
+        return <span>{subtitle.text}</span>
     }
 
     // No heuristic candidates. Keep existing manual override controls available.
@@ -2795,7 +2826,15 @@ export default function StdPortalPage() {
     const isSubtitleDialogue = (subtitle: any, index: number) => {
         if (typeof subtitle?.dialogue_override === 'boolean') return subtitle.dialogue_override
         const parts = aiDialogueParts.get(index)
-        return Boolean(parts?.some(p => p.dialogue) && parts.every(p => p.dialogue || !p.text.replace(/[\s"'“”‘’「」『』]/g, '')))
+        if (parts && parts.length > 0) {
+            const hasDialogue = parts.some(p => p.dialogue)
+            const cleanNonDialogue = parts.every(p => p.dialogue || !p.text.replace(/[\s"'“”‘’「」『』.,?!~…;:·\-–—]/gu, ''))
+            if (hasDialogue && cleanNonDialogue) return true
+            if (hasDialogue) return true
+        }
+        if (subtitle?.dialogue_speaker || subtitle?.editor_speaker?.name) return true
+        if (hasDialogueQuoteText(subtitle?.text || '')) return true
+        return false
     }
 
     const pendingDialogueCandidateIndexes = new Set(localSubtitles.flatMap((subtitle, index) => (
@@ -2996,7 +3035,7 @@ export default function StdPortalPage() {
         tone: 'default' | 'dialogue' = 'default',
         _openDirection: 'left' | 'right' = 'right',
         disabled = false,
-        options: { buttonLabel?: string; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
+        options: { buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
         const isOpen = !disabled && openVoicePickerKey === pickerKey
@@ -3005,7 +3044,7 @@ export default function StdPortalPage() {
             setVoicePickerPreviewUrl('')
         }
         return (
-            <div className="relative inline-flex">
+            <div className="relative inline-flex shrink-0">
                 <button
                     type="button"
                     disabled={disabled}
@@ -3022,15 +3061,20 @@ export default function StdPortalPage() {
                         setVoicePickerPreviewUrl('')
                         setOpenVoicePickerKey(pickerKey)
                     }}
-                    className={`${options.buttonLabel ? 'px-2.5 gap-1.5' : 'w-8'} h-8 rounded-md border flex items-center justify-center text-[10px] font-black transition ${
+                    className={`${options.buttonLabel ? 'px-2.5 gap-1.5' : options.countBadge !== undefined ? 'h-7 px-2 gap-1 min-w-[34px]' : 'h-7 w-7'} rounded-md border flex items-center justify-center text-[10px] font-black transition ${
                         disabled
                             ? 'cursor-not-allowed border-white/5 bg-[#10141b] text-gray-600 opacity-45'
                             : tone === 'dialogue'
-                            ? 'bg-emerald-500/10 border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/20'
+                            ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-200 hover:bg-emerald-500/25 shadow-sm'
                             : 'bg-[#10141b] border-white/10 text-cyan-100 hover:bg-[#202632] hover:border-cyan-400/50'
                     }`}
                 >
-                    <Mic size={14} />
+                    <Mic size={13} className="shrink-0" />
+                    {options.countBadge !== undefined && (
+                        <span className="text-[10px] font-black text-emerald-300 leading-none">
+                            {options.countBadge}
+                        </span>
+                    )}
                     {options.buttonLabel && <span>{options.buttonLabel}</span>}
                 </button>
                 {speakerEditorIndex !== null && pickerKey === `block-${speakerEditorIndex}` && <SubtitleSpeakerEditor
@@ -3076,7 +3120,7 @@ export default function StdPortalPage() {
                 }`}
             >
                 <Sparkles size={12} />
-                효과
+                {ui("효과")}
             </button>
             {!disabled && isTransitionPickerOpen && typeof document !== 'undefined' && createPortal(
                 <div
@@ -3197,7 +3241,7 @@ export default function StdPortalPage() {
                     }`}
                 >
                     <ImageIcon size={12} />
-                    이미지 모션
+                    {ui("이미지 모션")}
                 </button>
                 {!disabled && isMotionPickerOpen && typeof document !== 'undefined' && createPortal(
                     <div
@@ -3215,7 +3259,7 @@ export default function StdPortalPage() {
                         >
                             <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                                 <div className="flex items-center gap-2">
-                                    <h3 className="text-base font-black text-white">이미지 모션</h3>
+                                    <h3 className="text-base font-black text-white">{ui("이미지 모션")}</h3>
                                     <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-black text-cyan-200">BETA</span>
                                 </div>
                                 <button
@@ -3442,7 +3486,10 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '자막 구간 TTS 생성 실패')
             if (!res.ok || payload?.success === false || !payload?.audio_url) {
-                throw new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
+                const err = new Error(payload?.error || payload?.detail || `자막 구간 TTS 오류 (${res.status})`)
+                ;(err as any).code = payload?.code
+                ;(err as any).status = res.status
+                throw err
             }
                 return payload
             }
@@ -3483,6 +3530,28 @@ export default function StdPortalPage() {
         }
     }
 
+    const prefetchVrewSegment = (index: number) => {
+        const hasSavedNarration = (selectedProject?.assets || []).some((asset: any) =>
+            String(asset?.asset_type || '').toLowerCase() === 'audio'
+            && ['uploaded', 'assigned'].includes(String(asset?.status || ''))
+        )
+        if (hasSavedNarration && !localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return
+        const subtitle = localSubtitles[index]
+        if (!subtitle) return
+        const cacheKey = vrewSegmentCacheKey(subtitle, index)
+        if (vrewAudioCacheRef.current[cacheKey] || vrewSegmentStatus[cacheKey] === 'generating' || vrewSegmentStatus[cacheKey] === 'loading') return
+        void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch((error: any) => {
+            const isClaimedOrSaveNeeded = error?.code === 'audio_generation_claimed'
+                || error?.status === 409
+                || String(error?.message || '').includes('중복 과금')
+                || String(error?.message || '').includes('저장 확인이 필요')
+            if (isClaimedOrSaveNeeded) {
+                setHighlightSaveTts(true)
+            }
+            console.warn('[STD Vrew subtitles] segment prefetch failed:', error)
+        })
+    }
+
     const playVrewSegmentsFrom = async (startIndex: number) => {
         if (!localSubtitles.length) return
         const cancelToken = vrewPlaybackCancelRef.current + 1
@@ -3490,6 +3559,7 @@ export default function StdPortalPage() {
         setIsPlayingPreview(true)
         setIsNarrationPlaying(false)
         setPreviewAudioError('')
+        setHighlightSaveTts(false)
 
         const savedNarrationUrl = await getSavedNarrationAudioUrl()
         if (vrewPlaybackCancelRef.current !== cancelToken) return
@@ -3575,7 +3645,26 @@ export default function StdPortalPage() {
             setPlaybackTime(start)
             setMessage(`자막 미리듣기 준비 중... (${index + 1}/${localSubtitles.length})`)
 
-            const audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
+            let audioUrl = ''
+            try {
+                audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
+            } catch (err: any) {
+                const isClaimedOrSaveNeeded = err?.code === 'audio_generation_claimed'
+                    || err?.status === 409
+                    || String(err?.message || '').includes('중복 과금')
+                    || String(err?.message || '').includes('저장 확인이 필요')
+                    || String(err?.message || '').includes('audio_generation_claimed')
+                if (isClaimedOrSaveNeeded) {
+                    stopPreviewBgm()
+                    setIsPlayingPreview(false)
+                    setIsNarrationPlaying(false)
+                    setHighlightSaveTts(true)
+                    setPreviewAudioError('')
+                    setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+                    return
+                }
+                throw err
+            }
             if (vrewPlaybackCancelRef.current !== cancelToken) return
             for (let offset = 1; offset <= 3; offset += 1) {
                 prefetchVrewSegment(index + offset)
@@ -3583,6 +3672,8 @@ export default function StdPortalPage() {
 
             await new Promise<void>((resolve, reject) => {
                 const audio = new Audio(audioUrl)
+                const volPct = Number(subtitle?.volume ?? (subtitle?.volume_ratio ? subtitle.volume_ratio * 100 : 100))
+                audio.volume = Math.max(0, Math.min(1, (isNaN(volPct) ? 100 : volPct) / 100))
                 vrewAudioRef.current = audio
                 const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
                 const scheduledEnd = Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1)
@@ -3643,9 +3734,21 @@ export default function StdPortalPage() {
         }
         void playVrewSegmentsFrom(selectedSubIndex).catch((error: any) => {
             stopVrewPlayback()
-            const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
-            setMessage(`❌ ${messageText}`)
-            setPreviewAudioError(messageText)
+            const isClaimedOrSaveNeeded = error?.code === 'audio_generation_claimed'
+                || error?.status === 409
+                || String(error?.message || '').includes('중복 과금')
+                || String(error?.message || '').includes('저장 확인이 필요')
+                || String(error?.message || '').includes('audio_generation_claimed')
+
+            if (isClaimedOrSaveNeeded) {
+                setHighlightSaveTts(true)
+                setPreviewAudioError('')
+                setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+            } else {
+                const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
+                setMessage(`❌ ${messageText}`)
+                setPreviewAudioError(messageText)
+            }
         })
     }
 
@@ -4831,7 +4934,7 @@ export default function StdPortalPage() {
         if (!uploadRes.ok) throw new Error(`오디오 파일 업로드 실패 (${uploadRes.status})`)
         const completeRes = await fetch(`/api/std/projects/${projectId}/assets/complete`, {
             method: 'POST', headers: authedJsonHeaders,
-            body: JSON.stringify({ ...details, storage_bucket: init.storage_bucket,
+            body: JSON.stringify({ ...details, storage_provider: init.storage_provider, storage_bucket: init.storage_bucket,
                 storage_path: init.storage_path, storage_public_url: init.storage_public_url }),
         })
         const complete = await safeParseJson(completeRes, '오디오 저장 실패')
@@ -5423,7 +5526,7 @@ export default function StdPortalPage() {
                 && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
 
             if (shouldUseDirectStorageUpload) {
-                setMessage(`파일 (${file.name}) Supabase Storage 업로드 준비 중...`)
+                setMessage(`파일 (${file.name}) 스토리지 업로드 준비 중...`)
                 const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                     method: 'POST',
                     headers: authedJsonHeaders,
@@ -5441,7 +5544,7 @@ export default function StdPortalPage() {
                 }
                 if (!isCurrent()) throw new Error('Upload context changed')
 
-                setMessage(`파일 (${file.name}) Supabase Storage에 업로드 중...`)
+                setMessage(`파일 (${file.name}) 스토리지에 업로드 중...`)
                 const storageRes = await fetch(initPayload.storage_upload_url, {
                     method: 'PUT',
                     headers: { 'Content-Type': mimeType },
@@ -5464,6 +5567,7 @@ export default function StdPortalPage() {
                         file_name: file.name,
                         file_size: file.size,
                         scene_number: sceneNum,
+                        storage_provider: initPayload.storage_provider,
                         storage_bucket: initPayload.storage_bucket,
                         storage_path: initPayload.storage_path,
                         storage_public_url: initPayload.storage_public_url,
@@ -6588,6 +6692,7 @@ export default function StdPortalPage() {
             return
         }
         setGeneratingTts(true)
+        setHighlightSaveTts(false)
         setMessage('자막 설정 저장 중...')
         try {
             await handleSaveSubtitles(false)
@@ -7356,15 +7461,10 @@ export default function StdPortalPage() {
 
                 <div className={`w-full max-w-md bg-[#1e293b]/70 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10 ${isImpersonating ? 'mt-12' : ''}`}>
                     <div className="flex flex-col items-center">
-                        {/* AIR Logo */}
-                        <div className="mb-5 flex flex-col items-center">
-                            <img
-                                src="/img/air_logo.png"
-                                alt="AIR Logo"
-                                className="w-24 h-24 rounded-full shadow-2xl shadow-cyan-500/40 ring-4 ring-cyan-400/20 object-contain hover:scale-105 transition-transform duration-300"
-                            />
+                        {/* AIR Studio 로고 */}
+                        <div className="mb-3 flex items-center justify-center">
+                            <img src="/img/air_logo.png" alt="AIR Studio" className="w-20 h-20 rounded-full shadow-2xl shadow-blue-500/25 ring-2 ring-white/10" />
                         </div>
-
                         {/* 상단 펄스 헤더 */}
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
@@ -7392,6 +7492,26 @@ export default function StdPortalPage() {
                         <h1 className="text-2xl font-black text-white mb-6">
                             {authMode === 'login' ? t('auth_login_title') : t('auth_signup_title')}
                         </h1>
+
+                        <div className="-mt-4 mb-5 flex items-center gap-3 text-[11px] font-bold text-cyan-300">
+                            <a
+                                href="/terms"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline underline-offset-4 hover:text-cyan-200"
+                            >
+                                서비스 이용약관
+                            </a>
+                            <span aria-hidden="true" className="text-cyan-500/70">·</span>
+                            <a
+                                href="/privacy"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline underline-offset-4 hover:text-cyan-200"
+                            >
+                                개인정보처리방침
+                            </a>
+                        </div>
 
                         {/* 탭 전환 (로그인 / 회원가입 신청) */}
                         <div className="grid grid-cols-2 gap-2 w-full mb-6">
@@ -7697,13 +7817,23 @@ export default function StdPortalPage() {
                                             />
                                             <span className={agreedTerms ? 'text-blue-300 font-bold' : ''}>{t('auth_agree_terms')}</span>
                                         </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setLegalModalType('terms')}
-                                            className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
-                                        >
-                                            [전문 보기]
-                                        </button>
+                                        <div className="flex shrink-0 items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLegalModalType('terms')}
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [전문 보기]
+                                            </button>
+                                            <a
+                                                href="/terms"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [웹페이지]
+                                            </a>
+                                        </div>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -7715,13 +7845,23 @@ export default function StdPortalPage() {
                                             />
                                             <span className={agreedPrivacy ? 'text-blue-300 font-bold' : ''}>{t('auth_agree_privacy')}</span>
                                         </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setLegalModalType('privacy')}
-                                            className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
-                                        >
-                                            [전문 보기]
-                                        </button>
+                                        <div className="flex shrink-0 items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLegalModalType('privacy')}
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [전문 보기]
+                                            </button>
+                                            <a
+                                                href="/privacy"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [웹페이지]
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -7883,12 +8023,12 @@ export default function StdPortalPage() {
     const sidebarProgress = (() => {
         const status = getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
         const steps = [
-        { id: 'topics', label: '주제', isDone: status.isTopicDone },
-        { id: 'topics', label: '기획', isDone: status.isPlanningDone },
-        { id: 'script_gen', label: '대본', isDone: status.isScriptDone },
-        { id: 'image_gen', label: '이미지', isDone: status.isImageDone },
-        { id: 'subtitle_vrew', label: '자막', isDone: status.isSubtitlesDone },
-        { id: 'thumbnail', label: '썸네일', isDone: status.isThumbnailDone },
+        { id: 'topics', label: ui("주제"), isDone: status.isTopicDone },
+        { id: 'topics', label: ui("기획"), isDone: status.isPlanningDone },
+        { id: 'script_gen', label: ui("대본"), isDone: status.isScriptDone },
+        { id: 'image_gen', label: ui("이미지"), isDone: status.isImageDone },
+        { id: 'subtitle_vrew', label: ui("자막"), isDone: status.isSubtitlesDone },
+        { id: 'thumbnail', label: ui("썸네일"), isDone: status.isThumbnailDone },
         ]
         return (
         <div className="std-sidebar-progress grid grid-cols-6 gap-1 px-2 py-3 border-b border-white/5 text-[10px] text-gray-400 font-medium">
@@ -7919,6 +8059,18 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
+            {topicProjectOpen && <TopicProjectDialog locale={currentLocale} activeId={selectedProject?.project?.id}
+                rows={projects.map((p: StdProject & { project_payload?: any }) => {
+                    const status = p.id === selectedProject?.project?.id && !p.submitted_at
+                        ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+                        : getProjectStepStatus(p)
+                    return { id: p.id, title: p.title, thumbnail: sanitizeAssetUrl(
+                        p.progress_payload?.thumbnail_url || p.project_payload?.thumbnail_url
+                        || p.project_payload?.thumbnail_design?.thumbnail_url || p.project_payload?.thumbnail_design?.bg_url) || '',
+                        steps: [status.isTopicDone, status.isPlanningDone, status.isScriptDone, status.isImageDone, status.isTtsDone, status.isSubtitlesDone, status.isThumbnailDone],
+                        submitted: Boolean(p.submitted_at || p.shared_submission?.submitted_at) }
+                })}
+                onClose={() => setTopicProjectOpen(false)} onSelect={async id => Boolean(await openProject(id))} />}
             {isImpersonating && (
                 <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
                     <div className="flex items-center gap-2.5">
@@ -7945,8 +8097,66 @@ export default function StdPortalPage() {
                     </div>
                 </div>
             )}
-            <button type="button" onClick={() => setMobileMenuOpen(true)} title="메뉴 열기" aria-label="메뉴 열기"
-                className="fixed bottom-3 left-3 z-40 md:hidden rounded-lg border border-white/20 bg-[#202632] px-3 py-2 text-white shadow-lg">☰</button>
+            {/* 모바일 상단 네비게이션 헤더 (md 미만 모바일 전용) */}
+            <div className="md:hidden flex items-center justify-between px-3 py-2 bg-[#161a22] border-b border-white/10 shrink-0 z-30 shadow-md">
+                <div className="flex items-center gap-2 min-w-0">
+                    <button
+                        type="button"
+                        onClick={() => setMobileMenuOpen(true)}
+                        title={ui("메뉴 열기")}
+                        aria-label={ui("메뉴 열기")}
+                        className="p-1.5 rounded-lg border border-white/15 bg-white/5 text-gray-200 hover:bg-white/10 hover:text-white transition-colors shrink-0"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                        <span className="text-xs font-black tracking-wider text-blue-400 shrink-0">AIR</span>
+                        <span className="text-xs text-gray-400 font-bold">·</span>
+                        <button
+                            type="button"
+                            onClick={() => setTopicProjectOpen(true)}
+                            className="text-xs font-bold text-gray-200 truncate hover:text-blue-300 transition-colors text-left"
+                            title={getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                        >
+                            {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                        </button>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setMobileMenuOpen(true)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md border border-white/10 bg-white/5 text-[11px] text-gray-300 font-bold hover:bg-white/10 active:scale-95 transition-all"
+                        title={ui("언어")}
+                    >
+                        <img
+                            src={`/flags/${currentLocale === 'ko' ? 'kr' : currentLocale === 'en' ? 'gb' : currentLocale === 'vi' ? 'vn' : 'th'}.svg`}
+                            alt=""
+                            aria-hidden="true"
+                            width={20}
+                            height={14}
+                            className="block h-3.5 w-5 rounded-[1px] object-cover"
+                        />
+                        <span className="uppercase text-[10px] text-gray-400">{currentLocale}</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* 모바일 플로팅 메뉴 열기 FAB (화면 하단 좌측) */}
+            <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                title={ui("메뉴 열기")}
+                aria-label={ui("메뉴 열기")}
+                className="fixed bottom-4 left-4 z-40 md:hidden flex items-center justify-center w-11 h-11 rounded-full border border-blue-400/30 bg-[#1e2430]/90 backdrop-blur-md text-white shadow-xl hover:bg-blue-600/30 active:scale-95 transition-all"
+            >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
 
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
             <div className="flex-1 flex overflow-hidden relative">
@@ -7957,7 +8167,7 @@ export default function StdPortalPage() {
                         onClick={() => setMobileMenuOpen(false)}
                     >
                         <aside
-                            className="w-64 max-w-[80vw] h-full bg-[#161a22] border-r border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200"
+                            className="w-64 max-w-[82vw] h-full bg-[#161a22] border-r border-white/10 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200"
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="p-3 border-b border-white/10 flex items-center justify-between">
@@ -7965,36 +8175,72 @@ export default function StdPortalPage() {
                                 <button
                                     type="button"
                                     onClick={() => setMobileMenuOpen(false)}
-                                    className="p-1.5 text-gray-400 hover:text-white rounded-lg text-sm font-bold bg-white/5"
+                                    className="p-1.5 text-gray-400 hover:text-white rounded-lg text-sm font-bold bg-white/5 active:scale-95 transition-all ml-1"
+                                    title={ui("닫기")}
+                                    aria-label={ui("닫기")}
                                 >
                                     ✕
                                 </button>
                             </div>
 
-                            <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
+                            <div className="p-3 border-b border-white/5 space-y-2.5 text-[11px]">
                                 <div className="flex items-center justify-between text-gray-400">
-                                    <span>모드</span>
-                                    <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">롱폼</span>
+                                    <span>{ui("모드")}</span>
+                                    <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">{ui("롱폼")}</span>
                                 </div>
-
+                                <div className="flex items-center justify-between text-gray-400">
+                                    <span>{ui("언어")}</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('ko')}
+                                            aria-label="한국어"
+                                            aria-pressed={currentLocale === 'ko'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'ko' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="한국어"
+                                        >
+                                            <img src="/flags/kr.svg" alt="한국어" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('en')}
+                                            aria-label="English"
+                                            aria-pressed={currentLocale === 'en'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'en' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="English"
+                                        >
+                                            <img src="/flags/gb.svg" alt="English" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('vi')}
+                                            aria-label="Tiếng Việt"
+                                            aria-pressed={currentLocale === 'vi'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'vi' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="Tiếng Việt"
+                                        >
+                                            <img src="/flags/vn.svg" alt="Tiếng Việt" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCurrentLocale('th')}
+                                            aria-label="ภาษาไทย"
+                                            aria-pressed={currentLocale === 'th'}
+                                            className={`rounded p-1.5 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentLocale === 'th' ? 'bg-blue-500/20 ring-2 ring-blue-400 border border-blue-400/40' : 'opacity-70 hover:opacity-100 border border-transparent'}`}
+                                            title="ภาษาไทย"
+                                        >
+                                            <img src="/flags/th.svg" alt="ภาษาไทย" aria-hidden="true" width={24} height={16} className="block h-4 w-6 rounded-[1px] object-cover" />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
                                 <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
-                                <select
-                                    value={selectedProject?.project?.id || ''}
-                                    onChange={(e) => {
-                                        if (e.target.value) openProject(e.target.value)
-                                        setMobileMenuOpen(false)
-                                    }}
-                                    className="w-full bg-[#202632] border border-white/10 rounded p-1.5 text-xs text-white cursor-pointer focus:outline-none focus:border-blue-500 truncate"
-                                >
-                                    {projects.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.title}
-                                        </option>
-                                    ))}
-                                </select>
+                                <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
+                                    className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
+                                    {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                                </button>
                             </div>
 
                             {sidebarProgress}
@@ -8004,7 +8250,7 @@ export default function StdPortalPage() {
                                     { id: 'image_gen', label: t('nav_image') },
                                     { id: 'subtitle_vrew', label: t('nav_subtitles') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
-                                    { id: 'music_missions', label: '음악 미션' },
+                                    { id: 'music_missions', label: ui("음악 미션") },
                                     { id: 'projects', label: t('nav_projects') },
                                     { id: 'template', label: t('nav_template') },
                                     { id: 'settings', label: t('nav_settings') },
@@ -8029,8 +8275,9 @@ export default function StdPortalPage() {
                                 })}
                             </nav>
 
-                            <div className="p-3 border-t border-white/5 text-[11px] text-gray-400">
-                                <span className="text-[10px] text-gray-500 font-mono">{STD_BUILD_LABEL}</span>
+                            <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center gap-1.5 font-mono">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>{ui("연결됨")} {STD_BUILD_LABEL}</span>
                             </div>
                         </aside>
                     </div>
@@ -8041,11 +8288,11 @@ export default function StdPortalPage() {
                     <div className="p-3 border-b border-white/10">{sidebarAccount}</div>
                     <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
                         <div className="flex items-center justify-between text-gray-400">
-                            <span>모드</span>
-                            <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">롱폼</span>
+                            <span>{ui("모드")}</span>
+                            <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">{ui("롱폼")}</span>
                         </div>
                         <div className="flex items-center justify-between text-gray-400">
-                            <span>언어</span>
+                            <span>{ui("언어")}</span>
                             <div className="flex items-center gap-1.5">
                                 <button
                                     type="button"
@@ -8093,22 +8340,10 @@ export default function StdPortalPage() {
 
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
                         <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
-                        <select
-                            value={selectedProject?.project?.id || ''}
-                            onChange={(e) => {
-                                if (e.target.value) openProject(e.target.value)
-                            }}
-                            className="w-full bg-[#202632] border border-white/10 rounded p-1.5 text-xs text-white cursor-pointer focus:outline-none focus:border-blue-500 truncate"
-                        >
-                            {projects.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.title}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="text-[10px] text-gray-400 mt-1 font-mono">
-                            Status: <span className="text-purple-400">{selectedProject?.project?.status || 'image_prompted'}</span>
-                        </div>
+                        <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
+                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
+                            {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                        </button>
                     </div>
 
                     {sidebarProgress}
@@ -8118,7 +8353,7 @@ export default function StdPortalPage() {
                             { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_vrew', label: t('nav_subtitles') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
-                            { id: 'music_missions', label: '음악 미션' },
+                            { id: 'music_missions', label: ui("음악 미션") },
                             { id: 'projects', label: t('nav_projects') },
                             { id: 'template', label: t('nav_template') },
                             { id: 'settings', label: t('nav_settings') },
@@ -8142,14 +8377,14 @@ export default function StdPortalPage() {
 
                     <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center gap-1.5 font-mono">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>연결됨 {STD_BUILD_LABEL}</span>
+                        <span>{ui("연결됨")} {STD_BUILD_LABEL}</span>
                     </div>
                 </aside>
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
                 <main className={`min-w-0 flex-1 flex flex-col bg-[#14181f] space-y-3 sm:space-y-6 ${
                     currentNav === 'subtitle_vrew'
-                        ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:overflow-hidden'
+                        ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:pb-0 lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
@@ -8189,288 +8424,338 @@ export default function StdPortalPage() {
                         const narrationVoiceName = voiceNameById.get(narrationVoiceId) || narrationVoiceId.replace('gemini:', '')
                         return (
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
-                            {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일) */}
+                            {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일 + 모바일 오밀조밀 최적화 & 숨김/펼침) */}
                             <div className="std-subtitle-controls relative z-30 bg-[#1c2027] border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
-                                {/* 1행: 템플릿선택+새로고침 | 프리셋(선택/삭제/새프리셋명/저장) | 폰트/크기/자간/글자수 | 글자색/테두리색 */}
-                                <div className="flex items-stretch sm:items-center gap-x-2.5 gap-y-1.5 flex-wrap">
-                                    {isVrewSubtitleMode && (
-                                        <>
-                                            <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
-                                                voices={allVoices}
-                                                value={narrationVoiceId}
-                                                direction={voiceStudioDirection}
-                                                headers={authedJsonHeaders}
-                                                buttonText={`내레이션 ${narrationSubtitleCount}개 · ${narrationVoiceName}`}
-                                                label={`내레이션 ${narrationSubtitleCount}개 성우 선택`}
-                                                onChange={(id, direction) => {
-                                                    setVrewNarrationVoice(id)
-                                                    setVoiceStudioDirection(direction)
-                                                    applyVrewVoiceBulk('narration', id, direction)
-                                                }}
-                                            />
-                                            <div className="flex w-full items-center gap-1.5 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1 sm:w-auto">
-                                                <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap">
-                                                    대사 {dialogueSubtitleCount}개
-                                                </span>
-                                            </div>
-                                            <div className="flex w-full items-center gap-2 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1.5 sm:w-auto">
-                                                <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
-                                                    {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
-                                                </span>
-                                                <input
-                                                    type="range"
-                                                    min="0.0"
-                                                    max="1.0"
-                                                    step="0.05"
-                                                    value={elStability}
-                                                    onChange={e => setElStability(e.target.value)}
-                                                    className="h-1 w-20 cursor-pointer appearance-none rounded bg-gray-600 accent-purple-500"
+                                {/* 모바일 전용 상단 패널 숨김/펼침 토글 바 (기본값: 숨김 ▲) */}
+                                <div className="flex md:hidden items-center justify-between gap-2 border-b border-white/5 pb-1.5">
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                        <span className="text-[11px] font-bold text-gray-300 truncate">
+                                            {ui("자막·성우 스타일")}
+                                        </span>
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 truncate">
+                                            {narrationVoiceName} · {subFontSize}%
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMobileSubtitlePanelOpen(!mobileSubtitlePanelOpen)}
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/20 active:scale-95 transition-all shrink-0 shadow-sm"
+                                        title={mobileSubtitlePanelOpen ? "스타일 패널 숨기기" : "스타일 패널 펼치기"}
+                                        aria-expanded={mobileSubtitlePanelOpen}
+                                    >
+                                        {mobileSubtitlePanelOpen ? (
+                                            <>
+                                                <span className="text-xs">▼</span>
+                                                <span>숨김</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-xs">▲</span>
+                                                <span>펼침</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {/* 패널 본문: 모바일에서는 토글 상태에 따라 노출(기본 숨김), 데스크톱(md 이상) 상시 노출 */}
+                                <div className={`${mobileSubtitlePanelOpen ? 'flex' : 'hidden md:flex'} flex-col gap-2`}>
+                                    {/* 1행: 성우선택 | 대사 | 안정성 | 대본복구 | 템플릿 | 프리셋관리 */}
+                                    <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
+                                        {isVrewSubtitleMode && (
+                                            <>
+                                                <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
+                                                    voices={allVoices}
+                                                    value={narrationVoiceId}
+                                                    direction={voiceStudioDirection}
+                                                    headers={authedJsonHeaders}
+                                                    buttonText={narrationVoiceName}
+                                                    buttonClassName="h-7 max-w-32 truncate rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 text-[11px] font-bold text-cyan-100 transition hover:bg-cyan-500/20 shrink-0"
+                                                    label={`내레이션 ${narrationSubtitleCount}개 성우 선택`}
+                                                    onChange={(id, direction) => {
+                                                        setVrewNarrationVoice(id)
+                                                        setVoiceStudioDirection(direction)
+                                                        applyVrewVoiceBulk('narration', id, direction)
+                                                    }}
                                                 />
+                                                <div className="flex items-center gap-1 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1 shrink-0">
+                                                    <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap">
+                                                        {ui("대사")} {dialogueSubtitleCount}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1 shrink-0">
+                                                    <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
+                                                        {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        min="0.0"
+                                                        max="1.0"
+                                                        step="0.05"
+                                                        value={elStability}
+                                                        onChange={e => setElStability(String(Math.max(0, Math.min(1, Number(e.target.value) || 0))))}
+                                                        className="h-5 w-11 rounded border border-gray-600 bg-[#0f131a] text-center text-[10px] text-white outline-none focus:border-purple-400"
+                                                        title={t('sub_stability')}
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={restoreOriginalWorkerScript}
+                                                    className="flex h-7 items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 text-[11px] font-bold text-amber-300 transition hover:bg-amber-500/20 shrink-0"
+                                                >
+                                                    <RefreshCw size={12} />
+                                                    {ui("대본")}
+                                                </button>
+                                                <div className="hidden sm:block w-px h-5 bg-white/10 shrink-0" />
+                                            </>
+                                        )}
+                                        {/* 템플릿 선택 & 새로고침 */}
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <select
+                                                value={selectedImageTemplatePreset}
+                                                onChange={e => handleSelectImageTemplatePreset(e.target.value)}
+                                                className="text-[11px] font-medium bg-[#1c2027]/50 border border-indigo-500/40 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                                            >
+                                                <option value="" className="bg-[#1c2027] text-white">
+                                                    {ui("템플릿")}
+                                                </option>
+                                                {templatePresets.map(preset => (
+                                                    <option key={preset.id} value={preset.id} className="bg-[#1c2027] text-white">
+                                                        {preset.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={loadTemplatePresetsFromStorage}
+                                                className="h-7 w-7 inline-flex items-center justify-center text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all shrink-0"
+                                                title="새로고침"
+                                            >
+                                                <RefreshCw size={12} />
+                                            </button>
+                                        </div>
+
+                                        <div className="hidden sm:block w-px h-5 bg-white/10 shrink-0" />
+
+                                        {/* 프리셋 관리: 선택 / 삭제 / 새 프리셋명 / 저장 (모바일에서도 오밀조밀 인라인 구성) */}
+                                        <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap shrink-0">
+                                            <select
+                                                value={selectedSubPreset}
+                                                onChange={e => handleApplySubtitlePreset(e.target.value)}
+                                                className="text-[11px] font-medium bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-1.5 text-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[140px]"
+                                            >
+                                                <option value="">{t('sub_select_preset')}</option>
+                                                {subPresetList.map(p => (
+                                                    <option key={p.name} value={p.name} className="bg-[#1c2027] text-white">
+                                                        {p.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteSubtitlePreset}
+                                                className="inline-flex h-7 w-7 items-center justify-center rounded border border-red-900/50 text-red-400 transition-all hover:bg-red-900 hover:text-white shrink-0"
+                                                title={t('btn_delete')}
+                                                aria-label={t('btn_delete')}
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                            <input
+                                                type="text"
+                                                value={newSubPresetName}
+                                                onChange={e => setNewSubPresetName(e.target.value)}
+                                                placeholder={t('sub_new_preset_name')}
+                                                className="text-[11px] bg-[#14181f] border border-white/10 rounded px-1.5 py-1 text-white w-20 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveSubtitlePreset}
+                                                className="inline-flex h-7 w-7 items-center justify-center rounded border border-gray-600 bg-transparent text-white transition-all hover:bg-[#0a0f1d] shrink-0"
+                                                title={t('btn_save')}
+                                                aria-label={t('btn_save')}
+                                            >
+                                                <Save size={12} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* 2행: 폰트 & 크기 & 자간 & 최대글자수 | 글자색/테두리색 | 테두리 두께 & Y 위치 | 배경 바 */}
+                                    <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap border-t border-white/5 pt-2">
+                                        {/* 폰트 & 크기 & 자간 & 최대글자수 */}
+                                        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                                            <select
+                                                value={subFontFamily}
+                                                onChange={e => {
+                                                    const value = e.target.value
+                                                    setSubFontFamily(value)
+                                                    persistSubtitleRenderSettings({ subFontFamily: value })
+                                                }}
+                                                className="text-[11px] bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-1.5 text-white font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer w-28 sm:w-32"
+                                            >
+                                                {SUBTITLE_FONTS.map(f => (
+                                                    <option key={f.value} value={f.value} style={{ fontFamily: f.value }} className="bg-[#1c2027] text-white">
+                                                        {f.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="number"
+                                                    value={subFontSize}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubFontSize(value)
+                                                        persistSubtitleRenderSettings({ subFontSize: value })
+                                                    }}
+                                                    className="w-10 text-center text-[11px] bg-transparent text-white focus:outline-none"
+                                                    step="0.1"
+                                                    min="1"
+                                                    max="20"
+                                                    title="글자 크기 (%)"
+                                                />
+                                                <span className="text-[10px] text-gray-400">%</span>
+                                                <span className="text-[9px] text-gray-500 ml-0.5">{ui("크기")}</span>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={restoreOriginalWorkerScript}
-                                                className="h-8 px-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[11px] font-bold transition flex items-center gap-1.5 whitespace-nowrap"
-                                            >
-                                                <RefreshCw size={13} />
-                                                대본복구
-                                            </button>
-                                            <div className="w-px h-5 bg-white/10 shrink-0" />
-                                        </>
-                                    )}
-                                    {/* 템플릿 선택 & 새로고침 */}
-                                    <div className="flex w-[calc(50%-0.375rem)] items-center gap-1 sm:w-auto sm:shrink-0">
-                                        <select
-                                            value={selectedImageTemplatePreset}
-                                            onChange={e => handleSelectImageTemplatePreset(e.target.value)}
-                                            className="min-w-0 flex-1 text-[11px] font-medium bg-[#1c2027]/50 border border-indigo-500/40 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer sm:flex-none"
-                                        >
-                                            <option value="" className="bg-[#1c2027] text-white">
-                                                템플릿
-                                            </option>
-                                            {templatePresets.map(preset => (
-                                                <option key={preset.id} value={preset.id} className="bg-[#1c2027] text-white">
-                                                    {preset.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            type="button"
-                                            onClick={loadTemplatePresetsFromStorage}
-                                            className="h-7 w-7 inline-flex items-center justify-center text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all"
-                                            title="새로고침"
-                                        >
-                                            <RefreshCw size={13} />
-                                        </button>
-                                    </div>
-
-                                    <div className="w-px h-5 bg-white/10 shrink-0" />
-
-                                    {/* 프리셋 관리: 선택 / 삭제 / 새 프리셋명 / 저장 */}
-                                    <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-1 sm:flex sm:w-auto sm:items-center sm:shrink-0">
-                                        <select
-                                            value={selectedSubPreset}
-                                            onChange={e => handleApplySubtitlePreset(e.target.value)}
-                                            className="text-[11px] font-medium bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-2 text-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                                        >
-                                            <option value="">{t('sub_select_preset')}</option>
-                                            {subPresetList.map(p => (
-                                                <option key={p.name} value={p.name} className="bg-[#1c2027] text-white">
-                                                    {p.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            type="button"
-                                            onClick={handleDeleteSubtitlePreset}
-                                            className="text-[10px] font-bold px-1.5 py-1 text-red-400 hover:text-white border border-red-900/50 hover:bg-red-900 rounded transition-all"
-                                        >
-                                            {t('btn_delete')}
-                                        </button>
-                                        <input
-                                            type="text"
-                                            value={newSubPresetName}
-                                            onChange={e => setNewSubPresetName(e.target.value)}
-                                            placeholder={t('sub_new_preset_name')}
-                                            className="col-span-2 text-[11px] bg-[#14181f] border border-white/10 rounded px-1.5 py-1 text-white w-full focus:outline-none focus:ring-1 focus:ring-blue-500 sm:col-span-1 sm:w-20"
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={handleSaveSubtitlePreset}
-                                            className="text-[11px] border border-gray-600 bg-transparent hover:bg-[#0a0f1d] text-white px-2 py-1 rounded transition-all font-bold"
-                                        >
-                                            {t('btn_save')}
-                                        </button>
-                                    </div>
-
-                                    <div className="w-px h-5 bg-white/10 shrink-0" />
-
-                                    {/* 폰트 & 크기 & 자간 & 최대글자수 */}
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                        <select
-                                            value={subFontFamily}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubFontFamily(value)
-                                                persistSubtitleRenderSettings({ subFontFamily: value })
-                                            }}
-                                            className="text-[11px] bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-2 text-white font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer w-32"
-                                        >
-                                            {SUBTITLE_FONTS.map(f => (
-                                                <option key={f.value} value={f.value} style={{ fontFamily: f.value }} className="bg-[#1c2027] text-white">
-                                                    {f.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <input
-                                            type="number"
-                                            value={subFontSize}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubFontSize(value)
-                                                persistSubtitleRenderSettings({ subFontSize: value })
-                                            }}
-                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
-                                            step="0.1"
-                                            min="1"
-                                            max="20"
-                                            title="글자 크기 (%)"
-                                        />
-                                        <span className="text-[11px] text-gray-400">%</span>
-                                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">줄간격</span>
-                                        <input
-                                            type="number"
-                                            value={subLineSpacing}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubLineSpacing(value)
-                                                persistSubtitleRenderSettings({ subLineSpacing: value })
-                                            }}
-                                            className="w-12 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
-                                            step="0.05"
-                                            min="-0.5"
-                                            max="1.5"
-                                            title="자간/행간 비율"
-                                        />
-                                        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">최대글자수</span>
-                                        <input
-                                            type="number"
-                                            value={subMaxChars}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubMaxChars(value)
-                                                persistSubtitleRenderSettings({ subMaxChars: value })
-                                            }}
-                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-1 text-white focus:ring-1 focus:ring-blue-500"
-                                            min="20"
-                                            max="40"
-                                            title="한 자막 최대 글자 수 (롱폼)"
-                                        />
-                                    </div>
-
-                                    <div className="w-px h-5 bg-white/10 shrink-0" />
-
-                                    {/* 글자색 / 테두리색 */}
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        <div className="flex flex-col items-center gap-0.5">
-                                            <input
-                                                type="color"
-                                                value={subTextColor}
-                                                onChange={e => {
-                                                    const value = e.target.value
-                                                    setSubTextColor(value)
-                                                    persistSubtitleRenderSettings({ subTextColor: value })
-                                                }}
-                                                className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
-                                                title="글자색"
-                                            />
-                                            <span className="text-[9px] text-gray-400">{t('sub_text_color_short')}</span>
+                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="number"
+                                                    value={subLineSpacing}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubLineSpacing(value)
+                                                        persistSubtitleRenderSettings({ subLineSpacing: value })
+                                                    }}
+                                                    className="w-10 text-center text-[11px] bg-transparent text-white focus:outline-none"
+                                                    step="0.05"
+                                                    min="-0.5"
+                                                    max="1.5"
+                                                    title="자간/행간 비율"
+                                                />
+                                                <span className="text-[9px] text-gray-500 ml-0.5">{ui("줄간격")}</span>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="number"
+                                                    value={subMaxChars}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubMaxChars(value)
+                                                        persistSubtitleRenderSettings({ subMaxChars: value })
+                                                    }}
+                                                    className="w-8 text-center text-[11px] bg-transparent text-white focus:outline-none"
+                                                    min="20"
+                                                    max="40"
+                                                    title="한 자막 최대 글자 수 (롱폼)"
+                                                />
+                                                <span className="text-[9px] text-gray-500 ml-0.5">{ui("최대글자수")}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex flex-col items-center gap-0.5">
-                                            <input
-                                                type="color"
-                                                value={subStrokeColor}
-                                                onChange={e => {
-                                                    const value = e.target.value
-                                                    setSubStrokeColor(value)
-                                                    persistSubtitleRenderSettings({ subStrokeColor: value })
-                                                }}
-                                                className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
-                                                title="테두리색"
-                                            />
-                                            <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
+
+                                        <div className="hidden sm:block w-px h-5 bg-white/10 shrink-0" />
+
+                                        {/* 글자색 / 테두리색 */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="flex items-center gap-1 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="color"
+                                                    value={subTextColor}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubTextColor(value)
+                                                        persistSubtitleRenderSettings({ subTextColor: value })
+                                                    }}
+                                                    className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
+                                                    title="글자색"
+                                                />
+                                                <span className="text-[9px] text-gray-400">{t('sub_text_color_short')}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="color"
+                                                    value={subStrokeColor}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubStrokeColor(value)
+                                                        persistSubtitleRenderSettings({ subStrokeColor: value })
+                                                    }}
+                                                    className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
+                                                    title="테두리색"
+                                                />
+                                                <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+                                        <div className="hidden sm:block w-px h-5 bg-white/10 shrink-0" />
 
-                                    {/* 테두리 두께 & Y 위치 */}
-                                    <div className="flex w-[calc(50%-0.375rem)] items-center gap-1 sm:w-auto sm:shrink-0">
-                                        <span className="text-[10px] text-gray-400 font-bold">{t('sub_outline_short')}</span>
-                                        <input
-                                            type="number"
-                                            value={subStrokeWidth}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubStrokeWidth(value)
-                                                persistSubtitleRenderSettings({ subStrokeWidth: value })
-                                            }}
-                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-0.5 text-white"
-                                            min="0"
-                                            max="15"
-                                            step="0.5"
-                                        />
-                                        <span className="text-[10px] text-gray-400">px</span>
-                                        <div className="flex flex-col items-center gap-0.5 ml-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const value = Math.max(0, subPosY + 1)
-                                                    setSubPosY(value)
-                                                    persistSubtitleRenderSettings({ subPosY: value })
-                                                }}
-                                                className="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
-                                                title="위로 (Y위치 증가)"
-                                            >
-                                                ▲
-                                            </button>
-                                            <span className="text-[9px] font-mono text-gray-300 w-5 text-center leading-none">
-                                                {subPosY}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const value = Math.max(0, subPosY - 1)
-                                                    setSubPosY(value)
-                                                    persistSubtitleRenderSettings({ subPosY: value })
-                                                }}
-                                                className="w-5 h-3.5 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
-                                                title="아래로 (Y위치 감소)"
-                                            >
-                                                ▼
-                                            </button>
+                                        {/* 테두리 두께 & Y 위치 */}
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="number"
+                                                    value={subStrokeWidth}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubStrokeWidth(value)
+                                                        persistSubtitleRenderSettings({ subStrokeWidth: value })
+                                                    }}
+                                                    className="w-9 text-center text-[11px] bg-transparent text-white focus:outline-none"
+                                                    min="0"
+                                                    max="15"
+                                                    step="0.5"
+                                                />
+                                                <span className="text-[9px] text-gray-400">px</span>
+                                                <span className="text-[9px] text-gray-500 ml-0.5">{t('sub_outline_short')}</span>
+                                            </div>
+                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1 py-0.5 rounded border border-gray-600/50">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const value = Math.max(0, subPosY + 1)
+                                                        setSubPosY(value)
+                                                        persistSubtitleRenderSettings({ subPosY: value })
+                                                    }}
+                                                    className="w-4 h-4 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
+                                                    title="위로 (Y위치 증가)"
+                                                >
+                                                    ▲
+                                                </button>
+                                                <span className="text-[9px] font-mono text-gray-300 w-4 text-center leading-none">
+                                                    {subPosY}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const value = Math.max(0, subPosY - 1)
+                                                        setSubPosY(value)
+                                                        persistSubtitleRenderSettings({ subPosY: value })
+                                                    }}
+                                                    className="w-4 h-4 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
+                                                    title="아래로 (Y위치 감소)"
+                                                >
+                                                    ▼
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div className="w-px h-5 bg-white/10 shrink-0" />
+                                        <div className="hidden sm:block w-px h-5 bg-white/10 shrink-0" />
 
-                                    {/* 배경 바 / 세로 여백 */}
-                                    <div className="flex w-full items-center gap-1.5 overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0 sm:shrink-0">
-                                        <span className="text-[10px] text-gray-400 font-bold">{t('sub_background_bar')}</span>
-                                        <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={subBgStrip}
-                                                onChange={e => {
-                                                    const value = e.target.checked
-                                                    setSubBgStrip(value)
-                                                    persistSubtitleRenderSettings({ subBgStrip: value })
-                                                }}
-                                                className="sr-only peer"
-                                            />
-                                            <div className="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
-                                        </label>
-                                        <div className="flex flex-col items-center gap-0.5">
+                                        {/* 배경 바 / 세로 여백 */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="flex items-center gap-1">
+                                                <label className="relative inline-flex h-4 items-center cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={subBgStrip}
+                                                        onChange={e => {
+                                                            const value = e.target.checked
+                                                            setSubBgStrip(value)
+                                                            persistSubtitleRenderSettings({ subBgStrip: value })
+                                                        }}
+                                                        className="sr-only peer"
+                                                    />
+                                                    <div className="w-7 h-3.5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600" />
+                                                </label>
+                                                <span className="text-[9px] text-gray-400">{t('sub_background_bar')}</span>
+                                            </div>
                                             <input
                                                 type="color"
                                                 value={subBgColor}
@@ -8479,137 +8764,50 @@ export default function StdPortalPage() {
                                                     setSubBgColor(value)
                                                     persistSubtitleRenderSettings({ subBgColor: value })
                                                 }}
-                                                className="w-7 h-5 p-0 bg-transparent border border-gray-600 rounded cursor-pointer"
+                                                className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
                                                 title="배경색"
                                             />
+                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="number"
+                                                    value={subBgOpacity}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubBgOpacity(value)
+                                                        persistSubtitleRenderSettings({ subBgOpacity: value })
+                                                    }}
+                                                    step="0.1"
+                                                    min="0"
+                                                    max="1"
+                                                    className="w-8 text-center text-[10px] bg-transparent text-white focus:outline-none"
+                                                    title="불투명도 (0~1)"
+                                                />
+                                                <span className="text-[10px] text-gray-500">:</span>
+                                                <input
+                                                    type="number"
+                                                    value={subBgVOffset}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubBgVOffset(value)
+                                                        persistSubtitleRenderSettings({ subBgVOffset: value })
+                                                    }}
+                                                    step="1"
+                                                    className="w-7 text-center text-[10px] bg-transparent text-white focus:outline-none"
+                                                    title="세로 여백/오프셋"
+                                                />
+                                            </div>
                                         </div>
-                                        <input
-                                            type="number"
-                                            value={subBgOpacity}
-                                            onChange={e => {
-                                                const value = e.target.value
-                                                setSubBgOpacity(value)
-                                                persistSubtitleRenderSettings({ subBgOpacity: value })
-                                            }}
-                                            step="0.1"
-                                            min="0"
-                                            max="1"
-                                            className="w-10 text-center text-[11px] bg-[#14181f] border border-gray-600 rounded-md py-0.5 text-white"
-                                            title="불투명도 (0~1)"
-                                        />
-                                        <div className="flex items-center gap-0.5 bg-[#14181f] px-1 rounded border border-white/5">
-                                            <span className="text-[10px] text-gray-400">:</span>
-                                            <input
-                                                type="number"
-                                                value={subBgVOffset}
-                                                onChange={e => {
-                                                    const value = e.target.value
-                                                    setSubBgVOffset(value)
-                                                    persistSubtitleRenderSettings({ subBgVOffset: value })
-                                                }}
-                                                step="1"
-                                                className="w-8 text-center text-[11px] bg-transparent border-0 py-0.5 text-white focus:outline-none"
-                                                title="세로 여백/오프셋"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="w-px h-5 bg-white/10 shrink-0" />
-
-                                    {/* 액션 버튼 6종 */}
-                                    <div className="grid w-full grid-cols-3 gap-1.5 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const scenes = selectedProject?.scenes || []
-                                                const subs = generateSynchronizedSubtitles(
-                                                    selectedProject?.project?.project_payload?.script || customScriptText || '',
-                                                    scenes,
-                                                    Number(subMaxChars) || 20
-                                                )
-                                                setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
-                                                setSelectedSubIndex(0)
-                                                alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
-                                            }}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
-                                            title={t('sub_reset_reload')}
-                                        >
-                                            초기화
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleSyncSubtitleSceneVisuals}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
-                                            title={t('sub_sync_ai_images')}
-                                        >
-                                            이미지동기화
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
-                                            className="text-[10px] font-bold px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-md shadow flex items-center gap-1"
-                                            title={t('sub_sync_all_script')}
-                                        >
-                                            <span>🔮</span> 대본동기화
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => subtitleReviewLocale
-                                                ? void translateSubtitleBlocks(subtitleReviewLocale, true)
-                                                : alert('영어, 베트남어 또는 태국어 모드를 선택해 주세요.')}
-                                            disabled={Boolean(translatingSubtitleLanguage) || localSubtitles.length === 0}
-                                            title={subtitleReviewCopy ? `원문 블록 경계를 유지하여 ${subtitleReviewCopy.name}로 다시 번역합니다.` : undefined}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-blue-400 hover:text-blue-300 transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                                        >
-                                            {translatingSubtitleLanguage && subtitleReviewLocale === translatingSubtitleLanguage
-                                                ? subtitleReviewCopy?.translating
-                                                : t('sub_translate')}
-                                        </button>
-                                        {subtitleReviewLocale && subtitleTranslationError && (
-                                            <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
-                                                {subtitleReviewCopy?.retry}
-                                            </span>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => void syncSubtitleTimingsToNarration()}
-                                            disabled={isSubtitleSyncing || localSubtitles.length === 0}
-                                            className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                                            title="줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다."
-                                        >
-                                            {isSubtitleSyncing ? '음성 길이 보정 중...' : '음성 길이 보정'}
-                                        </button>
-                                        {isSubtitleSyncing && (
-                                            <button type="button" className="px-2 py-1 text-[11px] text-red-300" onClick={() => subtitleSyncControllerRef.current?.abort(new Error('사용자가 보정을 취소했습니다.'))}>취소</button>
-                                        )}
-                                        {subtitleSyncProgress && <span role="status" aria-live="polite" className="max-w-full text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleFinalizeSubtitlesAndTts()}
-                                            disabled={generatingTts || !canFinalizeSubtitlesAndTts}
-                                            className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition ${
-                                                generatingTts || !canFinalizeSubtitlesAndTts
-                                                    ? 'bg-gray-700 cursor-not-allowed opacity-60'
-                                                    : 'bg-violet-600 hover:bg-violet-500'
-                                            }`}
-                                            title={canFinalizeSubtitlesAndTts
-                                                ? '최종 자막 저장 및 TTS 생성'
-                                                : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
-                                        >
-                                            {generatingTts ? t('sub_final_saving') : '저장+TTS'}
-                                        </button>
                                     </div>
                                 </div>
-
                             </div>
 
                             {/* 2. 메인 바디: 좌측(자막 레이어 목록) + 우측(프리뷰 & 편집) */}
                             <div className="std-subtitle-body grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
                                 <div className="order-2 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-[360px] lg:order-none lg:min-h-0">
-                                    <div className="flex min-h-[57px] flex-col items-start gap-2 p-2.5 sm:p-3 border-b border-white/5 bg-[#14181f] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                                        <div className="flex min-w-0 flex-wrap items-center gap-2 overflow-visible sm:flex-nowrap">
-                                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap">
+                                    <div className="flex min-h-[46px] sm:min-h-[50px] items-center justify-between gap-1.5 sm:gap-2 p-2 sm:p-2.5 border-b border-white/5 bg-[#14181f] overflow-x-auto subtitle-navy-scrollbar flex-nowrap">
+                                        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 overflow-visible shrink-0 flex-nowrap">
+                                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap shrink-0">
                                                 <input
                                                     type="checkbox"
                                                     ref={(element) => {
@@ -8625,21 +8823,66 @@ export default function StdPortalPage() {
                                                             ? []
                                                             : subtitleSceneGroups.map(group => Number(group.scene_number)))
                                                     }}
-                                                    aria-label="전체 씬 선택"
+                                                    aria-label={ui("전체 씬 선택")}
                                                     className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
                                                 />
-                                                {t('sub_select_all')}
+                                                {selectedSubtitleSceneNumbers.length > 0 ? (
+                                                    <span className="text-cyan-400 font-bold">{selectedSubtitleSceneNumbers.length}</span>
+                                                ) : (
+                                                    <span>{t('sub_all')}</span>
+                                                )}
                                             </label>
-                                            <h3 className="text-xs font-bold text-white">{t('sub_layer_list')}</h3>
-                                            <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">
-                                                {tf('sub_total_blocks', { count: localSubtitles.length })}
-                                            </span>
-                                            {selectedSubtitleBlockIndexes.length >= 2 && (
-                                                <>
-                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 font-bold">
-                                                        {tf('sub_selected_blocks', { count: selectedSubtitleBlockIndexes.length })}
-                                                    </span>
-                                                    {renderVoicePicker(
+                                            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-nowrap">
+                                                {renderVoicePicker(
+                                                    'selected-scenes-bulk',
+                                                    selectedSubtitleSceneVoiceId,
+                                                    (nextVoiceId) => {
+                                                        if (selectedSubtitleSceneGroup) {
+                                                            void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
+                                                        }
+                                                    },
+                                                    `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
+                                                    'default',
+                                                    'left',
+                                                    !hasSelectedSubtitleSections
+                                                )}
+                                                {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
+                                                <div className="ml-0.5">
+                                                    {renderSelectedSceneMotionPicker(!hasSelectedSubtitleSections)}
+                                                </div>
+                                                {isVrewSubtitleMode && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            disabled={selectedSubtitleBlockIndexes.length < 2}
+                                                            title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
+                                                            onClick={() => void mergeSelectedSubtitleBlocks()}
+                                                            className="ml-0.5 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 sm:px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
+                                                        >
+                                                            <Combine size={13} /> {t('sub_merge_action')}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={selectedSubtitleBlockIndexes.length !== 1}
+                                                            onClick={() => void splitSelectedSubtitleBlock()}
+                                                            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 sm:px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
+                                                        >
+                                                            <Scissors size={13} /> {t('sub_split_action')}
+                                                        </button>
+                                                    </>
+                                                )}
+                                                <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 text-[11px] font-bold px-2.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded shrink-0">{t('sub_add_action')}</button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => alert('선택한 자막 레이어를 삭제합니다.')}
+                                                    className="h-7 w-7 inline-flex items-center justify-center bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white/80 hover:text-white rounded transition shrink-0"
+                                                    title={t('sub_delete_selected')}
+                                                    aria-label={t('sub_delete_selected')}
+                                                >
+                                                    <Trash2 size={13} />
+                                                </button>
+                                                {selectedSubtitleBlockIndexes.length >= 2 && (
+                                                    renderVoicePicker(
                                                         'selected-blocks-bulk',
                                                         selectedSubtitleBlockVoiceId,
                                                         (nextVoiceId) => void setSelectedSubtitleBlocksVoice(nextVoiceId),
@@ -8647,59 +8890,84 @@ export default function StdPortalPage() {
                                                         'dialogue',
                                                         'right',
                                                         false,
-                                                        { buttonLabel: '대사', elevenLabsOnly: true }
-                                                    )}
-                                                </>
-                                            )}
-                                            {selectedSubtitleSceneNumbers.length > 0 && (
-                                                <>
-                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-bold">
-                                                        {tf('sub_selected_scenes', { count: selectedSubtitleSceneNumbers.length })}
-                                                    </span>
-                                                </>
-                                            )}
-                                        </div>
-                                        <div className="flex w-full flex-wrap items-center gap-1.5 sm:ml-auto sm:w-auto sm:shrink-0">
-                                            {renderVoicePicker(
-                                                'selected-scenes-bulk',
-                                                selectedSubtitleSceneVoiceId,
-                                                (nextVoiceId) => {
-                                                    if (selectedSubtitleSceneGroup) {
-                                                        void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
-                                                    }
-                                                },
-                                                `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
-                                                'default',
-                                                'left',
-                                                !hasSelectedSubtitleSections
-                                            )}
-                                            {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
-                                            <div className="ml-1">
-                                                {renderSelectedSceneMotionPicker(!hasSelectedSubtitleSections)}
+                                                        { countBadge: selectedSubtitleBlockIndexes.length, elevenLabsOnly: true }
+                                                    )
+                                                )}
                                             </div>
-                                            {isVrewSubtitleMode && (
-                                                <>
-                                                    <button
-                                                        type="button"
-                                                        disabled={selectedSubtitleBlockIndexes.length < 2}
-                                                        title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
-                                                        onClick={() => void mergeSelectedSubtitleBlocks()}
-                                                        className="ml-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
-                                                    >
-                                                        <Combine size={13} /> {t('sub_merge_action')}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        disabled={selectedSubtitleBlockIndexes.length !== 1}
-                                                        onClick={() => void splitSelectedSubtitleBlock()}
-                                                        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2.5 text-[10px] font-bold text-gray-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35"
-                                                    >
-                                                        <Scissors size={13} /> {t('sub_split_action')}
-                                                    </button>
-                                                </>
+                                        </div>
+
+                                        {/* 자막 동기화 및 저장 버튼 */}
+                                        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto flex-nowrap">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const scenes = selectedProject?.scenes || []
+                                                    const subs = generateSynchronizedSubtitles(
+                                                        selectedProject?.project?.project_payload?.script || customScriptText || '',
+                                                        scenes,
+                                                        Number(subMaxChars) || 20
+                                                    )
+                                                    setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
+                                                    setSelectedSubIndex(0)
+                                                    alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
+                                                }}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
+                                                title={t('sub_reset_reload')}
+                                            >
+                                                {ui("초기화")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleSyncSubtitleSceneVisuals}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
+                                                title={t('sub_sync_ai_images')}
+                                            >
+                                                {ui("이미지동기화")}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSyncScriptToScenesAndSubtitles(true)}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
+                                                title={t('sub_sync_all_script')}
+                                            >
+                                                {ui("대본동기화")}
+                                            </button>
+                                            {subtitleReviewLocale && subtitleTranslationError && (
+                                                <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
+                                                    {subtitleReviewCopy?.retry}
+                                                </span>
                                             )}
-                                            <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 flex-1 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded sm:flex-none">{t('sub_add_action')}</button>
-                                            <button onClick={() => alert('선택한 자막 레이어를 삭제합니다.')} className="h-7 flex-1 text-[11px] font-bold px-3 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded sm:flex-none">{t('sub_delete_selected')}</button>
+                                            <button
+                                                type="button"
+                                                onClick={() => void syncSubtitleTimingsToNarration()}
+                                                disabled={isSubtitleSyncing || localSubtitles.length === 0}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all disabled:cursor-not-allowed disabled:opacity-45"
+                                                title="줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다."
+                                            >
+                                                {isSubtitleSyncing ? ui("음성 길이 보정 중...") : ui("음성 길이 보정")}
+                                            </button>
+                                            {isSubtitleSyncing && (
+                                                <button type="button" className="px-2 py-1 text-[11px] text-red-300" onClick={() => subtitleSyncControllerRef.current?.abort(new Error('사용자가 보정을 취소했습니다.'))}>{ui("취소")}</button>
+                                            )}
+                                            {subtitleSyncProgress && <span role="status" aria-live="polite" className="max-w-full text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleFinalizeSubtitlesAndTts()}
+                                                disabled={generatingTts || !canFinalizeSubtitlesAndTts}
+                                                className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition-all duration-300 ${
+                                                    generatingTts || !canFinalizeSubtitlesAndTts
+                                                        ? 'bg-gray-700 cursor-not-allowed opacity-60'
+                                                        : highlightSaveTts
+                                                        ? 'bg-gradient-to-r from-violet-600 via-pink-500 via-amber-400 to-violet-600 animate-gradient-shift ring-2 ring-pink-400/90 shadow-[0_0_16px_rgba(236,72,153,0.9)] scale-105 hover:scale-110 active:scale-95'
+                                                        : 'bg-violet-600 hover:bg-violet-500'
+                                                }`}
+                                                title={canFinalizeSubtitlesAndTts
+                                                    ? (highlightSaveTts ? '음성 생성이 필요합니다! 클릭하여 최종 자막 및 TTS를 생성하세요' : '최종 자막 저장 및 TTS 생성')
+                                                    : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
+                                            >
+                                                {highlightSaveTts && !generatingTts && <span className="mr-1 inline-block animate-bounce">✨</span>}
+                                                {generatingTts ? t('sub_final_saving') : ui('저장+TTS')}
+                                            </button>
                                         </div>
                                     </div>
 
@@ -8725,14 +8993,14 @@ export default function StdPortalPage() {
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : undefined)
                                                 const segmentStatusLabel = segmentStatus === 'ready'
-                                                    ? '음성 준비됨'
+                                                    ? ui("음성 준비됨")
                                                     : segmentStatus === 'generating'
-                                                    ? '생성 중'
+                                                    ? ui("생성 중")
                                                     : segmentStatus === 'loading'
-                                                    ? '음성 확인·준비 중'
+                                                    ? ui("음성 확인·준비 중")
                                                     : segmentStatus === 'stale'
-                                                    ? '재생성 필요'
-                                                    : '오류'
+                                                    ? ui("재생성 필요")
+                                                    : ui("오류")
                                                 return (
                                                     <div
                                                         key={`scene-group-card-${sNum}`}
@@ -8783,7 +9051,7 @@ export default function StdPortalPage() {
                                                                 />
                                                                 {group.video_url ? (
                                                                     <span className="absolute top-0.5 right-0.5 bg-purple-700/90 text-white text-[8px] font-bold px-1 rounded">
-                                                                        영상 완료
+                                                                        {ui("영상 완료")}
                                                                     </span>
                                                                 ) : null}
                                                                 <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
@@ -8791,11 +9059,11 @@ export default function StdPortalPage() {
                                                                 </span>
                                                                 {isHook ? (
                                                                     <span className="absolute top-0.5 left-0.5 bg-orange-600/90 text-white text-[8px] font-bold px-1 rounded">
-                                                                        🎬 훅 #{sNum}
+                                                                        🎬 {ui("훅")} #{sNum}
                                                                     </span>
                                                                 ) : (
                                                                     <span className="absolute top-0.5 left-0.5 bg-blue-600/80 text-white text-[8px] font-bold px-1 rounded">
-                                                                        🖼️ 씬 #{sNum}
+                                                                        🖼️ {ui("씬")} #{sNum}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -8805,10 +9073,10 @@ export default function StdPortalPage() {
                                                             </div>
                                                             {transitionEffect && transitionEffect !== 'none' && (
                                                                 <div
-                                                                    title={`화면전환효과: ${sceneTransitionLabel(transitionEffect)}`}
+                                                                    title={`화면전환효과: ${ui(sceneTransitionLabel(transitionEffect))}`}
                                                                     className="mt-1 truncate text-[8px] sm:text-[9px] font-bold text-violet-300"
                                                                 >
-                                                                    {sceneTransitionLabel(transitionEffect)}
+                                                                    {ui(sceneTransitionLabel(transitionEffect))}
                                                                 </div>
                                                             )}
                                                             {isVrewSubtitleMode && !isHook && (
@@ -8860,7 +9128,7 @@ export default function StdPortalPage() {
                                                                         <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                                             voices={allVoices}
                                                                             microphone
-                                                                            buttonText="내레이션"
+                                                                            buttonText={ui("내레이션")}
                                                                             label={`씬 ${sNum} Google 내레이션 성우 선택`}
                                                                             description="이 섹션에 적용합니다. 여러 씬을 선택했다면 선택한 씬에 함께 적용합니다."
                                                                             value={groupVoiceId}
@@ -8924,9 +9192,9 @@ export default function StdPortalPage() {
                                                                                     {lineIndex + 1}
                                                                                 </button>
                                                                                 <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
-                                                                                    {sfxSubtitleIndexes.has(item.subtitleIndex) && <span role="img" aria-label="효과음 있음" title="효과음이 배치된 자막" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/50 bg-purple-500/10 text-[11px] leading-none text-purple-100">★</span>}
+                                                                                    {sfxSubtitleIndexes.has(item.subtitleIndex) && <span role="img" aria-label={ui("효과음 있음")} title={ui("효과음이 배치된 자막")} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/50 bg-purple-500/10 text-[11px] leading-none text-purple-100">★</span>}
                                                                                     <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
-                                                                                        {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={currentLocale === 'th' ? 'แก้ไขข้อมูลผู้พูด (ไม่อ่านออกเสียง)' : '화자 정보 편집 (TTS·영상 자막 제외)'} className="mr-2 shrink-0 rounded border border-amber-300/30 px-1.5 py-1 text-[10px] text-amber-200">{speakerInfo?.label || (currentLocale === 'th' ? 'ยืนยันผู้พูด' : '화자 확인 필요')} · {speakerInfo?.gender === 'male' ? (currentLocale === 'th' ? 'ชาย' : '남성') : speakerInfo?.gender === 'female' ? (currentLocale === 'th' ? 'หญิง' : '여성') : '?'}</button>}
+                                                                                        {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={currentLocale === 'th' ? 'แก้ไขข้อมูลผู้พูด (ไม่อ่านออกเสียง)' : '화자 정보 편집 (TTS·영상 자막 제외)'} className={`mr-2 shrink-0 rounded border px-1.5 py-1 text-[10px] ${speakerInfo?.gender === 'female' ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : 'border-amber-300/30 text-amber-200'}`}>{speakerInfo?.label || (currentLocale === 'th' ? 'ยืนยันผู้พูด' : '화자 확인 필요')} · {speakerInfo?.gender === 'male' ? (currentLocale === 'th' ? 'ชาย' : '남성') : speakerInfo?.gender === 'female' ? (currentLocale === 'th' ? 'หญิง' : '여성') : '?'}</button>}
                                                                                         <span className="min-w-0 truncate" title={String(item.text || '')}>
                                                                                             {candidates.length ? (() => {
                                                                                                 const parts: React.ReactNode[] = []
@@ -8940,7 +9208,7 @@ export default function StdPortalPage() {
                                                                                                 return parts
                                                                                             })() : renderAiDialogue(item, item.subtitleIndex)}
                                                                                         </span>
-                                                                                        <div className="ml-1.5 inline-flex shrink-0 align-middle" onClick={event => event.stopPropagation()}>
+                                                                                        <div className="ml-1.5 inline-flex shrink-0 align-middle items-center gap-1" onClick={event => event.stopPropagation()}>
                                                                                             {renderVoicePicker(
                                                                                                 `block-${item.subtitleIndex}`,
                                                                                                 blockVoiceId,
@@ -8953,6 +9221,12 @@ export default function StdPortalPage() {
                                                                                                 false,
                                                                                                 { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerInfo?.label || '', gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
                                                                                             )}
+                                                                                            <SubtitleVolumePicker
+                                                                                                volume={item.volume ?? (item.volume_ratio ? Math.round(item.volume_ratio * 100) : 100)}
+                                                                                                speakerName={speakerInfo?.name}
+                                                                                                onChange={(nextVol, allSpeaker) => applySubtitleVolume(item.subtitleIndex, nextVol, allSpeaker)}
+                                                                                                title={isDialogueBlock ? `${speakerInfo?.name || '대사'} 볼륨 조절` : '내레이션 볼륨 조절'}
+                                                                                            />
                                                                                         </div>
                                                                                     </div>
                                                                                     {subtitleReviewLocale && subtitleReviewCopy && (
@@ -9138,7 +9412,7 @@ export default function StdPortalPage() {
                                             ) : (
                                                 <div className="w-full h-full bg-[#0b0e14] flex flex-col items-center justify-center text-gray-600 gap-1 select-none">
                                                     <span className="text-2xl opacity-40">🖼️</span>
-                                                    <span className="text-[10px] font-mono text-gray-500">이미지 없음 (업로드 대기)</span>
+                                                    <span className="text-[10px] font-mono text-gray-500">{ui("이미지 없음 (업로드 대기)")}</span>
                                                 </div>
                                             )}
                                             {previewTransition && (previewTransition.videoUrl || previewTransition.imageUrl) && (
@@ -9258,7 +9532,7 @@ export default function StdPortalPage() {
                                                     </span>
                                                     {currentSub.is_hook_zone && (
                                                         <span className="text-[9px] bg-orange-600/30 text-orange-400 px-1.5 py-0.5 rounded font-bold border border-orange-500/30">
-                                                            🎬 5초 훅 씬 #{currentSub.scene_number}
+                                                            🎬 {currentLocale === "th" ? "ช่วงเปิด 5 วินาที ฉาก" : "5초 훅 씬"} #{currentSub.scene_number}
                                                         </span>
                                                     )}
                                                 </div>
@@ -9284,7 +9558,7 @@ export default function StdPortalPage() {
                                                     </span>
                                                 </div>
                                             </div>
-                                            {bgmAsset && <BackgroundAudioWaveform src={previewBgmUrl} time={playbackTime}
+                                            {bgmAsset && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={playbackTime}
                                                 timelineDuration={totalDuration} muted={bgmVolume === 0} loop={bgmLoop} />}
                                         </div>
                                     </div>
@@ -9369,7 +9643,12 @@ export default function StdPortalPage() {
                                                             onBlur={() => setIsSubtitleTextEditing(false)}
                                                             onChange={e => {
                                                                 const newText = e.target.value
-                                                                const updatedSub = { ...currentSub, text: newText }
+                                                                const wasDialogue = isSubtitleDialogue(currentSub, selectedSubIndex)
+                                                                const updatedSub = {
+                                                                    ...currentSub,
+                                                                    text: newText,
+                                                                    ...(wasDialogue ? { dialogue_override: true } : {}),
+                                                                }
                                                                 if (isVrewSubtitleMode && isPlayingPreview) stopVrewPlayback()
                                                                 if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
                                                                 setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
@@ -9378,7 +9657,7 @@ export default function StdPortalPage() {
                                                         />
                                                     ) : (
                                                         <div className="flex items-start gap-1.5">
-                                                            <SubtitleSfxEditor
+                                                            <SubtitleSfxEditor locale={currentLocale}
                                                                 projectId={selectedProject.project.id} headers={authedJsonHeaders} onPreviewOpen={stopVrewPlayback}
                                                                 key={selectedProject?.project?.id}
                                                                 subtitle={currentSub} subtitleIndex={selectedSubIndex} subtitles={localSubtitles}
@@ -9394,7 +9673,7 @@ export default function StdPortalPage() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setIsSubtitleTextEditing(true)}
-                                                                title="자막 텍스트 편집"
+                                                                title={ui("자막 텍스트 편집")}
                                                                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/10 bg-[#10151d] text-gray-300 transition hover:border-white/20 hover:bg-[#202632] hover:text-white"
                                                             >
                                                                 <Pencil size={14} />
@@ -9411,10 +9690,10 @@ export default function StdPortalPage() {
                                                     type="button"
                                                     onClick={() => document.getElementById('audioUploadInput')?.click()}
                                                     className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-gray-600 px-2 text-[11px] font-bold text-gray-200 transition hover:bg-white/5 hover:text-white"
-                                                    title="배경 오디오를 업로드합니다. 내레이션은 유지됩니다."
+                                                    title={ui("배경 오디오를 업로드합니다. 내레이션은 유지됩니다.")}
                                                 >
                                                     <Upload size={13} className="shrink-0 text-yellow-300" />
-                                                    오디오
+                                                    {ui("오디오")}
                                                 </button>
                                                 <input id="std-bgm-upload" type="file" accept="audio/*" className="hidden" onChange={handleUploadBgmFile} disabled={uploadingKey === 'bgm-upload'} />
                                                 <button
@@ -9425,13 +9704,18 @@ export default function StdPortalPage() {
                                                     className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] font-black text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
                                                 >
                                                     <Upload size={13} className="shrink-0" />
-                                                    BGM배경음
+                                                    {ui("BGM배경음")}
                                                 </button>
                                             </div>
+                                                {selectedProject && <AiSfxPlanButton locale={currentLocale} key={selectedProject.project.id}
+                                                    projectId={selectedProject.project.id} headers={authedJsonHeaders}
+                                                    appliedJobId={bgmSfxSettings.sfx_plan?.job_id} subtitles={localSubtitles}
+                                                    beforeSave={() => handleSaveSubtitles(false)}
+                                                    onApplied={() => openProject(selectedProject.project.id)} />}
                                                 {(selectedProject?.assets || []).some(a => audioAssetRole(a) === 'sfx') && (
                                                     <button type="button" onClick={() => setSubEditTab('subtitle')}
                                                         className="text-left text-[11px] text-purple-200 underline underline-offset-2">
-                                                        저장된 효과음 선택 · 단어 사이에 배치 →
+                                                        {ui("저장된 효과음 선택 · 단어 사이에 배치 →")}
                                                     </button>
                                                 )}
                                                 {(bgmAsset?.file_name || bgmSfxSettings.bgm_file_name) && (
@@ -9447,17 +9731,17 @@ export default function StdPortalPage() {
                                                 <label className="flex items-center gap-1.5 text-[11px] text-cyan-200">
                                                     <input type="checkbox" checked={bgmLoop} disabled={savingBgmVolume}
                                                         onChange={event => setBgmLoop(event.target.checked)} className="accent-cyan-400" />
-                                                    배경음 반복
+                                                    {ui("배경음 반복")}
                                                 </label>
                                                 <div className="flex items-center gap-2 text-[11px] text-gray-300">
                                                     <button type="button" onClick={toggleBgmMute} disabled={savingBgmVolume}
-                                                        aria-label={bgmVolume === 0 ? '배경음 음소거 해제' : '배경음 음소거'}
+                                                        aria-label={bgmVolume === 0 ? ui('배경음 음소거 해제') : ui('배경음 음소거')}
                                                         aria-pressed={bgmVolume === 0}
-                                                        title={bgmVolume === 0 ? '배경음 음소거 해제' : '배경음 음소거'}
+                                                        title={bgmVolume === 0 ? ui('배경음 음소거 해제') : ui('배경음 음소거')}
                                                         className="shrink-0 rounded border border-cyan-500/30 p-1.5 text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50">
                                                         {bgmVolume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
                                                     </button>
-                                                    <label htmlFor="std-bgm-volume" className="shrink-0">배경음 볼륨</label>
+                                                    <label htmlFor="std-bgm-volume" className="shrink-0">{ui("배경음 볼륨")}</label>
                                                     <input id="std-bgm-volume" type="range" min="0" max="100" step="1"
                                                         value={Math.round(bgmVolume * 100)} disabled={savingBgmVolume}
                                                         onChange={event => setBgmVolume(backgroundVolume(Number(event.target.value) / 100))}
@@ -9466,7 +9750,7 @@ export default function StdPortalPage() {
                                                     <button type="button" disabled={savingBgmVolume || uploadingKey !== ''}
                                                         onClick={() => void saveBgmVolume()}
                                                         className="rounded border border-cyan-500/30 px-2 py-1 text-cyan-200 disabled:opacity-50">
-                                                        {savingBgmVolume ? '저장 중' : '저장'}
+                                                        {savingBgmVolume ? ui('저장 중...') : ui('저장')}
                                                     </button>
                                                 </div>
                                             </div>
@@ -9529,7 +9813,7 @@ export default function StdPortalPage() {
                                         className="px-4 py-1.5 text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
                                     >
                                         <Volume2 className={`h-3.5 w-3.5 ${generatingTts ? 'animate-bounce' : ''}`} />
-                                        {generatingTts ? '음성 생성 중...' : '음성 생성'}
+                                        {generatingTts ? ui('음성 생성 중...') : ui('음성 생성')}
                                     </button>
                                 </div>
                             </div>
@@ -9615,7 +9899,7 @@ export default function StdPortalPage() {
                                                                             className="text-[10px] text-cyan-400 hover:text-white px-2 py-0.5 bg-cyan-500/10 hover:bg-cyan-500/30 rounded border border-cyan-500/30 font-bold transition-all"
                                                                             title="목소리 미리듣기"
                                                                         >
-                                                                            ▶ 미리듣기
+                                                                            {ui("▶ 미리듣기")}
                                                                         </button>
                                                                     )}
                                                                 </div>
@@ -10365,7 +10649,7 @@ export default function StdPortalPage() {
                                                 onClick={() => setTopicModalOpen(false)}
                                                 className="px-5 py-2.5 bg-[#202632] hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
                                             >
-                                                취소
+                                                {ui("취소")}
                                             </button>
                                             <button
                                                 type="button"
@@ -11128,7 +11412,7 @@ export default function StdPortalPage() {
                                 <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1000px]">
                                     <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px]">
                                         <tr>
-                                            <th className="px-2 py-2.5 w-12 text-center">썸네일</th>
+                                            <th className="px-2 py-2.5 w-12 text-center">{ui("썸네일")}</th>
                                             <th className="px-3 py-2.5 w-10 text-center">
                                                 <input type="checkbox" className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
                                             </th>
@@ -11136,13 +11420,13 @@ export default function StdPortalPage() {
                                             <th className="px-2 py-2.5 w-24 text-center">시작일</th>
                                             <th className="px-2 py-2.5 w-24 text-center">수정일</th>
                                             <th className="px-3 py-2.5">영상 제목</th>
-                                            <th className="px-1 py-2.5 w-12 text-center">주제</th>
-                                            <th className="px-1 py-2.5 w-12 text-center">기획</th>
-                                            <th className="px-1 py-2.5 w-12 text-center">대본</th>
-                                            <th className="px-1 py-2.5 w-12 text-center">이미지</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("주제")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("기획")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("대본")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("이미지")}</th>
                                             <th className="px-1 py-2.5 w-12 text-center">TTS</th>
-                                            <th className="px-1 py-2.5 w-12 text-center">자막</th>
-                                            <th className="px-1 py-2.5 w-12 text-center">썸네일</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("자막")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("썸네일")}</th>
                                             <th className="px-2 py-2.5 w-24 text-center text-cyan-300 font-black tracking-wide">렌더</th>
                                             <th className="px-2 py-2.5 w-16 text-center">비고</th>
                                         </tr>
@@ -11282,11 +11566,11 @@ export default function StdPortalPage() {
                                                                             type="button"
                                                                             onClick={() => reopenProjectForRerender(String(p.id))}
                                                                             disabled={loading}
-                                                                            className="inline-flex items-center gap-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600 px-2 py-1 text-[10px] font-bold text-indigo-300 hover:text-white border border-indigo-500/30 disabled:opacity-50 transition"
+                                                                            className="mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 text-[11px] font-black text-indigo-200 shadow-sm shadow-indigo-950/30 transition hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white active:scale-95 disabled:opacity-50"
                                                                             title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
                                                                         >
-                                                                            <RefreshCw className="w-3 h-3" />
-                                                                            수정·재렌더
+                                                                            <RefreshCw className="h-3.5 w-3.5" />
+                                                                            <span>Re</span>
                                                                         </button>
                                                                     ) : submittingProjectId === String(p.id) ? (
                                                                         <button
@@ -11683,7 +11967,7 @@ export default function StdPortalPage() {
                                                 onClick={saveTemplatePreset}
                                                 className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-xs font-bold text-white shadow whitespace-nowrap"
                                             >
-                                                저장
+                                                {ui("저장")}
                                             </button>
                                         </div>
                                     </div>

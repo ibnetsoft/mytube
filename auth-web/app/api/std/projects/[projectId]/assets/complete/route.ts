@@ -12,6 +12,7 @@ import {
     uploadStdDriveBuffer,
 } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
+import { downloadGcsObject, isGcsStorageConfigured } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,23 +32,29 @@ function uploadedById(value: any): string | null {
 
 async function archiveSupabaseAssetToDrive(project: any, asset: any) {
     const metadata = asset?.metadata || {}
+    const storageProvider = String(metadata?.storage_provider || '').trim().toLowerCase()
     const storageBucket = String(metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
     const storagePath = String(metadata?.storage_path || '').trim().replace(/^\/+/, '')
     if (!storagePath) return asset
 
-    const { data: storageFile, error: storageError } = await supabaseAdmin.storage
-        .from(storageBucket)
-        .download(storagePath)
-    if (storageError || !storageFile) {
-        throw new Error(storageError?.message || 'Supabase Storage archive source is unavailable')
-    }
+    const fileBuffer = storageProvider === 'gcs'
+        ? await downloadGcsObject({ bucket: storageBucket, objectPath: storagePath })
+        : Buffer.from(await (async () => {
+            const { data: storageFile, error: storageError } = await supabaseAdmin.storage
+                .from(storageBucket)
+                .download(storagePath)
+            if (storageError || !storageFile) {
+                throw new Error(storageError?.message || 'Supabase Storage archive source is unavailable')
+            }
+            return await storageFile.arrayBuffer()
+        })())
 
     const folders = await ensureStdProjectDriveFolders(project)
     const targetFolderId = folderForAssetType(folders, audioAssetRole(asset) || 'original')
     const driveFile = await uploadStdDriveBuffer(
         targetFolderId,
         String(asset.file_name || 'asset'),
-        Buffer.from(await storageFile.arrayBuffer()),
+        fileBuffer,
         String(asset.mime_type || 'application/octet-stream'),
         `AIR Studio STD ${asset.asset_type} archive for project ${project.id}`
     )
@@ -109,7 +116,7 @@ function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | 
     const assetUrl = asset?.metadata?.storage_public_url
         || asset?.metadata?.thumbnail_link
         || asset?.metadata?.web_view_link
-        || driveFileLink(asset?.drive_file_id)
+        || (asset?.drive_file_id ? driveFileLink(asset.drive_file_id) : `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`)
     const projectPayload = project.project_payload || {}
     const structure = projectPayload.structure || {}
     const payloadScenes = Array.isArray(projectPayload.scenes) ? projectPayload.scenes : []
@@ -168,6 +175,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     const driveFileId = String(body?.drive_file_id || '').trim()
+    const storageProvider = String(body?.storage_provider || 'supabase').trim().toLowerCase()
     const storageBucket = String(body?.storage_bucket || '').trim()
     const storagePath = String(body?.storage_path || '').trim().replace(/^\/+/, '')
     const storagePublicUrl = String(body?.storage_public_url || '').trim()
@@ -254,11 +262,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     try {
         const isSupabaseAsset = Boolean(storagePath)
-        if (isSupabaseAsset && (
-            storageBucket !== CONTENT_ASSETS_BUCKET
-            || !storagePath.startsWith(`std-projects/${project.id}/`)
-        )) {
-            return NextResponse.json({ success: false, error: 'Invalid Supabase Storage asset path' }, { status: 400 })
+        if (isSupabaseAsset) {
+            if (!storagePath.startsWith(`std-projects/${project.id}/`)) {
+                return NextResponse.json({ success: false, error: 'Invalid storage asset path' }, { status: 400 })
+            }
+            if (storageProvider === 'gcs') {
+                if (!isGcsStorageConfigured()) {
+                    return NextResponse.json({ success: false, error: 'GCS storage is not configured' }, { status: 500 })
+                }
+            } else if (storageBucket !== CONTENT_ASSETS_BUCKET) {
+                return NextResponse.json({ success: false, error: 'Invalid Supabase Storage asset path' }, { status: 400 })
+            }
         }
         const metadata = driveFileId ? await getStdDriveFileMetadata(driveFileId) : null
         if (metadata && targetFolderId && Array.isArray(metadata.parents) && !metadata.parents.includes(targetFolderId)) {
@@ -315,13 +329,18 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         thumbnail_link: metadata.thumbnailLink || null,
                     } : {}),
                     ...(isSupabaseAsset ? {
-                        storage_bucket: CONTENT_ASSETS_BUCKET,
+                        storage_provider: storageProvider === 'gcs' ? 'gcs' : 'supabase',
+                        storage_bucket: storageProvider === 'gcs' ? storageBucket : CONTENT_ASSETS_BUCKET,
                         storage_path: storagePath,
-                        storage_public_url: storagePublicUrl || supabaseAdmin.storage.from(CONTENT_ASSETS_BUCKET).getPublicUrl(storagePath).data.publicUrl,
+                        storage_public_url: storageProvider === 'gcs'
+                            ? ''
+                            : (storagePublicUrl || supabaseAdmin.storage.from(CONTENT_ASSETS_BUCKET).getPublicUrl(storagePath).data.publicUrl),
                     } : {}),
                     ...audioAssetStorageFields(assetType).metadata,
                     uploaded_by: auth.requester.email,
-                    upload_mode: isSupabaseAsset && metadata ? 'browser_supabase_then_drive' : (isSupabaseAsset ? 'browser_supabase_storage' : 'browser_drive_resumable'),
+                    upload_mode: isSupabaseAsset && storageProvider === 'gcs'
+                        ? 'browser_gcs_storage'
+                        : (isSupabaseAsset && metadata ? 'browser_supabase_then_drive' : (isSupabaseAsset ? 'browser_supabase_storage' : 'browser_drive_resumable')),
                 },
             })
             .select('*')
@@ -331,7 +350,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             asset = insertedAsset
         }
 
-        if (isSupabaseAsset && !asset.drive_file_id && !['audio', 'bgm', 'sfx'].includes(assetType)) {
+        if (isSupabaseAsset && storageProvider !== 'gcs' && !asset.drive_file_id && !['audio', 'bgm', 'sfx'].includes(assetType)) {
             try {
                 asset = await archiveSupabaseAssetToDrive(project, asset)
             } catch (driveArchiveError: any) {

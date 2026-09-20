@@ -28,7 +28,7 @@ function SfxTrack({ cue, asset, projectId, headers, time, playing, onError }: an
         const sync = () => {
             const offset = time - Number(cue.start || 0)
             audio.volume = Math.min(1, Math.pow(10, Number(cue.volume_db ?? -18) / 20))
-            if (!playing || offset < 0 || (Number.isFinite(audio.duration) && offset >= audio.duration)) {
+            if (!playing || offset < 0 || (cue.duration && offset >= Number(cue.duration)) || (Number.isFinite(audio.duration) && offset >= audio.duration)) {
                 audio.pause()
                 return
             }
@@ -38,7 +38,7 @@ function SfxTrack({ cue, asset, projectId, headers, time, playing, onError }: an
         if (audio.readyState >= 1) sync()
         else audio.addEventListener('loadedmetadata', sync, { once: true })
         return () => audio.removeEventListener('loadedmetadata', sync)
-    }, [url, time, playing, cue.start, cue.volume_db])
+    }, [url, time, playing, cue.start, cue.volume_db, cue.duration])
     useEffect(() => () => { audioRef.current?.pause() }, [])
     return <audio ref={audioRef} src={url || undefined} preload="metadata" className="hidden" />
 }

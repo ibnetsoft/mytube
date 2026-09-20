@@ -1,3 +1,4 @@
+import { attachSfxAssets, sharedSfxCatalog } from '@/lib/stdAiSfx'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import {
@@ -234,6 +235,21 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         await syncStdProjectToLegacy(project.id)
     } catch (syncError: any) {
         console.error('[STD Claim] legacy sync failed:', syncError?.message)
+    }
+
+    const sfxPlan = topic.pregenerated_structure?.sfx_plan
+    if (sfxPlan?.version === 'codex-sfx-v1') {
+        try {
+            const cues = await attachSfxAssets(project.id, sfxPlan.cues || [], await sharedSfxCatalog())
+            project.project_payload.render_settings = { ...project.project_payload.render_settings,
+                sfx_cues: cues, sfx_plan: { status: sfxPlan.status, script_version: sfxPlan.script_version } }
+            const savedPlan = await supabaseAdmin.from('std_projects').update({ project_payload: project.project_payload }).eq('id', project.id)
+            if (savedPlan.error) throw savedPlan.error
+        } catch (error) {
+            console.error('New project SFX import failed', error)
+            project.project_payload.render_settings = { ...project.project_payload.render_settings,
+                sfx_plan: { status: 'failed', error: '효과음 구성을 다시 실행해 주세요.' } }
+        }
     }
 
     return NextResponse.json({

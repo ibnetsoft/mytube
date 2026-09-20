@@ -22,9 +22,13 @@ CREATE TABLE IF NOT EXISTS public.tenant_configs (
     commission_percent NUMERIC(5,2) DEFAULT 10,  -- 기본 10%
     min_commission_usd NUMERIC(10,2) DEFAULT 0,  -- 최소 수수료 (USD)
 
-    -- 라이선스 설정
+    -- 요금 및 라이선스 설정 (세팅비 + 채널당 구독료 모델)
     license_tier TEXT NOT NULL DEFAULT 'standard',  -- 'starter' | 'standard' | 'business' | 'enterprise'
     monthly_fee_usd NUMERIC(10,2) DEFAULT 0,
+    setup_fee_usd NUMERIC(10,2) DEFAULT 0,          -- 초기 세팅비
+    price_per_channel_usd NUMERIC(10,2) DEFAULT 0,  -- 채널 1개당 월 구독료
+    max_channels INT DEFAULT 5,                     -- 최대 운영 가능 채널 수 (기본 5개)
+    currency TEXT DEFAULT 'USD',                    -- 기준 통화 ('USD' | 'KRW')
 
     -- 제한 설정
     max_projects_per_month INT DEFAULT 50,

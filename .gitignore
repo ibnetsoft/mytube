@@ -90,3 +90,6 @@ rebuild_*_log.txt
 
 .vercel
 .env*
+.codex-temp/
+.deploy-production/
+.mcp.json

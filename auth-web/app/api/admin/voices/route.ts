@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { isAuthResponse, requireSuperAdmin } from '../_auth'
 import { deleteServerCache, getServerCache, setServerCache } from '@/lib/server-cache'
 import { getConfiguredElevenLabsKeys } from '@/lib/elevenLabsKeys'
+import { detectVoiceGender } from '@/lib/voiceGender'
 
 export const dynamic = 'force-dynamic'
 const VOICES_CACHE_KEY = 'admin:voices'
@@ -34,7 +35,10 @@ const normalizeVoices = (value: unknown): CustomVoice[] => {
             .map((item: any) => {
                 const vid = String(item?.voice_id || item?.id || '').trim()
                 const name = String(item?.name || '').trim()
-                const gender = item?.gender === 'male' ? 'male' : 'female'
+                const description = String(item?.description || '').trim()
+                const gender = (item?.gender === 'female' || item?.gender === 'male')
+                    ? item.gender
+                    : detectVoiceGender(item?.gender, name, description)
                 return {
                     id: vid,
                     voice_id: vid,
@@ -42,7 +46,7 @@ const normalizeVoices = (value: unknown): CustomVoice[] => {
                     gender,
                     category: String(item?.category || 'custom').trim(),
                     language: String(item?.language || 'ko').trim(),
-                    description: String(item?.description || '').trim(),
+                    description,
                     preview_url: String(item?.preview_url || '').trim(),
                     provider: 'elevenlabs' as const,
                     created_at: item?.created_at || new Date().toISOString(),
@@ -92,12 +96,8 @@ async function loadElevenLabsVoiceMetadata() {
                 if (!voiceId || metadata.has(voiceId)) continue
                 const labels = voice.labels || {}
                 const name = String(voice.name || '').trim()
-                const lowerName = name.toLowerCase()
-                const gender = labels.gender === 'male'
-                    ? 'male'
-                    : (labels.gender === 'female'
-                        ? 'female'
-                        : (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some(token => lowerName.includes(token)) ? 'female' : 'male'))
+                const description = String(labels.description || voice.description || '').trim()
+                const gender = detectVoiceGender(labels.gender, name, description)
                 metadata.set(voiceId, {
                     id: voiceId,
                     voice_id: voiceId,
@@ -105,7 +105,7 @@ async function loadElevenLabsVoiceMetadata() {
                     gender,
                     category: String(voice.category || 'custom').trim(),
                     language: String(labels.language || 'ko').trim(),
-                    description: String(labels.description || voice.description || '').trim(),
+                    description,
                     preview_url: String(voice.preview_url || '').trim(),
                     provider: 'elevenlabs',
                 })
@@ -124,14 +124,16 @@ async function enrichVoicesWithElevenLabsMetadata(voices: CustomVoice[], existin
         const enriched = metadata.get(voice.voice_id)
         if (!enriched) return voice
         return {
-            ...voice,
             ...enriched,
+            ...voice,
+            // Explicit voice.gender always takes precedence over metadata inference
+            gender: voice.gender || enriched.gender || 'female',
             name: !voice.name || isGenericVoiceName(voice.name)
                 ? String(enriched.name || voice.name || voice.voice_id)
                 : voice.name,
             description: voice.description || String(enriched.description || ''),
             preview_url: voice.preview_url || String(enriched.preview_url || ''),
-            created_at: voice.created_at,
+            created_at: voice.created_at || enriched.created_at,
         }
     })
 }
@@ -195,7 +197,11 @@ export async function POST(req: Request) {
         for (const requested of requestedVoices) {
             const existingIdx = voices.findIndex(voice => voice.voice_id === requested.voice_id)
             if (existingIdx >= 0) {
-                voices[existingIdx] = { ...voices[existingIdx], ...requested }
+                voices[existingIdx] = { 
+                    ...voices[existingIdx], 
+                    ...requested,
+                    gender: requested.gender || voices[existingIdx].gender || 'female'
+                }
             } else {
                 voices.unshift(requested)
             }

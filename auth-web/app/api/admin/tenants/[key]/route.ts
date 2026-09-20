@@ -53,7 +53,20 @@ export async function PATCH(req: Request, { params }: { params: { key: string } 
         if (isAuthResponse(requester)) return requester
 
         const body = await req.json()
-        const { commission_percent, min_commission_usd, status, brand_name, primary_color, watermark_enabled } = body
+        const {
+            commission_percent,
+            min_commission_usd,
+            status,
+            brand_name,
+            primary_color,
+            watermark_enabled,
+            setup_fee_usd,
+            price_per_channel_usd,
+            max_channels,
+            currency,
+            monthly_fee_usd,
+            license_tier
+        } = body
 
         const sb = getAdmin()
         const tenantKey = params.key
@@ -65,6 +78,22 @@ export async function PATCH(req: Request, { params }: { params: { key: string } 
         if (brand_name !== undefined) updateData.brand_name = brand_name
         if (primary_color !== undefined) updateData.primary_color = primary_color
         if (watermark_enabled !== undefined) updateData.watermark_enabled = watermark_enabled
+        if (setup_fee_usd !== undefined) updateData.setup_fee_usd = Number(setup_fee_usd)
+        if (price_per_channel_usd !== undefined) updateData.price_per_channel_usd = Number(price_per_channel_usd)
+        if (max_channels !== undefined) updateData.max_channels = Number(max_channels)
+        if (currency !== undefined) updateData.currency = currency
+        if (license_tier !== undefined) updateData.license_tier = license_tier
+
+        // 월 구독료 자동 계산 또는 지정
+        if (monthly_fee_usd !== undefined) {
+            updateData.monthly_fee_usd = Number(monthly_fee_usd)
+        } else if (price_per_channel_usd !== undefined || max_channels !== undefined) {
+            // 현재 테넌트 정보 조회 후 합산
+            const { data: cur } = await sb.from('tenant_configs').select('price_per_channel_usd, max_channels').eq('tenant_key', tenantKey).single()
+            const p = price_per_channel_usd !== undefined ? Number(price_per_channel_usd) : (cur?.price_per_channel_usd || 0)
+            const m = max_channels !== undefined ? Number(max_channels) : (cur?.max_channels || 5)
+            updateData.monthly_fee_usd = p * m
+        }
 
         const { data, error } = await sb
             .from('tenant_configs')

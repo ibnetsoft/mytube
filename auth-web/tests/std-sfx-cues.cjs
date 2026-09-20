@@ -28,3 +28,11 @@ assert(result.manifestFiles.every(f => f.supabase_bucket === 'content-assets' &&
 assert.deepEqual(result.sfxCues.map(c => c.start), [12, 14])
 assert(result.sfxCues.every(c => c.volume_db === -18))
 console.log('PASS: word boundary timing, multiple inserts, reordered/deleted anchors, legacy cues, Storage-only render manifest')
+
+const planned = { source:'codex-sfx-v1', scene_number:3, anchor_scope:'scene', anchor_source_text:'문을 열고 들어왔다', anchor_offset:4, word_boundary:2 }
+assert.equal(api.sfxSubtitleIndex(planned,[{text:'문을 열고',scene_number:3,start_num:0,end_num:2},{text:'들어왔다',scene_number:3,start_num:2,end_num:4}]),1)
+assert.equal(api.resolveSfxCues([planned],[{text:'문을 열고',scene_number:3,start_num:0,end_num:2},{text:'들어왔다',scene_number:3,start_num:2,end_num:4}])[0].start,2)
+assert(api.sfxNeedsReview(planned,[{text:'문을 닫았다',scene_number:3}]))
+assert(api.sfxNeedsReview({...cue,subtitle_text:subtitle.text},[{...subtitle,text:'합친 다른 문장'}]))
+assert.deepEqual(api.resolveSfxCues([{...planned,enabled:false}],[subtitle]),[])
+console.log('PASS: scene anchor across split captions; changed/merged caption needs review; deleted AI cue stays silent')

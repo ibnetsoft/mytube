@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/lib/LanguageContext'
 import { DEFAULT_LONGFORM_PAYOUT_TIERS_JSON } from '@/lib/stdPayoutPolicy'
+import { detectVoiceGender } from '@/lib/voiceGender'
 
 const LazyPanelFallback = () => (
     <div className="rounded-[2.5rem] border border-white/10 bg-[#0f172a]/40 p-10 text-center text-xs font-black uppercase tracking-[0.2em] text-gray-500">
@@ -2137,12 +2138,13 @@ export default function DashboardContent() {
             const data = await res.json()
             const voicesToRegister = (data.voices || []).map((v: any) => {
                 const labels = v.labels || {}
-                const g = labels.gender || (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some((w: string) => (v.name || '').toLowerCase().includes(w)) ? 'female' : 'male')
+                const desc = labels.description || v.description || ''
+                const g = detectVoiceGender(labels.gender, v.name, desc)
                 return {
                     voice_id: v.voice_id,
                     name: v.name,
                     gender: g,
-                    description: labels.description || v.description || '',
+                    description: desc,
                     preview_url: v.preview_url || '',
                     provider: 'elevenlabs',
                 }
@@ -2167,6 +2169,25 @@ export default function DashboardContent() {
             alert('동기화 실패: ' + (err.message || String(err)))
         } finally {
             setIsSyncingElevenLabs(false)
+        }
+    }
+
+    const handleToggleVoiceGender = async (targetVoiceId: string, currentGender: string) => {
+        const nextGender = currentGender === 'female' ? 'male' : 'female'
+        try {
+            const target = customVoices.find((v: any) => (v.voice_id || v.id) === targetVoiceId)
+            if (!target) return
+            const updatedVoice = { ...target, voice_id: targetVoiceId, gender: nextGender }
+            const res = await adminFetch('/api/admin/voices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedVoice)
+            })
+            const data = await res.json()
+            if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`)
+            setCustomVoices(Array.isArray(data.voices) ? data.voices : [])
+        } catch (e: any) {
+            alert('성별 변경 실패: ' + (e?.message || String(e)))
         }
     }
 
@@ -3155,12 +3176,8 @@ export default function DashboardContent() {
             <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#111827] to-black px-4 py-10">
                 <div className="mx-auto flex min-h-[80vh] max-w-6xl items-center justify-center">
                     <div className="w-full max-w-md">
-                        <div className="mb-6 text-center flex flex-col items-center justify-center">
-                            <img
-                                src="/img/air_logo.png"
-                                alt="AIR Studio Logo"
-                                className="w-20 h-20 rounded-full shadow-2xl shadow-cyan-500/30 ring-4 ring-cyan-400/20 object-contain mb-3"
-                            />
+                        <div className="mb-6 flex flex-col items-center text-center">
+                            <img src="/img/air_logo.png" alt="AIR Studio" className="w-16 h-16 rounded-full shadow-xl shadow-blue-500/25 ring-2 ring-white/10 mb-3" />
                             <div className="text-[11px] font-black uppercase tracking-[0.35em] text-blue-400">AIR STUDIO ADMIN</div>
                             <h1 className="mt-3 text-3xl font-black tracking-tight text-white">관리자 대시보드 로그인</h1>
                             <p className="mt-2 text-sm font-bold text-gray-500">`/dashboard`에서 바로 관리자 인증을 진행합니다.</p>
@@ -5945,7 +5962,7 @@ export default function DashboardContent() {
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                 {customVoices.map((v: any, idx: number) => {
                                                     const vid = v.voice_id || v.id
-                                                    const isFemale = v.gender === 'female' || (!v.gender && ['yooni', 'mina', 'sarah', 'bella', 'lily'].some((w: string) => (v.name || '').toLowerCase().includes(w)))
+                                                    const isFemale = v.gender === 'female' || (!v.gender && detectVoiceGender(null, v.name, v.description) === 'female')
                                                     return (
                                                         <div
                                                             key={vid || idx}
@@ -5957,9 +5974,15 @@ export default function DashboardContent() {
                                                                         <span>{isFemale ? '👩' : '👨'}</span>
                                                                         <span className="truncate">{v.name}</span>
                                                                     </div>
-                                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${isFemale ? 'bg-pink-500/20 text-pink-300 border border-pink-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'}`}>
-                                                                        {isFemale ? '여성' : '남성'}
-                                                                    </span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleToggleVoiceGender(vid, isFemale ? 'female' : 'male')}
+                                                                        className={`text-[9px] font-bold px-2 py-0.5 rounded shrink-0 cursor-pointer transition hover:scale-105 active:scale-95 flex items-center gap-1 ${isFemale ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40 hover:bg-pink-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/40 hover:bg-blue-500/30'}`}
+                                                                        title="클릭하여 성별(여성/남성) 전환"
+                                                                    >
+                                                                        <span>{isFemale ? '여성' : '남성'}</span>
+                                                                        <span className="text-[8px] opacity-70">🔄</span>
+                                                                    </button>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono bg-white/5 px-2 py-1 rounded">
                                                                     <span className="text-gray-500">ID:</span>

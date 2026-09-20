@@ -755,6 +755,8 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             audio_clip.close()
 
         subs = _sync_subtitle_timings_to_audio_duration(subs, audio_duration)
+        from services.sfx_timing import retime_sfx_cues
+        sfx_cues = retime_sfx_cues(sfx_cues, subs)
         update_progress(22, '음성 길이 기준 자막 싱크 보정 중...')
 
         images = []

@@ -11,6 +11,7 @@ import {
     uploadStdDriveBuffer,
 } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
+import { buildStdGcsObjectPath, isGcsStorageConfigured, uploadGcsBuffer } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -71,7 +72,7 @@ function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | 
     const assetUrl = asset?.metadata?.storage_public_url
         || asset?.metadata?.thumbnail_link
         || asset?.metadata?.web_view_link
-        || driveFileLink(asset?.drive_file_id)
+        || (asset?.drive_file_id ? driveFileLink(asset.drive_file_id) : `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`)
     const projectPayload = project.project_payload || {}
     const structure = projectPayload.structure || {}
     const payloadScenes = Array.isArray(projectPayload.scenes) ? projectPayload.scenes : []
@@ -218,20 +219,24 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     try {
         const fileName = String(fileValue.name || form.get('file_name') || 'asset')
-        const storagePath = [
-            'std-projects',
-            project.id,
-            sceneNumber == null ? 'project-assets' : `scenes/${Math.floor(sceneNumber)}`,
-            `${Date.now()}-${fileName.replace(/[\\/]/g, '_')}`,
-        ].join('/')
+        const storagePath = buildStdGcsObjectPath({ projectId: project.id, sceneNumber, fileName })
         const buffer = Buffer.from(await fileValue.arrayBuffer())
-        const { error: storageError } = await supabaseAdmin.storage
-            .from(CONTENT_ASSETS_BUCKET)
-            .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
-        if (storageError) throw new Error(storageError.message || 'Supabase Storage upload failed')
-        const { data: publicUrlData } = supabaseAdmin.storage
-            .from(CONTENT_ASSETS_BUCKET)
-            .getPublicUrl(storagePath)
+        const useGcsStorage = isGcsStorageConfigured()
+        let storageBucket = CONTENT_ASSETS_BUCKET
+        let storagePublicUrl = ''
+        if (useGcsStorage) {
+            const stored = await uploadGcsBuffer({ objectPath: storagePath, data: buffer, contentType: mimeType })
+            storageBucket = stored.bucket
+        } else {
+            const { error: storageError } = await supabaseAdmin.storage
+                .from(CONTENT_ASSETS_BUCKET)
+                .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
+            if (storageError) throw new Error(storageError.message || 'Supabase Storage upload failed')
+            const { data: publicUrlData } = supabaseAdmin.storage
+                .from(CONTENT_ASSETS_BUCKET)
+                .getPublicUrl(storagePath)
+            storagePublicUrl = publicUrlData.publicUrl
+        }
 
         // Drive is a second, long-term archive. It cannot invalidate a
         // successful Supabase upload when the Drive connection is unavailable.
@@ -285,12 +290,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
                         thumbnail_link: driveFile.thumbnailLink || null,
                     } : {}),
-                    storage_bucket: CONTENT_ASSETS_BUCKET,
+                    storage_provider: useGcsStorage ? 'gcs' : 'supabase',
+                    storage_bucket: storageBucket,
                     storage_path: storagePath,
-                    storage_public_url: publicUrlData.publicUrl,
+                    storage_public_url: storagePublicUrl,
                     ...audioAssetStorageFields(assetType).metadata,
                     uploaded_by: auth.requester.email,
-                    upload_mode: driveFile ? 'server_supabase_then_drive' : 'server_supabase_storage',
+                    upload_mode: useGcsStorage ? 'server_gcs_storage' : (driveFile ? 'server_supabase_then_drive' : 'server_supabase_storage'),
                 },
             })
             .select('*')
