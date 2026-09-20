@@ -9,6 +9,8 @@ sys.path[0] for these subprocess.Popen'd scripts - a module named
 config.py living in here would permanently shadow the real one and break
 every real-pipeline import. Renaming this module is the fix.
 """
+from __future__ import annotations
+
 import os
 import json
 import sys

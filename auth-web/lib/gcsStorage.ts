@@ -1,9 +1,8 @@
 import { Storage } from '@google-cloud/storage'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 const DEFAULT_BUCKET = 'air-studio-prod'
 const DEFAULT_PROJECT_ID = 'air-studio-prod'
-
-let storageClient: Storage | null | undefined
 
 export type GcsObjectRef = {
     provider: 'gcs'
@@ -11,29 +10,94 @@ export type GcsObjectRef = {
     path: string
 }
 
+let cachedConfig: {
+    bucketName: string
+    projectId: string
+    clientEmail: string
+    privateKey: string
+    loadedAt: number
+} | null = null
+
+const CONFIG_TTL_MS = 60_000
+let storageClient: Storage | null | undefined
+
 function env(name: string) {
     return String(process.env[name] || '').trim()
 }
 
-function gcsBucketName() {
-    return env('GCS_BUCKET_NAME') || DEFAULT_BUCKET
+export async function refreshGcsConfigFromDb(): Promise<void> {
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('global_settings')
+            .select('key,value')
+            .in('key', [
+                'sys_api_gcs_bucket_name',
+                'sys_api_gcs_project_id',
+                'sys_api_gcs_client_email',
+                'sys_api_gcs_private_key',
+            ])
+        if (!error && data) {
+            const map = Object.fromEntries(data.map(r => [r.key, String(r.value || '').trim()]))
+            const bucketName = map.sys_api_gcs_bucket_name || env('GCS_BUCKET_NAME') || DEFAULT_BUCKET
+            const projectId = map.sys_api_gcs_project_id || env('GCS_PROJECT_ID') || env('GOOGLE_CLOUD_PROJECT') || DEFAULT_PROJECT_ID
+            const clientEmail = map.sys_api_gcs_client_email || env('GCS_CLIENT_EMAIL') || env('GOOGLE_CLIENT_EMAIL')
+            const rawKey = map.sys_api_gcs_private_key || env('GCS_PRIVATE_KEY') || env('GOOGLE_PRIVATE_KEY')
+            const privateKey = rawKey ? rawKey.replace(/\\n/g, '\n') : ''
+            cachedConfig = { bucketName, projectId, clientEmail, privateKey, loadedAt: Date.now() }
+            storageClient = undefined
+        }
+    } catch {
+        // Keep existing config or fallback to env
+    }
 }
 
-function gcsProjectId() {
-    return env('GCS_PROJECT_ID') || env('GOOGLE_CLOUD_PROJECT') || DEFAULT_PROJECT_ID
+export async function getGcsConfig() {
+    if (!cachedConfig || Date.now() - cachedConfig.loadedAt > CONFIG_TTL_MS) {
+        await refreshGcsConfigFromDb()
+    }
+    if (!cachedConfig) {
+        const bucketName = env('GCS_BUCKET_NAME') || DEFAULT_BUCKET
+        const projectId = env('GCS_PROJECT_ID') || env('GOOGLE_CLOUD_PROJECT') || DEFAULT_PROJECT_ID
+        const clientEmail = env('GCS_CLIENT_EMAIL') || env('GOOGLE_CLIENT_EMAIL')
+        const rawKey = env('GCS_PRIVATE_KEY') || env('GOOGLE_PRIVATE_KEY')
+        const privateKey = rawKey ? rawKey.replace(/\\n/g, '\n') : ''
+        cachedConfig = { bucketName, projectId, clientEmail, privateKey, loadedAt: Date.now() }
+    }
+    return cachedConfig
 }
 
-function gcsClientEmail() {
-    return env('GCS_CLIENT_EMAIL') || env('GOOGLE_CLIENT_EMAIL')
+export function gcsBucketName() {
+    return cachedConfig?.bucketName || env('GCS_BUCKET_NAME') || DEFAULT_BUCKET
 }
 
-function gcsPrivateKey() {
+export function gcsProjectId() {
+    return cachedConfig?.projectId || env('GCS_PROJECT_ID') || env('GOOGLE_CLOUD_PROJECT') || DEFAULT_PROJECT_ID
+}
+
+export function gcsClientEmail() {
+    return cachedConfig?.clientEmail || env('GCS_CLIENT_EMAIL') || env('GOOGLE_CLIENT_EMAIL')
+}
+
+export function gcsPrivateKey() {
+    if (cachedConfig?.privateKey) return cachedConfig.privateKey
     const raw = env('GCS_PRIVATE_KEY') || env('GOOGLE_PRIVATE_KEY')
     return raw ? raw.replace(/\\n/g, '\n') : ''
 }
 
-export function isGcsStorageConfigured() {
-    return Boolean(gcsBucketName() && (gcsClientEmail() && gcsPrivateKey()))
+export function isGcsStorageConfigured(): boolean {
+    const conf = cachedConfig
+    if (conf && conf.bucketName && conf.clientEmail && conf.privateKey) {
+        return true
+    }
+    const bucket = env('GCS_BUCKET_NAME') || DEFAULT_BUCKET
+    const email = env('GCS_CLIENT_EMAIL') || env('GOOGLE_CLIENT_EMAIL')
+    const key = env('GCS_PRIVATE_KEY') || env('GOOGLE_PRIVATE_KEY')
+    return Boolean(bucket && email && key)
+}
+
+export async function isGcsConfiguredAsync(): Promise<boolean> {
+    const conf = await getGcsConfig()
+    return Boolean(conf.bucketName && conf.clientEmail && conf.privateKey)
 }
 
 export function sanitizeGcsObjectName(value: string, fallback = 'asset') {
@@ -47,24 +111,31 @@ export function sanitizeGcsObjectName(value: string, fallback = 'asset') {
 
 function getStorageClient() {
     if (storageClient !== undefined) return storageClient
-    if (!isGcsStorageConfigured()) {
+    const conf = cachedConfig || {
+        bucketName: gcsBucketName(),
+        projectId: gcsProjectId(),
+        clientEmail: gcsClientEmail(),
+        privateKey: gcsPrivateKey(),
+    }
+    if (!conf.clientEmail || !conf.privateKey) {
         storageClient = null
         return storageClient
     }
     storageClient = new Storage({
-        projectId: gcsProjectId(),
+        projectId: conf.projectId,
         credentials: {
-            client_email: gcsClientEmail(),
-            private_key: gcsPrivateKey(),
+            client_email: conf.clientEmail,
+            private_key: conf.privateKey,
         },
     })
     return storageClient
 }
 
-function getBucket() {
+function getBucket(overrideBucket?: string) {
     const client = getStorageClient()
     if (!client) throw new Error('GCS storage is not configured')
-    return client.bucket(gcsBucketName())
+    const bucketName = overrideBucket || gcsBucketName()
+    return client.bucket(bucketName)
 }
 
 export function buildStdGcsObjectPath(input: {
@@ -85,6 +156,7 @@ export async function createGcsSignedUploadUrl(input: {
     contentType: string
     expiresInMinutes?: number
 }) {
+    await getGcsConfig().catch(() => null)
     const file = getBucket().file(input.objectPath)
     const expiresAt = Date.now() + (input.expiresInMinutes || 30) * 60_000
     const [signedUrl] = await file.getSignedUrl({
@@ -106,6 +178,7 @@ export async function createGcsSignedReadUrl(input: {
     objectPath: string
     expiresInMinutes?: number
 }) {
+    await getGcsConfig().catch(() => null)
     const bucket = input.bucket ? getStorageClient()?.bucket(input.bucket) : getBucket()
     if (!bucket) throw new Error('GCS storage is not configured')
     const expiresAt = Date.now() + (input.expiresInMinutes || 30) * 60_000
@@ -119,10 +192,16 @@ export async function createGcsSignedReadUrl(input: {
 
 export async function uploadGcsBuffer(input: {
     objectPath: string
-    data: Buffer
+    data?: Buffer
+    buffer?: Buffer
     contentType: string
+    bucket?: string
 }) {
-    await getBucket().file(input.objectPath).save(input.data, {
+    const rawData = input.data || input.buffer
+    if (!rawData) throw new Error('uploadGcsBuffer: missing data/buffer parameter')
+    await getGcsConfig().catch(() => null)
+    const bucket = getBucket(input.bucket)
+    await bucket.file(input.objectPath).save(rawData, {
         resumable: false,
         contentType: input.contentType,
         metadata: {
@@ -131,7 +210,7 @@ export async function uploadGcsBuffer(input: {
     })
     return {
         provider: 'gcs' as const,
-        bucket: gcsBucketName(),
+        bucket: input.bucket || gcsBucketName(),
         path: input.objectPath,
     }
 }
@@ -140,6 +219,7 @@ export async function downloadGcsObject(input: {
     bucket?: string
     objectPath: string
 }) {
+    await getGcsConfig().catch(() => null)
     const bucket = input.bucket ? getStorageClient()?.bucket(input.bucket) : getBucket()
     if (!bucket) throw new Error('GCS storage is not configured')
     const [data] = await bucket.file(input.objectPath).download()
@@ -179,4 +259,71 @@ export function gcsObjectRef(bucket: string, objectPath: string): GcsObjectRef {
         bucket: bucket || gcsBucketName(),
         path: objectPath.replace(/^\/+/, ''),
     }
+}
+
+/**
+ * 2차 스토리지 아카이빙: Supabase Storage에 성공적으로 저장된 에셋을
+ * GCS(Google Cloud Storage)에 복제 보관하고 메타데이터를 갱신합니다.
+ * GCS가 미설정이거나 실패하더라도 1차 Supabase 에셋은 온전히 유지됩니다.
+ */
+export async function archiveSupabaseAssetToGcs(project: any, asset: any) {
+    if (!asset || !asset.id) return asset
+    await getGcsConfig().catch(() => null)
+    if (!isGcsStorageConfigured()) {
+        return asset
+    }
+
+    const storageBucket = String(asset?.metadata?.storage_bucket || 'content-assets').trim()
+    const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
+    if (!storagePath) return asset
+
+    try {
+        const { data: fileBlob, error: downloadError } = await supabaseAdmin.storage
+            .from(storageBucket)
+            .download(storagePath)
+
+        if (downloadError || !fileBlob) {
+            console.warn('[archiveSupabaseAssetToGcs] Failed to download from Supabase Storage:', downloadError?.message)
+            return asset
+        }
+
+        const buffer = Buffer.from(await fileBlob.arrayBuffer())
+        const stored = await uploadGcsBuffer({
+            objectPath: storagePath,
+            data: buffer,
+            contentType: asset.mime_type || 'application/octet-stream',
+        })
+
+        const currentMetadata = asset.metadata || {}
+        const nextMetadata = {
+            ...currentMetadata,
+            gcs_bucket: stored.bucket,
+            gcs_path: stored.path,
+            upload_mode: 'browser_supabase_then_gcs',
+        }
+
+        const { data: updatedAsset, error: updateError } = await supabaseAdmin
+            .from('std_project_assets')
+            .update({
+                metadata: nextMetadata,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', asset.id)
+            .select('*')
+            .single()
+
+        if (updateError) {
+            console.warn('[archiveSupabaseAssetToGcs] Asset metadata update failed:', updateError.message)
+            return asset
+        }
+        return updatedAsset || asset
+    } catch (e: any) {
+        console.warn('[archiveSupabaseAssetToGcs] GCS archive failed; keeping Supabase asset as primary:', e?.message || e)
+        return asset
+    }
+}
+
+// Module-load cache pre-fetch
+if (typeof window === 'undefined') {
+    refreshGcsConfigFromDb().catch(() => {})
 }

@@ -101,6 +101,10 @@ class WebAdminClient:
         "sys_api_hermes_orchestrator_fallback_model": "HERMES_ORCHESTRATOR_FALLBACK_MODEL",
         "sys_api_drive_render_queue_path": "DRIVE_RENDER_QUEUE_PATH",
         "sys_api_use_external_render": "USE_EXTERNAL_RENDER",
+        "sys_api_gcs_bucket_name": "GCS_BUCKET_NAME",
+        "sys_api_gcs_project_id": "GCS_PROJECT_ID",
+        "sys_api_gcs_client_email": "GCS_CLIENT_EMAIL",
+        "sys_api_gcs_private_key": "GCS_PRIVATE_KEY",
         "latest_app_version": "LATEST_APP_VERSION",
         "latest_app_url": "LATEST_APP_URL",
     }

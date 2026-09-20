@@ -12,7 +12,7 @@ import {
     uploadStdDriveBuffer,
 } from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
-import { downloadGcsObject, isGcsStorageConfigured } from '@/lib/gcsStorage'
+import { archiveSupabaseAssetToGcs, downloadGcsObject, isGcsStorageConfigured } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -350,11 +350,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             asset = insertedAsset
         }
 
-        if (isSupabaseAsset && storageProvider !== 'gcs' && !asset.drive_file_id && !['audio', 'bgm', 'sfx'].includes(assetType)) {
+        if (isSupabaseAsset) {
             try {
-                asset = await archiveSupabaseAssetToDrive(project, asset)
-            } catch (driveArchiveError: any) {
-                console.warn('[STD AssetComplete] Drive archive copy failed; keeping Supabase asset:', driveArchiveError?.message)
+                asset = await archiveSupabaseAssetToGcs(project, asset)
+            } catch (gcsArchiveError: any) {
+                console.warn('[STD AssetComplete] GCS archive copy failed; keeping Supabase asset as primary:', gcsArchiveError?.message)
             }
         }
 

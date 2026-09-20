@@ -11,6 +11,7 @@ const KEYS = [
     'gemini', 'openai', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'elevenlabs_keys', 'topview', 'topview_uid',
     'suno', 'suno_base_url', 'music_provider',
     'google_drive_client_id', 'google_drive_client_secret', 'google_drive_refresh_token', 'google_drive_root_folder_id',
+    'gcs_bucket_name', 'gcs_project_id', 'gcs_client_email', 'gcs_private_key',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
     'longform_min_duration_minutes', 'longform_base_payout', 'longform_extra_minute_payout',
     'longform_payout_tiers',
@@ -66,6 +67,7 @@ const SECRET_KEYS = new Set([
     'suno',
     'google_drive_client_secret',
     'google_drive_refresh_token',
+    'gcs_private_key',
 ])
 
 const MODEL_KEYS = new Set([

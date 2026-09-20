@@ -127,6 +127,12 @@ class Config:
     REMOTE_RENDER_DRIVE_FOLDER_ID = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID", "")
     REMOTE_RENDER_GOOGLE_TOKEN_PATH = os.getenv("REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
 
+    # Google Cloud Storage (2nd Storage)
+    GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "")
+    GCS_PROJECT_ID = os.getenv("GCS_PROJECT_ID", "")
+    GCS_CLIENT_EMAIL = os.getenv("GCS_CLIENT_EMAIL", "")
+    GCS_PRIVATE_KEY = os.getenv("GCS_PRIVATE_KEY", "")
+
     # API URLs
     YOUTUBE_BASE_URL = "https://www.googleapis.com/youtube/v3"
     GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
@@ -386,6 +392,7 @@ class Config:
             'SCRIPT_GENERATION_MODEL', 'IMAGE_PROMPT_MODEL', 'TRANSLATION_MODEL',
             'SUBTITLE_TRANSLATION_MODEL', 'SUBTITLE_TRANSLATION_SCOPE',
             'IMAGE_GENERATION_MODEL', 'VIDEO_GENERATION_MODEL',
+            'GCS_BUCKET_NAME', 'GCS_PROJECT_ID', 'GCS_CLIENT_EMAIL', 'GCS_PRIVATE_KEY',
         ]
 
         if key_name not in valid_keys:

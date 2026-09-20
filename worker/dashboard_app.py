@@ -4245,7 +4245,69 @@ tr:hover { background: #161b22; }
               <input type="number" id="tr-count" min="1" max="30" value="10">
             </div>
           </div>
-          <button class="btn btn-primary" onclick="submitTopicResearch()">주제 찾기</button>
+          <div class="form-row">
+            <div class="form-group">
+              <label>화풍 (이미지 스타일)</label>
+              <select id="tr-image-style">
+                <option value="">기본 (자동/실사)</option>
+                <option value="realistic">실사 극사실 (Realistic Photo)</option>
+                <option value="k_webtoon">한국 웹툰 (Modern K-Webtoon)</option>
+                <option value="anime">애니메이션 (Anime Illustration)</option>
+                <option value="3d">3D 렌더 (Pixar 3D Render)</option>
+                <option value="ghibli">지브리 감성 (Studio Ghibli)</option>
+                <option value="cinematic">시네마틱 무비 (Cinematic Film)</option>
+                <option value="minimal">미니멀 일러스트 (Minimal Flat Vector)</option>
+                <option value="philosophical">동양화/다큐 (Oriental Ink Wash)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>글쓰기 톤앤매너 (프로필)</label>
+              <select id="tr-writing-profile" onchange="toggleCustomWritingProfile(this.value)">
+                <option value="">카테고리 기본 톤</option>
+                <option value="옛날이야기">옛날이야기 (구수한 전설/설화)</option>
+                <option value="한국사연">한국사연 (가족/인간극장 드라마)</option>
+                <option value="탈북사연">탈북사연 (진솔한 증언/다큐)</option>
+                <option value="무협">무협 (비장한 무협/액션)</option>
+                <option value="일상/웹툰">일상/웹툰 (위트/경쾌/반전 코미디)</option>
+                <option value="판타지/SF">판타지/SF (신비로운 세계관/모험)</option>
+                <option value="지식/미스터리">지식/미스터리 (호기심/추리/탐구)</option>
+                <option value="힐링/동화">힐링/동화 (따뜻한 위로/감성 동화)</option>
+                <option value="황혼19금">황혼 (성인 로맨스/인생사연)</option>
+                <option value="해외감동">해외감동 (글로벌 휴먼 다큐)</option>
+                <option value="custom">직접 입력 (커스텀 프롬프트)...</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" id="tr-custom-profile-wrap" style="display:none; margin-top:8px;">
+            <label>커스텀 글쓰기 지침</label>
+            <textarea id="tr-custom-writing-profile" rows="2" placeholder="예: 시니컬한 30대 형사의 독백 톤, 짧고 건조한 문체, 반전 중심 전개"></textarea>
+          </div>
+
+          <div style="margin: 14px 0 10px; border-top: 1px solid var(--border, #eee); padding-top: 12px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" onclick="toggleTopicCharacterSlot()">
+              <label style="margin:0; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+                <span>&#x1F464; 고정 캐릭터 지정 (선택)</span>
+              </label>
+              <span id="tr-char-toggle-icon" style="font-size:12px; color:var(--text-muted, #888);">&#x25BC; 펼치기</span>
+            </div>
+            <div id="tr-char-slot-wrap" style="display:none; margin-top:12px; background:var(--bg-subtle, rgba(0,0,0,0.02)); padding:12px; border-radius:6px;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>캐릭터 이름</label>
+                  <input type="text" id="tr-char-name" placeholder="예: 토리, 영호, 미나">
+                </div>
+                <div class="form-group">
+                  <label>역할 / 성격</label>
+                  <input type="text" id="tr-char-role" placeholder="예: 호기심 많은 탐정, 동네 카페 사장">
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:8px;">
+                <label>외모 및 비주얼 DNA (선택)</label>
+                <input type="text" id="tr-char-desc" placeholder="예: 주황색 후드티를 입은 20대 청년, 갈색 털과 큰 꼬리의 다람쥐">
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="submitTopicResearch()" style="margin-top:12px;">주제 찾기</button>
         </div>
 
         <div class="card" style="margin-top:16px">
@@ -6950,16 +7012,53 @@ function closeModal() {
   document.getElementById('job-modal').classList.remove('active');
 }
 
+function toggleCustomWritingProfile(val) {
+  const el = document.getElementById('tr-custom-profile-wrap');
+  if (el) el.style.display = val === 'custom' ? 'block' : 'none';
+}
+
+function toggleTopicCharacterSlot() {
+  const el = document.getElementById('tr-char-slot-wrap');
+  const icon = document.getElementById('tr-char-toggle-icon');
+  if (!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? 'block' : 'none';
+  if (icon) icon.innerHTML = isHidden ? '&#x25B2; 접기' : '&#x25BC; 펼치기';
+}
+
 /* ── Submit: topic_research ── */
 async function submitTopicResearch() {
   const keyword = document.getElementById('tr-keyword').value.trim();
   if (!keyword) { showToast('키워드를 입력하세요', 'error'); return; }
+
+  const imageStyle = (document.getElementById('tr-image-style') ? document.getElementById('tr-image-style').value : '').trim();
+  const profileSelect = document.getElementById('tr-writing-profile') ? document.getElementById('tr-writing-profile').value : '';
+  let writingProfile = profileSelect;
+  if (profileSelect === 'custom') {
+    writingProfile = (document.getElementById('tr-custom-writing-profile') ? document.getElementById('tr-custom-writing-profile').value : '').trim();
+  }
+
+  const charName = (document.getElementById('tr-char-name') ? document.getElementById('tr-char-name').value : '').trim();
+  let characterContext = null;
+  if (charName) {
+    characterContext = {
+      name: charName,
+      role: (document.getElementById('tr-char-role') ? document.getElementById('tr-char-role').value : '').trim() || 'protagonist',
+      description: (document.getElementById('tr-char-desc') ? document.getElementById('tr-char-desc').value : '').trim(),
+      visual_dna_en: (document.getElementById('tr-char-desc') ? document.getElementById('tr-char-desc').value : '').trim(),
+    };
+  }
+
   const payload = {
     keyword,
     language: document.getElementById('tr-language').value,
     country: document.getElementById('tr-country').value.trim() || 'global',
     count: parseInt(document.getElementById('tr-count').value) || 10,
   };
+  if (imageStyle) payload.image_style = imageStyle;
+  if (writingProfile) payload.writing_profile = writingProfile;
+  if (characterContext) payload.character_context = characterContext;
+
   const res = await api('POST', '/api/jobs/submit', { job_type: 'topic_research', payload });
   if (res && res.job_id) {
     showToast(`주제 찾기 작업이 제출되었습니다: ${res.job_id.substring(0,8)}`);

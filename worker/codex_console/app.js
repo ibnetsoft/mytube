@@ -55,9 +55,90 @@ $('kind').onchange=()=>{page=0;currentSource=null;sourceRevision++;$('source-pan
 $('previous').onclick=()=>{if(page>0){page--;loadCatalog();}};$('next').onclick=()=>{if(hasMore){page++;loadCatalog();}};
 $('refresh').onclick=()=>{refresh();if(!$('view-repair').hidden)loadCatalog();};
 async function start(body){if(busy)return;busy=true;error('');try{const result=await api('jobs',body);notice('로컬 작업을 시작했습니다. 기존 운영 대본은 변경하지 않습니다.');view('jobs');await showJob(result.id);}catch(e){error(e.message);}finally{await refresh();}}
-$('new-form').onsubmit=e=>{e.preventDefault();const form=new FormData(e.target);const category=form.get('custom_category').trim()||form.get('category');if(!category){error('카테고리를 입력하세요.');return;}if(!confirm('Codex 신규 대본 생성기를 실행할까요? CLI 사용량이 발생하며 결과는 로컬에 저장합니다.'))return;start({mode:'new',title:form.get('title'),category,category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0].dataset.id||'',duration_minutes:Number(form.get('duration')),generate_bgm_prompt:form.get('generate_bgm_prompt')==='on',notes:form.get('notes')});};
+const defaultCountryByLanguage = {ko:'한국',en:'미국',ja:'일본',es:'스페인'};
+const langNames = {ko:'한국어',en:'영어',ja:'일본어',es:'스페인어'};
+window.newCountryOverridden = false;
+window.updateNewSettingSummary = function() {
+  const form = $('new-form');
+  if (!form) return {};
+  const lang = form.elements.language?.value || 'ko';
+  const countrySelect = $('new-country');
+  const customCountry = $('new-custom-country');
+  let country = countrySelect.value === 'custom' ? (customCountry.value.trim() || '직접 입력') : countrySelect.value;
+  const era = form.elements.era_region?.value.trim() || '현대 지방 소도시';
+  const style = form.elements.image_style?.value || '실사';
+  const summary = `${langNames[lang] || lang} · ${country} ${era} · ${style}`;
+  const el = $('new-setting-summary');
+  if (el) el.textContent = summary;
+  return { language: lang, setting_country: country, era_region: era, image_style: style, summary_label: summary };
+};
+if ($('new-language')) {
+  $('new-language').onchange = e => {
+    const lang = e.target.value;
+    if (!window.newCountryOverridden) {
+      const def = defaultCountryByLanguage[lang] || '한국';
+      $('new-country').value = def;
+      $('new-custom-country').style.display = 'none';
+    }
+    window.updateNewSettingSummary();
+  };
+  $('new-country').onchange = e => {
+    window.newCountryOverridden = true;
+    const isCustom = e.target.value === 'custom';
+    $('new-custom-country').style.display = isCustom ? 'block' : 'none';
+    if (isCustom) $('new-custom-country').focus();
+    window.updateNewSettingSummary();
+  };
+  $('new-custom-country').oninput = window.updateNewSettingSummary;
+  $('new-era').oninput = window.updateNewSettingSummary;
+  $('new-style').onchange = window.updateNewSettingSummary;
+  window.updateNewSettingSummary();
+}
+$('new-form').onsubmit=e=>{
+  e.preventDefault();
+  const form=new FormData(e.target);
+  const category=form.get('custom_category').trim()||form.get('category');
+  if(!category){error('카테고리를 입력하세요.');return;}
+  const setting = window.updateNewSettingSummary();
+  if(!confirm('Codex 신규 대본 생성기를 실행할까요? CLI 사용량이 발생하며 결과는 로컬에 저장합니다.'))return;
+  start({
+    mode:'new',
+    title:form.get('title'),
+    category,
+    category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',
+    duration_minutes:Number(form.get('duration')),
+    language:setting.language,
+    setting_country:setting.setting_country,
+    era_region:setting.era_region,
+    image_style:setting.image_style,
+    generate_bgm_prompt:form.get('generate_bgm_prompt')==='on',
+    notes:form.get('notes')
+  });
+};
 $('repair-start').onclick=()=>{if(!currentSource||busy)return;if(!confirm('이 대본의 Astra 수정안을 생성할까요? 원본은 보존하고 결과를 로컬에 저장합니다.'))return;start({mode:'repair',kind:currentSource.kind,source_id:currentSource.id,notes:$('repair-notes').value});};
-async function showJob(id){try{const data=await api('jobs/'+id);selectedJob=data.job;$('result').hidden=false;$('result-title').textContent=data.job.title;$('result-status').textContent=(labels[data.job.status]||data.job.status)+' · '+data.job.stage+(data.job.error?' · '+data.job.error:'');if(data.sfx_summary&&data.sfx_summary.status!=='not_run')$('result-status').textContent+=' · 효과음 '+data.sfx_summary.status+' / '+data.sfx_summary.count+'개 / 재검토 '+data.sfx_summary.review_count+'개';$('original').textContent=data.original||'신규 생성 — 원본 없음';$('candidate').textContent=data.script||'아직 저장된 결과가 없습니다.';$('remaining').replaceChildren(...data.remaining.map(text=>element('li',text)));$('approve').hidden=data.job.status!=='awaiting_approval';if(window.renderGroundedResult)window.renderGroundedResult(data);if(window.renderTopicResult)window.renderTopicResult(data);}catch(e){error(e.message);}}
+async function showJob(id){try{
+  const data=await api('jobs/'+id);
+  selectedJob=data.job;
+  $('result').hidden=false;
+  $('result-title').textContent=data.job.title;
+  let statusText = (labels[data.job.status]||data.job.status)+' · '+data.job.stage+(data.job.error?' · '+data.job.error:'');
+  if(data.sfx_summary&&data.sfx_summary.status!=='not_run') statusText+=' · 효과음 '+data.sfx_summary.status+' / '+data.sfx_summary.count+'개 / 재검토 '+data.sfx_summary.review_count+'개';
+  $('result-status').textContent=statusText;
+  const settingBadge = $('result-setting-badge');
+  const cs = data.content_setting || data.job.content_setting;
+  if (settingBadge && cs) {
+    settingBadge.hidden = false;
+    settingBadge.innerHTML = `배경 설정: <strong>${cs.summary_label || (cs.language + ' · ' + cs.setting_country)}</strong> <span style="margin-left:8px;color:#89a2c3;font-size:11px">(${data.image_stage_info?.label || '배경 설정 저장 완료 · 이미지 생성 대기'})</span>`;
+  } else if (settingBadge) {
+    settingBadge.hidden = true;
+  }
+  $('original').textContent=data.original||'신규 생성 — 원본 없음';
+  $('candidate').textContent=data.script||'아직 저장된 결과가 없습니다.';
+  $('remaining').replaceChildren(...data.remaining.map(text=>element('li',text)));
+  $('approve').hidden=data.job.status!=='awaiting_approval';
+  if(window.renderGroundedResult)window.renderGroundedResult(data);
+  if(window.renderTopicResult)window.renderTopicResult(data);
+}catch(e){error(e.message);}}
 $('approve').onclick=async()=>{if(!selectedJob||!confirm('표시된 대본 버전에 승인 기록을 남길까요? 운영 대본 적용은 실행하지 않습니다.'))return;try{await api('jobs/'+selectedJob.id+'/approve',{candidate_hash:selectedJob.candidate_hash});notice('승인 기록을 저장했습니다. 연관 자료 검증과 운영 적용은 남아 있습니다.');await showJob(selectedJob.id);refresh();}catch(e){error(e.message);}};
 api('categories').then(data=>{const options=data.items.map(c=>{const o=element('option',c.name);o.value=c.name;o.dataset.id=c.id;return o;});const custom=element('option','직접 입력');custom.value='';$('category').replaceChildren(...options,custom);}).catch(e=>error(e.message));
 refresh();setInterval(()=>{if(document.hidden)return;refresh();if(selectedJob&&!$('view-jobs').hidden)showJob(selectedJob.id);},10000);

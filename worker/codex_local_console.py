@@ -117,6 +117,10 @@ class StartRequest(BaseModel):
     category: str = Field(default='', max_length=80)
     category_id: str = Field(default='', max_length=16)
     duration_minutes: int = Field(default=15, ge=1, le=60)
+    language: Literal['ko', 'en', 'ja', 'es'] = 'ko'
+    setting_country: str = Field(default='', max_length=80)
+    era_region: str = Field(default='현대 지방 소도시', max_length=120)
+    image_style: str = Field(default='실사', max_length=80)
     generate_bgm_prompt: bool = Field(default=False, strict=True)
     notes: str = Field(default='', max_length=4000)
     source_ids: list[str] = Field(default_factory=list, max_length=12)
@@ -187,9 +191,17 @@ class Jobs:
                 raise ValueError('이미 실행 또는 대기 중인 작업이 있습니다. 완료 후 시작하세요.')
             identity = uuid.uuid4().hex
             title = snapshot['summary']['title'] if snapshot else request.title.strip()
+            from worker.content_language import resolve_setting
+            setting = resolve_setting(request.model_dump())
             item = {'id': identity, 'mode': request.mode, 'title': title, 'status': 'queued',
                     'stage': '대기', 'created_at': time.time(), 'updated_at': time.time(),
-                    'kind': request.kind, 'source_id': request.source_id, 'published': False}
+                    'kind': request.kind, 'source_id': request.source_id,
+                    'language': setting['language'],
+                    'setting_country': setting['setting_country'],
+                    'era_region': setting['era_region'],
+                    'image_style': setting['image_style'],
+                    'content_setting': setting,
+                    'published': False}
             self.rows[identity] = item
             write_json(self.root / identity / 'job.json', item)
             write_json(self.root / identity / 'request.json', request.model_dump())
@@ -372,7 +384,18 @@ def detail(identity: str):
     snapshot_path = directory / 'source.json'
     candidate = json.loads(candidate_path.read_text(encoding='utf-8')) if candidate_path.exists() else {}
     snapshot = json.loads(snapshot_path.read_text(encoding='utf-8')) if snapshot_path.exists() else {}
-    return {'job': dict(jobs.rows[identity]), 'script': candidate.get('script', ''),
+    job_row = dict(jobs.rows[identity])
+    from worker.content_language import resolve_setting
+    content_setting = candidate.get('content_setting') or job_row.get('content_setting')
+    if not content_setting and (job_row.get('language') or job_row.get('setting_country')):
+        content_setting = resolve_setting(job_row)
+    image_stage_info = {
+        'status': 'pending_downstream',
+        'label': '배경 설정 저장 완료 (실제 이미지 생성은 후속 단계에서 적용)',
+        'summary': content_setting.get('summary_label') if content_setting else '',
+    }
+    return {'job': job_row, 'script': candidate.get('script', ''),
+            'content_setting': content_setting, 'image_stage_info': image_stage_info,
             'sfx_summary': {'status': (candidate.get('sfx_plan') or {}).get('status', 'not_run'),
                             'count': len(candidate.get('sfx_cues') or []),
                             'review_count': sum(bool(c.get('needs_review')) for c in candidate.get('sfx_cues') or [])},

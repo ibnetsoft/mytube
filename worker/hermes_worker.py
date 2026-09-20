@@ -65,8 +65,9 @@ mirror render_worker.py's dual local-vs-central job source pattern exactly
 (same central_client.py, same job_store.py remote-ack bookkeeping - nothing
 job-type-specific needed changing in either shared module). The web-admin
 trigger itself (creating remote_hermes_queue rows) is a separate, still-open
-follow-up - see docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md §2b.
 """
+from __future__ import annotations
+
 import datetime
 import asyncio
 import json
@@ -80,7 +81,10 @@ from collections import Counter
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = lambda *args, **kwargs: None
 
 import central_client
 import job_store
@@ -909,21 +913,63 @@ SCRIPT EXCERPT:
         return fallback
 
 
-def _build_prompt(keyword: str, language: str, country: str, count: int) -> str:
-    return (
-        f"You are a topic research assistant for a long-form YouTube channel.\n"
-        f"Research keyword/category: {keyword}\n"
-        f"Target language: {language}\n"
-        f"Target country/market: {country}\n"
-        f"Generate exactly {count} distinct video topic candidates.\n\n"
-        f"Respond with ONLY a JSON object, no markdown fences, no extra text, in this exact shape:\n"
-        f'{{"topics": [{{"title": "string", "summary": "string", "sources": ["string", "..."]}}]}}\n'
-        f"Each topic's \"sources\" is a short list of the reasoning/evidence behind why it's relevant "
-        f"(trend signals, angle rationale) - not necessarily URLs."
+def _build_prompt(
+    keyword: str,
+    language: str,
+    country: str,
+    count: int,
+    image_style: str = "",
+    character_context: dict | None = None,
+    writing_profile: str = "",
+) -> str:
+    sections = [
+        "You are an expert topic research and concept development director for a long-form YouTube channel.",
+        f"Research keyword/category: {keyword}",
+        f"Target language: {language}",
+        f"Target country/market: {country}",
+        f"Generate exactly {count} distinct, high-engagement video topic candidates.",
+    ]
+
+    if image_style:
+        sections.append(
+            f"\n[TARGET VISUAL ART STYLE: {image_style}]\n"
+            f"- Conceive video concepts that specifically leverage the strengths and aesthetic appeal of '{image_style}' style.\n"
+            "- Ensure the story situations, background settings, and visual atmosphere translate into visually striking scenes in this style."
+        )
+
+    if character_context and character_context.get("name"):
+        char_name = character_context["name"]
+        char_desc = character_context.get("description") or character_context.get("visual_dna_en") or ""
+        char_role = character_context.get("role") or "protagonist"
+        sections.append(
+            f"\n[PROTAGONIST / CHARACTER ANCHOR]\n"
+            f"- Main Character: {char_name} (Role: {char_role})\n"
+            f"- Visual & Concept: {char_desc}\n"
+            "- Every topic concept must be designed around this central character, their personality, unique premise, or episodic adventures.\n"
+            "- The title and story premise must allow this specific character to shine as the clear lead."
+        )
+
+    if writing_profile:
+        sections.append(
+            f"\n[WRITING & NARRATIVE TONE DIRECTIVE]\n"
+            f"{writing_profile}\n"
+            "- Ensure all topics align with this narrative voice, pacing, and dramatic contract."
+        )
+
+    sections.append(
+        "\nRespond with ONLY a JSON object, no markdown fences, no extra text, in this exact shape:\n"
+        '{"topics": [{"title": "string", "summary": "string", "sources": ["string", "..."], "visual_concept": "string", "suggested_character_role": "string"}]}\n'
+        "Guidelines:\n"
+        "- 'title': Compelling, high-CTR YouTube video title.\n"
+        "- 'summary': 2-3 sentence overview of the narrative hook, main conflict, and visual journey.\n"
+        "- 'sources': List of trend signals, angle rationale, or cultural/creative inspirations.\n"
+        "- 'visual_concept': Key visual scenes and cinematic/stylistic highlight of this topic.\n"
+        "- 'suggested_character_role': How the protagonist drives this episode's conflict and resolution."
     )
+    return "\n".join(sections)
 
 
-def _validate_payload(payload: dict) -> tuple[str, str, str, int]:
+def _validate_payload(payload: dict) -> tuple[str, str, str, int, str, dict | None, str]:
     keyword = (payload.get("keyword") or payload.get("topic") or "").strip()
     if not keyword:
         raise ValueError("payload.keyword (or payload.topic) is required for topic_research")
@@ -935,7 +981,49 @@ def _validate_payload(payload: dict) -> tuple[str, str, str, int]:
     except (TypeError, ValueError):
         count = DEFAULT_COUNT
     count = max(1, min(count, MAX_COUNT))
-    return keyword, language, country, count
+
+    # Modular planning slots
+    image_style = str(payload.get("image_style") or "").strip()
+
+    raw_char = payload.get("character_context") or payload.get("main_character") or payload.get("character")
+    character_context: dict | None = None
+    if isinstance(raw_char, dict):
+        character_context = {
+            "name": str(raw_char.get("name") or raw_char.get("display_name") or "").strip(),
+            "role": str(raw_char.get("role") or "protagonist").strip(),
+            "description": str(raw_char.get("description") or raw_char.get("visual_dna_en") or "").strip(),
+            "visual_dna_en": str(raw_char.get("visual_dna_en") or raw_char.get("visual_dna") or raw_char.get("description") or "").strip(),
+            "wardrobe_en": str(raw_char.get("wardrobe_en") or raw_char.get("wardrobe") or "").strip(),
+            "traits": raw_char.get("traits") or raw_char.get("tags") or [],
+        }
+    elif isinstance(raw_char, str) and raw_char.strip():
+        character_context = {
+            "name": raw_char.strip().split(",")[0].strip(),
+            "role": "protagonist",
+            "description": raw_char.strip(),
+            "visual_dna_en": raw_char.strip(),
+            "wardrobe_en": "",
+            "traits": [],
+        }
+
+    raw_profile = payload.get("writing_profile") or payload.get("custom_writing_profile") or payload.get("category_writing_profile")
+    writing_profile = ""
+    if isinstance(raw_profile, str):
+        writing_profile = raw_profile.strip()
+    elif isinstance(raw_profile, dict):
+        try:
+            from services.category_writing_profiles import build_category_writing_profile
+            writing_profile = build_category_writing_profile(
+                str(raw_profile.get("name") or keyword or "Custom"),
+                voice=str(raw_profile.get("voice") or ""),
+                rhythm=str(raw_profile.get("rhythm") or ""),
+                drama=str(raw_profile.get("drama") or ""),
+                language=str(raw_profile.get("language") or ""),
+            )
+        except Exception:
+            writing_profile = json.dumps(raw_profile, ensure_ascii=False)
+
+    return keyword, language, country, count, image_style, character_context, writing_profile
 
 
 def _validate_benchmark_payload(payload: dict) -> tuple[str, str, str, int, int, list[str]]:
@@ -1781,8 +1869,16 @@ def _process_topic_research(job: dict, job_id: str, job_log) -> tuple[str, dict]
     write_state("preparing", job, 0, job_id)
     job_log.info("-> PREPARING (building prompt)")
 
-    keyword, language, country, count = _validate_payload(job["payload"])
-    prompt = _build_prompt(keyword, language, country, count)
+    keyword, language, country, count, image_style, character_context, writing_profile = _validate_payload(job["payload"])
+    prompt = _build_prompt(
+        keyword=keyword,
+        language=language,
+        country=country,
+        count=count,
+        image_style=image_style,
+        character_context=character_context,
+        writing_profile=writing_profile,
+    )
 
     job_store.transition(job_id, job_store.RENDERING, reason="calling AI provider")
     write_state("running", job, 30, job_id)
@@ -1822,6 +1918,9 @@ def _process_topic_research(job: dict, job_id: str, job_log) -> tuple[str, dict]
         "model": model,
         "completed_at": completed_at,
         "error": None,
+        "image_style": image_style,
+        "character_context": character_context,
+        "writing_profile": writing_profile,
         "_payload_data": job.get("payload", {}),
     }
     result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -7876,7 +7975,23 @@ async def _generate_main_character_anchor(
     language: str,
     narrative_blueprint: dict | None,
     job_log,
+    predefined_character: dict | None = None,
 ) -> dict:
+    predefined = (
+        predefined_character
+        or structure.get("main_character")
+        or structure.get("character_context")
+        or (narrative_blueprint or {}).get("main_character")
+        or (narrative_blueprint or {}).get("character_context")
+    )
+    if isinstance(predefined, dict) and (predefined.get("name") or predefined.get("display_name")):
+        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        character = {**fallback, **{k: v for k, v in predefined.items() if v not in (None, "", [])}}
+        character["source"] = "initial_planning_slot"
+        character["created_at"] = time.time()
+        job_log.info(f"Main character anchor pre-set from initial planning slot: {character.get('name')}")
+        return character
+
     scenes = structure.get("scenes") if isinstance(structure, dict) else []
     scene_digest = []
     if isinstance(scenes, list):
@@ -9932,21 +10047,44 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log, *, st
 
         if job_type == "topic_research":
             topics = result_payload.get("topics", [])
-            payload_data = result_payload.get("_payload_data")
+            payload_data = result_payload.get("_payload_data") or {}
             if not topics:
                 job_log.warning("No topics in result_payload — skipping Supabase insert")
                 return
             # Insert each topic as a pending row (mirrors dispatcher_service.py)
-            category_id = (payload_data or {}).get("category_id")
-            language = (payload_data or {}).get("language", "ko")
-            assigned_email = (payload_data or {}).get("assigned_employee_email", "")
+            category_id = payload_data.get("category_id")
+            language = payload_data.get("language", "ko")
+            assigned_email = payload_data.get("assigned_employee_email", "")
             if not assigned_email:
                 # Derive a fallback so the NOT NULL column is satisfied
                 assigned_email = "hermes_worker@local"
+
+            image_style = str(payload_data.get("image_style") or result_payload.get("image_style") or "").strip()
+            character_context = payload_data.get("character_context") or result_payload.get("character_context")
+            writing_profile = payload_data.get("writing_profile") or result_payload.get("writing_profile")
+
             for topic_item in topics:
                 title = topic_item.get("title", "") if isinstance(topic_item, dict) else str(topic_item)
                 if not title:
                     continue
+                summary = topic_item.get("summary", "") if isinstance(topic_item, dict) else ""
+                visual_concept = topic_item.get("visual_concept", "") if isinstance(topic_item, dict) else ""
+                suggested_role = topic_item.get("suggested_character_role", "") if isinstance(topic_item, dict) else ""
+                sources = topic_item.get("sources", []) if isinstance(topic_item, dict) else []
+
+                progress_payload = {
+                    "topic_summary": summary,
+                    "visual_concept": visual_concept,
+                    "suggested_character_role": suggested_role,
+                    "sources": sources,
+                }
+                if image_style:
+                    progress_payload["image_style"] = image_style
+                if character_context:
+                    progress_payload["character_context"] = character_context
+                if writing_profile:
+                    progress_payload["writing_profile"] = writing_profile
+
                 row = {
                     "topic": title,
                     "assigned_employee_email": assigned_email,
@@ -9956,9 +10094,12 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log, *, st
                     "generated_by_worker_id": WORKER_ID,
                     "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
                     "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "progress_payload": progress_payload,
                 }
                 if category_id:
                     row["category_id"] = category_id
+                if image_style:
+                    row["image_style"] = image_style
                 r = _req.post(
                     f"{supabase_url}/rest/v1/topics_queue",
                     json=row, headers=headers, timeout=10,
@@ -9966,7 +10107,7 @@ def _save_result_to_supabase(job_type: str, result_payload: dict, job_log, *, st
                 if r.status_code not in (200, 201) and "Could not find" in r.text:
                     fallback_row = {
                         key: value for key, value in row.items()
-                        if key not in GENERATED_BY_TOPIC_FIELDS
+                        if key not in GENERATED_BY_TOPIC_FIELDS and key != "image_style"
                     }
                     r = _req.post(
                         f"{supabase_url}/rest/v1/topics_queue",

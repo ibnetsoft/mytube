@@ -86,8 +86,9 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     }
 
     const storageBucket = String(asset?.metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
-    const storageProvider = String(asset?.metadata?.storage_provider || '').trim().toLowerCase()
     const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
+    const gcsBucket = String(asset?.metadata?.gcs_bucket || storageBucket || '').trim()
+    const gcsPath = String(asset?.metadata?.gcs_path || storagePath || '').trim().replace(/^\/+/, '')
     const storagePublicUrl = String(asset?.metadata?.storage_public_url || '').trim()
     let fileBuffer: Buffer | null = null
     let source = ''
@@ -96,29 +97,9 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     let upstreamContentLength: string | null = null
     let upstreamContentType: string | null = null
 
+    // 1차: Supabase Storage 조회 (직접 다운로드 또는 Public URL Range 요청)
     if (storagePath) {
-        if (storageProvider === 'gcs') {
-            try {
-                if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
-                    const chunk = await downloadGcsObjectViaSignedUrl({
-                        bucket: storageBucket,
-                        objectPath: storagePath,
-                        range: requestedRange,
-                    })
-                    fileBuffer = chunk.buffer
-                    responseStatus = chunk.status === 206 ? 206 : 200
-                    contentRange = chunk.contentRange
-                    upstreamContentLength = chunk.contentLength
-                    upstreamContentType = chunk.contentType
-                } else {
-                    fileBuffer = await downloadGcsObject({ bucket: storageBucket, objectPath: storagePath })
-                }
-                source = 'gcs'
-            } catch (error: any) {
-                console.warn('[STD Asset File] GCS download failed; trying Drive:', error?.message || 'gcs_asset_missing')
-            }
-        }
-        if (!fileBuffer && requestedRange && storagePublicUrl && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+        if (requestedRange && storagePublicUrl && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
             const rangedResponse = await fetch(storagePublicUrl, { headers: { Range: requestedRange } }).catch(() => null)
             if (rangedResponse?.ok) {
                 fileBuffer = Buffer.from(await rangedResponse.arrayBuffer())
@@ -129,14 +110,39 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
                 source = 'storage'
             }
         }
-        if (!fileBuffer && storageProvider !== 'gcs') {
+        if (!fileBuffer) {
             const { data, error } = await supabaseAdmin.storage.from(storageBucket).download(storagePath)
             if (data && !error) {
                 fileBuffer = Buffer.from(await data.arrayBuffer())
                 source = 'storage'
             } else {
-                console.warn('[STD Asset File] Storage download failed; trying Drive:', error?.message || 'storage_asset_missing')
+                console.warn('[STD Asset File] 1st Supabase Storage download failed; checking 2nd GCS:', error?.message || 'supabase_asset_missing')
             }
+        }
+    }
+
+    // 2차: GCS (Google Cloud Storage) 조회 (1차 실패 또는 만료 시)
+    if (!fileBuffer && (asset?.metadata?.gcs_path || storagePath) && isGcsStorageConfigured()) {
+        try {
+            const targetGcsPath = gcsPath || storagePath
+            const targetGcsBucket = gcsBucket || storageBucket
+            if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+                const chunk = await downloadGcsObjectViaSignedUrl({
+                    bucket: targetGcsBucket,
+                    objectPath: targetGcsPath,
+                    range: requestedRange,
+                })
+                fileBuffer = chunk.buffer
+                responseStatus = chunk.status === 206 ? 206 : 200
+                contentRange = chunk.contentRange
+                upstreamContentLength = chunk.contentLength
+                upstreamContentType = chunk.contentType
+            } else {
+                fileBuffer = await downloadGcsObject({ bucket: targetGcsBucket, objectPath: targetGcsPath })
+            }
+            source = 'gcs'
+        } catch (gcsError: any) {
+            console.warn('[STD Asset File] 2nd GCS download failed; checking 3rd Drive:', gcsError?.message || 'gcs_asset_missing')
         }
     }
 

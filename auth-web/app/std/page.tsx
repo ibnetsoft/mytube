@@ -8459,7 +8459,7 @@ export default function StdPortalPage() {
 
                                 {/* 패널 본문: 모바일에서는 토글 상태에 따라 노출(기본 숨김), 데스크톱(md 이상) 상시 노출 */}
                                 <div className={`${mobileSubtitlePanelOpen ? 'flex' : 'hidden md:flex'} flex-col gap-2`}>
-                                    {/* 1행: 성우선택 | 대사 | 안정성 | 대본복구 | 템플릿 | 프리셋관리 */}
+                                    {/* 1행: 성우선택 | 대사 | 안정성 | 대본복구 | 템플릿 | 프리셋관리 | 글자색/테두리색 */}
                                     <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
                                         {isVrewSubtitleMode && (
                                             <>
@@ -8576,6 +8576,40 @@ export default function StdPortalPage() {
                                                 <Save size={12} />
                                             </button>
                                         </div>
+
+                                        <div className="hidden sm:block w-px h-5 bg-white/10 shrink-0" />
+
+                                        {/* 글자색 / 테두리색 */}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            <div className="flex items-center gap-1 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="color"
+                                                    value={subTextColor}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubTextColor(value)
+                                                        persistSubtitleRenderSettings({ subTextColor: value })
+                                                    }}
+                                                    className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
+                                                    title="글자색"
+                                                />
+                                                <span className="text-[9px] text-gray-400">{t('sub_text_color_short')}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="color"
+                                                    value={subStrokeColor}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubStrokeColor(value)
+                                                        persistSubtitleRenderSettings({ subStrokeColor: value })
+                                                    }}
+                                                    className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
+                                                    title="테두리색"
+                                                />
+                                                <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* 2행: 폰트 & 크기 & 자간 & 최대글자수 | 글자색/테두리색 | 테두리 두께 & Y 위치 | 배경 바 */}
@@ -8647,40 +8681,6 @@ export default function StdPortalPage() {
                                                     title="한 자막 최대 글자 수 (롱폼)"
                                                 />
                                                 <span className="text-[9px] text-gray-500 ml-0.5">{ui("최대글자수")}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="hidden sm:block w-px h-5 bg-white/10 shrink-0" />
-
-                                        {/* 글자색 / 테두리색 */}
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                            <div className="flex items-center gap-1 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
-                                                <input
-                                                    type="color"
-                                                    value={subTextColor}
-                                                    onChange={e => {
-                                                        const value = e.target.value
-                                                        setSubTextColor(value)
-                                                        persistSubtitleRenderSettings({ subTextColor: value })
-                                                    }}
-                                                    className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
-                                                    title="글자색"
-                                                />
-                                                <span className="text-[9px] text-gray-400">{t('sub_text_color_short')}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
-                                                <input
-                                                    type="color"
-                                                    value={subStrokeColor}
-                                                    onChange={e => {
-                                                        const value = e.target.value
-                                                        setSubStrokeColor(value)
-                                                        persistSubtitleRenderSettings({ subStrokeColor: value })
-                                                    }}
-                                                    className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
-                                                    title="테두리색"
-                                                />
-                                                <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
                                             </div>
                                         </div>
 

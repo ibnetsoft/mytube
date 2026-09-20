@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from typing import Any
+from worker.content_language import LANGUAGE_NAMES, language_directive, output_language
 
 PROFILE = "senior_listening_v3"
 CHECKS = (
@@ -33,8 +34,14 @@ def contract(payload: dict[str, Any]) -> str:
         category_id = aliases.get(name, category_id)
     category = CATEGORY_RULES.get(category_id,
         "Use the requested category and language; clear adult oral narration with motivated events and a resolved title promise.")
+    language = output_language(payload)
+    if language in LANGUAGE_NAMES:
+        category = category.replace('Natural Korean human-interest narration', 'Natural spoken human-interest narration')
+        category = category.replace('Write idiomatic spoken ENGLISH, not Korean or translated template text.', 'Write idiomatic spoken narration, not translated template text.')
+        category = category.replace('Write idiomatic spoken JAPANESE.', 'Write idiomatic spoken narration.')
     return f"""[Mandatory senior listening contract: {PROFILE}]
 {category}
+{language_directive(language)}
 Write for adults listening without watching the screen. Do not assume age implies poor comprehension.
 Introduce the protagonist's role and immediate situation before loading names or mysteries.
 Maintain a continuity ledger in narrative_blueprint: cast (role, relationship, age/gender where relevant, first introduction), timeline, object custody, character knowledge, planted clues and their resolutions.
@@ -77,6 +84,13 @@ def text_issues(sections: list[Any], payload: dict[str, Any]) -> list[str]:
         latin = len(re.findall(r"[A-Za-z]", script))
         if hangul < 10 or latin > hangul:
             issues.append("Korean narration missing or dominated by English")
+    if language in ('en', 'es', 'ja') and script:
+        hangul = len(re.findall(r'[가-힣]', script))
+        latin = len(re.findall(r'[A-Za-zÀ-ÿ]', script))
+        japanese = len(re.findall(r'[ぁ-ゖァ-ヺ一-龯]', script))
+        expected = japanese if language == 'ja' else latin
+        if expected < 10 or hangul > expected or (language in ('en', 'es') and japanese > expected):
+            issues.append('Narration does not match requested language: ' + language)
     sentences = [re.sub(r"\s+", " ", s).strip() for s in re.split(r"(?<=[.!?。！？])\s+", script)]
     for sentence, count in Counter(sentences).items():
         if len(sentence) >= 20 and count >= 3:

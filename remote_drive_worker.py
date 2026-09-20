@@ -241,7 +241,7 @@ class RemoteDriveWorker:
         return os.path.join(*parts)
 
     def _download_from_supabase_storage(self, source, destination_path):
-        """Fetch a private Storage object with an atomic local write."""
+        """Fetch a private Storage object with an atomic local write (1st Priority Storage)."""
         if not isinstance(source, dict):
             return False
         bucket = str(source.get("bucket") or "").strip()
@@ -279,44 +279,238 @@ class RemoteDriveWorker:
             except OSError:
                 pass
 
+    def _get_gcs_credentials(self):
+        """Build Google Cloud Service Account credentials for GCS operations."""
+        client_email = os.getenv("GCS_CLIENT_EMAIL") or getattr(config, "GCS_CLIENT_EMAIL", "")
+        private_key = os.getenv("GCS_PRIVATE_KEY") or getattr(config, "GCS_PRIVATE_KEY", "")
+        project_id = os.getenv("GCS_PROJECT_ID") or getattr(config, "GCS_PROJECT_ID", "")
+        bucket_name = os.getenv("GCS_BUCKET_NAME") or getattr(config, "GCS_BUCKET_NAME", "")
+        if not (client_email and private_key and bucket_name):
+            return None
+        try:
+            from google.oauth2 import service_account
+            from google.auth.transport.requests import Request
+            formatted_key = private_key.replace("\\n", "\n")
+            info = {
+                "type": "service_account",
+                "project_id": project_id,
+                "private_key": formatted_key,
+                "client_email": client_email,
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+            creds = service_account.Credentials.from_service_account_info(
+                info,
+                scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
+            )
+            creds.refresh(Request())
+            return creds, bucket_name
+        except Exception as e:
+            print(f"[RemoteDriveWorker] GCS credentials setup failed: {e}")
+            return None
+
+    def _download_from_gcs_storage(self, source, destination_path):
+        """Fetch a GCS object with atomic local write (2nd Priority Storage)."""
+        if not isinstance(source, dict):
+            return False
+        # 1. Try V4 Signed URL if provided
+        signed_url = source.get("gcs_signed_url")
+        if signed_url:
+            partial_path = f"{destination_path}.gcsdownload"
+            try:
+                res = requests.get(
+                    signed_url,
+                    stream=True,
+                    timeout=120,
+                    proxies={"http": None, "https": None},
+                )
+                if res.status_code == 200:
+                    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+                    with open(partial_path, "wb") as output:
+                        for chunk in res.iter_content(chunk_size=1024 * 1024):
+                            if chunk:
+                                output.write(chunk)
+                    if os.path.exists(partial_path) and os.path.getsize(partial_path) > 0:
+                        os.replace(partial_path, destination_path)
+                        return True
+            except requests.RequestException:
+                pass
+            finally:
+                if os.path.exists(partial_path):
+                    try:
+                        os.remove(partial_path)
+                    except OSError:
+                        pass
+
+        # 2. Try direct GCS REST API with Service Account
+        bucket = str(source.get("gcs_bucket") or source.get("bucket") or "").strip()
+        object_path = str(source.get("gcs_path") or source.get("path") or "").strip().replace("\\", "/").lstrip("/")
+        if bucket and object_path and ".." not in object_path.split("/"):
+            creds_info = self._get_gcs_credentials()
+            if creds_info:
+                creds, default_bucket = creds_info
+                target_bucket = bucket or default_bucket
+                url = f"https://storage.googleapis.com/storage/v1/b/{quote(target_bucket, safe='')}/o/{quote(object_path, safe='')}?alt=media"
+                headers = {"Authorization": f"Bearer {creds.token}"}
+                partial_path = f"{destination_path}.gcsdownload"
+                try:
+                    res = requests.get(
+                        url,
+                        headers=headers,
+                        stream=True,
+                        timeout=120,
+                        proxies={"http": None, "https": None},
+                    )
+                    if res.status_code == 200:
+                        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+                        with open(partial_path, "wb") as output:
+                            for chunk in res.iter_content(chunk_size=1024 * 1024):
+                                if chunk:
+                                    output.write(chunk)
+                        if os.path.exists(partial_path) and os.path.getsize(partial_path) > 0:
+                            os.replace(partial_path, destination_path)
+                            return True
+                except requests.RequestException:
+                    pass
+                finally:
+                    if os.path.exists(partial_path):
+                        try:
+                            os.remove(partial_path)
+                        except OSError:
+                            pass
+        return False
+
+    def _upload_to_supabase_storage(self, file_path, bucket, object_path, mime_type="video/mp4"):
+        """Upload a file to Supabase Storage bucket (1st Priority)."""
+        if not file_path or not os.path.exists(file_path):
+            return None
+        clean_bucket = str(bucket or "").strip()
+        clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
+        if not clean_bucket or not clean_path:
+            return None
+        url = f"{self.supabase_url}/storage/v1/object/{quote(clean_bucket, safe='')}/{quote(clean_path, safe='/')}"
+        headers = {
+            "apikey": self.supabase_key,
+            "Authorization": f"Bearer {self.supabase_key}",
+            "Content-Type": mime_type,
+            "x-upsert": "true",
+        }
+        try:
+            with open(file_path, "rb") as f:
+                res = requests.post(
+                    url,
+                    headers=headers,
+                    data=f,
+                    timeout=300,
+                    proxies={"http": None, "https": None},
+                )
+            if res.status_code in (200, 201):
+                public_url = f"{self.supabase_url}/storage/v1/object/public/{quote(clean_bucket, safe='')}/{quote(clean_path, safe='/')}"
+                return {
+                    "bucket": clean_bucket,
+                    "path": clean_path,
+                    "public_url": public_url,
+                }
+            else:
+                print(f"[RemoteDriveWorker] Supabase upload failed with status {res.status_code}: {res.text[:200]}")
+        except Exception as e:
+            print(f"[RemoteDriveWorker] Supabase upload error: {e}")
+        return None
+
+    def _upload_to_gcs_storage(self, file_path, object_path, mime_type="video/mp4"):
+        """Upload a file to Google Cloud Storage (2nd Priority)."""
+        if not file_path or not os.path.exists(file_path):
+            return None
+        creds_info = self._get_gcs_credentials()
+        if not creds_info:
+            return None
+        creds, bucket = creds_info
+        clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
+        url = f"https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket, safe='')}/o?uploadType=media&name={quote(clean_path, safe='')}"
+        headers = {
+            "Authorization": f"Bearer {creds.token}",
+            "Content-Type": mime_type,
+        }
+        try:
+            with open(file_path, "rb") as f:
+                res = requests.post(
+                    url,
+                    headers=headers,
+                    data=f,
+                    timeout=300,
+                    proxies={"http": None, "https": None},
+                )
+            if res.status_code in (200, 201):
+                public_url = f"https://storage.googleapis.com/{quote(bucket, safe='')}/{quote(clean_path, safe='/')}"
+                return {
+                    "bucket": bucket,
+                    "path": clean_path,
+                    "public_url": public_url,
+                }
+            else:
+                print(f"[RemoteDriveWorker] GCS upload failed with status {res.status_code}: {res.text[:200]}")
+        except Exception as e:
+            print(f"[RemoteDriveWorker] GCS upload error: {e}")
+        return None
+
     def _download_asset_with_fallback(self, job_id, drive_file_id, destination_path, *, storage_source=None, label):
-        """Read Storage first; Drive is only for legacy or missing Storage files."""
+        """Read Storage first (1st Supabase, 2nd GCS); Drive is only for legacy or missing Storage files."""
+        # 1st Priority: Supabase Storage
         if storage_source and self._download_from_supabase_storage(storage_source, destination_path):
             return "supabase_storage"
-        if not drive_file_id:
-            raise RuntimeError(f"Supabase 에셋 다운로드 실패: {label}")
-        attempts = max(1, int(os.getenv("REMOTE_RENDER_DRIVE_DOWNLOAD_ATTEMPTS", "3")))
-        for attempt in range(1, attempts + 1):
-            try:
-                os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-                downloaded = google_drive_service.download_file(
-                    drive_file_id,
-                    destination_path,
-                    token_path=self.google_token_path or None,
-                )
-                if downloaded and os.path.exists(destination_path):
-                    return "google_drive"
-            except Exception:
-                pass
-            if attempt < attempts:
-                self.update_job(job_id, message=f"Google Drive 다운로드 재시도 중 ({attempt}/{attempts}): {label}")
-                time.sleep(attempt)
 
+        # 2nd Priority: Google Cloud Storage
+        if storage_source and self._download_from_gcs_storage(storage_source, destination_path):
+            return "gcs_storage"
+
+        # 3rd Priority: Google Drive (legacy fallback)
+        if drive_file_id:
+            attempts = max(1, int(os.getenv("REMOTE_RENDER_DRIVE_DOWNLOAD_ATTEMPTS", "3")))
+            for attempt in range(1, attempts + 1):
+                try:
+                    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+                    downloaded = google_drive_service.download_file(
+                        drive_file_id,
+                        destination_path,
+                        token_path=self.google_token_path or None,
+                    )
+                    if downloaded and os.path.exists(destination_path):
+                        return "google_drive"
+                except Exception:
+                    pass
+                if attempt < attempts:
+                    self.update_job(job_id, message=f"Google Drive 다운로드 재시도 중 ({attempt}/{attempts}): {label}")
+                    time.sleep(attempt)
+
+        # Retry Supabase or GCS once more before declaring complete failure
         if storage_source:
-            self.update_job(job_id, message=f"Google Drive 오류로 Supabase 에셋 대체 다운로드 중: {label}")
             if self._download_from_supabase_storage(storage_source, destination_path):
                 return "supabase_storage"
-        raise RuntimeError(f"에셋 다운로드 실패 (Drive {attempts}회 재시도 및 Supabase 대체 다운로드 실패): {label}")
+            if self._download_from_gcs_storage(storage_source, destination_path):
+                return "gcs_storage"
+
+        raise RuntimeError(f"에셋 다운로드 실패 (1차 Supabase, 2차 GCS, 3차 Drive 모두 실패): {label}")
 
     def _prepare_drive_folder_manifest_job(self, job_id, job, temp_dir, config_file_id):
         config_path = os.path.join(temp_dir, "config.json")
-        self.update_job(job_id, progress=5, message="Google Drive에서 렌더 설정 파일 다운로드 중...")
+        self.update_job(job_id, progress=5, message="렌더 설정 파일 다운로드 중 (1차 Supabase / 2차 GCS)...")
         metadata = job.get("metadata") or {}
+        supabase_cfg = metadata.get("supabase_config") or {}
+        gcs_cfg = metadata.get("gcs_config") or {}
+        config_storage_source = {
+            "bucket": supabase_cfg.get("bucket"),
+            "path": supabase_cfg.get("path"),
+            "gcs_bucket": supabase_cfg.get("gcs_bucket") or gcs_cfg.get("bucket"),
+            "gcs_path": supabase_cfg.get("gcs_path") or gcs_cfg.get("path"),
+            "gcs_signed_url": supabase_cfg.get("gcs_signed_url") or gcs_cfg.get("signed_url"),
+        }
+        if not config_storage_source["bucket"] and not config_storage_source["gcs_bucket"] and not config_storage_source["gcs_signed_url"]:
+            config_storage_source = None
+
         self._download_asset_with_fallback(
             job_id,
             config_file_id,
             config_path,
-            storage_source=metadata.get("supabase_config"),
+            storage_source=config_storage_source,
             label="config.json",
         )
 
@@ -332,7 +526,12 @@ class RemoteDriveWorker:
         for index, item in enumerate(files, start=1):
             drive_file_id = item.get("drive_file_id")
             relative_path = item.get("path")
-            has_storage = item.get("supabase_bucket") and item.get("supabase_path")
+            has_storage = (
+                (item.get("supabase_bucket") and item.get("supabase_path"))
+                or (item.get("storage_bucket") and item.get("storage_path"))
+                or item.get("gcs_signed_url")
+                or (item.get("gcs_bucket") and item.get("gcs_path"))
+            )
             if (not drive_file_id and not has_storage) or not relative_path:
                 raise RuntimeError("렌더 에셋 목록에 저장소 위치 또는 경로가 없습니다.")
             local_rel_path = self._safe_manifest_path(relative_path)
@@ -344,10 +543,13 @@ class RemoteDriveWorker:
                 message=f"렌더 에셋 다운로드 중... ({index}/{total})",
             )
             storage_source = {
-                "bucket": item.get("supabase_bucket"),
-                "path": item.get("supabase_path"),
+                "bucket": item.get("supabase_bucket") or item.get("storage_bucket"),
+                "path": item.get("supabase_path") or item.get("storage_path"),
+                "gcs_bucket": item.get("gcs_bucket"),
+                "gcs_path": item.get("gcs_path"),
+                "gcs_signed_url": item.get("gcs_signed_url"),
             }
-            if not storage_source["bucket"] or not storage_source["path"]:
+            if not storage_source["bucket"] and not storage_source["gcs_bucket"] and not storage_source["gcs_signed_url"]:
                 storage_source = None
             self._download_asset_with_fallback(
                 job_id,
@@ -368,7 +570,12 @@ class RemoteDriveWorker:
         zip_path = os.path.join(temp_dir, "asset_package.zip")
         try:
             metadata = job.get("metadata") or {}
-            if metadata.get("package_transport") == "google_drive_folder":
+            if (
+                metadata.get("package_transport") in ("google_drive_folder", "storage_direct", "gcs_folder")
+                or metadata.get("config_file_id")
+                or metadata.get("supabase_config")
+                or metadata.get("gcs_config")
+            ):
                 config_file_id = metadata.get("config_file_id") or asset_file_id
                 self._prepare_drive_folder_manifest_job(job_id, job, temp_dir, config_file_id)
             else:
@@ -420,24 +627,58 @@ class RemoteDriveWorker:
             if not os.path.exists(output_path):
                 raise RuntimeError("렌더링은 완료됐지만 output.mp4 파일을 찾을 수 없습니다.")
 
-            self.update_job(job_id, progress=92, message="렌더링된 영상을 Google Drive에 업로드 중...")
+            self.update_job(job_id, progress=92, message="렌더링된 영상을 저장소(1차 Supabase / 2차 GCS)에 업로드 중...")
             result_filename = self._build_result_filename(job)
-            result_folder = self._resolve_result_folder(job)
-            drive_file = google_drive_service.upsert_file(
+
+            # 1st Priority: Supabase Storage
+            supabase_render_bucket = os.getenv("SUPABASE_RENDER_BUCKET") or "content-assets"
+            supabase_render_path = f"std-renders/{job_id}/{result_filename}"
+            supabase_video = self._upload_to_supabase_storage(
                 output_path,
-                token_path=self.google_token_path or None,
-                folder_id=result_folder.get("id"),
-                filename=result_filename,
-                mimetype="video/mp4",
-                description=f"AIR remote render result for queue job {job_id}",
-                make_public=False,
+                bucket=supabase_render_bucket,
+                object_path=supabase_render_path,
+                mime_type="video/mp4",
             )
-            if not drive_file or not drive_file.get("id"):
-                raise RuntimeError("렌더링된 영상을 Google Drive에 업로드하지 못했습니다.")
+            if supabase_video:
+                print(f"[RemoteDriveWorker] 1차 Supabase 저장소 영상 업로드 성공: {supabase_render_path}")
+
+            # 2nd Priority: Google Cloud Storage
+            gcs_render_path = f"std-renders/{job_id}/{result_filename}"
+            gcs_video = self._upload_to_gcs_storage(
+                output_path,
+                object_path=gcs_render_path,
+                mime_type="video/mp4",
+            )
+            if gcs_video:
+                print(f"[RemoteDriveWorker] 2차 GCS 저장소 영상 업로드 성공: {gcs_render_path}")
+
+            # 3rd Priority: Google Drive (Fallback / Legacy)
+            drive_file = None
+            result_folder = None
+            try:
+                result_folder = self._resolve_result_folder(job)
+                drive_file = google_drive_service.upsert_file(
+                    output_path,
+                    token_path=self.google_token_path or None,
+                    folder_id=result_folder.get("id"),
+                    filename=result_filename,
+                    mimetype="video/mp4",
+                    description=f"AIR remote render result for queue job {job_id}",
+                    make_public=False,
+                )
+                if drive_file and drive_file.get("id"):
+                    print(f"[RemoteDriveWorker] 3차 Google Drive 영상 업로드 성공: {drive_file.get('id')}")
+            except Exception as drive_err:
+                print(f"[RemoteDriveWorker] Google Drive 업로드 건너뜀/실패 (1차 Supabase/2차 GCS로 지속): {drive_err}")
+
+            if not supabase_video and not gcs_video and not drive_file:
+                raise RuntimeError("렌더링된 영상을 저장소(1차 Supabase, 2차 GCS, 3차 Drive) 어디에도 업로드하지 못했습니다.")
 
             thumbnail_file = None
             thumbnail_filename = None
             packaged_thumbnail = None
+            supabase_thumb = None
+            gcs_thumb = None
             project_metadata_file = None
             config_path = os.path.join(temp_dir, "config.json")
             if os.path.exists(config_path):
@@ -447,25 +688,45 @@ class RemoteDriveWorker:
                 if thumbnail_filename:
                     packaged_thumbnail = os.path.join(temp_dir, thumbnail_filename)
                 if packaged_thumbnail and os.path.exists(packaged_thumbnail):
-                    thumbnail_file = google_drive_service.upsert_file(
+                    thumb_mime = "image/png" if thumbnail_filename.lower().endswith(".png") else "image/jpeg"
+                    supabase_thumb = self._upload_to_supabase_storage(
                         packaged_thumbnail,
-                        token_path=self.google_token_path or None,
-                        folder_id=result_folder.get("id"),
-                        filename=thumbnail_filename,
-                        mimetype="image/png" if thumbnail_filename.lower().endswith(".png") else "image/jpeg",
-                        description=f"AIR thumbnail for queue job {job_id}",
-                        make_public=False,
+                        bucket=supabase_render_bucket,
+                        object_path=f"std-renders/{job_id}/{thumbnail_filename}",
+                        mime_type=thumb_mime,
                     )
+                    gcs_thumb = self._upload_to_gcs_storage(
+                        packaged_thumbnail,
+                        object_path=f"std-renders/{job_id}/{thumbnail_filename}",
+                        mime_type=thumb_mime,
+                    )
+                    if result_folder and result_folder.get("id"):
+                        try:
+                            thumbnail_file = google_drive_service.upsert_file(
+                                packaged_thumbnail,
+                                token_path=self.google_token_path or None,
+                                folder_id=result_folder.get("id"),
+                                filename=thumbnail_filename,
+                                mimetype=thumb_mime,
+                                description=f"AIR thumbnail for queue job {job_id}",
+                                make_public=False,
+                            )
+                        except Exception as thumb_err:
+                            print(f"[RemoteDriveWorker] Google Drive 썸네일 업로드 건너뜀/실패: {thumb_err}")
 
                 queue_metadata = job.get("metadata") or {}
                 upload_metadata = dict(packaged_config.get("project_upload_metadata") or {})
                 upload_metadata.update({
                     "employee_email": job.get("email") or upload_metadata.get("employee_email") or "",
-                    "video_file": drive_file.get("name"),
+                    "video_file": (drive_file or {}).get("name") or result_filename,
                     "thumbnail_file": thumbnail_filename,
-                    "drive_folder_id": result_folder.get("id"),
-                    "drive_video_file_id": drive_file.get("id"),
+                    "drive_folder_id": (result_folder or {}).get("id"),
+                    "drive_video_file_id": (drive_file or {}).get("id"),
                     "drive_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
+                    "supabase_video_path": (supabase_video or {}).get("path"),
+                    "supabase_thumbnail_path": (supabase_thumb or {}).get("path"),
+                    "gcs_video_path": (gcs_video or {}).get("path"),
+                    "gcs_thumbnail_path": (gcs_thumb or {}).get("path"),
                     "render_mode": "drive_api",
                 })
                 for key in ("track_count", "track_durations", "total_duration_seconds", "app_mode", "render_style", "queue_type"):
@@ -474,32 +735,66 @@ class RemoteDriveWorker:
                 metadata_path = os.path.join(temp_dir, "metadata.json")
                 with open(metadata_path, "w", encoding="utf-8") as f_meta:
                     json.dump(upload_metadata, f_meta, ensure_ascii=False, indent=2)
-                project_metadata_file = google_drive_service.upsert_file(
+
+                self._upload_to_supabase_storage(
                     metadata_path,
-                    token_path=self.google_token_path or None,
-                    folder_id=result_folder.get("id"),
-                    filename="metadata.json",
-                    mimetype="application/json",
-                    description=f"AIR metadata for queue job {job_id}",
-                    make_public=False,
+                    bucket=supabase_render_bucket,
+                    object_path=f"std-renders/{job_id}/metadata.json",
+                    mime_type="application/json",
                 )
+                self._upload_to_gcs_storage(
+                    metadata_path,
+                    object_path=f"std-renders/{job_id}/metadata.json",
+                    mime_type="application/json",
+                )
+                if result_folder and result_folder.get("id"):
+                    try:
+                        project_metadata_file = google_drive_service.upsert_file(
+                            metadata_path,
+                            token_path=self.google_token_path or None,
+                            folder_id=result_folder.get("id"),
+                            filename="metadata.json",
+                            mimetype="application/json",
+                            description=f"AIR metadata for queue job {job_id}",
+                            make_public=False,
+                        )
+                    except Exception as meta_err:
+                        print(f"[RemoteDriveWorker] Google Drive 메타데이터 업로드 건너뜀/실패: {meta_err}")
+
+            result_public_url = (supabase_video or {}).get("public_url") or (gcs_video or {}).get("public_url")
+            result_file_id = (drive_file or {}).get("id") or result_public_url or supabase_render_path
+            storage_provider = "supabase" if supabase_video else ("gcs" if gcs_video else "google_drive")
+            storage_summary = []
+            if supabase_video:
+                storage_summary.append("Supabase (1차)")
+            if gcs_video:
+                storage_summary.append("GCS (2차)")
+            if drive_file:
+                storage_summary.append("Drive (3차)")
 
             self.update_job(
                 job_id,
                 status="completed",
                 progress=100,
-                message="렌더링 완료 (Google Drive 업로드 완료)",
-                result_file_id=drive_file.get("id"),
-                result_file_name=drive_file.get("name"),
+                message=f"렌더링 완료 ({' + '.join(storage_summary)} 저장 완료)",
+                result_file_id=result_file_id,
+                result_file_name=result_filename,
                 metadata={
                     **(job.get("metadata") or {}),
                     "job_stage": "completed",
                     "admin_publish_ready": True,
                     "admin_publish_status": "pending_review",
                     "admin_action_required": "review_and_upload",
-                    "result_folder_id": result_folder.get("id"),
-                    "result_folder_name": result_folder.get("name"),
-                    "result_video_file_id": drive_file.get("id"),
+                    "storage_provider": storage_provider,
+                    "storage_bucket": (supabase_video or {}).get("bucket"),
+                    "storage_path": (supabase_video or {}).get("path"),
+                    "result_public_url": result_public_url,
+                    "gcs_bucket": (gcs_video or {}).get("bucket"),
+                    "gcs_path": (gcs_video or {}).get("path"),
+                    "gcs_public_url": (gcs_video or {}).get("public_url"),
+                    "result_folder_id": (result_folder or {}).get("id"),
+                    "result_folder_name": (result_folder or {}).get("name"),
+                    "result_video_file_id": (drive_file or {}).get("id"),
                     "result_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
                     "result_metadata_file_id": (project_metadata_file or {}).get("id") if project_metadata_file else None,
                 },

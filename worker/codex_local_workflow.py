@@ -58,19 +58,33 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     if request['mode'] == 'new':
         # Existing script gates, stopped before native image/storage work.
         # Do not route through Hermes/legacy queues.
+        from worker.content_language import resolve_setting
+        setting = resolve_setting(request)
         payload = {'topic': request['title'], 'upload_title': request['title'],
                    'category': request['category'], 'category_name': request['category'],
-                   'category_id': request['category_id'], 'language': 'ko', 'script_style': 'story',
-                   'image_style': 'realistic', 'target_duration_seconds': request['duration_minutes'] * 60,
+                   'category_id': request['category_id'], 'language': setting['language'],
+                   'setting_country': setting['setting_country'],
+                   'era_region': setting['era_region'],
+                   'image_style': setting['image_style_en'],
+                   'content_setting': setting,
+                   'script_style': 'story',
+                   'target_duration_seconds': request['duration_minutes'] * 60,
                    'legacy_stage_directives': 'Use the current category narration and senior listening contracts. '
                                               'Use photorealistic images matching the category and era.',
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
                    'user_direction': request['notes']}
         package = runner.generate('local-' + identity, payload, script_only=True)
+        package['language'] = setting['language']
+        package['setting_country'] = setting['setting_country']
+        package['era_region'] = setting['era_region']
+        package['image_style'] = setting['image_style']
+        package['content_setting'] = setting
         from worker.codex_bgm import plan_package_bgm
         plan_package_bgm(runner, 'local-' + identity, package,
                          enabled=request.get('generate_bgm_prompt') is True)
-        package['remaining'] = ['캐릭터 참고 이미지 생성·저장', '장면 이미지·첫 12씬 영상 프롬프트',
+        package['remaining'] = [f"배경 설정: {setting['summary_label']} (저장 완료)",
+                                '캐릭터 참고 이미지 생성·저장 (위 배경 설정 적용 예정)',
+                                '장면 이미지·첫 12씬 영상 프롬프트 (위 배경 설정 적용 예정)',
                                 '메타데이터·썸네일 기획', '전체 장면 이미지 실제 생성·게시', '썸네일 배경 실제 생성·게시',
                                 '토픽 패키지/유저웹 연결', '사용자 썸네일 최종 저장']
         return finalize_sfx(runner, identity, package, notify)

@@ -395,6 +395,7 @@ export default function DashboardContent() {
     // 시스템 전역 API 키 설정
     const [sysKeys, setSysKeys] = useState({
         gemini: '', youtube: '', youtube_keys: '', claude: '', elevenlabs: '', elevenlabs_keys: '', suno: '', suno_base_url: '', music_provider: 'elevenlabs',
+        gcs_bucket_name: '', gcs_project_id: '', gcs_client_email: '', gcs_private_key: '',
         google_drive_client_id: '', google_drive_client_secret: '', google_drive_refresh_token: '', google_drive_root_folder_id: '',
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
         topview: '', topview_uid: '',
@@ -1046,15 +1047,17 @@ export default function DashboardContent() {
         const meta = req.metadata || {}
         const quickLinks = [
             { label: 'YouTube', href: meta.youtube_url || (meta.videoId ? `https://youtu.be/${meta.videoId}` : null), tone: 'blue' },
-            { label: 'Drive', href: meta.drive_folder_link, tone: 'gray' },
-            { label: 'Thumb', href: meta.drive_thumbnail_link, tone: 'gray' },
+            { label: meta.gcs_public_url || meta.result_public_url ? (meta.gcs_public_url ? 'GCS 영상' : '영상') : 'Drive', href: meta.gcs_public_url || meta.result_public_url || meta.drive_video_link || meta.drive_folder_link, tone: (meta.gcs_public_url || meta.result_public_url) ? 'emerald' : 'gray' },
+            { label: 'Thumb', href: meta.gcs_thumbnail_url || meta.drive_thumbnail_link, tone: 'gray' },
             { label: 'JSON', href: meta.drive_metadata_link, tone: 'gray' },
         ].filter(item => item.href)
 
         const toneClass = (tone: string) =>
             tone === 'blue'
                 ? 'bg-blue-600/20 text-blue-300 border-blue-500/20 hover:bg-blue-600/30'
-                : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:text-white'
+                : tone === 'emerald'
+                    ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/20 hover:bg-emerald-600/30'
+                    : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10 hover:text-white'
 
         return (
             <div className="max-w-[280px] w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
@@ -1395,6 +1398,10 @@ export default function DashboardContent() {
                 google_drive_client_secret: data.google_drive_client_secret || '',
                 google_drive_refresh_token: data.google_drive_refresh_token || '',
                 google_drive_root_folder_id: data.google_drive_root_folder_id || '',
+                gcs_bucket_name: data.gcs_bucket_name || '',
+                gcs_project_id: data.gcs_project_id || '',
+                gcs_client_email: data.gcs_client_email || '',
+                gcs_private_key: data.gcs_private_key || '',
                 suno: data.suno || '',
                 suno_base_url: data.suno_base_url || '',
                 music_provider: data.music_provider || 'elevenlabs',
@@ -5524,7 +5531,7 @@ export default function DashboardContent() {
                             <div className="flex gap-1 p-1 bg-black/40 border border-white/5 rounded-2xl flex-shrink-0">
                                 {([
                                     { key: 'ai',     icon: '🤖', label: 'AI 핵심' },
-                                    { key: 'drive',  icon: '📁', label: 'Google Drive' },
+                                    { key: 'drive',  icon: '☁️', label: '스토리지 (GCS/Drive)' },
                                     { key: 'voices', icon: '🎙️', label: '성우/TTS' },
                                     { key: 'music',  icon: '🎵', label: '음악' },
                                     { key: 'video',  icon: '🎬', label: '영상/결제' },
@@ -5692,9 +5699,58 @@ export default function DashboardContent() {
                                 </div>
                             )}
 
-                            {/* ── Google Drive OAuth ── */}
+                            {/* ── Storage (GCS & Google Drive) ── */}
                             {apiSettingsTab === 'drive' && (
-                                <div className="space-y-5 animate-in fade-in duration-200">
+                                <div className="space-y-6 animate-in fade-in duration-200">
+                                    {/* ── Google Cloud Storage (GCS) ── */}
+                                    <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-5 space-y-4">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div>
+                                                <div className="flex items-center gap-2.5">
+                                                    <h4 className="text-sm font-black text-blue-200">Google Cloud Storage (GCS 2차 아카이브 &amp; 렌더 에셋 스토리지)</h4>
+                                                    {sysKeys.gcs_bucket_name && sysKeys.gcs_client_email && sysKeys.gcs_private_key ? (
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/30">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                                            연동 완료 (GCS Active)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-bold text-amber-400 border border-amber-500/30">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                                                            미연동 (선택 사항)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-1 text-xs text-blue-100/70">
+                                                    1차는 Supabase Storage에 즉시 저장되며, GCS는 대용량 에셋의 2차 영구 아카이빙 및 원격 렌더 워커용 대용량 고속 공급처로 동작합니다.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                                            {([
+                                                { key: 'gcs_bucket_name', label: 'GCS Bucket Name', hint: '기본값: air-studio-prod' },
+                                                { key: 'gcs_project_id', label: 'Google Cloud Project ID', hint: '기본값: air-studio-prod' },
+                                                { key: 'gcs_client_email', label: 'Service Account Client Email', hint: 'GCP 서비스 계정 이메일' },
+                                                { key: 'gcs_private_key', label: 'Service Account Private Key', hint: '-----BEGIN PRIVATE KEY----- 포함 전체 키' },
+                                            ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
+                                                <div key={key} className="space-y-1.5">
+                                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-300">{label}</label>
+                                                    <p className="text-[10px] text-gray-600">{hint}</p>
+                                                    <input
+                                                        type={key === 'gcs_private_key' ? 'password' : 'text'}
+                                                        value={sysKeys[key] as string}
+                                                        onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        autoComplete="off"
+                                                        spellCheck={false}
+                                                        placeholder="(미설정)"
+                                                        className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 font-mono text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* ── Google Drive OAuth (레거시 백업) ── */}
                                     <div className="flex items-center justify-between gap-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
                                         <div>
                                             <div className="flex items-center gap-2.5">

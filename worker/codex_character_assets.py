@@ -175,19 +175,23 @@ def generate_character_references(context: dict, payload: dict, config, output_d
         raise RuntimeError("Every principal character needs a name, visual DNA and wardrobe before generation")
     generator = generator or NativeCodexImageGenerator(config, output_dir)
     store = store or CharacterAssetStore()
+    from worker.content_language import resolve_setting
+    setting = resolve_setting(payload)
     enriched = []
     for index, original in enumerate(characters):
         character = dict(original)
         character["character_key"] = "codex-" + digest([character["name"], character.get("role"), index])[:16]
         character["image_prompt"] = (
-            f"Original character reference portrait. Style: {payload.get('image_style') or 'realistic'}. "
+            f"Original character reference portrait. Style: {setting['image_style_en']}. "
+            f"Setting: {setting['setting_country_en']} ({setting['era_region']}). "
             f"Style detail: {payload.get('image_style_selection') or ''}. "
             f"Character: {character['name']}; {character['visual_dna_en']}. "
             f"Wardrobe: {character['wardrobe_en']}. {character.get('continuity_instruction') or ''}. "
+            f"Authentic everyday living environment in {setting['setting_country_en']} ({setting['era_region']}) without cultural caricature or uniform stereotype. "
             "One person only, clearly readable face and upper body, neutral background, period-appropriate clothing. "
             "No letters, captions, watermark or logo. This portrait defines the face and clothes for later scene images."
         )
-        fingerprint = digest([VERSION, character, payload.get("image_style")])
+        fingerprint = digest([VERSION, character, setting['image_style_en'], setting['setting_country'], setting['era_region']])
         portrait = generator.generate(character["image_prompt"])
         enriched.append(store.publish(topic_id, character, portrait, fingerprint, payload))
     return {"main_character": enriched[0], "supporting_characters": enriched[1:], "max_character_anchors": 3,

@@ -28,6 +28,7 @@ function auditLog(action: string, requesterEmail: string | undefined, detail: Re
 
 function buildDriveViewLink(fileId?: string | null) {
     if (!fileId) return null
+    if (fileId.startsWith('http://') || fileId.startsWith('https://')) return fileId
     return `https://drive.google.com/file/d/${fileId}/view`
 }
 
@@ -71,7 +72,7 @@ function normalizeQueueItem(row: any, topicRow?: any) {
 
     return {
         ...row,
-        result_view_link: buildDriveViewLink(row?.result_file_id),
+        result_view_link: metadata.result_public_url || buildDriveViewLink(row?.result_file_id),
         metadata: {
             ...metadata,
             title,
@@ -186,8 +187,8 @@ export async function POST(req: Request) {
         }
 
         const title = (topicRow as any)?.topic || task.project_name || `Project ${task.project_id}`
-        const videoUrl = buildDriveViewLink(task.result_file_id)
         const taskMetadata = task.metadata || {}
+        const videoUrl = taskMetadata.result_public_url || buildDriveViewLink(task.result_file_id)
         const driveFolderId =
             taskMetadata.drive_folder_id ||
             taskMetadata.result_folder_id ||

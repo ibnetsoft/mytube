@@ -22,6 +22,15 @@ from worker_config import OUTPUT_DIR, PROJECT_ROOT
 from senior_script_guard import PROFILE as SENIOR_PROFILE, contract as senior_contract, text_issues, review_issues
 from codex_dialogue import ASTRA_MODEL, DIALOGUE_TASK, validate_dialogue
 from listener_review import improve_for_listener
+from worker.content_language import (
+    LANGUAGE_NAMES,
+    language_directive,
+    narration_scale,
+    output_language,
+    resolve_setting,
+    setting_directive,
+    visual_setting_prompt,
+)
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -37,16 +46,17 @@ def _scene_char_budgets(scenes: list[dict[str, Any]], payload: dict[str, Any]) -
     policy = get_narration_policy(payload.get("narration_pace") or "senior")
     speed = normalize_tts_speed(payload.get("tts_speed", 1.0))
     target_duration = max(1, int(payload.get("target_duration_seconds") or 1))
-    chars_per_second = policy.chars_per_second * speed
+    scale = narration_scale(output_language(payload))
+    chars_per_second = policy.chars_per_second * speed * scale
     result: list[dict[str, int]] = []
     for index, scene in enumerate(scenes, 1):
         duration = max(1, int(scene.get("duration_seconds") or scene.get("target_duration") or 1))
-        target = max(20, round(duration * chars_per_second))
+        target = max(round(20 * scale), round(duration * chars_per_second))
         if duration <= 6:
-            minimum = max(policy.short_scene_min_chars, round(target * 0.65))
-            maximum = min(policy.short_scene_max_chars, max(minimum + 6, round(target * 1.15)))
+            minimum = max(round(policy.short_scene_min_chars * scale), round(target * 0.65))
+            maximum = min(round(policy.short_scene_max_chars * scale), max(minimum + 6, round(target * 1.15)))
         else:
-            minimum = max(45, round(target * 0.72))
+            minimum = max(round(45 * scale), round(target * 0.72))
             maximum = max(minimum + 16, round(target * 1.12))
         result.append({
             "scene_order": index,
@@ -191,7 +201,18 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
             "Write natural long-form Korean narration with clear emotional continuity, varied sentence rhythm, and scene-to-scene flow."
         )
 
-    return f"{voice}\n\n{universal}\n\n{senior_contract(payload)}"
+    setting = resolve_setting(payload)
+    language = setting['language']
+    if language != 'ko':
+        # Preserve the genre while removing instructions tied to Korean grammar.
+        voice = voice.replace('English or Japanese language, not Korean', 'selected output language')
+        for phrase in ('natural spoken Korean', 'clear Korean', 'long-form Korean narration'):
+            voice = voice.replace(phrase, phrase.replace('Korean', LANGUAGE_NAMES.get(language, language)))
+        voice = voice.replace("Use 구수한 구연체, gentle suspense, and old-tale transitions such as '그런데 말입니다', '그날 밤이 깊어질수록', '사람들은 그제야' when natural.",
+                              'Use warm oral storytelling, gentle suspense and idiomatic transitions in the selected language.')
+        universal = universal.replace('Do not overuse 했다/였다/있었다/나왔다/말했다/바라보았다.',
+                                      'Avoid mechanical repetition of sentence endings.')
+    return f"{voice}\n\n{universal}\n\n{senior_contract(payload)}\n\n{language_directive(language)}\n\n{setting_directive(setting, mode='story')}"
 
 
 def _script_rhythm_contract(payload: dict[str, Any]) -> str:
@@ -203,7 +224,7 @@ def _script_rhythm_contract(payload: dict[str, Any]) -> str:
         first_hook_count += 1
     hook_rule = (f"- Scenes 1-{first_hook_count} are short opening beats: concise, vivid, and distinct, but still spoken naturally.\n"
                  if first_hook_count else "- This existing project has no mandatory 5-second opening cuts; follow its actual scene_budgets and introduce the story naturally.\n")
-    return (
+    rhythm = (
         "[Script rhythm QA contract]\n"
         + hook_rule +
         "- After the hook section, each section should usually be 2-4 connected sentences or one flowing paragraph, not one dry sentence.\n"
@@ -212,6 +233,10 @@ def _script_rhythm_contract(payload: dict[str, Any]) -> str:
         "- Repair repeated paragraph openings, repeated final verbs, and 'A happened. B happened. C happened.' sequencing.\n"
         "- A QA pass requires the script to sound good when read aloud as one continuous narration, while still respecting every scene budget."
     )
+    if output_language(payload) != 'ko':
+        rhythm = rhythm.replace('such as 했다/였다/있었다/나왔다', 'in the selected language')
+        rhythm = rhythm.replace('under 25 Korean characters', 'that are unnaturally short in the selected language')
+    return rhythm
 
 
 _BLUNT_KOREAN_ENDINGS = (
@@ -635,6 +660,8 @@ class CodexStagedContentRunner:
         self.config = config or CodexContentConfig.from_environment()
 
     def _stage(self, job_id: str, name: str, context: dict[str, Any], task: str) -> dict[str, Any]:
+        if context.get('language') and name != '02_topic_source_analysis':
+            task += '\n' + language_directive(output_language(context))
         source_summary = name == '02_topic_source_analysis'
         model = 'gpt-5.6-sol' if source_summary else (ASTRA_MODEL if name.startswith('02') else self.config.model)
         reasoning = 'low' if source_summary else None
@@ -693,6 +720,7 @@ class CodexStagedContentRunner:
         schedule = _pacing_schedule(payload.get("target_duration_seconds"))
         if not schedule:
             raise CodexContentError("target_duration_seconds is required")
+        setting = resolve_setting(payload)
         script_style_directive = _resolve_script_style_directive(
             payload.get("assigned_script_style") or payload.get("script_style")
         )
@@ -700,6 +728,10 @@ class CodexStagedContentRunner:
         script_rhythm_contract = _script_rhythm_contract(payload)
         plan_context = {
             **payload,
+            "content_setting": setting,
+            "setting_country": setting["setting_country"],
+            "era_region": setting["era_region"],
+            "image_style": setting["image_style_en"],
             "script_style_directive": script_style_directive,
             "category_narration_voice": category_narration_voice,
             "script_rhythm_contract": script_rhythm_contract,
@@ -778,7 +810,7 @@ class CodexStagedContentRunner:
             }
         try:
             qa_sections, listener_audit = improve_for_listener(
-                lambda name, context, task: self._stage(job_id, name, context, task),
+                lambda name, context, task: self._stage(job_id, name, context, task + '\n' + language_directive(output_language(payload))),
                 str(payload.get('upload_title') or payload.get('topic') or ''), qa_sections, scene_budgets)
         except ValueError as exc:
             raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
@@ -821,24 +853,37 @@ class CodexStagedContentRunner:
             # Local approval console: use the exact production script gates,
             # but stop before character uploads or any media/publication work.
             return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""),
+                    "language": setting["language"],
+                    "setting_country": setting["setting_country"],
+                    "era_region": setting["era_region"],
+                    "image_style": setting["image_style"],
+                    "content_setting": setting,
                     "script": script, "structure": structure,
                     "narrative_blueprint": script_context["narrative_blueprint"],
                     "script_quality_report": qa.get("script_quality_report") or {},
                     "script_model": ASTRA_MODEL, "production_ready": False}
         identity = self._stage(job_id, "02d_character_identity", character_context,
             "From the FINAL reviewed script, finalize the main character and up to two recurring supporting characters. "
-            "Preserve established identities; do not invent people or change relationships. Return {main_character:{...}, supporting_characters:[...]}. "
+            f"Preserve established identities; story setting is {setting['setting_country_en']} ({setting['era_region']}). "
+            "Return {main_character:{...}, supporting_characters:[...]}. "
             "Every character must have name, role, gender, age_group, detailed English visual_dna_en, wardrobe_en, continuity_instruction. "
-            "Use the selected image style and era. These definitions will be rendered as actual reference portraits before scene prompts.")
+            f"Use the selected image style ({setting['image_style_en']}) and authentic {setting['setting_country_en']} ({setting['era_region']}) living environment. "
+            "Avoid uniform racial or cultural caricature; reflect individual personalities, occupations, and authentic everyday clothing. "
+            "These definitions will be rendered as actual reference portraits before scene prompts.")
         from codex_character_assets import generate_character_references
         anchors = generate_character_references(
-            {**character_context, **identity}, payload, self.config, OUTPUT_DIR / "codex_character_images")
+            {**character_context, **identity}, {**payload, **setting, "content_setting": setting}, self.config, OUTPUT_DIR / "codex_character_images")
         script_context.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"])
         structure.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"],
                          character_anchors=anchors, character_reference_status="ready")
         media_context = {**script_context, "script": script, "character_anchors": anchors,
                          "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Never substitute a different character."}
-        media_task = f"Create prompts only from each final scene_text. Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-12 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 13 onward must not contain video_prompt."
+        media_task = (
+            f"Create prompts only from each final scene_text. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
+            f"Visual style: {setting['image_style_en']}. Maintain authentic local architecture, interior spaces, streetscape, vehicles, and props without caricature. "
+            f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
+            "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-12 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 13 onward must not contain video_prompt."
+        )
         media = {}
         for media_attempt in range(2):
             media = self._stage(job_id, "03_media", media_context, media_task)
@@ -897,7 +942,7 @@ class CodexStagedContentRunner:
                 grid_specs.append({
                     "grid_number": grid_number,
                     "scene_numbers": [scene["scene_order"] for scene in panel_scenes],
-                    "shared_style": f"{payload.get('image_style') or 'realistic'} visual continuity; consistent recurring characters, Korean island setting, wardrobe, lighting, and props.",
+                    "shared_style": visual_setting_prompt(setting),
                     "negative_prompt": "no text, no words, no letters, no labels, no captions, no watermarks, no borders, no grid lines, no dividers, correct anatomy, no extra limbs",
                     "panels": [
                         {
@@ -945,13 +990,14 @@ class CodexStagedContentRunner:
         }
         thumbnail_task = (
             "Create exactly three ready-to-use thumbnail text candidates from the completed script. "
+            f"Visual style: {setting['image_style_en']}. Setting: {setting['setting_country_en']} ({setting['era_region']}). "
             "Return {'thumbnail_hook_texts':['candidate 1','candidate 2','candidate 3'],"
             "'thumbnail_hook_reasoning':'one short sentence','thumbnail_image_prompt':'detailed English prompt',"
             "'thumbnail_text_layers':[{'text':'chosen headline'},{'text':'optional complementary subheadline'}]}. "
             "The text layers form ONE editable design, not a stack of competing candidates. "
             "Never generate a flattened thumbnail or ask the image model to draw any headline. "
             "Keep the background and overlay copy separate; final composition is rendered only when the user presses Save. "
-            "thumbnail_image_prompt must describe one original, text-free 16:9 YouTube thumbnail background in English. "
+            f"thumbnail_image_prompt must describe one original, text-free 16:9 YouTube thumbnail background in English set in authentic {setting['setting_country_en']} ({setting['era_region']}). "
             "It must make the title promise and strongest story conflict visually obvious, use the selected thumbnail style, "
             "and end with: no text, no letters, no words, no captions, no watermark. Every candidate must be in the requested language, "
             "short enough for a large overlay (normally 3-7 words or 10-20 Korean characters), and distinct: "
@@ -986,8 +1032,10 @@ class CodexStagedContentRunner:
         from worker.thumbnail_contract import thumbnail_draft
         design = thumbnail_draft(thumbnail_hook_texts, thumbnail_stage.get("thumbnail_text_layers"), str(payload.get("upload_title") or payload.get("topic") or ""))
         design['layout'] = thumbnail_context['thumbnail_style']
-        design['style'] = str(payload.get('image_style') or 'realistic')
-        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_design": design, "thumbnail_completed": False, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
+        design['style'] = setting['image_style_en']
+        design['setting_country'] = setting['setting_country']
+        design['era_region'] = setting['era_region']
+        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "language": setting["language"], "setting_country": setting["setting_country"], "era_region": setting["era_region"], "image_style": setting["image_style"], "content_setting": setting, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_design": design, "thumbnail_completed": False, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
 
 
 class CodexTopicDiscoveryRunner:

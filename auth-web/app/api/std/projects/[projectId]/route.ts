@@ -6,6 +6,7 @@ import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
+import { isGcsConfiguredAsync, createGcsSignedReadUrl } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -123,23 +124,42 @@ function sceneMediaAsset(scene: any, assetType: 'image' | 'video', assets: any[]
     }) || null
 }
 
-function assetSupabaseUrl(asset: any): string {
+function assetFastMediaUrl(asset: any): string {
     const metadata = asset?.metadata || {}
-    return cleanUrl(metadata?.storage_public_url)
-        || storagePublicUrl(metadata?.storage_bucket, metadata?.storage_path)
+    const nestedMetadata = metadata?.metadata || {}
+
+    // 1차: GCS 서명 URL 또는 직접 공용 CDN URL
+    const gcsUrl = cleanUrl(
+        metadata?.gcs_signed_url
+        || nestedMetadata?.gcs_signed_url
+        || metadata?.gcs_public_url
+        || nestedMetadata?.gcs_public_url
+    )
+    if (gcsUrl) return gcsUrl
+
+    // 2차: Supabase Storage 직접 공용 CDN URL (기존 프로젝트 100% 폴백)
+    const storagePublic = cleanUrl(
+        metadata?.storage_public_url
+        || nestedMetadata?.storage_public_url
+    )
+    if (storagePublic) return storagePublic
+
+    // 3차: Supabase bucket/path 기반 공용 URL 동적 생성
+    return storagePublicUrl(
+        metadata?.storage_bucket || nestedMetadata?.storage_bucket,
+        metadata?.storage_path || metadata?.storage_object_path || nestedMetadata?.storage_path || nestedMetadata?.storage_object_path
+    )
 }
 
 function hydrateSceneMedia(scene: any, assets: any[] = [], sourceScene?: any) {
-    // A scene upload is the user's explicit replacement, so surface its
-    // Supabase copy immediately. Topic media remains the fallback.
     const imageAsset = sceneMediaAsset(scene, 'image', assets)
     const videoAsset = sceneMediaAsset(scene, 'video', assets)
-    const imageUrl = assetSupabaseUrl(imageAsset)
+    const imageUrl = assetFastMediaUrl(imageAsset)
         || sceneSupabaseImageUrl(scene)
         || sceneSupabaseImageUrl(sourceScene)
         || sceneStorageImageUrl(scene)
         || sceneStorageImageUrl(sourceScene)
-    const videoUrl = assetSupabaseUrl(videoAsset)
+    const videoUrl = assetFastMediaUrl(videoAsset)
         || sceneSupabaseVideoUrl(scene)
         || sceneSupabaseVideoUrl(sourceScene)
         || sceneStorageVideoUrl(scene)
@@ -274,6 +294,36 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         console.warn('[STD Project] render history unavailable:', renderHistoryError?.message)
     }
 
+    const gcsActive = await isGcsConfiguredAsync().catch(() => false)
+    const enrichedAssets = await Promise.all((assets || []).map(async (asset: any) => {
+        const metadata = asset?.metadata || {}
+        const gcsPath = String(metadata?.gcs_path || '').trim()
+        let gcsSignedUrl = metadata?.gcs_signed_url
+        if (gcsActive && gcsPath && !gcsSignedUrl) {
+            try {
+                gcsSignedUrl = await createGcsSignedReadUrl({
+                    bucket: metadata?.gcs_bucket,
+                    objectPath: gcsPath,
+                    expiresInMinutes: 240,
+                })
+            } catch {
+                // optional
+            }
+        }
+        const storageBucket = metadata?.storage_bucket || CONTENT_ASSETS_BUCKET
+        const storagePath = metadata?.storage_path
+        const publicUrl = metadata?.storage_public_url || storagePublicUrl(storageBucket, storagePath)
+
+        return {
+            ...asset,
+            metadata: {
+                ...metadata,
+                ...(gcsSignedUrl ? { gcs_signed_url: gcsSignedUrl } : {}),
+                ...(publicUrl ? { storage_public_url: publicUrl } : {}),
+            },
+        }
+    }))
+
     const protectedProject = {
         ...project,
         project_payload: protectCharacterReferenceUrls(project.project_payload, project.id),
@@ -286,10 +336,10 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         project: protectedProject,
         scenes: (scenes || []).map((scene, index) => hydrateSceneMedia(
             scene,
-            assets || [],
+            enrichedAssets,
             sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))
         )),
-        assets: assets || [],
+        assets: enrichedAssets,
         render_history: renderHistory,
     })
 }

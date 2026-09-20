@@ -12,6 +12,7 @@ const getAdmin = () => createClient(
 
 function buildDriveOpenLink(fileId?: string | null) {
     if (!fileId) return null
+    if (fileId.startsWith('http://') || fileId.startsWith('https://')) return fileId
     return `https://drive.google.com/file/d/${fileId}/view`
 }
 
@@ -22,6 +23,7 @@ function buildDriveFolderLink(folderId?: string | null) {
 
 function buildDriveThumbnailPreview(fileId?: string | null) {
     if (!fileId) return null
+    if (fileId.startsWith('http://') || fileId.startsWith('https://')) return fileId
     return `https://drive.google.com/thumbnail?id=${fileId}&sz=w512`
 }
 
@@ -48,6 +50,10 @@ function normalizePublishingRequest(request: any) {
         Number(metadata.track_count || 0) ||
         (trackDurations.length ? trackDurations.length : null)
 
+    const resultPublicUrl = metadata.result_public_url || metadata.gcs_public_url || null
+    const videoLink = resultPublicUrl || buildDriveOpenLink(driveVideoFileId)
+    const thumbnailLink = metadata.gcs_thumbnail_url || buildDriveOpenLink(driveThumbnailFileId)
+
     return {
         ...request,
         metadata: {
@@ -59,14 +65,15 @@ function normalizePublishingRequest(request: any) {
             drive_thumbnail_file_id: driveThumbnailFileId,
             drive_metadata_file_id: driveMetadataFileId,
             drive_folder_link: buildDriveFolderLink(driveFolderId),
-            drive_video_link: buildDriveOpenLink(driveVideoFileId),
-            drive_thumbnail_link: buildDriveOpenLink(driveThumbnailFileId),
+            drive_video_link: videoLink,
+            drive_thumbnail_link: thumbnailLink,
             drive_metadata_link: buildDriveOpenLink(driveMetadataFileId),
             drive_thumbnail_preview_url:
                 metadata.thumbnail_preview_url ||
+                metadata.gcs_thumbnail_url ||
                 buildDriveThumbnailPreview(driveThumbnailFileId),
             youtube_url: metadata.videoId ? `https://youtu.be/${metadata.videoId}` : null,
-            has_drive_bundle: Boolean(driveFolderId || driveVideoFileId || driveMetadataFileId),
+            has_drive_bundle: Boolean(driveFolderId || driveVideoFileId || driveMetadataFileId || resultPublicUrl || metadata.gcs_video_path),
             track_count: trackCount,
             total_duration_seconds: totalDurationSeconds,
             publish_error: publishError,

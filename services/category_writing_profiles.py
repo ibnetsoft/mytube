@@ -1,8 +1,17 @@
-"""Immutable category-level narration constraints for the Hermes worker."""
+"""Category-specific narration voices used by the Hermes script worker.
+
+Supports both built-in genre profiles and dynamic custom profiles registered
+at runtime or persisted in JSON configuration.
+"""
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+from typing import Any
 
-_PROFILES = {
+
+_BUILTIN_PROFILES: dict[str, str] = {
     "옛날이야기": """[Category Writing Profile: Korean Folktale]
 - Voice: a seasoned oral storyteller speaking warmly and vividly, never a modern commentator.
 - Rhythm: begin with one concrete omen, object, or unusual act; use flowing medium-length sentences and let important revelations land in short, calm sentences.
@@ -33,6 +42,16 @@ _PROFILES = {
 - Rhythm: establish place with one or two lived-in details, then move quickly toward a human connection or moral dilemma.
 - Drama: let kindness, misunderstanding, and reciprocity arise from specific actions—not national stereotypes or miraculous praise.
 - Language: avoid exaggerating Korea-versus-other-country comparisons, savior narratives, stereotypes, and unverified claims.""",
+    "노후금융": """[Category Writing Profile: Retirement Finance]
+- Voice: calm, trustworthy guide speaking to an adult audience without condescension or fearmongering.
+- Rhythm: use a relatable household situation, explain one idea at a time, then connect it to a practical decision checklist.
+- Drama: tension comes from trade-offs, timing, and uncertainty—not market panic. Repeat the core takeaway only at the end.
+- Language: distinguish facts, examples, and opinions. Avoid guaranteed returns, individualized investment directives, and urgent sales language.""",
+    "경제": """[Category Writing Profile: Economics]
+- Voice: clear explanatory narration that translates an abstract change into its effect on an ordinary person or business.
+- Rhythm: question first, mechanism second, concrete example third, implication last. Keep paragraphs compact and logically connected.
+- Drama: use cause-and-effect and competing incentives, not alarmist prediction. Introduce numbers only when they clarify the story.
+- Language: precise but accessible. Avoid jargon dumps, certainty about forecasts, clickbait panic, and unsupported causal claims.""",
     "English Folktales": """[Category Writing Profile: English Folktale]
 - Voice: timeless spoken-story narration with clear, musical English and a quiet sense of wonder.
 - Rhythm: concrete image first, then a steadily tightening consequence. Reserve short sentences for an omen or reveal.
@@ -43,13 +62,51 @@ _PROFILES = {
 - Rhythm: use clear scene progression and brief sentences for omens, choices, and endings.
 - Drama: let a promise, courtesy, taboo, or consequence shape the arc; finish with quiet resonance rather than explanation.
 - Language: avoid Korean phrasing, modern slang, and meta commentary.""",
+    "판타지/SF": """[Category Writing Profile: Fantasy & Sci-Fi]
+- Voice: imaginative, immersive worldbuilder conveying high-concept wonder with grounded sensory touchstones.
+- Rhythm: hook with a striking premise or anomaly; balance world rules with urgent personal stakes.
+- Drama: rules of the world have real consequences; conflict tests morality, ingenuity, and human bonds.
+- Language: vivid, cinematic Korean; avoid excessive info-dumping, game-stats jargon, and generic clichés.""",
+    "일상/웹툰": """[Category Writing Profile: Everyday Webtoon & Comedy]
+- Voice: witty, approachable narrator with quick comedic timing and relatable modern empathy.
+- Rhythm: brisk, dynamic cadence with sharp dialogue, quick reversals, and punchy cliffhangers.
+- Drama: turn ordinary daily embarrassments, misunderstandings, or small victories into engaging dramatic arcs.
+- Language: lively contemporary Korean with natural colloquial dialogue; avoid stiff literary rhetoric.""",
+    "지식/미스터리": """[Category Writing Profile: Knowledge & Mystery Exploration]
+- Voice: curious, authoritative investigator peeling back layers of an intriguing enigma or historical puzzle.
+- Rhythm: start with an unsettling question or contradictory clue; advance clue by clue toward an illuminating reveal.
+- Drama: tension built on verified facts, rival theories, and sudden turning points.
+- Language: precise, engaging explanatory Korean; avoid unverified conspiracy theories or sensational clickbait.""",
+    "힐링/동화": """[Category Writing Profile: Healing & Gentle Tale]
+- Voice: warm, comforting storyteller providing emotional reassurance and quiet emotional depth.
+- Rhythm: gentle, unhurried cadence with lyrical descriptions of nature, everyday comfort, and kind gestures.
+- Drama: conflicts resolved through understanding, forgiveness, and small acts of courage.
+- Language: tender, poetic Korean; avoid harsh violence, cynicism, and moralizing lectures.""",
 }
 
-_ALIASES = {
-    "old_story": "옛날이야기", "story": "옛날이야기", "north_korean_drama": "탈북사연",
-    "korean_drama": "한국사연", "overseas_touching": "해외감동", "twilight": "황혼19금",
-}
+# Reference alias for backward-compatible access
+_PROFILES = _BUILTIN_PROFILES
 
+_ALIASES: dict[str, str] = {
+    "old_story": "옛날이야기",
+    "story": "옛날이야기",
+    "north_korean_drama": "탈북사연",
+    "korean_drama": "한국사연",
+    "overseas_touching": "해외감동",
+    "twilight": "황혼19금",
+    "finance": "노후금융",
+    "economy": "경제",
+    "fantasy": "판타지/SF",
+    "scifi": "판타지/SF",
+    "fantasy_scifi": "판타지/SF",
+    "webtoon": "일상/웹툰",
+    "daily_webtoon": "일상/웹툰",
+    "mystery": "지식/미스터리",
+    "knowledge_mystery": "지식/미스터리",
+    "healing": "힐링/동화",
+    "fairytale": "힐링/동화",
+    "healing_fairytale": "힐링/동화",
+}
 
 _GLOBAL_RHYTHM_GUARD = """[Global Narration Rhythm Guard]
 - The script must sound like continuous spoken narration, not a stack of scene summaries.
@@ -57,8 +114,166 @@ _GLOBAL_RHYTHM_GUARD = """[Global Narration Rhythm Guard]
 - Vary sentence length, paragraph openings, and final verb forms. Connect adjacent factual beats with cause, emotion, or consequence.
 - Reserve very short sentences for hooks, reversals, or payoff moments; do not let the whole script become clipped report prose."""
 
+_DYNAMIC_PROFILES: dict[str, str] = {}
 
-def resolve_category_writing_profile(category: str | None) -> str:
-    key = str(category or "").strip()
-    profile = _PROFILES.get(_ALIASES.get(key.lower(), key), "")
-    return f"{profile}\n\n{_GLOBAL_RHYTHM_GUARD}".strip() if profile else _GLOBAL_RHYTHM_GUARD
+
+def _get_dynamic_profiles_path() -> Path:
+    """Determine the file path for persistent dynamic writing profiles."""
+    try:
+        from worker_config import CONFIG_DIR
+        return CONFIG_DIR / "category_writing_profiles.json"
+    except Exception:
+        fallback_dir = Path(__file__).resolve().parent.parent / "data"
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        return fallback_dir / "category_writing_profiles.json"
+
+
+def load_dynamic_profiles() -> dict[str, str]:
+    """Load dynamic writing profiles from disk into memory."""
+    path = _get_dynamic_profiles_path()
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                _DYNAMIC_PROFILES.update(data)
+        except Exception:
+            pass
+    return dict(_DYNAMIC_PROFILES)
+
+
+def save_dynamic_profiles() -> bool:
+    """Save the in-memory dynamic profiles to disk."""
+    path = _get_dynamic_profiles_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(_DYNAMIC_PROFILES, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
+
+# Auto-load persisted profiles on import
+load_dynamic_profiles()
+
+
+def build_category_writing_profile(
+    name: str,
+    voice: str = "",
+    rhythm: str = "",
+    drama: str = "",
+    language: str = "",
+) -> str:
+    """Construct a standardized [Category Writing Profile] block from parts."""
+    clean_name = str(name or "Custom").strip()
+    lines = [f"[Category Writing Profile: {clean_name}]"]
+    if voice.strip():
+        lines.append(f"- Voice: {voice.strip()}")
+    if rhythm.strip():
+        lines.append(f"- Rhythm: {rhythm.strip()}")
+    if drama.strip():
+        lines.append(f"- Drama: {drama.strip()}")
+    if language.strip():
+        lines.append(f"- Language: {language.strip()}")
+    return "\n".join(lines).strip()
+
+
+def register_category_writing_profile(
+    category_name: str,
+    profile_text: str | dict[str, Any],
+    persist: bool = True,
+) -> str:
+    """Register or overwrite a custom category writing profile.
+
+    Accepts either a preformatted profile string or a dict containing:
+    {"voice": ..., "rhythm": ..., "drama": ..., "language": ...}.
+    """
+    key = str(category_name or "").strip()
+    if not key:
+        raise ValueError("category_name cannot be empty")
+
+    if isinstance(profile_text, dict):
+        formatted = build_category_writing_profile(
+            key,
+            voice=str(profile_text.get("voice") or ""),
+            rhythm=str(profile_text.get("rhythm") or ""),
+            drama=str(profile_text.get("drama") or ""),
+            language=str(profile_text.get("language") or ""),
+        )
+    else:
+        formatted = str(profile_text or "").strip()
+        if not formatted.startswith("[Category Writing Profile"):
+            formatted = f"[Category Writing Profile: {key}]\n{formatted}"
+
+    _DYNAMIC_PROFILES[key] = formatted
+    if persist:
+        save_dynamic_profiles()
+    return formatted
+
+
+def remove_category_writing_profile(category_name: str, persist: bool = True) -> bool:
+    """Remove a previously registered dynamic profile."""
+    key = str(category_name or "").strip()
+    if key in _DYNAMIC_PROFILES:
+        del _DYNAMIC_PROFILES[key]
+        if persist:
+            save_dynamic_profiles()
+        return True
+    return False
+
+
+def get_category_writing_profile(category_name: str) -> str | None:
+    """Return the raw profile text for a category, without global rhythm guard."""
+    key = str(category_name or "").strip()
+    if key in _DYNAMIC_PROFILES:
+        return _DYNAMIC_PROFILES[key]
+    canonical = _ALIASES.get(key.lower(), key)
+    if canonical in _DYNAMIC_PROFILES:
+        return _DYNAMIC_PROFILES[canonical]
+    return _BUILTIN_PROFILES.get(canonical)
+
+
+def list_category_writing_profiles() -> dict[str, str]:
+    """Return all available writing profiles (built-in + dynamic)."""
+    combined = dict(_BUILTIN_PROFILES)
+    combined.update(_DYNAMIC_PROFILES)
+    return combined
+
+
+def resolve_category_writing_profile(
+    category: str | None,
+    custom_profile: str | dict[str, Any] | None = None,
+    include_guard: bool = True,
+) -> str:
+    """Return the narrative voice profile for a category.
+
+    Resolution order:
+    1. Direct custom_profile parameter (instant override)
+    2. Dynamically registered profiles (_DYNAMIC_PROFILES)
+    3. Built-in genre profiles (_BUILTIN_PROFILES)
+    4. If none matched, returns "" so custom categories retain neutral voice.
+    """
+    profile = ""
+    if custom_profile:
+        if isinstance(custom_profile, dict):
+            profile = build_category_writing_profile(
+                str(category or "Custom"),
+                voice=str(custom_profile.get("voice") or ""),
+                rhythm=str(custom_profile.get("rhythm") or ""),
+                drama=str(custom_profile.get("drama") or ""),
+                language=str(custom_profile.get("language") or ""),
+            )
+        else:
+            profile = str(custom_profile).strip()
+            if profile and not profile.startswith("[Category Writing Profile"):
+                profile = f"[Category Writing Profile: {category or 'Custom'}]\n{profile}"
+
+    if not profile:
+        profile = get_category_writing_profile(category or "") or ""
+
+    if not profile:
+        return ""
+
+    if include_guard:
+        return f"{profile}\n\n{_GLOBAL_RHYTHM_GUARD}".strip()
+    return profile
+

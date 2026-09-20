@@ -152,9 +152,10 @@ class RemotePublishService:
     ) -> Dict[str, Any]:
         request_id = request.get("id")
         metadata = request.get("metadata") or {}
+        video_url = request.get("video_url") or metadata.get("result_public_url") or metadata.get("gcs_public_url")
         video_file_id = metadata.get("drive_video_file_id") or metadata.get("result_video_file_id")
-        if not video_file_id:
-            raise RuntimeError("Drive video file ID is missing from the publishing request.")
+        if not video_url and not video_file_id:
+            raise RuntimeError("Drive video file ID or cloud storage URL is missing from the publishing request.")
 
         channel, token_path = self._resolve_channel(metadata)
         self._report(progress_callback, 10, "YouTube 업로드 메타데이터 확인 중...")
@@ -176,19 +177,57 @@ class RemotePublishService:
         temp_dir = tempfile.mkdtemp(prefix=f"remote_publish_{request_id}_")
         thumbnail_warning = None
         try:
-            video_name = str(metadata.get("drive_video_file_name") or "video.mp4")
+            video_name = str(metadata.get("video_file") or metadata.get("drive_video_file_name") or "video.mp4")
             video_ext = os.path.splitext(video_name)[1] or ".mp4"
             video_path = os.path.join(temp_dir, f"video{video_ext}")
-            self._report(progress_callback, 25, "Google Drive에서 완성 영상을 다운로드 중...")
-            if not google_drive_service.download_file(video_file_id, video_path):
-                raise RuntimeError("Failed to download the rendered video from Google Drive.")
+            downloaded = False
+
+            # 1st/2nd Priority: Direct HTTP / GCS / Supabase Storage download
+            if video_url and (str(video_url).startswith("http://") or str(video_url).startswith("https://")):
+                self._report(progress_callback, 25, "클라우드 저장소(Supabase/GCS)에서 완성 영상을 다운로드 중...")
+                try:
+                    res = requests.get(video_url, stream=True, timeout=180, proxies={"http": None, "https": None})
+                    if res.status_code == 200:
+                        with open(video_path, "wb") as f:
+                            for chunk in res.iter_content(chunk_size=1024 * 1024):
+                                if chunk:
+                                    f.write(chunk)
+                        if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+                            downloaded = True
+                except Exception as dl_err:
+                    print(f"[RemotePublish] Direct video download failed, trying Drive: {dl_err}")
+
+            # 3rd Priority: Google Drive download
+            if not downloaded and video_file_id and not str(video_file_id).startswith("http"):
+                self._report(progress_callback, 25, "Google Drive에서 완성 영상을 다운로드 중...")
+                if google_drive_service.download_file(video_file_id, video_path):
+                    downloaded = True
+
+            if not downloaded or not os.path.exists(video_path):
+                raise RuntimeError("Failed to download the rendered video from Supabase/GCS and Google Drive.")
 
             thumbnail_path = None
+            thumb_url = metadata.get("thumbnail_preview_url") or metadata.get("gcs_thumbnail_url")
             thumbnail_file_id = metadata.get("drive_thumbnail_file_id") or metadata.get("result_thumbnail_file_id")
-            if thumbnail_file_id:
-                thumb_name = str(metadata.get("drive_thumbnail_file_name") or "thumbnail.jpg")
-                thumb_ext = os.path.splitext(thumb_name)[1] or ".jpg"
-                candidate = os.path.join(temp_dir, f"thumbnail{thumb_ext}")
+            thumb_name = str(metadata.get("thumbnail_file") or metadata.get("drive_thumbnail_file_name") or "thumbnail.jpg")
+            thumb_ext = os.path.splitext(thumb_name)[1] or ".jpg"
+            candidate = os.path.join(temp_dir, f"thumbnail{thumb_ext}")
+
+            if thumb_url and (str(thumb_url).startswith("http://") or str(thumb_url).startswith("https://")):
+                self._report(progress_callback, 45, "클라우드 저장소에서 썸네일을 다운로드 중...")
+                try:
+                    res = requests.get(thumb_url, stream=True, timeout=60, proxies={"http": None, "https": None})
+                    if res.status_code == 200:
+                        with open(candidate, "wb") as f:
+                            for chunk in res.iter_content(chunk_size=1024 * 1024):
+                                if chunk:
+                                    f.write(chunk)
+                        if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                            thumbnail_path = candidate
+                except Exception as th_err:
+                    print(f"[RemotePublish] Direct thumbnail download failed: {th_err}")
+
+            if not thumbnail_path and thumbnail_file_id and not str(thumbnail_file_id).startswith("http"):
                 self._report(progress_callback, 45, "Google Drive에서 썸네일을 다운로드 중...")
                 if google_drive_service.download_file(thumbnail_file_id, candidate):
                     thumbnail_path = candidate

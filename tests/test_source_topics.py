@@ -30,13 +30,14 @@ def candidates():
         source_ids=[source()['id']]) for i in range(3)]}
 
 
-def run_with(outputs):
+def run_with(outputs, language='ko', **extra):
     calls = []
     iterator = iter(outputs)
     def stage(*args):
         calls.append(args)
         return copy.deepcopy(next(iterator))
-    result = produce_topics('test', {'category': '가족 사연', 'duration_minutes': 12, 'notes': '따뜻하게'},
+    request_data = {'category': '가족 사연', 'duration_minutes': 12, 'notes': '따뜻하게', 'language': language, **extra}
+    result = produce_topics('test', request_data,
                             [source()], SimpleNamespace(_stage=stage), lambda _: None)
     return result, calls
 
@@ -128,3 +129,35 @@ def test_summary_model_routing(monkeypatch, tmp_path, stage, expected):
     command = calls[0]
     assert command[command.index('--model') + 1] == expected
     assert ('model_reasoning_effort="low"' in command) == (stage == '02_topic_source_analysis')
+
+
+@pytest.mark.parametrize('language', ['ko', 'en', 'ja', 'es'])
+def test_topic_language_survives_handoff(language):
+    result, calls = run_with([analysis(), candidates()], language=language)
+    assert result['language'] == language
+    assert calls[1][2]['language'] == language
+    assert 'Return Korean JSON only' not in calls[1][3]
+    assert all(t['generation_request']['language'] == language for t in result['topics'])
+
+
+def test_topic_setting_survives_handoff():
+    result, calls = run_with(
+        [analysis(), candidates()],
+        language='ja',
+        setting_country='일본',
+        era_region='도쿄 근교 1990년대',
+        image_style='실사 영화 스틸',
+    )
+    assert result['language'] == 'ja'
+    assert result['setting_country'] == '일본'
+    assert result['era_region'] == '도쿄 근교 1990년대'
+    assert result['image_style'] == '실사 영화 스틸'
+    assert calls[1][2]['setting_country'] == '일본'
+    assert '일본' in calls[1][3]
+    for topic in result['topics']:
+        req = topic['generation_request']
+        assert req['language'] == 'ja'
+        assert req['setting_country'] == '일본'
+        assert req['era_region'] == '도쿄 근교 1990년대'
+        assert req['image_style'] == '실사 영화 스틸'
+

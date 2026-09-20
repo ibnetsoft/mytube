@@ -35,14 +35,24 @@ results):
   - complete_job/fail_job always send an Idempotency-Key (the LOCAL job_id)
     so a retried request after a lost response does not double-process.
 """
+from __future__ import annotations
+
 import os
 import time
 import uuid
 from pathlib import Path
 from json import JSONDecodeError
 
-import requests
-from dotenv import dotenv_values, load_dotenv
+try:
+    import requests
+except ImportError:
+    requests = None
+
+try:
+    from dotenv import dotenv_values, load_dotenv
+except ImportError:
+    dotenv_values = lambda *args, **kwargs: {}
+    load_dotenv = lambda *args, **kwargs: None
 
 _env_values = {}
 _local_worker_home = Path(

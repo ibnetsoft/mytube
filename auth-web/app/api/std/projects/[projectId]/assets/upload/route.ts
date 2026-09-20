@@ -221,40 +221,46 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const fileName = String(fileValue.name || form.get('file_name') || 'asset')
         const storagePath = buildStdGcsObjectPath({ projectId: project.id, sceneNumber, fileName })
         const buffer = Buffer.from(await fileValue.arrayBuffer())
-        const useGcsStorage = isGcsStorageConfigured()
-        let storageBucket = CONTENT_ASSETS_BUCKET
-        let storagePublicUrl = ''
-        if (useGcsStorage) {
-            const stored = await uploadGcsBuffer({ objectPath: storagePath, data: buffer, contentType: mimeType })
-            storageBucket = stored.bucket
-        } else {
-            const { error: storageError } = await supabaseAdmin.storage
-                .from(CONTENT_ASSETS_BUCKET)
-                .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
-            if (storageError) throw new Error(storageError.message || 'Supabase Storage upload failed')
-            const { data: publicUrlData } = supabaseAdmin.storage
-                .from(CONTENT_ASSETS_BUCKET)
-                .getPublicUrl(storagePath)
-            storagePublicUrl = publicUrlData.publicUrl
+
+        // 1차: Supabase Storage 업로드
+        const { error: storageError } = await supabaseAdmin.storage
+            .from(CONTENT_ASSETS_BUCKET)
+            .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
+        if (storageError) throw new Error(storageError.message || 'Supabase Storage upload failed')
+        const { data: publicUrlData } = supabaseAdmin.storage
+            .from(CONTENT_ASSETS_BUCKET)
+            .getPublicUrl(storagePath)
+        const storagePublicUrl = publicUrlData.publicUrl
+
+        // 2차: GCS 아카이빙
+        let gcsBucket = ''
+        let gcsPath = ''
+        if (isGcsStorageConfigured()) {
+            try {
+                const stored = await uploadGcsBuffer({ objectPath: storagePath, data: buffer, contentType: mimeType })
+                gcsBucket = stored.bucket
+                gcsPath = stored.path
+            } catch (gcsError: any) {
+                console.warn('[STD AssetUpload] GCS secondary archive failed; keeping Supabase asset:', gcsError?.message)
+            }
         }
 
-        // Drive is a second, long-term archive. It cannot invalidate a
-        // successful Supabase upload when the Drive connection is unavailable.
+        // Drive is a legacy fallback archive
         let folders: Awaited<ReturnType<typeof ensureStdProjectDriveFolders>> | null = null
         let targetFolderId = ''
         let driveFile: Awaited<ReturnType<typeof uploadStdDriveBuffer>> | null = null
         let driveBackupError = ''
         try {
-            if (!['audio', 'bgm', 'sfx'].includes(assetType)) {
-            folders = await ensureStdProjectDriveFolders(project)
-            targetFolderId = folderForAssetType(folders, assetType)
-            driveFile = await uploadStdDriveBuffer(
-                targetFolderId,
-                fileName,
-                buffer,
-                mimeType,
-                `AIR Studio STD ${assetType} asset for project ${project.id}`
-            )
+            if (!['audio', 'bgm', 'sfx'].includes(assetType) && !gcsBucket) {
+                folders = await ensureStdProjectDriveFolders(project)
+                targetFolderId = folderForAssetType(folders, assetType)
+                driveFile = await uploadStdDriveBuffer(
+                    targetFolderId,
+                    fileName,
+                    buffer,
+                    mimeType,
+                    `AIR Studio STD ${assetType} asset for project ${project.id}`
+                )
             }
         } catch (driveError: any) {
             driveBackupError = String(driveError?.message || 'drive_archive_upload_failed')
@@ -290,13 +296,19 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                         web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
                         thumbnail_link: driveFile.thumbnailLink || null,
                     } : {}),
-                    storage_provider: useGcsStorage ? 'gcs' : 'supabase',
-                    storage_bucket: storageBucket,
+                    storage_provider: 'supabase',
+                    storage_bucket: CONTENT_ASSETS_BUCKET,
                     storage_path: storagePath,
                     storage_public_url: storagePublicUrl,
+                    ...(gcsBucket && gcsPath ? {
+                        gcs_bucket: gcsBucket,
+                        gcs_path: gcsPath,
+                        upload_mode: 'server_supabase_then_gcs',
+                    } : {
+                        upload_mode: driveFile ? 'server_supabase_then_drive' : 'server_supabase_storage',
+                    }),
                     ...audioAssetStorageFields(assetType).metadata,
                     uploaded_by: auth.requester.email,
-                    upload_mode: useGcsStorage ? 'server_gcs_storage' : (driveFile ? 'server_supabase_then_drive' : 'server_supabase_storage'),
                 },
             })
             .select('*')
