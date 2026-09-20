@@ -746,6 +746,7 @@ export default function StdPortalPage() {
     const [loading, setLoading] = useState(false)
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
+    const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
     const [message, setMessage] = useState('')
     const [subtitleTranslationScope, setSubtitleTranslationScope] = useState<'thai_only' | 'all'>('thai_only')
 
@@ -11391,7 +11392,38 @@ export default function StdPortalPage() {
                     {currentNav === 'projects' && (
                         <div className="space-y-4 max-w-7xl mx-auto w-full">
                             <div className="flex items-center justify-between mb-2">
-                                <h2 className="text-base font-bold text-white">프로젝트 목록</h2>
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-base font-bold text-white">프로젝트 목록</h2>
+                                    {/* 미완료 / 완료 탭 */}
+                                    <div className="flex items-center gap-1 bg-[#181d26] border border-white/10 rounded-lg p-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setProjectsTab('incomplete')}
+                                            className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                                projectsTab === 'incomplete'
+                                                    ? 'bg-blue-600 text-white shadow'
+                                                    : 'text-gray-400 hover:text-white'
+                                            }`}
+                                        >
+                                            미완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                                                projectsTab === 'incomplete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
+                                            }`}>{projects.filter((p: any) => !p.submitted_at).length}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setProjectsTab('complete')}
+                                            className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                                projectsTab === 'complete'
+                                                    ? 'bg-emerald-600 text-white shadow'
+                                                    : 'text-gray-400 hover:text-white'
+                                            }`}
+                                        >
+                                            완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                                                projectsTab === 'complete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
+                                            }`}>{projects.filter((p: any) => Boolean(p.submitted_at)).length}</span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="flex items-center gap-2">
                                     <select
                                         className="text-xs bg-[#1c2027] border border-gray-600 rounded px-2 py-1 text-white outline-none cursor-pointer"
@@ -11437,7 +11469,7 @@ export default function StdPortalPage() {
                                     </thead>
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
                                         {/* 풍부한 프로젝트 목록 렌더링 */}
-                                        {projects.map((p: any, idx: number) => {
+                                        {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id
                                             const projectCatName = (() => {
                                                 const explicitCategories = [
@@ -11617,10 +11649,10 @@ export default function StdPortalPage() {
                                                 </tr>
                                             )
                                         })}
-                                        {projects.length === 0 && (
+                                        {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).length === 0 && (
                                             <tr>
                                                 <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
-                                                    아직 생성된 프로젝트가 없습니다.
+                                                    {projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}
                                                 </td>
                                             </tr>
                                         )}
