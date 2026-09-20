@@ -1,5 +1,4 @@
 'use client'
-import TopicProjectDialog from '@/components/TopicProjectDialog'
 import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -747,7 +746,6 @@ export default function StdPortalPage() {
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
-    const [projectListOpen, setProjectListOpen] = useState(false)
     const [message, setMessage] = useState('')
     const [subtitleTranslationScope, setSubtitleTranslationScope] = useState<'thai_only' | 'all'>('thai_only')
 
@@ -8061,18 +8059,282 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
-            {topicProjectOpen && <TopicProjectDialog locale={currentLocale} activeId={selectedProject?.project?.id}
-                rows={projects.map((p: StdProject & { project_payload?: any }) => {
-                    const status = p.id === selectedProject?.project?.id && !p.submitted_at
-                        ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-                        : getProjectStepStatus(p)
-                    return { id: p.id, title: p.title, thumbnail: sanitizeAssetUrl(
-                        p.progress_payload?.thumbnail_url || p.project_payload?.thumbnail_url
-                        || p.project_payload?.thumbnail_design?.thumbnail_url || p.project_payload?.thumbnail_design?.bg_url) || '',
-                        steps: [status.isTopicDone, status.isPlanningDone, status.isScriptDone, status.isImageDone, status.isTtsDone, status.isSubtitlesDone, status.isThumbnailDone],
-                        submitted: Boolean(p.submitted_at || p.shared_submission?.submitted_at) }
-                })}
-                onClose={() => setTopicProjectOpen(false)} onSelect={async id => Boolean(await openProject(id))} />}
+            {topicProjectOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6"
+                    onClick={() => setTopicProjectOpen(false)}
+                >
+                    <div
+                        className="bg-[#161a22] border border-white/10 rounded-2xl w-full max-w-7xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* 팝업 헤더 */}
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#181d26] shrink-0">
+                            <div className="flex items-center gap-4">
+                                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                                    <span>📁</span>
+                                    <span>프로젝트 목록</span>
+                                </h2>
+                                {/* 미완료 / 완료 탭 */}
+                                <div className="flex items-center gap-1 bg-[#12151b] border border-white/10 rounded-lg p-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setProjectsTab('incomplete')}
+                                        className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                            projectsTab === 'incomplete'
+                                                ? 'bg-blue-600 text-white shadow'
+                                                : 'text-gray-400 hover:text-white'
+                                        }`}
+                                    >
+                                        미완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                                            projectsTab === 'incomplete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
+                                        }`}>{projects.filter((p: any) => !p.submitted_at).length}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setProjectsTab('complete')}
+                                        className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                            projectsTab === 'complete'
+                                                ? 'bg-emerald-600 text-white shadow'
+                                                : 'text-gray-400 hover:text-white'
+                                        }`}
+                                    >
+                                        완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                                            projectsTab === 'complete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
+                                        }`}>{projects.filter((p: any) => Boolean(p.submitted_at)).length}</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setTopicProjectOpen(false)}
+                                className="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 flex items-center justify-center transition text-sm font-bold"
+                                aria-label="닫기"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* 팝업 바디 (테이블) */}
+                        <div className="overflow-auto flex-1 p-4 sm:p-6">
+                            <div className="bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">
+                                <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1000px]">
+                                    <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px] sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-2 py-2.5 w-12 text-center">{ui("썸네일")}</th>
+                                            <th className="px-3 py-2.5 w-10 text-center">
+                                                <input type="checkbox" className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
+                                            </th>
+                                            <th className="px-3 py-2.5 w-32 text-center">카테고리</th>
+                                            <th className="px-2 py-2.5 w-24 text-center">시작일</th>
+                                            <th className="px-2 py-2.5 w-24 text-center">수정일</th>
+                                            <th className="px-3 py-2.5">영상 제목</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("주제")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("기획")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("대본")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("이미지")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">TTS</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("자막")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{ui("썸네일")}</th>
+                                            <th className="px-2 py-2.5 w-24 text-center text-cyan-300 font-black tracking-wide">렌더</th>
+                                            <th className="px-2 py-2.5 w-16 text-center">비고</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
+                                        {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).map((p: any, idx: number) => {
+                                            const isSelectedProj = selectedProject?.project?.id === p.id
+                                            const projectCatName = (() => {
+                                                const explicitCategories = [
+                                                    p.category_name,
+                                                    p.project_payload?.category_name,
+                                                    p.project_payload?.category,
+                                                    p.category,
+                                                ]
+                                                const explicitCategory = explicitCategories.find((name: unknown) =>
+                                                    STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
+                                                )
+                                                if (explicitCategory) return String(explicitCategory)
+                                                const title = p.title || ''
+                                                if (title.includes('무공') || title.includes('강호') || title.includes('낭인')) return '무협'
+                                                if (title.includes('야사') || title.includes('조선') || title.includes('옛날')) return '옛날이야기'
+                                                if (title.includes('19금') || title.includes('황혼') || title.includes('부부')) return '황혼19금'
+                                                if (title.includes('편지') || title.includes('첫사랑') || title.includes('장례식')) return '한국사연'
+                                                if (title.includes('탈북')) return '탈북사연'
+                                                if (title.includes('해외') || title.includes('감동')) return '해외감동'
+                                                return '옛날이야기'
+                                            })()
+                                            const projectThumbnailUrl = sanitizeAssetUrl(
+                                                p.progress_payload?.thumbnail_url
+                                                || p.project_payload?.thumbnail_url
+                                                || p.project_payload?.thumbnail_design?.thumbnail_url
+                                                || p.project_payload?.thumbnail_design?.bg_url
+                                            )
+                                            const submittedAt = p.submitted_at || p.shared_submission?.submitted_at
+                                            const latestSubmittedVersion = Math.max(
+                                                0,
+                                                Number(p.progress_payload?.latest_render_version) || 0,
+                                                submittedAt ? 1 : 0,
+                                            )
+                                            return (
+                                                <tr
+                                                    key={p.id || idx}
+                                                    onClick={() => {
+                                                        openProject(p.id)
+                                                        setTopicProjectOpen(false)
+                                                    }}
+                                                    className="hover:bg-[#14181f] transition cursor-pointer group"
+                                                >
+                                                    <td className="px-2 py-1.5 text-center">
+                                                        {projectThumbnailUrl ? (
+                                                            <img
+                                                                src={projectThumbnailUrl}
+                                                                alt=""
+                                                                className="w-9 h-7 object-cover rounded border border-white/10 mx-auto"
+                                                                onError={event => { event.currentTarget.style.display = 'none' }}
+                                                            />
+                                                        ) : (
+                                                            <div className="w-9 h-7 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto">
+                                                                <ImageIcon className="w-3.5 h-3.5" />
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
+                                                        <input type="checkbox" className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                                                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                                            {projectCatName}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
+                                                        {formatProjectListDate(p.created_at)}
+                                                    </td>
+                                                    <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
+                                                        {formatProjectListDate(submittedAt)}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
+                                                        {p.title}
+                                                    </td>
+                                                    {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
+                                                    {(() => {
+                                                        const pStatus = isSelectedProj && !p.submitted_at
+                                                             ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+                                                             : getProjectStepStatus(p)
+                                                        const isSubmitted = Boolean(p.submitted_at)
+                                                        const hasSharedSubmission = Boolean(p.shared_submission)
+                                                        const submitBlockers = [
+                                                            !pStatus.isPlanningDone ? '기획' : '',
+                                                            !pStatus.isScriptDone ? '대본' : '',
+                                                            !pStatus.isImageDone ? '필수 영상/이미지' : '',
+                                                            !pStatus.isTtsDone ? 'TTS' : '',
+                                                            !pStatus.isSubtitlesDone ? '자막' : '',
+                                                            !pStatus.isThumbnailDone ? '썸네일' : '',
+                                                        ].filter(Boolean)
+                                                        return (
+                                                            <>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isTopicDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isTopicDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isPlanningDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isPlanningDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isScriptDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isScriptDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isImageDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isImageDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isTtsDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isTtsDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isSubtitlesDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isSubtitlesDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-1 py-2 text-center">
+                                                                    <span className={pStatus.isThumbnailDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.isThumbnailDone ? '●' : '○'}
+                                                                    </span>
+                                                                </td>
+                                                                {/* 제출 버튼 컬럼 */}
+                                                                <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
+                                                                    {isSubmitted ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => reopenProjectForRerender(String(p.id))}
+                                                                            disabled={loading}
+                                                                            className="mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 text-[11px] font-black text-indigo-200 shadow-sm shadow-indigo-950/30 transition hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white active:scale-95 disabled:opacity-50"
+                                                                            title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
+                                                                        >
+                                                                            <RefreshCw className="h-3.5 w-3.5" />
+                                                                            <span>Re</span>
+                                                                        </button>
+                                                                    ) : submittingProjectId === String(p.id) ? (
+                                                                        <button
+                                                                            disabled
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-md mx-auto cursor-wait transition-all"
+                                                                            title="제출 준비 중: 생성 이미지 보관 및 원격 렌더 큐 등록을 진행하고 있습니다."
+                                                                        >
+                                                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                                        </button>
+                                                                    ) : (pStatus.allDone || hasSharedSubmission) ? (
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                const openedProject = await openProject(p.id)
+                                                                                if (openedProject) await submitProject(openedProject)
+                                                                            }}
+                                                                            disabled={Boolean(submittingProjectId)}
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-wait text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
+                                                                            title={hasSharedSubmission
+                                                                                ? '공동 작업 제출 확인: 클릭하면 중복 렌더 없이 제출 완료로 처리됩니다.'
+                                                                                : '모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수'}
+                                                                        >
+                                                                            <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button
+                                                                            disabled
+                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 text-gray-400 border border-white/10 opacity-80 cursor-not-allowed mx-auto transition-all"
+                                                                            title={`${submitBlockers.join(', ') || '필수 단계'} 완료 후 제출할 수 있습니다.`}
+                                                                        >
+                                                                            <span className="text-xs font-bold leading-none text-gray-400">⏎</span>
+                                                                        </button>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-2 py-2 text-center font-mono text-[11px] font-bold text-cyan-300">
+                                                                    {latestSubmittedVersion > 0 ? `v${latestSubmittedVersion}` : ''}
+                                                                </td>
+                                                            </>
+                                                        )
+                                                    })()}
+                                                </tr>
+                                            )
+                                        })}
+                                        {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).length === 0 && (
+                                            <tr>
+                                                <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
+                                                    {projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             {isImpersonating && (
                 <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-b border-cyan-500/30 px-6 py-2 flex flex-wrap items-center justify-between text-xs font-bold z-40 shrink-0 shadow-lg">
                     <div className="flex items-center gap-2.5">
@@ -8239,7 +8501,7 @@ export default function StdPortalPage() {
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
                                 <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
-                                <button type="button" onClick={() => { setProjectListOpen(true); setMobileMenuOpen(false) }}
+                                <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
                                     className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
                                     {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
                                 </button>
@@ -8341,7 +8603,7 @@ export default function StdPortalPage() {
 
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
                         <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
-                        <button type="button" onClick={() => setProjectListOpen(true)}
+                        <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
                             className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
                             {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
                         </button>
@@ -11168,457 +11430,221 @@ export default function StdPortalPage() {
                                                 onClick={() => document.getElementById('thumbnail-bg-upload-input')?.click()}
                                                 className="py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-lg font-bold border border-emerald-500/30 transition"
                                             >
-                                                               {/* [프로제트 목록 팔업 모달] */}
-                    {projectListOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setProjectListOpen(false)}>
-                            <div className="relative bg-[#161a22] border border-white/10 rounded-2xl shadow-2xl w-[96vw] max-w-6xl max-h-[88vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-                                {/* 모달 헤더 */}
-                                <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 shrink-0">
-                                    <div className="flex items-center gap-3">
-                                        <h2 className="text-sm font-bold text-white">프로젝트 목록</h2>
-                                        {/* 미완료 / 완료 탭 */}
-                                        <div className="flex items-center gap-1 bg-[#0f131a] border border-white/10 rounded-lg p-0.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => setProjectsTab('incomplete')}
-                                                className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
-                                                    projectsTab === 'incomplete'
-                                                        ? 'bg-blue-600 text-white shadow'
-                                                        : 'text-gray-400 hover:text-white'
-                                                }`}
-                                            >
-                                                미완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                                                    projectsTab === 'incomplete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                                }`}>{projects.filter((p: any) => !p.submitted_at).length}</span>
+                                                ⬆️ 이미지 파일 업로드
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setProjectsTab('complete')}
-                                                className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
-                                                    projectsTab === 'complete'
-                                                        ? 'bg-emerald-600 text-white shadow'
-                                                        : 'text-gray-400 hover:text-white'
-                                                }`}
+                                                onClick={() => {
+                                                    const newUrl = prompt('썸네일 배경 이미지 URL을 입력하세요:', thumbBgUrl)
+                                                    if (newUrl) {
+                                                        setThumbBgUrl(newUrl)
+                                                        setThumbBgUploadFile(null)
+                                                    }
+                                                }}
+                                                className="py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg font-bold border border-blue-500/30 transition"
                                             >
-                                                완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                                                    projectsTab === 'complete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                                }`}>{projects.filter((p: any) => Boolean(p.submitted_at)).length}</span>
+                                                🔗 외부 URL로 배경 교체
                                             </button>
                                         </div>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setProjectListOpen(false)}
-                                        className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"
-                                        aria-label="닫기"
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                                {/* 테이블 */}
-                                <div className="overflow-auto flex-1">
-                                    <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1000px]">
-                                        <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px] sticky top-0 z-10">
-                                            <tr>
-                                                <th className="px-2 py-2.5 w-12 text-center">{ui("썸네일")}</th>
-                                                <th className="px-3 py-2.5 w-10 text-center">
-                                                    <input type="checkbox" className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
-                                                </th>
-                                                <th className="px-3 py-2.5 w-32 text-center">카테고리</th>
-                                                <th className="px-2 py-2.5 w-24 text-center">시작일</th>
-                                                <th className="px-2 py-2.5 w-24 text-center">수정일</th>
-                                                <th className="px-3 py-2.5">영상 제목</th>
-                                                <th className="px-1 py-2.5 w-12 text-center">{ui("주제")}</th>
-                                                <th className="px-1 py-2.5 w-12 text-center">{ui("기획")}</th>
-                                                <th className="px-1 py-2.5 w-12 text-center">{ui("대본")}</th>
-                                                <th className="px-1 py-2.5 w-12 text-center">{ui("이미지")}</th>
-                                                <th className="px-1 py-2.5 w-12 text-center">TTS</th>
-                                                <th className="px-1 py-2.5 w-12 text-center">{ui("자막")}</th>
-                                                <th className="px-1 py-2.5 w-12 text-center">{ui("썸네일")}</th>
-                                                <th className="px-2 py-2.5 w-24 text-center text-cyan-300 font-black tracking-wide">렌더</th>
-                                                <th className="px-2 py-2.5 w-16 text-center">비고</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
-                                            {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).map((p: any, idx: number) => {
-                                                const isSelectedProj = selectedProject?.project?.id === p.id
-                                                const projectCatName = (() => {
-                                                    const explicitCategories = [
-                                                        p.category_name,
-                                                        p.project_payload?.category_name,
-                                                        p.project_payload?.category,
-                                                        p.category,
-                                                    ]
-                                                    const explicitCategory = explicitCategories.find((name: unknown) =>
-                                                        STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
-                                                    )
-                                                    if (explicitCategory) return String(explicitCategory)
-                                                    const title = p.title || ''
-                                                    if (title.includes('무공') || title.includes('강호') || title.includes('낙인')) return '무협'
-                                                    if (title.includes('야사') || title.includes('조선') || title.includes('옛날')) return '옛날이야기'
-                                                    if (title.includes('19금') || title.includes('황혼') || title.includes('부부')) return '황혼19금'
-                                                    if (title.includes('편지') || title.includes('첫사랑') || title.includes('장례식')) return '한국사연'
-                                                    if (title.includes('탈북')) return '탈북사연'
-                                                    if (title.includes('해외') || title.includes('감동')) return '해외감동'
-                                                    return '옛날이야기'
-                                                })()
-                                                const projectThumbnailUrl = sanitizeAssetUrl(
-                                                    p.progress_payload?.thumbnail_url
-                                                    || p.project_payload?.thumbnail_url
-                                                    || p.project_payload?.thumbnail_design?.thumbnail_url
-                                                    || p.project_payload?.thumbnail_design?.bg_url
-                                                )
-                                                const submittedAt = p.submitted_at || p.shared_submission?.submitted_at
-                                                const latestSubmittedVersion = Math.max(
-                                                    0,
-                                                    Number(p.progress_payload?.latest_render_version) || 0,
-                                                    submittedAt ? 1 : 0,
-                                                )
-                                                return (
-                                                    <tr
-                                                        key={p.id || idx}
-                                                        onClick={() => {
-                                                            openProject(p.id)
-                                                            setCurrentNav('image_gen')
-                                                            setProjectListOpen(false)
-                                                        }}
-                                                        className="hover:bg-[#14181f] transition cursor-pointer group"
-                                                    >
-                                                        <td className="px-2 py-1.5 text-center">
-                                                            {projectThumbnailUrl ? (
-                                                                <img
-                                                                    src={projectThumbnailUrl}
-                                                                    alt=""
-                                                                    className="w-9 h-7 object-cover rounded border border-white/10 mx-auto"
-                                                                    onError={event => { event.currentTarget.style.display = 'none' }}
-                                                                />
-                                                            ) : (
-                                                                <div className="w-9 h-7 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto">
-                                                                    <ImageIcon className="w-3.5 h-3.5" />
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                            <input type="checkbox" className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
-                                                        </td>
-                                                        <td className="px-3 py-2 text-center whitespace-nowrap">
-                                                            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                                                {projectCatName}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
-                                                            {formatProjectListDate(p.created_at)}
-                                                        </td>
-                                                        <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
-                                                            {formatProjectListDate(submittedAt)}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
-                                                            {isSelectedProj && <span className="mr-1 text-blue-400">▶</span>}{p.title}
-                                                        </td>
-                                                        {(() => {
-                                                            const pStatus = isSelectedProj && !p.submitted_at
-                                                                 ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-                                                                 : getProjectStepStatus(p)
-                                                            const isSubmitted = Boolean(p.submitted_at)
-                                                            const hasSharedSubmission = Boolean(p.shared_submission)
-                                                            const submitBlockers = [
-                                                                !pStatus.isPlanningDone ? '기획' : '',
-                                                                !pStatus.isScriptDone ? '대본' : '',
-                                                                !pStatus.isImageDone ? '필수 영상/이미지' : '',
-                                                                !pStatus.isTtsDone ? 'TTS' : '',
-                                                                !pStatus.isSubtitlesDone ? '자막' : '',
-                                                                !pStatus.isThumbnailDone ? '썸네일' : '',
-                                                            ].filter(Boolean)
-                                                            return (
-                                                                <>
-                                                                    <td className="px-1 py-2 text-center">
-                                                                        <span className={pStatus.isTopicDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                            {pStatus.isTopicDone ? '●' : '○'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-1 py-2 text-center">
-                                                                        <span className={pStatus.isPlanningDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                            {pStatus.isPlanningDone ? '●' : '○'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-1 py-2 text-center">
-                                                                        <span className={pStatus.isScriptDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                            {pStatus.isScriptDone ? '●' : '○'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-1 py-2 text-center">
-                                                                        <span className={pStatus.isImageDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                            {pStatus.isImageDone ? '●' : '○'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-1 py-2 text-center">
-                                                                        <span className={pStatus.isTtsDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                            {pStatus.isTtsDone ? '●' : '○'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-1 py-2 text-center">
-                                                                        <span className={pStatus.isSubtitlesDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                            {pStatus.isSubtitlesDone ? '●' : '○'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-1 py-2 text-center">
-                                                                        <span className={pStatus.isThumbnailDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                            {pStatus.isThumbnailDone ? '●' : '○'}
-                                                                        </span>
-                                                                    </td>
-                                                                    {/* 제출 버튼 켼럼 */}
-                                                                    <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                                        {isSubmitted ? (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => reopenProjectForRerender(String(p.id))}
-                                                                                disabled={loading}
-                                                                                className="mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 text-[11px] font-black text-indigo-200 shadow-sm shadow-indigo-950/30 transition hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white active:scale-95 disabled:opacity-50"
-                                                                                title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
-                                                                            >
-                                                                                <RefreshCw className="h-3.5 w-3.5" />
-                                                                                <span>Re</span>
-                                                                            </button>
-                                                                        ) : submittingProjectId === String(p.id) ? (
-                                                                            <button
-                                                                                disabled
-                                                                                className="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-md mx-auto cursor-wait transition-all"
-                                                                                title="제출 준비 중"
-                                                                            >
-                                                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                                                            </button>
-                                                                        ) : (pStatus.allDone || hasSharedSubmission) ? (
-                                                                            <button
-                                                                                onClick={async () => {
-                                                                                    const openedProject = await openProject(p.id)
-                                                                                    if (openedProject) await submitProject(openedProject)
-                                                                                }}
-                                                                                disabled={Boolean(submittingProjectId)}
-                                                                                className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-wait text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
-                                                                                title="모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수"
-                                                                            >
-                                                                                <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
-                                                                            </button>
-                                                                        ) : (
-                                                                            <button
-                                                                                disabled
-                                                                                className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 text-gray-400 border border-white/10 opacity-80 cursor-not-allowed mx-auto transition-all"
-                                                                                title={`${submitBlockers.join(', ') || '필수 단계'} 완료 후 제출할 수 있습니다.`}
-                                                                            >
-                                                                                <span className="text-xs font-bold leading-none text-gray-400">⏎</span>
-                                                                            </button>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-2 py-2 text-center font-mono text-[11px] font-bold text-cyan-300">
-                                                                        {latestSubmittedVersion > 0 ? `v${latestSubmittedVersion}` : ''}
-                                                                    </td>
-                                                                </>
-                                                            )
-                                                        })()}
-                                                    </tr>
-                                                )
-                                            })}
-                                            {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).length === 0 && (
-                                                <tr>
-                                                    <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
-                                                        {projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
                                 </div>
                             </div>
                         </div>
-                    )}y, idx: number) => {
-                                            const isSelectedProj = selectedProject?.project?.id === p.id
-                                            const projectCatName = (() => {
-                                                const explicitCategories = [
-                                                    p.category_name,
-                                                    p.project_payload?.category_name,
-                                                    p.project_payload?.category,
-                                                    p.category,
-                                                ]
-                                                const explicitCategory = explicitCategories.find((name: unknown) =>
-                                                    STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
-                                                )
-                                                if (explicitCategory) return String(explicitCategory)
-                                                const title = p.title || ''
-                                                if (title.includes('무공') || title.includes('강호') || title.includes('낭인')) return '무협'
-                                                if (title.includes('야사') || title.includes('조선') || title.includes('옛날')) return '옛날이야기'
-                                                if (title.includes('19금') || title.includes('황혼') || title.includes('부부')) return '황혼19금'
-                                                if (title.includes('편지') || title.includes('첫사랑') || title.includes('장례식')) return '한국사연'
-                                                if (title.includes('탈북')) return '탈북사연'
-                                                if (title.includes('해외') || title.includes('감동')) return '해외감동'
-                                                return '옛날이야기'
-                                            })()
-                                            const projectThumbnailUrl = sanitizeAssetUrl(
-                                                p.progress_payload?.thumbnail_url
-                                                || p.project_payload?.thumbnail_url
-                                                || p.project_payload?.thumbnail_design?.thumbnail_url
-                                                || p.project_payload?.thumbnail_design?.bg_url
-                                            )
-                                            const submittedAt = p.submitted_at || p.shared_submission?.submitted_at
-                                            const latestSubmittedVersion = Math.max(
-                                                0,
-                                                Number(p.progress_payload?.latest_render_version) || 0,
-                                                submittedAt ? 1 : 0,
-                                            )
-                                            return (
-                                                <tr
-                                                    key={p.id || idx}
-                                                    onClick={() => {
-                                                        openProject(p.id)
-                                                        setCurrentNav('image_gen')
-                                                    }}
-                                                    className="hover:bg-[#14181f] transition cursor-pointer group"
-                                                >
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        {projectThumbnailUrl ? (
-                                                            <img
-                                                                src={projectThumbnailUrl}
-                                                                alt=""
-                                                                className="w-9 h-7 object-cover rounded border border-white/10 mx-auto"
-                                                                onError={event => { event.currentTarget.style.display = 'none' }}
-                                                            />
+                    )}
+
+                    {currentNav === 'music_missions' && (
+                        <div className="space-y-4 max-w-7xl mx-auto w-full pb-10">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <h2 className="text-base font-bold text-white flex items-center gap-2">
+                                        <Music className="h-4 w-4 text-blue-400" />
+                                        <span>음악 생성 미션</span>
+                                    </h2>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        워커가 만든 프롬프트로 외부 음악 생성 도구에서 곡을 만들고 결과 오디오를 제출합니다.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={loadMusicMissions}
+                                    disabled={musicMissionLoading}
+                                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded bg-[#202632] border border-white/10 text-xs font-bold text-gray-200 hover:bg-white/10 disabled:opacity-60"
+                                >
+                                    <RefreshCw className={`h-3.5 w-3.5 ${musicMissionLoading ? 'animate-spin' : ''}`} />
+                                    <span>새로고침</span>
+                                </button>
+                            </div>
+
+                            {musicMissionLoading && musicMissions.length === 0 && (
+                                <div className="border border-white/10 bg-[#1c2027] rounded-lg p-8 text-center text-sm text-gray-400">
+                                    음악 미션을 불러오는 중입니다.
+                                </div>
+                            )}
+
+                            {!musicMissionLoading && musicMissions.length === 0 && (
+                                <div className="border border-white/10 bg-[#1c2027] rounded-lg p-8 text-center space-y-2">
+                                    <Music className="h-8 w-8 text-gray-500 mx-auto" />
+                                    <p className="text-sm font-bold text-gray-300">현재 열려 있는 음악 미션이 없습니다.</p>
+                                    <p className="text-xs text-gray-500">관리자 또는 Hermes 워커가 음악 프롬프트 미션을 생성하면 여기에 표시됩니다.</p>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                {musicMissions.map((mission) => {
+                                    const draft = musicSubmissionDrafts[mission.id] || {}
+                                    const mySubmissions = Array.isArray(mission.my_submissions) ? mission.my_submissions : []
+                                    const isSubmitting = uploadingKey === `music-${mission.id}`
+                                    const negativeRules = Array.isArray(mission.negative_rules) ? mission.negative_rules : []
+                                    return (
+                                        <div key={mission.id} className="bg-[#1c2027] border border-white/10 rounded-lg overflow-hidden shadow">
+                                            <div className="p-4 border-b border-white/10 space-y-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                                                            <span className="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/20 text-[10px] font-bold uppercase">
+                                                                {mission.target_market || 'TH'}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold">
+                                                                {mission.genre}
+                                                            </span>
+                                                            <span className="text-[10px] text-gray-500">
+                                                                목표 {Math.round((mission.duration_target_seconds || 180) / 60)}분
+                                                            </span>
+                                                        </div>
+                                                        <h3 className="text-sm font-bold text-white truncate">{mission.title}</h3>
+                                                        <p className="text-xs text-gray-400 mt-1 line-clamp-2">{mission.mood}</p>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <div className="text-[10px] text-gray-500">보상</div>
+                                                        <div className="text-sm font-black text-emerald-300">{Number(mission.reward_usdt || 0).toFixed(2)} USDT</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-[#14181f] border border-white/10 rounded p-3">
+                                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                                        <span className="text-[10px] font-bold text-gray-400 uppercase">Prompt</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                navigator.clipboard?.writeText(mission.prompt)
+                                                                updateMusicDraft(mission.id, { prompt_used: mission.prompt })
+                                                            }}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] text-gray-200 border border-white/10"
+                                                        >
+                                                            <Copy className="h-3 w-3" />
+                                                            <span>복사</span>
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">{mission.prompt}</p>
+                                                </div>
+
+                                                {negativeRules.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {negativeRules.slice(0, 6).map((rule, index) => (
+                                                            <span key={`${mission.id}-rule-${index}`} className="px-2 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/20 text-[10px]">
+                                                                {rule}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="p-4 space-y-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    <label className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-gray-400">생성 도구</span>
+                                                        <input
+                                                            value={draft.tool_name || ''}
+                                                            onChange={e => updateMusicDraft(mission.id, { tool_name: e.target.value })}
+                                                            placeholder="Suno, Udio, 기타"
+                                                            className="w-full bg-[#14181f] border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </label>
+                                                    <label className="space-y-1">
+                                                        <span className="text-[10px] font-bold text-gray-400">오디오 파일</span>
+                                                        <input
+                                                            type="file"
+                                                            accept="audio/*"
+                                                            onChange={e => updateMusicDraft(mission.id, { file: e.target.files?.[0] || null })}
+                                                            className="block w-full text-xs text-gray-300 file:mr-3 file:rounded file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-blue-500"
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                <label className="space-y-1 block">
+                                                    <span className="text-[10px] font-bold text-gray-400">실제 사용 프롬프트</span>
+                                                    <textarea
+                                                        value={draft.prompt_used || ''}
+                                                        onChange={e => updateMusicDraft(mission.id, { prompt_used: e.target.value })}
+                                                        placeholder="실제로 음악 생성 도구에 넣은 프롬프트를 붙여넣으세요."
+                                                        rows={3}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 resize-none"
+                                                    />
+                                                </label>
+
+                                                <label className="space-y-1 block">
+                                                    <span className="text-[10px] font-bold text-gray-400">가사 또는 메모</span>
+                                                    <textarea
+                                                        value={draft.lyrics || ''}
+                                                        onChange={e => updateMusicDraft(mission.id, { lyrics: e.target.value })}
+                                                        placeholder="보컬곡이면 가사, 인스트면 생성 설정이나 참고 메모를 적으세요."
+                                                        rows={2}
+                                                        className="w-full bg-[#14181f] border border-white/10 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 resize-none"
+                                                    />
+                                                </label>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-gray-300">
+                                                    <label className="flex items-start gap-2 bg-[#14181f] border border-white/10 rounded p-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(draft.license_confirmed)}
+                                                            onChange={e => updateMusicDraft(mission.id, { license_confirmed: e.target.checked })}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <span>생성툴 라이선스상 상업 사용 가능</span>
+                                                    </label>
+                                                    <label className="flex items-start gap-2 bg-[#14181f] border border-white/10 rounded p-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(draft.originality_confirmed)}
+                                                            onChange={e => updateMusicDraft(mission.id, { originality_confirmed: e.target.checked })}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <span>기존 곡/가수/멜로디 모방 없음</span>
+                                                    </label>
+                                                    <label className="flex items-start gap-2 bg-[#14181f] border border-white/10 rounded p-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(draft.commercial_use_confirmed)}
+                                                            onChange={e => updateMusicDraft(mission.id, { commercial_use_confirmed: e.target.checked })}
+                                                            className="mt-0.5"
+                                                        />
+                                                        <span>에어 플랫폼 사용권 부여 동의</span>
+                                                    </label>
+                                                </div>
+
+                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                                                    <div className="text-[11px] text-gray-400">
+                                                        {mySubmissions.length > 0 ? (
+                                                            <span>내 제출 {mySubmissions.length}개: {mySubmissions[0].status}</span>
                                                         ) : (
-                                                            <div className="w-9 h-7 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto">
-                                                                <ImageIcon className="w-3.5 h-3.5" />
-                                                            </div>
+                                                            <span>아직 제출하지 않은 미션입니다.</span>
                                                         )}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                        <input type="checkbox" className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center whitespace-nowrap">
-                                                        <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                                            {projectCatName}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
-                                                        {formatProjectListDate(p.created_at)}
-                                                    </td>
-                                                    <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
-                                                        {formatProjectListDate(submittedAt)}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
-                                                        {p.title}
-                                                    </td>
-                                                    {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
-                                                    {(() => {
-                                                        const pStatus = isSelectedProj && !p.submitted_at
-                                                             ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-                                                             : getProjectStepStatus(p)
-                                                        const isSubmitted = Boolean(p.submitted_at)
-                                                        const hasSharedSubmission = Boolean(p.shared_submission)
-                                                        const submitBlockers = [
-                                                            !pStatus.isPlanningDone ? '기획' : '',
-                                                            !pStatus.isScriptDone ? '대본' : '',
-                                                            !pStatus.isImageDone ? '필수 영상/이미지' : '',
-                                                            !pStatus.isTtsDone ? 'TTS' : '',
-                                                            !pStatus.isSubtitlesDone ? '자막' : '',
-                                                            !pStatus.isThumbnailDone ? '썸네일' : '',
-                                                        ].filter(Boolean)
-                                                        return (
-                                                            <>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isTopicDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isTopicDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isPlanningDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isPlanningDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isScriptDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isScriptDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isImageDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isImageDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isTtsDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isTtsDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isSubtitlesDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isSubtitlesDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isThumbnailDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isThumbnailDone ? '●' : '○'}
-                                                                    </span>
-                                                                </td>
-                                                                {/* 제출 버튼 컬럼 */}
-                                                                <td className="px-2 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                                    {isSubmitted ? (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => reopenProjectForRerender(String(p.id))}
-                                                                            disabled={loading}
-                                                                            className="mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 text-[11px] font-black text-indigo-200 shadow-sm shadow-indigo-950/30 transition hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white active:scale-95 disabled:opacity-50"
-                                                                            title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
-                                                                        >
-                                                                            <RefreshCw className="h-3.5 w-3.5" />
-                                                                            <span>Re</span>
-                                                                        </button>
-                                                                    ) : submittingProjectId === String(p.id) ? (
-                                                                        <button
-                                                                            disabled
-                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-md mx-auto cursor-wait transition-all"
-                                                                            title="제출 준비 중: 생성 이미지 보관 및 원격 렌더 큐 등록을 진행하고 있습니다."
-                                                                        >
-                                                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                                                        </button>
-                                                                    ) : (pStatus.allDone || hasSharedSubmission) ? (
-                                                                        <button
-                                                                            onClick={async () => {
-                                                                                const openedProject = await openProject(p.id)
-                                                                                if (openedProject) await submitProject(openedProject)
-                                                                            }}
-                                                                            disabled={Boolean(submittingProjectId)}
-                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-wait text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
-                                                                            title={hasSharedSubmission
-                                                                                ? '공동 작업 제출 확인: 클릭하면 중복 렌더 없이 제출 완료로 처리됩니다.'
-                                                                                : '모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수'}
-                                                                        >
-                                                                            <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            disabled
-                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/10 text-gray-400 border border-white/10 opacity-80 cursor-not-allowed mx-auto transition-all"
-                                                                            title={`${submitBlockers.join(', ') || '필수 단계'} 완료 후 제출할 수 있습니다.`}
-                                                                        >
-                                                                            <span className="text-xs font-bold leading-none text-gray-400">⏎</span>
-                                                                        </button>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-2 py-2 text-center font-mono text-[11px] font-bold text-cyan-300">
-                                                                    {latestSubmittedVersion > 0 ? `v${latestSubmittedVersion}` : ''}
-                                                                </td>
-                                                            </>
-                                                        )
-                                                    })()}
-                                                </tr>
-                                            )
-                                        })}
-                                        {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).length === 0 && (
-                                            <tr>
-                                                <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
-                                                    {projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => submitMusicMission(mission)}
+                                                        disabled={isSubmitting}
+                                                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-xs font-bold text-white"
+                                                    >
+                                                        {isSubmitting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                                                        <span>{isSubmitting ? '제출 중' : '음악 제출'}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         </div>
                     )}
