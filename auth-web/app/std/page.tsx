@@ -8783,28 +8783,23 @@ export default function StdPortalPage() {
                                                                 applyVrewVoiceBulk('narration', id, direction)
                                                             }}
                                                         />
-                                                        <div className="flex items-center gap-1 rounded-md border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 shrink-0">
-                                                            <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap pl-1">
-                                                                {ui("대사")} {dialogueSubtitleCount}
-                                                            </span>
-                                                            <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
-                                                                voices={allVoices}
-                                                                value={dialogueVoiceId || (narrationVoiceId === 'gemini:Charon' ? 'gemini:Puck' : 'gemini:Charon')}
-                                                                direction=""
-                                                                headers={authedJsonHeaders}
-                                                                buttonText={dialogueVoiceName}
-                                                                buttonClassName={`h-6 max-w-28 truncate rounded px-1.5 text-[10px] font-bold transition shrink-0 ${dialogueVoiceId ? 'border border-violet-400/50 bg-violet-500/20 text-violet-200' : 'border border-amber-400/50 bg-amber-500/20 text-amber-200 animate-pulse'}`}
-                                                                label={`대사 ${dialogueSubtitleCount}개 성우 선택`}
-                                                                onChange={(id, direction) => {
-                                                                    applyVrewVoiceBulk('dialogue', id, direction)
-                                                                }}
-                                                            />
-                                                        </div>
+                                                        <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
+                                                            voices={allVoices}
+                                                            value={dialogueVoiceId || (narrationVoiceId === 'gemini:Charon' ? 'gemini:Puck' : 'gemini:Charon')}
+                                                            direction=""
+                                                            headers={authedJsonHeaders}
+                                                            buttonText={`${ui("대사")} ${dialogueSubtitleCount}`}
+                                                            buttonClassName="h-7 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 text-[11px] font-bold text-violet-100 transition hover:bg-violet-500/20 shrink-0"
+                                                            label={`대사 ${dialogueSubtitleCount}개 성우 선택`}
+                                                            onChange={(id, direction) => {
+                                                                applyVrewVoiceBulk('dialogue', id, direction)
+                                                            }}
+                                                        />
                                                     </>
                                                 )}
                                                 <div className="flex items-center gap-1 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1 shrink-0">
                                                     <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
-                                                        {t('sub_stability')} <span className="font-mono text-purple-300">{elStability}</span>
+                                                        {t('sub_stability')}
                                                     </span>
                                                     <input
                                                         type="number"
