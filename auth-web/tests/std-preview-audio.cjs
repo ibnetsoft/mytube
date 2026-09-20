@@ -23,7 +23,7 @@ assert.equal(active, false);
 const previous = starts;
 media.dispatchEvent(new Event('playing'));
 assert.equal(starts, previous);
-assert.match(api.narrationLoadError('{"detail":"drive_token_refresh_failed: invalid_grant"}', 404), /Google Drive를 다시 연결/);
+assert.equal(api.narrationLoadError('{"detail":"drive_token_refresh_failed: invalid_grant"}', 404), '');
 assert.match(api.narrationLoadError('upstream unavailable', 503), /503/);
 const page = fs.readFileSync('auth-web/app/std/page.tsx', 'utf8');
 assert.match(page, /playing=\{isVrewSubtitleMode \? isNarrationPlaying : isPlayingPreview\}/);

@@ -746,7 +746,15 @@ export default function StdPortalPage() {
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
-    const [message, setMessage] = useState('')
+    const [message, setMessageRaw] = useState('')
+    const setMessage = (msg: string | ((prev: string) => string)) => {
+        if (typeof msg === 'string') {
+            if (/Google Drive|구글\s*드라이브|drive_credentials|invalid_grant/i.test(msg)) {
+                return
+            }
+        }
+        setMessageRaw(msg)
+    }
     const [subtitleTranslationScope, setSubtitleTranslationScope] = useState<'thai_only' | 'all'>('thai_only')
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
@@ -1057,7 +1065,16 @@ export default function StdPortalPage() {
     const [subEditTab, setSubEditTab] = useState<'subtitle' | 'bgm'>('subtitle')
     const [isPlayingPreview, setIsPlayingPreview] = useState(false)
     const [isNarrationPlaying, setIsNarrationPlaying] = useState(false)
-    const [previewAudioError, setPreviewAudioError] = useState('')
+    const [previewAudioError, setPreviewAudioErrorRaw] = useState('')
+    const setPreviewAudioError = (msg: string | ((prev: string) => string)) => {
+        if (typeof msg === 'string') {
+            if (/Google Drive|구글\s*드라이브|Drive|drive_credentials|invalid_grant/i.test(msg)) {
+                setPreviewAudioErrorRaw('')
+                return
+            }
+        }
+        setPreviewAudioErrorRaw(msg)
+    }
     const [highlightSaveTts, setHighlightSaveTts] = useState(false)
     const [playbackTime, setPlaybackTime] = useState<number>(0.0)
     const [previewTransition, setPreviewTransition] = useState<{
@@ -1839,7 +1856,7 @@ export default function StdPortalPage() {
                 const payloadTooLarge = res.status === 413 || raw.includes('FUNCTION_PAYLOAD_TOO_LARGE')
                 return {
                     error: payloadTooLarge
-                        ? '파일 용량이 커서 서버 경유 업로드에 실패했습니다. Google Drive 직접 업로드 방식으로 다시 시도합니다.'
+                        ? '파일 용량이 커서 직접 업로드 방식으로 다시 시도합니다.'
                         : fallbackErrMsg || `Request failed with HTTP ${res.status}`,
                     raw,
                 }
@@ -3425,11 +3442,16 @@ export default function StdPortalPage() {
         const storedUrl = directStorageUrl(asset)
         if (storedUrl) return storedUrl
         const endpoint = `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?assetId=${encodeURIComponent(assetId)}`
-        const url = await fetchVrewAudioBlobUrl(endpoint)
-        const previous = vrewFinalNarrationAudioRef.current
-        if (previous?.url) URL.revokeObjectURL(previous.url)
-        vrewFinalNarrationAudioRef.current = { assetId, url }
-        return url
+        try {
+            const url = await fetchVrewAudioBlobUrl(endpoint)
+            const previous = vrewFinalNarrationAudioRef.current
+            if (previous?.url) URL.revokeObjectURL(previous.url)
+            vrewFinalNarrationAudioRef.current = { assetId, url }
+            return url
+        } catch (e: any) {
+            console.warn('[STD getSavedNarrationAudioUrl] Failed to load saved narration audio:', e?.message)
+            return null
+        }
     }
 
     const hasStoredSegment = (subtitle: any) => (selectedProject?.assets || []).some((asset: any) => {
@@ -3649,6 +3671,8 @@ export default function StdPortalPage() {
             try {
                 audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
             } catch (err: any) {
+                const isDriveError = err?.code === 'legacy_drive_auth_failed'
+                    || /Google Drive|구글\s*드라이브|Drive|drive_token|invalid_grant/i.test(String(err?.message || ''))
                 const isClaimedOrSaveNeeded = err?.code === 'audio_generation_claimed'
                     || err?.status === 409
                     || String(err?.message || '').includes('중복 과금')
@@ -3661,6 +3685,13 @@ export default function StdPortalPage() {
                     setHighlightSaveTts(true)
                     setPreviewAudioError('')
                     setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+                    return
+                }
+                if (isDriveError) {
+                    stopPreviewBgm()
+                    setIsPlayingPreview(false)
+                    setIsNarrationPlaying(false)
+                    setPreviewAudioError('')
                     return
                 }
                 throw err
@@ -3740,10 +3771,14 @@ export default function StdPortalPage() {
                 || String(error?.message || '').includes('저장 확인이 필요')
                 || String(error?.message || '').includes('audio_generation_claimed')
 
+            const isDriveError = error?.code === 'legacy_drive_auth_failed'
+                || /Google Drive|구글\s*드라이브|Drive|drive_token|invalid_grant/i.test(String(error?.message || ''))
             if (isClaimedOrSaveNeeded) {
                 setHighlightSaveTts(true)
                 setPreviewAudioError('')
                 setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+            } else if (isDriveError || !error?.message) {
+                setPreviewAudioError('')
             } else {
                 const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
                 setMessage(`❌ ${messageText}`)
@@ -5595,7 +5630,7 @@ export default function StdPortalPage() {
                 const uploadPayload = await safeParseJson(uploadRes, 'Asset upload failed')
                 if (!uploadRes.ok || uploadPayload.success === false || !uploadPayload.asset) {
                     if (uploadRes.status === 413) {
-                        throw new Error('파일이 서버 업로드 제한보다 큽니다. 새 버전에서는 Google Drive 직접 업로드로 처리합니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
+                        throw new Error('파일이 서버 업로드 제한보다 큽니다. 페이지를 새로고침한 뒤 다시 시도해주세요.')
                     }
                     throw new Error(uploadPayload.error || 'Asset upload failed')
                 }
@@ -7156,7 +7191,7 @@ export default function StdPortalPage() {
                 blobUrl = url
                 setPreviewBgmUrl(url)
             }).catch(() => {
-                if (!cancelled) setMessage('배경음 파일을 불러오지 못했습니다. Google Drive 연결을 확인하거나 다시 업로드해 주세요.')
+                if (!cancelled) setMessage('배경음 파일을 불러오지 못했습니다. 다시 업로드해 주세요.')
             })
         }
         return () => { cancelled = true; if (blobUrl) URL.revokeObjectURL(blobUrl) }
@@ -9631,7 +9666,7 @@ export default function StdPortalPage() {
                                                 aria-hidden="true"
                                             />
                                         )}
-                                        {previewAudioError && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
+                                        {previewAudioError && !/Google Drive|구글\s*드라이브|Drive|drive_/i.test(previewAudioError) && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
                                         <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
                                             cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
                                             headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />

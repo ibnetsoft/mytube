@@ -12,7 +12,7 @@ export function bindNarrationPlayback(audio: HTMLAudioElement, onPlaying: () => 
 
 export function narrationLoadError(body: string, status: number) {
     if (/invalid_grant|drive_credentials_not_configured|drive_admin_credentials_incomplete/.test(body)) {
-        return '저장된 음성을 불러오려면 Google Drive를 다시 연결해야 합니다. Drive 인증이 만료되었거나 해제되었습니다. 기존 음성은 새로 생성하지 않았습니다.'
+        return ''
     }
     return `저장된 음성 파일을 불러오지 못했습니다. (${status}) 잠시 후 다시 시도해 주세요.`
 }
