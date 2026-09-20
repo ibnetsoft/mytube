@@ -209,7 +209,8 @@ class Jobs:
                                 if (self.root / identity / 'references.json').exists() else None)
             write_json(self.root / identity / 'candidate.json', candidate)
             (self.root / identity / 'candidate.md').write_text(candidate['script'], encoding='utf-8')
-            self.update(identity, status='awaiting_approval', stage='초안 저장 · 검토 대기',
+            self.update(identity, status='completed' if request.mode == 'topics' else 'awaiting_approval',
+                        stage='토픽 후보 저장 · 선택 가능' if request.mode == 'topics' else '초안 저장 · 검토 대기',
                         candidate_hash=digest(candidate), remaining=candidate.get('remaining', []))
         except Exception as exc:
             # Do not expose HTTP URLs, credentials, CLI stdout or source dumps to browser logs.
@@ -262,7 +263,7 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
 
@@ -330,7 +331,7 @@ def document(name: str):
 
 @app.post('/api/jobs')
 def start(request: StartRequest):
-    if request.mode not in ('new', 'repair', 'grounded'):
+    if request.mode not in ('new', 'repair', 'grounded', 'topics'):
         raise HTTPException(400, '모드를 선택하세요.')
     snapshot = None
     references = None
@@ -339,6 +340,11 @@ def start(request: StartRequest):
             snapshot = source(request.kind, request.source_id)
             if not snapshot['script'] or not snapshot['structure'].get('scenes'):
                 raise ValueError('대본 또는 장면 구조가 없어 자동 수정안을 만들 수 없습니다.')
+        elif request.mode == 'topics':
+            if not request.category.strip():
+                raise ValueError('토픽 카테고리를 입력하세요.')
+            references = load_sources(request.source_ids)
+            request.title = request.title.strip() or references[0]['title'][:180] + ' · 토픽 구성'
         elif request.mode == 'grounded':
             if not request.title.strip() or not request.perspective.strip() or not request.passage.strip():
                 raise ValueError('제목·본문 범위·해석 관점을 입력하세요.')
@@ -366,7 +372,23 @@ def detail(identity: str):
     return {'job': dict(jobs.rows[identity]), 'script': candidate.get('script', ''),
             'original': snapshot.get('script', ''), 'remaining': candidate.get('remaining', []),
             'citations': candidate.get('sections', []) if candidate.get('source_manifest') else [],
-            'sources': candidate.get('source_manifest', []), 'grounding_report': candidate.get('grounding_report')}
+            'sources': candidate.get('source_manifest', []), 'grounding_report': candidate.get('grounding_report'),
+            'topics': candidate.get('topics', []), 'source_analysis': candidate.get('source_analysis')}
+
+
+class YouTubeRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=2048)
+
+
+@app.post('/api/youtube-transcript')
+def youtube_transcript(request: YouTubeRequest):
+    from worker.youtube_transcript import extract_transcript
+    try:
+        return extract_transcript(request.url)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc))
 
 
 @app.get('/api/references')

@@ -34,6 +34,7 @@ google-auth-oauthlib>=1.2.1
 google-auth-httplib2>=0.2.0
 
 # Scheduler
+youtube-transcript-api>=1.2,<2
 apscheduler
 aiohttp
 pydub

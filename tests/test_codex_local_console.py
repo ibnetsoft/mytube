@@ -106,3 +106,27 @@ def test_untrusted_text_not_html():
     js = (ROOT / 'worker/codex_console/app.js').read_text(encoding='utf-8')
     assert 'innerHTML' not in js
     assert 'textContent' in js
+
+
+def test_youtube_extraction_endpoint(client, monkeypatch):
+    from worker import youtube_transcript
+    expected = {'title': '영상 제목', 'text': '자막 원문',
+                'url': 'https://www.youtube.com/watch?v=vLB3e-eH2j8',
+                'language': 'ko', 'is_generated': True}
+    monkeypatch.setattr(youtube_transcript, 'extract_transcript', lambda url: expected)
+    response = client.post('/api/youtube-transcript', json={'url': expected['url']})
+    assert response.status_code == 200
+    assert response.json() == expected
+    assert client.post('/api/youtube-transcript', json={'url': expected['url']},
+                       headers={'X-Codex-Local': ''}).status_code == 401
+
+
+@pytest.mark.parametrize('exception,status', [(ValueError('잘못된 URL'), 400), (RuntimeError('자막 없음'), 502)])
+def test_youtube_extraction_failure(client, monkeypatch, exception, status):
+    from worker import youtube_transcript
+    def fail(url):
+        raise exception
+    monkeypatch.setattr(youtube_transcript, 'extract_transcript', fail)
+    response = client.post('/api/youtube-transcript', json={'url': 'https://youtu.be/vLB3e-eH2j8'})
+    assert response.status_code == status
+    assert response.json()['detail'] == str(exception)

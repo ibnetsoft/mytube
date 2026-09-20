@@ -24,6 +24,9 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     # The script/review/dialogue runner itself pins Astra; general model config
     # remains untouched for other existing content stages.
     runner = ReportingRunner(config)
+    if request['mode'] == 'topics':
+        from worker.source_topics import produce_topics
+        return produce_topics(identity, request, sources or [], runner, notify)
     if request['mode'] == 'grounded':
         from worker.grounded_script import produce_grounded
         return produce_grounded(identity, request, sources or [], runner, notify)
