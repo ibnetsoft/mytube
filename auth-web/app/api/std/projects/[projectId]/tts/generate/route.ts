@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { assembleStoredNarration } from '@/lib/stdStoredNarration'
+import { NARRATION_BATCH_SIZE } from '@/lib/stdNarrationBatch'
 import { completedScriptTtsProgress } from '@/lib/stdTtsCompletion'
 import { createHash } from 'crypto'
 import { segmentAudioKey, legacySegmentMatches, persistSegmentAudio } from '@/lib/stdSegmentAudioCache'
@@ -749,7 +750,7 @@ async function runTts(body: any, auth: any, project: any) {
                         if (existingClaimData) {
                             const parsed = JSON.parse(await existingClaimData.text())
                             const requestedAt = new Date(parsed.requested_at).getTime()
-                            if (Number.isFinite(requestedAt) && Date.now() - requestedAt > 60_000) {
+                            if (Number.isFinite(requestedAt) && Date.now() - requestedAt > (maxDuration + 30) * 1000) {
                                 isStale = true
                             }
                         }
@@ -796,16 +797,49 @@ async function runTts(body: any, auth: any, project: any) {
         let elevenLabsTrace: { keySlots: number[]; modelIds: string[] } | null = null
         let elevenLabsKeyInspections: any[] = []
         let segmentReuse: { reused: number; generated: number } | null = null
+        const prepareOnly = body?.mode === 'prepare_narration_segments'
+        const assembleOnly = body?.mode === 'assemble_narration_segments'
+        if ((prepareOnly && (!voiceSegments.length || voiceSegments.length > NARRATION_BATCH_SIZE))
+            || (assembleOnly && !voiceSegments.length)) {
+            return NextResponse.json({ success: false, error: '잘못된 음성 준비 묶음입니다.' }, { status: 400 })
+        }
         if (!segmentPreview && voiceSegments.length) {
             stage = 'assemble_saved_segments'
+            const segmentKey = (segment: { text: string; voiceId: string; direction?: string }) => segmentAudioKey({
+                ...segmentIdentity, text: segment.text, voiceId: segment.voiceId,
+                provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
+                direction: segment.direction || '',
+            })
+            const preparedAssets = new Map<string, any>()
+            if (assembleOnly) {
+                // Fetch metadata in batches instead of one or two DB calls per subtitle.
+                const keys = Array.from(new Set(voiceSegments.map(segmentKey)))
+                for (let offset = 0; offset < keys.length; offset += 100) {
+                    const { data, error } = await supabaseAdmin.from('std_project_assets').select('*')
+                        .eq('project_id', project.id).eq('asset_type', 'other')
+                        .in('status', ['uploaded', 'assigned']).eq('metadata->>kind', 'vrew_segment_tts')
+                        .in('metadata->>cache_key', keys.slice(offset, offset + 100))
+                        .order('created_at', { ascending: false }).limit(1000)
+                    if (error) throw error
+                    for (const asset of data || []) {
+                        if (asset.metadata?.storage_path && !preparedAssets.has(asset.metadata.cache_key)) {
+                            preparedAssets.set(asset.metadata.cache_key, asset)
+                        }
+                    }
+                }
+            }
             const assembled = await assembleStoredNarration(voiceSegments, {
                 resolve: async (segment, index, cacheOnly) => {
+                    if (assembleOnly) {
+                        const asset = preparedAssets.get(segmentKey(segment))
+                        return asset ? { asset, cached: true } : null
+                    }
                     const result = await runTts({
                         ...body, text: segment.text, voice_id: segment.voiceId,
                         provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                         direction: segment.direction, voice_segments: [], multi_voice: false,
-                        mode: 'vrew_segment_preview', segment_index: index, cache_only: cacheOnly,
-                        force_claim: true,
+                        mode: 'vrew_segment_preview', segment_index: index + (prepareOnly ? Math.max(0, Number(body.segment_offset) || 0) : 0), cache_only: cacheOnly,
+                        force_claim: false, force_regenerate: false,
                     }, auth, project)
                     const payload = await result.json()
                     if (cacheOnly && result.status === 404 && payload.code === 'audio_not_cached') return null
@@ -828,9 +862,13 @@ async function runTts(body: any, auth: any, project: any) {
                     }
                     throw new Error('저장된 음성 파일을 읽을 수 없습니다.')
                 },
-            })
+            }, { allowGenerate: !assembleOnly })
             audioBuffer = assembled.audioBuffer
             segmentReuse = { reused: assembled.reused, generated: assembled.generated }
+            if (prepareOnly) {
+                // No full narration asset or project completion update until the final join.
+                return NextResponse.json({ success: true, prepared: voiceSegments.length, segment_reuse: segmentReuse })
+            }
         } else if (provider === 'google_free' || voiceId.startsWith('google_')) {
             stage = 'generate_google_free'
             const projectLang = String(

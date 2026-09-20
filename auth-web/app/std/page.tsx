@@ -1,4 +1,5 @@
 'use client'
+import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -6407,12 +6408,18 @@ export default function StdPortalPage() {
                     voice_map: finalVoiceMap,
                     voice_segments: useSubtitleVoiceSegments ? voiceSegments : [],
                 }
-                const res = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
-                    method: 'POST',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify(requestBody),
+                const { res, payload } = await generateNarrationInBatches(requestBody, async batchBody => {
+                    const response = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
+                        method: 'POST',
+                        headers: authedJsonHeaders,
+                        body: JSON.stringify(batchBody),
+                    })
+                    return { res: response, payload: await safeParseJson(response, 'TTS generation failed') }
+                }, (ready, total) => {
+                    setMessage(ready === total
+                        ? `음성 ${total}개 준비 완료. 저장된 조각을 합치는 중입니다...`
+                        : `음성 준비 중: ${ready}/${total}개 완료. 저장된 조각은 재사용합니다.`)
                 })
-                const payload = await safeParseJson(res, 'TTS generation failed')
                 if (!res.ok || payload?.success === false) {
                     const detail = payload?.error || payload?.detail || payload?.raw || `${res.status} ${res.statusText}`
                     const stage = payload?.stage ? ` (${payload.stage})` : ''

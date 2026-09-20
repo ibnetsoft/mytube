@@ -1,10 +1,13 @@
 const fs=require('fs'),ts=require('typescript'),assert=require('node:assert/strict');
 function load(file,deps={}){const exports={};new Function('require','exports',ts.transpile(fs.readFileSync(file,'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}))((id)=>id in deps?deps[id]:require(id),exports);return exports}
-const helper=load('auth-web/lib/stdSegmentAudioCache.ts');
+const gcs={isGcsConfiguredAsync:async()=>false};
+const helper=load('auth-web/lib/stdSegmentAudioCache.ts',{'@/lib/gcsStorage':gcs});
+const batches=load('auth-web/lib/stdNarrationBatch.ts');
 const stored=new Map(); let failDownload=false; const claims=new Set();const assets=[];let generated=0,uploads=0,failUpload=false;
 const project={id:'10b3d223-1457-415a-ba40-7b947c6c1b3d',language:'ko'};
-const db={storage:{from:()=>({download:async(path)=>({data:failDownload?null:{arrayBuffer:async()=>stored.get(path)},error:failDownload?{message:"offline"}:null}),upload:async(path,buffer)=>{if(path.includes('/claims/')){if(claims.has(path))return {error:{message:'exists'}};claims.add(path);return {error:null}}stored.set(path,buffer);uploads++;return {error:failUpload?{message:'offline'}:null}}})},from(table){let filters=[],inserted;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(){return q},neq(){return q},update(){return q},then(resolve){return Promise.resolve({data:table==='std_project_assets'?assets.filter(a=>filters.every(([k,v])=>(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v)):[],error:null}).then(resolve)},order(){return q},limit(){return q},insert(v){inserted=v;return q},async single(){const a={...inserted,id:String(assets.length+1)};assets.push(a);return {data:a}},async maybeSingle(){return {data:table==='std_projects'?project:assets.find(a=>filters.every(([k,v])=>(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v))||null}}};return q}};
+const db={storage:{from:()=>({remove:async(paths)=>{for(const path of paths)claims.delete(path);return {error:null}},download:async(path)=>({data:failDownload?null:{arrayBuffer:async()=>stored.get(path)},error:failDownload?{message:"offline"}:null}),upload:async(path,buffer)=>{if(path.includes('/claims/')){if(claims.has(path))return {error:{message:'exists'}};claims.add(path);return {error:null}}stored.set(path,buffer);uploads++;return {error:failUpload?{message:'offline'}:null}}})},from(table){let filters=[],inserted;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(k,v){if(k==='metadata->>cache_key')filters.push([k,v]);return q},neq(){return q},update(){return q},then(resolve){return Promise.resolve({data:table==='std_project_assets'?assets.filter(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v))):[],error:null}).then(resolve)},order(){return q},limit(){return q},insert(v){inserted=v;return q},async single(){const a={...inserted,id:String(assets.length+1)};assets.push(a);return {data:a}},async maybeSingle(){return {data:table==='std_projects'?project:assets.find(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v)))||null}}};return q}};
 function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts',{
+    '@/lib/gcsStorage':gcs,'@/lib/stdNarrationBatch':batches,
     'next/server':{NextResponse:{json:(data,options)=>({data,status:options?.status||200,ok:!options?.status||options.status<400,json:async()=>data})}},
     '@/lib/stdStoredNarration':load('auth-web/lib/stdStoredNarration.ts',{'./stdJoinMp3':load('auth-web/lib/stdJoinMp3.ts')}),'@/lib/stdSegmentAudioCache':helper,'@/lib/supabaseAdmin':{supabaseAdmin:db},
     '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'test@example.com',user:{id:'test'}}})},
@@ -36,6 +39,16 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  const settingStart=generated; const settings=await call(route(),{...fullBody,speed:0.9,voice_segments:[fullBody.voice_segments[0]]});assert.equal(settings.status,200);assert.equal(generated,settingStart+1);
  const checkpoint=generated;failDownload=true;const unreadable=await call(route(),{...fullBody,voice_segments:[{text:'must not generate',voice_id:body.voice_id},fullBody.voice_segments[0]]});assert.equal(unreadable.status,500);assert.equal(generated,checkpoint);failDownload=false;
  assert(page.includes('if (useSubtitleVoiceSegments ||'), 'Full assembly errors must not fall back to paid browser synthesis');
+ const batchedBody={...fullBody,voice_segments:Array.from({length:9},(_,i)=>({text:'분할 음성 '+i,voice_id:body.voice_id}))};
+ const audioBefore=assets.filter(a=>a.asset_type==='audio').length;const genBefore=generated;const ready=[];
+ const batched=await batches.generateNarrationInBatches(batchedBody,async b=>{const r=await call(route(),b);if(b.mode==='prepare_narration_segments')assert.equal(assets.filter(a=>a.asset_type==='audio').length,audioBefore);return {res:r,payload:r.data}},n=>ready.push(n));
+ assert.equal(batched.res.status,200);assert.deepEqual(ready,[4,8,9]);assert.equal(generated,genBefore+9);
+ assert.equal(assets.filter(a=>a.asset_type==='audio').length,audioBefore+1);
+ const cachedAgain=await batches.generateNarrationInBatches(batchedBody,async b=>{const r=await call(route(),b);return {res:r,payload:r.data}},()=>{});
+ assert.equal(cachedAgain.res.status,200);assert.equal(generated,genBefore+9);assert.equal(cachedAgain.payload.segment_reuse.generated,0);
+ const missingFinal=await call(route(),{...batchedBody,mode:'assemble_narration_segments',voice_segments:[{text:'not prepared',voice_id:body.voice_id}]});
+ assert.equal(missingFinal.status,500);assert.equal(generated,genBefore+9,'Final join cannot synthesize missing audio');
+ const oversized=await call(route(),{...batchedBody,mode:'prepare_narration_segments'});assert.equal(oversized.status,400);
  console.log('PASS: full narration reuses preview clips; unchanged repeat makes zero provider calls; text/voice change generates only one; unreadable cache fails before spending');
  console.log('PASS: cache bypass ignored; uncertain failure cannot spend credits again; persistent reuse across reload, Drive-only legacy regeneration, Korean/voice invalidation, save failure, no selection auto-generation');
 })().catch(e=>{console.error(e);process.exit(1)});
