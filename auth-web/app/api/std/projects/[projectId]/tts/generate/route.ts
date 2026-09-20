@@ -730,16 +730,52 @@ async function runTts(body: any, auth: any, project: any) {
         }
         if (segmentPreview) {
             if (body?.cache_only) return NextResponse.json({ success: false, code: 'audio_not_cached', error: '저장된 구간 음성이 없습니다.' }, { status: 404 })
-            // Atomic create across server instances. Keep the claim even after failure:
-            // an uncertain provider response must never silently spend credits again.
-            const claim = await supabaseAdmin.storage.from('content-assets').upload(
-                `std/${project.id}/tts/claims/${segmentCacheKey}.json`,
-                Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
-                { contentType: 'application/json', upsert: false },
-            )
-            if (claim.error && !/duplicate|already exists|exists/i.test(claim.error.message || '') && String(claim.error.statusCode) !== '409') throw new Error('중복 생성 방지 상태를 확인할 수 없어 음성을 생성하지 않았습니다.')
-            if (claim.error) return NextResponse.json({ success: false, code: 'audio_generation_claimed',
-                error: '이 음성의 생성 요청이 이미 진행됐거나 저장 확인이 필요합니다. 중복 과금을 막기 위해 다시 생성하지 않았습니다. 잠시 후 재생을 시도하고, 계속되면 관리자에게 확인해 주세요.' }, { status: 409 })
+            const claimPath = `std/${project.id}/tts/claims/${segmentCacheKey}.json`
+            const forceClaim = Boolean(body?.force_claim || body?.force_regenerate)
+
+            if (!forceClaim) {
+                const claim = await supabaseAdmin.storage.from('content-assets').upload(
+                    claimPath,
+                    Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
+                    { contentType: 'application/json', upsert: false },
+                )
+                if (claim.error && !/duplicate|already exists|exists/i.test(claim.error.message || '') && String(claim.error.statusCode) !== '409') {
+                    throw new Error('중복 생성 방지 상태를 확인할 수 없어 음성을 생성하지 않았습니다.')
+                }
+                if (claim.error) {
+                    let isStale = false
+                    try {
+                        const { data: existingClaimData } = await supabaseAdmin.storage.from('content-assets').download(claimPath)
+                        if (existingClaimData) {
+                            const parsed = JSON.parse(await existingClaimData.text())
+                            const requestedAt = new Date(parsed.requested_at).getTime()
+                            if (Number.isFinite(requestedAt) && Date.now() - requestedAt > 60_000) {
+                                isStale = true
+                            }
+                        }
+                    } catch {}
+
+                    if (isStale) {
+                        await supabaseAdmin.storage.from('content-assets').upload(
+                            claimPath,
+                            Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
+                            { contentType: 'application/json', upsert: true },
+                        )
+                    } else {
+                        return NextResponse.json({
+                            success: false,
+                            code: 'audio_generation_claimed',
+                            error: '이 음성의 생성 요청이 이미 진행 중이거나 저장 확인이 필요합니다. 잠시 후 다시 시도해 주세요.',
+                        }, { status: 409 })
+                    }
+                }
+            } else {
+                await supabaseAdmin.storage.from('content-assets').upload(
+                    claimPath,
+                    Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
+                    { contentType: 'application/json', upsert: true },
+                )
+            }
         }
         const voiceSegments = Array.isArray(body?.voice_segments)
             ? body.voice_segments
@@ -769,6 +805,7 @@ async function runTts(body: any, auth: any, project: any) {
                         provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                         direction: segment.direction, voice_segments: [], multi_voice: false,
                         mode: 'vrew_segment_preview', segment_index: index, cache_only: cacheOnly,
+                        force_claim: true,
                     }, auth, project)
                     const payload = await result.json()
                     if (cacheOnly && result.status === 404 && payload.code === 'audio_not_cached') return null
@@ -778,11 +815,18 @@ async function runTts(body: any, auth: any, project: any) {
                 read: async (asset) => {
                     if (asset.metadata?.storage_path) {
                         const { data, error } = await supabaseAdmin.storage.from(asset.metadata.storage_bucket || 'content-assets').download(asset.metadata.storage_path)
-                        if (error || !data) throw new Error('저장된 음성을 읽을 수 없습니다. 새로 생성하지 않았습니다. 저장소 연결을 확인해 주세요.')
-                        return Buffer.from(await data.arrayBuffer())
+                        if (!error && data) {
+                            return Buffer.from(await data.arrayBuffer())
+                        }
                     }
-                    if (asset.drive_file_id) return downloadStdDriveFile(asset.drive_file_id)
-                    throw new Error('저장된 음성 파일 위치가 없습니다.')
+                    if (asset.drive_file_id) {
+                        try {
+                            return await downloadStdDriveFile(asset.drive_file_id)
+                        } catch (driveErr) {
+                            console.warn('[assembleStoredNarration] legacy drive download failed, will regenerate:', driveErr)
+                        }
+                    }
+                    throw new Error('저장된 음성 파일을 읽을 수 없습니다.')
                 },
             })
             audioBuffer = assembled.audioBuffer
@@ -867,6 +911,9 @@ async function runTts(body: any, auth: any, project: any) {
                 projectId: project.id, cacheKey: segmentCacheKey, identity: segmentIdentity,
                 audioBuffer, fileName, segmentIndex, generatedBy: auth.requester.email,
             })
+            if (segmentCacheKey) {
+                supabaseAdmin.storage.from('content-assets').remove([`std/${project.id}/tts/claims/${segmentCacheKey}.json`]).catch(() => {})
+            }
             const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
             return NextResponse.json({
                 success: true, segment_preview: true, cached: false,

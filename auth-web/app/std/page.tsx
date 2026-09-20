@@ -6723,7 +6723,9 @@ export default function StdPortalPage() {
 
     const handleFinalizeSubtitlesAndTts = async () => {
         if (!hasDistinctDialogueVoiceAssignment()) {
-            setMessage('대사 성우를 내레이션 성우와 다르게 일괄 적용한 뒤 최종 TTS를 생성해주세요.')
+            const msg = '대사 성우를 내레이션 성우와 다르게 일괄 적용한 뒤 최종 TTS를 생성해주세요. (상단 툴바의 [대사 성우] 버튼을 눌러 선택할 수 있습니다)'
+            setMessage(msg)
+            alert(msg)
             return
         }
         setGeneratingTts(true)
@@ -8719,6 +8721,11 @@ export default function StdPortalPage() {
                         const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
                         const narrationVoiceId = isVoiceStudioVoice(vrewNarrationVoice) ? vrewNarrationVoice : 'gemini:Charon'
                         const narrationVoiceName = voiceNameById.get(narrationVoiceId) || narrationVoiceId.replace('gemini:', '')
+                        const firstDialogueSub = localSubtitles.find((sub, index) => isSubtitleDialogue(sub, index))
+                        const dialogueVoiceId = String(firstDialogueSub?.voice_id || '')
+                        const dialogueVoiceName = dialogueVoiceId
+                            ? (voiceNameById.get(dialogueVoiceId) || dialogueVoiceId.replace('gemini:', ''))
+                            : ui("대사 성우 선택")
                         return (
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일 + 모바일 오밀조밀 최적화 & 숨김/펼침) */}
@@ -8776,10 +8783,22 @@ export default function StdPortalPage() {
                                                                 applyVrewVoiceBulk('narration', id, direction)
                                                             }}
                                                         />
-                                                        <div className="flex items-center gap-1 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 py-1 shrink-0">
-                                                            <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap">
+                                                        <div className="flex items-center gap-1 rounded-md border border-violet-400/30 bg-violet-500/10 px-1.5 py-0.5 shrink-0">
+                                                            <span className="text-[10px] font-bold text-violet-100 whitespace-nowrap pl-1">
                                                                 {ui("대사")} {dialogueSubtitleCount}
                                                             </span>
+                                                            <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
+                                                                voices={allVoices}
+                                                                value={dialogueVoiceId || (narrationVoiceId === 'gemini:Charon' ? 'gemini:Puck' : 'gemini:Charon')}
+                                                                direction=""
+                                                                headers={authedJsonHeaders}
+                                                                buttonText={dialogueVoiceName}
+                                                                buttonClassName={`h-6 max-w-28 truncate rounded px-1.5 text-[10px] font-bold transition shrink-0 ${dialogueVoiceId ? 'border border-violet-400/50 bg-violet-500/20 text-violet-200' : 'border border-amber-400/50 bg-amber-500/20 text-amber-200 animate-pulse'}`}
+                                                                label={`대사 ${dialogueSubtitleCount}개 성우 선택`}
+                                                                onChange={(id, direction) => {
+                                                                    applyVrewVoiceBulk('dialogue', id, direction)
+                                                                }}
+                                                            />
                                                         </div>
                                                     </>
                                                 )}
