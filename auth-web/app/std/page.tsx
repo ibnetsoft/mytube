@@ -4915,7 +4915,7 @@ export default function StdPortalPage() {
         if (!uploadRes.ok) throw new Error(`오디오 파일 업로드 실패 (${uploadRes.status})`)
         const completeRes = await fetch(`/api/std/projects/${projectId}/assets/complete`, {
             method: 'POST', headers: authedJsonHeaders,
-            body: JSON.stringify({ ...details, storage_bucket: init.storage_bucket,
+            body: JSON.stringify({ ...details, storage_provider: init.storage_provider, storage_bucket: init.storage_bucket,
                 storage_path: init.storage_path, storage_public_url: init.storage_public_url }),
         })
         const complete = await safeParseJson(completeRes, '오디오 저장 실패')
@@ -5507,7 +5507,7 @@ export default function StdPortalPage() {
                 && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
 
             if (shouldUseDirectStorageUpload) {
-                setMessage(`파일 (${file.name}) Supabase Storage 업로드 준비 중...`)
+                setMessage(`파일 (${file.name}) 스토리지 업로드 준비 중...`)
                 const initRes = await fetch('/api/std/projects/' + selectedProject.project.id + '/assets/init', {
                     method: 'POST',
                     headers: authedJsonHeaders,
@@ -5525,7 +5525,7 @@ export default function StdPortalPage() {
                 }
                 if (!isCurrent()) throw new Error('Upload context changed')
 
-                setMessage(`파일 (${file.name}) Supabase Storage에 업로드 중...`)
+                setMessage(`파일 (${file.name}) 스토리지에 업로드 중...`)
                 const storageRes = await fetch(initPayload.storage_upload_url, {
                     method: 'PUT',
                     headers: { 'Content-Type': mimeType },
@@ -5548,6 +5548,7 @@ export default function StdPortalPage() {
                         file_name: file.name,
                         file_size: file.size,
                         scene_number: sceneNum,
+                        storage_provider: initPayload.storage_provider,
                         storage_bucket: initPayload.storage_bucket,
                         storage_path: initPayload.storage_path,
                         storage_public_url: initPayload.storage_public_url,
@@ -7473,6 +7474,26 @@ export default function StdPortalPage() {
                             {authMode === 'login' ? t('auth_login_title') : t('auth_signup_title')}
                         </h1>
 
+                        <div className="-mt-4 mb-5 flex items-center gap-3 text-[11px] font-bold text-cyan-300">
+                            <a
+                                href="/terms"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline underline-offset-4 hover:text-cyan-200"
+                            >
+                                서비스 이용약관
+                            </a>
+                            <span aria-hidden="true" className="text-cyan-500/70">·</span>
+                            <a
+                                href="/privacy"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline underline-offset-4 hover:text-cyan-200"
+                            >
+                                개인정보처리방침
+                            </a>
+                        </div>
+
                         {/* 탭 전환 (로그인 / 회원가입 신청) */}
                         <div className="grid grid-cols-2 gap-2 w-full mb-6">
                             <button
@@ -7777,13 +7798,23 @@ export default function StdPortalPage() {
                                             />
                                             <span className={agreedTerms ? 'text-blue-300 font-bold' : ''}>{t('auth_agree_terms')}</span>
                                         </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setLegalModalType('terms')}
-                                            className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
-                                        >
-                                            [전문 보기]
-                                        </button>
+                                        <div className="flex shrink-0 items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLegalModalType('terms')}
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [전문 보기]
+                                            </button>
+                                            <a
+                                                href="/terms"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [웹페이지]
+                                            </a>
+                                        </div>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -7795,13 +7826,23 @@ export default function StdPortalPage() {
                                             />
                                             <span className={agreedPrivacy ? 'text-blue-300 font-bold' : ''}>{t('auth_agree_privacy')}</span>
                                         </label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setLegalModalType('privacy')}
-                                            className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
-                                        >
-                                            [전문 보기]
-                                        </button>
+                                        <div className="flex shrink-0 items-center gap-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLegalModalType('privacy')}
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [전문 보기]
+                                            </button>
+                                            <a
+                                                href="/privacy"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-bold px-1 py-0.5"
+                                            >
+                                                [웹페이지]
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
 

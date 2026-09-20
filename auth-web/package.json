@@ -9,6 +9,7 @@
     "lint": "node ./node_modules/eslint/bin/eslint.js --ext .js,.jsx,.ts,.tsx app components lib --ignore-pattern components/DashboardContent_backup.tsx"
   },
   "dependencies": {
+    "@google-cloud/storage": "^8.2.0",
     "@google/genai": "^2.8.0",
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",

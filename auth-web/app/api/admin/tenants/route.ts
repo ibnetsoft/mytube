@@ -55,7 +55,18 @@ export async function POST(req: Request) {
         if (isAuthResponse(requester)) return requester
 
         const body = await req.json()
-        const { tenant_key, tenant_name, brand_name, commission_percent, min_commission_usd, license_tier } = body
+        const {
+            tenant_key,
+            tenant_name,
+            brand_name,
+            commission_percent,
+            min_commission_usd,
+            license_tier,
+            setup_fee_usd,
+            price_per_channel_usd,
+            max_channels,
+            currency
+        } = body
 
         if (!tenant_key || !tenant_name) {
             return NextResponse.json({ error: 'tenant_key and tenant_name are required' }, { status: 400 })
@@ -74,15 +85,24 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Tenant key already exists' }, { status: 400 })
         }
 
+        const parsedMaxChannels = max_channels !== undefined ? Number(max_channels) : 5
+        const parsedPricePerChannel = price_per_channel_usd !== undefined ? Number(price_per_channel_usd) : 0
+        const calculatedMonthlyFee = parsedPricePerChannel * parsedMaxChannels
+
         const { data, error } = await sb
             .from('tenant_configs')
             .insert({
                 tenant_key,
                 tenant_name,
                 brand_name: brand_name || tenant_name,
-                commission_percent: commission_percent || 10,
-                min_commission_usd: min_commission_usd || 0,
+                commission_percent: commission_percent !== undefined ? Number(commission_percent) : 10,
+                min_commission_usd: min_commission_usd !== undefined ? Number(min_commission_usd) : 0,
                 license_tier: license_tier || 'standard',
+                setup_fee_usd: setup_fee_usd !== undefined ? Number(setup_fee_usd) : 0,
+                price_per_channel_usd: parsedPricePerChannel,
+                max_channels: parsedMaxChannels,
+                monthly_fee_usd: calculatedMonthlyFee,
+                currency: currency || 'USD',
                 status: 'active'
             })
             .select()

@@ -14,6 +14,7 @@ import {
     upsertStdDriveJsonFile,
     uploadStdDriveBuffer,
 } from './stdGoogleDrive'
+import { downloadGcsObject } from './gcsStorage'
 
 type ZipEntry = {
     path: string
@@ -73,6 +74,7 @@ function storageSourceForAsset(asset: any) {
     const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
     const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
     const bucket = String(metadata?.storage_bucket || nestedMetadata?.storage_bucket || '').trim()
+    const provider = String(metadata?.storage_provider || nestedMetadata?.storage_provider || '').trim().toLowerCase()
     const path = String(
         metadata?.storage_path
         || metadata?.storage_object_path
@@ -80,7 +82,30 @@ function storageSourceForAsset(asset: any) {
         || nestedMetadata?.storage_object_path
         || ''
     ).trim().replace(/^\/+/, '')
-    return bucket && path ? { bucket, path } : null
+    return bucket && path ? { bucket, path, provider } : null
+}
+
+function storageManifestFields(storage: { bucket: string; path: string; provider?: string } | null) {
+    if (!storage) return {}
+    return {
+        storage_provider: storage.provider || 'supabase',
+        storage_bucket: storage.bucket,
+        storage_path: storage.path,
+        // Backward-compatible field names for existing render workers.
+        supabase_bucket: storage.provider === 'gcs' ? undefined : storage.bucket,
+        supabase_path: storage.provider === 'gcs' ? undefined : storage.path,
+        gcs_bucket: storage.provider === 'gcs' ? storage.bucket : undefined,
+        gcs_path: storage.provider === 'gcs' ? storage.path : undefined,
+    }
+}
+
+async function downloadStorageSource(storage: { bucket: string; path: string; provider?: string }) {
+    if (String(storage.provider || '').toLowerCase() === 'gcs') {
+        return downloadGcsObject({ bucket: storage.bucket, objectPath: storage.path })
+    }
+    const { data, error } = await supabaseAdmin.storage.from(storage.bucket).download(storage.path)
+    if (error || !data) throw new Error(error?.message || '스토리지 파일을 불러오지 못했습니다.')
+    return Buffer.from(await data.arrayBuffer())
 }
 
 export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
@@ -337,9 +362,7 @@ async function loadBundle(projectId: string) {
 async function downloadRenderAudio(asset: any): Promise<Buffer> {
     const storage = storageSourceForAsset(asset)
     if (storage) {
-        const { data, error } = await supabaseAdmin.storage.from(storage.bucket).download(storage.path)
-        if (error || !data) throw new Error(error?.message || '렌더 음성 파일을 불러오지 못했습니다.')
-        return Buffer.from(await data.arrayBuffer())
+        return downloadStorageSource(storage)
     }
     return downloadStdDriveFile(asset.drive_file_id)
 }
@@ -373,7 +396,8 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
             && String(item.asset_type || '').toLowerCase() === 'image'
         )
         const asset = videoAsset || imageAsset
-        if (!asset?.drive_file_id) {
+        const assetStorage = storageSourceForAsset(asset)
+        if (!asset?.drive_file_id && !assetStorage) {
             images.push(null)
             continue
         }
@@ -381,7 +405,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         const filename = `scene_${String(sceneNumber).padStart(3, '0')}${ext}`
         entries.push({
             path: `images/${filename}`,
-            data: await downloadStdDriveFile(asset.drive_file_id),
+            data: assetStorage ? await downloadStorageSource(assetStorage) : await downloadStdDriveFile(asset.drive_file_id),
         })
         images.push(filename)
     }
@@ -390,12 +414,13 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
-    if (thumbnailAsset?.drive_file_id) {
+    const thumbnailStorage = thumbnailAsset ? storageSourceForAsset(thumbnailAsset) : null
+    if (thumbnailAsset?.drive_file_id || thumbnailStorage) {
         const ext = mediaExtension(thumbnailAsset.file_name, thumbnailAsset.mime_type, '.png')
         thumbnailFilename = `thumbnail${ext}`
         entries.push({
             path: thumbnailFilename,
-            data: await downloadStdDriveFile(thumbnailAsset.drive_file_id),
+            data: thumbnailStorage ? await downloadStorageSource(thumbnailStorage) : await downloadStdDriveFile(thumbnailAsset.drive_file_id),
         })
     }
 
@@ -494,7 +519,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
         file_name: audioAsset.file_name,
         mime_type: audioAsset.mime_type,
         size: audioAsset.file_size || null,
-        ...(audioStorage ? { supabase_bucket: audioStorage.bucket, supabase_path: audioStorage.path } : {}),
+        ...storageManifestFields(audioStorage),
     })
 
     const images: Array<string | null> = []
@@ -509,14 +534,14 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             && String(item.asset_type || '').toLowerCase() === 'image'
         )
         const asset = videoAsset || imageAsset
-        if (!asset?.drive_file_id) {
+        const assetStorage = storageSourceForAsset(asset)
+        if (!asset?.drive_file_id && !assetStorage) {
             images.push(null)
             continue
         }
         const ext = mediaExtension(asset.file_name, asset.mime_type, '.png')
         const filename = `scene_${String(sceneNumber).padStart(3, '0')}${ext}`
         images.push(filename)
-        const assetStorage = storageSourceForAsset(asset)
         manifestFiles.push({
             asset_type: String(asset.asset_type || '').toLowerCase(),
             scene_number: sceneNumber,
@@ -525,7 +550,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: asset.file_name,
             mime_type: asset.mime_type,
             size: asset.file_size || null,
-            ...(assetStorage ? { supabase_bucket: assetStorage.bucket, supabase_path: assetStorage.path } : {}),
+            ...storageManifestFields(assetStorage),
         })
     }
 
@@ -533,10 +558,10 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
-    if (thumbnailAsset?.drive_file_id) {
+    const thumbnailStorage = thumbnailAsset ? storageSourceForAsset(thumbnailAsset) : null
+    if (thumbnailAsset?.drive_file_id || thumbnailStorage) {
         const ext = mediaExtension(thumbnailAsset.file_name, thumbnailAsset.mime_type, '.png')
         thumbnailFilename = `thumbnail${ext}`
-        const thumbnailStorage = storageSourceForAsset(thumbnailAsset)
         manifestFiles.push({
             asset_type: 'thumbnail',
             drive_file_id: thumbnailAsset.drive_file_id,
@@ -544,7 +569,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: thumbnailAsset.file_name,
             mime_type: thumbnailAsset.mime_type,
             size: thumbnailAsset.file_size || null,
-            ...(thumbnailStorage ? { supabase_bucket: thumbnailStorage.bucket, supabase_path: thumbnailStorage.path } : {}),
+            ...storageManifestFields(thumbnailStorage),
         })
     }
 
@@ -571,7 +596,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: bgmAsset?.file_name || projectRenderSettings.bgm_file_name || 'library-bgm.mp3',
             mime_type: bgmAsset?.mime_type || 'audio/mpeg',
             size: bgmAsset?.file_size || null,
-            ...(bgmStorage ? { supabase_bucket: bgmStorage.bucket, supabase_path: bgmStorage.path } : {}),
+            ...storageManifestFields(bgmStorage),
         })
     }
 
@@ -613,7 +638,7 @@ function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[]
             file_name: asset.file_name,
             mime_type: asset.mime_type,
             size: asset.file_size || null,
-            ...(sfxStorage ? { supabase_bucket: sfxStorage.bucket, supabase_path: sfxStorage.path } : {}),
+            ...storageManifestFields(sfxStorage),
         })
         sfxCues.push({
             ...cue,

@@ -18,6 +18,15 @@ export default function Home() {
         </h1>
 
         <AuthForm />
+        <div className="mt-6 flex items-center justify-center gap-3 text-center text-xs font-semibold text-white/60">
+          <a href="/terms" className="underline underline-offset-4 transition hover:text-white">
+            서비스 이용약관
+          </a>
+          <span aria-hidden="true">·</span>
+          <a href="/privacy" className="underline underline-offset-4 transition hover:text-white">
+            개인정보처리방침
+          </a>
+        </div>
       </div>
     </main>
   )

@@ -5,6 +5,7 @@ import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/s
 import {
     sanitizeDriveName,
 } from '@/lib/stdGoogleDrive'
+import { buildStdGcsObjectPath, createGcsSignedUploadUrl, isGcsStorageConfigured } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,12 +77,34 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     try {
-        const storagePath = [
-            'std-projects',
-            project.id,
-            sceneNumber == null ? 'project-assets' : `scenes/${Math.floor(sceneNumber)}`,
-            `${Date.now()}-${fileName}`,
-        ].join('/')
+        const storagePath = buildStdGcsObjectPath({
+            projectId: project.id,
+            sceneNumber,
+            fileName,
+        })
+        if (isGcsStorageConfigured()) {
+            const signedUpload = await createGcsSignedUploadUrl({
+                objectPath: storagePath,
+                contentType: mimeType,
+                expiresInMinutes: 30,
+            })
+            return NextResponse.json({
+                success: true,
+                storage_provider: 'gcs',
+                storage_upload_url: signedUpload.signedUrl,
+                storage_bucket: signedUpload.bucket,
+                storage_path: signedUpload.path,
+                storage_public_url: '',
+                upload_url: '',
+                drive_folder_id: '',
+                target_folder_id: '',
+                drive_backup_error: null,
+                file_name: fileName,
+                asset_type: assetType,
+                scene_number: sceneNumber,
+            })
+        }
+
         const { data: signedUpload, error: storageError } = await supabaseAdmin.storage
             .from(CONTENT_ASSETS_BUCKET)
             .createSignedUploadUrl(storagePath, { upsert: true })
@@ -97,6 +120,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
         return NextResponse.json({
             success: true,
+            storage_provider: 'supabase',
             storage_upload_url: signedUpload.signedUrl,
             storage_bucket: CONTENT_ASSETS_BUCKET,
             storage_path: storagePath,

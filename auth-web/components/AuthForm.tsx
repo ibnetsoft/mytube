@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -23,6 +22,22 @@ export default function AuthForm() {
     const [contact, setContact] = useState('');
     const [referrer, setReferrer] = useState('');
     const [preferredLanguages, setPreferredLanguages] = useState<string[]>(['ko']);
+
+    // B2B 도입 신청 모달 상태
+    const [showAppModal, setShowAppModal] = useState(false);
+    const [appSubmitting, setAppSubmitting] = useState(false);
+    const [appSubmitted, setAppSubmitted] = useState(false);
+    const [appError, setAppError] = useState<string | null>(null);
+    const [appForm, setAppForm] = useState({
+        company_name: '',
+        brand_name: '',
+        contact_name: '',
+        email: '',
+        phone: '',
+        channel_count: 5,
+        currency: 'USD',
+        notes: ''
+    });
 
     const contentLanguageOptions = [
         { value: 'ko', label: '한국어' },
@@ -102,6 +117,37 @@ export default function AuthForm() {
             setMessage({ type: 'error', text: error.message });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleApplicationSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAppSubmitting(true);
+        setAppError(null);
+
+        try {
+            if (!appForm.company_name || !appForm.contact_name || !appForm.email || !appForm.phone) {
+                throw new Error('회사명, 담당자 성함, 이메일, 연락처는 필수입니다.');
+            }
+
+            const res = await fetch('/api/tenant-applications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...appForm,
+                    estimated_setup_fee: 500,
+                    estimated_monthly_fee: appForm.channel_count * 100
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || '신청 접수에 실패했습니다.');
+
+            setAppSubmitted(true);
+        } catch (err: any) {
+            setAppError(err.message || '오류가 발생했습니다.');
+        } finally {
+            setAppSubmitting(false);
         }
     };
 
@@ -280,7 +326,229 @@ export default function AuthForm() {
                         {isSignUp ? t('auth.already_have_account') : t('auth.dont_have_account')}
                     </button>
                 </div>
+
+                {/* B2B 기업/스튜디오 도입 신청 배너 버튼 */}
+                <div className="mt-6 pt-5 border-t border-white/10">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setAppSubmitted(false);
+                            setAppError(null);
+                            setShowAppModal(true);
+                        }}
+                        className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-indigo-600/20 hover:from-blue-600/30 hover:to-indigo-600/30 border border-blue-500/30 text-blue-200 hover:text-white transition-all flex items-center justify-between group/btn shadow-lg"
+                    >
+                        <div className="flex items-center gap-2.5 text-left">
+                            <span className="text-2xl">🏢</span>
+                            <div>
+                                <div className="text-xs font-black tracking-tight text-white flex items-center gap-1.5">
+                                    기업 / 5개 채널 스튜디오 도입 신청
+                                    <span className="text-[9px] bg-blue-500/30 text-blue-300 px-1.5 py-0.2 rounded font-bold">B2B</span>
+                                </div>
+                                <div className="text-[10px] text-gray-400 mt-0.5">전담 인프라 세팅비 + 최대 5개 채널 월 구독 솔루션</div>
+                            </div>
+                        </div>
+                        <span className="text-xs font-bold text-blue-400 group-hover/btn:translate-x-1 transition-transform">신청하기 →</span>
+                    </button>
+                </div>
+
+                <div className="mt-4 flex items-center justify-center gap-2 text-center text-[11px] font-semibold text-gray-500">
+                    <a href="/terms" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-gray-300">
+                        서비스 이용약관
+                    </a>
+                    <span aria-hidden="true">·</span>
+                    <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-4 hover:text-gray-300">
+                        개인정보처리방침
+                    </a>
+                </div>
             </div>
+
+            {/* B2B 도입 신청 팝업 모달 */}
+            {showAppModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowAppModal(false)}>
+                    <div className="bg-[#0f172a] border border-blue-500/30 rounded-3xl p-6 sm:p-8 w-full max-w-lg my-8 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                        <button
+                            onClick={() => setShowAppModal(false)}
+                            className="absolute top-6 right-6 text-gray-400 hover:text-white text-lg font-bold"
+                        >
+                            ✕
+                        </button>
+
+                        {appSubmitted ? (
+                            <div className="text-center py-8 space-y-4">
+                                <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-3xl mx-auto">
+                                    ✓
+                                </div>
+                                <h3 className="text-xl font-black text-white">도입 신청이 정상 접수되었습니다!</h3>
+                                <p className="text-xs text-gray-300 leading-relaxed max-w-sm mx-auto">
+                                    기재해주신 연락처와 이메일(<span className="text-blue-400">{appForm.email}</span>)로 
+                                    담당자가 세팅비 결제 안내 및 5개 채널 인프라 구축 일정을 신속히 안내해 드리겠습니다.
+                                </p>
+                                <button
+                                    onClick={() => setShowAppModal(false)}
+                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all mt-4"
+                                >
+                                    확인 닫기
+                                </button>
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="mb-5">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">
+                                        AIR STUDIO B2B SOLUTION
+                                    </span>
+                                    <h2 className="text-xl font-black text-white mt-2">
+                                        🏢 테넌트 도입 신청 / 가입 문의
+                                    </h2>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        귀사만의 전용 브랜드 세팅과 최대 5개 유튜브 채널 자동 운영 솔루션을 신청하세요.
+                                    </p>
+                                </div>
+
+                                {appError && (
+                                    <div className="text-xs p-3 rounded-xl mb-4 bg-red-500/10 border border-red-500/20 text-red-400">
+                                        {appError}
+                                    </div>
+                                )}
+
+                                <form onSubmit={handleApplicationSubmit} className="space-y-3.5">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                                                회사 / 스튜디오명 <span className="text-red-400">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="주식회사 ABC"
+                                                value={appForm.company_name}
+                                                onChange={e => setAppForm({ ...appForm, company_name: e.target.value })}
+                                                className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                                                브랜드명
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="ABC Studio"
+                                                value={appForm.brand_name}
+                                                onChange={e => setAppForm({ ...appForm, brand_name: e.target.value })}
+                                                className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                                                담당자 성함 <span className="text-red-400">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="홍길동 팀장"
+                                                value={appForm.contact_name}
+                                                onChange={e => setAppForm({ ...appForm, contact_name: e.target.value })}
+                                                className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                                                연락처 <span className="text-red-400">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="010-1234-5678"
+                                                value={appForm.phone}
+                                                onChange={e => setAppForm({ ...appForm, phone: e.target.value })}
+                                                className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                                            회사 이메일 (승인 안내 수신용) <span className="text-red-400">*</span>
+                                        </label>
+                                        <input
+                                            type="email"
+                                            required
+                                            placeholder="contact@company.com"
+                                            value={appForm.email}
+                                            onChange={e => setAppForm({ ...appForm, email: e.target.value })}
+                                            className="w-full px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                    </div>
+
+                                    {/* 채널 수 선택 및 예상 견적 실시간 계산 박스 */}
+                                    <div className="bg-blue-950/40 border border-blue-500/30 rounded-2xl p-4 space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-black text-blue-300">
+                                                운영 희망 채널 수: <span className="text-white text-sm">{appForm.channel_count}개</span>
+                                            </label>
+                                            <span className="text-[10px] text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded-full border border-purple-500/30">
+                                                최대 5개 지원
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-5 gap-2">
+                                            {[1, 2, 3, 4, 5].map(cnt => (
+                                                <button
+                                                    key={`ch-btn-${cnt}`}
+                                                    type="button"
+                                                    onClick={() => setAppForm({ ...appForm, channel_count: cnt })}
+                                                    className={`py-2 rounded-xl text-xs font-black transition-all ${
+                                                        appForm.channel_count === cnt
+                                                            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 border border-blue-400'
+                                                            : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-white/10'
+                                                    }`}
+                                                >
+                                                    {cnt}채널
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="bg-black/50 border border-white/10 rounded-xl p-3 flex items-center justify-between mt-2">
+                                            <div>
+                                                <div className="text-[10px] text-gray-400">도입 견적 (예상)</div>
+                                                <div className="text-xs text-white mt-0.5">
+                                                    초기 세팅비 <span className="font-bold text-emerald-400">$500</span> + 월 <span className="font-bold text-blue-400">${appForm.channel_count * 100}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right text-[10px] text-gray-400">
+                                                채널당 $100/월 기준
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">
+                                            기존 채널 링크 또는 문의사항
+                                        </label>
+                                        <textarea
+                                            rows={2}
+                                            placeholder="운영 중인 유튜브 채널 링크나 특별 요청사항을 적어주세요."
+                                            value={appForm.notes}
+                                            onChange={e => setAppForm({ ...appForm, notes: e.target.value })}
+                                            className="w-full px-3.5 py-2 bg-white/5 border border-white/10 rounded-xl text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={appSubmitting}
+                                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow-xl shadow-blue-500/20 active:scale-[0.98] disabled:opacity-50 transition-all mt-2"
+                                    >
+                                        {appSubmitting ? '신청서 제출 중...' : 'B2B 도입 신청서 제출하기'}
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

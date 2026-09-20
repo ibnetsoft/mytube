@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { downloadStdDriveFile, downloadStdDriveFileChunk } from '@/lib/stdGoogleDrive'
+import { downloadGcsObject, downloadGcsObjectViaSignedUrl } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -85,6 +86,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     }
 
     const storageBucket = String(asset?.metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
+    const storageProvider = String(asset?.metadata?.storage_provider || '').trim().toLowerCase()
     const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
     const storagePublicUrl = String(asset?.metadata?.storage_public_url || '').trim()
     let fileBuffer: Buffer | null = null
@@ -95,7 +97,28 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     let upstreamContentType: string | null = null
 
     if (storagePath) {
-        if (requestedRange && storagePublicUrl && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+        if (storageProvider === 'gcs') {
+            try {
+                if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+                    const chunk = await downloadGcsObjectViaSignedUrl({
+                        bucket: storageBucket,
+                        objectPath: storagePath,
+                        range: requestedRange,
+                    })
+                    fileBuffer = chunk.buffer
+                    responseStatus = chunk.status === 206 ? 206 : 200
+                    contentRange = chunk.contentRange
+                    upstreamContentLength = chunk.contentLength
+                    upstreamContentType = chunk.contentType
+                } else {
+                    fileBuffer = await downloadGcsObject({ bucket: storageBucket, objectPath: storagePath })
+                }
+                source = 'gcs'
+            } catch (error: any) {
+                console.warn('[STD Asset File] GCS download failed; trying Drive:', error?.message || 'gcs_asset_missing')
+            }
+        }
+        if (!fileBuffer && requestedRange && storagePublicUrl && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
             const rangedResponse = await fetch(storagePublicUrl, { headers: { Range: requestedRange } }).catch(() => null)
             if (rangedResponse?.ok) {
                 fileBuffer = Buffer.from(await rangedResponse.arrayBuffer())
@@ -106,7 +129,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
                 source = 'storage'
             }
         }
-        if (!fileBuffer) {
+        if (!fileBuffer && storageProvider !== 'gcs') {
             const { data, error } = await supabaseAdmin.storage.from(storageBucket).download(storagePath)
             if (data && !error) {
                 fileBuffer = Buffer.from(await data.arrayBuffer())
