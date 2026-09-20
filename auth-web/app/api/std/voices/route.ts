@@ -197,6 +197,7 @@ const ELEVENLABS_PRESET_VOICES = [
 ]
 
 import { createClient } from '@supabase/supabase-js'
+import { detectVoiceGender } from '@/lib/voiceGender'
 
 const getAdmin = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -224,15 +225,23 @@ const loadCustomVoices = async (): Promise<any[]> => {
         if (error || !data?.value) return []
         const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value
         if (!Array.isArray(parsed)) return []
-        return parsed.map((item: any) => ({
-            id: String(item?.voice_id || item?.id || '').trim(),
-            name: String(item?.name || '').trim(),
-            gender: item?.gender === 'male' ? 'male' : 'female',
-            category: String(item?.category || 'custom').trim(),
-            language: String(item?.language || 'ko').trim(),
-            description: String(item?.description || '').trim(),
-            preview_url: String(item?.preview_url || '').trim(),
-        })).filter(item => item.id && item.name)
+        return parsed.map((item: any) => {
+            const id = String(item?.voice_id || item?.id || '').trim()
+            const name = String(item?.name || '').trim()
+            const description = String(item?.description || '').trim()
+            const gender = (item?.gender === 'female' || item?.gender === 'male')
+                ? item.gender
+                : detectVoiceGender(item?.gender, name, description)
+            return {
+                id,
+                name,
+                gender,
+                category: String(item?.category || 'custom').trim(),
+                language: String(item?.language || 'ko').trim(),
+                description,
+                preview_url: String(item?.preview_url || '').trim(),
+            }
+        }).filter(item => item.id && item.name)
     } catch {
         return []
     }
@@ -270,14 +279,15 @@ async function loadElevenLabsVoicesForKey(apiKey: string) {
     const data = await res.json().catch(() => ({}))
     return (data.voices || []).map((v: any) => {
         const labels = v.labels || {}
-        const g = labels.gender || (['mina', 'sian', 'yooni', 'sarah', 'bella', 'alice', 'lily', 'laura', 'jessica', 'selly', 'saori'].some(w => (v.name || '').toLowerCase().includes(w)) ? 'female' : 'male')
+        const desc = labels.description || v.description || ''
+        const g = detectVoiceGender(labels.gender, v.name, desc)
         return {
             id: v.voice_id,
             name: v.name,
             gender: g,
             category: v.category || 'premade',
             language: 'ko',
-            description: labels.description || v.description || '',
+            description: desc,
             preview_url: v.preview_url || '',
         }
     }).filter((voice: any) => voice.id && voice.name && !isGenericElevenLabsVoiceName(voice.name))
@@ -353,11 +363,12 @@ export async function GET(req: Request) {
     for (const cv of availableCustomVoices) {
         const liveVoice = combinedMap.get(cv.id)
         combinedMap.set(cv.id, {
-            ...cv,
             ...liveVoice,
-            name: liveVoice?.name || cv.name,
-            description: liveVoice?.description || cv.description,
-            preview_url: liveVoice?.preview_url || cv.preview_url,
+            ...cv,
+            gender: cv.gender || liveVoice?.gender || 'female',
+            name: cv.name && !isGenericElevenLabsVoiceName(cv.name) ? cv.name : (liveVoice?.name || cv.name),
+            description: cv.description || liveVoice?.description || '',
+            preview_url: cv.preview_url || liveVoice?.preview_url || '',
         })
     }
 
