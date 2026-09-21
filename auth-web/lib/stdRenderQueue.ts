@@ -1123,19 +1123,19 @@ export async function enqueueStdProjectRender(projectId: string) {
         supabaseAdmin
             .from('std_projects')
             .update({
-                drive_folder_id: folders.projectFolderId,
+                drive_folder_id: folders?.projectFolderId || project.drive_folder_id || null,
                 progress_payload: {
                     ...(project.progress_payload || {}),
                     remote_task_id: taskId,
                     remote_render_queue_id: taskId,
                     remote_render_mode: 'drive_api',
-                    remote_asset_file_id: configFile.id,
-                    remote_asset_file_name: configFile.name,
-                    remote_asset_web_link: configFile.webViewLink || driveFileLink(configFile.id),
-                    remote_script_file_id: scriptFile.id,
-                    remote_script_web_link: scriptFile.webViewLink || driveFileLink(scriptFile.id),
-                    remote_publish_metadata_file_id: publishMetadataFile.id,
-                    remote_publish_metadata_web_link: publishMetadataFile.webViewLink || driveFileLink(publishMetadataFile.id),
+                    remote_asset_file_id: effectiveConfigFileId,
+                    remote_asset_file_name: configFile?.name || 'config.json',
+                    remote_asset_web_link: configFile?.webViewLink || gcsConfigSignedUrl || driveFileLink(effectiveConfigFileId),
+                    remote_script_file_id: scriptFile?.id || null,
+                    remote_script_web_link: scriptFile?.webViewLink || (scriptFile?.id ? driveFileLink(scriptFile.id) : null),
+                    remote_publish_metadata_file_id: publishMetadataFile?.id || null,
+                    remote_publish_metadata_web_link: publishMetadataFile?.webViewLink || (publishMetadataFile?.id ? driveFileLink(publishMetadataFile.id) : null),
                     remote_render_queue_payload: payload,
                     latest_render_version: renderVersion,
                     editing_render_version: null,
