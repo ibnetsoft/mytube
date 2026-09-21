@@ -115,3 +115,17 @@ def test_history_jobs_merges_remote_renders_and_deduplicates_local_mirrors(monke
 
     filtered = client.get('/api/history-jobs?limit=100&status=FAILED&job_type=drive_api_render')
     assert [job['job_id'] for job in filtered.json()['jobs']] == ['remote-2']
+
+
+def test_render_history_keeps_legacy_rows_after_gcs_migration(monkeypatch):
+    import remote_drive_worker
+    class FakeWorker:
+        queue_url = 'https://test.invalid/queue'
+        def _request(self, method, url, params):
+            assert params['render_mode'] == 'in.(gcs_api,drive_api)'
+            return [
+                {'id': 'old', 'render_mode': 'drive_api', 'status': 'completed', 'metadata': {}},
+                {'id': 'new', 'render_mode': 'gcs_api', 'status': 'completed', 'metadata': {}},
+            ]
+    monkeypatch.setattr(remote_drive_worker, 'RemoteDriveWorker', FakeWorker)
+    assert [row['job_id'] for row in dashboard_app._fetch_remote_drive_render_queue()] == ['old', 'new']

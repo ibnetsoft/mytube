@@ -5,7 +5,7 @@ export function directStorageUrl(asset: any): string {
     const metadata = asset?.metadata || {}
     const nestedMetadata = metadata?.metadata || {}
 
-    // 1차: GCS 직접 URL (V4 서명 URL 또는 직접 공용 CDN URL)
+    // GCS 직접 URL (V4 서명 URL 또는 직접 공용 CDN URL)
     const gcsUrl = String(
         metadata?.gcs_signed_url
         || nestedMetadata?.gcs_signed_url
@@ -14,24 +14,6 @@ export function directStorageUrl(asset: any): string {
         || ''
     ).trim()
     if (gcsUrl) return gcsUrl
-
-    // 2차: Supabase Storage 직접 공용 CDN URL (기존 프로젝트 100% 폴백)
-    const storagePublicUrl = String(
-        metadata?.storage_public_url
-        || nestedMetadata?.storage_public_url
-        || ''
-    ).trim()
-    if (storagePublicUrl) return storagePublicUrl
-
-    // 3차: Supabase bucket/path 기반 공용 URL 동적 조합
-    const bucket = String(metadata?.storage_bucket || nestedMetadata?.storage_bucket || '').trim()
-    const path = String(metadata?.storage_path || metadata?.storage_object_path || nestedMetadata?.storage_path || nestedMetadata?.storage_object_path || '').trim().replace(/^\/+/, '')
-    if (bucket && path) {
-        const supabaseBase = String(process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim().replace(/\/+$/, '')
-        if (supabaseBase) {
-            return `${supabaseBase}/storage/v1/object/public/${bucket}/${path}`
-        }
-    }
 
     return ''
 }
@@ -54,10 +36,6 @@ export function resolveFastAssetUrl(
     if (id && assetId) {
         return `/api/std/projects/${encodeURIComponent(id)}/assets/file?assetId=${encodeURIComponent(assetId)}`
     }
-    const driveFileId = String(asset?.drive_file_id || '').trim()
-    if (id && driveFileId) {
-        return `/api/std/projects/${encodeURIComponent(id)}/assets/file?driveFileId=${encodeURIComponent(driveFileId)}`
-    }
     return fallback || null
 }
 
@@ -78,7 +56,7 @@ export function selectFallbackAssetsForScenes(
         if (!['uploaded', 'assigned'].includes(String(asset?.status || ''))) return false
         const assetType = String(asset?.asset_type || '').toLowerCase()
         if (!['image', 'video', 'thumbnail', 'audio'].includes(assetType)) return false
-        if (!(asset?.id || asset?.drive_file_id) || directStorageUrl(asset)) return false
+        if (!asset?.id || directStorageUrl(asset)) return false
         if (['thumbnail', 'audio'].includes(assetType)) return includeProjectAssets
         return wantedScenes.has(Number(asset?.scene_number))
     }).sort((left: any, right: any) => {

@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { downloadStdDriveFile, downloadStdDriveFileChunk } from '@/lib/stdGoogleDrive'
-import { downloadGcsObject, downloadGcsObjectViaSignedUrl } from '@/lib/gcsStorage'
+import { downloadGcsObject, downloadGcsObjectViaSignedUrl, isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const CONTENT_ASSETS_BUCKET = 'content-assets'
 
 function topicIdFromProjectParam(projectId: string): number | null {
     const value = String(projectId || '').trim()
@@ -85,106 +83,48 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         })
     }
 
-    const storageBucket = String(asset?.metadata?.storage_bucket || CONTENT_ASSETS_BUCKET).trim() || CONTENT_ASSETS_BUCKET
+    const storageBucket = String(asset?.metadata?.storage_bucket || '').trim()
     const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
     const gcsBucket = String(asset?.metadata?.gcs_bucket || storageBucket || '').trim()
     const gcsPath = String(asset?.metadata?.gcs_path || storagePath || '').trim().replace(/^\/+/, '')
-    const storagePublicUrl = String(asset?.metadata?.storage_public_url || '').trim()
     let fileBuffer: Buffer | null = null
-    let source = ''
+    let source = 'gcs'
     let responseStatus = 200
     let contentRange: string | null = null
     let upstreamContentLength: string | null = null
     let upstreamContentType: string | null = null
 
-    // 1차: Supabase Storage 조회 (직접 다운로드 또는 Public URL Range 요청)
-    if (storagePath) {
-        if (requestedRange && storagePublicUrl && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
-            const rangedResponse = await fetch(storagePublicUrl, { headers: { Range: requestedRange } }).catch(() => null)
-            if (rangedResponse?.ok) {
-                fileBuffer = Buffer.from(await rangedResponse.arrayBuffer())
-                responseStatus = rangedResponse.status === 206 ? 206 : 200
-                contentRange = rangedResponse.headers.get('content-range')
-                upstreamContentLength = rangedResponse.headers.get('content-length')
-                upstreamContentType = rangedResponse.headers.get('content-type')
-                source = 'storage'
-            }
-        }
-        if (!fileBuffer) {
-            const { data, error } = await supabaseAdmin.storage.from(storageBucket).download(storagePath)
-            if (data && !error) {
-                fileBuffer = Buffer.from(await data.arrayBuffer())
-                source = 'storage'
-            } else {
-                console.warn('[STD Asset File] 1st Supabase Storage download failed; checking 2nd GCS:', error?.message || 'supabase_asset_missing')
-            }
-        }
+    if (!gcsPath) {
+        return NextResponse.json({ success: false, error: 'Asset does not have a GCS path' }, { status: 404 })
     }
-
-    // 2차: GCS (Google Cloud Storage) 조회 (1차 실패 또는 만료 시)
-    if (!fileBuffer && (asset?.metadata?.gcs_path || storagePath) && isGcsStorageConfigured()) {
-        try {
-            const targetGcsPath = gcsPath || storagePath
-            const targetGcsBucket = gcsBucket || storageBucket
-            if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
-                const chunk = await downloadGcsObjectViaSignedUrl({
-                    bucket: targetGcsBucket,
-                    objectPath: targetGcsPath,
-                    range: requestedRange,
-                })
-                fileBuffer = chunk.buffer
-                responseStatus = chunk.status === 206 ? 206 : 200
-                contentRange = chunk.contentRange
-                upstreamContentLength = chunk.contentLength
-                upstreamContentType = chunk.contentType
-            } else {
-                fileBuffer = await downloadGcsObject({ bucket: targetGcsBucket, objectPath: targetGcsPath })
-            }
-            source = 'gcs'
-        } catch (gcsError: any) {
-            console.warn('[STD Asset File] 2nd GCS download failed; checking 3rd Drive:', gcsError?.message || 'gcs_asset_missing')
-        }
+    if (!(await isGcsConfiguredAsync())) {
+        return NextResponse.json({ success: false, error: 'GCS storage is not configured' }, { status: 500 })
     }
-
-    if (!fileBuffer) {
-        const targetDriveFileId = asset.drive_file_id
-        if (!targetDriveFileId) return NextResponse.json({ success: false, error: 'Asset not found' }, { status: 404 })
-        try {
-            if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
-                const chunk = await downloadStdDriveFileChunk(targetDriveFileId, requestedRange)
-                fileBuffer = chunk.buffer
-                responseStatus = chunk.status === 206 ? 206 : 200
-                contentRange = chunk.contentRange
-                upstreamContentLength = chunk.contentLength
-                upstreamContentType = chunk.contentType
-            } else {
-                fileBuffer = await downloadStdDriveFile(targetDriveFileId)
-            }
-            source = 'drive'
-            // Retain readable legacy audio in Storage so later playback needs no Drive token.
-            if (!requestedRange && String(asset.mime_type || '').startsWith('audio/')) {
-                const migratedPath = `std/${project.id}/audio/${asset.id}`
-                const { error: saveError } = await supabaseAdmin.storage.from(CONTENT_ASSETS_BUCKET)
-                    .upload(migratedPath, fileBuffer, { contentType: asset.mime_type, upsert: true })
-                if (!saveError) {
-                    const { error: metadataError } = await supabaseAdmin.from('std_project_assets').update({
-                        metadata: { ...asset.metadata, storage_bucket: CONTENT_ASSETS_BUCKET, storage_path: migratedPath },
-                        updated_at: new Date().toISOString(),
-                    }).eq('id', asset.id).eq('project_id', project.id)
-                    if (metadataError) console.warn('[STD Asset File] Audio migration metadata failed:', metadataError.message)
-                } else console.warn('[STD Asset File] Audio migration deferred:', saveError.message)
-            }
-        } catch (error: any) {
-            console.warn('[STD Asset File] Drive download failed:', error?.message)
-            if (isMediaRestoreRequest) {
-                return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
-            }
-            return NextResponse.json({
-                success: false,
-                error: 'Asset file could not be loaded from Storage or Drive',
-                detail: error?.message || 'drive_download_failed',
-            }, { status: 404 })
+    try {
+        if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+            const chunk = await downloadGcsObjectViaSignedUrl({
+                bucket: gcsBucket,
+                objectPath: gcsPath,
+                range: requestedRange,
+            })
+            fileBuffer = chunk.buffer
+            responseStatus = chunk.status === 206 ? 206 : 200
+            contentRange = chunk.contentRange
+            upstreamContentLength = chunk.contentLength
+            upstreamContentType = chunk.contentType
+        } else {
+            fileBuffer = await downloadGcsObject({ bucket: gcsBucket, objectPath: gcsPath })
         }
+    } catch (error: any) {
+        console.warn('[STD Asset File] GCS download failed:', error?.message)
+        if (isMediaRestoreRequest) {
+            return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+        }
+        return NextResponse.json({
+            success: false,
+            error: 'Asset file could not be loaded from GCS',
+            detail: error?.message || 'gcs_download_failed',
+        }, { status: 404 })
     }
 
     return new NextResponse(new Uint8Array(fileBuffer), {

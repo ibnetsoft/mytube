@@ -3,14 +3,15 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
-    sanitizeDriveName,
-} from '@/lib/stdGoogleDrive'
-import { buildStdGcsObjectPath, createGcsSignedUploadUrl, isGcsStorageConfigured } from '@/lib/gcsStorage'
+    buildStdGcsObjectPath,
+    createGcsSignedUploadUrl,
+    isGcsConfiguredAsync,
+    sanitizeGcsObjectName,
+} from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
-const CONTENT_ASSETS_BUCKET = 'content-assets'
 
 function validMimeForAsset(assetType: string, mimeType: string): boolean {
     if (assetType === 'image' || assetType === 'thumbnail') return mimeType.startsWith('image/')
@@ -32,7 +33,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     const assetType = String(body?.asset_type || '').toLowerCase()
     const mimeType = String(body?.mime_type || '').trim()
-    const fileName = sanitizeDriveName(String(body?.file_name || ''), 'asset')
+    const fileName = sanitizeGcsObjectName(String(body?.file_name || ''), 'asset')
     const sceneNumber = body?.scene_number == null ? null : Number(body.scene_number)
 
     if (!ASSET_TYPES.has(assetType)) {
@@ -83,24 +84,23 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             fileName,
         })
 
-        const { data: signedUpload, error: storageError } = await supabaseAdmin.storage
-            .from(CONTENT_ASSETS_BUCKET)
-            .createSignedUploadUrl(storagePath, { upsert: true })
-        if (storageError || !signedUpload?.signedUrl) {
-            throw new Error(storageError?.message || 'Supabase Storage upload URL could not be created')
+        if (!(await isGcsConfiguredAsync())) {
+            throw new Error('GCS storage is not configured')
         }
-        const { data: publicUrlData } = supabaseAdmin.storage
-            .from(CONTENT_ASSETS_BUCKET)
-            .getPublicUrl(storagePath)
+        const signedUpload = await createGcsSignedUploadUrl({
+            objectPath: storagePath,
+            contentType: mimeType,
+            expiresInMinutes: 30,
+        })
 
         return NextResponse.json({
             success: true,
-            storage_provider: 'supabase',
-            secondary_storage_provider: isGcsStorageConfigured() ? 'gcs' : null,
+            storage_provider: 'gcs',
+            secondary_storage_provider: null,
             storage_upload_url: signedUpload.signedUrl,
-            storage_bucket: CONTENT_ASSETS_BUCKET,
+            storage_bucket: signedUpload.bucket,
             storage_path: storagePath,
-            storage_public_url: publicUrlData.publicUrl,
+            storage_public_url: '',
             upload_url: '',
             drive_folder_id: '',
             target_folder_id: '',

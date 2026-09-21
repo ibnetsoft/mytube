@@ -476,7 +476,7 @@ async def render_music_playlist(
     image: Optional[UploadFile] = File(default=None),
     track_files: List[str] = Form(...),
     track_durations: List[int] = Form(default=None),
-    render_target: str = Form(default="drive_api"),
+    render_target: str = Form(default="gcs_api"),
 ):
     project = db.get_project(project_id)
     if not project:
@@ -499,7 +499,7 @@ async def render_music_playlist(
     if not selected_track_files:
         raise HTTPException(400, "No valid music tracks were selected.")
 
-    if render_target == "drive_api":
+    if render_target == "gcs_api":
         package_path = None
         try:
             if image is not None and getattr(image, "filename", None):
@@ -564,9 +564,9 @@ async def render_music_playlist(
             )
             return {
                 "status": "queued",
-                "message": "Google Drive API 렌더 대기열에 등록되었습니다.",
+                "message": "GCS API 렌더 대기열에 등록되었습니다.",
                 "task_id": result.get("task_id"),
-                "asset_file_id": (result.get("drive_file") or {}).get("id"),
+                "asset_file_id": result.get("task_id"),
                 "track_count": len(selected_track_files),
             }
         finally:

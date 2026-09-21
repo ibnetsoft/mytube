@@ -62,9 +62,9 @@ def _configure_ffmpeg_for_worker():
             current_path = os.environ.get("PATH", "")
             if ffmpeg_dir and ffmpeg_dir not in current_path.split(os.pathsep):
                 os.environ["PATH"] = current_path + os.pathsep + ffmpeg_dir if current_path else ffmpeg_dir
-            print(f"[RemoteDriveWorker] FFmpeg configured: {ffmpeg_path}")
+            print(f"[GcsRenderWorker] FFmpeg configured: {ffmpeg_path}")
     except Exception as e:
-        print(f"[RemoteDriveWorker] FFmpeg setup warning: {e}")
+        print(f"[GcsRenderWorker] FFmpeg setup warning: {e}")
 
 
 class RemoteDriveWorker:
@@ -73,14 +73,12 @@ class RemoteDriveWorker:
         try:
             config.load_remote_keys_from_supabase()
         except Exception as e:
-            print(f"[RemoteDriveWorker] Failed to load web admin settings: {e}")
+            print(f"[GcsRenderWorker] Failed to load web admin settings: {e}")
         self.worker_id = os.getenv("REMOTE_RENDER_WORKER_ID") or f"worker-{os.getpid()}"
         self.poll_interval = int(os.getenv("REMOTE_RENDER_POLL_INTERVAL", "10"))
         # This render PC has a verified NVENC path. Operators can still set
         # USE_GPU_RENDER=false when diagnosing a graphics-driver issue.
         self.use_gpu = os.getenv("USE_GPU_RENDER", "true").lower() == "true"
-        self.output_folder_id = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID") or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
-        self.google_token_path = os.getenv("REMOTE_RENDER_GOOGLE_TOKEN_PATH") or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
         self.supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
         self.max_concurrent_jobs = int(os.getenv("REMOTE_RENDER_MAX_CONCURRENT_JOBS", "1"))
@@ -123,7 +121,7 @@ class RemoteDriveWorker:
         ).isoformat()
         params = {
             "select": "id",
-            "render_mode": "eq.drive_api",
+            "render_mode": "eq.gcs_api",
             "status": "eq.rendering",
             "updated_at": f"gt.{active_after}",
         }
@@ -135,7 +133,7 @@ class RemoteDriveWorker:
             return None
         params = {
             "select": "*",
-            "render_mode": "eq.drive_api",
+            "render_mode": "eq.gcs_api",
             "status": "eq.pending",
             "order": "created_at.asc",
             "limit": "1",
@@ -156,13 +154,9 @@ class RemoteDriveWorker:
         return rows[0] if rows else None
 
     def check(self):
-        print("[RemoteDriveWorker] Configuration check")
+        print("[GcsRenderWorker] Configuration check")
         print(f"  worker_id: {self.worker_id}")
         print(f"  supabase_url: {self.supabase_url or '(missing)'}")
-        print(f"  drive_folder_id: {self.output_folder_id or '(root or unset)'}")
-        print(f"  google_token_path: {self.google_token_path or '(default YouTube token)'}")
-        if self.google_token_path and not os.path.exists(self.google_token_path):
-            print("  warning: google_token_path does not exist on this PC.")
         job = self.fetch_next_job()
         if job:
             print(f"  next_job: {job.get('id')} project={job.get('project_id')} asset={job.get('asset_file_name') or job.get('asset_file_id')}")
@@ -199,9 +193,8 @@ class RemoteDriveWorker:
             safe_name = f"project_{job.get('project_id') or job.get('id')}"
         return f"{safe_name}.mp4"
 
-    def _refresh_drive_settings(self):
+    def _refresh_gcs_settings(self):
         config.load_remote_keys_from_supabase()
-        self.output_folder_id = os.getenv("REMOTE_RENDER_DRIVE_FOLDER_ID") or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
 
     def _safe_manifest_path(self, relative_path):
         normalized = str(relative_path or "").replace("\\", "/").strip("/")
@@ -209,45 +202,6 @@ class RemoteDriveWorker:
         if not parts or any(part in {".", ".."} for part in parts):
             raise RuntimeError(f"잘못된 렌더 파일 경로입니다: {relative_path}")
         return os.path.join(*parts)
-
-    def _download_from_supabase_storage(self, source, destination_path):
-        """Fetch a private Storage object with an atomic local write (1st Priority Storage)."""
-        if not isinstance(source, dict):
-            return False
-        bucket = str(source.get("bucket") or "").strip()
-        object_path = str(source.get("path") or "").strip().replace("\\", "/").lstrip("/")
-        if not bucket or not object_path or ".." in object_path.split("/"):
-            return False
-
-        url = f"{self.supabase_url}/storage/v1/object/{quote(bucket, safe='')}/{quote(object_path, safe='/')}"
-        partial_path = f"{destination_path}.download"
-        try:
-            response = requests.get(
-                url,
-                headers={"apikey": self.supabase_key, "Authorization": f"Bearer {self.supabase_key}"},
-                stream=True,
-                timeout=120,
-                proxies={"http": None, "https": None},
-            )
-            if response.status_code != 200:
-                return False
-            os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-            with open(partial_path, "wb") as output:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        output.write(chunk)
-            if not os.path.exists(partial_path) or os.path.getsize(partial_path) <= 0:
-                return False
-            os.replace(partial_path, destination_path)
-            return True
-        except requests.RequestException:
-            return False
-        finally:
-            try:
-                if os.path.exists(partial_path):
-                    os.remove(partial_path)
-            except OSError:
-                pass
 
     def _get_gcs_credentials(self):
         """Build Google Cloud Service Account credentials for GCS operations."""
@@ -275,14 +229,13 @@ class RemoteDriveWorker:
             creds.refresh(Request())
             return creds, bucket_name
         except Exception as e:
-            print(f"[RemoteDriveWorker] GCS credentials setup failed: {e}")
+            print(f"[GcsRenderWorker] GCS credentials setup failed: {e}")
             return None
 
     def _download_from_gcs_storage(self, source, destination_path):
-        """Fetch a GCS object with atomic local write (2nd Priority Storage)."""
+        """Fetch a GCS object with atomic local write."""
         if not isinstance(source, dict):
             return False
-        # 1. Try V4 Signed URL if provided
         signed_url = source.get("gcs_signed_url")
         if signed_url:
             partial_path = f"{destination_path}.gcsdownload"
@@ -311,7 +264,6 @@ class RemoteDriveWorker:
                     except OSError:
                         pass
 
-        # 2. Try direct GCS REST API with Service Account
         bucket = str(source.get("gcs_bucket") or source.get("bucket") or "").strip()
         object_path = str(source.get("gcs_path") or source.get("path") or "").strip().replace("\\", "/").lstrip("/")
         if bucket and object_path and ".." not in object_path.split("/"):
@@ -349,45 +301,8 @@ class RemoteDriveWorker:
                             pass
         return False
 
-    def _upload_to_supabase_storage(self, file_path, bucket, object_path, mime_type="video/mp4"):
-        """Upload a file to Supabase Storage bucket (1st Priority)."""
-        if not file_path or not os.path.exists(file_path):
-            return None
-        clean_bucket = str(bucket or "").strip()
-        clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
-        if not clean_bucket or not clean_path:
-            return None
-        url = f"{self.supabase_url}/storage/v1/object/{quote(clean_bucket, safe='')}/{quote(clean_path, safe='/')}"
-        headers = {
-            "apikey": self.supabase_key,
-            "Authorization": f"Bearer {self.supabase_key}",
-            "Content-Type": mime_type,
-            "x-upsert": "true",
-        }
-        try:
-            with open(file_path, "rb") as f:
-                res = requests.post(
-                    url,
-                    headers=headers,
-                    data=f,
-                    timeout=300,
-                    proxies={"http": None, "https": None},
-                )
-            if res.status_code in (200, 201):
-                public_url = f"{self.supabase_url}/storage/v1/object/public/{quote(clean_bucket, safe='')}/{quote(clean_path, safe='/')}"
-                return {
-                    "bucket": clean_bucket,
-                    "path": clean_path,
-                    "public_url": public_url,
-                }
-            else:
-                print(f"[RemoteDriveWorker] Supabase upload failed with status {res.status_code}: {res.text[:200]}")
-        except Exception as e:
-            print(f"[RemoteDriveWorker] Supabase upload error: {e}")
-        return None
-
     def _upload_to_gcs_storage(self, file_path, object_path, mime_type="video/mp4"):
-        """Upload a file to Google Cloud Storage (2nd Priority)."""
+        """Upload a file to Google Cloud Storage."""
         if not file_path or not os.path.exists(file_path):
             return None
         creds_info = self._get_gcs_credentials()
@@ -420,9 +335,9 @@ class RemoteDriveWorker:
                     "media_url": media_url,
                 }
             else:
-                print(f"[RemoteDriveWorker] GCS upload failed with status {res.status_code}: {res.text[:200]}")
+                print(f"[GcsRenderWorker] GCS upload failed with status {res.status_code}: {res.text[:200]}")
         except Exception as e:
-            print(f"[RemoteDriveWorker] GCS upload error: {e}")
+            print(f"[GcsRenderWorker] GCS upload error: {e}")
         return None
 
     def _generate_gcs_signed_url(self, creds, bucket, object_path, expires_seconds=60 * 60 * 24 * 7):
@@ -472,40 +387,25 @@ class RemoteDriveWorker:
             signature = creds.signer.sign(string_to_sign.encode("utf-8")).hex()
             return f"https://storage.googleapis.com{canonical_uri}?{canonical_query}&X-Goog-Signature={signature}"
         except Exception as e:
-            print(f"[RemoteDriveWorker] GCS signed URL generation failed: {e}")
+            print(f"[GcsRenderWorker] GCS signed URL generation failed: {e}")
             return None
 
     def _download_asset_with_fallback(self, job_id, _legacy_file_id, destination_path, *, storage_source=None, label):
-        """Read assets from Storage only. GCS is the render transport; Drive is no longer used."""
-        # 1st Priority: Supabase Storage
-        if storage_source and self._download_from_supabase_storage(storage_source, destination_path):
-            return "supabase_storage"
-
-        # 2nd Priority: Google Cloud Storage
+        """Read render assets from GCS only."""
         if storage_source and self._download_from_gcs_storage(storage_source, destination_path):
             return "gcs_storage"
 
-        # Retry Supabase or GCS once more before declaring complete failure
-        if storage_source:
-            if self._download_from_supabase_storage(storage_source, destination_path):
-                return "supabase_storage"
-            if self._download_from_gcs_storage(storage_source, destination_path):
-                return "gcs_storage"
+        raise RuntimeError(f"에셋 다운로드 실패 (GCS 저장소에서 찾을 수 없음): {label}")
 
-        raise RuntimeError(f"에셋 다운로드 실패 (Supabase/GCS 저장소에서 찾을 수 없음): {label}")
-
-    def _prepare_drive_folder_manifest_job(self, job_id, job, temp_dir, config_file_id):
+    def _prepare_gcs_manifest_job(self, job_id, job, temp_dir, config_file_id):
         config_path = os.path.join(temp_dir, "config.json")
-        self.update_job(job_id, progress=5, message="렌더 설정 파일 다운로드 중 (1차 Supabase / 2차 GCS)...")
+        self.update_job(job_id, progress=5, message="GCS에서 렌더 설정 파일 다운로드 중...")
         metadata = job.get("metadata") or {}
-        supabase_cfg = metadata.get("supabase_config") or {}
         gcs_cfg = metadata.get("gcs_config") or {}
         config_storage_source = {
-            "bucket": supabase_cfg.get("bucket"),
-            "path": supabase_cfg.get("path"),
-            "gcs_bucket": supabase_cfg.get("gcs_bucket") or gcs_cfg.get("bucket"),
-            "gcs_path": supabase_cfg.get("gcs_path") or gcs_cfg.get("path"),
-            "gcs_signed_url": supabase_cfg.get("gcs_signed_url") or gcs_cfg.get("signed_url"),
+            "gcs_bucket": gcs_cfg.get("bucket"),
+            "gcs_path": gcs_cfg.get("path"),
+            "gcs_signed_url": gcs_cfg.get("signed_url"),
         }
         if not config_storage_source["bucket"] and not config_storage_source["gcs_bucket"] and not config_storage_source["gcs_signed_url"]:
             config_storage_source = None
@@ -530,9 +430,7 @@ class RemoteDriveWorker:
         for index, item in enumerate(files, start=1):
             relative_path = item.get("path")
             has_storage = (
-                (item.get("supabase_bucket") and item.get("supabase_path"))
-                or (item.get("storage_bucket") and item.get("storage_path"))
-                or item.get("gcs_signed_url")
+                item.get("gcs_signed_url")
                 or (item.get("gcs_bucket") and item.get("gcs_path"))
             )
             if (not has_storage) or not relative_path:
@@ -546,8 +444,6 @@ class RemoteDriveWorker:
                 message=f"렌더 에셋 다운로드 중... ({index}/{total})",
             )
             storage_source = {
-                "bucket": item.get("supabase_bucket") or item.get("storage_bucket"),
-                "path": item.get("supabase_path") or item.get("storage_path"),
                 "gcs_bucket": item.get("gcs_bucket"),
                 "gcs_path": item.get("gcs_path"),
                 "gcs_signed_url": item.get("gcs_signed_url"),
@@ -563,7 +459,7 @@ class RemoteDriveWorker:
             )
 
     def process_job(self, job):
-        self._refresh_drive_settings()
+        self._refresh_gcs_settings()
         job_id = job["id"]
         asset_file_id = job.get("asset_file_id")
         if not asset_file_id:
@@ -574,20 +470,19 @@ class RemoteDriveWorker:
         try:
             metadata = job.get("metadata") or {}
             if (
-                metadata.get("package_transport") in ("google_drive_folder", "storage_direct", "gcs_folder")
+                metadata.get("package_transport") in ("gcs_config", "gcs_manifest", "gcs_folder")
                 or metadata.get("config_file_id")
-                or metadata.get("supabase_config")
                 or metadata.get("gcs_config")
             ):
                 config_file_id = metadata.get("config_file_id") or asset_file_id
-                self._prepare_drive_folder_manifest_job(job_id, job, temp_dir, config_file_id)
+                self._prepare_gcs_manifest_job(job_id, job, temp_dir, config_file_id)
             else:
                 self.update_job(job_id, progress=5, message="GCS API 저장소에서 에셋 패키지 다운로드 중...")
                 self._download_asset_with_fallback(
                     job_id,
                     asset_file_id,
                     zip_path,
-                    storage_source=metadata.get("supabase_asset_package"),
+                    storage_source=metadata.get("gcs_asset_package"),
                     label=job.get("asset_file_name") or "asset_package.zip",
                 )
 
@@ -633,9 +528,6 @@ class RemoteDriveWorker:
             self.update_job(job_id, progress=92, message="렌더링된 영상을 GCS API 저장소에 업로드 중...")
             result_filename = self._build_result_filename(job)
 
-            # Primary: Google Cloud Storage. Supabase is used as queue/metadata DB only.
-            supabase_render_bucket = os.getenv("SUPABASE_RENDER_BUCKET") or "content-assets"
-            supabase_render_path = f"std-renders/{job_id}/{result_filename}"
             gcs_render_path = f"std-renders/{job_id}/{result_filename}"
             gcs_video = self._upload_to_gcs_storage(
                 output_path,
@@ -643,16 +535,14 @@ class RemoteDriveWorker:
                 mime_type="video/mp4",
             )
             if gcs_video:
-                print(f"[RemoteDriveWorker] GCS API 저장소 영상 업로드 성공: {gcs_render_path}")
-
-            supabase_video = None
+                print(f"[GcsRenderWorker] GCS API 저장소 영상 업로드 성공: {gcs_render_path}")
 
             if not gcs_video:
                 raise RuntimeError("렌더링된 영상을 GCS API 저장소에 업로드하지 못했습니다.")
 
             thumbnail_filename = None
             packaged_thumbnail = None
-            supabase_thumb = None
+            upload_metadata = {}
             gcs_thumb = None
             config_path = os.path.join(temp_dir, "config.json")
             if os.path.exists(config_path):
@@ -671,12 +561,14 @@ class RemoteDriveWorker:
 
                 queue_metadata = job.get("metadata") or {}
                 upload_metadata = dict(packaged_config.get("project_upload_metadata") or {})
+                provenance_path = os.path.join(temp_dir, "audio_provenance.json")
+                if os.path.isfile(provenance_path):
+                    with open(provenance_path, encoding="utf-8") as provenance_file:
+                        upload_metadata["audio_provenance"] = json.load(provenance_file)
                 upload_metadata.update({
                     "employee_email": job.get("email") or upload_metadata.get("employee_email") or "",
                     "video_file": result_filename,
                     "thumbnail_file": thumbnail_filename,
-                    "supabase_video_path": (supabase_video or {}).get("path"),
-                    "supabase_thumbnail_path": (supabase_thumb or {}).get("path"),
                     "gcs_video_path": (gcs_video or {}).get("path"),
                     "gcs_thumbnail_path": (gcs_thumb or {}).get("path"),
                     "gcs_video_url": (gcs_video or {}).get("public_url"),
@@ -727,6 +619,7 @@ class RemoteDriveWorker:
                     "result_video_file_id": None,
                     "result_thumbnail_file_id": None,
                     "result_metadata_file_id": None,
+                    "audio_provenance": upload_metadata.get("audio_provenance"),
                 },
                 completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             )
@@ -750,7 +643,7 @@ class RemoteDriveWorker:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     def run_forever(self):
-        print(f"[RemoteDriveWorker] Started as {self.worker_id}")
+        print(f"[GcsRenderWorker] Started as {self.worker_id}")
         while True:
             try:
                 job = self.fetch_next_job()
@@ -760,25 +653,25 @@ class RemoteDriveWorker:
                 claimed = self.claim_job(job)
                 if not claimed:
                     continue
-                print(f"[RemoteDriveWorker] Processing job {claimed['id']}")
+                print(f"[GcsRenderWorker] Processing job {claimed['id']}")
                 self.process_job(claimed)
             except KeyboardInterrupt:
                 raise
             except Exception as e:
-                print(f"[RemoteDriveWorker] Error: {e}")
+                print(f"[GcsRenderWorker] Error: {e}")
                 time.sleep(self.poll_interval)
 
     def run_once(self):
-        print(f"[RemoteDriveWorker] Running one polling cycle as {self.worker_id}")
+        print(f"[GcsRenderWorker] Running one polling cycle as {self.worker_id}")
         job = self.fetch_next_job()
         if not job:
-            print("[RemoteDriveWorker] No pending GCS API job.")
+            print("[GcsRenderWorker] No pending GCS API job.")
             return 0
         claimed = self.claim_job(job)
         if not claimed:
-            print("[RemoteDriveWorker] Job was already claimed by another worker.")
+            print("[GcsRenderWorker] Job was already claimed by another worker.")
             return 0
-        print(f"[RemoteDriveWorker] Processing job {claimed['id']}")
+        print(f"[GcsRenderWorker] Processing job {claimed['id']}")
         self.process_job(claimed)
         return 0
 

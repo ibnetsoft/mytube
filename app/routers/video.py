@@ -45,7 +45,7 @@ class RenderRequest(BaseModel):
     use_subtitles: bool = True
     resolution: str = "1080p"  # 1080p or 720p
     aspect_ratio: Optional[str] = None # [NEW] Manual aspect ratio override (16:9, 9:16)
-    render_target: Optional[str] = "local" # local or drive_api
+    render_target: Optional[str] = "local" # local or gcs_api
     remote_url: Optional[str] = None
 
 
@@ -1205,11 +1205,11 @@ async def render_project_video(
             except Exception as e:
                 print(f"[Payout Sync Warning] Failed to patch topics_queue: {e}")
         
-        if request.render_target == "drive_api":
+        if request.render_target == "gcs_api":
             db.update_project(project_id, status="remote_packaging")
             from services.remote_drive_render_service import remote_drive_render_service
 
-            def _enqueue_drive_render(pid=project_id, use_subtitles=request.use_subtitles, resolution=request.resolution):
+            def _enqueue_gcs_render(pid=project_id, use_subtitles=request.use_subtitles, resolution=request.resolution):
                 try:
                     remote_drive_render_service.enqueue_project(
                         pid,
@@ -1217,25 +1217,25 @@ async def render_project_video(
                         resolution=resolution,
                     )
                 except Exception as e:
-                    print(f"[Drive Render] enqueue failed for project {pid}: {e}")
+                    print(f"[GCS Render] enqueue failed for project {pid}: {e}")
                     db.update_project(pid, status="failed")
                     db.update_project_setting(pid, "remote_render_error", str(e))
 
-            # [FIX] zip 패키징 + Drive 업로드 + Supabase 큐 등록이 요청-응답 사이클 안에서
+            # [FIX] zip 패키징 + GCS 업로드 + Supabase 큐 등록이 요청-응답 사이클 안에서
             # 동기적으로 실행되어 사용자가 버튼을 누르고 페이지를 벗어나지 못한 채 오래
             # 대기해야 했다. local 렌더 경로(아래 background_tasks.add_task)와 동일하게
             # 백그라운드로 넘기고 즉시 응답한다 - 진행 상태는 이미 있는 폴링
             # (status: remote_packaging/remote_queued)이 처리한다.
-            background_tasks.add_task(_enqueue_drive_render)
+            background_tasks.add_task(_enqueue_gcs_render)
             return {
                 "status": "queued",
-                "message": "Google Drive API 렌더 대기열에 등록되었습니다.",
+                "message": "GCS API 렌더 대기열에 등록되었습니다.",
             }
 
         script_data = db.get_script(project_id)
         # [FIX] images_data가 이 함수 내에서 한 번도 대입되지 않은 채 아래에서
         # (이미지 존재 여부 체크, 타임라인 폴백 구성, 나레이션 매칭 등) 여러 번
-        # 참조되고 있었다 - render_target이 drive_api가 아닌 모든 렌더링 요청이
+        # 참조되고 있었다 - render_target이 gcs_api가 아닌 모든 렌더링 요청이
         # (기본값이 local이라 사실상 전부) NameError로 즉시 실패했다. 같은 값을
         # 만드는 다른 함수(491번 줄)와 동일하게 프로젝트의 이미지 프롬프트를 로드한다.
         images_data = db.get_image_prompts(project_id)
@@ -1817,11 +1817,11 @@ async def render_project_video(
                         use_subtitles=request.use_subtitles,
                         resolution=request.resolution,
                     )
-                    print(f"[Drive Render] Project {project_id} queued via Google Drive API.")
+                    print(f"[GCS Render] Project {project_id} queued via GCS API.")
 
                 elif False and use_external:
-                    # Legacy Google Drive File Stream queue path. Kept unreachable:
-                    # remote rendering is standardized on Google Drive API +
+                    # Legacy file-stream queue path. Kept unreachable:
+                    # remote rendering is standardized on GCS API +
                     # Supabase remote_render_queue.
                     import shutil
                     requests_dir = os.path.join(queue_path, "requests", f"project_{project_id}_{int(time.time())}")

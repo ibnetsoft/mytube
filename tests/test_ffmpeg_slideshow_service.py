@@ -53,12 +53,50 @@ def test_transition_names_map_to_native_ffmpeg_effects():
     assert _transition_name("zoom") == "zoomin"
 
 
+@pytest.mark.parametrize("opacity", [0, 0.5, 1])
+def test_rounded_background_is_rendered_by_libass(tmp_path, opacity):
+    import subprocess
+    from PIL import Image
+    from services.ffmpeg_slideshow_service import _filter_path
+
+    ass = tmp_path / "rounded.ass"
+    settings = {
+        "fontFamily": "GmarketSansBold", "fontSize": 10,
+        "bgEnabled": True, "bgColor": "#ff0000", "bgOpacity": opacity,
+        "strokeWidth": 0,
+    }
+    fonts = _prepare_fonts_dir(tmp_path, settings)
+    _write_ass_file(ass, [{"start": 0, "end": 1, "text": "TEST\nBAR"}], settings, (640, 360), fonts)
+    content = ass.read_text(encoding="utf-8-sig")
+    assert content.count("Dialogue: 0,") == 1
+    assert content.count("Dialogue: 1,") == 2
+    result = subprocess.run([
+        _ffmpeg_executable(), "-v", "error", "-f", "lavfi", "-i", "color=black:s=640x360",
+        "-vf", f"subtitles=filename='{_filter_path(str(ass))}':fontsdir='{_filter_path(fonts)}'",
+        "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1",
+    ], capture_output=True, check=True)
+    image = Image.frombytes("RGB", (640, 360), result.stdout)
+    image.save(tmp_path / "rounded.png")
+    # Find only the red background, excluding white glyphs.
+    pixels = image.load()
+    red = [(x, y) for y in range(360) for x in range(640)
+           if pixels[x, y][0] > pixels[x, y][1] + 30]
+    if opacity == 0:
+        assert not red
+        return
+    left, right = min(x for x, y in red), max(x for x, y in red)
+    top, bottom = min(y for x, y in red), max(y for x, y in red)
+    assert pixels[left+1, top+1][0] < 20
+    assert pixels[right-1, bottom-1][0] < 20
+    assert pixels[320, top+3][0] == pytest.approx(255 * opacity, abs=10)
+
+
 def test_render_font_copy_has_a_family_name_ffmpeg_can_select(tmp_path):
     fonts_dir = Path(_prepare_fonts_dir(tmp_path, {"subtitle_font_family": "GmarketSansBold"}))
-    assert (fonts_dir / "GmarketSansTTFBold.ttf").is_file()
+    assert (fonts_dir / "GmarketSansBold.ttf").is_file()
     from PIL import ImageFont
 
-    family, style = ImageFont.truetype(str(fonts_dir / "GmarketSansTTFBold.ttf"), 20).getname()
+    family, style = ImageFont.truetype(str(fonts_dir / "GmarketSansBold.ttf"), 20).getname()
     assert family == "GmarketSansBold"
     assert style == "Bold"
 
@@ -136,3 +174,26 @@ def test_scene_motion_moves_rendered_pixels_in_selected_direction(tmp_path, effe
         axis = 0 if effect in ('pan_left', 'pan_right') else 1
         displacement = (last[axis] + last[axis + 2]) - (first[axis] + first[axis + 2])
         assert displacement < 0 if effect in ('pan_left', 'pan_up') else displacement > 0
+
+
+@pytest.mark.parametrize('effect', ['zoom_in', 'zoom_out'])
+def test_zoom_does_not_wobble_off_centre(tmp_path, effect):
+    import subprocess
+    import numpy as np
+    from PIL import Image, ImageDraw
+    from services.ffmpeg_slideshow_service import _image_filter
+    source = Image.new('RGB', (320, 180), 'black')
+    ImageDraw.Draw(source).rectangle((120, 65, 199, 114), fill='white')
+    path = tmp_path / 'centre.png'
+    source.save(path)
+    output = subprocess.run([
+        _ffmpeg_executable(), '-v', 'error', '-loop', '1', '-i', str(path),
+        '-filter_complex', _image_filter(0, 'motion', 320, 180, 30, 2, effect),
+        '-map', '[motion]', '-frames:v', '60', '-pix_fmt', 'gray', '-f', 'rawvideo', 'pipe:1',
+    ], capture_output=True, check=True, timeout=30).stdout
+    frames = np.frombuffer(output, dtype=np.uint8).reshape(-1, 180, 320).astype(float)
+    mass = frames.sum(axis=(1, 2))
+    centres_x = (frames.sum(axis=1) * np.arange(320)).sum(axis=1) / mass
+    centres_y = (frames.sum(axis=2) * np.arange(180)).sum(axis=1) / mass
+    assert np.ptp(centres_x) < .15
+    assert np.ptp(centres_y) < .15

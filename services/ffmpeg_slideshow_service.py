@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import shutil
 import struct
@@ -6,6 +7,7 @@ import subprocess
 import time
 import zlib
 from pathlib import Path
+from services.subtitle_layout import subtitle_font_pixels
 
 
 class FastRenderUnsupported(RuntimeError):
@@ -17,6 +19,20 @@ class FastRenderTimeout(RuntimeError):
 
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+
+
+def _web_font_catalog():
+    root = Path(__file__).resolve().parents[1] / 'auth-web' / 'public' / 'fonts'
+    return root, json.loads((root / 'catalog.json').read_text(encoding='utf-8'))
+
+
+def _ass_font_family(font_name):
+    return {
+        'ChosunIlboMyungjo': 'Chosunilbo_myungjo',
+        'Chosun_ilbo_myungjottf': 'Chosunilbo_myungjo',
+        'GmarketSans': 'GmarketSansBold',
+        'NotoSansJP': 'Noto Sans CJK JP',
+    }.get(font_name, font_name)
 
 
 def _ffmpeg_executable():
@@ -112,7 +128,66 @@ def _opacity_setting(settings, keys, default):
     return max(0.0, min(1.0, value))
 
 
-def _write_ass_file(path, subtitles, settings, resolution):
+def _rounded_ass_path(width, height, radius):
+    """A single filled contour: translucent corners must not overlap."""
+    r = min(radius, width / 2, height / 2)
+    c = r * 0.5522847498
+    def point(x, y):
+        return f"{x:.3f} {y:.3f}"
+    return " ".join([
+        "m", point(r, 0), "l", point(width-r, 0),
+        "b", point(width-r+c, 0), point(width, r-c), point(width, r),
+        "l", point(width, height-r),
+        "b", point(width, height-r+c), point(width-r+c, height), point(width-r, height),
+        "l", point(r, height),
+        "b", point(r-c, height), point(0, height-r+c), point(0, height-r),
+        "l", point(0, r),
+        "b", point(0, r-c), point(r-c, 0), point(r, 0),
+    ])
+
+
+def _subtitle_layout_font(fonts_dir, font_name, font_size):
+    from PIL import ImageFont
+
+    loaded = []
+    for candidate in sorted(Path(fonts_dir).glob("*")):
+        if candidate.suffix.lower() not in {".ttf", ".otf", ".ttc"}:
+            continue
+        try:
+            font = ImageFont.truetype(str(candidate), font_size)
+        except OSError:
+            continue
+        loaded.append(font)
+        if font.getname()[0].casefold() == font_name.casefold():
+            return font
+    if len(loaded) == 1 and Path(fonts_dir).name == "fast_render_fonts":
+        return loaded[0]
+    # Do not silently measure with an unrelated font: the compatibility renderer
+    # can resolve fonts that the fast renderer cannot use for exact box layout.
+    raise FastRenderUnsupported(f"자막 배경 측정용 폰트를 찾을 수 없습니다: {font_name}")
+
+
+def _wrap_ass_lines(text, font, max_width):
+    lines = []
+    for paragraph in str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        line = ""
+        for char in paragraph:
+            if line and font.getlength(line + char) > max_width:
+                # Prefer word boundaries, but allow CJK/unbroken text to wrap.
+                split = line.rfind(" ")
+                if split > 0:
+                    lines.append(line[:split])
+                    line = line[split+1:] + char
+                else:
+                    lines.append(line)
+                    line = char
+            else:
+                line += char
+        lines.append(line)
+    return lines
+
+
+def _write_ass_file(path, subtitles, settings, resolution, fonts_dir=None):
     width, height = resolution
     font_name = str(_setting(
         settings,
@@ -122,19 +197,10 @@ def _write_ass_file(path, subtitles, settings, resolution):
         "font",
         default="Malgun Gothic",
     ))
-    font_name = {
-        "ChosunIlboMyungjo": "Chosunilbo_myungjo",
-        "Chosun_ilbo_myungjottf": "Chosunilbo_myungjo",
-        "Chosunilbo_myungjo": "Chosunilbo_myungjo",
-        "CookieRun-Regular": "CookieRun",
-        "NetmarbleB": "netmarble",
-        "NotoSansJP": "Noto Sans CJK JP",
-        "Pretendard-Bold": "Pretendard",
-        "S-CoreDream-6Bold": "S-Core Dream",
-    }.get(font_name, font_name)
+    font_name = _ass_font_family(font_name)
 
     font_value = _float_setting(settings, ("subtitle_font_size", "fontSize", "font_size"), 5.0)
-    font_size = int(width * font_value / 100.0) if 0.1 <= font_value <= 20 else int(font_value)
+    font_size = round(subtitle_font_pixels(font_value, width), 3)
     font_size = max(12, font_size)
     primary = _ass_color(_setting(
         settings,
@@ -151,7 +217,7 @@ def _write_ass_file(path, subtitles, settings, resolution):
     bg_opacity = _opacity_setting(settings, ("subtitle_bg_opacity", "bgOpacity", "bg_opacity"), 0.5)
     back_alpha = int((1.0 - bg_opacity) * 255) if bg_enabled else 255
     back = _ass_color(_setting(settings, "subtitle_bg_color", "bgColor", "bg_color", default="#000000"), back_alpha)
-    border_style = 3 if bg_enabled else 1
+    border_style = 1
 
     raw_position = str(_setting(settings, "subtitle_pos_y", "posY", "pos_y", default="b:12%") or "b:12%")
     match = re.search(r"(-?\d+(?:\.\d+)?)", raw_position)
@@ -166,7 +232,7 @@ ScriptType: v4.00+
 PlayResX: {width}
 PlayResY: {height}
 ScaledBorderAndShadow: yes
-WrapStyle: 0
+WrapStyle: 2
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -175,12 +241,38 @@ Style: Default,{font_name},{font_size},{primary},{primary},{outline},{back},0,0,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+    layout_font = None
+    if bg_enabled:
+        fonts_dir = fonts_dir or _prepare_fonts_dir(Path(path).parent, settings)
+        layout_font = _subtitle_layout_font(fonts_dir, font_name, font_size)
     events = []
     for subtitle in subtitles or []:
         start = float(subtitle.get("start") or 0.0)
         end = float(subtitle.get("end") or start)
         text = _ass_text(subtitle.get("text"))
         if text and end > start:
+            if layout_font is not None:
+                # Match the preview's em-based padding, radius and line boxes.
+                pad_x, pad_y = font_size * 0.6, font_size * 0.30
+                # Subtitle blocks are authored as single lines in the editor.
+                # Preserve explicit breaks only; libass must not reflow them.
+                lines = str(subtitle.get("text") or '').splitlines() or ['']
+                box_width = max(layout_font.getlength(line) for line in lines) + 2 * pad_x
+                spacing = _float_setting(settings, ("subtitle_line_spacing", "lineSpacing", "line_spacing_ratio", "line_spacing"), 0.1)
+                line_height = font_size * max(0.5, 1 + spacing)
+                box_height = font_size + (len(lines)-1) * line_height + 2 * pad_y
+                offset = _float_setting(settings, ("subtitle_bg_v_offset", "bgVOffset", "bg_v_offset"), 0)
+                left = (width - box_width) / 2
+                top = height - margin_v - box_height + offset
+                shape = _rounded_ass_path(box_width, box_height, font_size * 0.25)
+                tags = (rf"{{\an7\pos({left:.3f},{top:.3f})\bord0\shad0"
+                        rf"\1c{back}\1a&H{back_alpha:02X}&\p1}}")
+                events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{tags}{shape}{{\\p0}}")
+                for index, line in enumerate(lines):
+                    y = top - offset + pad_y + index * line_height + font_size / 2
+                    tags = rf"{{\an5\pos({width/2:.3f},{y:.3f})\q2}}"
+                    events.append(f"Dialogue: 1,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{tags}{_ass_text(line)}")
+                continue
             events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{text}")
     Path(path).write_text(header + "\n".join(events) + "\n", encoding="utf-8-sig")
 
@@ -194,7 +286,24 @@ def _prepare_fonts_dir(temp_dir, settings):
         "font",
         default="Malgun Gothic",
     ))
+    web_root, catalog = _web_font_catalog()
+    web_name = {'GmarketSans': 'GmarketSansBold', 'Chosunilbo_myungjo': 'ChosunIlboMyungjo',
+                'Chosun_ilbo_myungjottf': 'ChosunIlboMyungjo'}.get(font_name, font_name)
+    if web_name in catalog:
+        source = web_root / catalog[web_name]
+        if not source.is_file():
+            raise FastRenderUnsupported(f'선택한 웹 폰트 파일이 없습니다: {web_name}')
+        destination_dir = Path(temp_dir) / 'fast_render_fonts'
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        destination = destination_dir / (source.stem + '.ttf')
+        if source.suffix == '.woff':
+            _convert_woff_to_ttf(source, destination)
+        else:
+            shutil.copy2(source, destination)
+        _rewrite_sfnt_family_name(destination, _ass_font_family(web_name))
+        return str(destination_dir)
     aliases = {
+        "Malgun Gothic": ["malgun.ttf"],
         "GmarketSans": ["GmarketSansTTFBold.ttf", "GmarketSansBold.woff"],
         "GmarketSansBold": ["GmarketSansTTFBold.ttf", "GmarketSansBold.woff"],
         "ChosunIlboMyungjo": ["ChosunIlboMyungjo.ttf", "Chosunilbo_myungjo.woff"],
@@ -213,7 +322,7 @@ def _prepare_fonts_dir(temp_dir, settings):
         "Jalnan": "Jalnan",
         "MapoFlowerIsland": "MapoFlowerIsland",
     }
-    candidates = aliases.get(font_name, [font_name])
+    candidates = aliases.get(font_name, [font_name, f"{font_name}.ttf", f"{font_name}.otf", f"{font_name}.woff"])
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     source_dirs = [
         os.path.join(root_dir, "static", "fonts"),
@@ -393,22 +502,28 @@ def _image_filter(input_index, output_label, width, height, fps, duration, effec
             f"{base},scale={width}:{height},fps={fps},trim=duration={duration:.3f},"
             f"setsar=1,format=yuv420p[{output_label}]"
         )
-    if normalized in {"zoom_out"}:
-        zoom = f"1.06-0.04*{progress}"
-        x_pos = "trunc(iw/2-(iw/zoom/2))"
-        y_pos = "trunc(ih/2-(ih/zoom/2))"
-    elif normalized in {"pan_left", "pan_right"}:
+    if normalized not in {"pan_left", "pan_right", "pan_up", "scroll_up", "pan_down", "scroll_down"}:
+        # zoompan truncates its crop rectangle to whole pixels (and chroma
+        # boundaries), which makes slow zooms visibly wobble. Perspective's
+        # cubic sampler keeps the centre and crop corners at subpixel precision.
+        zoom = f"1+0.04*(1-{progress})" if normalized == "zoom_out" else f"1+0.04*{progress}"
+        x0, y0 = f"W/2-W/(2*({zoom}))", f"H/2-H/(2*({zoom}))"
+        x1, y1 = f"W/2+W/(2*({zoom}))", f"H/2+H/(2*({zoom}))"
+        return (
+            f"{base},scale={width}:{height}:flags=lanczos,fps={fps},format=yuv444p,"
+            f"perspective=x0='{x0}':y0='{y0}':x1='{x1}':y1='{y0}':"
+            f"x2='{x0}':y2='{y1}':x3='{x1}':y3='{y1}':"
+            f"sense=source:eval=frame:interpolation=cubic,"
+            f"trim=duration={duration:.3f},setsar=1,format=yuv420p[{output_label}]"
+        )
+    if normalized in {"pan_left", "pan_right"}:
         zoom = "1.12"
         x_pos = f"trunc((iw-iw/zoom)*{progress})" if normalized == "pan_left" else f"trunc((iw-iw/zoom)*(1-{progress}))"
         y_pos = "trunc(ih/2-(ih/zoom/2))"
-    elif normalized in {"pan_up", "scroll_up", "pan_down", "scroll_down"}:
+    else:
         zoom = "1.12"
         x_pos = "trunc(iw/2-(iw/zoom/2))"
         y_pos = f"trunc((ih-ih/zoom)*{progress})" if normalized in {"pan_up", "scroll_up"} else f"trunc((ih-ih/zoom)*(1-{progress}))"
-    else:
-        zoom = f"1+0.04*{progress}"
-        x_pos = "trunc(iw/2-(iw/zoom/2))"
-        y_pos = "trunc(ih/2-(ih/zoom/2))"
     return (
         f"{base},zoompan=z='{zoom}':x='{x_pos}':y='{y_pos}':d=1:s={width}x{height}:fps={fps},"
         f"trim=duration={duration:.3f},setsar=1,format=yuv420p[{output_label}]"
@@ -578,8 +693,8 @@ def render_ffmpeg_slideshow(
         current_label = "templated"
 
     if subtitles:
-        _write_ass_file(ass_path, subtitles, subtitle_settings or {}, (width, height))
         fonts_dir = _prepare_fonts_dir(temp_dir, subtitle_settings or {})
+        _write_ass_file(ass_path, subtitles, subtitle_settings or {}, (width, height), fonts_dir)
         filters.append(
             f"[{current_label}]subtitles=filename='{_filter_path(ass_path)}':"
             f"fontsdir='{_filter_path(fonts_dir)}'[videoout]"

@@ -3,22 +3,14 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
-import {
-    driveFileLink,
-    driveFolderLink,
-    ensureStdProjectDriveFolders,
-    folderForAssetType,
-    uploadStdDriveBuffer,
-} from '@/lib/stdGoogleDrive'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
-import { buildStdGcsObjectPath, isGcsStorageConfigured, uploadGcsBuffer } from '@/lib/gcsStorage'
+import { buildStdGcsObjectPath, isGcsConfiguredAsync, uploadGcsBuffer } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 const ASSET_TYPES = new Set(['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'original'])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const CONTENT_ASSETS_BUCKET = 'content-assets'
 
 function sceneNumberOf(scene: any, index: number) {
     const value = Number(scene?.scene_number || scene?.scene_order || index + 1)
@@ -52,7 +44,7 @@ function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetTy
         const metadata = {
             ...(scene?.metadata || {}),
             [`${assetType}_asset_id`]: asset.id,
-            [`${assetType}_drive_file_id`]: asset.drive_file_id,
+            [`${assetType}_gcs_path`]: asset?.metadata?.gcs_path || asset?.metadata?.storage_path || null,
             [`${assetType}_file_name`]: asset.file_name,
         }
         return {
@@ -70,9 +62,7 @@ function upsertVisualAssetIntoScenes(scenes: any[], sceneNumber: number, assetTy
 function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | null, assetType: string, asset: any) {
     if (sceneNumber == null || !['image', 'video'].includes(assetType)) return project.project_payload || {}
     const assetUrl = asset?.metadata?.storage_public_url
-        || asset?.metadata?.thumbnail_link
-        || asset?.metadata?.web_view_link
-        || (asset?.drive_file_id ? driveFileLink(asset.drive_file_id) : `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`)
+        || `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
     const projectPayload = project.project_payload || {}
     const structure = projectPayload.structure || {}
     const payloadScenes = Array.isArray(projectPayload.scenes) ? projectPayload.scenes : []
@@ -222,50 +212,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const storagePath = buildStdGcsObjectPath({ projectId: project.id, sceneNumber, fileName })
         const buffer = Buffer.from(await fileValue.arrayBuffer())
 
-        // 1차: Supabase Storage 업로드
-        const { error: storageError } = await supabaseAdmin.storage
-            .from(CONTENT_ASSETS_BUCKET)
-            .upload(storagePath, buffer, { contentType: mimeType, upsert: true })
-        if (storageError) throw new Error(storageError.message || 'Supabase Storage upload failed')
-        const { data: publicUrlData } = supabaseAdmin.storage
-            .from(CONTENT_ASSETS_BUCKET)
-            .getPublicUrl(storagePath)
-        const storagePublicUrl = publicUrlData.publicUrl
-
-        // 2차: GCS 아카이빙
-        let gcsBucket = ''
-        let gcsPath = ''
-        if (isGcsStorageConfigured()) {
-            try {
-                const stored = await uploadGcsBuffer({ objectPath: storagePath, data: buffer, contentType: mimeType })
-                gcsBucket = stored.bucket
-                gcsPath = stored.path
-            } catch (gcsError: any) {
-                console.warn('[STD AssetUpload] GCS secondary archive failed; keeping Supabase asset:', gcsError?.message)
-            }
+        if (!(await isGcsConfiguredAsync())) {
+            throw new Error('GCS storage is not configured')
         }
-
-        // Drive is a legacy fallback archive
-        let folders: Awaited<ReturnType<typeof ensureStdProjectDriveFolders>> | null = null
-        let targetFolderId = ''
-        let driveFile: Awaited<ReturnType<typeof uploadStdDriveBuffer>> | null = null
-        let driveBackupError = ''
-        try {
-            if (!['audio', 'bgm', 'sfx'].includes(assetType) && !gcsBucket) {
-                folders = await ensureStdProjectDriveFolders(project)
-                targetFolderId = folderForAssetType(folders, assetType)
-                driveFile = await uploadStdDriveBuffer(
-                    targetFolderId,
-                    fileName,
-                    buffer,
-                    mimeType,
-                    `AIR Studio STD ${assetType} asset for project ${project.id}`
-                )
-            }
-        } catch (driveError: any) {
-            driveBackupError = String(driveError?.message || 'drive_archive_upload_failed')
-            console.warn('[STD AssetUpload] Drive archive copy failed; keeping Supabase asset:', driveBackupError)
-        }
+        const stored = await uploadGcsBuffer({ objectPath: storagePath, data: buffer, contentType: mimeType })
 
         if (sceneNumber != null && ['image', 'video'].includes(assetType)) {
             await supabaseAdmin
@@ -284,29 +234,21 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 scene_id: scene?.id || null,
                 scene_number: sceneNumber,
                 asset_type: audioAssetStorageFields(assetType).asset_type,
-                drive_file_id: driveFile?.id || null,
-                drive_folder_id: targetFolderId || project.drive_folder_id || null,
-                file_name: driveFile?.name || fileName,
-                mime_type: driveFile?.mimeType || mimeType,
-                file_size: driveFile?.size ? Number(driveFile.size) : fileValue.size || null,
+                drive_file_id: null,
+                drive_folder_id: null,
+                file_name: fileName,
+                mime_type: mimeType,
+                file_size: fileValue.size || null,
                 status: sceneNumber != null ? 'assigned' : 'uploaded',
                 uploaded_by: uploadedById(auth.requester.user.id),
                 metadata: {
-                    ...(driveFile ? {
-                        web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-                        thumbnail_link: driveFile.thumbnailLink || null,
-                    } : {}),
-                    storage_provider: 'supabase',
-                    storage_bucket: CONTENT_ASSETS_BUCKET,
-                    storage_path: storagePath,
-                    storage_public_url: storagePublicUrl,
-                    ...(gcsBucket && gcsPath ? {
-                        gcs_bucket: gcsBucket,
-                        gcs_path: gcsPath,
-                        upload_mode: 'server_supabase_then_gcs',
-                    } : {
-                        upload_mode: driveFile ? 'server_supabase_then_drive' : 'server_supabase_storage',
-                    }),
+                    storage_provider: 'gcs',
+                    storage_bucket: stored.bucket,
+                    storage_path: stored.path,
+                    storage_public_url: '',
+                    gcs_bucket: stored.bucket,
+                    gcs_path: stored.path,
+                    upload_mode: 'server_gcs_storage',
                     ...audioAssetStorageFields(assetType).metadata,
                     uploaded_by: auth.requester.email,
                 },
@@ -332,22 +274,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         await supabaseAdmin
             .from('std_projects')
             .update({
-                drive_folder_id: folders?.projectFolderId || project.drive_folder_id || null,
                 status: project.status === 'claimed' ? 'in_progress' : project.status,
                 progress_payload: {
                     ...progressPayload,
                     ready_scene_count: readySceneCount || 0,
                     last_asset_uploaded_at: new Date().toISOString(),
-                    ...(folders ? { std_drive: {
-                        ...(progressPayload.std_drive || {}),
-                        folder_ids: {
-                            project: folders.projectFolderId,
-                            images: folders.imagesFolderId,
-                            videos: folders.videosFolderId,
-                            originals: folders.originalsFolderId,
-                            audio: folders.audioFolderId,
-                        },
-                    } } : {}),
                 },
                 project_payload: nextProjectPayload,
                 updated_at: new Date().toISOString(),
@@ -364,13 +295,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             success: true,
             asset: {
                 ...asset,
-                drive_file_link: driveFile ? driveFileLink(driveFile.id) : null,
-                drive_folder_link: driveFile && targetFolderId ? driveFolderLink(targetFolderId) : null,
+                drive_file_link: null,
+                drive_folder_link: null,
             },
-            drive_backup_error: driveBackupError || null,
+            drive_backup_error: null,
         })
     } catch (error: any) {
         console.error('[STD AssetUpload] failed:', error?.message)
-        return NextResponse.json({ success: false, error: error?.message || 'Drive upload failed' }, { status: 500 })
+        return NextResponse.json({ success: false, error: error?.message || 'GCS upload failed' }, { status: 500 })
     }
 }

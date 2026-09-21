@@ -3,45 +3,27 @@ import json
 import os
 import re
 import uuid
+from urllib.parse import quote
 
 import requests
 
 import database as db
 from config import config
 from services.auth_service import auth_service
-from services.google_drive_service import google_drive_service
 from services.project_publish_service import queue_project_for_admin_publish
 from services.remote_render_service import package_project_assets
 from services.web_admin_client import web_admin_client
 
 
 class RemoteDriveRenderService:
-    """Google Drive API + Supabase queue entrypoint for remote rendering."""
+    """GCS API + Supabase queue entrypoint for remote rendering."""
 
-    def _load_remote_drive_settings(self):
-        """Ensure Drive API render settings saved in web-admin are available locally."""
-        if getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "") and getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", ""):
-            return
+    def _load_gcs_settings(self):
+        """Ensure GCS render settings saved in web-admin are available locally."""
         try:
             config.load_remote_keys_from_supabase()
         except Exception:
             pass
-
-    def _get_drive_folder_id(self):
-        self._load_remote_drive_settings()
-        return (
-            db.get_global_setting("remote_render_drive_folder_id", "")
-            or getattr(config, "REMOTE_RENDER_DRIVE_FOLDER_ID", "")
-            or None
-        )
-
-    def _get_google_token_path(self):
-        self._load_remote_drive_settings()
-        return (
-            db.get_global_setting("remote_render_google_token_path", "")
-            or getattr(config, "REMOTE_RENDER_GOOGLE_TOKEN_PATH", "")
-            or None
-        )
 
     def _desktop_auth(self):
         """[AIR-0225B] email/session_token for the desktop-render-queue bridge.
@@ -124,6 +106,64 @@ class RemoteDriveRenderService:
         os.makedirs(abs_path, exist_ok=True)
         return abs_path, f"/output/{folder_name}"
 
+    def _get_gcs_credentials(self):
+        self._load_gcs_settings()
+        client_email = os.getenv("GCS_CLIENT_EMAIL") or getattr(config, "GCS_CLIENT_EMAIL", "")
+        private_key = os.getenv("GCS_PRIVATE_KEY") or getattr(config, "GCS_PRIVATE_KEY", "")
+        project_id = os.getenv("GCS_PROJECT_ID") or getattr(config, "GCS_PROJECT_ID", "")
+        bucket_name = os.getenv("GCS_BUCKET_NAME") or getattr(config, "GCS_BUCKET_NAME", "")
+        if not (client_email and private_key and bucket_name):
+            raise RuntimeError("GCS credentials are not configured.")
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import Request
+        creds = service_account.Credentials.from_service_account_info(
+            {
+                "type": "service_account",
+                "project_id": project_id,
+                "private_key": private_key.replace("\\n", "\n"),
+                "client_email": client_email,
+                "token_uri": "https://oauth2.googleapis.com/token",
+            },
+            scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
+        )
+        creds.refresh(Request())
+        return creds, bucket_name
+
+    def _upload_file_to_gcs(self, file_path: str, object_path: str, mime_type: str):
+        creds, bucket = self._get_gcs_credentials()
+        clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
+        if not clean_path:
+            raise RuntimeError("GCS object path is empty.")
+        url = f"https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket, safe='')}/o?uploadType=media&name={quote(clean_path, safe='')}"
+        with open(file_path, "rb") as file_obj:
+            response = requests.post(
+                url,
+                headers={"Authorization": f"Bearer {creds.token}", "Content-Type": mime_type},
+                data=file_obj,
+                timeout=300,
+            )
+        if response.status_code not in (200, 201):
+            raise RuntimeError(f"GCS upload failed: {response.status_code} {response.text[:300]}")
+        return {
+            "bucket": bucket,
+            "path": clean_path,
+            "size": os.path.getsize(file_path),
+            "media_url": f"https://storage.googleapis.com/{quote(bucket, safe='')}/{quote(clean_path, safe='/')}",
+        }
+
+    def _download_http_file(self, url: str, local_path: str):
+        response = requests.get(url, stream=True, timeout=300)
+        if response.status_code >= 400:
+            raise RuntimeError(f"GCS result download failed: {response.status_code}")
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        partial_path = f"{local_path}.download"
+        with open(partial_path, "wb") as output:
+            for chunk in response.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    output.write(chunk)
+        os.replace(partial_path, local_path)
+        return local_path
+
     def sync_completed_result(self, project_id: int):
         settings = db.get_project_settings(project_id) or {}
         task_id = settings.get("remote_task_id")
@@ -148,29 +188,24 @@ class RemoteDriveRenderService:
             return row
 
         output_dir, web_dir = self._project_output_dir(project_id)
-        filename = row.get("result_file_name") or f"remote_drive_render_{project_id}.mp4"
+        filename = row.get("result_file_name") or f"remote_gcs_render_{project_id}.mp4"
         if not filename.lower().endswith(".mp4"):
             filename = f"{filename}.mp4"
         local_path = os.path.join(output_dir, filename)
 
         if not os.path.exists(local_path):
-            token_path = self._get_google_token_path()
-            downloaded = google_drive_service.download_file(row["result_file_id"], local_path, token_path=token_path)
-            if not downloaded:
-                raise RuntimeError("Failed to download completed remote render result from Google Drive.")
+            result_url = row_metadata.get("result_public_url") or row_metadata.get("gcs_public_url") or row.get("result_file_id")
+            if not result_url or not str(result_url).startswith("http"):
+                raise RuntimeError("Completed remote render result does not include a GCS download URL.")
+            self._download_http_file(str(result_url), local_path)
 
         web_video_path = f"{web_dir}/{filename}"
         db.update_project_setting(project_id, "video_path", web_video_path)
         db.update_project_setting(project_id, "remote_result_file_id", row.get("result_file_id"))
         db.update_project_setting(project_id, "remote_result_file_name", row.get("result_file_name"))
-        db.update_project_setting(project_id, "drive_project_folder_id", row_metadata.get("result_folder_id"))
-        db.update_project_setting(project_id, "drive_project_folder_name", row_metadata.get("result_folder_name"))
-        db.update_project_setting(project_id, "drive_video_file_id", row_metadata.get("result_video_file_id") or row.get("result_file_id"))
-        db.update_project_setting(project_id, "drive_video_file_name", row_metadata.get("result_video_file_name") or row.get("result_file_name"))
-        db.update_project_setting(project_id, "drive_thumbnail_file_id", row_metadata.get("result_thumbnail_file_id"))
-        db.update_project_setting(project_id, "drive_thumbnail_file_name", row_metadata.get("result_thumbnail_file_name"))
-        db.update_project_setting(project_id, "drive_metadata_file_id", row_metadata.get("result_metadata_file_id"))
-        db.update_project_setting(project_id, "drive_metadata_file_name", row_metadata.get("result_metadata_file_name"))
+        db.update_project_setting(project_id, "gcs_video_path", row_metadata.get("gcs_path"))
+        db.update_project_setting(project_id, "gcs_video_url", row_metadata.get("gcs_public_url") or row_metadata.get("result_public_url"))
+        db.update_project_setting(project_id, "gcs_thumbnail_url", row_metadata.get("gcs_thumbnail_url"))
         db.update_project_setting(project_id, "remote_render_progress", "100")
         db.update_project_setting(project_id, "remote_render_message", "원격 렌더링 완료")
         db.update_project_setting(project_id, "admin_publish_ready", "1")
@@ -197,20 +232,9 @@ class RemoteDriveRenderService:
         if not package_path or not os.path.exists(package_path):
             raise RuntimeError("Remote render package file does not exist.")
 
-        folder_id = self._get_drive_folder_id()
-        token_path = token_path or self._get_google_token_path()
         task_id = str(uuid.uuid4())
-
-        drive_file = google_drive_service.upload_file(
-            package_path,
-            token_path=token_path,
-            folder_id=folder_id,
-            mimetype="application/zip",
-            description=f"AIR remote render asset package for project {project_id}",
-            make_public=False,
-        )
-        if not drive_file or not drive_file.get("id"):
-            raise RuntimeError("Failed to upload remote render asset package to Google Drive.")
+        gcs_package_path = f"remote-render-packages/{project_id}/{task_id}/asset_package.zip"
+        gcs_file = self._upload_file_to_gcs(package_path, gcs_package_path, "application/zip")
 
         # [NEW] Generate referral code upon first rendering if not exists
         try:
@@ -225,7 +249,7 @@ class RemoteDriveRenderService:
         queue_metadata.setdefault("upload_owner", "web_admin")
         queue_metadata.setdefault("publish_owner", "web_admin")
         queue_metadata.setdefault("visibility_control", "web_admin_pending")
-        queue_metadata.setdefault("package_transport", "google_drive_api")
+        queue_metadata.setdefault("package_transport", "gcs_package")
         queue_metadata.setdefault("job_stage", "pending")
         
         settings = db.get_project_settings(project_id) or {}
@@ -235,11 +259,14 @@ class RemoteDriveRenderService:
 
         queue_metadata.update(
             {
-                "asset_file_id": drive_file.get("id"),
-                "asset_file_name": drive_file.get("name"),
-                "asset_file_size": drive_file.get("size"),
-                "asset_md5": drive_file.get("md5Checksum"),
-                "asset_web_link": drive_file.get("webViewLink"),
+                "asset_file_id": task_id,
+                "asset_file_name": os.path.basename(package_path),
+                "asset_file_size": gcs_file.get("size"),
+                "asset_web_link": gcs_file.get("media_url"),
+                "gcs_asset_package": {
+                    "gcs_bucket": gcs_file.get("bucket"),
+                    "gcs_path": gcs_file.get("path"),
+                },
                 "source": "picadiri_local_app",
             }
         )
@@ -250,10 +277,10 @@ class RemoteDriveRenderService:
             "email": auth_service.get_user_email() or project.get("employee_email") or "unknown",
             "status": "pending",
             "progress": 0,
-            "message": "Google Drive에 에셋 패키지 업로드 완료. 원격 워커 대기 중.",
-            "render_mode": "drive_api",
-            "asset_file_id": drive_file.get("id"),
-            "asset_file_name": drive_file.get("name"),
+            "message": "GCS에 에셋 패키지 업로드 완료. 원격 워커 대기 중.",
+            "render_mode": "gcs_api",
+            "asset_file_id": task_id,
+            "asset_file_name": os.path.basename(package_path),
             "metadata": queue_metadata,
             "updated_at": now,
         }
@@ -261,10 +288,10 @@ class RemoteDriveRenderService:
 
         db.update_project(project_id, status="remote_queued")
         db.update_project_setting(project_id, "remote_task_id", task_id)
-        db.update_project_setting(project_id, "remote_render_mode", "drive_api")
-        db.update_project_setting(project_id, "remote_asset_file_id", drive_file.get("id"))
-        db.update_project_setting(project_id, "remote_asset_file_name", drive_file.get("name"))
-        db.update_project_setting(project_id, "remote_asset_web_link", drive_file.get("webViewLink"))
+        db.update_project_setting(project_id, "remote_render_mode", "gcs_api")
+        db.update_project_setting(project_id, "remote_asset_file_id", task_id)
+        db.update_project_setting(project_id, "remote_asset_file_name", os.path.basename(package_path))
+        db.update_project_setting(project_id, "remote_asset_web_link", gcs_file.get("media_url"))
         db.update_project_setting(project_id, "admin_publish_ready", "0")
         db.update_project_setting(project_id, "admin_publish_status", "render_pending")
         db.update_project_setting(project_id, "final_asset_bundle_sent", "1")
@@ -274,7 +301,7 @@ class RemoteDriveRenderService:
         return {
             "task_id": task_id,
             "queue_row": row,
-            "drive_file": drive_file,
+            "gcs_file": gcs_file,
             "metadata": queue_metadata,
         }
 

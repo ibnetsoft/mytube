@@ -26,7 +26,7 @@ from PIL import ImageOps
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_BUCKET = "content-assets"
+DEFAULT_BUCKET = os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"
 DEFAULT_ASSET_WIDTH = 1920
 DEFAULT_ASSET_HEIGHT = 1080
 
@@ -57,6 +57,65 @@ def _request(method: str, url: str, headers: dict[str, str], **kwargs: Any) -> r
     return response
 
 
+def _gcs_credentials():
+    client_email = os.getenv("GCS_CLIENT_EMAIL") or os.getenv("GOOGLE_CLIENT_EMAIL") or ""
+    private_key = os.getenv("GCS_PRIVATE_KEY") or os.getenv("GOOGLE_PRIVATE_KEY") or ""
+    project_id = os.getenv("GCS_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "air-studio-prod"
+    bucket = os.getenv("GCS_BUCKET_NAME") or DEFAULT_BUCKET
+    if not (client_email and private_key and bucket):
+        raise RuntimeError("GCS credentials are required for scene image publishing")
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+
+    creds = service_account.Credentials.from_service_account_info(
+        {
+            "type": "service_account",
+            "project_id": project_id,
+            "private_key": private_key.replace("\\n", "\n"),
+            "client_email": client_email,
+            "token_uri": "https://oauth2.googleapis.com/token",
+        },
+        scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
+    )
+    creds.refresh(Request())
+    return creds, bucket
+
+
+def _upload_gcs_file(file_path: Path, object_path: str, mime_type: str) -> tuple[str, str, str]:
+    creds, bucket = _gcs_credentials()
+    clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
+    if not clean_path:
+        raise RuntimeError("GCS object path is empty")
+    with file_path.open("rb") as handle:
+        response = requests.post(
+            f"https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket, safe='')}/o"
+            f"?uploadType=media&name={quote(clean_path, safe='')}",
+            headers={"Authorization": f"Bearer {creds.token}", "Content-Type": mime_type},
+            data=handle,
+            timeout=300,
+        )
+    if response.status_code not in (200, 201):
+        raise RuntimeError(f"GCS scene image upload failed ({response.status_code}): {response.text[:300]}")
+    return bucket, clean_path, f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}&path={quote(clean_path, safe='')}"
+
+
+def _download_gcs_bytes(bucket: str, object_path: str) -> bytes:
+    creds, default_bucket = _gcs_credentials()
+    target_bucket = bucket or default_bucket
+    clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
+    if not clean_path:
+        raise RuntimeError("GCS object path is empty")
+    response = requests.get(
+        f"https://storage.googleapis.com/storage/v1/b/{quote(target_bucket, safe='')}/o/"
+        f"{quote(clean_path, safe='')}?alt=media",
+        headers={"Authorization": f"Bearer {creds.token}"},
+        timeout=300,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"GCS character reference download failed ({response.status_code}): {response.text[:300]}")
+    return response.content
+
+
 def _topic(topic_id: str) -> tuple[dict[str, Any], dict[str, Any], str, dict[str, str]]:
     base_url, headers = _supabase()
     safe_id = quote(topic_id, safe="")
@@ -84,7 +143,7 @@ def _scene_number(scene: dict[str, Any], fallback: int) -> int:
 
 
 def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
-    row, structure, base_url, _ = _topic(topic_id)
+    row, structure, _base_url, _ = _topic(topic_id)
     scenes = structure.get("scenes")
     grids = structure.get("image_grid_prompts")
     if not isinstance(scenes, list) or not scenes:
@@ -100,13 +159,14 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     references = []
     for index, character in enumerate(characters, 1):
-        url = character["image_url"]
-        if not url.startswith(base_url + "/storage/v1/object/public/content-assets/"):
-            raise RuntimeError("Character reference must use verified project Storage, not a temporary URL")
-        response = requests.get(url, timeout=60)
-        response.raise_for_status()
+        url = str(character["image_url"] or "")
+        metadata = character.get("metadata") if isinstance(character.get("metadata"), dict) else {}
+        bucket = str(character.get("gcs_bucket") or character.get("storage_bucket") or metadata.get("gcs_bucket") or "").strip()
+        object_path = str(character.get("gcs_path") or character.get("storage_object_path") or metadata.get("gcs_path") or "").strip()
+        if not object_path:
+            raise RuntimeError("Character reference must include a GCS object path")
         reference_path = destination.parent / f"character-reference-{index}.png"
-        reference_path.write_bytes(response.content)
+        reference_path.write_bytes(_download_gcs_bytes(bucket, object_path))
         from codex_character_assets import validate_portrait
         validate_portrait(reference_path)
         references.append({"name": character.get("name"), "character_key": character.get("character_key"),
@@ -237,32 +297,6 @@ def crop_grids(
     return written
 
 
-def _ensure_bucket(base_url: str, headers: dict[str, str], bucket: str) -> None:
-    response = requests.get(
-        f"{base_url}/storage/v1/bucket/{quote(bucket, safe='')}", headers=headers, timeout=60
-    )
-    if response.status_code == 200:
-        return
-    # Some Supabase Storage gateways return an HTTP 400 envelope whose
-    # payload still identifies this as the normal missing-bucket condition.
-    # Treat only that documented NoSuchBucket payload like a 404; other 400s
-    # (authentication, malformed bucket id, etc.) must remain hard failures.
-    missing_bucket = response.status_code == 404
-    if response.status_code == 400:
-        try:
-            missing_bucket = response.json().get("code") == "NoSuchBucket"
-        except ValueError:
-            missing_bucket = False
-    if not missing_bucket:
-        raise RuntimeError(f"Storage bucket lookup failed ({response.status_code}): {response.text[:500]}")
-    _request(
-        "POST",
-        f"{base_url}/storage/v1/bucket",
-        {**headers, "Content-Type": "application/json"},
-        json={"id": bucket, "name": bucket, "public": True},
-    )
-
-
 def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[str]:
     manifest = _manifest(manifest_path)
     topic_id = str(manifest["topic_id"])
@@ -271,9 +305,10 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
         raise ValueError("bucket must be a safe lowercase storage bucket name")
     row, structure, base_url, headers = _topic(topic_id)
     if create_bucket:
-        _ensure_bucket(base_url, headers, bucket)
+        print("--create-bucket is ignored: scene images are uploaded to GCS, not Supabase Storage.", file=sys.stderr)
 
     scene_urls: dict[int, str] = {}
+    scene_refs: dict[int, tuple[str, str]] = {}
     for grid in manifest["grids"]:
         for scene_number in grid["scene_numbers"]:
             number = int(scene_number)
@@ -288,15 +323,9 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
                     )
             object_path = f"topics/{topic_id}/images/scene-{number:03d}.png"
             mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
-            with file_path.open("rb") as handle:
-                _request(
-                    "POST",
-                    f"{base_url}/storage/v1/object/{quote(bucket, safe='')}/{quote(object_path, safe='/')}",
-                    # Stable object keys make a failed publish safely retryable.
-                    {**headers, "Content-Type": mime_type, "x-upsert": "true"},
-                    data=handle,
-                )
-            scene_urls[number] = f"{base_url}/storage/v1/object/public/{bucket}/{object_path}"
+            gcs_bucket, gcs_path, media_url = _upload_gcs_file(file_path, object_path, mime_type)
+            scene_urls[number] = media_url
+            scene_refs[number] = (gcs_bucket, gcs_path)
 
     scenes = structure.get("scenes")
     if not isinstance(scenes, list):
@@ -307,12 +336,16 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
             continue
         number = _scene_number(scene, index)
         if number in scene_urls:
+            gcs_bucket, gcs_path = scene_refs[number]
             scene["image_url"] = scene_urls[number]
             scene["asset_status"] = "ready"
             scene.setdefault("metadata", {})["cowork_image_asset"] = {
                 "source": "cowork_builtin_imagegen",
-                "bucket": bucket,
-                "object_path": f"topics/{topic_id}/images/scene-{number:03d}.png",
+                "storage_provider": "gcs",
+                "bucket": gcs_bucket,
+                "object_path": gcs_path,
+                "gcs_bucket": gcs_bucket,
+                "gcs_path": gcs_path,
                 "width": DEFAULT_ASSET_WIDTH,
                 "height": DEFAULT_ASSET_HEIGHT,
             }

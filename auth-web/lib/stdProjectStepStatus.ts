@@ -5,7 +5,11 @@ export function summarizeStdProject(project: any, assets: any[] = []) {
  const payload = project.project_payload || {}
  const progress = project.progress_payload || {}
  const scenes = payload.scenes || payload.structure?.scenes || []
- const active = assets.filter(a => ['uploaded', 'assigned'].includes(a.status) && a.drive_file_id)
+ const active = assets.filter(a => {
+   if (!['uploaded', 'assigned'].includes(a.status)) return false
+   const metadata = a.metadata || {}
+   return Boolean(a.id && (metadata.gcs_path || metadata.storage_path || metadata.gcs_signed_url || metadata.gcs_public_url))
+ })
  const isTopicDone = Boolean(project.title)
  const isPlanningDone = Boolean(payload.structure || payload.pregenerated_structure || scenes.length)
  const isScriptDone = Boolean(payload.script || payload.pregenerated_script || scenes.some((s: any) => s.scene_text || s.narration))

@@ -11,6 +11,7 @@ import json
 import requests
 from typing import List, Optional, Union
 from config import config
+from services.subtitle_layout import subtitle_font_pixels
 
 
 def _get_scene_transition_mode() -> str:
@@ -1387,7 +1388,7 @@ class VideoService:
                 # [FIXED] Use WIDTH as base for visual consistency in Shorts (9:16)
                 # This prevents huge subtitles in vertical videos.
                 base_h = target_w
-                f_size = int(base_h * (float(font_size_percent) / 100.0))
+                f_size = round(subtitle_font_pixels(font_size_percent, target_w))
             else:
                 # 레거시 픽셀 모드
                 f_size = int(float(font_size_percent))
@@ -2772,6 +2773,19 @@ class VideoService:
         ]
 
         font_path = None
+        # Use the same source files as the web preview and fast ASS renderer.
+        from services.ffmpeg_slideshow_service import _web_font_catalog, _prepare_fonts_dir
+        import tempfile
+        from pathlib import Path
+        _, web_fonts = _web_font_catalog()
+        shared_web_font = font_name in web_fonts
+        if shared_web_font:
+            # TemporaryDirectory gives concurrent renders independent font files.
+            with tempfile.TemporaryDirectory(prefix='air-subtitle-font-') as font_temp:
+                prepared = _prepare_fonts_dir(font_temp, {'fontFamily': font_name})
+                font_bytes = next(Path(prepared).glob('*.ttf')).read_bytes()
+            import io
+            shared_font_stream = io.BytesIO(font_bytes)
         for path in search_paths:
             candidate = os.path.join(path, target_font_file)
             if os.path.exists(candidate):
@@ -2779,7 +2793,7 @@ class VideoService:
                 break
 
         # .ttf를 못 찾으면 동일 이름의 .woff 버전 시도 (PIL/FreeType은 woff 직접 로드 가능)
-        if not font_path and target_font_file.lower().endswith(".ttf"):
+        if not shared_web_font and not font_path and target_font_file.lower().endswith(".ttf"):
             woff_file = target_font_file[:-4] + ".woff"
             for path in search_paths:
                 candidate = os.path.join(path, woff_file)
@@ -2788,7 +2802,7 @@ class VideoService:
                     break
 
         # 로컬에 없으면 CSS 미리보기와 동일한 CDN에서 woff 자동 다운로드 후 캐시
-        if not font_path:
+        if not shared_web_font and not font_path:
             _font_cdn_map = {
                 "Jalnan.ttf":               "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_four@1.0/Jalnan.woff",
                 "TmonMonsori.ttf":          "https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/TmonMonsori.woff",
@@ -2827,7 +2841,7 @@ class VideoService:
         except Exception: pass
 
         # [FIX] Final fallback must be a RELIABLE Hangul font on Windows
-        if not font_path or not os.path.exists(font_path):
+        if not shared_web_font and (not font_path or not os.path.exists(font_path)):
              win_malgun = "C:/Windows/Fonts/malgun.ttf"
              win_malgun_bd = "C:/Windows/Fonts/malgunbd.ttf"
              if os.path.exists(win_malgun_bd):
@@ -2846,7 +2860,9 @@ class VideoService:
                          break
              
         try:
-            if font_path and os.path.exists(font_path):
+            if shared_web_font:
+                font = ImageFont.truetype(shared_font_stream, font_size)
+            elif font_path and os.path.exists(font_path):
                 # [FIX] TTC Index Handling (Gungsuh is index 2 in batang.ttc)
                 idx = 0
                 if "batang.ttc" in font_path.lower() and ("gungsuh" in font_name.lower() or "궁서" in font_name):

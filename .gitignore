@@ -93,3 +93,7 @@ rebuild_*_log.txt
 .codex-temp/
 .deploy-production/
 .mcp.json
+
+# Local render verification and Google service-account credentials
+/.pytest_tmp/
+/secret-well-*.json

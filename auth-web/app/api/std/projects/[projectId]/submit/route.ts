@@ -305,7 +305,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 submitted_asset_count: assets?.length || 0,
                 remote_task_id: renderQueueRow?.id || null,
                 remote_render_queue_id: renderQueueRow?.id || null,
-                remote_render_mode: renderQueueRow?.render_mode || 'drive_api',
+                remote_render_mode: renderQueueRow?.render_mode || 'gcs_api',
                 remote_asset_file_id: renderQueueRow?.asset_file_id || null,
                 remote_asset_file_name: renderQueueRow?.asset_file_name || null,
                 latest_render_version: renderVersion,

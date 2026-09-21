@@ -7733,34 +7733,46 @@ def _build_character_reference_image_prompt(character: dict, *, image_style_dire
     )
 
 
-def _supabase_content_asset_url(bucket: str, object_path: str) -> str:
-    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
-    return f"{supabase_url}/storage/v1/object/public/{bucket}/{object_path}"
+def _gcs_asset_api_url(bucket: str, object_path: str) -> str:
+    from urllib.parse import quote
+
+    return f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}&path={quote(object_path, safe='')}"
 
 
 def _upload_topic_character_image(topic_queue_id: str, character_key: str, image_bytes: bytes) -> tuple[str, str, str]:
-    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
-    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
-    if not supabase_url or not supabase_key:
-        raise RuntimeError("Supabase is required for character image storage")
     import requests as _req
+    from urllib.parse import quote
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
 
-    bucket = "content-assets"
+    client_email = os.getenv("GCS_CLIENT_EMAIL") or os.getenv("GOOGLE_CLIENT_EMAIL") or ""
+    private_key = os.getenv("GCS_PRIVATE_KEY") or os.getenv("GOOGLE_PRIVATE_KEY") or ""
+    project_id = os.getenv("GCS_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "air-studio-prod"
+    bucket = os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"
+    if not (client_email and private_key and bucket):
+        raise RuntimeError("GCS credentials are required for character image storage")
+    creds = service_account.Credentials.from_service_account_info(
+        {
+            "type": "service_account",
+            "project_id": project_id,
+            "private_key": private_key.replace("\\n", "\n"),
+            "client_email": client_email,
+            "token_uri": "https://oauth2.googleapis.com/token",
+        },
+        scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
+    )
+    creds.refresh(Request())
     object_path = f"topics/{topic_queue_id}/characters/{character_key}.png"
     response = _req.post(
-        f"{supabase_url}/storage/v1/object/{bucket}/{object_path}",
-        headers={
-            "apikey": supabase_key,
-            "Authorization": f"Bearer {supabase_key}",
-            "Content-Type": "image/png",
-            "x-upsert": "true",
-        },
+        f"https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket, safe='')}/o"
+        f"?uploadType=media&name={quote(object_path, safe='')}",
+        headers={"Authorization": f"Bearer {creds.token}", "Content-Type": "image/png"},
         data=image_bytes,
-        timeout=60,
+        timeout=300,
     )
     if response.status_code not in (200, 201):
-        raise RuntimeError(f"character image upload failed: HTTP {response.status_code} {response.text[:300]}")
-    return bucket, object_path, _supabase_content_asset_url(bucket, object_path)
+        raise RuntimeError(f"character image GCS upload failed: HTTP {response.status_code} {response.text[:300]}")
+    return bucket, object_path, _gcs_asset_api_url(bucket, object_path)
 
 
 async def _generate_character_anchor_images(
@@ -7854,7 +7866,7 @@ def _save_topic_character_assets(
             "prompt_en": character.get("prompt_en") or character.get("visual_dna_en"),
             "image_prompt": character.get("image_prompt"),
             "image_url": character.get("image_url"),
-            "storage_bucket": character.get("storage_bucket") or "content-assets",
+            "storage_bucket": character.get("storage_bucket") or os.getenv("GCS_BUCKET_NAME") or "air-studio-prod",
             "storage_object_path": character.get("storage_object_path"),
             "dna": {
                 "visual_dna_en": character.get("visual_dna_en"),
@@ -9492,7 +9504,7 @@ Hard retry rules:
             "enabled": True,
             "status": "ready",
             "stage": "after_script_before_media_prompts",
-            "storage_bucket": "content-assets",
+            "storage_bucket": os.getenv("GCS_BUCKET_NAME") or "air-studio-prod",
             "registry_table": "topic_character_assets",
         },
     }

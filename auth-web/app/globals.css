@@ -1,69 +1,123 @@
-@import url('https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&family=Jua&family=Do+Hyeon&family=Black+Han+Sans&display=swap');
 @import "tailwindcss";
 
+/* Sources shared with the render worker through fonts/catalog.json. */
 @font-face {
     font-family: 'CookieRun-Regular';
     src: url('/fonts/CookieRun-Regular.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'GmarketSansBold';
-    src: url('/fonts/GmarketSansBold.woff') format('woff');
+    src: url('/fonts/GmarketSansBold.otf') format('opentype');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'TmonMonsori';
     src: url('/fonts/TmonMonsori.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'Jalnan';
-    src: url('/fonts/JalnanOTF00.woff') format('woff');
+    src: url('/fonts/Jalnan.otf') format('opentype');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'Pretendard-Bold';
     src: url('/fonts/Pretendard-Bold.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'NanumSquareExtraBold';
-    src: url('/fonts/NanumSquareExtraBold.woff2') format('woff2');
+    src: url('/fonts/NanumSquareExtraBold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'BinggraeMelona-Bold';
-    src: url('/fonts/BinggraeMelona-Bold.woff') format('woff');
+    src: url('/fonts/BinggraeMelona-Bold.otf') format('opentype');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'NetmarbleB';
     src: url('/fonts/netmarbleB.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'ChosunIlboMyungjo';
     src: url('/fonts/Chosunilbo_myungjo.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'MapoFlowerIsland';
     src: url('/fonts/MapoFlowerIslandA.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 
 @font-face {
     font-family: 'S-CoreDream-6Bold';
     src: url('/fonts/S-CoreDream-6Bold.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Black Han Sans';
+    src: url('/fonts/BlackHanSans-Regular.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Jua';
+    src: url('/fonts/Jua-Regular.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Do Hyeon';
+    src: url('/fonts/DoHyeon-Regular.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'NanumMyeongjo';
+    src: url('/fonts/NanumMyeongjo-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
     font-display: swap;
 }
 

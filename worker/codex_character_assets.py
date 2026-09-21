@@ -13,6 +13,7 @@ import re
 import subprocess
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import requests
 from PIL import Image
@@ -96,20 +97,53 @@ class CharacterAssetStore:
             raise RuntimeError(f"Character storage {method} failed: HTTP {response.status_code}")
         return response
 
+    def _gcs_credentials(self):
+        client_email = os.getenv("GCS_CLIENT_EMAIL") or os.getenv("GOOGLE_CLIENT_EMAIL") or ""
+        private_key = os.getenv("GCS_PRIVATE_KEY") or os.getenv("GOOGLE_PRIVATE_KEY") or ""
+        project_id = os.getenv("GCS_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "air-studio-prod"
+        bucket = os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"
+        if not (client_email and private_key and bucket):
+            raise RuntimeError("GCS credentials are required for character image storage")
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import Request
+
+        creds = service_account.Credentials.from_service_account_info(
+            {
+                "type": "service_account",
+                "project_id": project_id,
+                "private_key": private_key.replace("\\n", "\n"),
+                "client_email": client_email,
+                "token_uri": "https://oauth2.googleapis.com/token",
+            },
+            scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
+        )
+        creds.refresh(Request())
+        return creds, bucket
+
+    def _upload_gcs_bytes(self, object_path: str, data: bytes, content_type: str) -> tuple[str, str, str]:
+        creds, bucket = self._gcs_credentials()
+        clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
+        response = requests.post(
+            f"https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket, safe='')}/o"
+            f"?uploadType=media&name={quote(clean_path, safe='')}",
+            headers={"Authorization": f"Bearer {creds.token}", "Content-Type": content_type},
+            data=data,
+            timeout=300,
+        )
+        if response.status_code not in (200, 201):
+            raise RuntimeError(f"Character image GCS upload failed: HTTP {response.status_code}")
+        media_url = f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}&path={quote(clean_path, safe='')}"
+        return bucket, clean_path, media_url
+
     def publish(self, topic_id: int, character: dict, path: Path, fingerprint: str, payload: dict) -> dict:
         data = validate_portrait(path)
         sha = hashlib.sha256(data).hexdigest()
         key = character["character_key"]
         object_path = f"topics/{topic_id}/characters/{key}-{sha[:20]}.png"
-        public = f"{self.base}/storage/v1/object/public/content-assets/{object_path}"
-        self.request("POST", "/storage/v1/object/content-assets/" + object_path,
-                     headers={"Content-Type": "image/png", "x-upsert": "true"}, data=data)
-        # Check actual anonymous bytes, not merely an upload response or URL string.
-        visible = requests.get(public, timeout=60)
-        if visible.status_code != 200 or hashlib.sha256(visible.content).hexdigest() != sha:
-            raise RuntimeError("Character image is not publicly readable or bytes do not match")
-        result = {**character, "image_url": public, "storage_bucket": "content-assets",
-                  "storage_object_path": object_path, "image_generation_status": "ready",
+        bucket, gcs_path, media_url = self._upload_gcs_bytes(object_path, data, "image/png")
+        result = {**character, "image_url": media_url, "storage_bucket": bucket,
+                  "storage_object_path": gcs_path, "storage_provider": "gcs",
+                  "gcs_bucket": bucket, "gcs_path": gcs_path, "image_generation_status": "ready",
                   "generation_model": "codex_builtin_image_gen", "source": VERSION,
                   "reference_fingerprint": fingerprint}
         record = {k: result.get(k) for k in ("character_key", "name", "role", "gender", "age_group",
@@ -123,7 +157,7 @@ class CharacterAssetStore:
                      headers={"Prefer": "resolution=merge-duplicates,return=representation"}, json=record)
         rows = self.request("GET", "/rest/v1/topic_character_assets",
                             params={"topic_queue_id": f"eq.{topic_id}", "character_key": f"eq.{key}", "select": "image_url,usage_context"}).json()
-        if len(rows) != 1 or rows[0]["image_url"] != public or rows[0]["usage_context"] != record["usage_context"]:
+        if len(rows) != 1 or rows[0]["image_url"] != media_url or rows[0]["usage_context"] != record["usage_context"]:
             raise RuntimeError("Character registry read-back verification failed")
         return result
 
@@ -197,4 +231,5 @@ def generate_character_references(context: dict, payload: dict, config, output_d
     return {"main_character": enriched[0], "supporting_characters": enriched[1:], "max_character_anchors": 3,
             "character_image_generation": {"enabled": True, "status": "ready", "count": len(enriched),
                 "stage": "after_script_before_media_prompts", "generator": "codex_builtin_image_gen",
-                "registry_table": "topic_character_assets", "storage_bucket": "content-assets"}}
+                "registry_table": "topic_character_assets",
+                "storage_bucket": os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"}}

@@ -6,15 +6,6 @@ import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredVideoScene } from './stdPolicy'
 import { nextStdRenderVersion, normalizeStdRenderHistory } from './stdRenderVersion'
 import {
-    downloadStdDriveFile,
-    driveFileLink,
-    driveFolderLink,
-    ensureStdProjectDriveFolders,
-    folderForAssetType,
-    upsertStdDriveJsonFile,
-    uploadStdDriveBuffer,
-} from './stdGoogleDrive'
-import {
     createGcsSignedReadUrl,
     downloadGcsObject,
     isGcsStorageConfigured,
@@ -135,7 +126,7 @@ function storageSourceForAsset(asset: any) {
     const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
     const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
     const bucket = String(metadata?.storage_bucket || nestedMetadata?.storage_bucket || 'content-assets').trim()
-    const provider = String(metadata?.storage_provider || nestedMetadata?.storage_provider || 'supabase').trim().toLowerCase()
+    const provider = String(metadata?.storage_provider || nestedMetadata?.storage_provider || '').trim().toLowerCase()
     const path = String(
         metadata?.storage_path
         || metadata?.storage_object_path
@@ -145,7 +136,8 @@ function storageSourceForAsset(asset: any) {
     ).trim().replace(/^\/+/, '')
     const gcsBucket = String(metadata?.gcs_bucket || nestedMetadata?.gcs_bucket || (provider === 'gcs' ? bucket : '')).trim()
     const gcsPath = String(metadata?.gcs_path || nestedMetadata?.gcs_path || (provider === 'gcs' ? path : '')).trim().replace(/^\/+/, '')
-    return path ? { bucket, path, provider, gcsBucket, gcsPath } : null
+    if (gcsPath) return { bucket, path: path || gcsPath, provider: 'gcs', gcsBucket, gcsPath }
+    return null
 }
 
 async function storageManifestFields(storage: { bucket: string; path: string; provider?: string; gcsBucket?: string; gcsPath?: string } | null) {
@@ -165,12 +157,9 @@ async function storageManifestFields(storage: { bucket: string; path: string; pr
         }
     }
     return {
-        storage_provider: storage.provider || 'supabase',
+        storage_provider: 'gcs',
         storage_bucket: storage.bucket,
         storage_path: storage.path,
-        // Backward-compatible field names for existing render workers:
-        supabase_bucket: storage.bucket,
-        supabase_path: storage.path,
         gcs_bucket: targetGcsBucket || undefined,
         gcs_path: targetGcsPath || undefined,
         gcs_signed_url: gcsSignedUrl,
@@ -178,32 +167,17 @@ async function storageManifestFields(storage: { bucket: string; path: string; pr
 }
 
 async function downloadStorageSource(storage: { bucket: string; path: string; provider?: string; gcsBucket?: string; gcsPath?: string }) {
-    // 1차: Supabase Storage
-    const bucket = storage.bucket || 'content-assets'
-    const path = storage.path
-    if (bucket && path) {
-        try {
-            const { data, error } = await supabaseAdmin.storage.from(bucket).download(path)
-            if (!error && data) {
-                return Buffer.from(await data.arrayBuffer())
-            }
-        } catch (e: any) {
-            console.warn('[stdRenderQueue] 1st Supabase download failed, checking 2nd GCS:', e?.message)
-        }
-    }
-
-    // 2차: GCS
     const targetGcsPath = storage.gcsPath || storage.path
     const targetGcsBucket = storage.gcsBucket || storage.bucket
     if (targetGcsPath && isGcsStorageConfigured()) {
         try {
             return await downloadGcsObject({ bucket: targetGcsBucket, objectPath: targetGcsPath })
         } catch (gcsError: any) {
-            console.warn('[stdRenderQueue] 2nd GCS download failed:', gcsError?.message)
+            console.warn('[stdRenderQueue] GCS download failed:', gcsError?.message)
         }
     }
 
-    throw new Error('스토리지 파일을 불러오지 못했습니다. (Supabase 및 GCS 모두 불가)')
+    throw new Error('스토리지 파일을 GCS에서 불러오지 못했습니다.')
 }
 
 export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
@@ -220,7 +194,7 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             activeAsset(asset)
             && String(asset?.asset_type || '').toLowerCase() === 'video'
             && Number(asset?.scene_number) === sceneNumber
-            && (String(asset?.drive_file_id || '').trim() || storageSourceForAsset(asset))
+            && storageSourceForAsset(asset)
         ))
     })
 
@@ -243,8 +217,8 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             scene_id: scene?.id || existingAsset?.scene_id || null,
             scene_number: sceneNumber,
             asset_type: 'video',
-            drive_file_id: existingAsset?.drive_file_id || null,
-            drive_folder_id: existingAsset?.drive_folder_id || null,
+            drive_file_id: null,
+            drive_folder_id: null,
             file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}.mp4`,
             mime_type: existingAsset?.mime_type || 'video/mp4',
             file_size: existingAsset?.file_size || null,
@@ -288,21 +262,15 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             activeAsset(asset)
             && String(asset?.asset_type || '').toLowerCase() === 'image'
             && Number(asset?.scene_number) === sceneNumber
-            && (String(asset?.drive_file_id || '').trim() || storageSourceForAsset(asset))
+            && storageSourceForAsset(asset)
         ))
     })
     if (missingGeneratedImages.length === 0) return activeAssets
 
-    let folders: any = null
-    let targetFolderId: string | null = null
-    try {
-        folders = await ensureStdProjectDriveFolders(project)
-        targetFolderId = folderForAssetType(folders, 'image')
-    } catch (driveFolderErr: any) {
-        console.warn('[STD RenderQueue] Google Drive folder setup skipped or failed for scene images:', driveFolderErr?.message || driveFolderErr)
-    }
-
     const gcsConfigured = await isGcsConfiguredAsync()
+    if (!gcsConfigured) {
+        throw new Error('GCS is not configured for generated scene asset archiving.')
+    }
 
     for (const scene of missingGeneratedImages) {
         const sceneNumber = Number(scene.scene_number)
@@ -317,38 +285,11 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
 
         const imageBuffer = Buffer.from(await storageFile.arrayBuffer())
 
-        let gcsMetadata: any = {}
-        if (gcsConfigured) {
-            try {
-                const gcsRes = await uploadGcsBuffer({
-                    objectPath: source.path,
-                    buffer: imageBuffer,
-                    contentType: 'image/png',
-                })
-                gcsMetadata = {
-                    secondary_storage_provider: 'gcs',
-                    gcs_bucket: gcsRes.bucket,
-                    gcs_path: gcsRes.path,
-                }
-            } catch (gcsErr: any) {
-                console.warn(`[STD RenderQueue] Scene ${sceneNumber} GCS archive failed:`, gcsErr?.message || gcsErr)
-            }
-        }
-
-        let driveFile: any = null
-        if (targetFolderId) {
-            try {
-                driveFile = await uploadStdDriveBuffer(
-                    targetFolderId,
-                    `scene_${String(sceneNumber).padStart(3, '0')}.png`,
-                    imageBuffer,
-                    'image/png',
-                    `AIR Studio generated scene image archive for project ${project.id}`
-                )
-            } catch (driveErr: any) {
-                console.warn(`[STD RenderQueue] Scene ${sceneNumber} Drive upload skipped/failed:`, driveErr?.message || driveErr)
-            }
-        }
+        const gcsRes = await uploadGcsBuffer({
+            objectPath: source.path,
+            buffer: imageBuffer,
+            contentType: 'image/png',
+        })
 
         const existingAsset = activeAssets.find((asset: any) => (
             activeAsset(asset)
@@ -360,21 +301,19 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             storage_bucket: source.bucket,
             storage_path: source.path,
             storage_public_url: supabaseAdmin.storage.from(source.bucket).getPublicUrl(source.path).data.publicUrl,
-            ...gcsMetadata,
-            ...(driveFile ? {
-                web_view_link: driveFile.webViewLink || driveFileLink(driveFile.id),
-                thumbnail_link: driveFile.thumbnailLink || null,
-            } : {}),
-            upload_mode: 'worker_generated_supabase_then_gcs_archive',
+            storage_provider: 'gcs',
+            gcs_bucket: gcsRes.bucket,
+            gcs_path: gcsRes.path,
+            upload_mode: 'worker_generated_gcs_archive',
         }
         const assetPayload = {
             scene_id: scene?.id || existingAsset?.scene_id || null,
             scene_number: sceneNumber,
             asset_type: 'image',
-            drive_file_id: driveFile?.id || null,
-            drive_folder_id: targetFolderId || null,
-            file_name: driveFile?.name || `scene_${String(sceneNumber).padStart(3, '0')}.png`,
-            mime_type: driveFile?.mimeType || 'image/png',
+            drive_file_id: null,
+            drive_folder_id: null,
+            file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}.png`,
+            mime_type: existingAsset?.mime_type || 'image/png',
             file_size: imageBuffer.length,
             status: 'assigned',
             metadata,
@@ -461,7 +400,7 @@ function buildRenderSubtitles(project: any, scenes: any[]) {
 }
 
 function sentenceComplete(text: string) {
-    return /[.!?。！？…]|[.?!]["')\]]$|[다요죠까네군음함임됨됨니다습니다]\.?$/.test(String(text || '').trim())
+    return /[.!?。！？…]["'”’)\]]*$/.test(String(text || '').trim())
 }
 
 function buildWorkerTtsPlan(project: any, subtitles: any[]) {
@@ -488,14 +427,14 @@ function buildWorkerTtsPlan(project: any, subtitles: any[]) {
         const subtitle = subtitles[index]
         const voiceId = String(subtitle.voice_id || defaultVoiceId).trim()
         if (!voiceId) continue
-        const direction = String(subtitle.direction || settings.voice_direction || '').trim()
+        const direction = voiceId.startsWith('gemini:') ? String(subtitle.direction || settings.voice_direction || '').trim() : ''
         const previous = segments[segments.length - 1]
         const canMerge = previous
             && previous.voice_id === voiceId
             && previous.direction === direction
-            && Buffer.byteLength(`${previous.text}\n${subtitle.text}`, 'utf8') <= 1100
+            && (previous.text.length < 350 || !sentenceComplete(previous.text))
         if (canMerge) {
-            previous.text += `\n${subtitle.text}`
+            previous.text += ` ${subtitle.text}`
             previous.subtitle_indices.push(index)
             previous.scene_numbers.push(subtitle.scene_number || null)
         } else {
@@ -670,7 +609,7 @@ async function downloadRenderAudio(asset: any): Promise<Buffer> {
     if (storage) {
         return downloadStorageSource(storage)
     }
-    return downloadStdDriveFile(asset.drive_file_id)
+    throw new Error('렌더용 오디오 파일의 GCS 저장 정보가 없습니다.')
 }
 
 async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
@@ -679,8 +618,8 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const audioAsset = activeAssets.find(isAudioAsset)
 
-    if (!audioAsset?.drive_file_id && !storageSourceForAsset(audioAsset)) {
-        throw new Error('렌더용 오디오 파일이 없습니다. 기존 렌더 큐와 동일하게 제출하려면 ZIP 안에 audio/* TTS 파일이 필요합니다.')
+    if (!storageSourceForAsset(audioAsset)) {
+        throw new Error('렌더용 오디오 파일이 없습니다. GCS 저장 정보가 필요합니다.')
     }
 
     const audioExt = mediaExtension(audioAsset.file_name, audioAsset.mime_type, '.mp3')
@@ -703,7 +642,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         )
         const asset = videoAsset || imageAsset
         const assetStorage = storageSourceForAsset(asset)
-        if (!asset?.drive_file_id && !assetStorage) {
+        if (!assetStorage) {
             images.push(null)
             continue
         }
@@ -711,7 +650,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         const filename = `scene_${String(sceneNumber).padStart(3, '0')}${ext}`
         entries.push({
             path: `images/${filename}`,
-            data: assetStorage ? await downloadStorageSource(assetStorage) : await downloadStdDriveFile(asset.drive_file_id),
+            data: await downloadStorageSource(assetStorage),
         })
         images.push(filename)
     }
@@ -723,12 +662,12 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
     const thumbnailStorage = thumbnailAsset ? storageSourceForAsset(thumbnailAsset) : null
-    if (thumbnailAsset?.drive_file_id || thumbnailStorage) {
+    if (thumbnailStorage) {
         const ext = mediaExtension(thumbnailAsset.file_name, thumbnailAsset.mime_type, '.png')
         thumbnailFilename = `thumbnail${ext}`
         entries.push({
             path: thumbnailFilename,
-            data: thumbnailStorage ? await downloadStorageSource(thumbnailStorage) : await downloadStdDriveFile(thumbnailAsset.drive_file_id),
+            data: await downloadStorageSource(thumbnailStorage),
         })
     }
 
@@ -808,13 +747,13 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     return createStoredZip(entries)
 }
 
-async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
+async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
     const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const audioAsset = activeAssets.find(isAudioAsset)
 
-    if (!audioAsset?.drive_file_id && !storageSourceForAsset(audioAsset)) {
-        throw new Error('렌더용 오디오 파일이 없습니다. 저장된 TTS 파일이 있어야 제출할 수 있습니다.')
+    if (!storageSourceForAsset(audioAsset)) {
+        throw new Error('렌더용 오디오 파일이 없습니다. GCS 저장 정보가 필요합니다.')
     }
 
     const manifestFiles: any[] = []
@@ -823,7 +762,6 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
     const audioStorage = storageSourceForAsset(audioAsset)
     manifestFiles.push({
         asset_type: 'audio',
-        drive_file_id: audioAsset.drive_file_id,
         path: `audio/${audioFilename}`,
         file_name: audioAsset.file_name,
         mime_type: audioAsset.mime_type,
@@ -844,7 +782,7 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
         )
         const asset = videoAsset || imageAsset
         const assetStorage = storageSourceForAsset(asset)
-        if (!asset?.drive_file_id && !assetStorage) {
+        if (!assetStorage) {
             images.push(null)
             continue
         }
@@ -854,7 +792,6 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
         manifestFiles.push({
             asset_type: String(asset.asset_type || '').toLowerCase(),
             scene_number: sceneNumber,
-            drive_file_id: asset.drive_file_id,
             path: `images/${filename}`,
             file_name: asset.file_name,
             mime_type: asset.mime_type,
@@ -870,12 +807,11 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
     const thumbnailStorage = thumbnailAsset ? storageSourceForAsset(thumbnailAsset) : null
-    if (thumbnailAsset?.drive_file_id || thumbnailStorage) {
+    if (thumbnailStorage) {
         const ext = mediaExtension(thumbnailAsset.file_name, thumbnailAsset.mime_type, '.png')
         thumbnailFilename = `thumbnail${ext}`
         manifestFiles.push({
             asset_type: 'thumbnail',
-            drive_file_id: thumbnailAsset.drive_file_id,
             path: thumbnailFilename,
             file_name: thumbnailAsset.file_name,
             mime_type: thumbnailAsset.mime_type,
@@ -890,23 +826,21 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
     }
     const audioEffectAssets = activeAssets.filter((asset: any) => {
         const type = String(asset.asset_type || '').toLowerCase()
-        return ['bgm', 'sfx'].includes(type) && (String(asset.drive_file_id || '').trim() || storageSourceForAsset(asset))
+        return ['bgm', 'sfx'].includes(type) && storageSourceForAsset(asset)
     })
     const assetById = new Map(audioEffectAssets.map((asset: any) => [String(asset.id), asset]))
     const bgmAssetId = String(projectRenderSettings.bgm_asset_id || project.project_payload?.bgm_asset_id || '').trim()
     const bgmAsset = bgmAssetId ? assetById.get(bgmAssetId) : null
-    const bgmDriveFileId = String(projectRenderSettings.bgm_drive_file_id || '').trim()
     let bgmPath = ''
-    if (Number(projectRenderSettings.bgm_volume ?? 0.08) > 0 && (bgmAsset || bgmDriveFileId)) {
-        bgmPath = bgmAsset ? audioManifestPath(bgmAsset, 'bgm') : 'audio/library-bgm.mp3'
-        const bgmStorage = bgmAsset ? storageSourceForAsset(bgmAsset) : null
+    if (Number(projectRenderSettings.bgm_volume ?? 0.08) > 0 && bgmAsset) {
+        bgmPath = audioManifestPath(bgmAsset, 'bgm')
+        const bgmStorage = storageSourceForAsset(bgmAsset)
         manifestFiles.push({
             asset_type: 'bgm',
-            drive_file_id: bgmAsset?.drive_file_id || bgmDriveFileId,
             path: bgmPath,
-            file_name: bgmAsset?.file_name || projectRenderSettings.bgm_file_name || 'library-bgm.mp3',
-            mime_type: bgmAsset?.mime_type || 'audio/mpeg',
-            size: bgmAsset?.file_size || null,
+            file_name: bgmAsset.file_name || projectRenderSettings.bgm_file_name || 'library-bgm.mp3',
+            mime_type: bgmAsset.mime_type || 'audio/mpeg',
+            size: bgmAsset.file_size || null,
             ...(await storageManifestFields(bgmStorage)),
         })
     }
@@ -922,14 +856,7 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
         const assetId = String(cue.asset_id || '').trim()
         const asset = assetId ? assetById.get(assetId) : null
         const libraryKey = String(cue.library_key || cue.key || '').trim()
-        if (!asset?.drive_file_id && !storageSourceForAsset(asset)) {
-            const driveFileId = String(cue.drive_file_id || '').trim()
-            if (driveFileId) {
-                const path = `audio/sfx-library-${index + 1}.mp3`
-                manifestFiles.push({ asset_type: 'sfx', drive_file_id: driveFileId, path, file_name: cue.file_name || path, mime_type: 'audio/mpeg', size: null })
-                sfxCues.push({ ...cue, path, filename: path, start: clampNumber(cue.start ?? cue.time, 0, 0, 24 * 60 * 60), volume_db: clampNumber(cue.volume_db, -18, -60, 12) })
-                continue
-            }
+        if (!storageSourceForAsset(asset)) {
             if (!libraryKey) continue
             sfxCues.push({
                 ...cue,
@@ -946,7 +873,6 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
             asset_type: 'sfx',
             scene_number: Number(cue.scene_number) || null,
             subtitle_index: Number.isFinite(Number(cue.subtitle_index)) ? Number(cue.subtitle_index) : null,
-            drive_file_id: asset.drive_file_id,
             path,
             file_name: asset.file_name,
             mime_type: asset.mime_type,
@@ -1030,7 +956,7 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
         sfx_cues: sfxCues,
         asset_manifest: {
             version: 1,
-            transport: 'google_drive_folder',
+            transport: 'gcs_manifest',
             files: manifestFiles,
         },
         project_upload_metadata: {
@@ -1063,63 +989,15 @@ export async function enqueueStdProjectRender(projectId: string) {
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
     const taskId = randomUUID()
 
-    let folders: any = null
-    try {
-        folders = await ensureStdProjectDriveFolders(project)
-    } catch (driveFolderErr: any) {
-        console.warn('[STD RenderQueue] Google Drive folder setup skipped or failed:', driveFolderErr?.message || driveFolderErr)
-    }
-
     const archivedAssets = await ensureStdGeneratedSceneAssetsArchived(project, scenes, assets)
     const renderConfig = {
-        ...(await buildDriveFolderRenderConfig(project, scenes, archivedAssets, pseudoProjectId)),
+        ...(await buildGcsRenderConfig(project, scenes, archivedAssets, pseudoProjectId)),
         render_version: renderVersion,
         std_web_project_id: project.id,
     }
 
-    let scriptFile: any = null
-    let publishMetadataFile: any = null
-    let configFile: any = null
-
-    if (folders?.projectFolderId) {
-        try {
-            scriptFile = await upsertStdDriveJsonFile(folders.projectFolderId, 'script.json', {
-                project_id: project.id,
-                render_version: renderVersion,
-                topic_queue_id: project.topic_queue_id,
-                title: project.title,
-                language: project.language || 'ko',
-                script: project.project_payload?.script || project.project_payload?.original_worker_script || '',
-                scenes: scenes.map((scene: any) => ({
-                    scene_number: scene.scene_number,
-                    scene_title: scene.scene_title || '',
-                    scene_text: scene.scene_text || '',
-                    image_prompt: scene.image_prompt || '',
-                    video_prompt: scene.video_prompt || '',
-                })),
-            })
-            publishMetadataFile = await upsertStdDriveJsonFile(
-                folders.projectFolderId,
-                'publish_metadata.json',
-                renderConfig.project_upload_metadata
-            )
-            configFile = await upsertStdDriveJsonFile(folders.projectFolderId, 'config.json', renderConfig)
-        } catch (driveJsonErr: any) {
-            console.warn('[STD RenderQueue] Google Drive JSON uploads skipped or failed:', driveJsonErr?.message || driveJsonErr)
-        }
-    }
-
     const configStoragePath = `std-projects/${project.id}/render-packages/${taskId}/config.json`
     const configJsonBuffer = Buffer.from(JSON.stringify(renderConfig, null, 2), 'utf8')
-    const { error: configStorageError } = await supabaseAdmin.storage
-        .from('content-assets')
-        .upload(configStoragePath, configJsonBuffer, {
-            contentType: 'application/json',
-            upsert: true,
-        })
-    if (configStorageError) {
-        console.warn('[STD RenderQueue] Supabase config fallback backup failed:', configStorageError.message)
-    }
 
     let gcsConfigSignedUrl: string | undefined
     if (await isGcsConfiguredAsync()) {
@@ -1134,61 +1012,41 @@ export async function enqueueStdProjectRender(projectId: string) {
                 expiresInMinutes: 240,
             })
         } catch (gcsErr: any) {
-            console.warn('[STD RenderQueue] GCS config secondary backup failed:', gcsErr?.message || gcsErr)
+            console.warn('[STD RenderQueue] GCS config upload failed:', gcsErr?.message || gcsErr)
         }
     }
+    if (!gcsConfigSignedUrl) {
+        throw new Error('GCS config upload failed. Remote render requires a GCS signed config URL.')
+    }
 
-    const effectiveConfigFileId = configFile?.id || taskId
     const metadata = {
         queue_scope: 'remote_render',
         worker_platform: 'korea_render_pc',
         upload_owner: 'web_admin',
         publish_owner: 'web_admin',
         visibility_control: 'web_admin_pending',
-        package_transport: folders?.projectFolderId ? 'google_drive_folder' : 'storage_direct',
+        package_transport: 'gcs_config',
         job_stage: 'pending',
-        asset_file_id: effectiveConfigFileId,
-        asset_file_name: configFile?.name || 'config.json',
-        asset_file_size: configFile?.size ? Number(configFile.size) : configJsonBuffer.length,
-        asset_web_link: configFile?.webViewLink || gcsConfigSignedUrl || driveFileLink(effectiveConfigFileId),
-        config_file_id: effectiveConfigFileId,
-        config_file_name: configFile?.name || 'config.json',
-        config_file_size: configFile?.size ? Number(configFile.size) : configJsonBuffer.length,
-        config_web_link: configFile?.webViewLink || gcsConfigSignedUrl || driveFileLink(effectiveConfigFileId),
-        ...(!configStorageError ? {
-            supabase_config: {
-                bucket: 'content-assets',
-                path: configStoragePath,
-                ...(gcsConfigSignedUrl ? { gcs_signed_url: gcsConfigSignedUrl, gcs_path: configStoragePath } : {}),
-            },
-        } : {}),
-        ...(gcsConfigSignedUrl ? {
-            gcs_config: {
-                bucket: gcsBucketName(),
-                path: configStoragePath,
-                signed_url: gcsConfigSignedUrl,
-            },
-        } : {}),
-        storage_provider: 'supabase',
-        secondary_storage_provider: 'gcs',
-        ...(scriptFile ? {
-            script_file_id: scriptFile.id,
-            script_file_name: scriptFile.name,
-            script_web_link: scriptFile.webViewLink || driveFileLink(scriptFile.id),
-        } : {}),
-        ...(publishMetadataFile ? {
-            publish_metadata_file_id: publishMetadataFile.id,
-            publish_metadata_file_name: publishMetadataFile.name,
-            publish_metadata_web_link: publishMetadataFile.webViewLink || driveFileLink(publishMetadataFile.id),
-        } : {}),
+        asset_file_id: taskId,
+        asset_file_name: 'config.json',
+        asset_file_size: configJsonBuffer.length,
+        asset_web_link: gcsConfigSignedUrl,
+        config_file_id: taskId,
+        config_file_name: 'config.json',
+        config_file_size: configJsonBuffer.length,
+        config_web_link: gcsConfigSignedUrl,
+        gcs_config: {
+            bucket: gcsBucketName(),
+            path: configStoragePath,
+            signed_url: gcsConfigSignedUrl,
+        },
+        storage_provider: 'gcs',
         manifest_file_count: renderConfig.asset_manifest.files.length,
         source: 'picadiri_local_app',
         std_web_project_id: project.id,
         render_version: renderVersion,
         previous_render_queue_id: previousRender?.id || null,
         topic_queue_id: project.topic_queue_id,
-        drive_folder_id: folders?.projectFolderId || null,
-        drive_folder_link: folders?.projectFolderId ? driveFolderLink(folders.projectFolderId) : null,
         admin_publish_ready: false,
         admin_publish_status: 'render_pending',
     }
@@ -1201,12 +1059,10 @@ export async function enqueueStdProjectRender(projectId: string) {
         email: project.employee_email || 'unknown',
         status: 'pending',
         progress: 0,
-        message: folders?.projectFolderId
-            ? 'Google Drive project folder manifest ready. Waiting for remote render.'
-            : 'Cloud Storage project manifest ready. Waiting for remote render.',
-        render_mode: 'drive_api',
-        asset_file_id: effectiveConfigFileId,
-        asset_file_name: configFile?.name || 'config.json',
+        message: 'GCS config manifest ready. Waiting for remote render.',
+        render_mode: 'gcs_api',
+        asset_file_id: taskId,
+        asset_file_name: 'config.json',
         metadata,
         updated_at: now,
     }
@@ -1229,19 +1085,14 @@ export async function enqueueStdProjectRender(projectId: string) {
         supabaseAdmin
             .from('std_projects')
             .update({
-                drive_folder_id: folders?.projectFolderId || project.drive_folder_id || null,
                 progress_payload: {
                     ...(project.progress_payload || {}),
                     remote_task_id: taskId,
                     remote_render_queue_id: taskId,
-                    remote_render_mode: 'drive_api',
-                    remote_asset_file_id: effectiveConfigFileId,
-                    remote_asset_file_name: configFile?.name || 'config.json',
-                    remote_asset_web_link: configFile?.webViewLink || gcsConfigSignedUrl || driveFileLink(effectiveConfigFileId),
-                    remote_script_file_id: scriptFile?.id || null,
-                    remote_script_web_link: scriptFile?.webViewLink || (scriptFile?.id ? driveFileLink(scriptFile.id) : null),
-                    remote_publish_metadata_file_id: publishMetadataFile?.id || null,
-                    remote_publish_metadata_web_link: publishMetadataFile?.webViewLink || (publishMetadataFile?.id ? driveFileLink(publishMetadataFile.id) : null),
+                    remote_render_mode: 'gcs_api',
+                    remote_asset_file_id: taskId,
+                    remote_asset_file_name: 'config.json',
+                    remote_asset_web_link: gcsConfigSignedUrl,
                     remote_render_queue_payload: payload,
                     latest_render_version: renderVersion,
                     editing_render_version: null,

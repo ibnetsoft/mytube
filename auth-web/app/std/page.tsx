@@ -1,4 +1,5 @@
 'use client'
+import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
@@ -537,25 +538,7 @@ const ELEVENLABS_VOICES = [
     },
 ]
 
-const SUBTITLE_FONTS = [
-    { value: 'GmarketSansBold', label: 'GmarketSansBold' },
-    { value: 'TmonMonsori', label: 'TmonMonsori' },
-    { value: 'Jalnan', label: 'Jalnan' },
-    { value: 'Black Han Sans', label: 'Black Han Sans' },
-    { value: 'Pretendard-Bold', label: 'Pretendard-Bold' },
-    { value: 'NanumSquareExtraBold', label: 'NanumSquareExtraBold' },
-    { value: 'Jua', label: 'Jua' },
-    { value: 'Do Hyeon', label: 'Do Hyeon' },
-    { value: 'CookieRun-Regular', label: 'CookieRun-Regular' },
-    { value: 'BinggraeMelona-Bold', label: 'BinggraeMelona-Bold' },
-    { value: 'NetmarbleB', label: 'NetmarbleB' },
-    { value: 'ChosunIlboMyungjo', label: 'ChosunIlboMyungjo' },
-    { value: 'MapoFlowerIsland', label: 'MapoFlowerIsland' },
-    { value: 'S-CoreDream-6Bold', label: 'S-CoreDream-6Bold' },
-    { value: 'Gungsuh', label: 'Gungsuh' },
-    { value: 'NanumMyeongjo', label: 'NanumMyeongjo' },
-    { value: 'Malgun Gothic', label: 'Malgun Gothic' },
-]
+const SUBTITLE_FONTS = Object.keys(subtitleFontCatalog).map(value => ({ value, label: value }))
 
 const DEFAULT_SUBTITLE_PRESETS = [
     {
@@ -1196,7 +1179,7 @@ export default function StdPortalPage() {
     // 7. 렌더(Render) 탭 전용 상태 (유저앱 render.html 100% 동일 구현)
     const [renderResolution, setRenderResolution] = useState<'1080p' | '720p'>('1080p')
     const [renderUseSubtitles, setRenderUseSubtitles] = useState(true)
-    const [renderTarget, setRenderTarget] = useState<'drive_api' | 'local'>('drive_api')
+    const [renderTarget, setRenderTarget] = useState<'gcs_api' | 'local'>('gcs_api')
     const [isRendering, setIsRendering] = useState(false)
     const [renderProgress, setRenderProgress] = useState(0)
     const [renderLogList, setRenderLogList] = useState<string[]>([
@@ -2312,7 +2295,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES = 0
+    const GCS_DIRECT_UPLOAD_THRESHOLD_BYTES = 0
 
     const inferVisualMimeType = (file: File, assetType: 'image' | 'video' | 'thumbnail') => {
         const explicitType = String(file.type || '').trim()
@@ -2326,47 +2309,6 @@ export default function StdPortalPage() {
         if (/\.webp$/i.test(lowerFileName)) return 'image/webp'
         if (/\.gif$/i.test(lowerFileName)) return 'image/gif'
         return assetType === 'video' ? 'video/mp4' : 'application/octet-stream'
-    }
-
-    const uploadDriveFileViaChunkProxy = async (uploadUrl: string, file: File, mimeType: string) => {
-        if (!selectedProject?.project?.id) throw new Error('Project not selected')
-        const chunkSize = 2 * 1024 * 1024
-        let uploadedBytes = 0
-        let finalDriveFile: any = null
-
-        while (uploadedBytes < file.size) {
-            const start = uploadedBytes
-            const end = Math.min(file.size, start + chunkSize) - 1
-            const chunk = file.slice(start, end + 1, mimeType)
-            setMessage(`Opera/브라우저 차단 우회 업로드 중... ${Math.round(((end + 1) / file.size) * 100)}%`)
-
-            const chunkRes = await fetch(
-                `/api/std/projects/${selectedProject.project.id}/assets/chunk?upload_url=${encodeURIComponent(uploadUrl)}`,
-                {
-                    method: 'POST',
-                    headers: {
-                        ...authedUploadHeaders,
-                        'Content-Type': mimeType,
-                        'Content-Range': `bytes ${start}-${end}/${file.size}`,
-                    },
-                    body: chunk,
-                }
-            )
-            const chunkPayload = await safeParseJson(chunkRes, 'Drive chunk upload failed')
-            if (!chunkRes.ok || chunkPayload.success === false) {
-                throw new Error(chunkPayload.error || `Drive chunk upload failed (${chunkRes.status})`)
-            }
-            if (chunkPayload.complete) {
-                finalDriveFile = chunkPayload.drive_file
-                break
-            }
-            uploadedBytes = end + 1
-        }
-
-        if (!finalDriveFile?.id) {
-            throw new Error('Drive upload finished without a file id')
-        }
-        return finalDriveFile
     }
 
     const downloadAllSceneImages = async () => {
@@ -5591,7 +5533,7 @@ export default function StdPortalPage() {
             const mimeType = inferVisualMimeType(file, actualAssetType)
             let persistedAsset: any = null
             const shouldUseDirectStorageUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
-                && file.size >= DRIVE_DIRECT_UPLOAD_THRESHOLD_BYTES
+                && file.size >= GCS_DIRECT_UPLOAD_THRESHOLD_BYTES
 
             if (shouldUseDirectStorageUpload) {
                 setMessage(`파일 (${file.name}) 스토리지 업로드 준비 중...`)
@@ -5620,7 +5562,7 @@ export default function StdPortalPage() {
                 })
                 if (!storageRes.ok) {
                     const storageError = await storageRes.text().catch(() => '')
-                    throw new Error(storageError || 'Supabase Storage asset upload failed')
+                    throw new Error(storageError || 'GCS asset upload failed')
                 }
                 if (!isCurrent()) throw new Error('Upload context changed')
 
@@ -5957,7 +5899,7 @@ export default function StdPortalPage() {
                 throw new Error(initPayload.error || '썸네일 업로드 준비 실패')
             }
 
-            setMessage('썸네일 이미지를 Supabase Storage에 업로드하는 중...')
+            setMessage('썸네일 이미지를 GCS에 업로드하는 중...')
             const storageRes = await fetch(initPayload.storage_upload_url, {
                 method: 'PUT',
                 headers: { 'Content-Type': mimeType },
@@ -9032,6 +8974,9 @@ export default function StdPortalPage() {
                                                 }}
                                                 className="text-[11px] bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-1.5 text-white font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer w-28 sm:w-32"
                                             >
+                                                {!SUBTITLE_FONTS.some(f => f.value === subFontFamily) && (
+                                                    <option value={subFontFamily}>{subFontFamily} (Windows)</option>
+                                                )}
                                                 {SUBTITLE_FONTS.map(f => (
                                                     <option key={f.value} value={f.value} style={{ fontFamily: f.value }} className="bg-[#1c2027] text-white">
                                                         {f.label}
@@ -9777,7 +9722,7 @@ export default function StdPortalPage() {
                                             cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
                                             headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
                                         <div
-                                            className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden"
+                                            className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden [container-type:inline-size]"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
                                                 ? { backgroundColor: templateBgColor || '#000000' }
                                                 : undefined}
@@ -9882,21 +9827,24 @@ export default function StdPortalPage() {
                                             {(() => {
                                                 return (
                                             <div
-                                                className="absolute inset-x-6 text-center select-none flex items-center justify-center pointer-events-none"
+                                                    className="absolute inset-x-0 text-center select-none flex items-center justify-center pointer-events-none"
                                                 style={{
                                                     bottom: `${subPosY}%`,
                                                 }}
                                             >
                                                 <div
-                                                    className="inline-block max-w-[92%] px-4 py-1.5 rounded-lg"
+                                                    className="inline-block"
                                                     style={{
                                                         fontFamily: subFontFamily,
                                                         color: subTextColor,
-                                                        fontSize: `${Math.min(22, Math.max(13, Number(subFontSize) * 2.8))}px`,
+                                                        // Same 440px reference canvas as services/subtitle_layout.py.
+                                                        fontSize: `${Math.min(22, Math.max(13, Number(subFontSize) * 2.8)) / 4.4}cqw`,
+                                                        padding: '0.3em 0.6em',
+                                                        borderRadius: '0.25em',
                                                         fontWeight: 'bold',
                                                         whiteSpace: 'nowrap',
-                                                        lineHeight: '1.3',
-                                                        WebkitTextStroke: `${Math.max(0, Number(subStrokeWidth) || 0)}px ${subStrokeColor}`,
+                                                        lineHeight: '1',
+                                                        WebkitTextStroke: `${Math.max(0, Number(subStrokeWidth) || 0) / 19.2}cqw ${subStrokeColor}`,
                                                         paintOrder: 'stroke fill',
                                                         backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
                                                     }}
@@ -12374,7 +12322,7 @@ export default function StdPortalPage() {
                                             onChange={e => setRenderTarget(e.target.value as any)}
                                             className="text-xs bg-[#202632] border border-white/10 rounded-lg py-1 px-2.5 text-white focus:outline-none focus:border-blue-500"
                                         >
-                                            <option value="drive_api">GCS API 렌더 서버 (Cloud GPU)</option>
+                                            <option value="gcs_api">GCS API 렌더 서버 (Cloud GPU)</option>
                                             <option value="local">로컬 PC 렌더러</option>
                                         </select>
                                     </div>

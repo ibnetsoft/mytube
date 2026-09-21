@@ -48,7 +48,7 @@ def _job_summary(job: dict) -> dict:
     return {
         "id": job.get("id"),
         "job_id": job.get("id"),
-        "job_type": "drive_api_render",
+        "job_type": "gcs_api_render",
         "project_id": job.get("project_id"),
         "project_name": job.get("project_name"),
         "asset_file_name": job.get("asset_file_name"),

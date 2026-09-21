@@ -113,6 +113,53 @@ def test_invalid_inputs_are_rejected_before_synthesis(tmp_path):
     assert provider.calls == []
 
 
+def test_each_segment_keeps_its_own_pause(tmp_path):
+    engine = studio(FakeProvider())
+    result = engine.run([
+        {'id': 'a', 'text': '문장 중간', 'preset': 'n', 'pause_ms': 0},
+        {'id': 'b', 'text': '끝입니다.', 'preset': 'n', 'pause_ms': 260},
+        {'id': 'c', 'text': '다음 문장', 'preset': 'n', 'pause_ms': 0},
+    ], tmp_path)
+    timeline = result['timeline']
+    assert timeline[1]['start'] == timeline[0]['end']
+    assert timeline[2]['start'] - timeline[1]['end'] == pytest.approx(.260)
+
+
+def test_elevenlabs_context_and_native_speed_are_sent(monkeypatch):
+    from services.voice_studio import ElevenDialogue
+    calls = []
+    class Response:
+        ok = True
+        content = b'audio'
+        headers = {'request-id': 'request-123'}
+    def post(url, **kwargs):
+        calls.append(kwargs['json'])
+        return Response()
+    monkeypatch.setenv('ELEVENLABS_API_KEY', 'test-only')
+    monkeypatch.setattr('requests.post', post)
+    preset = VoicePreset(provider='elevenlabs', voice='narrator', model='eleven_multilingual_v2', direction='', speed=.9)
+    _, usage = ElevenDialogue().synthesize('보따리를 들었습니다.', preset, '', previous_text='그는', next_text='그리고 걸었습니다.')
+    assert calls[0]['voice_settings']['speed'] == .9
+    assert calls[0]['previous_text'] == '그는'
+    assert calls[0]['next_text'] == '그리고 걸었습니다.'
+    assert usage['native_speed'] == .9
+
+
+def test_native_speed_is_not_applied_twice(tmp_path, monkeypatch):
+    from services.voice_studio import ElevenDialogue
+    import services.voice_studio as module
+    speeds = []
+    original = module.normalize_audio
+    def normalize(source, target, speed):
+        speeds.append(speed)
+        return original(source, target, speed)
+    monkeypatch.setattr(module, 'normalize_audio', normalize)
+    monkeypatch.setattr(ElevenDialogue, 'synthesize', lambda *a, **kw: (sample_wav(), {'native_speed': .9}))
+    engine = VoiceStudio({'n': {'provider': 'elevenlabs', 'voice': 'narrator', 'direction': '', 'speed': .9}}, {'elevenlabs': ElevenDialogue()})
+    engine.run([{'id': 'a', 'text': 'hello', 'preset': 'n'}], tmp_path)
+    assert speeds == [1.0]
+
+
 def test_enabled_worker_checkpoints_and_propagates_failure(monkeypatch, tmp_path):
     def fail(package, directory):
         assert json.loads((directory / 'content-package.json').read_text(encoding='utf-8')) == package

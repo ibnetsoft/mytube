@@ -168,6 +168,7 @@ def _retime_subtitles_from_worker_tts(subtitles, tts_segments, timeline):
         return subtitles
     retimed = [dict(item) for item in subtitles]
     timeline_by_id = {str(item.get('id')): item for item in timeline if isinstance(item, dict)}
+    covered = {}
     for segment in tts_segments:
         entry = timeline_by_id.get(str(segment.get('id')))
         indices = [int(value) for value in segment.get('subtitle_indices') or [] if str(value).isdigit()]
@@ -176,6 +177,15 @@ def _retime_subtitles_from_worker_tts(subtitles, tts_segments, timeline):
         start = float(entry.get('start') or 0)
         end = float(entry.get('end') or start)
         if end <= start:
+            continue
+        if segment.get('subtitle_spans'):
+            length = max(1, len(segment['text']))
+            for part in segment['subtitle_spans']:
+                index = part['index']
+                a = start + (end - start) * part['start'] / length
+                b = start + (end - start) * part['end'] / length
+                old = covered.get(index, (a, b))
+                covered[index] = (min(a, old[0]), max(b, old[1]))
             continue
         weights = [_subtitle_weight(retimed[index].get('text', '')) for index in indices if 0 <= index < len(retimed)]
         if not weights:
@@ -193,6 +203,8 @@ def _retime_subtitles_from_worker_tts(subtitles, tts_segments, timeline):
             retimed[index]['start'] = round(cursor, 3)
             retimed[index]['end'] = round(max(cursor + 0.08, next_cursor), 3)
             cursor = next_cursor
+    for index, (start, end) in covered.items():
+        retimed[index].update(start=round(start, 3), end=round(end, 3))
     return retimed
 
 
@@ -215,12 +227,14 @@ def _scene_starts_from_subtitles(images_count: int, subtitles):
 
 
 def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
+    from services.narration_segments import sentence_segments
     plan = metadata.get('worker_tts') or {}
     if not isinstance(plan, dict) or not plan.get('enabled'):
         return None
     raw_segments = plan.get('segments') or []
     if not raw_segments:
         return None
+    raw_segments = sentence_segments(raw_segments, subtitles)
     language_map = {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP', 'vi': 'vi-VN', 'th': 'th-TH'}
     language = str(plan.get('language') or metadata.get('render_settings', {}).get('language') or 'ko')
     language = language_map.get(language.lower(), language)
@@ -228,12 +242,12 @@ def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
     stability = float(plan.get('stability') if plan.get('stability') is not None else 0.62)
     similarity_boost = float(plan.get('similarity_boost') if plan.get('similarity_boost') is not None else 0.82)
     style = float(plan.get('style') if plan.get('style') is not None else 0.18)
-    complete_pause_ms = int(plan.get('pause_complete_ms') or 160)
+    complete_pause_ms = int(plan.get('pause_complete_ms') if plan.get('pause_complete_ms') is not None else 160)
     incomplete_pause_ms = int(plan.get('pause_incomplete_ms') or 0)
     presets = {}
     segments = []
     for raw in raw_segments:
-        text = str(raw.get('text') or '').strip()
+        text = re.sub(r'\s+', ' ', str(raw.get('text') or '')).strip()
         voice_id = str(raw.get('voice_id') or '').strip()
         if not text or not voice_id:
             continue
@@ -247,13 +261,20 @@ def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
             'text': text,
             'direction': str(raw.get('direction') or '') if provider == 'vertex' else '',
             'subtitle_indices': raw.get('subtitle_indices') or [],
+            'subtitle_spans': raw.get('subtitle_spans') or [],
         })
     if not segments:
         return None
     for index, segment in enumerate(segments):
         text = segment['text']
-        complete = bool(re.search(r'[.!?。！？…]|[.?!]["\')\]]$|[다요죠까네군음함임됨니다습니다]\.?$', text.strip()))
-        presets[segment['preset']]['pause_ms'] = complete_pause_ms if complete else incomplete_pause_ms
+        complete = bool(re.search(r'[.!?。！？…]["\'”’）)\]]*$', text.strip()))
+        segment['pause_ms'] = complete_pause_ms if complete else incomplete_pause_ms
+        # Context joins independently generated chunks without adding instructions
+        # to the spoken transcript or borrowing a different speaker's delivery.
+        if presets[segment['preset']]['provider'] == 'elevenlabs':
+            for key, neighbor in (('previous_text', index - 1), ('next_text', index + 1)):
+                if 0 <= neighbor < len(segments) and segments[neighbor]['preset'] == segment['preset']:
+                    segment[key] = segments[neighbor]['text']
     from services.voice_studio import ElevenDialogue, VertexTTS, VoiceStudio
     providers = {}
     if any(value.get('provider') == 'vertex' for value in presets.values()):
@@ -268,6 +289,7 @@ def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
         'audio_duration': float(result.get('duration_seconds') or 0.0),
         'subtitles': retimed_subs,
         'image_timing_starts': _scene_starts_from_subtitles(len(metadata.get('images') or []), retimed_subs),
+        'manifest_path': result.get('manifest_path'),
     }
 
 
@@ -985,6 +1007,23 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
                 metadata['worker_tts_used'] = False
                 metadata['worker_tts_error'] = str(worker_tts_error)
                 print(f"[Worker TTS] Failed; falling back to submitted audio: {worker_tts_error}")
+
+        audio_provenance = {
+            'source': 'worker_tts' if metadata.get('worker_tts_used') else 'submitted_audio',
+            'worker_tts_requested': bool((metadata.get('worker_tts') or {}).get('enabled')),
+            'fallback': bool(metadata.get('worker_tts_error')),
+        }
+        if metadata.get('worker_tts_used') and worker_tts_result:
+            manifest_path = worker_tts_result.get('manifest_path')
+            if manifest_path and os.path.isfile(manifest_path):
+                with open(manifest_path, encoding='utf-8') as voice_manifest:
+                    voice_state = json.load(voice_manifest)
+                audio_provenance['segments'] = [
+                    {key: entry.get(key) for key in ('provider', 'voice', 'model', 'speed')}
+                    for entry in voice_state.get('segments', {}).values()
+                ]
+        with open(os.path.join(temp_dir, 'audio_provenance.json'), 'w', encoding='utf-8') as provenance_file:
+            json.dump(audio_provenance, provenance_file, ensure_ascii=False, indent=2)
 
         update_progress(15, '내레이션 오디오 레벨 정리 중...')
         audio_path, smoothed_duration = _prepare_narration_audio_for_render(audio_path, temp_dir, audio_ffmpeg_exe)

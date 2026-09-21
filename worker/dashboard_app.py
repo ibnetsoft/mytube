@@ -1880,7 +1880,9 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
         worker = RemoteDriveWorker()
         params = {
             "select": "*",
-            "render_mode": "eq.drive_api",
+            # Historical rows retain drive_api even when their media used GCS.
+            # A transport migration must not erase completed render history.
+            "render_mode": "in.(gcs_api,drive_api)",
             "order": "created_at.desc",
             "limit": str(limit),
         }
@@ -1915,7 +1917,7 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
                 "job_id": str(r.get("id")),
                 "raw_id": r.get("id"),
                 "source": "web_std",
-                "job_type": "drive_api_render",
+                "job_type": "gcs_api_render",
                 "email": r.get("email") or "-",
                 "project_id": r.get("project_id"),
                 "project_name": r.get("project_name") or r.get("asset_file_name") or f"프로젝트 #{r.get('project_id')}",
@@ -4675,7 +4677,7 @@ tr:hover { background: #161b22; }
               <select id="hist-filter-type" onchange="loadHistory()">
                 <option value="">전체</option>
                 <option value="render_video">영상 렌더링</option>
-                <option value="drive_api_render">GCS API 렌더링</option>
+                <option value="gcs_api_render">GCS API 렌더링</option>
                 <option value="topic_research">주제 탐색</option>
                 <option value="topic_benchmark_analyze">고성과 영상 분석</option>
                 <option value="web_research">Gemini 웹 자료 조사</option>
@@ -5308,7 +5310,7 @@ function applyWorkerProfileNavigation(status) {
   if (active && active.style.display === 'none') switchTab('overview');
 }
 
-const RENDER_JOB_TYPES = new Set(['render_video', 'drive_api_render']);
+const RENDER_JOB_TYPES = new Set(['render_video', 'gcs_api_render']);
 const SCRIPT_JOB_TYPES = new Set([
   'topic_research',
   'topic_benchmark_analyze',
@@ -5384,7 +5386,7 @@ const STATUS_LABELS = {
 };
 const JOB_TYPE_LABELS = {
   render_video: '영상 렌더링',
-  drive_api_render: 'GCS API 렌더링',
+  gcs_api_render: 'GCS API 렌더링',
   topic_research: '주제 탐색',
   topic_benchmark_analyze: '고성과 영상 분석',
   web_research: 'Gemini 웹 자료 조사',
@@ -5397,7 +5399,7 @@ const JOB_TYPE_LABELS = {
 };
 const JOB_TYPE_DESCRIPTIONS = {
   render_video: '대본과 미디어를 조합해 최종 영상을 만들고 있습니다.',
-  drive_api_render: 'STD에서 제출된 프로젝트의 최종 영상을 만들고 있습니다.',
+  gcs_api_render: 'STD에서 제출된 프로젝트의 최종 영상을 만들고 있습니다.',
   topic_research: '키워드와 시청자 반응을 바탕으로 콘텐츠 주제를 찾고 있습니다.',
   topic_benchmark_analyze: 'YouTube 고성과 영상의 제목, 구성, 반응을 분석하고 있습니다.',
   web_research: 'Gemini가 기사·논문·공식 자료를 검색해 대본 근거와 출처를 정리하고 있습니다.',
@@ -5438,7 +5440,7 @@ function jobDescription(job) {
   ].filter(Boolean).join(' · ');
   const descriptions = {
     render_video: '최종 영상 렌더링 및 결과 파일 저장',
-    drive_api_render: 'GCS API 최종 영상 렌더링 및 결과 파일 저장',
+    gcs_api_render: 'GCS API 최종 영상 렌더링 및 결과 파일 저장',
     topic_research: '키워드·카테고리 관련 주제 자료 조사',
     topic_benchmark_analyze: '고성과 영상의 제목·구성·반응 분석',
     web_research: '제목과 카테고리에 필요한 웹 자료 조사',

@@ -78,6 +78,7 @@ except Exception:
 for src, dest in [
     ("templates", "templates"),
     ("static", "static"),
+    ("auth-web/public/fonts", "auth-web/public/fonts"),
     ("assets", "assets"),
 ]:
     path = os.path.join(root, src)

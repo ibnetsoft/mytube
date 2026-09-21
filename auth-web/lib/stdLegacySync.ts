@@ -1,5 +1,4 @@
 import { supabaseAdmin } from './supabaseAdmin'
-import { driveFileLink, driveFolderLink } from './stdGoogleDrive'
 import { isStdRequiredVideoScene } from './stdPolicy'
 
 const DESKTOP_PROJECT_TABLE = 'desktop_project_metadata'
@@ -18,6 +17,10 @@ function sceneAssetsFor(assets: any[], sceneNumber: number, assetType?: string) 
         && (!assetType || asset.asset_type === assetType)
         && ['uploaded', 'assigned'].includes(String(asset.status || ''))
     )
+}
+
+function assetFileUrl(projectId: string, asset: any) {
+    return asset?.id ? `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?assetId=${encodeURIComponent(asset.id)}` : null
 }
 
 function buildSteps(project: any, scenes: any[], assets: any[]) {
@@ -78,8 +81,8 @@ function buildProgressPayload(project: any, scenes: any[], assets: any[]) {
         completed_count: completedStepKeys.length,
         scene_count: scenes.length,
         ready_scene_count: readySceneCount,
-        drive_folder_id: project.drive_folder_id || null,
-        drive_folder_link: project.drive_folder_id ? driveFolderLink(project.drive_folder_id) : null,
+        drive_folder_id: null,
+        drive_folder_link: null,
         publish_metadata: project?.project_payload?.publish_metadata || {},
         source: 'std_web',
         steps,
@@ -97,10 +100,10 @@ function buildProjectPayload(project: any, scenes: any[], assets: any[]) {
             prompt: scene.image_prompt || '',
             image_prompt: scene.image_prompt || '',
             video_prompt: scene.video_prompt || '',
-            image_url: image?.drive_file_id ? driveFileLink(image.drive_file_id) : null,
-            video_url: video?.drive_file_id ? driveFileLink(video.drive_file_id) : null,
-            image_drive_file_id: image?.drive_file_id || null,
-            video_drive_file_id: video?.drive_file_id || null,
+            image_url: assetFileUrl(project.id, image),
+            video_url: assetFileUrl(project.id, video),
+            image_drive_file_id: null,
+            video_drive_file_id: null,
             scene_text: scene.scene_text || '',
             scene_title: scene.scene_title || '',
         }
@@ -130,7 +133,7 @@ function buildProjectPayload(project: any, scenes: any[], assets: any[]) {
             thumbnail_hook_reasoning: project?.project_payload?.thumbnail_hook_reasoning || '',
             thumbnail_image_prompt: project?.project_payload?.thumbnail_image_prompt || '',
             thumbnail_bg_url: project?.project_payload?.thumbnail_bg_url || '',
-            drive_folder_id: project.drive_folder_id || null,
+            drive_folder_id: null,
             std_web_project_id: project.id,
         },
         script_structure: project?.project_payload?.structure || {},

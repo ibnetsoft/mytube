@@ -56,7 +56,16 @@ class VoicePreset:
 def atomic_json(path: Path, data: dict):
     temp = path.with_name(path.name + '.tmp')
     temp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-    temp.replace(path)
+    # Windows scanners can briefly hold the manifest between checkpoints.
+    # Retry the atomic rename only, never the billable synthesis request.
+    for attempt in range(6):
+        try:
+            temp.replace(path)
+            return
+        except PermissionError:
+            if os.name != 'nt' or attempt == 5:
+                raise
+            time.sleep(0.05 * (attempt + 1))
 
 
 @contextmanager
@@ -143,7 +152,7 @@ class VertexTTS:
 
 
 class ElevenDialogue:
-    def synthesize(self, text: str, preset: VoicePreset, direction: str):
+    def synthesize(self, text: str, preset: VoicePreset, direction: str, *, previous_text='', next_text=''):
         import requests
         key = os.environ.get('ELEVENLABS_API_KEY', '')
         if not key:
@@ -156,16 +165,19 @@ class ElevenDialogue:
                                  json={
                                      'text': text,
                                      'model_id': preset.model,
+                                     'previous_text': previous_text or None,
+                                     'next_text': next_text or None,
                                      'voice_settings': {
                                          'stability': preset.stability,
                                          'similarity_boost': preset.similarity_boost,
                                          'style': preset.style,
                                          'use_speaker_boost': True,
+                                         'speed': min(1.2, preset.speed),
                                      },
                                  }, timeout=180)
         if not response.ok:
             raise RuntimeError(f'ElevenLabs HTTP {response.status_code}')
-        return response.content, {}
+        return response.content, {'request_id': response.headers.get('request-id'), 'native_speed': min(1.2, preset.speed)}
 
 
 def normalize_audio(source: Path, target: Path, speed: float):
@@ -219,7 +231,13 @@ class VoiceStudio:
                 raise ValueError('Provider is not configured')
             if preset.provider == 'elevenlabs' and (direction or preset.direction):
                 raise ValueError('Freeform direction is supported for Gemini; ElevenLabs adapter requires an empty direction')
-            signature = hashlib.sha256(json.dumps({'text': text, 'preset': asdict(preset), 'direction': direction, 'processing': 1}, sort_keys=True).encode()).hexdigest()
+            pause_ms = segment.get('pause_ms', preset.pause_ms)
+            if type(pause_ms) is not int or not 0 <= pause_ms <= 2000:
+                raise ValueError('Invalid segment pause')
+            context = {key: segment.get(key, '') for key in ('previous_text', 'next_text')}
+            if any(not isinstance(value, str) or len(value) > 1200 for value in context.values()):
+                raise ValueError('Invalid speech context')
+            signature = hashlib.sha256(json.dumps({'text': text, 'preset': asdict(preset), 'direction': direction, 'context': context, 'processing': 2}, sort_keys=True).encode()).hexdigest()
             plan.append((segment, preset, signature))
         with job_lock(directory):
             path = directory / 'voice-studio.json'
@@ -245,16 +263,23 @@ class VoiceStudio:
                     attempt = {'segment': sid, 'provider': preset.provider, 'chars': charged_chars, 'status': 'reserved', 'at': time.time()}
                     state['attempts'].append(attempt)
                     atomic_json(path, state)
-                    audio, usage = self.providers[preset.provider].synthesize(segment['text'], preset, segment.get('direction', ''))
+                    provider = self.providers[preset.provider]
+                    context = ({key: segment.get(key, '') for key in ('previous_text', 'next_text')}
+                               if isinstance(provider, ElevenDialogue) else {})
+                    audio, usage = provider.synthesize(segment['text'], preset, segment.get('direction', ''), **context)
                     attempt.update(status='received', usage=usage)
                     atomic_json(path, state)
                     version = uuid.uuid4().hex[:10]
                     raw = directory / f'{sid}-{version}.source'
                     output = directory / f'{sid}-{version}.wav'
                     raw.write_bytes(audio)
-                    normalize_audio(raw, output, preset.speed)
+                    # ElevenLabs applies speed during synthesis; never stretch it twice.
+                    native_speed = float(usage.get('native_speed') or 1.0)
+                    normalize_audio(raw, output, preset.speed / native_speed)
                     state['segments'][sid] = {'signature': signature, 'file': output.name, 'sha256': hashlib.sha256(output.read_bytes()).hexdigest(),
-                                              'preset': segment['preset'], 'provider': preset.provider, **wave_info(output)}
+                                              'preset': segment['preset'], 'provider': preset.provider,
+                                              'voice': preset.voice, 'model': preset.model, 'speed': preset.speed,
+                                              'usage': usage, **wave_info(output)}
                     atomic_json(path, state)
                 timeline, frames = [], 0
                 mixed = directory / ('mixed-' + uuid.uuid4().hex[:10] + '.wav')
@@ -269,7 +294,7 @@ class VoiceStudio:
                                 frames += len(chunk) // 2
                         timeline.append({'id': segment['id'], 'text': segment['text'], 'preset': segment['preset'], 'start': start / 48000, 'end': frames / 48000})
                         if index != len(plan) - 1:
-                            silence_frames = preset.pause_ms * 48
+                            silence_frames = segment.get('pause_ms', preset.pause_ms) * 48
                             out.writeframesraw(b'\0\0' * silence_frames)
                             frames += silence_frames
                 state.update(status='complete', output=mixed.name, timeline=timeline, duration_seconds=frames / 48000)

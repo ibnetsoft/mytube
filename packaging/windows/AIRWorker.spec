@@ -82,6 +82,7 @@ except Exception:
 for src, dest in [
     ("templates", "templates"),
     ("static", "static"),
+    ("auth-web/public/fonts", "auth-web/public/fonts"),
     ("assets", "assets"),
     # [AIR-0225B, incident response] Do NOT add ".env" here - see the
     # identical note in AIRStudio.spec. AIRWorker never needs Supabase
