@@ -41,7 +41,7 @@ def test_ass_settings_use_current_frontend_keys(tmp_path):
     )
 
     content = ass_path.read_text(encoding="utf-8-sig")
-    assert "Chosun_ilbo_myungjottf" in content
+    assert "Chosunilbo_myungjo" in content
     assert "&H00EFAB12" in content
     assert r"첫 줄\N둘째 줄" in content
     assert _ass_text(r"C:\temp") == r"C:\\temp"
@@ -66,7 +66,7 @@ def test_render_font_copy_has_a_family_name_ffmpeg_can_select(tmp_path):
     chosun_font = chosun_dir / "Chosunilbo_myungjo.ttf"
     assert chosun_font.is_file()
     family, style = ImageFont.truetype(str(chosun_font), 20).getname()
-    assert family == "Chosun_ilbo_myungjottf"
+    assert family == "Chosunilbo_myungjo"
     assert style == "Regular"
 
 

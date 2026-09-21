@@ -105,6 +105,13 @@ def _float_setting(settings, keys, default):
         return default
 
 
+def _opacity_setting(settings, keys, default):
+    value = _float_setting(settings, keys, default)
+    if value > 1.0:
+        value = value / 100.0
+    return max(0.0, min(1.0, value))
+
+
 def _write_ass_file(path, subtitles, settings, resolution):
     width, height = resolution
     font_name = str(_setting(
@@ -116,7 +123,9 @@ def _write_ass_file(path, subtitles, settings, resolution):
         default="Malgun Gothic",
     ))
     font_name = {
-        "ChosunIlboMyungjo": "Chosun_ilbo_myungjottf",
+        "ChosunIlboMyungjo": "Chosunilbo_myungjo",
+        "Chosun_ilbo_myungjottf": "Chosunilbo_myungjo",
+        "Chosunilbo_myungjo": "Chosunilbo_myungjo",
         "CookieRun-Regular": "CookieRun",
         "NetmarbleB": "netmarble",
         "NotoSansJP": "Noto Sans CJK JP",
@@ -136,10 +145,10 @@ def _write_ass_file(path, subtitles, settings, resolution):
         default="#ffffff",
     ))
     outline = _ass_color(_setting(settings, "subtitle_stroke_color", "strokeColor", "stroke_color", default="#000000"))
-    outline_width = _float_setting(settings, ("subtitle_stroke_width", "strokeWidth", "stroke_width"), 0)
+    outline_width = _float_setting(settings, ("subtitle_stroke_width", "strokeWidth", "stroke_width"), 2.0)
 
     bg_enabled = _bool_setting(_setting(settings, "subtitle_bg_enabled", "bgEnabled", "bg_enabled", default=0), False)
-    bg_opacity = max(0.0, min(1.0, _float_setting(settings, ("subtitle_bg_opacity", "bgOpacity", "bg_opacity"), 0.5)))
+    bg_opacity = _opacity_setting(settings, ("subtitle_bg_opacity", "bgOpacity", "bg_opacity"), 0.5)
     back_alpha = int((1.0 - bg_opacity) * 255) if bg_enabled else 255
     back = _ass_color(_setting(settings, "subtitle_bg_color", "bgColor", "bg_color", default="#000000"), back_alpha)
     border_style = 3 if bg_enabled else 1
@@ -189,12 +198,16 @@ def _prepare_fonts_dir(temp_dir, settings):
         "GmarketSans": ["GmarketSansTTFBold.ttf", "GmarketSansBold.woff"],
         "GmarketSansBold": ["GmarketSansTTFBold.ttf", "GmarketSansBold.woff"],
         "ChosunIlboMyungjo": ["ChosunIlboMyungjo.ttf", "Chosunilbo_myungjo.woff"],
+        "Chosunilbo_myungjo": ["ChosunIlboMyungjo.ttf", "Chosunilbo_myungjo.woff"],
+        "Chosun_ilbo_myungjottf": ["ChosunIlboMyungjo.ttf", "Chosunilbo_myungjo.woff"],
         "NotoSansJP": ["NotoSansJP-Bold.ttf", "NotoSansJP-Regular.ttf"],
         "CookieRun-Regular": ["CookieRun-Regular.woff"],
     }
     family_overrides = {
         "BinggraeMelona-Bold": "BinggraeMelona-Bold",
-        "ChosunIlboMyungjo": "Chosun_ilbo_myungjottf",
+        "ChosunIlboMyungjo": "Chosunilbo_myungjo",
+        "Chosun_ilbo_myungjottf": "Chosunilbo_myungjo",
+        "Chosunilbo_myungjo": "Chosunilbo_myungjo",
         "GmarketSans": "GmarketSansBold",
         "GmarketSansBold": "GmarketSansBold",
         "Jalnan": "Jalnan",
@@ -370,34 +383,32 @@ def _transition_name(value):
 def _image_filter(input_index, output_label, width, height, fps, duration, effect):
     normalized = str(effect or "auto_classify").strip().lower().replace(" ", "_")
     base = (
-        f"[{input_index}:v]scale={int(width * 1.12)}:{int(height * 1.12)}:"
-        f"force_original_aspect_ratio=increase,crop={int(width * 1.12)}:{int(height * 1.12)}"
+        f"[{input_index}:v]scale={int(width * 1.08)}:{int(height * 1.08)}:"
+        f"force_original_aspect_ratio=increase,crop={int(width * 1.08)}:{int(height * 1.08)}"
     )
     frames = max(1, int(duration * fps) - 1)
-    progress = f"min(1,on/{frames})"
+    progress = f"(1-cos(PI*min(1,on/{frames})))/2"
     if normalized in {"none", "static"}:
         return (
             f"{base},scale={width}:{height},fps={fps},trim=duration={duration:.3f},"
             f"setsar=1,format=yuv420p[{output_label}]"
         )
     if normalized in {"zoom_out"}:
-        zoom = f"1.15-0.15*{progress}"
-        x_pos = "iw/2-(iw/zoom/2)"
-        y_pos = "ih/2-(ih/zoom/2)"
+        zoom = f"1.06-0.04*{progress}"
+        x_pos = "trunc(iw/2-(iw/zoom/2))"
+        y_pos = "trunc(ih/2-(ih/zoom/2))"
     elif normalized in {"pan_left", "pan_right"}:
-        zoom = "1.20"
-        progress = f"min(1,on/{frames})"
-        x_pos = f"(iw-iw/zoom)*{progress}" if normalized == "pan_left" else f"(iw-iw/zoom)*(1-{progress})"
-        y_pos = "ih/2-(ih/zoom/2)"
+        zoom = "1.12"
+        x_pos = f"trunc((iw-iw/zoom)*{progress})" if normalized == "pan_left" else f"trunc((iw-iw/zoom)*(1-{progress}))"
+        y_pos = "trunc(ih/2-(ih/zoom/2))"
     elif normalized in {"pan_up", "scroll_up", "pan_down", "scroll_down"}:
-        zoom = "1.20"
-        progress = f"min(1,on/{frames})"
-        x_pos = "iw/2-(iw/zoom/2)"
-        y_pos = f"(ih-ih/zoom)*{progress}" if normalized in {"pan_up", "scroll_up"} else f"(ih-ih/zoom)*(1-{progress})"
+        zoom = "1.12"
+        x_pos = "trunc(iw/2-(iw/zoom/2))"
+        y_pos = f"trunc((ih-ih/zoom)*{progress})" if normalized in {"pan_up", "scroll_up"} else f"trunc((ih-ih/zoom)*(1-{progress}))"
     else:
-        zoom = f"1+0.15*{progress}"
-        x_pos = "iw/2-(iw/zoom/2)"
-        y_pos = "ih/2-(ih/zoom/2)"
+        zoom = f"1+0.04*{progress}"
+        x_pos = "trunc(iw/2-(iw/zoom/2))"
+        y_pos = "trunc(ih/2-(ih/zoom/2))"
     return (
         f"{base},zoompan=z='{zoom}':x='{x_pos}':y='{y_pos}':d=1:s={width}x{height}:fps={fps},"
         f"trim=duration={duration:.3f},setsar=1,format=yuv420p[{output_label}]"
