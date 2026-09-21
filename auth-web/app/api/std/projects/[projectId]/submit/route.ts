@@ -18,6 +18,77 @@ function hasStoredAssetFile(asset: any): boolean {
     )
 }
 
+function extractAssetIdFromUrl(value: any): string {
+    const url = String(value || '').trim()
+    if (!url) return ''
+    try {
+        const parsed = new URL(url, 'https://studio.airing.work')
+        return String(parsed.searchParams.get('assetId') || '').trim()
+    } catch {
+        const match = url.match(/[?&]assetId=([^&]+)/)
+        return match ? decodeURIComponent(match[1]) : ''
+    }
+}
+
+async function recoverStoredTtsAsset(project: any, assets: any[]) {
+    const activeAssets = Array.isArray(assets) ? [...assets] : []
+    const hasActiveAudio = activeAssets.some((asset: any) =>
+        String(asset?.asset_type || '').toLowerCase() === 'audio'
+        && hasStoredAssetFile(asset)
+    )
+    if (hasActiveAudio) return activeAssets
+
+    const candidates = [
+        project?.progress_payload?.tts_asset_id,
+        project?.progress_payload?.audio_asset_id,
+        project?.project_payload?.tts_asset_id,
+        project?.project_payload?.audio_asset_id,
+        extractAssetIdFromUrl(project?.project_payload?.audio_url || project?.project_payload?.tts_url),
+    ].map((value: any) => String(value || '').trim()).filter(Boolean)
+
+    let recovered: any = null
+    if (candidates.length > 0) {
+        const { data, error } = await supabaseAdmin
+            .from('std_project_assets')
+            .select('*')
+            .eq('project_id', project.id)
+            .eq('asset_type', 'audio')
+            .in('id', Array.from(new Set(candidates)))
+            .order('updated_at', { ascending: false })
+            .limit(1)
+        if (error) throw error
+        recovered = (data || []).find(hasStoredAssetFile) || null
+    }
+
+    if (!recovered && (project?.progress_payload?.has_tts_audio || project?.progress_payload?.tts_completed || project?.project_payload?.audio_url || project?.project_payload?.tts_url)) {
+        const { data, error } = await supabaseAdmin
+            .from('std_project_assets')
+            .select('*')
+            .eq('project_id', project.id)
+            .eq('asset_type', 'audio')
+            .order('updated_at', { ascending: false })
+            .limit(5)
+        if (error) throw error
+        recovered = (data || []).find(hasStoredAssetFile) || null
+    }
+
+    if (!recovered) return activeAssets
+    if (!['uploaded', 'assigned'].includes(String(recovered.status || ''))) {
+        const { data, error } = await supabaseAdmin
+            .from('std_project_assets')
+            .update({ status: 'uploaded', updated_at: new Date().toISOString() })
+            .eq('id', recovered.id)
+            .select('*')
+            .single()
+        if (error) throw error
+        recovered = data || recovered
+    }
+    const index = activeAssets.findIndex((asset: any) => String(asset?.id || '') === String(recovered.id || ''))
+    if (index >= 0) activeAssets[index] = recovered
+    else activeAssets.push(recovered)
+    return activeAssets
+}
+
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
@@ -96,10 +167,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     let assets = loadedAssets || []
     try {
         assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
+        assets = await recoverStoredTtsAsset(project, assets)
     } catch (archiveError: any) {
         return NextResponse.json({
             success: false,
-            error: archiveError?.message || 'Failed to archive generated scene images for render',
+            error: archiveError?.message || 'Failed to prepare stored assets for render',
         }, { status: 500 })
     }
 
