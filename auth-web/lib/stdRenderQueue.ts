@@ -206,8 +206,15 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             String(asset?.asset_type || '').toLowerCase() === 'video'
             && Number(asset?.scene_number) === sceneNumber
         ))
+        // Video recovery must archive the bytes too: the remote manifest uses GCS.
+        const { data: videoFile, error: videoError } = await supabaseAdmin.storage.from(source.bucket).download(source.path)
+        if (videoError || !videoFile) throw new Error(`Scene ${sceneNumber} video could not be read from Storage`)
+        const gcsVideo = await uploadGcsBuffer({
+            objectPath: source.path, data: Buffer.from(await videoFile.arrayBuffer()), contentType: 'video/mp4',
+        })
         const metadata = {
             ...(existingAsset?.metadata || {}),
+            secondary_storage_provider: 'gcs', gcs_bucket: gcsVideo.bucket, gcs_path: gcsVideo.path,
             storage_bucket: source.bucket,
             storage_path: source.path,
             storage_public_url: supabaseAdmin.storage.from(source.bucket).getPublicUrl(source.path).data.publicUrl,
@@ -643,8 +650,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         const asset = videoAsset || imageAsset
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
-            images.push(null)
-            continue
+            throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
         }
         const ext = mediaExtension(asset.file_name, asset.mime_type, '.png')
         const filename = `scene_${String(sceneNumber).padStart(3, '0')}${ext}`
@@ -783,8 +789,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         const asset = videoAsset || imageAsset
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
-            images.push(null)
-            continue
+            throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
         }
         const ext = mediaExtension(asset.file_name, asset.mime_type, '.png')
         const filename = `scene_${String(sceneNumber).padStart(3, '0')}${ext}`

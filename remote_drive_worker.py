@@ -407,7 +407,7 @@ class RemoteDriveWorker:
             "gcs_path": gcs_cfg.get("path"),
             "gcs_signed_url": gcs_cfg.get("signed_url"),
         }
-        if not config_storage_source["bucket"] and not config_storage_source["gcs_bucket"] and not config_storage_source["gcs_signed_url"]:
+        if not config_storage_source["gcs_bucket"] and not config_storage_source["gcs_signed_url"]:
             config_storage_source = None
 
         self._download_asset_with_fallback(
@@ -448,7 +448,7 @@ class RemoteDriveWorker:
                 "gcs_path": item.get("gcs_path"),
                 "gcs_signed_url": item.get("gcs_signed_url"),
             }
-            if not storage_source["bucket"] and not storage_source["gcs_bucket"] and not storage_source["gcs_signed_url"]:
+            if not storage_source["gcs_bucket"] and not storage_source["gcs_signed_url"]:
                 storage_source = None
             self._download_asset_with_fallback(
                 job_id,

@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     if (ids.length) {
         for (let offset = 0; ; offset += 1000) {
             const { data: batch, error: assetError } = await supabaseAdmin.from('std_project_assets')
-                .select('project_id,scene_number,asset_type,status,drive_file_id')
+                .select('id,project_id,scene_number,asset_type,status,drive_file_id,metadata')
                 .in('project_id', ids).in('asset_type', ['image','video','audio','thumbnail'])
                 .in('status', ['uploaded','assigned']).order('id').range(offset, offset + 999)
             if (assetError) return NextResponse.json({ success: false, error: 'Could not load project completion status' }, { status: 500 })
