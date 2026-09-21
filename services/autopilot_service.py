@@ -1511,15 +1511,9 @@ JSON만 출력하세요:
         total_duration = 0.0
         if scene_audio_files:
             try:
-                from moviepy.audio.AudioClip import concatenate_audioclips
-                from moviepy.audio.io.AudioFileClip import AudioFileClip
-                clips = [AudioFileClip(f) for f in scene_audio_files]
-                final_clip = concatenate_audioclips(clips)
-                final_clip.write_audiofile(final_audio_path, logger=None)
-                
-                total_duration = final_clip.duration
-                final_clip.close()
-                for c in clips: c.close()
+                from services.tts_service import tts_service
+                tts_service._merge_audio_files(scene_audio_files, final_audio_path)
+                total_duration = tts_service._duration_from_audio_file(final_audio_path)
                 
                 # DB Save
                 db.save_tts(project_id, provider, voice_id, final_audio_path, total_duration)

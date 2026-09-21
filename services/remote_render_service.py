@@ -128,6 +128,71 @@ def _sync_subtitle_timings_to_audio_duration(subtitles, audio_duration):
     return synced
 
 
+def _probe_media_duration(ffmpeg_exe: str, media_path: str) -> float:
+    try:
+        result = subprocess.run(
+            [ffmpeg_exe, "-hide_banner", "-i", media_path],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        text = f"{result.stdout}\n{result.stderr}"
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", text)
+        if not match:
+            return 0.0
+        hours, minutes, seconds = match.groups()
+        return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+    except Exception:
+        return 0.0
+
+
+def _prepare_narration_audio_for_render(audio_path: str, temp_dir: str, ffmpeg_exe: str):
+    """Make narration less choppy at generated segment boundaries.
+
+    STD/Vrew narration can arrive as a single MP3 made from many TTS snippets.
+    When those snippets contain leading/trailing silence, hard scene cuts sound
+    like disconnected clips.  This pass trims only longer internal pauses down
+    to a short breath, adds tiny edge fades, and normalizes loudness.
+    """
+    if not audio_path or not os.path.exists(audio_path):
+        return audio_path, 0.0
+
+    processed_path = os.path.join(temp_dir, "audio", "narration_smooth.m4a")
+    filter_chain = ",".join([
+        "aresample=48000",
+        "silenceremove=start_periods=1:start_duration=0.04:start_threshold=-48dB:"
+        "stop_periods=-1:stop_duration=0.32:stop_threshold=-48dB:stop_silence=0.12",
+        "afade=t=in:st=0:d=0.03",
+        "loudnorm=I=-16:TP=-1.5:LRA=11",
+    ])
+    command = [
+        ffmpeg_exe,
+        "-hide_banner",
+        "-y",
+        "-i",
+        audio_path,
+        "-vn",
+        "-af",
+        filter_chain,
+        "-c:a",
+        "aac",
+        "-b:a",
+        "160k",
+        processed_path,
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+        if result.returncode != 0 or not os.path.exists(processed_path) or os.path.getsize(processed_path) <= 0:
+            print(f"[Audio Smooth] skipped; ffmpeg failed: {result.stderr[-500:] if result else ''}")
+            return audio_path, _probe_media_duration(ffmpeg_exe, audio_path)
+        duration = _probe_media_duration(ffmpeg_exe, processed_path)
+        print(f"[Audio Smooth] narration prepared: {processed_path} duration={duration:.3f}s")
+        return processed_path, duration
+    except Exception as exc:
+        print(f"[Audio Smooth] skipped; {exc}")
+        return audio_path, _probe_media_duration(ffmpeg_exe, audio_path)
+
+
 def _render_std_template_overlay_png(render_settings, temp_dir: str, target_resolution):
     if not isinstance(render_settings, dict) or not render_settings.get('std_image_template_enabled'):
         return None
@@ -743,8 +808,19 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         if not audio_path or not os.path.exists(audio_path):
             raise Exception('TTS 오디오 파일을 찾을 수 없습니다.')
 
-        update_progress(15, '오디오 메타데이터 읽는 중...')
+        try:
+            import imageio_ffmpeg as _audio_iio_ffmpeg
+            audio_ffmpeg_exe = _audio_iio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            audio_ffmpeg_exe = "ffmpeg"
+
+        update_progress(15, '내레이션 오디오 자연화 중...')
+        audio_path, smoothed_duration = _prepare_narration_audio_for_render(audio_path, temp_dir, audio_ffmpeg_exe)
+
+        update_progress(18, '오디오 메타데이터 읽는 중...')
         audio_duration = float(metadata.get('audio_duration') or 0.0)
+        if smoothed_duration > 0:
+            audio_duration = smoothed_duration
         if audio_duration <= 0:
             try:
                 from moviepy import AudioFileClip

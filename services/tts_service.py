@@ -8,6 +8,7 @@ import asyncio
 import httpx
 import json
 import os
+import subprocess
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -1318,6 +1319,9 @@ class TTSService:
 
     def _merge_audio_files(self, audio_files: list, output_path: str):
         """여러 오디오 파일을 하나로 합침"""
+        if self._merge_audio_files_with_ffmpeg(audio_files, output_path):
+            return output_path
+
         if not AudioFileClip or not concatenate_audioclips:
             raise ImportError("MoviePy가 설치되지 않았습니다. 오디오 합치기가 불가능합니다.")
             
@@ -1340,6 +1344,78 @@ class TTSService:
                 if os.path.exists(f) and f != output_path:
                     try: os.remove(f)
                     except Exception: pass
+
+    def _merge_audio_files_with_ffmpeg(self, audio_files: list, output_path: str) -> bool:
+        """Merge TTS chunks with tiny crossfades so scene boundaries do not click."""
+        valid_files = [f for f in audio_files if f and os.path.exists(f)]
+        if not valid_files:
+            return False
+        if len(valid_files) == 1:
+            try:
+                os.replace(valid_files[0], output_path)
+                return True
+            except Exception:
+                return False
+
+        try:
+            import imageio_ffmpeg
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            ffmpeg_exe = "ffmpeg"
+
+        command = [ffmpeg_exe, "-hide_banner", "-y"]
+        for file_path in valid_files:
+            command.extend(["-i", file_path])
+
+        fade_seconds = 0.12
+        prepared_labels = []
+        filter_parts = []
+        for index in range(len(valid_files)):
+            label = f"a{index}"
+            prepared_labels.append(label)
+            filter_parts.append(
+                f"[{index}:a]"
+                "aresample=48000,"
+                "aformat=sample_fmts=fltp:channel_layouts=mono,"
+                "silenceremove=start_periods=1:start_duration=0.03:start_threshold=-50dB:"
+                "stop_periods=1:stop_duration=0.08:stop_threshold=-50dB"
+                f"[{label}]"
+            )
+
+        previous = prepared_labels[0]
+        for index in range(1, len(prepared_labels)):
+            out_label = f"x{index}"
+            filter_parts.append(
+                f"[{previous}][{prepared_labels[index]}]"
+                f"acrossfade=d={fade_seconds}:c1=tri:c2=tri"
+                f"[{out_label}]"
+            )
+            previous = out_label
+
+        filter_parts.append(f"[{previous}]loudnorm=I=-16:TP=-1.5:LRA=11[merged]")
+        filter_complex = ";".join(filter_parts)
+        command.extend([
+            "-filter_complex", filter_complex,
+            "-map", "[merged]",
+            "-c:a", "libmp3lame",
+            "-b:a", "160k",
+            output_path,
+        ])
+
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+            if result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                for file_path in valid_files:
+                    if file_path != output_path:
+                        try:
+                            os.remove(file_path)
+                        except Exception:
+                            pass
+                return True
+            print(f"[TTSService] ffmpeg crossfade merge failed: {result.stderr[-500:]}")
+        except Exception as exc:
+            print(f"[TTSService] ffmpeg crossfade merge skipped: {exc}")
+        return False
 
 
 # 싱글톤 인스턴스
