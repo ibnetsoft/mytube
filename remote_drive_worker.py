@@ -627,22 +627,12 @@ class RemoteDriveWorker:
             if not os.path.exists(output_path):
                 raise RuntimeError("렌더링은 완료됐지만 output.mp4 파일을 찾을 수 없습니다.")
 
-            self.update_job(job_id, progress=92, message="렌더링된 영상을 저장소(1차 Supabase / 2차 GCS)에 업로드 중...")
+            self.update_job(job_id, progress=92, message="렌더링된 영상을 GCS API 저장소에 업로드 중...")
             result_filename = self._build_result_filename(job)
 
-            # 1st Priority: Supabase Storage
+            # Primary: Google Cloud Storage. Supabase is used as queue/metadata DB only.
             supabase_render_bucket = os.getenv("SUPABASE_RENDER_BUCKET") or "content-assets"
             supabase_render_path = f"std-renders/{job_id}/{result_filename}"
-            supabase_video = self._upload_to_supabase_storage(
-                output_path,
-                bucket=supabase_render_bucket,
-                object_path=supabase_render_path,
-                mime_type="video/mp4",
-            )
-            if supabase_video:
-                print(f"[RemoteDriveWorker] 1차 Supabase 저장소 영상 업로드 성공: {supabase_render_path}")
-
-            # 2nd Priority: Google Cloud Storage
             gcs_render_path = f"std-renders/{job_id}/{result_filename}"
             gcs_video = self._upload_to_gcs_storage(
                 output_path,
@@ -650,29 +640,31 @@ class RemoteDriveWorker:
                 mime_type="video/mp4",
             )
             if gcs_video:
-                print(f"[RemoteDriveWorker] 2차 GCS 저장소 영상 업로드 성공: {gcs_render_path}")
+                print(f"[RemoteDriveWorker] GCS API 저장소 영상 업로드 성공: {gcs_render_path}")
 
-            # 3rd Priority: Google Drive (Fallback / Legacy)
+            # Google Drive is legacy fallback only when GCS is unavailable.
+            supabase_video = None
             drive_file = None
             result_folder = None
-            try:
-                result_folder = self._resolve_result_folder(job)
-                drive_file = google_drive_service.upsert_file(
-                    output_path,
-                    token_path=self.google_token_path or None,
-                    folder_id=result_folder.get("id"),
-                    filename=result_filename,
-                    mimetype="video/mp4",
-                    description=f"AIR remote render result for queue job {job_id}",
-                    make_public=False,
-                )
-                if drive_file and drive_file.get("id"):
-                    print(f"[RemoteDriveWorker] 3차 Google Drive 영상 업로드 성공: {drive_file.get('id')}")
-            except Exception as drive_err:
-                print(f"[RemoteDriveWorker] Google Drive 업로드 건너뜀/실패 (1차 Supabase/2차 GCS로 지속): {drive_err}")
+            if not gcs_video:
+                try:
+                    result_folder = self._resolve_result_folder(job)
+                    drive_file = google_drive_service.upsert_file(
+                        output_path,
+                        token_path=self.google_token_path or None,
+                        folder_id=result_folder.get("id"),
+                        filename=result_filename,
+                        mimetype="video/mp4",
+                        description=f"AIR remote render result for queue job {job_id}",
+                        make_public=False,
+                    )
+                    if drive_file and drive_file.get("id"):
+                        print(f"[RemoteDriveWorker] GCS 실패 후 Google Drive 영상 업로드 성공: {drive_file.get('id')}")
+                except Exception as drive_err:
+                    print(f"[RemoteDriveWorker] Google Drive fallback 업로드 실패: {drive_err}")
 
-            if not supabase_video and not gcs_video and not drive_file:
-                raise RuntimeError("렌더링된 영상을 저장소(1차 Supabase, 2차 GCS, 3차 Drive) 어디에도 업로드하지 못했습니다.")
+            if not gcs_video and not drive_file:
+                raise RuntimeError("렌더링된 영상을 저장소(GCS API, Drive fallback) 어디에도 업로드하지 못했습니다.")
 
             thumbnail_file = None
             thumbnail_filename = None
@@ -689,12 +681,6 @@ class RemoteDriveWorker:
                     packaged_thumbnail = os.path.join(temp_dir, thumbnail_filename)
                 if packaged_thumbnail and os.path.exists(packaged_thumbnail):
                     thumb_mime = "image/png" if thumbnail_filename.lower().endswith(".png") else "image/jpeg"
-                    supabase_thumb = self._upload_to_supabase_storage(
-                        packaged_thumbnail,
-                        bucket=supabase_render_bucket,
-                        object_path=f"std-renders/{job_id}/{thumbnail_filename}",
-                        mime_type=thumb_mime,
-                    )
                     gcs_thumb = self._upload_to_gcs_storage(
                         packaged_thumbnail,
                         object_path=f"std-renders/{job_id}/{thumbnail_filename}",
@@ -736,12 +722,6 @@ class RemoteDriveWorker:
                 with open(metadata_path, "w", encoding="utf-8") as f_meta:
                     json.dump(upload_metadata, f_meta, ensure_ascii=False, indent=2)
 
-                self._upload_to_supabase_storage(
-                    metadata_path,
-                    bucket=supabase_render_bucket,
-                    object_path=f"std-renders/{job_id}/metadata.json",
-                    mime_type="application/json",
-                )
                 self._upload_to_gcs_storage(
                     metadata_path,
                     object_path=f"std-renders/{job_id}/metadata.json",
@@ -761,16 +741,14 @@ class RemoteDriveWorker:
                     except Exception as meta_err:
                         print(f"[RemoteDriveWorker] Google Drive 메타데이터 업로드 건너뜀/실패: {meta_err}")
 
-            result_public_url = (supabase_video or {}).get("public_url") or (gcs_video or {}).get("public_url")
-            result_file_id = (drive_file or {}).get("id") or result_public_url or supabase_render_path
-            storage_provider = "supabase" if supabase_video else ("gcs" if gcs_video else "google_drive")
+            result_public_url = (gcs_video or {}).get("public_url") or (drive_file or {}).get("webViewLink")
+            result_file_id = result_public_url or (drive_file or {}).get("id") or gcs_render_path
+            storage_provider = "gcs" if gcs_video else "google_drive"
             storage_summary = []
-            if supabase_video:
-                storage_summary.append("Supabase (1차)")
             if gcs_video:
-                storage_summary.append("GCS (2차)")
+                storage_summary.append("GCS API")
             if drive_file:
-                storage_summary.append("Drive (3차)")
+                storage_summary.append("Drive fallback")
 
             self.update_job(
                 job_id,
@@ -786,12 +764,13 @@ class RemoteDriveWorker:
                     "admin_publish_status": "pending_review",
                     "admin_action_required": "review_and_upload",
                     "storage_provider": storage_provider,
-                    "storage_bucket": (supabase_video or {}).get("bucket"),
-                    "storage_path": (supabase_video or {}).get("path"),
+                    "storage_bucket": (gcs_video or {}).get("bucket"),
+                    "storage_path": (gcs_video or {}).get("path"),
                     "result_public_url": result_public_url,
                     "gcs_bucket": (gcs_video or {}).get("bucket"),
                     "gcs_path": (gcs_video or {}).get("path"),
                     "gcs_public_url": (gcs_video or {}).get("public_url"),
+                    "gcs_thumbnail_url": (gcs_thumb or {}).get("public_url"),
                     "result_folder_id": (result_folder or {}).get("id"),
                     "result_folder_name": (result_folder or {}).get("name"),
                     "result_video_file_id": (drive_file or {}).get("id"),

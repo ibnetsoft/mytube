@@ -4672,7 +4672,7 @@ tr:hover { background: #161b22; }
               <select id="hist-filter-type" onchange="loadHistory()">
                 <option value="">전체</option>
                 <option value="render_video">영상 렌더링</option>
-                <option value="drive_api_render">Drive API 렌더링</option>
+                <option value="drive_api_render">GCS API 렌더링</option>
                 <option value="topic_research">주제 탐색</option>
                 <option value="topic_benchmark_analyze">고성과 영상 분석</option>
                 <option value="web_research">Gemini 웹 자료 조사</option>
@@ -4703,7 +4703,7 @@ tr:hover { background: #161b22; }
               <select id="log-process" onchange="loadLogs()">
                 <option value="manager">작업 관리자</option>
                 <option value="render_worker">영상 작업 Worker</option>
-                <option value="remote_drive_worker">Drive API Render Worker</option>
+                <option value="remote_drive_worker">GCS API Render Worker</option>
                 <option value="hermes_worker">AI 기획·대본 Worker</option>
                 <option value="local_api">앱 연결 API</option>
                 <option value="dashboard">대시보드</option>
@@ -5381,7 +5381,7 @@ const STATUS_LABELS = {
 };
 const JOB_TYPE_LABELS = {
   render_video: '영상 렌더링',
-  drive_api_render: 'Drive API 렌더링',
+  drive_api_render: 'GCS API 렌더링',
   topic_research: '주제 탐색',
   topic_benchmark_analyze: '고성과 영상 분석',
   web_research: 'Gemini 웹 자료 조사',
@@ -5435,7 +5435,7 @@ function jobDescription(job) {
   ].filter(Boolean).join(' · ');
   const descriptions = {
     render_video: '최종 영상 렌더링 및 결과 파일 저장',
-    drive_api_render: 'Drive API 최종 영상 렌더링 및 결과 파일 저장',
+    drive_api_render: 'GCS API 최종 영상 렌더링 및 결과 파일 저장',
     topic_research: '키워드·카테고리 관련 주제 자료 조사',
     topic_benchmark_analyze: '고성과 영상의 제목·구성·반응 분석',
     web_research: '제목과 카테고리에 필요한 웹 자료 조사',
@@ -5517,7 +5517,7 @@ function renderProcessCards(status, jobs = []) {
     const disabledByProfile = !allowedProcesses.has(name) || normalizedStatus === 'disabled';
     const disabledReason = info.disabled_reason || `disabled by AIRWORKER_PROFILE=${workerProfile}`;
     const autoStart = !disabledByProfile && (name === 'render_worker' || name === 'local_api');
-    const displayLabel = name === 'remote_drive_worker' ? 'Drive API Render Worker' : label;
+    const displayLabel = name === 'remote_drive_worker' ? 'GCS API Render Worker' : label;
     const displayIcon = name === 'remote_drive_worker' ? '☁️' : icon;
     const hermesPipelineDone = name === 'hermes_worker' && hermesReadyAfterCompletedPipeline(jobs);
     const processBusyStatuses = ['running', 'starting', 'busy', 'claimed', 'preparing', 'rendering', 'uploading'];

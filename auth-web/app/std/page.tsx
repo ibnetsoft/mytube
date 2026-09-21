@@ -12344,19 +12344,29 @@ export default function StdPortalPage() {
                                             <div className="border-t border-white/10 pt-3 space-y-2">
                                                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">렌더 버전 이력</div>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {selectedProject.render_history!.map((render: any) => (
-                                                        <a
-                                                            key={render.id}
-                                                            href={render.result_file_id ? `https://drive.google.com/file/d/${render.result_file_id}/view` : undefined}
-                                                            target={render.result_file_id ? '_blank' : undefined}
-                                                            rel={render.result_file_id ? 'noreferrer' : undefined}
-                                                            className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-bold ${render.result_file_id
-                                                                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
-                                                                : 'border-white/10 bg-white/5 text-gray-400 pointer-events-none'}`}
-                                                        >
-                                                            v{render.render_version} · {render.status === 'completed' ? '완료' : render.status === 'rendering' ? '렌더링 중' : render.status === 'pending' ? '대기 중' : render.status === 'failed' ? '실패' : render.status}
-                                                        </a>
-                                                    ))}
+                                                    {selectedProject.render_history!.map((render: any) => {
+                                                        const metadata = render.metadata || {}
+                                                        const rawResult = metadata.gcs_public_url || metadata.result_public_url || render.result_file_id
+                                                        const resultHref = rawResult
+                                                            ? String(rawResult).startsWith('http')
+                                                                ? String(rawResult)
+                                                                : `https://drive.google.com/file/d/${rawResult}/view`
+                                                            : undefined
+
+                                                        return (
+                                                            <a
+                                                                key={render.id}
+                                                                href={resultHref}
+                                                                target={resultHref ? '_blank' : undefined}
+                                                                rel={resultHref ? 'noreferrer' : undefined}
+                                                                className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-bold ${resultHref
+                                                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                                                                    : 'border-white/10 bg-white/5 text-gray-400 pointer-events-none'}`}
+                                                            >
+                                                                v{render.render_version} · {render.status === 'completed' ? '완료' : render.status === 'rendering' ? '렌더링 중' : render.status === 'pending' ? '대기 중' : render.status === 'failed' ? '실패' : render.status}
+                                                            </a>
+                                                        )
+                                                    })}
                                                 </div>
                                             </div>
                                         )}
