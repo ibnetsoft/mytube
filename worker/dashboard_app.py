@@ -1906,7 +1906,12 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
                 except Exception:
                     pass
 
-            drive_url = f"https://drive.google.com/file/d/{result_fid}/view" if result_fid else (r.get("result_url") or meta.get("result_video_link"))
+            if result_fid and str(result_fid).startswith(("http://", "https://")):
+                drive_url = str(result_fid)
+            elif result_fid:
+                drive_url = f"https://drive.google.com/file/d/{result_fid}/view"
+            else:
+                drive_url = r.get("result_url") or meta.get("gcs_public_url") or meta.get("result_public_url") or meta.get("result_video_link")
 
             formatted.append({
                 "job_id": str(r.get("id")),

@@ -10,6 +10,7 @@ import argparse
 import sys
 import re
 import traceback
+import hashlib
 from urllib.parse import quote
 
 import requests
@@ -440,17 +441,70 @@ class RemoteDriveWorker:
                     proxies={"http": None, "https": None},
                 )
             if res.status_code in (200, 201):
-                public_url = f"https://storage.googleapis.com/{quote(bucket, safe='')}/{quote(clean_path, safe='/')}"
+                media_url = f"https://storage.googleapis.com/{quote(bucket, safe='')}/{quote(clean_path, safe='/')}"
+                signed_url = self._generate_gcs_signed_url(creds, bucket, clean_path)
                 return {
                     "bucket": bucket,
                     "path": clean_path,
-                    "public_url": public_url,
+                    "public_url": signed_url or media_url,
+                    "signed_url": signed_url,
+                    "media_url": media_url,
                 }
             else:
                 print(f"[RemoteDriveWorker] GCS upload failed with status {res.status_code}: {res.text[:200]}")
         except Exception as e:
             print(f"[RemoteDriveWorker] GCS upload error: {e}")
         return None
+
+    def _generate_gcs_signed_url(self, creds, bucket, object_path, expires_seconds=60 * 60 * 24 * 7):
+        """Create a V4 signed URL for private GCS render outputs."""
+        try:
+            if not creds or not getattr(creds, "signer", None):
+                return None
+            now = datetime.datetime.now(datetime.timezone.utc)
+            datestamp = now.strftime("%Y%m%d")
+            timestamp = now.strftime("%Y%m%dT%H%M%SZ")
+            credential_scope = f"{datestamp}/auto/storage/goog4_request"
+            client_email = getattr(creds, "service_account_email", "") or os.getenv("GCS_CLIENT_EMAIL", "")
+            if not client_email:
+                return None
+
+            canonical_uri = f"/{quote(bucket, safe='')}/{quote(object_path, safe='/')}"
+            credential = f"{client_email}/{credential_scope}"
+            query_params = {
+                "X-Goog-Algorithm": "GOOG4-RSA-SHA256",
+                "X-Goog-Credential": credential,
+                "X-Goog-Date": timestamp,
+                "X-Goog-Expires": str(int(expires_seconds)),
+                "X-Goog-SignedHeaders": "host",
+            }
+            canonical_query = "&".join(
+                f"{quote(k, safe='')}={quote(v, safe='')}"
+                for k, v in sorted(query_params.items())
+            )
+            canonical_headers = "host:storage.googleapis.com\n"
+            signed_headers = "host"
+            payload_hash = "UNSIGNED-PAYLOAD"
+            canonical_request = "\n".join([
+                "GET",
+                canonical_uri,
+                canonical_query,
+                canonical_headers,
+                signed_headers,
+                payload_hash,
+            ])
+            request_hash = hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()
+            string_to_sign = "\n".join([
+                "GOOG4-RSA-SHA256",
+                timestamp,
+                credential_scope,
+                request_hash,
+            ])
+            signature = creds.signer.sign(string_to_sign.encode("utf-8")).hex()
+            return f"https://storage.googleapis.com{canonical_uri}?{canonical_query}&X-Goog-Signature={signature}"
+        except Exception as e:
+            print(f"[RemoteDriveWorker] GCS signed URL generation failed: {e}")
+            return None
 
     def _download_asset_with_fallback(self, job_id, drive_file_id, destination_path, *, storage_source=None, label):
         """Read Storage first (1st Supabase, 2nd GCS); Drive is only for legacy or missing Storage files."""
