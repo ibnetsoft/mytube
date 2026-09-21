@@ -77,6 +77,60 @@ function generatedImageStorageSource(scene: any) {
     return bucket && path ? { bucket, path } : null
 }
 
+function cleanMediaUrl(value: any): string {
+    const str = String(value || '').trim()
+    if (!str || str.startsWith('blob:')) return ''
+    return str
+}
+
+function storageSourceFromSupabaseUrl(value: any) {
+    const rawUrl = cleanMediaUrl(value)
+    if (!rawUrl) return null
+    try {
+        const url = new URL(rawUrl)
+        const match = url.pathname.match(/\/storage\/v1\/(?:object|render)\/(?:public|authenticated|sign)\/([^/]+)\/(.+)$/)
+        if (!match) return null
+        return {
+            bucket: decodeURIComponent(match[1]),
+            path: decodeURIComponent(match[2]).replace(/^\/+/, ''),
+        }
+    } catch {
+        return null
+    }
+}
+
+function generatedVideoStorageSource(scene: any) {
+    const metadata = scene?.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}
+    const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
+    const coworkAsset = metadata?.cowork_video_asset || nestedMetadata?.cowork_video_asset || {}
+    const bucket = String(
+        coworkAsset?.bucket
+        || metadata?.video_storage_bucket
+        || nestedMetadata?.video_storage_bucket
+        || metadata?.storage_bucket
+        || nestedMetadata?.storage_bucket
+        || ''
+    ).trim()
+    const path = String(
+        coworkAsset?.object_path
+        || metadata?.video_storage_path
+        || metadata?.video_storage_object_path
+        || nestedMetadata?.video_storage_path
+        || nestedMetadata?.video_storage_object_path
+        || ''
+    ).trim().replace(/^\/+/, '')
+    if (bucket && path) return { bucket, path }
+
+    return storageSourceFromSupabaseUrl(
+        scene?.video_url
+        || scene?.video
+        || metadata?.video_url
+        || metadata?.video
+        || nestedMetadata?.video_url
+        || nestedMetadata?.video
+    )
+}
+
 function storageSourceForAsset(asset: any) {
     const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
     const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
@@ -154,6 +208,74 @@ async function downloadStorageSource(storage: { bucket: string; path: string; pr
 
 export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
     const activeAssets = Array.isArray(assets) ? [...assets] : []
+    const missingGeneratedVideos = (scenes || []).filter((scene: any) => {
+        const sceneNumber = Number(scene?.scene_number)
+        if (
+            !Number.isFinite(sceneNumber)
+            || sceneNumber <= 0
+            || !isStdRequiredVideoScene(sceneNumber)
+            || !generatedVideoStorageSource(scene)
+        ) return false
+        return !activeAssets.some((asset: any) => (
+            activeAsset(asset)
+            && String(asset?.asset_type || '').toLowerCase() === 'video'
+            && Number(asset?.scene_number) === sceneNumber
+            && (String(asset?.drive_file_id || '').trim() || storageSourceForAsset(asset))
+        ))
+    })
+
+    for (const scene of missingGeneratedVideos) {
+        const sceneNumber = Number(scene.scene_number)
+        const source = generatedVideoStorageSource(scene)
+        if (!source) continue
+        const existingAsset = activeAssets.find((asset: any) => (
+            String(asset?.asset_type || '').toLowerCase() === 'video'
+            && Number(asset?.scene_number) === sceneNumber
+        ))
+        const metadata = {
+            ...(existingAsset?.metadata || {}),
+            storage_bucket: source.bucket,
+            storage_path: source.path,
+            storage_public_url: supabaseAdmin.storage.from(source.bucket).getPublicUrl(source.path).data.publicUrl,
+            upload_mode: 'worker_generated_scene_video_recovered_for_render',
+        }
+        const assetPayload = {
+            scene_id: scene?.id || existingAsset?.scene_id || null,
+            scene_number: sceneNumber,
+            asset_type: 'video',
+            drive_file_id: existingAsset?.drive_file_id || null,
+            drive_folder_id: existingAsset?.drive_folder_id || null,
+            file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}.mp4`,
+            mime_type: existingAsset?.mime_type || 'video/mp4',
+            file_size: existingAsset?.file_size || null,
+            status: 'assigned',
+            metadata,
+            updated_at: new Date().toISOString(),
+        }
+        let recoveredAsset: any = null
+        if (existingAsset?.id) {
+            const { data, error } = await supabaseAdmin
+                .from('std_project_assets')
+                .update(assetPayload)
+                .eq('id', existingAsset.id)
+                .select('*')
+                .single()
+            if (error) throw new Error(error.message)
+            recoveredAsset = data
+            const index = activeAssets.findIndex((asset: any) => asset.id === existingAsset.id)
+            if (index >= 0 && recoveredAsset) activeAssets[index] = recoveredAsset
+        } else {
+            const { data, error } = await supabaseAdmin
+                .from('std_project_assets')
+                .insert({ project_id: project.id, ...assetPayload })
+                .select('*')
+                .single()
+            if (error) throw new Error(error.message)
+            recoveredAsset = data
+            if (recoveredAsset) activeAssets.push(recoveredAsset)
+        }
+    }
+
     const missingGeneratedImages = (scenes || []).filter((scene: any) => {
         const sceneNumber = Number(scene?.scene_number)
         if (

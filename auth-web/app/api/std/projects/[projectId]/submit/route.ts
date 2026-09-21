@@ -57,7 +57,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     const [{ data: scenes, error: scenesError }, { data: loadedAssets, error: assetsError }] = await Promise.all([
         supabaseAdmin
             .from('std_project_scenes')
-            .select('id,scene_number,metadata')
+            .select('*')
             .eq('project_id', project.id),
         supabaseAdmin
             .from('std_project_assets')
