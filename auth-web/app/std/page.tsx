@@ -746,6 +746,8 @@ export default function StdPortalPage() {
     const [loading, setLoading] = useState(false)
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
+    const [renderSuccessNotice, setRenderSuccessNotice] = useState<{ projectId: string; title: string; detail: string } | null>(null)
+    const renderSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
     const [message, setMessageRaw] = useState('')
     const setMessage = (msg: string | ((prev: string) => string)) => {
@@ -757,6 +759,33 @@ export default function StdPortalPage() {
         setMessageRaw(msg)
     }
     const [subtitleTranslationScope, setSubtitleTranslationScope] = useState<'thai_only' | 'all'>('thai_only')
+
+    const notifyRenderAccepted = (projectId: string, title: string, detail: string) => {
+        if (renderSuccessTimerRef.current) clearTimeout(renderSuccessTimerRef.current)
+        setRenderSuccessNotice({ projectId, title, detail })
+        renderSuccessTimerRef.current = setTimeout(() => setRenderSuccessNotice(null), 4500)
+
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            const showNotification = () => {
+                try {
+                    new Notification('렌더 큐 등록 성공', { body: detail })
+                } catch {
+                    // Browser notification is optional; the in-app toast is the primary feedback.
+                }
+            }
+            if (Notification.permission === 'granted') {
+                showNotification()
+            } else if (Notification.permission === 'default') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') showNotification()
+                }).catch(() => undefined)
+            }
+        }
+    }
+
+    useEffect(() => () => {
+        if (renderSuccessTimerRef.current) clearTimeout(renderSuccessTimerRef.current)
+    }, [])
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
     const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('ko')
@@ -6196,13 +6225,17 @@ export default function StdPortalPage() {
                     ? '✅ 공동 작업 프로젝트가 이미 원격 렌더 큐에 등록되어 있습니다.'
                     : '✅ 원격 렌더 큐에 성공적으로 등록되었습니다!'
             setMessage(submitMessage)
+            notifyRenderAccepted(
+                String(targetProject.project.id),
+                targetProject.project.title || '프로젝트',
+                payload.already_submitted
+                    ? '이미 렌더 큐에 등록된 프로젝트입니다.'
+                    : payload.shared_submission
+                        ? '공동 작업 프로젝트가 렌더 큐에 등록되어 있습니다.'
+                        : `렌더링 v${payload.render_version || 1}이(가) 큐에 등록되었습니다.`
+            )
             await loadStdData(token, { showLoading: false })
             await openProject(String(targetProject.project.id))
-            alert(payload.already_submitted
-                ? '이미 원격 렌더 큐에 등록된 프로젝트입니다.'
-                : payload.shared_submission
-                    ? '공동 작업자가 이미 제출한 프로젝트입니다.'
-                    : `프로젝트 렌더링 v${payload.render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`)
         } catch (error: any) {
             const errorMessage = error?.message || '제출 실패'
             setMessage(`❌ ${errorMessage}`)
@@ -6231,7 +6264,10 @@ export default function StdPortalPage() {
             const payload = await safeParseJson(res, '재렌더링 준비 실패')
             if (!res.ok || payload.success === false) throw new Error(payload.error || '재렌더링 준비 실패')
             await loadStdData(token, { showLoading: false })
-            setMessage(`렌더링 v${payload.next_render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`)
+            const rerenderMessage = `렌더링 v${payload.next_render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`
+            setMessage(rerenderMessage)
+            const projectTitle = projects.find((p: any) => String(p.id) === projectId)?.title || selectedProject?.project?.title || '프로젝트'
+            notifyRenderAccepted(projectId, projectTitle, rerenderMessage)
         } catch (error: any) {
             const errorMessage = error?.message || '재렌더링 준비 실패'
             setMessage(`❌ ${errorMessage}`)
@@ -8103,6 +8139,31 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
+            {renderSuccessNotice && (
+                <div className="fixed right-4 top-4 z-[80] w-[min(360px,calc(100vw-32px))] animate-in slide-in-from-top-3 fade-in zoom-in-95 duration-200">
+                    <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-[#09251d]/95 p-4 shadow-2xl shadow-emerald-950/60 backdrop-blur">
+                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-300 via-cyan-300 to-emerald-400" />
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-500/30 animate-bounce">
+                                <CheckCircle2 className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-sm font-black text-white">렌더 큐 등록 성공</div>
+                                <div className="mt-1 truncate text-[11px] font-bold text-emerald-100">{renderSuccessNotice.title}</div>
+                                <div className="mt-1 text-[11px] leading-relaxed text-emerald-200/90">{renderSuccessNotice.detail}</div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setRenderSuccessNotice(null)}
+                                className="rounded-lg px-2 py-1 text-sm font-bold text-emerald-100/70 hover:bg-white/10 hover:text-white"
+                                aria-label="알림 닫기"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {topicProjectOpen && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6"
@@ -8219,6 +8280,7 @@ export default function StdPortalPage() {
                                                 Number(p.progress_payload?.latest_render_version) || 0,
                                                 submittedAt ? 1 : 0,
                                             )
+                                            const isRenderSuccessHighlighted = renderSuccessNotice?.projectId === String(p.id)
                                             return (
                                                 <tr
                                                     key={p.id || idx}
@@ -8226,7 +8288,11 @@ export default function StdPortalPage() {
                                                         openProject(p.id)
                                                         setTopicProjectOpen(false)
                                                     }}
-                                                    className="hover:bg-[#14181f] transition cursor-pointer group"
+                                                    className={`transition cursor-pointer group ${
+                                                        isRenderSuccessHighlighted
+                                                            ? 'bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/50 shadow-[0_0_22px_rgba(16,185,129,0.18)]'
+                                                            : 'hover:bg-[#14181f]'
+                                                    }`}
                                                 >
                                                     <td className="px-2 py-1.5 text-center">
                                                         {projectThumbnailUrl ? (
@@ -8318,11 +8384,19 @@ export default function StdPortalPage() {
                                                                             type="button"
                                                                             onClick={() => reopenProjectForRerender(String(p.id))}
                                                                             disabled={Boolean(submittingProjectId)}
-                                                                            className="mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 text-[11px] font-black text-indigo-200 shadow-sm shadow-indigo-950/30 transition hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white active:scale-95 disabled:opacity-50"
+                                                                            className={`mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border text-[11px] font-black shadow-sm transition active:scale-95 disabled:opacity-50 ${
+                                                                                isRenderSuccessHighlighted
+                                                                                    ? 'border-emerald-300/70 bg-emerald-500/25 text-emerald-100 shadow-emerald-500/30 ring-2 ring-emerald-300/40 animate-pulse'
+                                                                                    : 'border-indigo-400/40 bg-indigo-500/15 text-indigo-200 shadow-indigo-950/30 hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white'
+                                                                            }`}
                                                                             title="완료 상태를 유지한 채 새 렌더 버전을 원격 렌더 큐에 등록합니다."
                                                                         >
-                                                                            <RefreshCw className={`h-3.5 w-3.5 ${submittingProjectId === String(p.id) ? 'animate-spin' : ''}`} />
-                                                                            <span>Re</span>
+                                                                            {isRenderSuccessHighlighted ? (
+                                                                                <Check className="h-3.5 w-3.5 animate-in zoom-in-50 duration-150" />
+                                                                            ) : (
+                                                                                <RefreshCw className={`h-3.5 w-3.5 ${submittingProjectId === String(p.id) ? 'animate-spin' : ''}`} />
+                                                                            )}
+                                                                            <span>{isRenderSuccessHighlighted ? 'OK' : 'Re'}</span>
                                                                         </button>
                                                                     ) : submittingProjectId === String(p.id) ? (
                                                                         <button
@@ -8339,12 +8413,20 @@ export default function StdPortalPage() {
                                                                                 if (openedProject) await submitProject(openedProject)
                                                                             }}
                                                                             disabled={Boolean(submittingProjectId)}
-                                                                            className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-wait text-white font-black border border-white/60 shadow-lg shadow-blue-500/50 ring-2 ring-white/60 animate-pulse cursor-pointer mx-auto active:scale-95 transition-all"
+                                                                            className={`w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-wait text-white font-black border shadow-lg ring-2 cursor-pointer mx-auto active:scale-95 transition-all ${
+                                                                                isRenderSuccessHighlighted
+                                                                                    ? 'bg-emerald-500 border-emerald-200/80 shadow-emerald-500/50 ring-emerald-200/70 animate-bounce'
+                                                                                    : 'bg-blue-600 hover:bg-blue-500 border-white/60 shadow-blue-500/50 ring-white/60 animate-pulse'
+                                                                            }`}
                                                                             title={hasSharedSubmission
                                                                                 ? '공동 작업 제출 확인: 클릭하면 중복 렌더 없이 제출 완료로 처리됩니다.'
                                                                                 : '모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수'}
                                                                         >
-                                                                            <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
+                                                                            {isRenderSuccessHighlighted ? (
+                                                                                <Check className="h-3.5 w-3.5" />
+                                                                            ) : (
+                                                                                <span className="text-sm font-black leading-none text-white drop-shadow">⏎</span>
+                                                                            )}
                                                                         </button>
                                                                     ) : (
                                                                         <button
@@ -12296,21 +12378,32 @@ export default function StdPortalPage() {
                                 </div>
 
                                 {/* 렌더링 시작 버튼 */}
-                                <button
-                                    type="button"
-                                    onClick={() => selectedProject.project.submitted_at
-                                        ? reopenProjectForRerender(String(selectedProject.project.id))
-                                        : handleStartRender()}
-                                    disabled={isRendering}
-                                    className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2 disabled:opacity-50 active:scale-95"
-                                >
-                                    <span>🎬</span>
-                                    <span>{isRendering
-                                        ? '영상 렌더링 진행 중...'
-                                        : selectedProject.project.submitted_at
-                                            ? '수정 후 재렌더링'
-                                            : `렌더링 v${selectedProject.project.progress_payload?.editing_render_version || ((selectedProject.project.progress_payload?.latest_render_version || 0) + 1)} 시작`}</span>
-                                </button>
+                                {(() => {
+                                    const isRenderSuccessHighlighted = renderSuccessNotice?.projectId === String(selectedProject.project.id)
+                                    return (
+                                        <button
+                                            type="button"
+                                            onClick={() => selectedProject.project.submitted_at
+                                                ? reopenProjectForRerender(String(selectedProject.project.id))
+                                                : handleStartRender()}
+                                            disabled={isRendering}
+                                            className={`px-6 py-2 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2 disabled:opacity-50 active:scale-95 ${
+                                                isRenderSuccessHighlighted
+                                                    ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 shadow-emerald-500/40 ring-2 ring-emerald-200/70 animate-pulse'
+                                                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500'
+                                            }`}
+                                        >
+                                            {isRenderSuccessHighlighted ? <CheckCircle2 className="h-4 w-4 animate-in zoom-in-50 duration-150" /> : <span>🎬</span>}
+                                            <span>{isRenderSuccessHighlighted
+                                                ? '렌더 큐 등록 완료'
+                                                : isRendering
+                                                    ? '영상 렌더링 진행 중...'
+                                                    : selectedProject.project.submitted_at
+                                                        ? '수정 후 재렌더링'
+                                                        : `렌더링 v${selectedProject.project.progress_payload?.editing_render_version || ((selectedProject.project.progress_payload?.latest_render_version || 0) + 1)} 시작`}</span>
+                                        </button>
+                                    )
+                                })()}
                             </div>
 
                             {/* 2. 메인 워크스페이스 그리드 (좌: 상태/로그, 우: 비디오 플레이어) */}
