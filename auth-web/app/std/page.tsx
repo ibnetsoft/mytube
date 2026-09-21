@@ -6219,9 +6219,10 @@ export default function StdPortalPage() {
 
     const reopenProjectForRerender = async (projectId: string) => {
         if (!projectId || loading) return
-        if (!confirm('기존 렌더 결과는 보관하고 이 프로젝트를 수정 가능한 상태로 다시 여시겠습니까?')) return
+        if (!confirm('완료 상태를 유지한 채 새 렌더 버전을 큐에 등록하시겠습니까?')) return
         setLoading(true)
-        setMessage('기존 렌더 결과를 보관하고 다음 렌더 버전을 준비하고 있습니다...')
+        setSubmittingProjectId(projectId)
+        setMessage('완료 목록 위치를 유지한 채 새 렌더 버전을 큐에 등록하고 있습니다...')
         try {
             const res = await fetch(`/api/std/projects/${projectId}/reopen`, {
                 method: 'POST',
@@ -6230,15 +6231,14 @@ export default function StdPortalPage() {
             const payload = await safeParseJson(res, '재렌더링 준비 실패')
             if (!res.ok || payload.success === false) throw new Error(payload.error || '재렌더링 준비 실패')
             await loadStdData(token, { showLoading: false })
-            await openProject(projectId)
-            setCurrentNav('image_gen')
-            setMessage(`렌더링 v${payload.next_render_version || 1} 수정본을 준비했습니다. 필요한 단계만 수정한 뒤 다시 렌더링하세요.`)
+            setMessage(`렌더링 v${payload.next_render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`)
         } catch (error: any) {
             const errorMessage = error?.message || '재렌더링 준비 실패'
             setMessage(`❌ ${errorMessage}`)
             alert(errorMessage)
         } finally {
             setLoading(false)
+            setSubmittingProjectId('')
         }
     }
 
@@ -8317,11 +8317,11 @@ export default function StdPortalPage() {
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => reopenProjectForRerender(String(p.id))}
-                                                                            disabled={loading}
+                                                                            disabled={Boolean(submittingProjectId)}
                                                                             className="mx-auto inline-flex h-7 w-[52px] items-center justify-center gap-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 text-[11px] font-black text-indigo-200 shadow-sm shadow-indigo-950/30 transition hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white active:scale-95 disabled:opacity-50"
-                                                                            title="이미 제출됨: 클릭하면 원격 렌더 큐 접수 상태를 확인합니다. 기존 결과를 보관하고 수정 후 재렌더링할 수 있습니다."
+                                                                            title="완료 상태를 유지한 채 새 렌더 버전을 원격 렌더 큐에 등록합니다."
                                                                         >
-                                                                            <RefreshCw className="h-3.5 w-3.5" />
+                                                                            <RefreshCw className={`h-3.5 w-3.5 ${submittingProjectId === String(p.id) ? 'animate-spin' : ''}`} />
                                                                             <span>Re</span>
                                                                         </button>
                                                                     ) : submittingProjectId === String(p.id) ? (
