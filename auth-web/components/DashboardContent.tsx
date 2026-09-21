@@ -605,27 +605,6 @@ export default function DashboardContent() {
         }
     }
 
-    const handleReconnectGoogleDrive = async () => {
-        if (!canManageSystemSettings) return
-        if (!sysKeys.google_drive_client_id || !sysKeys.google_drive_client_secret) {
-            alert(isKor
-                ? 'Google Drive OAuth Client ID와 Client Secret을 먼저 입력하고 하단의 [설정 저장]을 완료해주세요.'
-                : 'Please enter Google Drive OAuth Client ID and Client Secret, and save settings first.')
-            return
-        }
-        try {
-            const response = await adminFetch('/api/admin/google-drive/oauth', { method: 'POST' })
-            const payload = await response.json().catch(() => ({}))
-            if (!response.ok || !payload?.authorization_url) {
-                alert(payload?.error || (isKor ? 'Google Drive 재연결을 시작하지 못했습니다.' : 'Failed to initiate Google Drive reconnect.'))
-                return
-            }
-            window.location.assign(payload.authorization_url)
-        } catch (error: any) {
-            alert(error?.message || (isKor ? 'Google Drive 재연결을 시작하지 못했습니다.' : 'Failed to initiate Google Drive reconnect.'))
-        }
-    }
-
     const handleUpdateApiKeys = async () => {
         if (!canManageSensitiveUserSettings) return;
         if (!apiViewUser) return;
@@ -1047,9 +1026,8 @@ export default function DashboardContent() {
         const meta = req.metadata || {}
         const quickLinks = [
             { label: 'YouTube', href: meta.youtube_url || (meta.videoId ? `https://youtu.be/${meta.videoId}` : null), tone: 'blue' },
-            { label: meta.gcs_public_url || meta.result_public_url ? (meta.gcs_public_url ? 'GCS 영상' : '영상') : 'Drive', href: meta.gcs_public_url || meta.result_public_url || meta.drive_video_link || meta.drive_folder_link, tone: (meta.gcs_public_url || meta.result_public_url) ? 'emerald' : 'gray' },
-            { label: 'Thumb', href: meta.gcs_thumbnail_url || meta.drive_thumbnail_link, tone: 'gray' },
-            { label: 'JSON', href: meta.drive_metadata_link, tone: 'gray' },
+            { label: 'GCS 영상', href: meta.gcs_public_url || meta.result_public_url || meta.gcs_video_link, tone: 'emerald' },
+            { label: 'GCS 썸네일', href: meta.gcs_thumbnail_url || meta.gcs_thumbnail_link, tone: 'gray' },
         ].filter(item => item.href)
 
         const toneClass = (tone: string) =>
@@ -1132,16 +1110,6 @@ export default function DashboardContent() {
                         <span className="mr-2 px-4 py-2 bg-emerald-500/15 text-emerald-300 text-[10px] font-black rounded-xl border border-emerald-500/30 inline-block uppercase tracking-widest">
                             {isKor ? '🌐 공개됨' : '🌐 Public'}
                         </span>
-                    )}
-                    {(req.status === 'published' || req.status === 'release_requested' || req.status === 'public') && req.metadata?.drive_folder_link && (
-                        <a
-                            href={req.metadata.drive_folder_link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white text-[10px] font-black rounded-xl border border-white/10 transition-all uppercase tracking-widest inline-block"
-                        >
-                            {isKor ? '백업 확인' : 'Backup'}
-                        </a>
                     )}
                 </div>
                 {quickLinks.length > 0 ? (
@@ -1557,12 +1525,12 @@ export default function DashboardContent() {
         const msg = String(raw || '').trim();
         if (!msg) return '-';
         const exactMap: Record<string, string> = {
-            'Google Drive API asset package uploaded. Waiting for remote worker.': 'Google Drive에 에셋 패키지 업로드 완료. 원격 워커 대기 중.',
-            'Downloading asset package from Google Drive.': 'Google Drive에서 에셋 패키지 다운로드 중...',
+            'GCS API asset package uploaded. Waiting for remote worker.': 'GCS API 에셋 패키지 준비 완료. 원격 워커 대기 중.',
+            'Downloading asset package from GCS API.': 'GCS API 저장소에서 에셋 패키지 다운로드 중...',
             'Extracting asset package.': '에셋 패키지 압축 해제 중...',
             'Rendering video on remote worker.': '원격 워커에서 영상 렌더링 중...',
-            'Uploading rendered video to Google Drive.': '렌더링된 영상을 GCS API 저장소에 업로드 중...',
-            'Remote Drive API render completed.': '렌더링 완료 (GCS API 업로드 완료)',
+            'Uploading rendered video to GCS API.': '렌더링된 영상을 GCS API 저장소에 업로드 중...',
+            'Remote GCS API render completed.': '렌더링 완료 (GCS API 업로드 완료)',
             'Loading render package...': '렌더링 패키지 로딩 중...',
             'Preparing music playlist render...': '음악 플레이리스트 렌더링 준비 중...',
             'Rendering playlist video...': '플레이리스트 영상 렌더링 중...',
@@ -1575,7 +1543,7 @@ export default function DashboardContent() {
         if (exactMap[msg]) return exactMap[msg];
         const claimedMatch = msg.match(/^Claimed by (.+)$/);
         if (claimedMatch) return `${claimedMatch[1]}에서 작업을 가져감`;
-        const driveFailMatch = msg.match(/^Remote Drive API render failed:\s*([\s\S]*)$/);
+        const driveFailMatch = msg.match(/^Remote (?:Drive|GCS) API render failed:\s*([\s\S]*)$/);
         if (driveFailMatch) return `렌더링 실패: ${driveFailMatch[1]}`;
         const errorMatch = msg.match(/^Error:\s*([\s\S]*)$/);
         if (errorMatch) return `오류: ${errorMatch[1]}`;
@@ -1876,7 +1844,7 @@ export default function DashboardContent() {
                                             ) : null}
                                         </td>
                                         <td className="px-4 py-4 text-center">
-                                            {meta.result_thumbnail_file_id ? (
+                                            {meta.gcs_thumbnail_url || meta.gcs_thumbnail_link ? (
                                                 <button
                                                     type="button"
                                                     onClick={() => openThumbnailModal(task)}
@@ -1884,7 +1852,7 @@ export default function DashboardContent() {
                                                     title="클릭해서 크게 보기 / 교체"
                                                 >
                                                     <img
-                                                        src={`https://drive.google.com/thumbnail?id=${meta.result_thumbnail_file_id}&sz=w160${thumbnailCacheBust[task.id] ? `&_ts=${thumbnailCacheBust[task.id]}` : ''}`}
+                                                        src={`${meta.gcs_thumbnail_url || meta.gcs_thumbnail_link}${thumbnailCacheBust[task.id] ? `${String(meta.gcs_thumbnail_url || meta.gcs_thumbnail_link).includes('?') ? '&' : '?'}_ts=${thumbnailCacheBust[task.id]}` : ''}`}
                                                         alt="썸네일"
                                                         className="w-20 h-12 object-cover bg-black/40"
                                                     />
@@ -1894,7 +1862,7 @@ export default function DashboardContent() {
                                             )}
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap">
-                                            {(meta.result_metadata_file_id || meta.result_folder_id) ? (
+                                            {(meta.gcs_public_url || meta.result_public_url || meta.gcs_video_link) ? (
                                                 <button
                                                     type="button"
                                                     onClick={() => openDescriptionModal(task)}
@@ -3138,7 +3106,7 @@ export default function DashboardContent() {
         }
     }, [isAdmin, loading, globalPeriod, fetchGlobalStats]);
 
-    // Google Drive OAuth 콜백 결과 감지 및 사용자 피드백
+    // GCS API OAuth 콜백 결과 감지 및 사용자 피드백
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
@@ -3152,8 +3120,8 @@ export default function DashboardContent() {
 
         if (driveOAuth === 'connected') {
             alert(isKor
-                ? '✅ Google Drive 연동이 완료되었습니다!\n렌더워커와 중앙 스튜디오에서 구글 드라이브를 안전하게 사용할 수 있습니다.'
-                : '✅ Google Drive connected successfully!\nBackground render workers and the studio are now connected.');
+                ? '✅ GCS API 연동이 완료되었습니다!\n렌더워커와 중앙 스튜디오에서 GCS API를 안전하게 사용할 수 있습니다.'
+                : '✅ GCS API connected successfully!\nBackground render workers and the studio are now connected.');
             setActiveTab('api');
             setApiSettingsTab('drive');
             fetchSysKeys();
@@ -3170,8 +3138,8 @@ export default function DashboardContent() {
             };
             const desc = errorDescriptions[driveOAuth] || `오류 코드: ${driveOAuth}`;
             alert((isKor
-                ? `❌ Google Drive 연동에 실패했습니다.\n\n원인: ${desc}\n\n※ 점검 사항:\n1. Google Cloud Console > [OAuth 동의 화면]이 "게시 상태: 프로덕션"인지 확인\n2. [승인된 리디렉션 URI]에 현재 접속 주소의 콜백(/api/admin/google-drive/oauth/callback)이 등록되었는지 확인`
-                : `❌ Google Drive connection failed.\n\nReason: ${desc}\n\nChecklist:\n1. Ensure OAuth consent screen is published to Production\n2. Ensure the redirect URI matches exactly in Google Cloud Console.`));
+                ? `❌ GCS API 연동에 실패했습니다.\n\n원인: ${desc}\n\n※ 점검 사항:\n1. Google Cloud Console > [OAuth 동의 화면]이 "게시 상태: 프로덕션"인지 확인\n2. [승인된 리디렉션 URI]에 현재 접속 주소의 콜백(/api/admin/google-drive/oauth/callback)이 등록되었는지 확인`
+                : `❌ GCS API connection failed.\n\nReason: ${desc}\n\nChecklist:\n1. Ensure OAuth consent screen is published to Production\n2. Ensure the redirect URI matches exactly in Google Cloud Console.`));
             setActiveTab('api');
             setApiSettingsTab('drive');
         }
@@ -5699,7 +5667,7 @@ export default function DashboardContent() {
                                 </div>
                             )}
 
-                            {/* ── Storage (GCS & Google Drive) ── */}
+                            {/* ── Storage (GCS API) ── */}
                             {apiSettingsTab === 'drive' && (
                                 <div className="space-y-6 animate-in fade-in duration-200">
                                     {/* ── Google Cloud Storage (GCS) ── */}
@@ -5750,74 +5718,22 @@ export default function DashboardContent() {
                                         </div>
                                     </div>
 
-                                    {/* ── Google Drive OAuth (레거시 백업) ── */}
-                                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-5">
-                                        <div>
-                                            <div className="flex items-center gap-2.5">
-                                                <h4 className="text-sm font-black text-cyan-200">Google Drive 공통 OAuth 설정</h4>
-                                                {sysKeys.google_drive_refresh_token ? (
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/30">
-                                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                                        연동 완료 (Connected)
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-bold text-amber-400 border border-amber-500/30">
-                                                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-                                                        미연동 (인증 필요)
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <p className="mt-1 text-xs text-cyan-100/70">
-                                                렌더워커 및 중앙 스튜디오가 영상을 업로드하고 에셋을 공유할 중앙 구글 드라이브를 연동합니다.
-                                            </p>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={handleReconnectGoogleDrive}
-                                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-500/25 whitespace-nowrap"
-                                        >
-                                            {sysKeys.google_drive_refresh_token ? 'Drive 재연결' : 'Drive 계정 연동'}
-                                        </button>
-                                    </div>
-
-                                    {/* Google Drive 운영 가이드 안내 배너 */}
+                                    {/* GCS API 운영 가이드 안내 배너 */}
                                     <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 text-xs space-y-1.5 text-amber-200/80">
                                         <div className="font-bold text-amber-300 flex items-center gap-1.5 text-[12px]">
-                                            <span>💡 구글 드라이브 연동 시 주의사항</span>
+                                            <span>💡 GCS API 연동 시 주의사항</span>
                                         </div>
                                         <ul className="list-disc list-inside space-y-1 text-[11px] text-amber-200/70">
                                             <li>
-                                                <b>7일 만료 방지:</b> Google Cloud Console &gt; <b>[OAuth 동의 화면]</b>에서 앱 상태가 <b>[게시 상태: 프로덕션]</b>으로 전환되어 있어야 토큰이 영구 유지됩니다. (테스트 상태는 7일 후 만료됨)
+                                                <b>서비스 계정:</b> 렌더워커가 사용하는 Service Account Client Email과 Private Key가 올바르게 저장되어야 합니다.
                                             </li>
                                             <li>
-                                                <b>승인된 리디렉션 URI:</b> Google Cloud Console 사용자 인증 정보에 <code>{typeof window !== 'undefined' ? `${window.location.origin}/api/admin/google-drive/oauth/callback` : '/api/admin/google-drive/oauth/callback'}</code> 가 등록되어 있어야 합니다.
+                                                <b>권한:</b> 서비스 계정에는 대상 버킷의 객체 읽기/쓰기 권한이 필요합니다.
                                             </li>
                                             <li>
-                                                <b>연동 순서:</b> Client ID와 Client Secret을 먼저 입력하고 페이지 최하단의 <b>[설정 저장]</b>을 누른 뒤, 상단의 <b>[Drive 재연결]</b> 버튼을 눌러주세요.
+                                                <b>저장 순서:</b> 위 GCS 값을 입력한 뒤 페이지 하단의 <b>[설정 저장]</b>을 눌러주세요.
                                             </li>
                                         </ul>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                                        {([
-                                            { key: 'google_drive_client_id', label: 'Google Drive OAuth Client ID', hint: 'Google Cloud OAuth 2.0 클라이언트 ID' },
-                                            { key: 'google_drive_client_secret', label: 'Google Drive OAuth Client Secret', hint: '위 Client ID와 같은 OAuth 클라이언트의 Secret' },
-                                            { key: 'google_drive_root_folder_id', label: 'Google Drive Root Folder ID', hint: '유저 제출·워커·관리자가 함께 사용할 최상위 폴더 ID' },
-                                        ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (
-                                            <div key={key} className="space-y-1.5">
-                                                <label className="block text-[10px] font-black uppercase tracking-widest text-gray-300">{label}</label>
-                                                <p className="text-[10px] text-gray-600">{hint}</p>
-                                                <input
-                                                    type="text"
-                                                    value={sysKeys[key] as string}
-                                                    onChange={e => setSysKeys(prev => ({ ...prev, [key]: e.target.value }))}
-                                                    autoComplete="off"
-                                                    spellCheck={false}
-                                                    placeholder="(미설정)"
-                                                    className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 font-mono text-xs text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-                                                />
-                                            </div>
-                                        ))}
                                     </div>
 
                                 </div>
@@ -6251,18 +6167,18 @@ export default function DashboardContent() {
                                         </div>
                                     </div>
                                     <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-4">
-                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">📂 Google Drive &amp; 외부 GPU 렌더링 설정</p>
+                                        <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">📂 GCS API &amp; 외부 GPU 렌더링 설정</p>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">구글 드라이브 렌더 큐 절대 경로</label>
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">GCS API 렌더 큐 경로</label>
                                                 <input
                                                     type="text"
                                                     value={sysKeys.drive_render_queue_path}
                                                     onChange={e => setSysKeys(prev => ({ ...prev, drive_render_queue_path: e.target.value }))}
-                                                    placeholder="예: G:/내 드라이브/Longform_Render_Queue"
+                                                    placeholder="예: gcs://air-studio-prod/std-renders"
                                                     className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 font-mono"
                                                 />
-                                                <p className="text-[9px] text-gray-600 mt-1">유저앱들이 프로젝트 제출 시 렌더 파일을 복사해 업로드할 구글 드라이브 경로입니다.</p>
+                                                <p className="text-[9px] text-gray-600 mt-1">유저앱들이 프로젝트 제출 시 렌더 파일을 복사해 업로드할 GCS API 경로입니다.</p>
                                             </div>
                                             <div>
                                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">외부 렌더링 사용 활성화 (true/false)</label>
@@ -6272,9 +6188,9 @@ export default function DashboardContent() {
                                                     className="w-full bg-black/40 border border-white/10 text-xs px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-gray-300 cursor-pointer"
                                                 >
                                                     <option value="false" className="bg-[#111]">로컬에서 즉시 렌더링 (false)</option>
-                                                    <option value="true" className="bg-[#111]">구글드라이브 우회 렌더링 사용 (true)</option>
+                                                    <option value="true" className="bg-[#111]">GCS API 렌더링 사용 (true)</option>
                                                 </select>
-                                                <p className="text-[9px] text-gray-600 mt-1">유저앱에서 로컬 FFmpeg 대신 구글 드라이브 큐를 태워 외부 GPU로 렌더링할지 선택합니다.</p>
+                                                <p className="text-[9px] text-gray-600 mt-1">유저앱에서 로컬 FFmpeg 대신 GCS API 렌더 큐를 태워 외부 GPU로 렌더링할지 선택합니다.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -7177,9 +7093,9 @@ export default function DashboardContent() {
                         <div className="w-full aspect-video rounded-xl overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
                             {thumbnailPreviewFile ? (
                                 <img src={thumbnailPreviewFile.url} alt="새 썸네일 미리보기" className="w-full h-full object-contain" />
-                            ) : thumbnailEditTask.metadata?.result_thumbnail_file_id ? (
+                            ) : (thumbnailEditTask.metadata?.gcs_thumbnail_url || thumbnailEditTask.metadata?.gcs_thumbnail_link) ? (
                                 <img
-                                    src={`https://drive.google.com/thumbnail?id=${thumbnailEditTask.metadata.result_thumbnail_file_id}&sz=w800${thumbnailCacheBust[thumbnailEditTask.id] ? `&_ts=${thumbnailCacheBust[thumbnailEditTask.id]}` : ''}`}
+                                    src={`${thumbnailEditTask.metadata.gcs_thumbnail_url || thumbnailEditTask.metadata.gcs_thumbnail_link}${thumbnailCacheBust[thumbnailEditTask.id] ? `${String(thumbnailEditTask.metadata.gcs_thumbnail_url || thumbnailEditTask.metadata.gcs_thumbnail_link).includes('?') ? '&' : '?'}_ts=${thumbnailCacheBust[thumbnailEditTask.id]}` : ''}`}
                                     alt="현재 썸네일"
                                     className="w-full h-full object-contain"
                                 />

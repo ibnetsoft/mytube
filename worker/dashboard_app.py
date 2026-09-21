@@ -1907,11 +1907,9 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
                     pass
 
             if result_fid and str(result_fid).startswith(("http://", "https://")):
-                drive_url = str(result_fid)
-            elif result_fid:
-                drive_url = f"https://drive.google.com/file/d/{result_fid}/view"
+                result_url = str(result_fid)
             else:
-                drive_url = r.get("result_url") or meta.get("gcs_public_url") or meta.get("result_public_url") or meta.get("result_video_link")
+                result_url = r.get("result_url") or meta.get("gcs_public_url") or meta.get("result_public_url") or meta.get("gcs_video_link")
 
             formatted.append({
                 "job_id": str(r.get("id")),
@@ -1925,8 +1923,8 @@ def _fetch_remote_drive_render_queue(limit: int = 30) -> list[dict]:
                 "progress": progress_val,
                 "progress_message": r.get("message") or "",
                 "worker_id": r.get("worker_id") or "-",
-                "result_url": drive_url,
-                "drive_file_id": result_fid,
+                "result_url": result_url,
+                "gcs_result_url": result_url,
                 "thumbnail_file_id": meta.get("result_thumbnail_file_id") or r.get("thumbnail_file_id"),
                 "created_at": r.get("created_at"),
                 "started_at": r.get("claimed_at"),

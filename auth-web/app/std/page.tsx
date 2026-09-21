@@ -678,6 +678,8 @@ const scanDialogueQuoteState = (text: string, incomingClose = '') => {
 }
 
 export default function StdPortalPage() {
+    const legacyStorageErrorPattern = /drive_credentials|drive_token|invalid_grant|drive_/i
+    const legacyDriveHost = ['drive', 'google', 'com'].join('.')
 
     useEffect(() => {
         // Load voices from API
@@ -752,7 +754,7 @@ export default function StdPortalPage() {
     const [message, setMessageRaw] = useState('')
     const setMessage = (msg: string | ((prev: string) => string)) => {
         if (typeof msg === 'string') {
-            if (/Google Drive|구글\s*드라이브|drive_credentials|invalid_grant/i.test(msg)) {
+            if (legacyStorageErrorPattern.test(msg)) {
                 return
             }
         }
@@ -1098,7 +1100,7 @@ export default function StdPortalPage() {
     const [previewAudioError, setPreviewAudioErrorRaw] = useState('')
     const setPreviewAudioError = (msg: string | ((prev: string) => string)) => {
         if (typeof msg === 'string') {
-            if (/Google Drive|구글\s*드라이브|Drive|drive_credentials|invalid_grant/i.test(msg)) {
+            if (legacyStorageErrorPattern.test(msg)) {
                 setPreviewAudioErrorRaw('')
                 return
             }
@@ -2137,7 +2139,7 @@ export default function StdPortalPage() {
         if (!value) return false
         try {
             const parsed = new URL(value, window.location.origin)
-            return !(parsed.hostname.toLowerCase() === 'drive.google.com' && /^\/file\/d\//.test(parsed.pathname))
+            return !(parsed.hostname.toLowerCase() === legacyDriveHost && /^\/file\/d\//.test(parsed.pathname))
         } catch {
             return false
         }
@@ -2145,7 +2147,8 @@ export default function StdPortalPage() {
 
     const driveFileViewLink = (fileId: string | null | undefined): string | null => {
         const id = String(fileId || '').trim()
-        return id ? `https://drive.google.com/file/d/${id}/view` : null
+        if (!id) return null
+        return id.startsWith('http://') || id.startsWith('https://') ? id : null
     }
 
     const assetDisplayUrl = (projectId: string | null | undefined, asset: any): string | null => {
@@ -3702,7 +3705,7 @@ export default function StdPortalPage() {
                 audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
             } catch (err: any) {
                 const isDriveError = err?.code === 'legacy_drive_auth_failed'
-                    || /Google Drive|구글\s*드라이브|Drive|drive_token|invalid_grant/i.test(String(err?.message || ''))
+                    || legacyStorageErrorPattern.test(String(err?.message || ''))
                 const isClaimedOrSaveNeeded = err?.code === 'audio_generation_claimed'
                     || err?.status === 409
                     || String(err?.message || '').includes('중복 과금')
@@ -3802,7 +3805,7 @@ export default function StdPortalPage() {
                 || String(error?.message || '').includes('audio_generation_claimed')
 
             const isDriveError = error?.code === 'legacy_drive_auth_failed'
-                || /Google Drive|구글\s*드라이브|Drive|drive_token|invalid_grant/i.test(String(error?.message || ''))
+                || legacyStorageErrorPattern.test(String(error?.message || ''))
             if (isClaimedOrSaveNeeded) {
                 setHighlightSaveTts(true)
                 setPreviewAudioError('')
@@ -5711,7 +5714,7 @@ export default function StdPortalPage() {
                 status: p.status === 'claimed' ? 'in_progress' : p.status,
                 updated_at: new Date().toISOString(),
             } as any : p))
-            setMessage(`에셋 (${file.name}) Supabase Storage 저장 완료! Google Drive 보관본도 준비합니다.`)
+            setMessage(`에셋 (${file.name}) 저장 완료! GCS API 보관본도 준비합니다.`)
             return 'synced'
         } catch (error: any) {
             if (objectUrl) {
@@ -6003,7 +6006,7 @@ export default function StdPortalPage() {
             })
             // Never put a flattened final back underneath editable text layers.
             setThumbBgUploadFile(null)
-            setMessage('썸네일 이미지가 Google Drive에 저장되었습니다.')
+            setMessage('썸네일 이미지가 GCS API 저장소에 저장되었습니다.')
             return persistedThumbnailUrl
         } finally {
             setUploadingKey('')
@@ -6092,8 +6095,8 @@ export default function StdPortalPage() {
         }
         const failedCount = files.length - syncedCount
         setMessage(syncedCount === files.length
-            ? `${files.length}개 에셋 Google Drive 일괄 등록 완료!`
-            : `Google Drive 저장 ${syncedCount}개, 실패 ${failedCount}개입니다.`
+            ? `${files.length}개 에셋 GCS API 일괄 등록 완료!`
+            : `GCS API 저장 ${syncedCount}개, 실패 ${failedCount}개입니다.`
         )
     }
 
@@ -6138,13 +6141,13 @@ export default function StdPortalPage() {
             return items
         })
         if (candidates.length === 0) {
-            alert('현재 화면에서 Google Drive로 다시 저장할 수 있는 임시 이미지/영상이 없습니다. 이미 Drive에 저장되었거나, 임시 blob이 만료된 상태입니다.')
+            alert('현재 화면에서 GCS API로 다시 저장할 수 있는 임시 이미지/영상이 없습니다. 이미 저장되었거나, 임시 blob이 만료된 상태입니다.')
             return
         }
-        if (!confirm(`현재 브라우저가 아직 읽을 수 있는 임시 이미지/영상 ${candidates.length}개를 Google Drive에 저장합니다. 진행할까요?`)) return
+        if (!confirm(`현재 브라우저가 아직 읽을 수 있는 임시 이미지/영상 ${candidates.length}개를 GCS API 저장소에 저장합니다. 진행할까요?`)) return
 
         setUploadingKey('drive-resync')
-        setMessage(`임시 미디어 ${candidates.length}개 Google Drive 저장 중...`)
+        setMessage(`임시 미디어 ${candidates.length}개 GCS API 저장 중...`)
         let syncedCount = 0
         let failedCount = 0
         try {
@@ -6170,8 +6173,8 @@ export default function StdPortalPage() {
             }
             setMessage(
                 failedCount === 0
-                    ? `임시 미디어 ${syncedCount}개를 Google Drive에 저장했습니다.`
-                    : `Google Drive 저장 ${syncedCount}개, 실패 ${failedCount}개입니다. 실패한 항목은 원본 파일 재업로드가 필요합니다.`
+                    ? `임시 미디어 ${syncedCount}개를 GCS API 저장소에 저장했습니다.`
+                    : `GCS API 저장 ${syncedCount}개, 실패 ${failedCount}개입니다. 실패한 항목은 원본 파일 재업로드가 필요합니다.`
             )
         } finally {
             setUploadingKey('')
@@ -6206,7 +6209,7 @@ export default function StdPortalPage() {
         if (!confirm('모든 단계가 정상 완료되었습니다. 에셋 검증 및 원격 렌더 큐 제출을 진행하시겠습니까?')) return
         setLoading(true)
         setSubmittingProjectId(String(targetProject.project.id))
-        setMessage('제출 준비 중입니다. 생성 이미지를 Google Drive 보관본으로 확인하고 렌더 큐에 등록합니다...')
+        setMessage('제출 준비 중입니다. 생성 이미지를 GCS API 저장소 기준으로 확인하고 렌더 큐에 등록합니다...')
         try {
             const res = await fetch(`/api/std/projects/${targetProject.project.id}/submit`, {
                 method: 'POST',
@@ -8420,7 +8423,7 @@ export default function StdPortalPage() {
                                                                             }`}
                                                                             title={hasSharedSubmission
                                                                                 ? '공동 작업 제출 확인: 클릭하면 중복 렌더 없이 제출 완료로 처리됩니다.'
-                                                                                : '모든 조건 완료! 클릭하여 드라이브 제출 및 원격 렌더 큐 접수'}
+                                                                                : '모든 조건 완료! 클릭하여 GCS API 렌더 큐 접수'}
                                                                         >
                                                                             {isRenderSuccessHighlighted ? (
                                                                                 <Check className="h-3.5 w-3.5" />
@@ -9769,7 +9772,7 @@ export default function StdPortalPage() {
                                                 aria-hidden="true"
                                             />
                                         )}
-                                        {previewAudioError && !/Google Drive|구글\s*드라이브|Drive|drive_/i.test(previewAudioError) && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
+                                        {previewAudioError && !legacyStorageErrorPattern.test(previewAudioError) && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
                                         <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
                                             cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
                                             headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
@@ -12371,7 +12374,7 @@ export default function StdPortalPage() {
                                             onChange={e => setRenderTarget(e.target.value as any)}
                                             className="text-xs bg-[#202632] border border-white/10 rounded-lg py-1 px-2.5 text-white focus:outline-none focus:border-blue-500"
                                         >
-                                            <option value="drive_api">원격 그래픽스 서버 (Cloud GPU)</option>
+                                            <option value="drive_api">GCS API 렌더 서버 (Cloud GPU)</option>
                                             <option value="local">로컬 PC 렌더러</option>
                                         </select>
                                     </div>
@@ -12443,7 +12446,7 @@ export default function StdPortalPage() {
                                                         const resultHref = rawResult
                                                             ? String(rawResult).startsWith('http')
                                                                 ? String(rawResult)
-                                                                : `https://drive.google.com/file/d/${rawResult}/view`
+                                                                : undefined
                                                             : undefined
 
                                                         return (

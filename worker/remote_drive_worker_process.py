@@ -1,4 +1,4 @@
-"""AIRWorker-managed Google Drive API render queue process."""
+"""AIRWorker-managed GCS API render queue process."""
 
 import json
 import os
@@ -141,7 +141,7 @@ def main():
                 continue
 
             summary = _job_summary(claimed)
-            logger.info("Processing Drive API render job %s", claimed.get("id"))
+            logger.info("Processing GCS API render job %s", claimed.get("id"))
             write_state("running", summary, int(claimed.get("progress") or 1))
             heartbeat_stop = threading.Event()
 

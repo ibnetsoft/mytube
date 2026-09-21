@@ -16,7 +16,6 @@ from urllib.parse import quote
 import requests
 
 from config import config
-from services.google_drive_service import google_drive_service
 from services.remote_render_service import remote_render_executor_func
 
 try:
@@ -199,36 +198,6 @@ class RemoteDriveWorker:
         if not safe_name:
             safe_name = f"project_{job.get('project_id') or job.get('id')}"
         return f"{safe_name}.mp4"
-
-    def _resolve_result_folder(self, job):
-        metadata = job.get("metadata") or {}
-        manifest_folder_id = (metadata.get("drive_folder_id") or metadata.get("result_folder_id") or "").strip()
-        if manifest_folder_id:
-            folder_meta = google_drive_service.get_file_metadata(
-                manifest_folder_id,
-                token_path=self.google_token_path or None,
-                fields="id, name, mimeType, parents, webViewLink",
-            )
-            if folder_meta and folder_meta.get("id"):
-                return {"id": folder_meta.get("id"), "name": folder_meta.get("name") or "std-project"}
-
-        email = (job.get("email") or "").strip()
-        if not email:
-            email = "unknown-user"
-
-        category_name = metadata.get("category_name")
-        folder_category = category_name if category_name else email
-        
-        project_name = (job.get("project_name") or "").strip() or f"project_{job.get('project_id') or job.get('id')}"
-        folder = google_drive_service.ensure_project_folder(
-            folder_category,
-            project_name,
-            token_path=self.google_token_path or None,
-            root_folder_id=self.output_folder_id or None,
-        )
-        if not folder or not folder.get("id"):
-            raise RuntimeError(f"Drive 프로젝트 폴더 준비 실패 (카테고리/프로젝트: {folder_category} / {project_name})")
-        return folder
 
     def _refresh_drive_settings(self):
         config.load_remote_keys_from_supabase()
@@ -506,8 +475,8 @@ class RemoteDriveWorker:
             print(f"[RemoteDriveWorker] GCS signed URL generation failed: {e}")
             return None
 
-    def _download_asset_with_fallback(self, job_id, drive_file_id, destination_path, *, storage_source=None, label):
-        """Read Storage first (1st Supabase, 2nd GCS); Drive is only for legacy or missing Storage files."""
+    def _download_asset_with_fallback(self, job_id, _legacy_file_id, destination_path, *, storage_source=None, label):
+        """Read assets from Storage only. GCS is the render transport; Drive is no longer used."""
         # 1st Priority: Supabase Storage
         if storage_source and self._download_from_supabase_storage(storage_source, destination_path):
             return "supabase_storage"
@@ -516,25 +485,6 @@ class RemoteDriveWorker:
         if storage_source and self._download_from_gcs_storage(storage_source, destination_path):
             return "gcs_storage"
 
-        # 3rd Priority: Google Drive (legacy fallback)
-        if drive_file_id:
-            attempts = max(1, int(os.getenv("REMOTE_RENDER_DRIVE_DOWNLOAD_ATTEMPTS", "3")))
-            for attempt in range(1, attempts + 1):
-                try:
-                    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-                    downloaded = google_drive_service.download_file(
-                        drive_file_id,
-                        destination_path,
-                        token_path=self.google_token_path or None,
-                    )
-                    if downloaded and os.path.exists(destination_path):
-                        return "google_drive"
-                except Exception:
-                    pass
-                if attempt < attempts:
-                    self.update_job(job_id, message=f"Google Drive 다운로드 재시도 중 ({attempt}/{attempts}): {label}")
-                    time.sleep(attempt)
-
         # Retry Supabase or GCS once more before declaring complete failure
         if storage_source:
             if self._download_from_supabase_storage(storage_source, destination_path):
@@ -542,7 +492,7 @@ class RemoteDriveWorker:
             if self._download_from_gcs_storage(storage_source, destination_path):
                 return "gcs_storage"
 
-        raise RuntimeError(f"에셋 다운로드 실패 (1차 Supabase, 2차 GCS, 3차 Drive 모두 실패): {label}")
+        raise RuntimeError(f"에셋 다운로드 실패 (Supabase/GCS 저장소에서 찾을 수 없음): {label}")
 
     def _prepare_drive_folder_manifest_job(self, job_id, job, temp_dir, config_file_id):
         config_path = os.path.join(temp_dir, "config.json")
@@ -578,7 +528,6 @@ class RemoteDriveWorker:
 
         total = len(files)
         for index, item in enumerate(files, start=1):
-            drive_file_id = item.get("drive_file_id")
             relative_path = item.get("path")
             has_storage = (
                 (item.get("supabase_bucket") and item.get("supabase_path"))
@@ -586,7 +535,7 @@ class RemoteDriveWorker:
                 or item.get("gcs_signed_url")
                 or (item.get("gcs_bucket") and item.get("gcs_path"))
             )
-            if (not drive_file_id and not has_storage) or not relative_path:
+            if (not has_storage) or not relative_path:
                 raise RuntimeError("렌더 에셋 목록에 저장소 위치 또는 경로가 없습니다.")
             local_rel_path = self._safe_manifest_path(relative_path)
             local_path = os.path.join(temp_dir, local_rel_path)
@@ -607,7 +556,7 @@ class RemoteDriveWorker:
                 storage_source = None
             self._download_asset_with_fallback(
                 job_id,
-                drive_file_id,
+                None,
                 local_path,
                 storage_source=storage_source,
                 label=relative_path,
@@ -620,7 +569,7 @@ class RemoteDriveWorker:
         if not asset_file_id:
             raise RuntimeError("큐 작업에 asset_file_id가 없습니다.")
 
-        temp_dir = tempfile.mkdtemp(prefix=f"remote_drive_render_{job_id}_")
+        temp_dir = tempfile.mkdtemp(prefix=f"gcs_api_render_{job_id}_")
         zip_path = os.path.join(temp_dir, "asset_package.zip")
         try:
             metadata = job.get("metadata") or {}
@@ -633,7 +582,7 @@ class RemoteDriveWorker:
                 config_file_id = metadata.get("config_file_id") or asset_file_id
                 self._prepare_drive_folder_manifest_job(job_id, job, temp_dir, config_file_id)
             else:
-                self.update_job(job_id, progress=5, message="Google Drive에서 에셋 패키지 다운로드 중...")
+                self.update_job(job_id, progress=5, message="GCS API 저장소에서 에셋 패키지 다운로드 중...")
                 self._download_asset_with_fallback(
                     job_id,
                     asset_file_id,
@@ -696,36 +645,15 @@ class RemoteDriveWorker:
             if gcs_video:
                 print(f"[RemoteDriveWorker] GCS API 저장소 영상 업로드 성공: {gcs_render_path}")
 
-            # Google Drive is legacy fallback only when GCS is unavailable.
             supabase_video = None
-            drive_file = None
-            result_folder = None
+
             if not gcs_video:
-                try:
-                    result_folder = self._resolve_result_folder(job)
-                    drive_file = google_drive_service.upsert_file(
-                        output_path,
-                        token_path=self.google_token_path or None,
-                        folder_id=result_folder.get("id"),
-                        filename=result_filename,
-                        mimetype="video/mp4",
-                        description=f"AIR remote render result for queue job {job_id}",
-                        make_public=False,
-                    )
-                    if drive_file and drive_file.get("id"):
-                        print(f"[RemoteDriveWorker] GCS 실패 후 Google Drive 영상 업로드 성공: {drive_file.get('id')}")
-                except Exception as drive_err:
-                    print(f"[RemoteDriveWorker] Google Drive fallback 업로드 실패: {drive_err}")
+                raise RuntimeError("렌더링된 영상을 GCS API 저장소에 업로드하지 못했습니다.")
 
-            if not gcs_video and not drive_file:
-                raise RuntimeError("렌더링된 영상을 저장소(GCS API, Drive fallback) 어디에도 업로드하지 못했습니다.")
-
-            thumbnail_file = None
             thumbnail_filename = None
             packaged_thumbnail = None
             supabase_thumb = None
             gcs_thumb = None
-            project_metadata_file = None
             config_path = os.path.join(temp_dir, "config.json")
             if os.path.exists(config_path):
                 with open(config_path, "r", encoding="utf-8") as f_conf:
@@ -740,34 +668,20 @@ class RemoteDriveWorker:
                         object_path=f"std-renders/{job_id}/{thumbnail_filename}",
                         mime_type=thumb_mime,
                     )
-                    if result_folder and result_folder.get("id"):
-                        try:
-                            thumbnail_file = google_drive_service.upsert_file(
-                                packaged_thumbnail,
-                                token_path=self.google_token_path or None,
-                                folder_id=result_folder.get("id"),
-                                filename=thumbnail_filename,
-                                mimetype=thumb_mime,
-                                description=f"AIR thumbnail for queue job {job_id}",
-                                make_public=False,
-                            )
-                        except Exception as thumb_err:
-                            print(f"[RemoteDriveWorker] Google Drive 썸네일 업로드 건너뜀/실패: {thumb_err}")
 
                 queue_metadata = job.get("metadata") or {}
                 upload_metadata = dict(packaged_config.get("project_upload_metadata") or {})
                 upload_metadata.update({
                     "employee_email": job.get("email") or upload_metadata.get("employee_email") or "",
-                    "video_file": (drive_file or {}).get("name") or result_filename,
+                    "video_file": result_filename,
                     "thumbnail_file": thumbnail_filename,
-                    "drive_folder_id": (result_folder or {}).get("id"),
-                    "drive_video_file_id": (drive_file or {}).get("id"),
-                    "drive_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
                     "supabase_video_path": (supabase_video or {}).get("path"),
                     "supabase_thumbnail_path": (supabase_thumb or {}).get("path"),
                     "gcs_video_path": (gcs_video or {}).get("path"),
                     "gcs_thumbnail_path": (gcs_thumb or {}).get("path"),
-                    "render_mode": "drive_api",
+                    "gcs_video_url": (gcs_video or {}).get("public_url"),
+                    "gcs_thumbnail_url": (gcs_thumb or {}).get("public_url"),
+                    "render_mode": "gcs_api",
                 })
                 for key in ("track_count", "track_durations", "total_duration_seconds", "app_mode", "render_style", "queue_type"):
                     if queue_metadata.get(key) is not None:
@@ -781,28 +695,13 @@ class RemoteDriveWorker:
                     object_path=f"std-renders/{job_id}/metadata.json",
                     mime_type="application/json",
                 )
-                if result_folder and result_folder.get("id"):
-                    try:
-                        project_metadata_file = google_drive_service.upsert_file(
-                            metadata_path,
-                            token_path=self.google_token_path or None,
-                            folder_id=result_folder.get("id"),
-                            filename="metadata.json",
-                            mimetype="application/json",
-                            description=f"AIR metadata for queue job {job_id}",
-                            make_public=False,
-                        )
-                    except Exception as meta_err:
-                        print(f"[RemoteDriveWorker] Google Drive 메타데이터 업로드 건너뜀/실패: {meta_err}")
 
-            result_public_url = (gcs_video or {}).get("public_url") or (drive_file or {}).get("webViewLink")
-            result_file_id = result_public_url or (drive_file or {}).get("id") or gcs_render_path
-            storage_provider = "gcs" if gcs_video else "google_drive"
+            result_public_url = (gcs_video or {}).get("public_url")
+            result_file_id = result_public_url or gcs_render_path
+            storage_provider = "gcs"
             storage_summary = []
             if gcs_video:
                 storage_summary.append("GCS API")
-            if drive_file:
-                storage_summary.append("Drive fallback")
 
             self.update_job(
                 job_id,
@@ -825,11 +724,9 @@ class RemoteDriveWorker:
                     "gcs_path": (gcs_video or {}).get("path"),
                     "gcs_public_url": (gcs_video or {}).get("public_url"),
                     "gcs_thumbnail_url": (gcs_thumb or {}).get("public_url"),
-                    "result_folder_id": (result_folder or {}).get("id"),
-                    "result_folder_name": (result_folder or {}).get("name"),
-                    "result_video_file_id": (drive_file or {}).get("id"),
-                    "result_thumbnail_file_id": (thumbnail_file or {}).get("id") if thumbnail_file else None,
-                    "result_metadata_file_id": (project_metadata_file or {}).get("id") if project_metadata_file else None,
+                    "result_video_file_id": None,
+                    "result_thumbnail_file_id": None,
+                    "result_metadata_file_id": None,
                 },
                 completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             )
@@ -875,7 +772,7 @@ class RemoteDriveWorker:
         print(f"[RemoteDriveWorker] Running one polling cycle as {self.worker_id}")
         job = self.fetch_next_job()
         if not job:
-            print("[RemoteDriveWorker] No pending drive_api job.")
+            print("[RemoteDriveWorker] No pending GCS API job.")
             return 0
         claimed = self.claim_job(job)
         if not claimed:
@@ -887,7 +784,7 @@ class RemoteDriveWorker:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="AIR Google Drive API remote render worker")
+    parser = argparse.ArgumentParser(description="AIR GCS API render worker")
     parser.add_argument("--once", action="store_true", help="process at most one pending job and exit")
     parser.add_argument("--check", action="store_true", help="check settings and pending queue, then exit")
     args = parser.parse_args()

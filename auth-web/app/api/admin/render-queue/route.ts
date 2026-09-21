@@ -26,15 +26,10 @@ function auditLog(action: string, requesterEmail: string | undefined, detail: Re
     console.warn(`[admin-audit] action=${action} requester=${requesterEmail || 'unknown'} detail=${JSON.stringify(detail)}`)
 }
 
-function buildDriveViewLink(fileId?: string | null) {
+function buildResultViewLink(fileId?: string | null) {
     if (!fileId) return null
     if (fileId.startsWith('http://') || fileId.startsWith('https://')) return fileId
-    return `https://drive.google.com/file/d/${fileId}/view`
-}
-
-function buildDriveFolderLink(folderId?: string | null) {
-    if (!folderId) return null
-    return `https://drive.google.com/drive/folders/${folderId}`
+    return null
 }
 
 function normalizeQueueItem(row: any, topicRow?: any) {
@@ -72,7 +67,7 @@ function normalizeQueueItem(row: any, topicRow?: any) {
 
     return {
         ...row,
-        result_view_link: metadata.gcs_public_url || metadata.result_public_url || buildDriveViewLink(row?.result_file_id),
+        result_view_link: metadata.gcs_public_url || metadata.result_public_url || buildResultViewLink(row?.result_file_id),
         metadata: {
             ...metadata,
             title,
@@ -188,25 +183,9 @@ export async function POST(req: Request) {
 
         const title = (topicRow as any)?.topic || task.project_name || `Project ${task.project_id}`
         const taskMetadata = task.metadata || {}
-        const videoUrl = taskMetadata.gcs_public_url || taskMetadata.result_public_url || buildDriveViewLink(task.result_file_id)
-        const driveFolderId =
-            taskMetadata.drive_folder_id ||
-            taskMetadata.result_folder_id ||
-            taskMetadata.folder_id ||
-            null
-        const driveVideoFileId =
-            task.result_file_id ||
-            taskMetadata.drive_video_file_id ||
-            taskMetadata.result_video_file_id ||
-            null
-        const driveThumbnailFileId =
-            taskMetadata.drive_thumbnail_file_id ||
-            taskMetadata.result_thumbnail_file_id ||
-            null
-        const driveMetadataFileId =
-            taskMetadata.drive_metadata_file_id ||
-            taskMetadata.result_metadata_file_id ||
-            null
+        const videoUrl = taskMetadata.gcs_public_url || taskMetadata.result_public_url || buildResultViewLink(task.result_file_id)
+        const gcsVideoUrl = videoUrl || null
+        const gcsThumbnailUrl = taskMetadata.gcs_thumbnail_url || null
 
         const { data: existingRows } = await sb
             .from('publishing_requests')
@@ -230,18 +209,12 @@ export async function POST(req: Request) {
             project_id: task.project_id,
             title,
             project_name: task.project_name || title,
-            drive_folder_id: driveFolderId,
-            drive_folder_name: taskMetadata.drive_folder_name || taskMetadata.result_folder_name || null,
-            drive_video_file_id: driveVideoFileId,
-            drive_video_file_name: task.result_file_name || taskMetadata.drive_video_file_name || taskMetadata.result_video_file_name || null,
-            drive_thumbnail_file_id: driveThumbnailFileId,
-            drive_thumbnail_file_name: taskMetadata.drive_thumbnail_file_name || taskMetadata.result_thumbnail_file_name || null,
-            drive_metadata_file_id: driveMetadataFileId,
-            drive_metadata_file_name: taskMetadata.drive_metadata_file_name || taskMetadata.result_metadata_file_name || null,
-            drive_folder_link: buildDriveFolderLink(driveFolderId),
-            drive_video_link: buildDriveViewLink(driveVideoFileId),
-            drive_thumbnail_link: buildDriveViewLink(driveThumbnailFileId),
-            drive_metadata_link: buildDriveViewLink(driveMetadataFileId),
+            gcs_bucket: taskMetadata.gcs_bucket || taskMetadata.storage_bucket || null,
+            gcs_path: taskMetadata.gcs_path || taskMetadata.storage_path || null,
+            gcs_video_link: gcsVideoUrl,
+            gcs_video_file_name: task.result_file_name || taskMetadata.gcs_video_file_name || null,
+            gcs_thumbnail_link: gcsThumbnailUrl,
+            gcs_thumbnail_file_name: taskMetadata.gcs_thumbnail_file_name || null,
             channel_id: channelId,
             channel_name: category?.upload_channel_name || category?.upload_channel_handle || taskMetadata.channel_name || null,
             privacy_status: 'private',

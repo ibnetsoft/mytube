@@ -517,7 +517,7 @@ class WorkerManager:
         log_step("Stopping Hermes Worker (low priority, safe to interrupt immediately)")
         self.stop_process("hermes_worker", timeout=SHUTDOWN_GRACE_SECONDS)
 
-        log_step("Stopping Remote Drive Worker (Drive API queue intake)")
+        log_step("Stopping GCS API Render Worker")
         self.stop_process("remote_drive_worker", timeout=SHUTDOWN_GRACE_SECONDS, force_tree_kill=True)
 
         render_state = self._read_state_file("render_worker")
