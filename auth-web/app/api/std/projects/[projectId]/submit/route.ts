@@ -8,6 +8,16 @@ import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '
 
 export const dynamic = 'force-dynamic'
 
+function hasStoredAssetFile(asset: any): boolean {
+    const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
+    const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
+    return Boolean(
+        String(asset?.drive_file_id || '').trim()
+        || String(metadata?.storage_path || metadata?.storage_object_path || nestedMetadata?.storage_path || nestedMetadata?.storage_object_path || '').trim()
+        || String(metadata?.gcs_path || nestedMetadata?.gcs_path || '').trim()
+    )
+}
+
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
@@ -61,7 +71,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .eq('project_id', project.id),
         supabaseAdmin
             .from('std_project_assets')
-            .select('id,scene_number,asset_type,status,drive_file_id')
+            .select('*')
             .eq('project_id', project.id)
             .in('asset_type', ['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'other'])
             .in('status', ['uploaded', 'assigned']),
@@ -120,7 +130,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     const hasAudioAsset = (assets || []).some((asset: any) =>
         String(asset.asset_type || '').toLowerCase() === 'audio'
-        && String(asset.drive_file_id || '').trim()
+        && hasStoredAssetFile(asset)
     )
     if (!hasAudioAsset) {
         return NextResponse.json({
@@ -131,7 +141,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     const hasThumbnailAsset = (assets || []).some((asset: any) =>
         String(asset.asset_type || '').toLowerCase() === 'thumbnail'
-        && String(asset.drive_file_id || '').trim()
+        && hasStoredAssetFile(asset)
     )
     if (!hasThumbnailAsset) {
         return NextResponse.json({
