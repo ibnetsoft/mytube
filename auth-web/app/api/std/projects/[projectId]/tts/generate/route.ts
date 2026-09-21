@@ -677,7 +677,7 @@ async function runTts(body: any, auth: any, project: any) {
         const segmentIdentity = {
             text, provider, voiceId, modelId, speed: projectTtsSpeed,
             direction: String(body?.direction || ''),
-            stability: body?.stability ?? null, style: body?.style ?? null,
+            stability: body?.stability ?? 0.7, style: body?.style ?? null,
             language: String(project.language || 'ko'),
         }
         const segmentCacheKey = segmentPreview ? segmentAudioKey(segmentIdentity) : ''
@@ -916,7 +916,7 @@ async function runTts(body: any, auth: any, project: any) {
                 voiceSegments: synthesisSegments,
                 language: ({ko:'ko-KR',en:'en-US',ja:'ja-JP',vi:'vi-VN',th:'th-TH'} as Record<string,string>)[String(project.language || 'ko')] || String(project.language || 'ko-KR'),
                 speed: projectTtsSpeed,
-                stability: body?.stability == null ? undefined : Number(body.stability),
+                stability: body?.stability == null ? 0.7 : Number(body.stability),
                 similarityBoost: body?.similarity_boost == null ? undefined : Number(body.similarity_boost),
                 style: body?.style == null ? undefined : Number(body.style),
                 multiVoice,

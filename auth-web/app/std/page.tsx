@@ -1036,7 +1036,7 @@ export default function StdPortalPage() {
         || selectedProject?.project?.source_payload?.progress_payload?.tts_speed
         || 1
     ) || 1)))
-    const [elStability, setElStability] = useState('0.35')
+    const [elStability, setElStability] = useState('0.7')
     const [elStyle, setElStyle] = useState('0.45')
     const [multiVoice, setMultiVoice] = useState(false)
     const [characterVoices, setCharacterVoices] = useState<Record<string, string>>({})
@@ -2741,7 +2741,7 @@ export default function StdPortalPage() {
             voiceId,
             String(subtitle?.voice_direction || ''),
             Number(ttsSpeed) || 1,
-            Number(elStability) || 0.35,
+            Number(elStability) || 0.7,
             Number(elStyle) || 0.45,
             text,
         ].join('|')
@@ -5817,7 +5817,7 @@ export default function StdPortalPage() {
         }
 
         const speed = Math.min(1.2, Math.max(0.7, Number(ttsSpeed) || 1))
-        const stability = Number(elStability) || 0.35
+        const stability = Number(elStability) || 0.7
         const style = Number(elStyle) || 0.45
         const rawSegments = voiceSegments.length > 0
             ? voiceSegments.map(segment => ({ speaker: '', text: segment.text, voice_id: segment.voice_id, is_dialogue: false }))
@@ -6500,7 +6500,7 @@ export default function StdPortalPage() {
                 if (!chunks.length) throw new Error('대본이 비어있습니다.')
 
                 const speed = Math.min(1.2, Math.max(0.7, Number(ttsSpeed) || 1))
-                const stability = Number(elStability) || 0.35
+                const stability = Number(elStability) || 0.7
                 const style = Number(elStyle) || 0.45
 
                 const buffers: ArrayBuffer[] = []
