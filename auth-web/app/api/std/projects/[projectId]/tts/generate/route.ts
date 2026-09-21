@@ -797,6 +797,7 @@ async function runTts(body: any, auth: any, project: any) {
         let elevenLabsTrace: { keySlots: number[]; modelIds: string[] } | null = null
         let elevenLabsKeyInspections: any[] = []
         let segmentReuse: { reused: number; generated: number } | null = null
+        let subtitleTimeline: { text: string; voice_id: string; start: number; end: number }[] | null = null
         const prepareOnly = body?.mode === 'prepare_narration_segments'
         const assembleOnly = body?.mode === 'assemble_narration_segments'
         if ((prepareOnly && (!voiceSegments.length || voiceSegments.length > NARRATION_BATCH_SIZE))
@@ -864,6 +865,7 @@ async function runTts(body: any, auth: any, project: any) {
                 },
             }, { allowGenerate: !assembleOnly })
             audioBuffer = assembled.audioBuffer
+            subtitleTimeline = assembled.timeline
             segmentReuse = { reused: assembled.reused, generated: assembled.generated }
             if (prepareOnly) {
                 // No full narration asset or project completion update until the final join.
@@ -994,6 +996,7 @@ async function runTts(body: any, auth: any, project: any) {
                 provider, voice_id: voiceId, model_id: modelId, tts_speed: projectTtsSpeed,
                 multi_voice: multiVoice, voice_map: voiceMap, voice_segments: voiceSegments,
                 segment_reuse: segmentReuse,
+                subtitle_timeline: subtitleTimeline,
                 text_length: text.length, chunk_count: chunkCount, generated_by: auth.requester.email,
                 elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                 elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],

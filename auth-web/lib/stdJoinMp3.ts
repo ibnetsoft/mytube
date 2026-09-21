@@ -1,5 +1,26 @@
 // Keep encoded audio frames; discard per-file tags/seek headers whose duration
 // describes just one clip. Embedded ID3 headers otherwise cause decode errors.
+export function mp3FrameDuration(clip: Buffer): number {
+    let offset = 0, seconds = 0
+    while (offset + 4 <= clip.length) {
+        const version = (clip[offset + 1] >> 3) & 3
+        const layer = (clip[offset + 1] >> 1) & 3
+        const rate = (clip[offset + 2] >> 2) & 3
+        const bitrate = clip[offset + 2] >> 4
+        if (clip[offset] !== 255 || (clip[offset + 1] & 224) !== 224 || version === 1 || layer !== 1 || rate === 3 || bitrate === 0 || bitrate === 15) {
+            throw new Error('MP3 frame timing is unavailable')
+        }
+        const rates = version === 3 ? [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320] : [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160]
+        const sampleRate = [44100,48000,32000][rate] / (version === 3 ? 1 : version === 2 ? 2 : 4)
+        const size = Math.floor((version === 3 ? 144 : 72) * rates[bitrate] * 1000 / sampleRate) + ((clip[offset + 2] >> 1) & 1)
+        if (offset + size > clip.length) throw new Error('Truncated MP3 frame')
+        seconds += (version === 3 ? 1152 : 576) / sampleRate
+        offset += size
+    }
+    if (offset !== clip.length || !seconds) throw new Error('Invalid MP3 frame duration')
+    return seconds
+}
+
 export function joinMp3Segments(clips: Buffer[]): Buffer {
     return Buffer.concat(clips.map(clip => {
         let start = 0, end = clip.length

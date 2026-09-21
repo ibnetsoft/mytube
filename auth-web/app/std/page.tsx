@@ -7,7 +7,7 @@ import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
-import { bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } from '@/lib/stdPreviewAudio'
+import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
@@ -3413,13 +3413,18 @@ export default function StdPortalPage() {
         )
         const assetId = String(asset?.id || '').trim()
         if (!projectId || !assetId) return null
+        const aligned = alignedNarrationSubtitles(localSubtitles, asset.metadata?.subtitle_timeline, selectedVoice)
+        if (!aligned) return null
 
         if (vrewFinalNarrationAudioRef.current?.assetId === assetId) {
             return vrewFinalNarrationAudioRef.current.url
         }
 
         const storedUrl = directStorageUrl(asset)
-        if (storedUrl) return storedUrl
+        if (storedUrl) {
+            vrewFinalNarrationAudioRef.current = { assetId, url: storedUrl }
+            return storedUrl
+        }
         const endpoint = `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?assetId=${encodeURIComponent(assetId)}`
         try {
             const url = await fetchVrewAudioBlobUrl(endpoint)
@@ -3565,7 +3570,11 @@ export default function StdPortalPage() {
         const savedNarrationUrl = await getSavedNarrationAudioUrl()
         if (vrewPlaybackCancelRef.current !== cancelToken) return
         if (savedNarrationUrl) {
-            const startSubtitle = localSubtitles[Math.max(0, startIndex)]
+            const asset = (selectedProject?.assets || []).find((item: any) => item.id === vrewFinalNarrationAudioRef.current?.assetId)
+            const playbackSubtitles = alignedNarrationSubtitles(localSubtitles, asset?.metadata?.subtitle_timeline, selectedVoice)
+            if (!playbackSubtitles) throw new Error('음성과 일치하는 자막 시간표를 찾지 못했습니다.')
+            setLocalSubtitles(playbackSubtitles)
+            const startSubtitle = playbackSubtitles[Math.max(0, startIndex)]
             const startTime = Number(startSubtitle?.start_num ?? startSubtitle?.start_time ?? 0) || 0
             setMessage('저장된 최종 TTS로 자막 미리듣기 재생 중...')
 
@@ -3591,7 +3600,7 @@ export default function StdPortalPage() {
                 const syncPlaybackProgress = () => {
                     const time = Math.max(0, audio.currentTime)
                     setPlaybackTime(Math.round(time * 10) / 10)
-                    const activeIndex = localSubtitles.findIndex((subtitle: any) => {
+                    const activeIndex = playbackSubtitles.findIndex((subtitle: any) => {
                         const start = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
                         const end = Number(subtitle?.end_num ?? subtitle?.end_time ?? start)
                         return time >= start && time < end
@@ -3601,7 +3610,7 @@ export default function StdPortalPage() {
                         return
                     }
                     setSelectedSubIndex(activeIndex)
-                    setVrewActiveTokenIndex(vrewActiveTokenAtPlaybackTime(localSubtitles[activeIndex], time))
+                    setVrewActiveTokenIndex(vrewActiveTokenAtPlaybackTime(playbackSubtitles[activeIndex], time))
                 }
                 audio.onloadedmetadata = () => {
                     if (Number.isFinite(audio.duration) && startTime >= audio.duration) {

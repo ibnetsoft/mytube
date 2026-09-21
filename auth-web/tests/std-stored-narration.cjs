@@ -6,7 +6,7 @@ function load(file, deps = {}) {
     return exports
 }
 const mp3 = load('auth-web/lib/stdJoinMp3.ts')
-const { assembleStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', { './stdJoinMp3': mp3 })
+const { assembleStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', { './stdJoinMp3': { ...mp3, mp3FrameDuration: () => 1 } })
 ;(async () => {
     const saved = new Map([['first', Buffer.from('A')], ['last', Buffer.from('C')]])
     let generated = 0, fail = true

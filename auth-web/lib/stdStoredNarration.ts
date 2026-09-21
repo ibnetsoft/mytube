@@ -1,4 +1,4 @@
-import { joinMp3Segments } from './stdJoinMp3'
+import { joinMp3Segments, mp3FrameDuration } from './stdJoinMp3'
 
 type Segment = { text: string; voiceId: string; direction?: string }
 type Resolved = { asset: any; cached: boolean }
@@ -67,5 +67,12 @@ export async function assembleStoredNarration(segments: Segment[], io: {
         if (initiator && !result.cached) generated++
         else reused++
     })
-    return { audioBuffer: joinMp3Segments(buffers as Buffer[]), reused, generated }
+    let elapsed = 0
+    const frames = (buffers as Buffer[]).map(buffer => joinMp3Segments([buffer]))
+    const timeline = frames.map((buffer, index) => {
+        const start = elapsed
+        elapsed += mp3FrameDuration(buffer)
+        return { text: segments[index].text, voice_id: segments[index].voiceId, start, end: elapsed }
+    })
+    return { audioBuffer: Buffer.concat(frames), reused, generated, timeline }
 }
