@@ -83,17 +83,38 @@ def _setting(settings, *keys, default=None):
     return default
 
 
+def _bool_setting(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "on", "y"}
+
+
+def _float_setting(settings, keys, default):
+    value = _setting(settings, *keys, default=None)
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
 def _write_ass_file(path, subtitles, settings, resolution):
     width, height = resolution
     font_name = str(_setting(
         settings,
         "subtitle_font_family",
+        "fontFamily",
         "subtitle_font",
         "font",
         default="Malgun Gothic",
     ))
     font_name = {
-        "ChosunIlboMyungjo": "Chosun_ilbo_myungjottf",
+        "ChosunIlboMyungjo": "Chosunilbo_myungjo",
         "CookieRun-Regular": "CookieRun",
         "NetmarbleB": "netmarble",
         "NotoSansJP": "Noto Sans CJK JP",
@@ -101,27 +122,27 @@ def _write_ass_file(path, subtitles, settings, resolution):
         "S-CoreDream-6Bold": "S-Core Dream",
     }.get(font_name, font_name)
 
-    font_value = float(_setting(settings, "subtitle_font_size", "font_size", default=5.0) or 5.0)
+    font_value = _float_setting(settings, ("subtitle_font_size", "fontSize", "font_size"), 5.0)
     font_size = int(width * font_value / 100.0) if 0.1 <= font_value <= 20 else int(font_value)
     font_size = max(12, font_size)
     primary = _ass_color(_setting(
         settings,
         "subtitle_text_color",
+        "textColor",
         "subtitle_base_color",
         "font_color",
         default="#ffffff",
     ))
-    outline = _ass_color(_setting(settings, "subtitle_stroke_color", "stroke_color", default="#000000"))
-    outline_width = float(_setting(settings, "subtitle_stroke_width", "stroke_width", default=0) or 0)
-    outline_width *= height / 360.0
+    outline = _ass_color(_setting(settings, "subtitle_stroke_color", "strokeColor", "stroke_color", default="#000000"))
+    outline_width = _float_setting(settings, ("subtitle_stroke_width", "strokeWidth", "stroke_width"), 0)
 
-    bg_enabled = bool(int(_setting(settings, "subtitle_bg_enabled", "bg_enabled", default=0) or 0))
-    bg_opacity = max(0.0, min(1.0, float(_setting(settings, "subtitle_bg_opacity", "bg_opacity", default=0.5) or 0.5)))
+    bg_enabled = _bool_setting(_setting(settings, "subtitle_bg_enabled", "bgEnabled", "bg_enabled", default=0), False)
+    bg_opacity = max(0.0, min(1.0, _float_setting(settings, ("subtitle_bg_opacity", "bgOpacity", "bg_opacity"), 0.5)))
     back_alpha = int((1.0 - bg_opacity) * 255) if bg_enabled else 255
-    back = _ass_color(_setting(settings, "subtitle_bg_color", "bg_color", default="#000000"), back_alpha)
+    back = _ass_color(_setting(settings, "subtitle_bg_color", "bgColor", "bg_color", default="#000000"), back_alpha)
     border_style = 3 if bg_enabled else 1
 
-    raw_position = str(_setting(settings, "subtitle_pos_y", "pos_y", default="b:12%") or "b:12%")
+    raw_position = str(_setting(settings, "subtitle_pos_y", "posY", "pos_y", default="b:12%") or "b:12%")
     match = re.search(r"(-?\d+(?:\.\d+)?)", raw_position)
     position_value = float(match.group(1)) if match else 12.0
     if raw_position.startswith("b:") or "%" in raw_position or abs(position_value) <= 100:
@@ -157,6 +178,7 @@ def _prepare_fonts_dir(temp_dir, settings):
     font_name = str(_setting(
         settings,
         "subtitle_font_family",
+        "fontFamily",
         "subtitle_font",
         "font",
         default="Malgun Gothic",
@@ -170,6 +192,7 @@ def _prepare_fonts_dir(temp_dir, settings):
     }
     family_overrides = {
         "BinggraeMelona-Bold": "BinggraeMelona-Bold",
+        "ChosunIlboMyungjo": "Chosunilbo_myungjo",
         "GmarketSans": "GmarketSansBold",
         "GmarketSansBold": "GmarketSansBold",
         "Jalnan": "Jalnan",

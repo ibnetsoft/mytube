@@ -106,7 +106,7 @@ def _sanitize_subtitles_for_render(subtitles):
 
 
 def _sync_subtitle_timings_to_audio_duration(subtitles, audio_duration):
-    """Always retime render subtitles to the final narration duration."""
+    """Fallback retiming for subtitle payloads that do not carry real timings."""
     if not subtitles or not isinstance(audio_duration, (int, float)) or audio_duration <= 0:
         return subtitles
 
@@ -128,6 +128,18 @@ def _sync_subtitle_timings_to_audio_duration(subtitles, audio_duration):
     return synced
 
 
+def _subtitles_have_explicit_timings(subtitles):
+    for subtitle in subtitles or []:
+        try:
+            start = float(subtitle.get('start', 0) or 0)
+            end = float(subtitle.get('end', 0) or 0)
+        except Exception:
+            continue
+        if end > start:
+            return True
+    return False
+
+
 def _probe_media_duration(ffmpeg_exe: str, media_path: str) -> float:
     try:
         result = subprocess.run(
@@ -147,12 +159,11 @@ def _probe_media_duration(ffmpeg_exe: str, media_path: str) -> float:
 
 
 def _prepare_narration_audio_for_render(audio_path: str, temp_dir: str, ffmpeg_exe: str):
-    """Make narration less choppy at generated segment boundaries.
+    """Normalize narration without changing its timeline.
 
-    STD/Vrew narration can arrive as a single MP3 made from many TTS snippets.
-    When those snippets contain leading/trailing silence, hard scene cuts sound
-    like disconnected clips.  This pass trims only longer internal pauses down
-    to a short breath, adds tiny edge fades, and normalizes loudness.
+    The subtitle page, scene durations, and final narration are authored on the
+    same clock.  Do not remove internal silence here; doing so shortens the
+    audio and desynchronizes every downstream render element.
     """
     if not audio_path or not os.path.exists(audio_path):
         return audio_path, 0.0
@@ -160,8 +171,6 @@ def _prepare_narration_audio_for_render(audio_path: str, temp_dir: str, ffmpeg_e
     processed_path = os.path.join(temp_dir, "audio", "narration_smooth.m4a")
     filter_chain = ",".join([
         "aresample=48000",
-        "silenceremove=start_periods=1:start_duration=0.04:start_threshold=-48dB:"
-        "stop_periods=-1:stop_duration=0.32:stop_threshold=-48dB:stop_silence=0.12",
         "afade=t=in:st=0:d=0.03",
         "loudnorm=I=-16:TP=-1.5:LRA=11",
     ])
@@ -186,7 +195,7 @@ def _prepare_narration_audio_for_render(audio_path: str, temp_dir: str, ffmpeg_e
             print(f"[Audio Smooth] skipped; ffmpeg failed: {result.stderr[-500:] if result else ''}")
             return audio_path, _probe_media_duration(ffmpeg_exe, audio_path)
         duration = _probe_media_duration(ffmpeg_exe, processed_path)
-        print(f"[Audio Smooth] narration prepared: {processed_path} duration={duration:.3f}s")
+        print(f"[Audio Smooth] narration normalized without timeline trim: {processed_path} duration={duration:.3f}s")
         return processed_path, duration
     except Exception as exc:
         print(f"[Audio Smooth] skipped; {exc}")
@@ -814,12 +823,12 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         except Exception:
             audio_ffmpeg_exe = "ffmpeg"
 
-        update_progress(15, '내레이션 오디오 자연화 중...')
+        update_progress(15, '내레이션 오디오 레벨 정리 중...')
         audio_path, smoothed_duration = _prepare_narration_audio_for_render(audio_path, temp_dir, audio_ffmpeg_exe)
 
         update_progress(18, '오디오 메타데이터 읽는 중...')
         audio_duration = float(metadata.get('audio_duration') or 0.0)
-        if smoothed_duration > 0:
+        if smoothed_duration > 0 and (audio_duration <= 0 or abs(smoothed_duration - audio_duration) <= 1.0):
             audio_duration = smoothed_duration
         if audio_duration <= 0:
             try:
@@ -830,10 +839,11 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             audio_duration = float(audio_clip.duration)
             audio_clip.close()
 
-        subs = _sync_subtitle_timings_to_audio_duration(subs, audio_duration)
+        if str(metadata.get('subtitle_sync_mode') or '').lower() == 'audio_duration_weighted' and not _subtitles_have_explicit_timings(subs):
+            subs = _sync_subtitle_timings_to_audio_duration(subs, audio_duration)
         from services.sfx_timing import retime_sfx_cues
         sfx_cues = retime_sfx_cues(sfx_cues, subs)
-        update_progress(22, '음성 길이 기준 자막 싱크 보정 중...')
+        update_progress(22, '저장된 자막 타이밍 적용 중...')
 
         images = []
         for fname in images_filenames:
