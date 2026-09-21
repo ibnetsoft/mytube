@@ -453,8 +453,70 @@ function buildRenderSubtitles(project: any, scenes: any[]) {
             end: Number.isFinite(end) && end > start ? end : start + 5,
             text: String(subtitle?.text || '').trim(),
             ...(Number.isFinite(sceneNumber) && sceneNumber > 0 ? { scene_number: sceneNumber } : {}),
+            ...(subtitle?.voice_id || subtitle?.voiceId ? { voice_id: String(subtitle.voice_id || subtitle.voiceId) } : {}),
+            ...(subtitle?.voice_name || subtitle?.voiceName ? { voice_name: String(subtitle.voice_name || subtitle.voiceName) } : {}),
+            ...(subtitle?.direction ? { direction: String(subtitle.direction) } : {}),
         }
     }).filter((subtitle: any) => subtitle.text)
+}
+
+function sentenceComplete(text: string) {
+    return /[.!?。！？…]|[.?!]["')\]]$|[다요죠까네군음함임됨됨니다습니다]\.?$/.test(String(text || '').trim())
+}
+
+function buildWorkerTtsPlan(project: any, subtitles: any[]) {
+    const settings = {
+        ...(project.project_payload?.settings || {}),
+        ...(project.project_payload?.render_settings || {}),
+    }
+    const defaultVoiceId = String(
+        project.project_payload?.voice_id
+        || project.progress_payload?.voice_id
+        || settings.voice_id
+        || ''
+    ).trim()
+    const speed = Number(project.progress_payload?.tts_speed ?? project.project_payload?.tts_speed ?? settings.tts_speed ?? 0.92)
+    const language = String(project.language || project.project_payload?.language || project.project_payload?.target_language || 'ko')
+    const enabled = settings.worker_tts_enabled !== false
+    if (!enabled || !defaultVoiceId || !subtitles.length) return null
+
+    const segments: any[] = []
+    for (let index = 0; index < subtitles.length; index++) {
+        const subtitle = subtitles[index]
+        const voiceId = String(subtitle.voice_id || defaultVoiceId).trim()
+        if (!voiceId) continue
+        const direction = String(subtitle.direction || settings.voice_direction || '').trim()
+        const previous = segments[segments.length - 1]
+        const canMerge = previous
+            && previous.voice_id === voiceId
+            && previous.direction === direction
+            && !sentenceComplete(previous.text)
+            && Buffer.byteLength(`${previous.text}\n${subtitle.text}`, 'utf8') <= 1100
+        if (canMerge) {
+            previous.text += `\n${subtitle.text}`
+            previous.subtitle_indices.push(index)
+            previous.scene_numbers.push(subtitle.scene_number || null)
+        } else {
+            segments.push({
+                id: `seg_${String(segments.length + 1).padStart(4, '0')}`,
+                text: subtitle.text,
+                voice_id: voiceId,
+                direction,
+                subtitle_indices: [index],
+                scene_numbers: [subtitle.scene_number || null],
+            })
+        }
+    }
+    if (!segments.length) return null
+    return {
+        enabled: true,
+        provider: 'auto',
+        language,
+        speed: Number.isFinite(speed) ? Math.max(0.7, Math.min(1.3, speed)) : 0.92,
+        pause_complete_ms: 160,
+        pause_incomplete_ms: 0,
+        segments,
+    }
 }
 
 function positiveNumber(value: any): number | null {
@@ -651,6 +713,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
 
     const subtitles = buildRenderSubtitles(project, scenes)
     const imageTimingStarts = buildSceneTimingStarts(scenes, subtitles)
+    const workerTts = buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -711,6 +774,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         audio_duration: project.progress_payload?.audio_duration || null,
         images,
         subtitles,
+        worker_tts: workerTts,
         subtitle_sync_mode: 'preserve_subtitle_timings',
         render_settings: renderSettings,
         image_timing_starts: imageTimingStarts,
@@ -796,6 +860,7 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
 
     const subtitles = buildRenderSubtitles(project, scenes)
     const imageTimingStarts = buildSceneTimingStarts(scenes, subtitles)
+    const workerTts = buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -944,6 +1009,7 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
         audio_duration: project.progress_payload?.audio_duration || null,
         images,
         subtitles,
+        worker_tts: workerTts,
         subtitle_sync_mode: 'preserve_subtitle_timings',
         render_settings: renderSettings,
         image_timing_starts: imageTimingStarts,

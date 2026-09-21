@@ -7,6 +7,7 @@ import time
 import glob
 import re
 import subprocess
+from pathlib import Path
 
 from config import config
 import database as db
@@ -101,6 +102,10 @@ def _sanitize_subtitles_for_render(subtitles):
             'text': text_value,
             'start': sub.get('start', 0),
             'end': sub.get('end', 0),
+            **({'scene_number': sub.get('scene_number')} if sub.get('scene_number') is not None else {}),
+            **({'voice_id': sub.get('voice_id')} if sub.get('voice_id') else {}),
+            **({'voice_name': sub.get('voice_name')} if sub.get('voice_name') else {}),
+            **({'direction': sub.get('direction')} if sub.get('direction') else {}),
         })
     return cleaned
 
@@ -126,6 +131,137 @@ def _sync_subtitle_timings_to_audio_duration(subtitles, audio_duration):
             'end': round(elapsed, 3),
         })
     return synced
+
+
+def _voice_id_to_worker_preset(voice_id: str, language: str, speed: float):
+    voice_id = str(voice_id or '').strip()
+    if voice_id.startswith('gemini:'):
+        return {
+            'provider': 'vertex',
+            'voice': voice_id.split(':', 1)[1],
+            'model': 'gemini-2.5-flash-tts',
+            'language': language,
+            'direction': 'Read naturally as one continuous narration. Keep phrase endings connected unless punctuation clearly ends the sentence.',
+            'speed': speed,
+            'pause_ms': 0,
+        }
+    return {
+        'provider': 'elevenlabs',
+        'voice': voice_id,
+        'model': os.getenv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2'),
+        'language': language,
+        'direction': '',
+        'speed': speed,
+        'pause_ms': 0,
+    }
+
+
+def _subtitle_weight(text: str) -> int:
+    return max(1, len(re.sub(r'\s+', '', str(text or ''))))
+
+
+def _retime_subtitles_from_worker_tts(subtitles, tts_segments, timeline):
+    if not subtitles or not tts_segments or not timeline:
+        return subtitles
+    retimed = [dict(item) for item in subtitles]
+    timeline_by_id = {str(item.get('id')): item for item in timeline if isinstance(item, dict)}
+    for segment in tts_segments:
+        entry = timeline_by_id.get(str(segment.get('id')))
+        indices = [int(value) for value in segment.get('subtitle_indices') or [] if str(value).isdigit()]
+        if not entry or not indices:
+            continue
+        start = float(entry.get('start') or 0)
+        end = float(entry.get('end') or start)
+        if end <= start:
+            continue
+        weights = [_subtitle_weight(retimed[index].get('text', '')) for index in indices if 0 <= index < len(retimed)]
+        if not weights:
+            continue
+        cursor = start
+        span = end - start
+        total = sum(weights)
+        for position, index in enumerate(indices):
+            if index < 0 or index >= len(retimed):
+                continue
+            if position == len(indices) - 1:
+                next_cursor = end
+            else:
+                next_cursor = cursor + span * (weights[position] / total)
+            retimed[index]['start'] = round(cursor, 3)
+            retimed[index]['end'] = round(max(cursor + 0.08, next_cursor), 3)
+            cursor = next_cursor
+    return retimed
+
+
+def _scene_starts_from_subtitles(images_count: int, subtitles):
+    starts = []
+    cursor = 0.0
+    for index in range(images_count):
+        scene_number = index + 1
+        scene_subs = [
+            item for item in subtitles or []
+            if int(float(item.get('scene_number') or 0)) == scene_number
+        ]
+        if scene_subs:
+            start = min(float(item.get('start') or cursor) for item in scene_subs)
+            cursor = max(cursor, max(float(item.get('end') or start) for item in scene_subs))
+        else:
+            start = cursor
+        starts.append(round(max(0.0, start), 3))
+    return starts
+
+
+def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
+    plan = metadata.get('worker_tts') or {}
+    if not isinstance(plan, dict) or not plan.get('enabled'):
+        return None
+    raw_segments = plan.get('segments') or []
+    if not raw_segments:
+        return None
+    language_map = {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP', 'vi': 'vi-VN', 'th': 'th-TH'}
+    language = str(plan.get('language') or metadata.get('render_settings', {}).get('language') or 'ko')
+    language = language_map.get(language.lower(), language)
+    speed = float(plan.get('speed') or 0.92)
+    complete_pause_ms = int(plan.get('pause_complete_ms') or 160)
+    incomplete_pause_ms = int(plan.get('pause_incomplete_ms') or 0)
+    presets = {}
+    segments = []
+    for raw in raw_segments:
+        text = str(raw.get('text') or '').strip()
+        voice_id = str(raw.get('voice_id') or '').strip()
+        if not text or not voice_id:
+            continue
+        preset_name = 'voice_' + re.sub(r'[^A-Za-z0-9_]+', '_', voice_id).strip('_')[:48]
+        if preset_name not in presets:
+            presets[preset_name] = _voice_id_to_worker_preset(voice_id, language, speed)
+        segments.append({
+            'id': str(raw.get('id') or f'seg_{len(segments) + 1:04d}'),
+            'preset': preset_name,
+            'text': text,
+            'direction': str(raw.get('direction') or ''),
+            'subtitle_indices': raw.get('subtitle_indices') or [],
+        })
+    if not segments:
+        return None
+    for index, segment in enumerate(segments):
+        text = segment['text']
+        complete = bool(re.search(r'[.!?。！？…]|[.?!]["\')\]]$|[다요죠까네군음함임됨니다습니다]\.?$', text.strip()))
+        presets[segment['preset']]['pause_ms'] = complete_pause_ms if complete else incomplete_pause_ms
+    from services.voice_studio import ElevenDialogue, VertexTTS, VoiceStudio
+    providers = {}
+    if any(value.get('provider') == 'vertex' for value in presets.values()):
+        providers['vertex'] = VertexTTS(os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT') or 'secret-well-480907-a4')
+    if any(value.get('provider') == 'elevenlabs' for value in presets.values()):
+        providers['elevenlabs'] = ElevenDialogue()
+    output_dir = os.path.join(temp_dir, 'worker_tts')
+    result = VoiceStudio(presets, providers, limits={'vertex': 200000, 'elevenlabs': 200000}).run(segments, Path(output_dir))
+    retimed_subs = _retime_subtitles_from_worker_tts(subtitles, segments, result.get('timeline') or [])
+    return {
+        'audio_path': result.get('audio_path'),
+        'audio_duration': float(result.get('duration_seconds') or 0.0),
+        'subtitles': retimed_subs,
+        'image_timing_starts': _scene_starts_from_subtitles(len(metadata.get('images') or []), retimed_subs),
+    }
 
 
 def _subtitles_have_explicit_timings(subtitles):
@@ -825,6 +961,23 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             audio_ffmpeg_exe = _audio_iio_ffmpeg.get_ffmpeg_exe()
         except Exception:
             audio_ffmpeg_exe = "ffmpeg"
+
+        worker_tts_result = None
+        if metadata.get('worker_tts'):
+            try:
+                update_progress(12, '렌더워커 연속 내레이션 TTS 생성 중...')
+                worker_tts_result = _maybe_generate_worker_tts(metadata, temp_dir, subs)
+                if worker_tts_result and worker_tts_result.get('audio_path') and os.path.exists(worker_tts_result['audio_path']):
+                    audio_path = worker_tts_result['audio_path']
+                    subs = worker_tts_result.get('subtitles') or subs
+                    image_timing_starts = worker_tts_result.get('image_timing_starts') or image_timing_starts
+                    metadata['worker_tts_used'] = True
+                    metadata['audio_duration'] = worker_tts_result.get('audio_duration') or metadata.get('audio_duration')
+                    print(f"[Worker TTS] Generated continuous narration: {audio_path}")
+            except Exception as worker_tts_error:
+                metadata['worker_tts_used'] = False
+                metadata['worker_tts_error'] = str(worker_tts_error)
+                print(f"[Worker TTS] Failed; falling back to submitted audio: {worker_tts_error}")
 
         update_progress(15, '내레이션 오디오 레벨 정리 중...')
         audio_path, smoothed_duration = _prepare_narration_audio_for_render(audio_path, temp_dir, audio_ffmpeg_exe)
