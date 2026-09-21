@@ -209,6 +209,8 @@ function LazySceneMedia({
 }) {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const [shouldLoad, setShouldLoad] = useState(priority || shouldPlay)
+    const [videoFailed, setVideoFailed] = useState(false)
+    useEffect(() => setVideoFailed(false), [videoUrl])
 
     useEffect(() => {
         if (priority || shouldPlay) {
@@ -231,9 +233,11 @@ function LazySceneMedia({
 
     return (
         <div ref={containerRef} className="w-full h-full bg-[#0b0e14]">
-            {shouldLoad && videoUrl ? (
+            {shouldLoad && videoUrl && !videoFailed ? (
                 <video
                     src={videoUrl}
+                    poster={imageUrl || undefined}
+                    onError={() => setVideoFailed(true)}
                     className="w-full h-full object-cover"
                     autoPlay={shouldPlay}
                     muted

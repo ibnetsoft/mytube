@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { assetStorageRef } from '@/lib/stdAssetStorage'
 import { downloadGcsObject, downloadGcsObjectViaSignedUrl, isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
@@ -83,25 +84,43 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         })
     }
 
-    const storageBucket = String(asset?.metadata?.storage_bucket || '').trim()
-    const storagePath = String(asset?.metadata?.storage_path || '').trim().replace(/^\/+/, '')
-    const gcsBucket = String(asset?.metadata?.gcs_bucket || storageBucket || '').trim()
-    const gcsPath = String(asset?.metadata?.gcs_path || storagePath || '').trim().replace(/^\/+/, '')
+    const storage = assetStorageRef(asset.metadata)
+    const gcsBucket = storage.bucket
+    const gcsPath = storage.path
     let fileBuffer: Buffer | null = null
-    let source = 'gcs'
+    let source = storage.provider
     let responseStatus = 200
     let contentRange: string | null = null
     let upstreamContentLength: string | null = null
     let upstreamContentType: string | null = null
 
     if (!gcsPath) {
-        return NextResponse.json({ success: false, error: 'Asset does not have a GCS path' }, { status: 404 })
+        return NextResponse.json({ success: false, error: 'Asset does not have a storage path' }, { status: 404 })
     }
-    if (!(await isGcsConfiguredAsync())) {
+    if (storage.provider === 'gcs' && !(await isGcsConfiguredAsync())) {
         return NextResponse.json({ success: false, error: 'GCS storage is not configured' }, { status: 500 })
     }
     try {
-        if (requestedRange && ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase())) {
+        if (storage.provider === 'supabase') {
+            const { data, error } = await supabaseAdmin.storage.from(storage.bucket).createSignedUrl(storage.path, 120)
+            if (error || !data?.signedUrl) throw new Error(error?.message || 'Storage URL unavailable')
+            const upstream = await fetch(data.signedUrl, {
+                headers: requestedRange ? { Range: requestedRange } : {}, cache: 'no-store',
+            })
+            if (upstream.status === 416) return new NextResponse(null, { status: 416,
+                headers: { 'Content-Range': upstream.headers.get('content-range') || 'bytes */*' } })
+            if (!upstream.ok) throw new Error(`Storage HTTP ${upstream.status}`)
+            return new NextResponse(upstream.body, {
+                status: upstream.status,
+                headers: {
+                    'Content-Type': upstream.headers.get('content-type') || asset.mime_type || 'application/octet-stream',
+                    'Cache-Control': 'private, max-age=86400', ETag: etag, 'Accept-Ranges': 'bytes',
+                    'Vary': 'Authorization, Cookie, x-impersonate-email', 'X-STD-Media-Source': 'supabase',
+                    ...(upstream.headers.get('content-length') ? { 'Content-Length': upstream.headers.get('content-length')! } : {}),
+                    ...(upstream.headers.get('content-range') ? { 'Content-Range': upstream.headers.get('content-range')! } : {}),
+                },
+            })
+        } else if (requestedRange && (/^(audio|video)\//.test(asset.mime_type || '') || ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase()))) {
             const chunk = await downloadGcsObjectViaSignedUrl({
                 bucket: gcsBucket,
                 objectPath: gcsPath,
@@ -116,13 +135,13 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             fileBuffer = await downloadGcsObject({ bucket: gcsBucket, objectPath: gcsPath })
         }
     } catch (error: any) {
-        console.warn('[STD Asset File] GCS download failed:', error?.message)
+        console.warn('[STD Asset File] storage download failed:', storage.provider, error?.message)
         if (isMediaRestoreRequest) {
             return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
         }
         return NextResponse.json({
             success: false,
-            error: 'Asset file could not be loaded from GCS',
+            error: 'Asset file could not be loaded from storage',
             detail: error?.message || 'gcs_download_failed',
         }, { status: 404 })
     }
