@@ -447,12 +447,45 @@ function buildRenderSubtitles(project: any, scenes: any[]) {
     return sourceSubtitles.map((subtitle: any, index: number) => {
         const start = Number(subtitle?.start ?? subtitle?.start_num ?? subtitle?.start_time ?? index * 5)
         const end = Number(subtitle?.end ?? subtitle?.end_num ?? subtitle?.end_time ?? start + 5)
+        const sceneNumber = Number(subtitle?.scene_number ?? subtitle?.scene ?? subtitle?.sceneNumber)
         return {
             start: Number.isFinite(start) ? start : index * 5,
             end: Number.isFinite(end) && end > start ? end : start + 5,
             text: String(subtitle?.text || '').trim(),
+            ...(Number.isFinite(sceneNumber) && sceneNumber > 0 ? { scene_number: sceneNumber } : {}),
         }
     }).filter((subtitle: any) => subtitle.text)
+}
+
+function positiveNumber(value: any): number | null {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function buildSceneTimingStarts(scenes: any[], subtitles: any[]) {
+    const result: number[] = []
+    let cursor = 0
+    for (let index = 0; index < scenes.length; index++) {
+        const scene = scenes[index]
+        const sceneNumber = Number(scene?.scene_number ?? index + 1)
+        const sceneSubtitles = (subtitles || []).filter((subtitle: any) => Number(subtitle?.scene_number) === sceneNumber)
+        const subtitleStart = sceneSubtitles.length
+            ? Math.min(...sceneSubtitles.map((subtitle: any) => Number(subtitle.start)).filter(Number.isFinite))
+            : null
+        const sceneStart = Number.isFinite(Number(subtitleStart)) ? Math.max(0, Number(subtitleStart)) : cursor
+        result.push(Math.round(sceneStart * 1000) / 1000)
+
+        const subtitleEnd = sceneSubtitles.length
+            ? Math.max(...sceneSubtitles.map((subtitle: any) => Number(subtitle.end)).filter(Number.isFinite))
+            : null
+        const sceneDuration = positiveNumber(scene?.duration_seconds ?? scene?.target_duration ?? scene?.metadata?.duration_seconds)
+        cursor = Math.max(
+            sceneStart + (sceneDuration || 0),
+            Number.isFinite(Number(subtitleEnd)) ? Number(subtitleEnd) : 0,
+            cursor
+        )
+    }
+    return result
 }
 
 function audioManifestPath(asset: any, prefix: string, index = 0) {
@@ -617,6 +650,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     }
 
     const subtitles = buildRenderSubtitles(project, scenes)
+    const imageTimingStarts = buildSceneTimingStarts(scenes, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -679,7 +713,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         subtitles,
         subtitle_sync_mode: 'preserve_subtitle_timings',
         render_settings: renderSettings,
-        image_timing_starts: null,
+        image_timing_starts: imageTimingStarts,
         image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),
@@ -761,6 +795,7 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
     }
 
     const subtitles = buildRenderSubtitles(project, scenes)
+    const imageTimingStarts = buildSceneTimingStarts(scenes, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -911,7 +946,7 @@ async function buildDriveFolderRenderConfig(project: any, scenes: any[], assets:
         subtitles,
         subtitle_sync_mode: 'preserve_subtitle_timings',
         render_settings: renderSettings,
-        image_timing_starts: null,
+        image_timing_starts: imageTimingStarts,
         image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),

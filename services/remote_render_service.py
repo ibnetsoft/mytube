@@ -318,6 +318,9 @@ def _compute_image_durations(starts_or_durations, scene_count: int, audio_durati
         remaining_count = scene_count - len(durations)
         avg = max(3.0, remaining / remaining_count) if remaining_count > 0 else 5.0
         durations.extend([avg] * remaining_count)
+    total = sum(durations)
+    if audio_duration and durations and abs(total - audio_duration) > 0.25:
+        durations[-1] = max(0.1, durations[-1] + (audio_duration - total))
     return durations
 
 

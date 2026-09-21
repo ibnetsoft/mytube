@@ -99,7 +99,10 @@ def test_ffmpeg_renderer_produces_exact_duration_and_progress(tmp_path):
     )
 
     assert os.path.getsize(output_path) > 0
-    assert _media_duration(_ffmpeg_executable(), output_path) == pytest.approx(2.0, abs=0.1)
+    assert _media_duration(_ffmpeg_executable(), output_path) == pytest.approx(
+        _media_duration(_ffmpeg_executable(), str(tmp_path / "audio" / "voice.mp3")),
+        abs=0.1,
+    )
     assert progress[0][0] == 50
     assert progress[-1][0] == 90
 

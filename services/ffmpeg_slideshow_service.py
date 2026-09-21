@@ -34,9 +34,11 @@ def _media_duration(ffmpeg_exe, path):
             [ffmpeg_exe, "-hide_banner", "-i", path],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=20,
         )
-        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", result.stderr or "")
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", f"{result.stdout or ''}\n{result.stderr or ''}")
         if not match:
             return 0.0
         return int(match.group(1)) * 3600 + int(match.group(2)) * 60 + float(match.group(3))
@@ -114,7 +116,7 @@ def _write_ass_file(path, subtitles, settings, resolution):
         default="Malgun Gothic",
     ))
     font_name = {
-        "ChosunIlboMyungjo": "Chosunilbo_myungjo",
+        "ChosunIlboMyungjo": "Chosun_ilbo_myungjottf",
         "CookieRun-Regular": "CookieRun",
         "NetmarbleB": "netmarble",
         "NotoSansJP": "Noto Sans CJK JP",
@@ -192,7 +194,7 @@ def _prepare_fonts_dir(temp_dir, settings):
     }
     family_overrides = {
         "BinggraeMelona-Bold": "BinggraeMelona-Bold",
-        "ChosunIlboMyungjo": "Chosunilbo_myungjo",
+        "ChosunIlboMyungjo": "Chosun_ilbo_myungjottf",
         "GmarketSans": "GmarketSansBold",
         "GmarketSansBold": "GmarketSansBold",
         "Jalnan": "Jalnan",
@@ -498,7 +500,12 @@ def render_ffmpeg_slideshow(
     ffmpeg_exe = _ffmpeg_executable()
     width, height = int(resolution[0]), int(resolution[1])
     fps = 24
-    audio_duration = sum(float(value) for value in durations)
+    visual_duration = sum(float(value) for value in durations)
+    probed_audio_duration = _media_duration(ffmpeg_exe, audio_path)
+    audio_duration = max(probed_audio_duration, visual_duration)
+    if durations and abs(visual_duration - audio_duration) > 0.25:
+        durations = list(durations)
+        durations[-1] = max(0.1, float(durations[-1]) + (audio_duration - visual_duration))
     output_path = os.path.join(temp_dir, "output.mp4")
     ass_path = os.path.join(temp_dir, "subtitles.fast.ass")
     graph_path = os.path.join(temp_dir, "ffmpeg.fast.filter.txt")
