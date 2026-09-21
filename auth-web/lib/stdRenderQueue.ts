@@ -475,7 +475,10 @@ function buildWorkerTtsPlan(project: any, subtitles: any[]) {
         || settings.voice_id
         || ''
     ).trim()
-    const speed = Number(project.progress_payload?.tts_speed ?? project.project_payload?.tts_speed ?? settings.tts_speed ?? 0.92)
+    const speed = Number(project.progress_payload?.tts_speed ?? project.project_payload?.tts_speed ?? settings.tts_speed ?? 1.0)
+    const stability = Number(settings.tts_stability ?? settings.stability ?? project.project_payload?.stability ?? 0.62)
+    const similarity = Number(settings.tts_similarity_boost ?? settings.similarity_boost ?? project.project_payload?.similarity_boost ?? 0.82)
+    const style = Number(settings.tts_style ?? settings.style ?? project.project_payload?.style ?? 0.18)
     const language = String(project.language || project.project_payload?.language || project.project_payload?.target_language || 'ko')
     const enabled = settings.worker_tts_enabled !== false
     if (!enabled || !defaultVoiceId || !subtitles.length) return null
@@ -490,7 +493,6 @@ function buildWorkerTtsPlan(project: any, subtitles: any[]) {
         const canMerge = previous
             && previous.voice_id === voiceId
             && previous.direction === direction
-            && !sentenceComplete(previous.text)
             && Buffer.byteLength(`${previous.text}\n${subtitle.text}`, 'utf8') <= 1100
         if (canMerge) {
             previous.text += `\n${subtitle.text}`
@@ -512,8 +514,11 @@ function buildWorkerTtsPlan(project: any, subtitles: any[]) {
         enabled: true,
         provider: 'auto',
         language,
-        speed: Number.isFinite(speed) ? Math.max(0.7, Math.min(1.3, speed)) : 0.92,
-        pause_complete_ms: 160,
+        speed: Number.isFinite(speed) ? Math.max(0.7, Math.min(1.3, speed)) : 1.0,
+        stability: Number.isFinite(stability) ? Math.max(0, Math.min(1, stability)) : 0.62,
+        similarity_boost: Number.isFinite(similarity) ? Math.max(0, Math.min(1, similarity)) : 0.82,
+        style: Number.isFinite(style) ? Math.max(0, Math.min(1, style)) : 0.18,
+        pause_complete_ms: 260,
         pause_incomplete_ms: 0,
         segments,
     }

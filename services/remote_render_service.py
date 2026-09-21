@@ -133,7 +133,7 @@ def _sync_subtitle_timings_to_audio_duration(subtitles, audio_duration):
     return synced
 
 
-def _voice_id_to_worker_preset(voice_id: str, language: str, speed: float):
+def _voice_id_to_worker_preset(voice_id: str, language: str, speed: float, stability=0.62, similarity_boost=0.82, style=0.18):
     voice_id = str(voice_id or '').strip()
     if voice_id.startswith('gemini:'):
         return {
@@ -153,6 +153,9 @@ def _voice_id_to_worker_preset(voice_id: str, language: str, speed: float):
         'direction': '',
         'speed': speed,
         'pause_ms': 0,
+        'stability': stability,
+        'similarity_boost': similarity_boost,
+        'style': style,
     }
 
 
@@ -221,7 +224,10 @@ def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
     language_map = {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP', 'vi': 'vi-VN', 'th': 'th-TH'}
     language = str(plan.get('language') or metadata.get('render_settings', {}).get('language') or 'ko')
     language = language_map.get(language.lower(), language)
-    speed = float(plan.get('speed') or 0.92)
+    speed = float(plan.get('speed') or 1.0)
+    stability = float(plan.get('stability') if plan.get('stability') is not None else 0.62)
+    similarity_boost = float(plan.get('similarity_boost') if plan.get('similarity_boost') is not None else 0.82)
+    style = float(plan.get('style') if plan.get('style') is not None else 0.18)
     complete_pause_ms = int(plan.get('pause_complete_ms') or 160)
     incomplete_pause_ms = int(plan.get('pause_incomplete_ms') or 0)
     presets = {}
@@ -233,12 +239,13 @@ def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
             continue
         preset_name = 'voice_' + re.sub(r'[^A-Za-z0-9_]+', '_', voice_id).strip('_')[:48]
         if preset_name not in presets:
-            presets[preset_name] = _voice_id_to_worker_preset(voice_id, language, speed)
+            presets[preset_name] = _voice_id_to_worker_preset(voice_id, language, speed, stability, similarity_boost, style)
+        provider = presets[preset_name].get('provider')
         segments.append({
             'id': str(raw.get('id') or f'seg_{len(segments) + 1:04d}'),
             'preset': preset_name,
             'text': text,
-            'direction': str(raw.get('direction') or ''),
+            'direction': str(raw.get('direction') or '') if provider == 'vertex' else '',
             'subtitle_indices': raw.get('subtitle_indices') or [],
         })
     if not segments:

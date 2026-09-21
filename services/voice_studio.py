@@ -34,6 +34,9 @@ class VoicePreset:
     direction: str = 'Read naturally and clearly, with a warm, restrained storytelling tone.'
     speed: float = 1.0
     pause_ms: int = 180
+    stability: float = 0.62
+    similarity_boost: float = 0.82
+    style: float = 0.18
 
     def validate(self):
         if self.provider not in {'vertex', 'elevenlabs'}:
@@ -44,6 +47,8 @@ class VoicePreset:
             raise ValueError('Invalid ElevenLabs voice ID')
         if not self.voice or not .7 <= self.speed <= 1.3 or type(self.pause_ms) is not int or not 0 <= self.pause_ms <= 2000:
             raise ValueError('Invalid voice, speed or pause')
+        if not 0 <= self.stability <= 1 or not 0 <= self.similarity_boost <= 1 or not 0 <= self.style <= 1:
+            raise ValueError('Invalid ElevenLabs voice settings')
         if len(self.direction) > 1500 or not re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*', self.language):
             raise ValueError('Invalid language or direction')
 
@@ -148,7 +153,16 @@ class ElevenDialogue:
         # Explicit provider only. Never send Gemini narration to ElevenLabs.
         response = requests.post('https://api.elevenlabs.io/v1/text-to-speech/' + preset.voice,
                                  headers={'xi-api-key': key}, params={'output_format': 'mp3_44100_128'},
-                                 json={'text': text, 'model_id': preset.model}, timeout=180)
+                                 json={
+                                     'text': text,
+                                     'model_id': preset.model,
+                                     'voice_settings': {
+                                         'stability': preset.stability,
+                                         'similarity_boost': preset.similarity_boost,
+                                         'style': preset.style,
+                                         'use_speaker_boost': True,
+                                     },
+                                 }, timeout=180)
         if not response.ok:
             raise RuntimeError(f'ElevenLabs HTTP {response.status_code}')
         return response.content, {}
@@ -158,8 +172,11 @@ def normalize_audio(source: Path, target: Path, speed: float):
     # One-pass loudnorm target; verify final loudness for publication requirements.
     temp = target.with_suffix('.part.wav')
     try:
+        filters = 'loudnorm=I=-18:TP=-2:LRA=7'
+        if abs(float(speed or 1.0) - 1.0) > 0.01:
+            filters = f'atempo={speed},{filters}'
         result = subprocess.run([ffmpeg_path(), '-nostdin', '-v', 'error', '-xerror', '-y', '-i', str(source),
-                                 '-vn', '-af', f'atempo={speed},loudnorm=I=-18:TP=-2:LRA=7',
+                                 '-vn', '-af', filters,
                                  '-ar', '48000', '-ac', '1', '-c:a', 'pcm_s16le', str(temp)],
                                 capture_output=True, timeout=180, check=False)
         if result.returncode:
