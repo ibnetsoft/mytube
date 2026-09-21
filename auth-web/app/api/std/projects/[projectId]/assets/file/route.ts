@@ -99,17 +99,24 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     }
     try {
         {
-            const { data, error } = await supabaseAdmin.storage.from(storage.bucket).createSignedUrl(storage.path, 120)
-            const missing = error && (String(error.statusCode || error.status) === '404' || /not.?found|does not exist/i.test(error.message || ''))
-            if (error && !missing) return NextResponse.json({ success: false, error: 'Supabase storage unavailable' }, { status: 502 })
-            if (!error && !data?.signedUrl) return NextResponse.json({ success: false, error: 'Storage URL unavailable' }, { status: 502 })
-            if (data?.signedUrl) {
-                const upstream = await fetch(data.signedUrl, {
-                    headers: requestedRange ? { Range: requestedRange } : {}, cache: 'no-store',
-                })
-                if (upstream.status === 416) return new NextResponse(null, { status: 416,
-                    headers: { 'Content-Range': upstream.headers.get('content-range') || 'bytes */*' } })
-                if (!upstream.ok && upstream.status !== 404) return NextResponse.json({ success: false, error: `Supabase storage HTTP ${upstream.status}` }, { status: 502 })
+            // Server-authenticated stream avoids expiring intermediate signed URLs.
+            // Project/asset ownership has already been checked above.
+            const objectPath = [storage.bucket, ...storage.path.split('/')].map(encodeURIComponent).join('/')
+            const upstream = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/authenticated/${objectPath}`, {
+                headers: {
+                    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+                    ...(requestedRange ? { Range: requestedRange } : {}),
+                }, cache: 'no-store',
+            })
+            if (upstream.status === 416) return new NextResponse(null, { status: 416,
+                headers: upstream.headers.has('content-range') ? { 'Content-Range': upstream.headers.get('content-range')! } : {} })
+            if (!upstream.ok) {
+                const failure = await upstream.json().catch(() => ({}))
+                const missing = upstream.status === 404 || failure.code === 'NoSuchKey'
+                    || failure.error === 'not_found' || /^(?:Object not found|The resource was not found)$/i.test(failure.message || '')
+                if (!missing) return NextResponse.json({ success: false, error: `Supabase storage HTTP ${upstream.status}` }, { status: 502 })
+            }
                 if (upstream.ok) {
                     return new NextResponse(upstream.body, {
                         status: upstream.status,
@@ -122,8 +129,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
                         },
                     })
                 }
-                await upstream.body?.cancel()
-            }
+                if (!upstream.bodyUsed) await upstream.body?.cancel()
         }
         source = 'gcs'
         if (!(await isGcsConfiguredAsync())) return NextResponse.json({ success: false, error: 'GCS storage is not configured' }, { status: 503 })

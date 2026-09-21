@@ -6,7 +6,7 @@ const ts = require('typescript');
 function load(path, deps) {
  const exports = {};
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
- {exports,require: name => deps[name],Buffer,URL,Uint8Array,console,fetch:deps.fetch});
+ {exports,require: name => deps[name],Buffer,URL,Uint8Array,console,process:{env:{NEXT_PUBLIC_SUPABASE_URL:"https://storage.test",SUPABASE_SERVICE_ROLE_KEY:"test-key"}},fetch:deps.fetch});
  return exports;
 }
 const root = __dirname+'/../';
@@ -24,7 +24,7 @@ function harness({authorized=true,project=true,asset=true,missing=false,storageE
   'next/server':{NextResponse:Response},'@/lib/supabaseAdmin':{supabaseAdmin:db},
   '@/lib/stdWeb':{requireStdUser:async()=>authorized?{ok:true,requester:{email:'owner'}}:{ok:false,response:new Response(null,{status:401})}},
   '@/lib/stdAssetStorage':{assetStorageRef},'@/lib/gcsStorage':{isGcsConfiguredAsync:()=>true, downloadGcsObjectViaSignedUrl:async(args)=>{gcs++;assert.equal(args.range,'bytes=0-2');if(gcsMissing)throw Error('Object not found');return {buffer:Buffer.from([4,5,6]),status:206,contentRange:'bytes 0-2/30',contentLength:'3',contentType:'audio/mpeg'}}},
-  fetch:async(url,options)=>{ranged=options.headers.Range;return new Response(new Uint8Array([1,2,3]),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes 0-2/30','content-length':'3'}})},
+  fetch:async(url,options)=>{signed++;assert.equal(options.headers.Authorization,'Bearer test-key');if(missing)return Response.json({message:'Object not found'},{status:400});if(storageError)return Response.json({message:'Forbidden'},{status:403});ranged=options.headers.Range;return new Response(new Uint8Array([1,2,3]),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes 0-2/30','content-length':'3'}})},
  });
  return {get:()=>route.GET(new Request('https://app.test/file?assetId=asset',{headers:{Range:'bytes=0-2'}}),{params:{projectId:'10b3d223-1457-415a-ba40-7b947c6c1b3d'}}),stats:()=>({signed,ranged,gcs})};
 }
