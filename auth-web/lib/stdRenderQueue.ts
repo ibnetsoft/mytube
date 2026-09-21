@@ -1055,11 +1055,6 @@ export async function enqueueStdProjectRender(projectId: string) {
                 path: configStoragePath,
                 ...(gcsConfigSignedUrl ? { gcs_signed_url: gcsConfigSignedUrl, gcs_path: configStoragePath } : {}),
             },
-            supabase_asset_package: {
-                bucket: 'content-assets',
-                path: configStoragePath,
-                ...(gcsConfigSignedUrl ? { signed_url: gcsConfigSignedUrl, gcs_signed_url: gcsConfigSignedUrl, gcs_path: configStoragePath } : {}),
-            },
         } : {}),
         ...(gcsConfigSignedUrl ? {
             gcs_config: {
