@@ -5,6 +5,9 @@ export function directStorageUrl(asset: any): string {
     const metadata = asset?.metadata || {}
     const nestedMetadata = metadata?.metadata || {}
 
+    // Stored objects must go through the authorized Supabase-first reader.
+    if (metadata.storage_path || metadata.gcs_path) return ''
+
     // GCS 직접 URL (V4 서명 URL 또는 직접 공용 CDN URL)
     const gcsUrl = String(
         metadata?.gcs_signed_url
@@ -25,6 +28,10 @@ export function resolveFastAssetUrl(
 ): string | null {
     const direct = directStorageUrl(asset)
     if (direct) return direct
+
+    if (projectId && asset?.id && (asset.metadata?.storage_path || asset.metadata?.gcs_path)) {
+        return `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
+    }
 
     const fallback = String(fallbackUrl || '').trim()
     if (fallback && (fallback.startsWith('http://') || fallback.startsWith('https://'))) {

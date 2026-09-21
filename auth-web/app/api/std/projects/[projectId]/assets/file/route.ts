@@ -85,10 +85,10 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     }
 
     const storage = assetStorageRef(asset.metadata)
-    const gcsBucket = storage.bucket
-    const gcsPath = storage.path
+    const gcsBucket = String(asset.metadata?.gcs_bucket || (asset.metadata?.storage_provider === 'gcs' ? asset.metadata?.storage_bucket : '') || '')
+    const gcsPath = String(asset.metadata?.gcs_path || asset.metadata?.storage_path || storage.path).replace(/^\/+/, '')
     let fileBuffer: Buffer | null = null
-    let source = storage.provider
+    let source = 'supabase'
     let responseStatus = 200
     let contentRange: string | null = null
     let upstreamContentLength: string | null = null
@@ -97,30 +97,37 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!gcsPath) {
         return NextResponse.json({ success: false, error: 'Asset does not have a storage path' }, { status: 404 })
     }
-    if (storage.provider === 'gcs' && !(await isGcsConfiguredAsync())) {
-        return NextResponse.json({ success: false, error: 'GCS storage is not configured' }, { status: 500 })
-    }
     try {
-        if (storage.provider === 'supabase') {
+        {
             const { data, error } = await supabaseAdmin.storage.from(storage.bucket).createSignedUrl(storage.path, 120)
-            if (error || !data?.signedUrl) throw new Error(error?.message || 'Storage URL unavailable')
-            const upstream = await fetch(data.signedUrl, {
-                headers: requestedRange ? { Range: requestedRange } : {}, cache: 'no-store',
-            })
-            if (upstream.status === 416) return new NextResponse(null, { status: 416,
-                headers: { 'Content-Range': upstream.headers.get('content-range') || 'bytes */*' } })
-            if (!upstream.ok) throw new Error(`Storage HTTP ${upstream.status}`)
-            return new NextResponse(upstream.body, {
-                status: upstream.status,
-                headers: {
-                    'Content-Type': upstream.headers.get('content-type') || asset.mime_type || 'application/octet-stream',
-                    'Cache-Control': 'private, max-age=86400', ETag: etag, 'Accept-Ranges': 'bytes',
-                    'Vary': 'Authorization, Cookie, x-impersonate-email', 'X-STD-Media-Source': 'supabase',
-                    ...(upstream.headers.get('content-length') ? { 'Content-Length': upstream.headers.get('content-length')! } : {}),
-                    ...(upstream.headers.get('content-range') ? { 'Content-Range': upstream.headers.get('content-range')! } : {}),
-                },
-            })
-        } else if (requestedRange && (/^(audio|video)\//.test(asset.mime_type || '') || ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase()))) {
+            const missing = error && (String(error.statusCode || error.status) === '404' || /not.?found|does not exist/i.test(error.message || ''))
+            if (error && !missing) return NextResponse.json({ success: false, error: 'Supabase storage unavailable' }, { status: 502 })
+            if (!error && !data?.signedUrl) return NextResponse.json({ success: false, error: 'Storage URL unavailable' }, { status: 502 })
+            if (data?.signedUrl) {
+                const upstream = await fetch(data.signedUrl, {
+                    headers: requestedRange ? { Range: requestedRange } : {}, cache: 'no-store',
+                })
+                if (upstream.status === 416) return new NextResponse(null, { status: 416,
+                    headers: { 'Content-Range': upstream.headers.get('content-range') || 'bytes */*' } })
+                if (!upstream.ok && upstream.status !== 404) return NextResponse.json({ success: false, error: `Supabase storage HTTP ${upstream.status}` }, { status: 502 })
+                if (upstream.ok) {
+                    return new NextResponse(upstream.body, {
+                        status: upstream.status,
+                        headers: {
+                            'Content-Type': upstream.headers.get('content-type') || asset.mime_type || 'application/octet-stream',
+                            'Cache-Control': 'private, max-age=86400', ETag: etag, 'Accept-Ranges': 'bytes',
+                            'Vary': 'Authorization, Cookie, x-impersonate-email', 'X-STD-Media-Source': 'supabase',
+                            ...(upstream.headers.get('content-length') ? { 'Content-Length': upstream.headers.get('content-length')! } : {}),
+                            ...(upstream.headers.get('content-range') ? { 'Content-Range': upstream.headers.get('content-range')! } : {}),
+                        },
+                    })
+                }
+                await upstream.body?.cancel()
+            }
+        }
+        source = 'gcs'
+        if (!(await isGcsConfiguredAsync())) return NextResponse.json({ success: false, error: 'GCS storage is not configured' }, { status: 503 })
+        if (requestedRange && (/^(audio|video)\//.test(asset.mime_type || '') || ['video', 'audio'].includes(String(asset.asset_type || '').toLowerCase()))) {
             const chunk = await downloadGcsObjectViaSignedUrl({
                 bucket: gcsBucket,
                 objectPath: gcsPath,
@@ -135,7 +142,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             fileBuffer = await downloadGcsObject({ bucket: gcsBucket, objectPath: gcsPath })
         }
     } catch (error: any) {
-        console.warn('[STD Asset File] storage download failed:', storage.provider, error?.message)
+        console.warn('[STD Asset File] storage download failed:', source, error?.message)
         if (isMediaRestoreRequest) {
             return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
         }
