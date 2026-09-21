@@ -160,7 +160,7 @@ class ElevenDialogue:
         if direction:
             raise ValueError('ElevenLabs scene direction is not supported by this adapter; use transcript audio tags appropriate to the configured model')
         # Explicit provider only. Never send Gemini narration to ElevenLabs.
-        response = requests.post('https://api.elevenlabs.io/v1/text-to-speech/' + preset.voice,
+        response = requests.post('https://api.elevenlabs.io/v1/text-to-speech/' + preset.voice + '/with-timestamps',
                                  headers={'xi-api-key': key}, params={'output_format': 'mp3_44100_128'},
                                  json={
                                      'text': text,
@@ -177,7 +177,13 @@ class ElevenDialogue:
                                  }, timeout=180)
         if not response.ok:
             raise RuntimeError(f'ElevenLabs HTTP {response.status_code}')
-        return response.content, {'request_id': response.headers.get('request-id'), 'native_speed': min(1.2, preset.speed)}
+        from services.speech_alignment import validate_alignment
+        payload = response.json()
+        alignment = validate_alignment(text, payload.get('alignment'))
+        return base64.b64decode(payload['audio_base64'], validate=True), {
+            'request_id': response.headers.get('request-id'), 'native_speed': min(1.2, preset.speed),
+            'alignment': alignment,
+        }
 
 
 def normalize_audio(source: Path, target: Path, speed: float):
@@ -237,7 +243,7 @@ class VoiceStudio:
             context = {key: segment.get(key, '') for key in ('previous_text', 'next_text')}
             if any(not isinstance(value, str) or len(value) > 1200 for value in context.values()):
                 raise ValueError('Invalid speech context')
-            signature = hashlib.sha256(json.dumps({'text': text, 'preset': asdict(preset), 'direction': direction, 'context': context, 'processing': 2}, sort_keys=True).encode()).hexdigest()
+            signature = hashlib.sha256(json.dumps({'text': text, 'preset': asdict(preset), 'direction': direction, 'context': context, 'processing': 3}, sort_keys=True).encode()).hexdigest()
             plan.append((segment, preset, signature))
         with job_lock(directory):
             path = directory / 'voice-studio.json'
@@ -292,7 +298,9 @@ class VoiceStudio:
                             while chunk := source.readframes(48000):
                                 out.writeframesraw(chunk)
                                 frames += len(chunk) // 2
-                        timeline.append({'id': segment['id'], 'text': segment['text'], 'preset': segment['preset'], 'start': start / 48000, 'end': frames / 48000})
+                        timeline.append({'id': segment['id'], 'text': segment['text'], 'preset': segment['preset'], 'start': start / 48000, 'end': frames / 48000,
+                                         'alignment': entry.get('usage', {}).get('alignment'),
+                                         'alignment_speed_ratio': preset.speed / float(entry.get('usage', {}).get('native_speed') or 1.0)})
                         if index != len(plan) - 1:
                             silence_frames = segment.get('pause_ms', preset.pause_ms) * 48
                             out.writeframesraw(b'\0\0' * silence_frames)

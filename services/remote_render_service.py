@@ -182,8 +182,17 @@ def _retime_subtitles_from_worker_tts(subtitles, tts_segments, timeline):
             length = max(1, len(segment['text']))
             for part in segment['subtitle_spans']:
                 index = part['index']
-                a = start + (end - start) * part['start'] / length
-                b = start + (end - start) * part['end'] / length
+                if entry.get('alignment'):
+                    from services.speech_alignment import aligned_span
+                    measured = aligned_span(segment['text'], entry['alignment'], part['start'], part['end'],
+                                            start, entry.get('alignment_speed_ratio') or 1.0)
+                    if measured is None:
+                        continue
+                    a, b = measured
+                    a, b = min(end, a), min(end, b)
+                else:
+                    a = start + (end - start) * part['start'] / length
+                    b = start + (end - start) * part['end'] / length
                 old = covered.get(index, (a, b))
                 covered[index] = (min(a, old[0]), max(b, old[1]))
             continue
@@ -239,7 +248,7 @@ def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
     language = str(plan.get('language') or metadata.get('render_settings', {}).get('language') or 'ko')
     language = language_map.get(language.lower(), language)
     speed = float(plan.get('speed') or 1.0)
-    stability = float(plan.get('stability') if plan.get('stability') is not None else 0.62)
+    stability = float(plan.get('stability') if plan.get('stability') is not None else 0.7)
     similarity_boost = float(plan.get('similarity_boost') if plan.get('similarity_boost') is not None else 0.82)
     style = float(plan.get('style') if plan.get('style') is not None else 0.18)
     complete_pause_ms = int(plan.get('pause_complete_ms') if plan.get('pause_complete_ms') is not None else 160)

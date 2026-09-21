@@ -132,7 +132,13 @@ def test_elevenlabs_context_and_native_speed_are_sent(monkeypatch):
         ok = True
         content = b'audio'
         headers = {'request-id': 'request-123'}
+        def json(self):
+            text = '보따리를 들었습니다.'
+            return {'audio_base64': base64.b64encode(b'audio').decode(), 'alignment': {
+                'characters': list(text), 'character_start_times_seconds': [i * .1 for i in range(len(text))],
+                'character_end_times_seconds': [(i + 1) * .1 for i in range(len(text))]}}
     def post(url, **kwargs):
+        assert url.endswith('/with-timestamps')
         calls.append(kwargs['json'])
         return Response()
     monkeypatch.setenv('ELEVENLABS_API_KEY', 'test-only')
