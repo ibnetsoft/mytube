@@ -1,3 +1,4 @@
+import { subtitleGain } from './stdSpeechGain'
 import { resolveSfxCues } from '@/lib/stdSfxCues'
 import { audioAssetRole } from './stdAudioMix'
 import { sceneMotion, sceneMotionSpeed } from './stdSceneMotion'
@@ -398,6 +399,7 @@ function buildRenderSubtitles(project: any, scenes: any[]) {
             start: Number.isFinite(start) ? start : index * 5,
             end: Number.isFinite(end) && end > start ? end : start + 5,
             text: String(subtitle?.text || '').trim(),
+            volume: subtitleGain(subtitle) * 100,
             ...(Number.isFinite(sceneNumber) && sceneNumber > 0 ? { scene_number: sceneNumber } : {}),
             ...(subtitle?.voice_id || subtitle?.voiceId ? { voice_id: String(subtitle.voice_id || subtitle.voiceId) } : {}),
             ...(subtitle?.voice_name || subtitle?.voiceName ? { voice_name: String(subtitle.voice_name || subtitle.voiceName) } : {}),
@@ -720,6 +722,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         use_subtitles: true,
         resolution: '1080p',
         aspect_ratio: '16:9',
+        speech_gain_version: 1,
         audio_filename: audioFilename,
         audio_duration: project.progress_payload?.audio_duration || null,
         images,
@@ -941,6 +944,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         use_subtitles: true,
         resolution: '1080p',
         aspect_ratio: '16:9',
+        speech_gain_version: 1,
         audio_filename: audioFilename,
         audio_duration: project.progress_payload?.audio_duration || null,
         images,

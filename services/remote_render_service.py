@@ -102,6 +102,8 @@ def _sanitize_subtitles_for_render(subtitles):
             'text': text_value,
             'start': sub.get('start', 0),
             'end': sub.get('end', 0),
+            **({'volume': sub['volume']} if sub.get('volume') is not None else {}),
+            **({'volume_ratio': sub['volume_ratio']} if sub.get('volume_ratio') is not None else {}),
             **({'scene_number': sub.get('scene_number')} if sub.get('scene_number') is not None else {}),
             **({'voice_id': sub.get('voice_id')} if sub.get('voice_id') else {}),
             **({'voice_name': sub.get('voice_name')} if sub.get('voice_name') else {}),
@@ -1035,7 +1037,11 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             json.dump(audio_provenance, provenance_file, ensure_ascii=False, indent=2)
 
         update_progress(15, '내레이션 오디오 레벨 정리 중...')
-        audio_path, smoothed_duration = _prepare_narration_audio_for_render(audio_path, temp_dir, audio_ffmpeg_exe)
+        if metadata.get('speech_gain_version') == 1:
+            from services.speech_gain import prepare_speech_audio
+            audio_path, smoothed_duration = prepare_speech_audio(audio_path, temp_dir, audio_ffmpeg_exe, subs)
+        else:
+            audio_path, smoothed_duration = _prepare_narration_audio_for_render(audio_path, temp_dir, audio_ffmpeg_exe)
 
         update_progress(18, '오디오 메타데이터 읽는 중...')
         audio_duration = float(metadata.get('audio_duration') or 0.0)

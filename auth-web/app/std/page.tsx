@@ -1,4 +1,5 @@
 'use client'
+import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { stdUiText } from '@/lib/stdUiText'
@@ -1130,6 +1131,14 @@ export default function StdPortalPage() {
     const [voicePickerSearch, setVoicePickerSearch] = useState('')
     const [voicePickerPreviewUrl, setVoicePickerPreviewUrl] = useState('')
     const [localSubtitles, setLocalSubtitles] = useState<any[]>([])
+    const speechSubtitlesRef = useRef<any[]>([])
+    speechSubtitlesRef.current = localSubtitles
+    const speechContextRef = useRef<AudioContext | null>(null)
+    const speechGainCleanupRef = useRef<(() => void) | null>(null)
+    useEffect(() => () => {
+        speechGainCleanupRef.current?.()
+        void speechContextRef.current?.close()
+    }, [])
     const [subtitleTranslations, setSubtitleTranslations] = useState<Partial<Record<SubtitleTranslationLanguage, Record<string, string>>>>({})
     const [translatingSubtitleLanguage, setTranslatingSubtitleLanguage] = useState<SubtitleTranslationLanguage | null>(null)
     const [subtitleTranslationError, setSubtitleTranslationError] = useState('')
@@ -3357,6 +3366,8 @@ export default function StdPortalPage() {
     }
 
     const stopVrewPlayback = () => {
+        speechGainCleanupRef.current?.()
+        speechGainCleanupRef.current = null
         setIsNarrationPlaying(false)
         vrewPlaybackCancelRef.current += 1
         if (vrewProgressTimerRef.current) {
@@ -3567,6 +3578,9 @@ export default function StdPortalPage() {
         setPreviewAudioError('')
         setHighlightSaveTts(false)
 
+        const speechContext = speechContextRef.current || new AudioContext()
+        speechContextRef.current = speechContext
+        await speechContext.resume()
         const savedNarrationUrl = await getSavedNarrationAudioUrl()
         if (vrewPlaybackCancelRef.current !== cancelToken) return
         if (savedNarrationUrl) {
@@ -3578,8 +3592,12 @@ export default function StdPortalPage() {
             const startTime = Number(startSubtitle?.start_num ?? startSubtitle?.start_time ?? 0) || 0
             setMessage('저장된 최종 TTS로 자막 미리듣기 재생 중...')
 
+            const normalizations = await prepareSpeechPlayback(speechContext, savedNarrationUrl, playbackSubtitles)
+            if (vrewPlaybackCancelRef.current !== cancelToken) return
             await new Promise<void>((resolve, reject) => {
                 const audio = new Audio(savedNarrationUrl)
+                const speechGain = connectSpeechGain(speechContext, audio)
+                speechGainCleanupRef.current = speechGain.dispose
                 vrewAudioRef.current = audio
                 const unbindPlayback = bindNarrationPlayback(audio, () => {
                     if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
@@ -3588,6 +3606,8 @@ export default function StdPortalPage() {
                 }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
                 audio.preload = 'auto'
                 const cleanup = () => {
+                    speechGain.dispose()
+                    speechGainCleanupRef.current = null
                     unbindPlayback()
                     if (vrewProgressTimerRef.current) {
                         clearInterval(vrewProgressTimerRef.current)
@@ -3605,6 +3625,7 @@ export default function StdPortalPage() {
                         const end = Number(subtitle?.end_num ?? subtitle?.end_time ?? start)
                         return time >= start && time < end
                     })
+                    speechGain.set(activeIndex < 0 ? 1 : normalizations[activeIndex] * subtitleGain(speechSubtitlesRef.current[activeIndex]))
                     if (activeIndex < 0) {
                         setVrewActiveTokenIndex(-1)
                         return
@@ -3689,10 +3710,13 @@ export default function StdPortalPage() {
                 prefetchVrewSegment(index + offset)
             }
 
+            const [normalization] = await prepareSpeechPlayback(speechContext, audioUrl, [{}])
+            if (vrewPlaybackCancelRef.current !== cancelToken) return
             await new Promise<void>((resolve, reject) => {
                 const audio = new Audio(audioUrl)
-                const volPct = Number(subtitle?.volume ?? (subtitle?.volume_ratio ? subtitle.volume_ratio * 100 : 100))
-                audio.volume = Math.max(0, Math.min(1, (isNaN(volPct) ? 100 : volPct) / 100))
+                const speechGain = connectSpeechGain(speechContext, audio)
+                speechGainCleanupRef.current = speechGain.dispose
+                speechGain.set(normalization * subtitleGain(speechSubtitlesRef.current[index]))
                 vrewAudioRef.current = audio
                 const baseStart = Number(subtitle?.start_num ?? subtitle?.start_time ?? 0) || 0
                 const scheduledEnd = Number(subtitle?.end_num ?? subtitle?.end_time ?? baseStart + 1)
@@ -3704,6 +3728,8 @@ export default function StdPortalPage() {
                     playPreviewBgm(baseStart + scheduledDuration * (audio.currentTime / (audio.duration || scheduledDuration)))
                 }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
                 const cleanup = () => {
+                    speechGain.dispose()
+                    speechGainCleanupRef.current = null
                     unbindPlayback()
                     if (vrewProgressTimerRef.current) {
                         clearInterval(vrewProgressTimerRef.current)
@@ -3722,6 +3748,7 @@ export default function StdPortalPage() {
                     reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
                 }
                 const syncPlaybackProgress = () => {
+                    speechGain.set(normalization * subtitleGain(speechSubtitlesRef.current[index]))
                     const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0
                         ? audio.duration
                         : scheduledDuration
@@ -9584,7 +9611,7 @@ export default function StdPortalPage() {
                                                                                                 { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerInfo?.label || '', gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
                                                                                             )}
                                                                                             <SubtitleVolumePicker
-                                                                                                volume={item.volume ?? (item.volume_ratio ? Math.round(item.volume_ratio * 100) : 100)}
+                                                                                                volume={item.volume ?? (item.volume_ratio != null ? Math.round(item.volume_ratio * 100) : 100)}
                                                                                                 speakerName={speakerInfo?.name}
                                                                                                 onChange={(nextVol, allSpeaker) => applySubtitleVolume(item.subtitleIndex, nextVol, allSpeaker)}
                                                                                                 title={isDialogueBlock ? `${speakerInfo?.name || '대사'} 볼륨 조절` : '내레이션 볼륨 조절'}
