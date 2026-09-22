@@ -2,10 +2,11 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="local-token"]').content;
 let page = 0, hasMore = false, currentSource = null, selectedJob = null, busy = false, catalogRevision = 0;
-const titles = {overview:'Codex 대본 워커',new:'신규 콘텐츠 생성',repair:'기존 대본 리페어',jobs:'작업 이력 · 결과',doc:'작업 지침'};
-const labels = {completed:'토픽 구성 완료',queued:'대기',running:'실행 중',failed:'실패',interrupted:'중단 · 재시작 필요',awaiting_approval:'검토 대기',approved_pending_repair:'승인 · 적용 대기'};
-function error(message) { $('error').textContent = message || ''; $('error').hidden = !message; }
-function notice(message) { $('notice').textContent = message; $('notice').hidden = !message; }
+const titles = {overview:'AI 대본 워커',new:'신규 콘텐츠 생성',repair:'대본 보관함 · 리페어',jobs:'작업 이력 · 결과',doc:'작업 지침'};
+const labels = {completed:'완료',pending:'대기',rendering:'실행 중',canceled:'취소',queued:'대기',running:'실행 중',failed:'실패',interrupted:'중단 · 재시작 필요',awaiting_approval:'검토 대기',approved_pending_repair:'승인 · 적용 대기'};
+function displayLabel(value){return String(value??'').replace(/codex/gi,'AI').replace(/supabase/gi,'Database');}
+function error(message) { $('error').textContent = displayLabel(message); $('error').hidden = !message; }
+function notice(message) { $('notice').textContent = displayLabel(message); $('notice').hidden = !message; }
 async function api(path, body) {
   const response = await fetch('/api/'+path,{headers:{'X-Codex-Local':token,'Content-Type':'application/json'},...(body?{method:'POST',body:JSON.stringify(body)}:{})});
   const data = await response.json();
@@ -21,17 +22,16 @@ function view(name) {
   if(name==='jobs')refresh();
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.view)));
-document.querySelectorAll('[data-doc]').forEach(b=>b.addEventListener('click',async()=>{try{const data=await api('docs/'+b.dataset.doc);$('document').textContent=data.text;view('doc');}catch(e){error(e.message);}}));
+document.querySelectorAll('[data-doc]').forEach(b=>b.addEventListener('click',async()=>{try{const data=await api('docs/'+b.dataset.doc);$('document').textContent=displayLabel(data.text);view('doc');}catch(e){error(e.message);}}));
 async function refresh(){try{
   const data=await api('status'); error('');
   $('cli').textContent=data.codex_installed?'CLI 설치 확인':'CLI 없음'; $('cli-note').textContent=data.login_status;
-  $('job-count').textContent=data.jobs.length; $('approval-count').textContent=data.jobs.filter(j=>j.status==='awaiting_approval').length;
-  $('output').textContent='패키지 저장 위치: '+data.output;
-  busy=data.jobs.some(j=>['running','queued'].includes(j.status));
+  $('approval-count').textContent=data.cloud_summary?.approvals??data.jobs.filter(j=>j.status==='awaiting_approval').length;
+  if(data.cloud_summary)$('job-count').textContent=data.cloud_summary.total??'—';
+  $('output').textContent='작업·결과는 Database에 저장되며 로컬 복구본도 함께 보관됩니다.';
+  busy=Boolean(data.cloud_summary?.active)||data.jobs.some(j=>['running','queued'].includes(j.status));
   document.querySelector('#new-form button[type=submit]').disabled=busy; $('repair-start').disabled=busy||!currentSource; if($('topic-start'))$('topic-start').disabled=busy;
-  const container=$('jobs');container.replaceChildren();
-  data.jobs.forEach(job=>{const row=element('div',undefined,'job');const info=element('div',undefined,'job-info');info.append(element('strong',job.title),element('small',(job.mode==='repair'?'리페어':job.mode==='grounded'?'자료 기반':job.mode==='topics'?'토픽 구성':'신규')+' · '+(labels[job.status]||job.status)+' · '+job.stage));row.append(info);const button=element('button','결과 보기');button.onclick=()=>showJob(job.id);row.append(button);container.append(row);});
-  if(!data.jobs.length)container.append(element('p','아직 이 콘솔에서 실행한 작업이 없습니다. 기존 토픽은 리페어 목록에서 조회하세요.'));
+  if(window.refreshManagement)await window.refreshManagement(data);
 }catch(e){error(e.message);}}
 async function loadCatalog(){const revision=++catalogRevision;$('catalog-count').textContent='불러오는 중…';try{
   const kind=$('kind').value;const data=await api('catalog?'+new URLSearchParams({kind,page,q:$('search').value}));if(revision!==catalogRevision)return;
@@ -53,7 +53,7 @@ async function readSource(item){const revision=++sourceRevision;currentSource=nu
 $('search-button').onclick=()=>{page=0;loadCatalog();};$('search').onkeydown=e=>{if(e.key==='Enter'){$('search-button').click();}};
 $('kind').onchange=()=>{page=0;currentSource=null;sourceRevision++;$('source-panel').hidden=true;loadCatalog();};
 $('previous').onclick=()=>{if(page>0){page--;loadCatalog();}};$('next').onclick=()=>{if(hasMore){page++;loadCatalog();}};
-$('refresh').onclick=()=>{refresh();if(!$('view-repair').hidden)loadCatalog();};
+// Full-page refresh with draft restoration is wired by refresh.js.
 async function start(body){if(busy)return;busy=true;error('');try{const result=await api('jobs',body);notice('로컬 작업을 시작했습니다. 기존 운영 대본은 변경하지 않습니다.');view('jobs');await showJob(result.id);}catch(e){error(e.message);}finally{await refresh();}}
 const defaultCountryByLanguage = {ko:'한국',en:'미국',ja:'일본',es:'스페인'};
 const langNames = {ko:'한국어',en:'영어',ja:'일본어',es:'스페인어'};
@@ -100,7 +100,7 @@ $('new-form').onsubmit=e=>{
   const category=form.get('custom_category').trim()||form.get('category');
   if(!category){error('카테고리를 입력하세요.');return;}
   const setting = window.updateNewSettingSummary();
-  if(!confirm('Codex 신규 대본 생성기를 실행할까요? CLI 사용량이 발생하며 결과는 로컬에 저장합니다.'))return;
+  if(!confirm('AI 신규 대본 생성기를 실행할까요? CLI 사용량이 발생하며 결과는 Database에 저장합니다.'))return;
   start({
     mode:'new',
     title:form.get('title'),
@@ -115,30 +115,33 @@ $('new-form').onsubmit=e=>{
     notes:form.get('notes')
   });
 };
-$('repair-start').onclick=()=>{if(!currentSource||busy)return;if(!confirm('이 대본의 Astra 수정안을 생성할까요? 원본은 보존하고 결과를 로컬에 저장합니다.'))return;start({mode:'repair',kind:currentSource.kind,source_id:currentSource.id,notes:$('repair-notes').value});};
-async function showJob(id){try{
-  const data=await api('jobs/'+id);
-  selectedJob=data.job;
+$('repair-start').onclick=()=>{if(!currentSource||busy)return;if(!confirm('이 대본의 Astra 수정안을 생성할까요? 원본은 보존하고 결과를 Database에 저장합니다.'))return;start({mode:'repair',kind:currentSource.kind,source_id:currentSource.id,notes:$('repair-notes').value});};
+let resultRevision=0;
+async function showJob(id,origin='dedicated'){const revision=++resultRevision;try{
+  const data=await api(origin==='legacy'?'history/legacy/'+id:'jobs/'+id);
+  if(revision!==resultRevision)return;
+  selectedJob={...data.job,origin};
   $('result').hidden=false;
   $('result-title').textContent=data.job.title;
   let statusText = (labels[data.job.status]||data.job.status)+' · '+data.job.stage+(data.job.error?' · '+data.job.error:'');
   if(data.sfx_summary&&data.sfx_summary.status!=='not_run') statusText+=' · 효과음 '+data.sfx_summary.status+' / '+data.sfx_summary.count+'개 / 재검토 '+data.sfx_summary.review_count+'개';
-  $('result-status').textContent=statusText;
+  $('result-status').textContent=displayLabel(statusText);
   const settingBadge = $('result-setting-badge');
   const cs = data.content_setting || data.job.content_setting;
   if (settingBadge && cs) {
     settingBadge.hidden = false;
-    settingBadge.innerHTML = `배경 설정: <strong>${cs.summary_label || (cs.language + ' · ' + cs.setting_country)}</strong> <span style="margin-left:8px;color:#89a2c3;font-size:11px">(${data.image_stage_info?.label || '배경 설정 저장 완료 · 이미지 생성 대기'})</span>`;
+    settingBadge.replaceChildren(document.createTextNode('배경 설정: '),element('strong',cs.summary_label || (cs.language + ' · ' + cs.setting_country)));
   } else if (settingBadge) {
     settingBadge.hidden = true;
   }
   $('original').textContent=data.original||'신규 생성 — 원본 없음';
   $('candidate').textContent=data.script||'아직 저장된 결과가 없습니다.';
   $('remaining').replaceChildren(...data.remaining.map(text=>element('li',text)));
-  $('approve').hidden=data.job.status!=='awaiting_approval';
+  $('approve').hidden=origin==='legacy'||data.job.status!=='awaiting_approval';
+  if(window.renderManagementResult)window.renderManagementResult(data,origin);
   if(window.renderGroundedResult)window.renderGroundedResult(data);
   if(window.renderTopicResult)window.renderTopicResult(data);
 }catch(e){error(e.message);}}
-$('approve').onclick=async()=>{if(!selectedJob||!confirm('표시된 대본 버전에 승인 기록을 남길까요? 운영 대본 적용은 실행하지 않습니다.'))return;try{await api('jobs/'+selectedJob.id+'/approve',{candidate_hash:selectedJob.candidate_hash});notice('승인 기록을 저장했습니다. 연관 자료 검증과 운영 적용은 남아 있습니다.');await showJob(selectedJob.id);refresh();}catch(e){error(e.message);}};
-api('categories').then(data=>{const options=data.items.map(c=>{const o=element('option',c.name);o.value=c.name;o.dataset.id=c.id;return o;});const custom=element('option','직접 입력');custom.value='';$('category').replaceChildren(...options,custom);}).catch(e=>error(e.message));
-refresh();setInterval(()=>{if(document.hidden)return;refresh();if(selectedJob&&!$('view-jobs').hidden)showJob(selectedJob.id);},10000);
+$('approve').onclick=async()=>{if(!selectedJob||!confirm('표시된 대본 버전에 승인 기록을 남길까요? 운영 대본 적용은 실행하지 않습니다.'))return;try{await api('jobs/'+selectedJob.id+'/approve',{candidate_hash:selectedJob.candidate_hash});notice('승인 기록을 저장했습니다. 연관 자료 검증과 운영 적용은 남아 있습니다.');await showJob(selectedJob.id,selectedJob.origin);refresh();}catch(e){error(e.message);}};
+window.categoriesReady=api('categories').then(data=>{const options=data.items.map(c=>{const o=element('option',c.name);o.value=c.name;o.dataset.id=c.id;return o;});const custom=element('option','직접 입력');custom.value='';$('category').replaceChildren(...options,custom);}).catch(e=>error(e.message));
+refresh();setInterval(()=>{if(document.hidden)return;refresh();if(selectedJob&&!$('view-jobs').hidden)showJob(selectedJob.id,selectedJob.origin);},10000);

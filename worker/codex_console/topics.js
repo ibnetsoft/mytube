@@ -42,7 +42,7 @@ topicPanel.innerHTML=`<h2>선택한 소재로 토픽 자동 구성</h2><p>위 �
   </div>
   <div class="setting-preview">최종 설정: <strong id="topic-setting-summary">한국어 · 한국 현대 지방 소도시 · 실사</strong></div>
   <label>재구성 방향<textarea name="notes" maxlength="4000" rows="3" placeholder="살리고 싶은 감정, 바꿀 배경, 원하는 결말"></textarea></label>
-  <p class="muted">요약·분석: GPT-5.6 Sol · 토픽 창작: GPT-6 Astra. 원문 요약과 창작 후보를 구분해 저장하며 Codex 사용량이 발생합니다.</p>
+  <p class="muted">요약·분석: GPT-5.6 Sol · 토픽 창작: GPT-6 Astra. 원문 요약과 창작 후보를 구분해 저장하며 AI 사용량이 발생합니다.</p>
   <button id="topic-start" type="submit" class="primary">토픽 후보 3개 구성</button>
 </form>`;
 $('view-grounded').insertBefore(topicPanel,$('grounded-form').closest('article'));

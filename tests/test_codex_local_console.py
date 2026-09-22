@@ -11,9 +11,12 @@ from worker import codex_local_console as console
 
 
 @pytest.fixture
-def client():
-    return TestClient(console.app, base_url=console.ORIGIN,
-                      headers={'X-Codex-Local': console.TOKEN})
+def client(monkeypatch, tmp_path):
+    local = console.Jobs(tmp_path)
+    monkeypatch.setattr(console, 'jobs', local)
+    yield TestClient(console.app, base_url=console.ORIGIN,
+                     headers={'X-Codex-Local': console.TOKEN})
+    local.pool.shutdown()
 
 
 def test_boundary(client):
@@ -93,7 +96,7 @@ def test_submission_is_protected_and_background_is_not_final():
     assert result['thumbnail'] == '배경 준비'
 
 
-def test_no_legacy_execution_or_db_writes():
+def test_no_legacy_execution_or_topic_overwrites():
     code = (ROOT / 'worker/codex_local_console.py').read_text(encoding='utf-8')
     workflow = (ROOT / 'worker/codex_local_workflow.py').read_text(encoding='utf-8')
     assert 'requests.post(' not in code and 'requests.patch(' not in code

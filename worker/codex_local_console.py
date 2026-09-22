@@ -1,8 +1,7 @@
 """Dedicated loopback Codex console. No legacy manager/dashboard dependency.
 
-Database access here is read-only. Runs produce local candidates, not silent
-production repairs. Browser approval records an exact hash; publication is a
-separate, scoped repair operation after media dependencies have been checked.
+Database stores requests, progress, results and approvals. Local files are recovery
+copies. Existing topic/project scripts are preserved until a scoped publication.
 """
 from __future__ import annotations
 
@@ -16,6 +15,7 @@ import sys
 import threading
 import time
 import uuid
+import socket
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -23,6 +23,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 from typing import Literal
+from worker.script_worker_store import ScriptStore, StoreUnavailable
+from worker.script_worker_media import media_summary
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'worker'))
@@ -34,9 +36,10 @@ PORT = 3003
 ORIGIN = f'http://127.0.0.1:{PORT}'
 TOKEN = secrets.token_urlsafe(32)
 OUT = ROOT / 'output/codex-local-console'
+WORKER_ID = hashlib.sha256((socket.gethostname() + str(ROOT)).encode()).hexdigest()[:24]
 ASSETS = ROOT / 'worker/codex_console'
 DOCS = {'repair': ROOT / 'docs/리페어프로세스.md', 'new': ROOT / 'docs/신규생성프로세스.md'}
-app = FastAPI(title='AIR Codex Local Worker', docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title='AIR AI Local Worker', docs_url=None, redoc_url=None, openapi_url=None)
 
 
 def digest(value):
@@ -47,7 +50,15 @@ def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix('.tmp')
     temp.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8')
-    temp.replace(path)
+    # Windows scanners can briefly hold a just-written recovery file open.
+    for attempt in range(5):
+        try:
+            temp.replace(path)
+            break
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(.05 * (attempt + 1))
 
 
 def db_read(table, **params):
@@ -161,32 +172,110 @@ class ApproveRequest(BaseModel):
 
 
 class Jobs:
-    def __init__(self, root):
+    def __init__(self, root, store=None):
         self.root = root
         self.lock = threading.RLock()
         self.pool = ThreadPoolExecutor(max_workers=1)
         self.rows = {}
+        self.store = store
+        self.cloud_ready = False
+        self.cloud_error = ''
+        self.inflight = set()
         for path in root.glob('*/job.json'):
             try:
                 item = json.loads(path.read_text(encoding='utf-8'))
-                if item['status'] in ('queued', 'running'):
-                    item.update(status='interrupted', stage='서버 재시작: 자동 재실행하지 않음')
+                if item['status'] in ('queued', 'running') and item.get('worker_id', WORKER_ID) == WORKER_ID:
+                    item.update(status='interrupted', stage='서버 재시작: 자동 재실행하지 않음', sync_status='pending', updated_at=time.time())
                     write_json(path, item)
                 self.rows[item['id']] = item
             except (ValueError, KeyError):
                 continue
 
+    def bundle(self, identity):
+        def read(name, default):
+            path = self.root / identity / (name + '.json')
+            return json.loads(path.read_text(encoding='utf-8')) if path.exists() else default
+        return {'job': dict(self.rows[identity]), 'request': read('request', {}),
+                'source': read('source', {}), 'candidate': read('candidate', {}),
+                'references': read('references', [])}
+
+    def restore(self, bundle):
+        item = dict(bundle['job'])
+        identity = item['id']
+        # Remote identifiers are validated before they can become local paths.
+        if len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity):
+            raise ValueError('잘못된 작업 ID입니다.')
+        for name in ('request', 'source', 'candidate', 'references'):
+            write_json(self.root / identity / (name + '.json'), bundle.get(name, [] if name == 'references' else {}))
+        item['sync_status'] = 'synced'
+        self.rows[identity] = item
+        write_json(self.root / identity / 'job.json', item)
+
+    def sync(self, identity, required=False):
+        if self.store is None:
+            return
+        with self.lock:
+            item = self.rows[identity]
+            try:
+                self.store.save(self.bundle(identity))
+                item.update(sync_status='synced', sync_error='')
+            except StoreUnavailable as exc:
+                item.update(sync_status='pending', sync_error=str(exc))
+                if required:
+                    raise
+            finally:
+                write_json(self.root / identity / 'job.json', item)
+
+    def connect(self):
+        if self.store is None or self.cloud_ready:
+            return
+        with self.lock:
+            if self.cloud_ready:
+                return
+            try:
+                for remote in self.store.active():
+                    if remote['worker_id'] == WORKER_ID:
+                        identity = remote['id']
+                        if identity not in self.rows:
+                            self.restore(self.store.get(identity))
+                        if self.rows[identity]['status'] in ('queued', 'running'):
+                            self.update(identity, status='interrupted', stage='서버 재시작 · 재실행 필요')
+                        else:
+                            # A completed result may still be waiting for upload.
+                            self.sync(identity)
+                # Migrate existing local records and retry an interrupted upload.
+                for identity in list(self.rows):
+                    if self.rows[identity].get('sync_status') != 'synced':
+                        self.sync(identity)
+                self.cloud_ready = True
+                self.cloud_error = ''
+            except StoreUnavailable as exc:
+                self.cloud_error = str(exc)
+                raise
+
+    def load(self, identity):
+        with self.lock:
+            if self.store and identity not in self.inflight and self.rows.get(identity, {}).get('sync_status') != 'pending':
+                self.restore(self.store.get(identity))
+            elif identity not in self.rows:
+                if not self.store:
+                    raise ValueError('작업을 찾지 못했습니다.')
+                self.restore(self.store.get(identity))
+            return self.bundle(identity)
+
     def update(self, identity, **fields):
         with self.lock:
             self.rows[identity].update(fields, updated_at=time.time())
             write_json(self.root / identity / 'job.json', self.rows[identity])
+            self.sync(identity)
 
     def listing(self):
         with self.lock:
             return sorted((dict(r) for r in self.rows.values()), key=lambda r: r['created_at'], reverse=True)
 
-    def start(self, request, snapshot, sources=None):
+    def start(self, request, snapshot, sources=None, retry_of=None):
         with self.lock:
+            self.connect()
             if any(r['status'] in ('queued', 'running') for r in self.rows.values()):
                 raise ValueError('이미 실행 또는 대기 중인 작업이 있습니다. 완료 후 시작하세요.')
             identity = uuid.uuid4().hex
@@ -201,7 +290,7 @@ class Jobs:
                     'era_region': setting['era_region'],
                     'image_style': setting['image_style'],
                     'content_setting': setting,
-                    'published': False}
+                    'published': False, 'worker_id': WORKER_ID, 'retry_of': retry_of}
             self.rows[identity] = item
             write_json(self.root / identity / 'job.json', item)
             write_json(self.root / identity / 'request.json', request.model_dump())
@@ -209,12 +298,20 @@ class Jobs:
                 write_json(self.root / identity / 'source.json', snapshot)
             if sources:
                 write_json(self.root / identity / 'references.json', sources)
+            try:
+                self.sync(identity, required=True)
+            except StoreUnavailable:
+                # No CLI execution when the durable queue reservation failed.
+                item.update(status='failed', stage='시작 전 Database 저장 실패', updated_at=time.time())
+                write_json(self.root / identity / 'job.json', item)
+                raise
+            self.inflight.add(identity)
             self.pool.submit(self.run, identity, request, snapshot)
             return dict(item)
 
     def run(self, identity, request, snapshot):
         try:
-            self.update(identity, status='running', stage='Codex 준비')
+            self.update(identity, status='running', stage='AI 준비')
             from worker.codex_local_workflow import produce
             candidate = produce(identity, request.model_dump(), snapshot, self.root / identity,
                                 lambda stage: self.update(identity, stage=stage),
@@ -231,6 +328,9 @@ class Jobs:
             # Do not expose HTTP URLs, credentials, CLI stdout or source dumps to browser logs.
             self.update(identity, status='failed', stage=f'생성 중단 ({type(exc).__name__})',
                         error='검수 또는 실행 실패. 원본은 변경되지 않았습니다. 로컬 단계 산출물을 확인하세요.')
+        finally:
+            with self.lock:
+                self.inflight.discard(identity)
 
     def approve(self, identity, expected_hash, current_source=None):
         with self.lock:
@@ -241,15 +341,18 @@ class Jobs:
             if digest(candidate) != expected_hash or item['candidate_hash'] != expected_hash:
                 raise ValueError('수정안 버전이 달라졌습니다. 다시 확인하세요.')
             path = self.root / identity / 'source.json'
-            if path.exists():
+            if path.exists() and json.loads(path.read_text(encoding='utf-8')):
                 original = json.loads(path.read_text(encoding='utf-8'))
                 if not current_source or original['fingerprint'] != current_source['fingerprint']:
                     raise ValueError('원본이 변경됐습니다. 기존 수정안을 바로 승인할 수 없습니다.')
             self.update(identity, status='approved_pending_repair', stage='승인 기록 · 연관 자료 검증/적용 대기',
                         approved_at=time.time(), approved_hash=expected_hash)
+            if self.store and self.rows[identity].get('sync_status') != 'synced':
+                raise StoreUnavailable('승인은 로컬에 보관됐지만 Database 저장이 지연됐습니다. 재동기화하세요.')
 
 
-jobs = Jobs(OUT)
+store = ScriptStore()
+jobs = Jobs(OUT, store)
 
 
 @app.middleware('http')
@@ -267,7 +370,7 @@ async def local_boundary(request: Request, call_next):
     response.headers['Cache-Control'] = 'no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     return response
 
 
@@ -278,7 +381,7 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
 
@@ -290,8 +393,19 @@ def health():
 
 @app.get('/api/status')
 def status():
+    cloud_summary = None
+    storage_error = ''
+    try:
+        jobs.connect()
+        if jobs.store:
+            cloud_summary = jobs.store.stats()
+    except StoreUnavailable as exc:
+        storage_error = str(exc)
     return {'jobs': jobs.listing(), 'codex_installed': bool(shutil.which(os.environ.get('CODEX_EXECUTABLE', 'codex'))),
-            'script_model': 'gpt-6-astra', 'output': str(OUT), 'server': '로컬 전용 · 레거시 큐 미사용',
+            'script_model': 'gpt-6-astra', 'output': str(OUT), 'server': '대본 전용 워커 · Database 저장',
+            'cloud_summary': cloud_summary,
+            'storage': {'connected': jobs.cloud_ready and not storage_error, 'error': storage_error or jobs.cloud_error,
+                        'pending': sum(r.get('sync_status') == 'pending' for r in jobs.rows.values())},
             'login_status': '미확인 — CLI 설치 확인은 로그인/실행 성공을 보장하지 않습니다.'}
 
 
@@ -371,20 +485,27 @@ def start(request: StartRequest):
         return jobs.start(request, snapshot, references)
     except ValueError as exc:
         raise HTTPException(409, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
     except Exception:
         raise HTTPException(502, '작업 준비 실패. 원본은 변경되지 않았습니다.')
 
 
 @app.get('/api/jobs/{identity}')
 def detail(identity: str):
-    if identity not in jobs.rows:
-        raise HTTPException(404)
-    directory = OUT / identity
-    candidate_path = directory / 'candidate.json'
-    snapshot_path = directory / 'source.json'
-    candidate = json.loads(candidate_path.read_text(encoding='utf-8')) if candidate_path.exists() else {}
-    snapshot = json.loads(snapshot_path.read_text(encoding='utf-8')) if snapshot_path.exists() else {}
-    job_row = dict(jobs.rows[identity])
+    try:
+        bundle = jobs.load(identity)
+    except ValueError:
+        raise HTTPException(404, '작업을 찾지 못했습니다.')
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+    return job_detail(bundle)
+
+
+def job_detail(bundle):
+    candidate = bundle.get('candidate') or {}
+    snapshot = bundle.get('source') or {}
+    job_row = dict(bundle['job'])
     from worker.content_language import resolve_setting
     content_setting = candidate.get('content_setting') or job_row.get('content_setting')
     if not content_setting and (job_row.get('language') or job_row.get('setting_country')):
@@ -402,7 +523,97 @@ def detail(identity: str):
             'original': snapshot.get('script', ''), 'remaining': candidate.get('remaining', []),
             'citations': candidate.get('sections', []) if candidate.get('source_manifest') else [],
             'sources': candidate.get('source_manifest', []), 'grounding_report': candidate.get('grounding_report'),
-            'topics': candidate.get('topics', []), 'source_analysis': candidate.get('source_analysis')}
+            'topics': candidate.get('topics', []), 'source_analysis': candidate.get('source_analysis'),
+            'result_data': candidate, 'result_origin': '전용 워커에 저장된 작업 결과',
+            'media': media_summary(candidate),
+            'source_link': {'kind': job_row.get('kind'), 'id': job_row.get('source_id')}
+                           if job_row.get('source_id') else None}
+
+
+@app.get('/api/history')
+def history(page: int = 0, origin: Literal['all', 'dedicated', 'legacy'] = 'all',
+            q: str = '', state: str = 'all'):
+    if page < 0 or page > 10000 or len(q) > 200 or state not in (
+            'all', 'queued', 'pending', 'running', 'rendering', 'failed', 'interrupted',
+            'completed', 'awaiting_approval', 'approved_pending_repair', 'canceled'):
+        raise HTTPException(400, '조회 조건을 확인하세요.')
+    try:
+        return store.history(page, origin, q, state)
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+
+
+@app.get('/api/history/legacy/{identity}')
+def legacy_detail(identity: str):
+    try:
+        row = store.legacy(identity)
+        payload = object_value(row.get('payload'))
+        candidate = object_value(row.get('result_payload'))
+        topic_id = str(payload.get('topic_queue_id') or '')
+        project_id = str(payload.get('project_id') or '')
+        link = {'kind': 'topic', 'id': topic_id} if topic_id.isdigit() else (
+            {'kind': 'project', 'id': project_id} if project_id else None)
+        result_origin = '기존 작업에 저장된 결과 스냅샷'
+        script = candidate.get('script') or ''
+        if not script and link:
+            try:
+                current = source(link['kind'], link['id'])
+                script = current['script']
+                result_origin = '연결된 대본의 현재 저장본 · 이 작업 당시의 결과 스냅샷이 아닙니다'
+            except (ValueError, requests.RequestException, RuntimeError):
+                result_origin = '작업 결과 대본 없음 · 연결된 현재 대본도 조회할 수 없습니다'
+        elif not script:
+            result_origin = '작업에 저장된 대본 없음 · 아래 결과 데이터 확인'
+        job = {'id': row['id'], 'origin': 'legacy', 'mode': row['job_type'],
+               'title': payload.get('upload_title') or payload.get('topic') or payload.get('title') or row['job_type'],
+               'status': row['status'], 'stage': row.get('message') or row.get('worker_status') or '',
+               'error': row.get('error_message') or ''}
+        result = job_detail({'job': job, 'candidate': candidate})
+        result.update(script=script, result_origin=result_origin, source_link=link)
+        media_row = {'origin': 'legacy', 'id': identity, 'title': job['title'], 'job_type': row['job_type'],
+                     'source_kind': link['kind'] if link else '', 'source_id': link['id'] if link else ''}
+        store.enrich_media([media_row])
+        result['media'] = media_row['media']
+        result['job']['title'] = media_row['title']
+        return result
+    except ValueError:
+        raise HTTPException(404, '기존 작업을 찾지 못했습니다.')
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+
+
+@app.post('/api/jobs/{identity}/sync')
+def sync_job(identity: str):
+    try:
+        bundle = jobs.load(identity)
+        if bundle['job'].get('sync_status') == 'pending':
+            jobs.sync(identity, required=True)
+        return {'status': 'synced'}
+    except ValueError:
+        raise HTTPException(404, '작업을 찾지 못했습니다.')
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+
+
+@app.post('/api/jobs/{identity}/retry')
+def retry_job(identity: str):
+    try:
+        bundle = jobs.load(identity)
+        if bundle['job']['status'] not in ('failed', 'interrupted'):
+            raise ValueError('실패하거나 중단된 작업만 재실행할 수 있습니다.')
+        request = StartRequest(**bundle['request'])
+        snapshot = bundle['source'] or None
+        if request.mode == 'repair':
+            current = source(request.kind, request.source_id)
+            if not snapshot or snapshot['fingerprint'] != current['fingerprint']:
+                raise ValueError('원본이 변경됐습니다. 대본 보관함에서 새 수정 작업을 시작하세요.')
+        return jobs.start(request, snapshot, bundle['references'], retry_of=identity)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+    except Exception:
+        raise HTTPException(502, '재실행 준비에 실패했습니다. 원본과 연결 상태를 확인하세요.')
 
 
 class YouTubeRequest(BaseModel):
@@ -448,15 +659,15 @@ def reference(identity: str):
 
 @app.post('/api/jobs/{identity}/approve')
 def approve(identity: str, request: ApproveRequest):
-    item = jobs.rows.get(identity)
-    if not item:
-        raise HTTPException(404)
     try:
+        item = jobs.load(identity)['job']
         current = source(item['kind'], item['source_id']) if item['mode'] == 'repair' else None
         jobs.approve(identity, request.candidate_hash, current)
         return {'status': 'approved_pending_repair', 'published': False}
     except ValueError as exc:
         raise HTTPException(409, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
     except Exception:
         raise HTTPException(502, '원본 재확인 실패. 승인하거나 덮어쓰지 않았습니다.')
 
