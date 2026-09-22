@@ -180,7 +180,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene, subtitlesMatchSceneManifest } from '@/lib/stdSubtitleSceneIntegrity'
 import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
-    generateSynchronizedSubtitles,
+    generateSynchronizedSubtitles as generateAnnotatedSubtitles,
     calculateLongformSceneTimings,
     cleanKoreanScriptLine,
     estimateRequiredSceneCount,
@@ -666,6 +666,10 @@ const scanDialogueQuoteState = (text: string, incomingClose = '') => {
 }
 
 export default function StdPortalPage() {
+    function generateSynchronizedSubtitles(script: string, scenes: any[], maxChars: number) {
+        return generateAnnotatedSubtitles(script, scenes, maxChars,
+            selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
+    }
     const legacyStorageErrorPattern = /drive_credentials|drive_token|invalid_grant|drive_/i
     const legacyDriveHost = ['drive', 'google', 'com'].join('.')
 

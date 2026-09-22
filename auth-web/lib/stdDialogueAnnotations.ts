@@ -77,7 +77,7 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
 }
 
 /** Split only at AI-confirmed semantic boundaries; keep scene, media and total time. */
-export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any): any[] {
+export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any, annotateSinglePart = false): any[] {
     const mapped = mapDialogueAnnotations(subtitles, annotations)
     return subtitles.flatMap((subtitle, index) => {
         const parts = mapped.get(index)
@@ -96,7 +96,15 @@ export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any):
                 prefix = ''
             }
         }
-        if (groups.length <= 1) return [subtitle]
+        if (groups.length <= 1) {
+            if (!annotateSinglePart) return [subtitle]
+            const group = groups[0]
+            return group ? [{ ...subtitle,
+                dialogue_kind: group.dialogue ? 'dialogue' : 'narration',
+                dialogue_speaker: group.speaker || null,
+                dialogue_source: 'codex-ai',
+            }] : [subtitle]
+        }
         const start = Number(subtitle.start_num ?? subtitle.start_time)
         const end = Number(subtitle.end_num ?? subtitle.end_time)
         if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [subtitle]

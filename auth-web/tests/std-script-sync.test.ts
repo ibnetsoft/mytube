@@ -189,3 +189,23 @@ for (const limit of [1, 10, 20, 40, 0, NaN]) {
 const unspaced = '아주긴공백없는문자열'.repeat(20)
 assert.equal(splitTextToSingleLineChunks(unspaced).join(''), unspaced)
 console.log('Meaning-oriented subtitle splitting tests passed')
+
+assert.deepEqual(splitTextToSingleLineChunks('주인 최 서방은 연이를 마루 끝에 앉히고 사람을 보냈습니다.'),
+    ['주인 최 서방은 연이를 마루 끝에 앉히고', '사람을 보냈습니다.'])
+assert.deepEqual(splitTextToSingleLineChunks('연이의 어머니 순덕은 딸이 붙들렸다는 말에 맨발로 뛰어나왔습니다.'),
+    ['연이의 어머니 순덕은 딸이 붙들렸다는 말에', '맨발로 뛰어나왔습니다.'])
+assert.deepEqual(splitTextToSingleLineChunks('잘못했다고 빌어라.'), ['잘못했다고 빌어라.'])
+const mother = '잘못했다고 빌어라. 그래야 집에는 간다.'
+const narration = '어머니의 속삭임에 연이가 물었습니다.'
+const daughter = '하지 않은 일도 빌면, 한 일이 되는 것 아니에요?'
+const sceneText = [mother, narration, daughter].join(' ')
+const annotatedScenes = baseScenes.map((scene, i) => i === 14 ? {...scene, scene_text: sceneText} : scene)
+const annotatedScript = annotatedScenes.map(scene => scene.scene_text).join(' ')
+const annotations = {version: 1, source: 'codex-ai', scenes: [{scene_number: 15, source_text: sceneText,
+    spans: [
+        {start: 0, end: mother.length, text: mother, status: 'confirmed', speaker: '순덕'},
+        {start: sceneText.indexOf(daughter), end: sceneText.length, text: daughter, status: 'confirmed', speaker: '연이'},
+    ]}]}
+const generated = generateSynchronizedSubtitles(annotatedScript, annotatedScenes, 20, annotations)
+assert.deepEqual(generated.filter(s => s.scene_number === 15).map(s => s.text), [mother, narration, daughter])
+console.log('Complete clauses and confirmed speaker turns passed')

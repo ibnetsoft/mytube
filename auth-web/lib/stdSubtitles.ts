@@ -1,3 +1,5 @@
+import { splitSubtitleDialogueBlocks } from './stdDialogueAnnotations'
+
 export interface StdSubtitleItem {
     id: string
     scene_number: number
@@ -183,7 +185,8 @@ export function calculateLongformSceneTimings(scenes: any[]): SceneTiming[] {
 
 export function splitTextToSingleLineChunks(
     text: string,
-    maxChars: number = DEFAULT_SENIOR_SUBTITLE_MAX_CHARS
+    maxChars: number = DEFAULT_SENIOR_SUBTITLE_MAX_CHARS,
+    options: { dialogue?: boolean } = {}
 ): string[] {
     if (!text || !text.trim()) return []
     const target = Number.isFinite(maxChars) && maxChars > 0 ? Math.max(1, Math.floor(maxChars)) : DEFAULT_SENIOR_SUBTITLE_MAX_CHARS
@@ -191,6 +194,8 @@ export function splitTextToSingleLineChunks(
     const limit = Math.ceil(target * 1.5)
     const cleaned = text.replace(/\s+/g, ' ').trim()
     const chunks: string[] = []
+    // A confirmed speaker turn is a single unit when it fits comfortably.
+    if (options.dialogue && cleaned.length <= Math.max(40, target * 2)) return [cleaned]
     // Keep sentence punctuation and closing quotes with the preceding sentence.
     // A decimal point is not a sentence boundary.
     const sentences = cleaned.match(/.*?[.!?。！？…]+["'”’」』]*(?=\s|$)|.+$/gu) || [cleaned]
@@ -214,14 +219,17 @@ export function splitTextToSingleLineChunks(
                 const next = words[end + 1] || ''
                 // Conservative surface rules, not morphological/AI analysis. Avoid common
                 // nouns ending in 고/자 and keep auxiliary predicates (먹고 있다) together.
-                const connective = /(?:면서|지만|으므로|으니까|더니|다가|자마자)$/.test(word)
+                const reportedSpeech = /(?:다고|라고|냐고|자고)$/.test(word)
+                const connective = !reportedSpeech && (/(?:면서|지만|으므로|으니까|더니|다가|자마자)$/.test(word)
                     || (/(?:고|으며|으면|려면)$/.test(word)
                         && !/^(?:그리고|사고|최고|창고|재고|광고|참고|보고|친구|나무)$/.test(word))
-                    || /(?:울자|오자|가자|하자|서자|보자|듣자|끝나자|도착하자)$/.test(word)
+                    || /(?:울자|오자|가자|하자|서자|보자|듣자|끝나자|도착하자)$/.test(word))
                 const auxiliary = /^(?:있|없|싶|않|말|보았|봤|버렸|계셨|계시)/.test(next)
-                const clauseEnd = /[,，;；]$/.test(word) || (connective && !auxiliary)
+                const circumstance = /^(?:말에|소리에|때문에|덕분에|순간|사이에)$/.test(word)
+                    && /(?:다는|라는|던|는|은|ㄴ)$/.test(words[end - 1] || '')
+                const clauseEnd = /[,，;；]$/.test(word) || circumstance || (connective && !auxiliary)
                 if (end < words.length - 1 && clauseEnd && phrase.length >= 4) {
-                    const earlier = phrase.length > target
+                    const earlier = /[,，;；]$/.test(word) && phrase.length > target
                         ? candidates.filter(candidate => candidate.text.length >= target * 0.7 && end + 1 - candidate.end >= 2)
                             .sort((a, b) => a.score - b.score || b.end - a.end)[0]
                         : undefined
@@ -235,7 +243,7 @@ export function splitTextToSingleLineChunks(
                 const code = word.charCodeAt(word.length - 1) - 0xAC00
                 const finalConsonant = code >= 0 && code < 11172 ? code % 28 : -1
                 const modifier = (!particle && (finalConsonant === 4 || finalConsonant === 8))
-                    || /(?:어진|아진|해진|던|하는|오는|가는|받은|되는)$/.test(word)
+                    || /(?:다는|라는|냐는|자는|의|어진|아진|해진|던|하는|오는|가는|받은|되는)$/.test(word)
                     || /^(?:수|것|줄|데|한|두|세)$/.test(word)
                 candidates.push({ end: end + 1, text: phrase,
                     score: Math.abs(phrase.length - target) + (particle ? -7 : 0) + (modifier ? 20 : 0) })
@@ -648,7 +656,8 @@ export function partitionScriptByExistingSceneBoundaries(
 export function generateSynchronizedSubtitles(
     rawScriptText: string,
     scenes: any[],
-    maxCharsPerSub: number = DEFAULT_SENIOR_SUBTITLE_MAX_CHARS
+    maxCharsPerSub: number = DEFAULT_SENIOR_SUBTITLE_MAX_CHARS,
+    dialogueAnnotations?: any
 ): StdSubtitleItem[] {
     const totalScenes = estimateRequiredSceneCount(rawScriptText, scenes.length)
     const normalizedScenes = Array.from({ length: totalScenes }, (_, i) => scenes[i] || {
@@ -672,7 +681,13 @@ export function generateSynchronizedSubtitles(
             pureText = cleanKoreanScriptLine(sceneNarrationText(sceneData) || `Scene ${sNum} narration`)
         }
 
-        const chunks = splitTextToSingleLineChunks(pureText, maxCharsPerSub)
+        // Classify the complete scene before length-based splitting so confirmed
+        // dialogue cannot be fragmented or mixed with intervening narration.
+        const parts = splitSubtitleDialogueBlocks([{
+            scene_number: sNum, text: pureText, start_num: 0, end_num: 1,
+        }], dialogueAnnotations, true)
+        const chunks = parts.flatMap(part => splitTextToSingleLineChunks(part.text, maxCharsPerSub,
+            { dialogue: part.dialogue_kind === 'dialogue' }))
         const chunkCount = Math.max(1, chunks.length)
         const sceneDuration = timing.duration || getStandardSceneDuration(sNum)
         const chunkDuration = Math.round((sceneDuration / chunkCount) * 10) / 10
