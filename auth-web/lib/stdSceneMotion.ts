@@ -13,17 +13,26 @@ export function sceneMotion(scene: any): string {
     return SCENE_MOTIONS.some(item => item.id === value) ? value : 'zoom_in'
 }
 
+export function sceneMotionSpeed(scene: any): number {
+    const raw = scene?.metadata?.motion_speed ?? scene?.motion_speed
+    const value = Number(raw)
+    return raw != null && raw !== '' && Number.isFinite(value) && value > 0
+        ? Math.max(0.5, Math.min(3, value)) : sceneMotion(scene).startsWith('zoom_') ? 1.5 : 1
+}
+
 /** Use scene time (not subtitle time), so wrapping a sentence never restarts motion. */
-export function sceneMotionStyle(effect: string, time: number, start: number, end: number) {
+export function sceneMotionStyle(effect: string, time: number, start: number, end: number, speed = effect.startsWith('zoom_') ? 1.5 : 1) {
     const progress = Math.max(0, Math.min(1, (time - start) / Math.max(0.001, end - start)))
+    const eased = (1 - Math.cos(Math.PI * progress)) / 2
+    speed = Number.isFinite(speed) ? Math.max(0.5, Math.min(3, speed)) : 1
     let scale = 1
     let x = 0
     let y = 0
-    if (effect === 'zoom_in') scale = 1 + 0.15 * progress
-    if (effect === 'zoom_out') scale = 1.15 - 0.15 * progress
+    if (effect === 'zoom_in') scale = 1 + 0.04 * speed * eased
+    if (effect === 'zoom_out') scale = 1 + 0.04 * speed * (1 - eased)
     if (effect.startsWith('pan_')) {
-        scale = 1.2
-        const offset = 10 - 20 * progress
+        scale = 1 + 0.12 * speed
+        const offset = 6 * speed * (1 - 2 * eased)
         if (effect === 'pan_left') x = offset
         if (effect === 'pan_right') x = -offset
         if (effect === 'pan_up') y = offset

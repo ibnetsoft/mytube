@@ -53,6 +53,31 @@ def test_transition_names_map_to_native_ffmpeg_effects():
     assert _transition_name("zoom") == "zoomin"
 
 
+@pytest.mark.parametrize("effect", ["zoom_in", "zoom_out", "pan_left", "pan_right"])
+@pytest.mark.parametrize("speed", [0.5, 1.5, 3])
+def test_motion_speed_renders_full_duration(effect, speed):
+    import subprocess
+    from services.ffmpeg_slideshow_service import _image_filter
+
+    graph = _image_filter(0, "motion", 320, 180, 24, 0.5, effect, speed)
+    result = subprocess.run([
+        _ffmpeg_executable(), "-v", "error", "-f", "lavfi", "-i",
+        "testsrc2=size=320x180:rate=24", "-filter_complex", graph,
+        "-map", "[motion]", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1",
+    ], capture_output=True, check=True)
+    frame_size = 320 * 180 * 3
+    assert len(result.stdout) == 12 * frame_size
+    assert result.stdout[:frame_size] != result.stdout[-frame_size:]
+
+
+def test_motion_defaults_and_limits():
+    from services.ffmpeg_slideshow_service import _image_filter
+    assert "0.060000" in _image_filter(0, "v", 320, 180, 24, 1, "zoom_in")
+    assert "z='1.120000'" in _image_filter(0, "v", 320, 180, 24, 1, "pan_left")
+    assert "0.120000" in _image_filter(0, "v", 320, 180, 24, 1, "zoom_in", 99)
+    assert "0.060000" in _image_filter(0, "v", 320, 180, 24, 1, "zoom_in", "invalid")
+
+
 @pytest.mark.parametrize("width", [640, 1280, 1920])
 @pytest.mark.parametrize("stroke", [0, 15, 50])
 def test_rendered_outline_matches_preview_outer_radius(tmp_path, width, stroke):

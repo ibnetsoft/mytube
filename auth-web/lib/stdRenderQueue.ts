@@ -1,6 +1,6 @@
 import { resolveSfxCues } from '@/lib/stdSfxCues'
 import { audioAssetRole } from './stdAudioMix'
-import { sceneMotion } from './stdSceneMotion'
+import { sceneMotion, sceneMotionSpeed } from './stdSceneMotion'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredVideoScene } from './stdPolicy'
@@ -726,7 +726,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         subtitles,
         worker_tts: workerTts,
         subtitle_sync_mode: 'preserve_subtitle_timings',
-        render_settings: renderSettings,
+        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed) },
         image_timing_starts: imageTimingStarts,
         image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
@@ -947,7 +947,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         subtitles,
         worker_tts: workerTts,
         subtitle_sync_mode: 'preserve_subtitle_timings',
-        render_settings: renderSettings,
+        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed) },
         image_timing_starts: imageTimingStarts,
         image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),

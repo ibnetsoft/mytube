@@ -639,7 +639,26 @@ class VideoService:
                                     is_tall_pan = False
                     except Exception: pass
 
-                    if is_tall_pan:
+                    motion_speeds = (subtitle_settings or {}).get("scene_motion_speeds")
+                    if isinstance(motion_speeds, list):
+                        # Keep the compatibility renderer on the exact same motion path.
+                        import subprocess
+                        import tempfile
+                        from services.ffmpeg_slideshow_service import _image_filter, _ffmpeg_executable
+                        motion_fd, processed_path = tempfile.mkstemp(prefix="motion_", suffix=".mp4")
+                        os.close(motion_fd)
+                        temp_files.append(processed_path)
+                        speed = motion_speeds[i] if i < len(motion_speeds) else None
+                        graph = _image_filter(0, "motion", target_w, target_h, fps, dur, eff_check or "zoom_in", speed)
+                        subprocess.run([_ffmpeg_executable(), "-v", "error", "-y", "-loop", "1",
+                                        "-framerate", str(fps), "-i", img_path, "-filter_complex", graph,
+                                        "-map", "[motion]", "-an", "-c:v", "libx264", "-preset", "fast",
+                                        "-crf", "18", processed_path], check=True, capture_output=True)
+                        clip = _get_safe_video_clip(processed_path)
+                        is_video_asset = True  # motion already baked; do not apply it twice
+                        if image_effects is not None and i < len(image_effects):
+                            image_effects[i] = "none"
+                    elif is_tall_pan:
                         # Use FFmpeg Preprocess for consistent Vertical Pan
                         pan_dir = "up" if eff_check in ['pan_up', 'scroll_up'] else "down"
                         print(f"↕️ [TallPan Image] idx={i}, effect={eff_check}, dir={pan_dir}, dur={dur:.1f}s")

@@ -192,7 +192,7 @@ import {
 import { SupportedLocale, getTranslation } from '@/lib/i18n'
 import { parseScriptToVoiceSegments } from '@/lib/stdMultiVoice'
 import { detectDialogueCandidates } from '@/lib/stdDialogueCandidates'
-import { SCENE_MOTIONS, sceneMotion, sceneMotionStyle } from '@/lib/stdSceneMotion'
+import { SCENE_MOTIONS, sceneMotion, sceneMotionSpeed, sceneMotionStyle } from '@/lib/stdSceneMotion'
 import { abortable, measureSubtitleDurations, readAudioDuration } from '@/lib/stdTimingSync'
 import { calculateLongformPayoutByScenes } from '@/lib/stdPayoutPolicy'
 
@@ -2617,8 +2617,8 @@ export default function StdPortalPage() {
 
     const sceneEffectSavingRef = useRef(false)
     const [isSceneEffectSaving, setIsSceneEffectSaving] = useState(false)
-    const applySelectedSceneTransition = async (effectId: string, field: 'transition_effect' | 'image_effect' = 'transition_effect', targets = selectedSubtitleSceneNumbers) => {
-        targets = field === 'image_effect' ? targets.filter(sceneNumber => Number(sceneNumber) > 12) : targets
+    const applySelectedSceneTransition = async (effectId: string, field: 'transition_effect' | 'image_effect' | 'motion_speed' = 'transition_effect', targets = selectedSubtitleSceneNumbers) => {
+        targets = field !== 'transition_effect' ? targets.filter(sceneNumber => Number(sceneNumber) > 12) : targets
         if (!selectedProject?.project?.id || targets.length === 0) return
         if (sceneEffectSavingRef.current) return
         sceneEffectSavingRef.current = true
@@ -7038,7 +7038,7 @@ export default function StdPortalPage() {
     const previewMotionGroup = subtitleSceneGroups.find(group => Number(group.scene_number) === currentPreviewSceneNumber)
     const previewMotionStart = Number(previewMotionGroup?.start_num ?? currentSub.start_num ?? currentSub.start_time ?? 0)
     const previewMotionEnd = Number(previewMotionGroup?.end_num ?? currentSub.end_num ?? currentSub.end_time ?? previewMotionStart + 1)
-    const previewImageMotionStyle = sceneMotionStyle(sceneMotion(previewMotionScene), playbackTime, previewMotionStart, previewMotionEnd)
+    const previewImageMotionStyle = sceneMotionStyle(sceneMotion(previewMotionScene), playbackTime, previewMotionStart, previewMotionEnd, sceneMotionSpeed(previewMotionScene))
 
     const previewTransitionLayerStyle = (effect: string, exiting: boolean) => {
         const transition = 'opacity 520ms ease-out, transform 520ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 520ms ease-out'
@@ -9442,6 +9442,14 @@ export default function StdPortalPage() {
                                                                         className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
                                                                         {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
                                                                     </select>
+                                                                    <span className="flex items-center gap-1">속도
+                                                                        <select aria-label={`씬 ${sNum} 모션 속도`} value={sceneMotionSpeed(sceneRecord)}
+                                                                            disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving}
+                                                                            onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [Number(sNum)])}
+                                                                            className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
+                                                                            {[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}
+                                                                        </select>
+                                                                    </span>
                                                                 </label>
                                                             )}
                                                         </div>

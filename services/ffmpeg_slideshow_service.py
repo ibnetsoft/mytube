@@ -1,4 +1,5 @@
 import os
+import math
 import json
 import re
 import shutil
@@ -490,8 +491,16 @@ def _transition_name(value):
     }.get(normalized, "fade")
 
 
-def _image_filter(input_index, output_label, width, height, fps, duration, effect):
+def _image_filter(input_index, output_label, width, height, fps, duration, effect, speed=None):
     normalized = str(effect or "auto_classify").strip().lower().replace(" ", "_")
+    default_speed = 1.0 if normalized.startswith(('pan_', 'scroll_')) else 1.5
+    try:
+        speed = float(speed)
+        if not math.isfinite(speed) or speed <= 0:
+            speed = default_speed
+    except (TypeError, ValueError):
+        speed = default_speed
+    speed = max(0.5, min(3.0, speed))
     base = (
         f"[{input_index}:v]scale={int(width * 1.08)}:{int(height * 1.08)}:"
         f"force_original_aspect_ratio=increase,crop={int(width * 1.08)}:{int(height * 1.08)}"
@@ -507,7 +516,8 @@ def _image_filter(input_index, output_label, width, height, fps, duration, effec
         # zoompan truncates its crop rectangle to whole pixels (and chroma
         # boundaries), which makes slow zooms visibly wobble. Perspective's
         # cubic sampler keeps the centre and crop corners at subpixel precision.
-        zoom = f"1+0.04*(1-{progress})" if normalized == "zoom_out" else f"1+0.04*{progress}"
+        amount = f"{0.04 * speed:.6f}"
+        zoom = f"1+{amount}*(1-{progress})" if normalized == "zoom_out" else f"1+{amount}*{progress}"
         x0, y0 = f"W/2-W/(2*({zoom}))", f"H/2-H/(2*({zoom}))"
         x1, y1 = f"W/2+W/(2*({zoom}))", f"H/2+H/(2*({zoom}))"
         return (
@@ -518,11 +528,11 @@ def _image_filter(input_index, output_label, width, height, fps, duration, effec
             f"trim=duration={duration:.3f},setsar=1,format=yuv420p[{output_label}]"
         )
     if normalized in {"pan_left", "pan_right"}:
-        zoom = "1.12"
+        zoom = f"{1 + 0.12 * speed:.6f}"
         x_pos = f"trunc((iw-iw/zoom)*{progress})" if normalized == "pan_left" else f"trunc((iw-iw/zoom)*(1-{progress}))"
         y_pos = "trunc(ih/2-(ih/zoom/2))"
     else:
-        zoom = "1.12"
+        zoom = f"{1 + 0.12 * speed:.6f}"
         x_pos = "trunc(iw/2-(iw/zoom/2))"
         y_pos = f"trunc((ih-ih/zoom)*{progress})" if normalized in {"pan_up", "scroll_up"} else f"trunc((ih-ih/zoom)*(1-{progress}))"
     return (
@@ -667,7 +677,9 @@ def render_ffmpeg_slideshow(
         else:
             command.extend(["-loop", "1", "-framerate", str(fps), "-i", source_path])
             effect = image_effects[index] if index < len(image_effects or []) else "auto_classify"
-            filters.append(_image_filter(index, f"v{index}", width, height, fps, segment_duration, effect))
+            speeds = (subtitle_settings or {}).get("scene_motion_speeds") or []
+            speed = speeds[index] if index < len(speeds) else None
+            filters.append(_image_filter(index, f"v{index}", width, height, fps, segment_duration, effect, speed))
 
     current_label = "v0"
     timeline = float(durations[0])
