@@ -53,6 +53,40 @@ def test_transition_names_map_to_native_ffmpeg_effects():
     assert _transition_name("zoom") == "zoomin"
 
 
+@pytest.mark.parametrize("width", [640, 1280, 1920])
+@pytest.mark.parametrize("stroke", [0, 15, 50])
+def test_rendered_outline_matches_preview_outer_radius(tmp_path, width, stroke):
+    import subprocess
+    from PIL import Image
+    from services.ffmpeg_slideshow_service import _filter_path
+
+    height = width * 9 // 16
+    ass = tmp_path / "outline.ass"
+    settings = {"fontFamily": "GmarketSansBold", "fontSize": 10,
+                "subtitle_text_color": "#ffffff", "subtitle_stroke_color": "#ffffff",
+                "subtitle_stroke_width": stroke}
+    fonts = _prepare_fonts_dir(tmp_path, settings)
+
+    def bounds(value):
+        settings["subtitle_stroke_width"] = value
+        _write_ass_file(ass, [{"start": 0, "end": 1, "text": "I"}],
+                        settings, (width, height), fonts)
+        result = subprocess.run([
+            _ffmpeg_executable(), "-v", "error", "-f", "lavfi", "-i",
+            f"color=black:s={width}x{height}", "-vf",
+            f"subtitles=filename='{_filter_path(str(ass))}':fontsdir='{_filter_path(fonts)}'",
+            "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1",
+        ], capture_output=True, check=True)
+        mask = Image.frombytes("RGB", (width, height), result.stdout).convert("L")
+        return mask.point(lambda pixel: 255 if pixel > 127 else 0).getbbox()
+
+    plain, outlined = bounds(0), bounds(stroke)
+    # CSS stroke is centered on the edge; paintOrder='stroke fill' hides half.
+    expected_radius = stroke * width / 1920 / 2
+    assert plain[0] - outlined[0] == pytest.approx(expected_radius, abs=1.2)
+    assert outlined[2] - plain[2] == pytest.approx(expected_radius, abs=1.2)
+
+
 @pytest.mark.parametrize("opacity", [0, 0.5, 1])
 def test_rounded_background_is_rendered_by_libass(tmp_path, opacity):
     import subprocess

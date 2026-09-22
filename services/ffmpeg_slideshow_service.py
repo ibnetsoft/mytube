@@ -7,7 +7,7 @@ import subprocess
 import time
 import zlib
 from pathlib import Path
-from services.subtitle_layout import subtitle_font_pixels
+from services.subtitle_layout import subtitle_font_pixels, subtitle_outline_pixels
 
 
 class FastRenderUnsupported(RuntimeError):
@@ -212,6 +212,7 @@ def _write_ass_file(path, subtitles, settings, resolution, fonts_dir=None):
     ))
     outline = _ass_color(_setting(settings, "subtitle_stroke_color", "strokeColor", "stroke_color", default="#000000"))
     outline_width = _float_setting(settings, ("subtitle_stroke_width", "strokeWidth", "stroke_width"), 2.0)
+    outline_width = subtitle_outline_pixels(outline_width, width)
 
     bg_enabled = _bool_setting(_setting(settings, "subtitle_bg_enabled", "bgEnabled", "bg_enabled", default=0), False)
     bg_opacity = _opacity_setting(settings, ("subtitle_bg_opacity", "bgOpacity", "bg_opacity"), 0.5)

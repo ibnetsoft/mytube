@@ -11,7 +11,7 @@ import json
 import requests
 from typing import List, Optional, Union
 from config import config
-from services.subtitle_layout import subtitle_font_pixels
+from services.subtitle_layout import subtitle_font_pixels, subtitle_outline_pixels
 
 
 def _get_scene_transition_mode() -> str:
@@ -1427,10 +1427,8 @@ class VideoService:
             if not s_stroke_enabled:
                 s_stroke_width = 0.0
             else:
-                # [FIX] Scale stroke width: preview 기준 360px → target_h 기준으로 비례 확대
-                scale_factor = target_h / 360.0
-                s_stroke_width = s_stroke_width * scale_factor
-                print(f"DEBUG_RENDER: Scaled Stroke Width: {raw_stroke_width} -> {s_stroke_width:.2f} (target_h={target_h}, factor={scale_factor:.2f})")
+                # Match the web's 1920px CSS stroke units and outward half-width.
+                s_stroke_width = subtitle_outline_pixels(s_stroke_width, target_w)
             
             # [LOG] Log the settings being used for the render
             try:
