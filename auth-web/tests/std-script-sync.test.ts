@@ -161,3 +161,31 @@ const englishApostrophe = repairSubtitleItemQuoteBoundaries([
 assert.deepEqual(englishApostrophe.map(item => item.text), ["It's still narration."])
 
 console.log('STD script sync regression tests passed')
+
+// Meaning-oriented narration boundaries: preserve modifiers, split sentences/clauses.
+const meaningChunks = [
+    '그사이 굵어진 뽕나무 아래에 선 금례는',
+    '어린 순덕을 업고',
+    '잎을 따던 자리를 짚었습니다.',
+    '순덕이 울자',
+    '연이는 말없이 두 사람 사이에 섰습니다.',
+    '셋은 그날 밭둑의 무너진 곳을',
+    '돌로 받치고,',
+    '돌아오는 길에 갚아 받은 품삯으로',
+    '쌀 한 말을 샀습니다.',
+]
+assert.deepEqual(splitTextToSingleLineChunks(meaningChunks.join(' ')), meaningChunks)
+assert.deepEqual(splitTextToSingleLineChunks('왔습니다. 떠났습니다.'), ['왔습니다.', '떠났습니다.'])
+assert.deepEqual(splitTextToSingleLineChunks('순덕은 밥을 먹고 있었습니다.'), ['순덕은 밥을 먹고 있었습니다.'])
+assert.deepEqual(splitTextToSingleLineChunks('창고 안에 물건이 있습니다.'), ['창고 안에 물건이 있습니다.'])
+assert.deepEqual(splitTextToSingleLineChunks('속도는 1.5배입니다. 괜찮습니다.'), ['속도는 1.5배입니다.', '괜찮습니다.'])
+assert.deepEqual(splitTextToSingleLineChunks('Hello there. Welcome back!'), ['Hello there.', 'Welcome back!'])
+for (const limit of [1, 10, 20, 40, 0, NaN]) {
+    const input = meaningChunks.join(' ')
+    const output = splitTextToSingleLineChunks(input, limit)
+    assert.ok(output.every(chunk => chunk.trim().length > 0))
+    assert.equal(output.join(' '), input, 'splitting must preserve every word and punctuation mark')
+}
+const unspaced = '아주긴공백없는문자열'.repeat(20)
+assert.equal(splitTextToSingleLineChunks(unspaced).join(''), unspaced)
+console.log('Meaning-oriented subtitle splitting tests passed')

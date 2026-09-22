@@ -186,30 +186,73 @@ export function splitTextToSingleLineChunks(
     maxChars: number = DEFAULT_SENIOR_SUBTITLE_MAX_CHARS
 ): string[] {
     if (!text || !text.trim()) return []
-    const cleaned = text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim()
-    if (cleaned.length <= maxChars) return [cleaned]
-
-    const words = cleaned.split(' ')
+    const target = Number.isFinite(maxChars) && maxChars > 0 ? Math.max(1, Math.floor(maxChars)) : DEFAULT_SENIOR_SUBTITLE_MAX_CHARS
+    // The setting is a reading target. Allow a short extension to keep a phrase together.
+    const limit = Math.ceil(target * 1.5)
+    const cleaned = text.replace(/\s+/g, ' ').trim()
     const chunks: string[] = []
-    let current = ''
+    // Keep sentence punctuation and closing quotes with the preceding sentence.
+    // A decimal point is not a sentence boundary.
+    const sentences = cleaned.match(/.*?[.!?。！？…]+["'”’」』]*(?=\s|$)|.+$/gu) || [cleaned]
 
-    for (const word of words) {
-        const candidate = current ? `${current} ${word}` : word
-
-        if (candidate.length > maxChars) {
-            if (current) {
-                chunks.push(current.trim())
-                current = word
-            } else {
-                chunks.push(word.slice(0, maxChars))
-                current = word.slice(maxChars)
+    for (const rawSentence of sentences) {
+        const sentence = rawSentence.trim()
+        if (sentence.length <= limit && /^["'“‘「『]/u.test(sentence)) {
+            chunks.push(sentence)
+            continue
+        }
+        const words = sentence.split(/\s+/)
+        let start = 0
+        while (start < words.length) {
+            let phrase = ''
+            const candidates: { end: number; text: string; score: number }[] = []
+            let cut = -1
+            for (let end = start; end < words.length; end++) {
+                phrase = phrase ? `${phrase} ${words[end]}` : words[end]
+                if (phrase.length > limit && end > start) break
+                const word = words[end].replace(/["'”’」』]+$/u, '')
+                const next = words[end + 1] || ''
+                // Conservative surface rules, not morphological/AI analysis. Avoid common
+                // nouns ending in 고/자 and keep auxiliary predicates (먹고 있다) together.
+                const connective = /(?:면서|지만|으므로|으니까|더니|다가|자마자)$/.test(word)
+                    || (/(?:고|으며|으면|려면)$/.test(word)
+                        && !/^(?:그리고|사고|최고|창고|재고|광고|참고|보고|친구|나무)$/.test(word))
+                    || /(?:울자|오자|가자|하자|서자|보자|듣자|끝나자|도착하자)$/.test(word)
+                const auxiliary = /^(?:있|없|싶|않|말|보았|봤|버렸|계셨|계시)/.test(next)
+                const clauseEnd = /[,，;；]$/.test(word) || (connective && !auxiliary)
+                if (end < words.length - 1 && clauseEnd && phrase.length >= 4) {
+                    const earlier = phrase.length > target
+                        ? candidates.filter(candidate => candidate.text.length >= target * 0.7 && end + 1 - candidate.end >= 2)
+                            .sort((a, b) => a.score - b.score || b.end - a.end)[0]
+                        : undefined
+                    cut = earlier ? earlier.end : end + 1
+                    chunks.push(earlier ? earlier.text : phrase)
+                    break
+                }
+                const particle = /[가-힣](?:은|는|이|가|을|를|에서|으로|로|에게|까지|부터)$/.test(word)
+                // Do not cut between an attributive phrase and its noun (선 금례는,
+                // 무너진 곳을), or in dependent-noun expressions (할 수 있다).
+                const code = word.charCodeAt(word.length - 1) - 0xAC00
+                const finalConsonant = code >= 0 && code < 11172 ? code % 28 : -1
+                const modifier = (!particle && (finalConsonant === 4 || finalConsonant === 8))
+                    || /(?:어진|아진|해진|던|하는|오는|가는|받은|되는)$/.test(word)
+                    || /^(?:수|것|줄|데|한|두|세)$/.test(word)
+                candidates.push({ end: end + 1, text: phrase,
+                    score: Math.abs(phrase.length - target) + (particle ? -7 : 0) + (modifier ? 20 : 0) })
+                if (end === words.length - 1) {
+                    chunks.push(phrase)
+                    cut = words.length
+                }
             }
-        } else {
-            current = candidate
+            if (cut < 0) {
+                const best = candidates.sort((a, b) => a.score - b.score || b.end - a.end)[0]
+                // A single overlong token is retained intact (URLs, names, unspaced text).
+                chunks.push(best.text)
+                cut = best.end
+            }
+            start = cut
         }
     }
-    if (current.trim()) chunks.push(current.trim())
-
     return repairSubtitleQuoteBoundaries(chunks)
 }
 

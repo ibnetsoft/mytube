@@ -9290,7 +9290,7 @@ export default function StdPortalPage() {
                                                     )
                                                     setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
                                                     setSelectedSubIndex(0)
-                                                    alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다.')
+                                                    alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다. 자막은 문장과 구문 경계를 우선해 나누었습니다.')
                                                 }}
                                                 className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                                 title={t('sub_reset_reload')}
@@ -9449,7 +9449,7 @@ export default function StdPortalPage() {
                                                                 )}
                                                             </div>
                                                             <div className="mt-1 text-[9px] sm:text-[10px] font-mono leading-tight text-gray-400">
-                                                                {group.start_time}s ~ {group.end_time}s
+                                                                {Number(group.start_time).toFixed(1)}s ~ {Number(group.end_time).toFixed(1)}s
                                                                 <span className="ml-1 text-[9px] text-gray-500">{duration.toFixed(1)}s</span>
                                                             </div>
                                                             {transitionEffect && transitionEffect !== 'none' && (
@@ -9995,14 +9995,14 @@ export default function StdPortalPage() {
 
                                                 <div className="flex items-center justify-between text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-white/5">
                                                     <span className="text-blue-400 font-bold">{t('sub_current_image')}</span>
-                                                    <span className="font-mono">{currentSub.start_time}s ~ {currentSub.end_time}s</span>
+                                                    <span className="font-mono">{Number(currentSub.start_time).toFixed(1)}s ~ {Number(currentSub.end_time).toFixed(1)}s</span>
                                                 </div>
 
                                                 <div className="grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
                                                     <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-white/5">
                                                         <span className="shrink-0 text-gray-300 font-bold">{t('sub_start_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
-                                                            <span className="font-mono text-white">{currentSub.start_time}s</span>
+                                                            <span className="font-mono text-white">{Number(currentSub.start_time).toFixed(1)}s</span>
                                                             <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
                                                             <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
                                                         </div>
@@ -10011,7 +10011,7 @@ export default function StdPortalPage() {
                                                     <div className="flex min-w-0 items-center justify-between gap-1 text-[11px] text-gray-400 bg-[#14181f] px-2 py-1.5 rounded border border-red-500/20">
                                                         <span className="shrink-0 text-red-400 font-bold">{t('sub_end_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
-                                                            <span className="font-mono text-white">{currentSub.end_time}s</span>
+                                                            <span className="font-mono text-white">{Number(currentSub.end_time).toFixed(1)}s</span>
                                                             <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
                                                             <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
                                                         </div>
