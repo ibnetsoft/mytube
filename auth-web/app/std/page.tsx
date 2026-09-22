@@ -8816,20 +8816,7 @@ export default function StdPortalPage() {
                                             <>
                                                 {currentLocale !== 'th' && (
                                                     <>
-                                                        <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
-                                                            voices={allVoices}
-                                                            value={narrationVoiceId}
-                                                            direction={voiceStudioDirection}
-                                                            headers={authedJsonHeaders}
-                                                            buttonText={narrationVoiceName}
-                                                            buttonClassName="h-7 max-w-32 truncate rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 text-[11px] font-bold text-cyan-100 transition hover:bg-cyan-500/20 shrink-0"
-                                                            label={`내레이션 ${narrationSubtitleCount}개 성우 선택`}
-                                                            onChange={(id, direction) => {
-                                                                setVrewNarrationVoice(id)
-                                                                setVoiceStudioDirection(direction)
-                                                                applyVrewVoiceBulk('narration', id, direction)
-                                                            }}
-                                                        />
+
                                                         <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                             voices={allVoices}
                                                             value={dialogueVoiceId || (narrationVoiceId === 'gemini:Charon' ? 'gemini:Puck' : 'gemini:Charon')}
@@ -8971,6 +8958,24 @@ export default function StdPortalPage() {
                                                 />
                                                 <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
                                             </div>
+                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
+                                                <input
+                                                    type="number"
+                                                    value={subStrokeWidth}
+                                                    onChange={e => {
+                                                        const value = e.target.value
+                                                        setSubStrokeWidth(value)
+                                                        persistSubtitleRenderSettings({ subStrokeWidth: value })
+                                                    }}
+                                                    className="w-9 text-center text-[11px] bg-transparent text-white focus:outline-none"
+                                                    aria-label="Subtitle outline width"
+                                                    min="0"
+                                                    max="50"
+                                                    step="0.5"
+                                                />
+                                                <span className="text-[9px] text-gray-400">px</span>
+                                                <span className="text-[9px] text-gray-500 ml-0.5">{t('sub_outline_short')}</span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -9053,23 +9058,7 @@ export default function StdPortalPage() {
 
                                         {/* 테두리 두께 & Y 위치 */}
                                         <div className="flex items-center gap-1 shrink-0">
-                                            <div className="flex items-center gap-0.5 bg-[#14181f] px-1.5 py-0.5 rounded border border-gray-600/50">
-                                                <input
-                                                    type="number"
-                                                    value={subStrokeWidth}
-                                                    onChange={e => {
-                                                        const value = e.target.value
-                                                        setSubStrokeWidth(value)
-                                                        persistSubtitleRenderSettings({ subStrokeWidth: value })
-                                                    }}
-                                                    className="w-9 text-center text-[11px] bg-transparent text-white focus:outline-none"
-                                                    min="0"
-                                                    max="15"
-                                                    step="0.5"
-                                                />
-                                                <span className="text-[9px] text-gray-400">px</span>
-                                                <span className="text-[9px] text-gray-500 ml-0.5">{t('sub_outline_short')}</span>
-                                            </div>
+
                                             <div className="flex items-center gap-0.5 bg-[#14181f] px-1 py-0.5 rounded border border-gray-600/50">
                                                 <button
                                                     type="button"
