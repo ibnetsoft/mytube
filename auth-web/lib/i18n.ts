@@ -8,6 +8,9 @@ export interface LocaleStrings {
 
 export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
     ko: {
+        video_ratio_title: '영상 생성 권장 비율',
+        video_ratio_note: '영상 툴의 비율 설정에서도 직접 선택하세요. 프롬프트만으로 출력 비율이 바뀌지 않을 수 있습니다. 해당 비율이 없으면 가장 가까운 비율을 선택하세요.',
+        video_ratio_page: '최종 책 페이지: 16:9 · 개별 컷 영상은 위 비율로 생성',
         // Auth (Login / Register / Forgot Password)
         auth_login_title: '직원 로그인',
         auth_signup_title: '회원가입 신청',
@@ -174,6 +177,9 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         set_withdraw_req: '출금 신청하기',
     },
     en: {
+        video_ratio_title: 'Recommended video aspect ratio',
+        video_ratio_note: 'Select this ratio in the video tool too; prompt text alone may not set the output size. If unavailable, select the closest ratio.',
+        video_ratio_page: 'Final book page: 16:9 · Generate this panel clip at the ratio above',
         // Auth (Login / Register / Forgot Password)
         auth_login_title: 'Staff Sign In',
         auth_signup_title: 'Worker Registration',
@@ -301,6 +307,9 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         set_withdraw_req: 'Request Withdrawal',
     },
     vi: {
+        video_ratio_title: 'Tỷ lệ khung hình video đề xuất',
+        video_ratio_note: 'Hãy chọn tỷ lệ này trong công cụ tạo video. Chỉ ghi trong prompt có thể không thay đổi kích thước video. Nếu không có tỷ lệ này, hãy chọn tỷ lệ gần nhất.',
+        video_ratio_page: 'Trang truyện hoàn chỉnh: 16:9 · Tạo video cho khung này theo tỷ lệ ở trên',
         // Auth (Login / Register / Forgot Password)
         auth_login_title: 'Đăng nhập nhân viên',
         auth_signup_title: 'Đăng ký tài khoản',
@@ -428,6 +437,9 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         set_withdraw_req: 'Gửi yêu cầu rút tiền',
     },
     th: {
+        video_ratio_title: 'อัตราส่วนวิดีโอที่แนะนำ',
+        video_ratio_note: 'ตั้งค่าอัตราส่วนนี้ในเครื่องมือสร้างวิดีโอด้วย การใส่ในพรอมต์อย่างเดียวอาจไม่เปลี่ยนขนาดวิดีโอ หากไม่มีตัวเลือกนี้ ให้เลือกสัดส่วนที่ใกล้เคียงที่สุด',
+        video_ratio_page: 'หน้าหนังสือสำเร็จ: 16:9 · คลิปแต่ละช่องใช้อัตราส่วนด้านบน',
         // Auth (Login / Register / Forgot Password)
         auth_login_title: 'เข้าสู่ระบบพนักงาน',
         auth_signup_title: 'สมัครสมาชิก',

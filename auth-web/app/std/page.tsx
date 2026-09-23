@@ -1,6 +1,7 @@
 'use client'
 import StdComicEditor from '@/components/StdComicEditor'
 import { isComicProject, ComicSettings, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
+import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
 import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
@@ -2233,14 +2234,16 @@ export default function StdPortalPage() {
             || scene?.metadata?.prompt_en
             || ''
         ).trim()
-        if (explicit) return explicit
+        const sceneIndex = Math.max(0, (selectedProject?.scenes || []).findIndex((item: any, index: number) => Number(item.scene_number || item.scene_order || index + 1) === num))
+        const spec = sceneVideoGeneration(selectedProject?.project, sceneIndex)
+        if (explicit) return videoPromptWithRatio(explicit, spec)
         const visualPrompt = String(scene?.image_prompt || scene?.metadata?.image_prompt || scene?.prompt || '').trim()
         const scriptContext = cleanScriptContextText(scene?.scene_text || scene?.script_excerpt || scene?.scene_summary || '')
-        return [
+        return videoPromptWithRatio([
             `Create a 5-second cinematic video shot for scene ${num}.`,
             visualPrompt || `Visualize this narration beat: ${scriptContext}`,
             comicProject ? 'Animate the provided scene image with subtle character and environmental movement. Preserve its original illustration style, composition and character identity. Silent, no text, no subtitles, no speech balloons.' : 'Use slow controlled camera motion, realistic depth, consistent characters and setting, no text, no subtitles, no logos.',
-        ].filter(Boolean).join(' ')
+        ].filter(Boolean).join(' '), spec)
     }
 
     const safeDownloadFileName = (name: string) => {
@@ -10647,6 +10650,8 @@ export default function StdPortalPage() {
                                     .map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
+                                    const videoSpec = sceneVideoGeneration(selectedProject.project, selectedProject.scenes.indexOf(scene))
+                                    const ratioLabels = videoRatioLabels(currentLocale)
                                     const videoPromptText = getSceneVideoPromptText(scene, sceneNum)
                                     const isSelected = selectedSceneIndexes.includes(i)
 
@@ -10745,7 +10750,7 @@ export default function StdPortalPage() {
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
                                                             <span className="text-xl">{inRequiredZone ? '🎬' : '🖼️'}</span>
                                                             <span className="text-xs font-bold text-gray-400">{inRequiredZone ? '영상만 등록 가능' : '생성 이미지 보호됨'}</span>
-                                                            {inRequiredZone ? (
+                                                            {inRequiredZone || isComicProject(selectedProject.project) ? (
                                                                 <label className="cursor-pointer mt-1 px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-[11px] font-bold transition-all">
                                                                     📁 영상 업로드
                                                                     <input
@@ -10781,6 +10786,14 @@ export default function StdPortalPage() {
                                                                 Edit
                                                             </button>
                                                         </div>
+                                                    </div>
+                                                    <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3" data-testid="video-generation-ratio">
+                                                        <div className="flex items-center gap-3">
+                                                            <span aria-hidden="true" className="inline-block shrink-0 rounded-sm border-2 border-amber-300 bg-amber-300/15" style={{ width: 36 * videoSpec.width / Math.max(videoSpec.width, videoSpec.height), height: 36 * videoSpec.height / Math.max(videoSpec.width, videoSpec.height) }} />
+                                                            <span className="text-xs text-amber-100">{ratioLabels.title} <strong className="ml-2 text-xl">{videoSpec.label}</strong></span>
+                                                        </div>
+                                                        {videoSpec.comic && <p className="mt-2 text-xs text-amber-100">{ratioLabels.page}</p>}
+                                                        <p className="mt-2 text-xs text-gray-300">{ratioLabels.note}</p>
                                                     </div>
                                                     <pre className="whitespace-pre-wrap text-[11px] text-gray-300 leading-relaxed max-h-36 overflow-y-auto font-mono">
                                                         {videoPromptText || '영상 프롬프트 없음'}
