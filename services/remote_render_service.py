@@ -100,6 +100,8 @@ def _sanitize_subtitles_for_render(subtitles):
         text_value = re.sub(r'\s+', ' ', text_value).strip()
         cleaned.append({
             'text': text_value,
+            'dialogue_kind': 'dialogue' if sub.get('dialogue_kind') == 'dialogue' else 'narration',
+            'dialogue_speaker': sub.get('dialogue_speaker'),
             'start': sub.get('start', 0),
             'end': sub.get('end', 0),
             **({'volume': sub['volume']} if sub.get('volume') is not None else {}),

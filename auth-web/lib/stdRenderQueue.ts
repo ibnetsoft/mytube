@@ -401,6 +401,8 @@ function buildRenderSubtitles(project: any, scenes: any[]) {
             end: Number.isFinite(end) && end > start ? end : start + 5,
             text: String(subtitle?.text || '').trim(),
             volume: subtitleGain(subtitle) * 100,
+            dialogue_kind: subtitle.dialogue_kind === 'dialogue' ? 'dialogue' : 'narration',
+            dialogue_speaker: subtitle.dialogue_speaker || null,
             ...(Number.isFinite(sceneNumber) && sceneNumber > 0 ? { scene_number: sceneNumber } : {}),
             ...(subtitle?.voice_id || subtitle?.voiceId ? { voice_id: String(subtitle.voice_id || subtitle.voiceId) } : {}),
             ...(subtitle?.voice_name || subtitle?.voiceName ? { voice_name: String(subtitle.voice_name || subtitle.voiceName) } : {}),
@@ -650,7 +652,9 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
             Number(item.scene_number) === sceneNumber
             && String(item.asset_type || '').toLowerCase() === 'image'
         )
-        const asset = selectComicMedia(comicSettingsForProject(project).mode, imageAsset, videoAsset)
+        const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
+        if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
+        const asset = selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
@@ -685,6 +689,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     const renderSettings = {
         ...(project.project_payload?.settings || {}),
         ...(project.project_payload?.render_settings || {}),
+        ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         subtitle_bg_enabled: project.project_payload?.render_settings?.subtitle_bg_enabled
             ?? project.project_payload?.settings?.subtitle_bg_enabled
@@ -742,6 +747,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         intro_filename: null,
         template_overlay_filename: null,
         content_aspect_ratio: null,
+        ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,
         project_upload_metadata: {
@@ -793,7 +799,9 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
             Number(item.scene_number) === sceneNumber
             && String(item.asset_type || '').toLowerCase() === 'image'
         )
-        const asset = selectComicMedia(comicSettingsForProject(project).mode, imageAsset, videoAsset)
+        const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
+        if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
+        const asset = selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
@@ -905,6 +913,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
 
     const renderSettings = {
         ...projectRenderSettings,
+        ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         subtitle_bg_enabled: project.project_payload?.render_settings?.subtitle_bg_enabled
             ?? project.project_payload?.settings?.subtitle_bg_enabled
@@ -967,6 +976,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         intro_filename: null,
         template_overlay_filename: null,
         content_aspect_ratio: null,
+        ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,
         sfx_cues: sfxCues,

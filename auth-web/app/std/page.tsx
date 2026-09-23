@@ -1,6 +1,6 @@
 'use client'
 import StdComicEditor from '@/components/StdComicEditor'
-import { isComicProject, ComicSettings } from '@/lib/stdComic'
+import { isComicProject, ComicSettings, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
@@ -1561,7 +1561,7 @@ export default function StdPortalPage() {
             scene_title: String(scene?.scene_title || `Scene ${index + 1}`),
             scene_text: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
             image_prompt: String(scene?.image_prompt || ''),
-            video_prompt: baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
+            video_prompt: (comicProject || baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1))
                 ? String(scene?.video_prompt || '')
                 : '',
             metadata: {
@@ -2225,7 +2225,7 @@ export default function StdPortalPage() {
 
     const getSceneVideoPromptText = (scene: any, sceneNumber?: number) => {
         const num = Number(sceneNumber || scene?.scene_number || scene?.scene_order || 0)
-        if (!isStdRequiredVideoScene(num)) return ''
+        if (!comicProject && !isStdRequiredVideoScene(num)) return ''
         const explicit = String(
             scene?.video_prompt
             || scene?.metadata?.video_prompt
@@ -2239,7 +2239,7 @@ export default function StdPortalPage() {
         return [
             `Create a 5-second cinematic video shot for scene ${num}.`,
             visualPrompt || `Visualize this narration beat: ${scriptContext}`,
-            'Use slow controlled camera motion, realistic depth, consistent characters and setting, no text, no subtitles, no logos.',
+            comicProject ? 'Animate the provided scene image with subtle character and environmental movement. Preserve its original illustration style, composition and character identity. Silent, no text, no subtitles, no speech balloons.' : 'Use slow controlled camera motion, realistic depth, consistent characters and setting, no text, no subtitles, no logos.',
         ].filter(Boolean).join(' ')
     }
 
@@ -4134,7 +4134,7 @@ export default function StdPortalPage() {
             const rawScript = partitionedScript[i] || s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const scriptText = cleanScriptContextText(rawScript)
             const requiresVideoPrompt = baseIsStdRequiredVideoScene(num)
-            const videoPromptText = requiresVideoPrompt
+            const videoPromptText = (requiresVideoPrompt || struct.comic_plan?.mode === 'moving_comic')
                 ? (s.video_prompt || s.prompt_en || s.prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`)
                 : ''
             const generatedImagePrompt = `Image prompt: visualize this narration beat with the selected project style, consistent characters, no text, no captions: ${scriptText}`
@@ -5484,7 +5484,7 @@ export default function StdPortalPage() {
                         ...s,
                         scene_text: cleanedText,
                         script_excerpt: cleanedText,
-                        video_prompt: requiresVideoPrompt
+                        video_prompt: (requiresVideoPrompt || isComicProject(payload.project))
                             ? (s.video_prompt || payloadScene.video_prompt || s.prompt_en || s.prompt || '')
                             : '',
                         video_url: sanitizeAssetUrl(s.video_url || s.video || payloadScene.video_url || payloadScene.video),
@@ -5727,6 +5727,14 @@ export default function StdPortalPage() {
                 status: p.status === 'claimed' ? 'in_progress' : p.status,
                 updated_at: new Date().toISOString(),
             } as any : p))
+            if (isCurrent() && actualAssetType === 'video' && comicSettingsForProject(selectedProject.project).mode === 'moving_comic') {
+                try {
+                    await saveComicSettings(comicSettingsWithUploadedVideo(selectedProject.project, Number(sceneNum)))
+                } catch {
+                    if (isCurrent()) setMessage('영상 클립은 저장됐지만 영상 우선 설정을 저장하지 못했습니다. 자막 페이지의 페이지 편집에서 해당 씬을 영상 우선으로 선택하고 저장해 주세요.')
+                    return 'synced'
+                }
+            }
             setMessage(`에셋 (${file.name}) 저장 완료! GCS API 보관본도 준비합니다.`)
             return 'synced'
         } catch (error: any) {
@@ -8793,13 +8801,12 @@ export default function StdPortalPage() {
                 }`}>
                     {selectedProject && (
                         <StdComicEditor key={selectedProject.project.id}
-                            value={selectedProject.project.project_payload?.render_settings?.comic}
+                            value={selectedProject.project.project_payload?.render_settings?.comic ?? selectedProject.project.project_payload?.structure?.comic_plan?.render_settings}
                             scenes={selectedProject.scenes || []}
                             subtitles={localSubtitles.length ? localSubtitles : selectedProject.project.project_payload?.subtitles || []}
                             audioUrl={audioResultUrl || selectedProject.project.project_payload?.audio_url || ''}
                             disabled={['review_requested', 'approved', 'canceled'].includes(selectedProject.project.status)}
                             onSave={saveComicSettings}
-                            onUpload={(scene, file) => uploadAsset(scene, file.type.startsWith('video/') ? 'video' : 'image', file)}
                         />
                     )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
@@ -10630,9 +10637,13 @@ export default function StdPortalPage() {
 
                             </div>
 
+                            {comicProject && <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">
+                                영상 프롬프트 복사 → 필요한 씬만 수동 영상 제작 → 아래에서 클립 업로드 → 자막 페이지에서 대사·말풍선·컷 최종 수정 → 기존 렌더링 제출.
+                                무빙툰 모드에서는 업로드한 클립이 해당 컷의 영상으로 선택됩니다. 클립이 없는 씬은 이미지로 구성합니다.
+                            </div>}
                             <div className="space-y-4">
                                 {selectedProject.scenes
-                                    .filter((scene: any, i: number) => isStdRequiredVideoScene(scene?.scene_number || i + 1))
+                                    .filter((scene: any, i: number) => comicProject || isStdRequiredVideoScene(scene?.scene_number || i + 1))
                                     .map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
@@ -10663,6 +10674,13 @@ export default function StdPortalPage() {
                                                 </div>
                                             </div>
 
+                                            {comicProject && <div className="px-4 py-3 flex flex-wrap items-center gap-3 border-t border-white/5">
+                                                <label className="cursor-pointer rounded bg-blue-600 px-3 py-2 text-xs font-bold text-white">
+                                                    {scene.video_url ? '영상 클립 교체' : '영상 클립 업로드'}
+                                                    <input aria-label={`씬 ${sceneNum} 영상 클립 업로드`} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={!!uploadingKey || ['review_requested','approved','canceled'].includes(selectedProject.project.status)} onChange={e=>{const file=e.target.files?.[0] || null;e.target.value='';void uploadAsset(scene,'video',file)}} />
+                                                </label>
+                                                <span className="text-xs text-gray-400">{scene.video_url ? '저장된 영상 클립 있음' : '영상 없이 이미지로도 렌더링 가능'}</span>
+                                            </div>}
                                             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
                                                 <div className="lg:col-span-4 relative bg-[#11141a] rounded-lg overflow-hidden border border-white/10 aspect-video flex items-center justify-center group">
                                                     {inRequiredZone && (

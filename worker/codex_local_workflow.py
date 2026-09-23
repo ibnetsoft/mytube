@@ -49,6 +49,14 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     # The script/review/dialogue runner itself pins Astra; general model config
     # remains untouched for other existing content stages.
     runner = ReportingRunner(config)
+    moving = request.get('production_mode') == 'moving_comic'
+    if moving:
+        from worker.comic_plan import DIRECTIVE, plan_comic
+        request = {**request, 'notes': request.get('notes', '') + '\n' + DIRECTIVE}
+    def finish(package, source=None):
+        if moving:
+            package = plan_comic(runner, identity, package, notify)
+        return finalize_sfx(runner, identity, package, notify, source)
     if request['mode'] == 'topics':
         from worker.source_topics import produce_topics
         return produce_topics(identity, request, sources or [], runner, notify)
@@ -69,8 +77,8 @@ def produce(identity, request, snapshot, output, notify, sources=None):
                    'content_setting': setting,
                    'script_style': 'story',
                    'target_duration_seconds': request['duration_minutes'] * 60,
-                   'legacy_stage_directives': 'Use the current category narration and senior listening contracts. '
-                                              'Use photorealistic images matching the category and era.',
+                   'legacy_stage_directives': 'Use the current category narration and senior listening contracts. ' +
+                                              ('Use the selected comic illustration style.' if moving else 'Use photorealistic images matching the category and era.'),
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
                    'user_direction': request['notes']}
         package = runner.generate('local-' + identity, payload, script_only=True)
@@ -84,10 +92,10 @@ def produce(identity, request, snapshot, output, notify, sources=None):
                          enabled=request.get('generate_bgm_prompt') is True)
         package['remaining'] = [f"배경 설정: {setting['summary_label']} (저장 완료)",
                                 '캐릭터 참고 이미지 생성·저장 (위 배경 설정 적용 예정)',
-                                '장면 이미지·첫 12씬 영상 프롬프트 (위 배경 설정 적용 예정)',
+                                ('무빙툰 장면별 이미지·선택 영상 연출' if moving else '장면 이미지·첫 12씬 영상 프롬프트 (위 배경 설정 적용 예정)'),
                                 '메타데이터·썸네일 기획', '전체 장면 이미지 실제 생성·게시', '썸네일 배경 실제 생성·게시',
                                 '토픽 패키지/유저웹 연결', '사용자 썸네일 최종 저장']
-        return finalize_sfx(runner, identity, package, notify)
+        return finish(package)
 
     from scripts.repair_existing_topic_scripts import _repair_with_codex, _repair_scene_budgets, _duration_seconds
     row = copy.deepcopy(snapshot['row'])
@@ -137,4 +145,4 @@ def produce(identity, request, snapshot, output, notify, sources=None):
             'remaining': ['사용자 대본 승인', '장면별 이미지·프롬프트 영향 평가', '최신 메타데이터·썸네일 검증',
                           '오래된 자막/음성 연결 정리', '대상 프로젝트에 승인본 적용',
                           '패키지·제출 건 동기화 확인', '유저웹 재접속 검증']}
-    return finalize_sfx(runner, identity, package, notify, snapshot)
+    return finish(package, snapshot)

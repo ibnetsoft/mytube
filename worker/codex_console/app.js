@@ -94,6 +94,7 @@ if ($('new-language')) {
   $('new-style').onchange = window.updateNewSettingSummary;
   window.updateNewSettingSummary();
 }
+$('production-mode').onchange=()=>{if($('production-mode').value==='moving_comic'&&$('new-style').value==='실사'){$('new-style').value='웹툰';window.updateNewSettingSummary();}};
 $('new-form').onsubmit=e=>{
   e.preventDefault();
   const form=new FormData(e.target);
@@ -103,6 +104,7 @@ $('new-form').onsubmit=e=>{
   if(!confirm('AI 신규 대본 생성기를 실행할까요? CLI 사용량이 발생하며 결과는 Database에 저장합니다.'))return;
   start({
     mode:'new',
+    production_mode:form.get('production_mode')||'standard',
     title:form.get('title'),
     category,
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',
@@ -115,7 +117,7 @@ $('new-form').onsubmit=e=>{
     notes:form.get('notes')
   });
 };
-$('repair-start').onclick=()=>{if(!currentSource||busy)return;if(!confirm('이 대본의 Astra 수정안을 생성할까요? 원본은 보존하고 결과를 Database에 저장합니다.'))return;start({mode:'repair',kind:currentSource.kind,source_id:currentSource.id,notes:$('repair-notes').value});};
+$('repair-start').onclick=()=>{if(!currentSource||busy)return;if(!confirm('이 대본의 Astra 수정안을 생성할까요? 원본은 보존하고 결과를 Database에 저장합니다.'))return;start({production_mode:$('repair-production-mode').value,mode:'repair',kind:currentSource.kind,source_id:currentSource.id,notes:$('repair-notes').value});};
 let resultRevision=0;
 async function showJob(id,origin='dedicated'){const revision=++resultRevision;try{
   const data=await api(origin==='legacy'?'history/legacy/'+id:'jobs/'+id);
@@ -125,6 +127,7 @@ async function showJob(id,origin='dedicated'){const revision=++resultRevision;tr
   $('result-title').textContent=data.job.title;
   let statusText = (labels[data.job.status]||data.job.status)+' · '+data.job.stage+(data.job.error?' · '+data.job.error:'');
   if(data.sfx_summary&&data.sfx_summary.status!=='not_run') statusText+=' · 효과음 '+data.sfx_summary.status+' / '+data.sfx_summary.count+'개 / 재검토 '+data.sfx_summary.review_count+'개';
+  if(data.result_data?.comic_plan){const plan=data.result_data.comic_plan;statusText+=' · 무빙툰 '+plan.pages.length+'페이지 / 영상화 '+plan.scenes.filter(s=>s.motion==='video').length+'씬';}
   $('result-status').textContent=displayLabel(statusText);
   const settingBadge = $('result-setting-badge');
   const cs = data.content_setting || data.job.content_setting;

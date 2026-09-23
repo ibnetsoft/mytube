@@ -6,8 +6,48 @@ import pytest
 from PIL import Image
 
 from services.comic_render_service import ComicFrames, LAYOUTS, build_timeline, comic_enabled, page_curl, render_comic
+from services.comic_lettering import caption_layers
 
 FONT = str(Path('auth-web/public/fonts/NanumSquareExtraBold.ttf').resolve())
+
+def test_following_page_visible_before_half_turn():
+    old=np.full((180,320,3),[180,30,20],dtype=np.uint8)
+    new=np.full_like(old,[20,40,220])
+    frame=page_curl(old,new,.25)
+    assert (frame[:,-10:,2]>150).any()
+    assert not np.array_equal(frame[20],frame[160])  # slanted curved edge
+
+def test_tail_root_has_no_internal_ellipse_stroke():
+    layers=caption_layers((500,400),[{'text':'대사','start':0,'dialogue_kind':'dialogue',
+        'comic':{'x':.2,'y':.25,'width':.4,'target_x':.9,'target_y':.35}}],FONT,24)
+    canvas=Image.new('RGBA',(500,400));_,image,position=layers[0];canvas.paste(image,position,image)
+    # Right-most body midpoint lies inside the continuous tail, not a black seam.
+    assert min(canvas.getpixel((298,140))[:3])>180
+    narration=caption_layers((500,400),[{'text':'설명','start':0,'comic':{'x':.2,'y':.25,'width':.4}}],FONT,24)
+    assert narration[0][1].width<=204
+
+def test_mixed_page_layouts_and_transparent_breakout(tmp_path):
+    paths=fixtures(tmp_path)
+    settings={'comic':{'version':1,'mode':'comic','layout':'single','page_layouts':{'0':'single','1':'spread'}}}
+    frames=ComicFrames(paths,[1,1,1],[],settings,(640,360),FONT)
+    assert [(p['first'],p['last'],p['layout']) for p in frames.pages]==[(0,1,'single'),(1,3,'spread')]
+    frames.close()
+    from PIL import ImageDraw
+    cutout=Image.new('RGBA',(320,360));ImageDraw.Draw(cutout).ellipse((80,10,240,350),fill='red')
+    cutout.save(tmp_path/'cutout.png')
+    settings['comic'].update(layout='breakout',page_layouts={})
+    frames=ComicFrames([paths[0],str(tmp_path/'cutout.png')],[1,1],[],settings,(640,360),FONT)
+    frame=frames.page(0,1.9,True)
+    assert frame[15,480,0]>180  # foreground above the base panel border
+    frames.close()
+
+@pytest.mark.parametrize('layout',[key for key in LAYOUTS if key!='breakout'])
+def test_layouts_render_without_missing_scenes(tmp_path,layout):
+    paths=fixtures(tmp_path)
+    frames=ComicFrames(paths,[1,1,1],[],{'comic':{'version':1,'mode':'comic','layout':layout}},(640,360),FONT)
+    assert sum(p['last']-p['first'] for p in frames.pages)==3
+    assert frames.frame(.5).shape==(360,640,3)
+    frames.close()
 
 
 def test_opt_in_and_layout_contract():

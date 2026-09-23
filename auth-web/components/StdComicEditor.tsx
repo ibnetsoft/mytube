@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ComicSettings, COMIC_LAYOUT_LABELS, comicPages, comicSceneTimings, normalizeComicSettings } from '@/lib/stdComic'
+import { ComicSettings, ComicLettering, COMIC_LAYOUT_LABELS, comicPages, comicSceneTimings, normalizeComicSettings } from '@/lib/stdComic'
 import { ComicMedia, drawComicPage } from '@/lib/stdComicCanvas'
 
 type Props = {
@@ -34,7 +34,8 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
     const duration = Math.max(.1, (pageTimings[pageTimings.length - 1]?.end || 5) - start)
     const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
     useEffect(() => { setDraft(saved) }, [saved])
-    useEffect(() => { setError('') }, [draft.font_size, draft.layout, draft.panels])
+    useEffect(() => { if(pageIndex>=pages.length)setPageIndex(Math.max(0,pages.length-1)) }, [pages.length,pageIndex])
+    useEffect(() => { setError('') }, [draft.font_size, draft.layout, draft.panels, draft.lettering, draft.page_layouts])
     useEffect(() => { setPageIndex(0); setTime(0); setPlaying(false) }, [draft.layout, draft.mode])
     useEffect(() => {
         if (open) dialogRef.current?.showModal()
@@ -49,7 +50,7 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
             const font = new FontFace('ComicBalloon', 'url(/fonts/NanumSquareExtraBold.ttf)')
             await font.load(); document.fonts.add(font)
             for (const scene of page) {
-                const video = draft.mode === 'moving_comic' ? scene.video_url : (!scene.image_url && scene.video_url)
+                const video = ['pan','still'].includes(draft.panels[String(scene.scene_number)]?.motion || '') ? undefined : draft.mode === 'moving_comic' ? scene.video_url : (!scene.image_url && scene.video_url)
                 const url = video || scene.image_url
                 if (!url) throw new Error(`씬 ${scene.scene_number}에 이미지 또는 영상을 추가해 주세요.`)
                 const item = video ? document.createElement('video') : new Image()
@@ -74,7 +75,7 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
         }
         // Reload only the current page assets, not on every balloon style edit.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, pageIndex, draft.mode, draft.layout, JSON.stringify(page.map(s => [s.scene_number, s.image_url, s.video_url]))])
+    }, [open, pageIndex, draft.mode, draft.layout, JSON.stringify(page.map(s => [s.scene_number, s.image_url, s.video_url, draft.panels[String(s.scene_number)]?.motion]))])
 
     useEffect(() => {
         if (!playing) return
@@ -105,7 +106,7 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
         const source = start + Math.min(time, duration - .0001)
         const draw = () => {
             if (cancelled || !canvasRef.current) return
-            try { drawComicPage(canvasRef.current, page, mediaRef.current, draft, pageTimings, source) }
+            try { drawComicPage(canvasRef.current, page, mediaRef.current, draft, pageTimings, source, false, pageIndex) }
             catch (e: any) { setError(e.message); setPlaying(false) }
         }
         mediaRef.current.forEach((item, i) => {
@@ -135,7 +136,7 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
         setPlaying(false); setError('')
         try {
             const output = document.createElement('canvas')
-            drawComicPage(output, page, mediaRef.current, draft, pageTimings, start + duration, true)
+            drawComicPage(output, page, mediaRef.current, draft, pageTimings, start + duration, true, pageIndex)
             const blob = await new Promise<Blob>((resolve, reject) => output.toBlob(b => b ? resolve(b) : reject(new Error('PNG를 만들지 못했습니다.')), 'image/png'))
             const url = URL.createObjectURL(blob), a = document.createElement('a')
             a.href = url; a.download = `comic-page-${String(pageIndex + 1).padStart(3, '0')}.png`; a.click()
@@ -164,12 +165,14 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
                     <label>배치 <select aria-label="페이지 배치" value={draft.layout} disabled={disabled} onChange={e => setDraft({ ...draft, layout: e.target.value as ComicSettings['layout'] })} className="bg-[#263044] p-1">
                         {Object.entries(COMIC_LAYOUT_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
                     </select></label>
+                    <label>현재 페이지 배치 <select aria-label="현재 페이지 배치" value={draft.page_layouts[String(pageIndex)] || draft.layout} disabled={disabled} onChange={e=>setDraft({...draft,page_layouts:{...draft.page_layouts,[String(pageIndex)]:e.target.value as ComicSettings['layout']}})} className="bg-[#263044] p-1">{Object.entries(COMIC_LAYOUT_LABELS).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
                     <label>넘김 시간 <input aria-label="넘김 시간" type="number" step="0.1" min="0.3" max="1.5" value={draft.turn_duration} disabled={disabled} onChange={e => setDraft(normalizeComicSettings({ ...draft, turn_duration: e.target.value }))} className="w-16 bg-[#263044] p-1" /> 초</label>
                     <label>글자 크기 <input aria-label="말풍선 글자 크기" type="number" min="18" max="44" value={draft.font_size} disabled={disabled} onChange={e => setDraft(normalizeComicSettings({ ...draft, font_size: e.target.value }))} className="w-16 bg-[#263044] p-1" /></label>
                     <label><input type="checkbox" checked={draft.dim_inactive} disabled={disabled} onChange={e => setDraft({ ...draft, dim_inactive: e.target.checked })} /> 현재 컷 강조</label>
                     <label><input type="checkbox" checked={draft.turn_sound} disabled={disabled} onChange={e => setDraft({ ...draft, turn_sound: e.target.checked })} /> 넘김 효과음</label>
                 </div>
                 {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" onLoadedMetadata={e => setAudioDuration(e.currentTarget.duration)} />}
+                {(draft.page_layouts[String(pageIndex)] || draft.layout)==='breakout' && <p className="text-amber-200">두 번째 씬에 배경을 제거한 투명 PNG를 넣으세요. 전경이 첫 컷의 테두리를 넘어갑니다.</p>}
                 <canvas ref={canvasRef} width="1280" height="720" className="aspect-video w-full rounded bg-[#f7f2e8]" aria-label="만화책 페이지 미리보기" />
                 {!loaded && <p className="mt-2 text-xs">{error ? '컷을 확인해 주세요.' : '페이지 불러오는 중…'}</p>}
                 <div className="my-3 flex flex-wrap items-center gap-3 text-sm">
@@ -187,7 +190,8 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
                     return <fieldset key={key} disabled={disabled || busy} className="rounded border border-white/15 p-3 text-xs"><legend>씬 {key}</legend>
                         <div className="flex flex-wrap gap-3">
                             <label>그림 맞춤 <select aria-label={`씬 ${key} 그림 맞춤`} value={panel.fit || 'contain'} onChange={e => setDraft({ ...draft, panels: { ...draft.panels, [key]: { ...panel, fit: e.target.value as 'cover' | 'contain' } } })} className="bg-[#263044] p-1"><option value="contain">전체 보이기</option><option value="cover">꽉 채우기</option></select></label>
-                            <label>말풍선 <select aria-label={`씬 ${key} 말풍선 위치`} value={panel.bubble_position || 'bottom'} onChange={e => setDraft({ ...draft, panels: { ...draft.panels, [key]: { ...panel, bubble_position: e.target.value as 'top' | 'bottom' } } })} className="bg-[#263044] p-1"><option value="bottom">아래쪽</option><option value="top">위쪽</option></select></label>
+                            <label>이미지 움직임 <select aria-label={`씬 ${key} 움직임`} value={panel.motion || 'auto'} onChange={e=>setDraft({...draft,panels:{...draft.panels,[key]:{...panel,motion:e.target.value==='auto'?undefined:e.target.value as 'still'|'pan'|'video'}}})} className="bg-[#263044] p-1"><option value="auto">기본 미디어</option><option value="still">이미지 고정</option><option value="pan">이미지 천천히 확대</option><option value="video">영상 우선</option></select></label>
+                            <label>기본 문구 위치 <select aria-label={`씬 ${key} 말풍선 위치`} value={panel.bubble_position || 'bottom'} onChange={e => setDraft({ ...draft, panels: { ...draft.panels, [key]: { ...panel, bubble_position: e.target.value as 'top' | 'bottom' } } })} className="bg-[#263044] p-1"><option value="bottom">아래쪽</option><option value="top">위쪽</option></select></label>
                             {onUpload && <label className="cursor-pointer text-blue-200">이미지·영상 교체<input aria-label={`씬 ${key} 미디어 업로드`} type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" disabled={dirty || uploading || saved.mode === 'standard'} className="block max-w-full" onChange={async e => {
                                 const file = e.target.files?.[0]; e.target.value = ''; if (!file) return
                                 setUploading(true); setError('')
@@ -195,6 +199,16 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
                                 catch (err: any) { setError(err.message) } finally { setUploading(false) }
                             }} /></label>}
                         </div>
+                        <div className="mt-3 space-y-3">{(pageTimings.find(t=>t.sceneNumber===Number(key))?.blocks || []).map((block:any,j:number)=>{
+                            const id=`${key}:${j}`, letter=draft.lettering[id] || {}
+                            const edit=(patch:ComicLettering)=>setDraft(normalizeComicSettings({...draft,lettering:{...draft.lettering,[id]:{...letter,...patch}}}))
+                            return <div key={id} className="rounded border border-white/15 p-2"><p className="mb-2">{block.dialogue_speaker || '문구'} · {block.text}</p><div className="flex flex-wrap gap-2">
+                                <label>종류 <select aria-label={`씬 ${key} 문구 ${j+1} 종류`} value={letter.kind || block.dialogue_kind || 'narration'} onChange={e=>edit({kind:e.target.value as 'narration'|'dialogue'})} className="bg-[#263044] p-1"><option value="narration">설명 상자</option><option value="dialogue">캐릭터 대사</option></select></label>
+                                <label>모양 <select aria-label={`씬 ${key} 문구 ${j+1} 모양`} value={letter.style || 'speech'} onChange={e=>edit({style:e.target.value as 'speech'|'shout'|'whisper'})} className="bg-[#263044] p-1"><option value="speech">일반</option><option value="shout">외침</option><option value="whisper">속삭임</option></select></label>
+                                {(['x','y','width','target_x','target_y'] as const).map(field=><label key={field}>{{x:'가로 위치',y:'세로 위치',width:'폭',target_x:'화자 가로',target_y:'화자 세로'}[field]} % <input aria-label={`씬 ${key} 문구 ${j+1} ${field}`} type="number" min={field==='width'?20:0} max={field==='width'?94:100} value={Math.round((letter[field] ?? (field==='width'?.9:field.startsWith('target')?.5:.05))*100)} onChange={e=>edit({...(field==='x'||field==='y'?{x:letter.x??.05,y:letter.y??.05}:{}),[field]:Number(e.target.value)/100})} className="w-14 bg-[#263044] p-1" /></label>)}
+                                <span>가로·세로 좌표 입력 시 수동 배치</span><button type="button" onClick={()=>{const copy={...draft.lettering};delete copy[id];setDraft({...draft,lettering:copy})}}>자동 위치로 복원</button>
+                            </div></div>
+                        })}</div>
                     </fieldset>
                 })}</div>
                 {dirty && <p className="mt-3 text-xs text-amber-300">미디어 교체 전에 모드·배치를 저장해 주세요.</p>}

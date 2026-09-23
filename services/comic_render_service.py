@@ -12,12 +12,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-LAYOUTS = {
-    'spread': [[.025,.04,.465,.92],[.51,.04,.465,.92]],
-    'single': [[.025,.04,.95,.92]],
-    'grid': [[.025,.04,.465,.44],[.51,.04,.465,.44],[.025,.52,.465,.44],[.51,.52,.465,.44]],
-    'inset': [[.025,.04,.95,.92],[.65,.07,.30,.43]],
-}
+from services.comic_layouts import LAYOUTS
 VIDEO_EXTENSIONS = {'.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'}
 
 
@@ -34,19 +29,24 @@ def _number(value, fallback, low, high):
         return fallback
 
 
-def build_timeline(durations, panel_count, turn_duration):
+def build_timeline(durations, panel_count, turn_duration, page_layouts=None, default_layout=None):
     if not durations or any(not math.isfinite(float(d)) or float(d) <= 0 for d in durations):
         raise ValueError('만화책 씬의 재생 시간이 올바르지 않습니다.')
     starts = [0.0]
     for duration in durations:
         starts.append(starts[-1] + float(duration))
     pages = []
-    for first in range(0, len(durations), panel_count):
-        last = min(first + panel_count, len(durations))
+    first = 0
+    while first < len(durations):
         index = len(pages)
+        layout = (page_layouts or {}).get(str(index), default_layout)
+        count = len(LAYOUTS[layout]) if layout in LAYOUTS else panel_count
+        last = min(first + count, len(durations))
         pages.append(dict(first=first, last=last, source_start=starts[first], source_end=starts[last],
                           start=starts[first] + index * turn_duration,
                           end=starts[last] + index * turn_duration))
+        if default_layout: pages[-1]['layout'] = layout if layout in LAYOUTS else default_layout
+        first = last
     return starts, pages, pages[-1]['end']
 
 
@@ -60,25 +60,30 @@ def page_curl(previous, following, progress):
         return previous.copy()
     if progress >= 1:
         return following.copy()
-    h, w = previous.shape[:2]
-    p = progress * progress * (3 - 2 * progress)
-    radius = max(2., w * .09 * math.sin(math.pi * progress))
-    fold = w * (1 - p)
-    xs = np.arange(w, dtype=float)
-    out = following.astype(float).copy()
-    shadow = np.exp(-np.maximum(0, xs - fold) / max(1., radius * .65)) * .24
-    out *= (1 - np.where(xs >= fold, shadow, 0))[None, :, None]
-    flat = xs < fold - radius
-    out[:, flat] = previous[:, flat]
-    bent = (xs >= fold - radius) & (xs < fold)
-    u = np.clip((xs[bent] - (fold - radius)) / radius, 0, 1)
-    source = np.clip((fold - radius + np.arcsin(u) * radius).astype(int), 0, w - 1)
-    out[:, bent] = previous[:, source] * (1 - .32 * u)[None, :, None]
-    back = (xs >= fold) & (xs < fold + radius)
-    u = (xs[back] - fold) / radius
-    shade = .70 + .28 * np.sin(u * math.pi)
-    out[:, back] = np.array([249, 245, 232])[None, None, :] * shade[None, :, None]
-    return np.clip(out, 0, 255).astype(np.uint8)
+    h,w=previous.shape[:2]
+    p=progress*progress*(3-2*progress)
+    ys,xs=np.mgrid[0:h,0:w]
+    radius=max(2,w*.12*math.sin(math.pi*progress))
+    # A slanted cylinder opens a visible wedge of the following page early.
+    fold=w*(1-p)+(ys/h-.5)*w*.22*math.sin(math.pi*progress)
+    delta=xs-fold
+    out=following.astype(float).copy()
+    shadow=np.exp(-np.maximum(0,delta-radius)/max(1,radius*.65))*.24
+    out*= (1-np.where(delta>=radius,shadow,0))[:,:,None]
+    flat=delta < -radius
+    out[flat]=previous[flat]
+    bent=(delta>=-radius)&(delta<0)
+    u=np.clip((delta+radius)/radius,0,1)
+    sx=np.clip((fold-radius+np.arcsin(u)*radius).astype(int),0,w-1)
+    out[bent]=(previous[ys,sx]*(1-.25*u)[:,:,None])[bent]
+    back=(delta>=0)&(delta<radius)
+    v=np.clip(delta/radius,0,1)
+    backside=np.array([249,245,232])[None,None,:]*(.76+.24*np.sin(v*math.pi))[:,:,None]
+    # Faint reverse-side printing makes the curved sheet read as paper.
+    reverse=np.clip((fold-radius-v*radius).astype(int),0,w-1)
+    backside=backside*.96+previous[ys,reverse]*.04
+    out[back]=backside[back]
+    return np.clip(out,0,255).astype(np.uint8)
 
 
 def wrap_text(draw, text, font, width):
@@ -95,42 +100,7 @@ def wrap_text(draw, text, font, width):
     return lines
 
 
-def balloon_layer(size, blocks, font_path, font_size, position='bottom'):
-    """Pre-layout all balloons so earlier ones never move as later ones appear.
-
-    Fail explicitly on overflow; never clip or silently drop dialogue.
-    """
-    w, h = size
-    pad = max(5, round(w * .025))
-    bw = w - pad * 4
-    font_size = min(font_size, max(12, int(w / 12)))
-    draw = ImageDraw.Draw(Image.new('RGB', size))
-    while True:
-        font = ImageFont.truetype(font_path, font_size)
-        line_h = math.ceil(font_size * 1.3)
-        lines = [wrap_text(draw, b.get('text', ''), font, bw - pad * 2) for b in blocks]
-        heights = [max(line_h, len(ls) * line_h) + pad * 2 for ls in lines]
-        total = sum(heights) + max(0, len(blocks) - 1) * pad * 2
-        if total <= h * .84 or not blocks:
-            break
-        if font_size <= 12:
-            raise ValueError('말풍선이 컷을 넘칩니다. 대사를 줄이거나 전체 1컷 레이아웃을 선택해 주세요.')
-        font_size -= 1
-    y = pad * 2 if position == 'top' else h - total - pad * 2
-    result = []
-    for block, ls, bh in zip(blocks, lines, heights):
-        layer = Image.new('RGBA', size)
-        d = ImageDraw.Draw(layer)
-        x = pad * 2
-        d.rounded_rectangle((x, y, x + bw, y + bh), radius=pad * 2, fill='white', outline='#252525', width=max(1, pad // 3))
-        d.polygon([(x + pad * 3, y + bh - 2), (x + pad * 5, y + bh - 2), (x + pad * 3, y + bh + pad)], fill='white')
-        d.line([(x + pad * 3, y + bh), (x + pad * 3, y + bh + pad), (x + pad * 5, y + bh)], fill='#252525', width=max(1, pad // 3))
-        for line_index, line in enumerate(ls):
-            d.text((x + pad, y + pad + line_index * line_h), line, font=font, fill='#171717', stroke_width=0)
-        bounds = layer.getbbox()
-        result.append((float(block.get('start', block.get('start_time', 0))), layer.crop(bounds), bounds[:2]))
-        y += bh + pad * 2
-    return result
+from services.comic_lettering import caption_layers as balloon_layer
 
 
 class ComicFrames:
@@ -140,12 +110,13 @@ class ComicFrames:
         self.mode = self.options['mode']
         self.layout = LAYOUTS.get(self.options.get('layout'), LAYOUTS['spread'])
         self.turn = _number(self.options.get('turn_duration'), .7, .3, 1.5)
-        self.starts, self.pages, self.duration = build_timeline(durations, len(self.layout), self.turn)
+        self.starts, self.pages, self.duration = build_timeline(durations, len(self.layout), self.turn, self.options.get('page_layouts'), self.options.get('layout','spread'))
         self.resolution = tuple(resolution)
         self.media = []
         self.balloons = []
         self.panel_options = []
         self._cache = {}
+        self._panel_cache = {}
         self._clips = {}
         try:
             for i, path in enumerate(images):
@@ -161,15 +132,25 @@ class ComicFrames:
                         self.media.append(path)
                 else:
                     with Image.open(path) as image:
-                        self.media.append(ImageOps.exif_transpose(image).convert('RGB'))
+                        self.media.append(ImageOps.exif_transpose(image).convert('RGBA'))
                 number = (scene_numbers or list(range(1, len(images) + 1)))[i]
                 option = (self.options.get('panels') or {}).get(str(number), {})
                 self.panel_options.append(option)
                 blocks = [s for s in subtitles if self.starts[i] <= float(s.get('start', s.get('start_time', 0))) < self.starts[i + 1]]
-                rect = self.layout[i % len(self.layout)]
+                page = next(p for p in self.pages if p['first'] <= i < p['last'])
+                rect = LAYOUTS[page['layout']][i-page['first']]
+                default_letter = {}
+                if page['layout']=='diagonal': default_letter={'x':.05 if i==page['first'] else .55,'y':.05 if i==page['first'] else .68,'width':.4}
+                blocks = [{**b, 'comic': (self.options.get('lettering') or {}).get(f'{number}:{j}', b.get('comic', default_letter))} for j,b in enumerate(blocks)]
                 size = (round(rect[2] * resolution[0]), round(rect[3] * resolution[1]))
                 self.balloons.append(balloon_layer(size, blocks, font_path,
                     round(_number(self.options.get('font_size'), 28, 18, 44) * resolution[0] / 1280), option.get('bubble_position', 'bottom')))
+                if page['layout']=='diagonal':
+                    for _, layer, (lx,ly) in self.balloons[-1]:
+                        yy,xx=np.nonzero(np.asarray(layer.getchannel('A')))
+                        sums=(xx+lx)/size[0]+(yy+ly)/size[1]
+                        if len(sums) and (sums.max()>1 if i==page['first'] else sums.min()<1.01):
+                            raise ValueError('문구가 대각선 컷 경계를 넘습니다. 위치나 폭을 조정해 주세요.')
         except Exception:
             self.close()
             raise
@@ -178,23 +159,27 @@ class ComicFrames:
         for clip in self._clips.values():
             clip.close()
         self._clips.clear()
+        self._panel_cache.clear()
         for media in self.media:
             if hasattr(media, 'close'):
                 media.close()
 
     def page(self, index, source_time, all_balloons=False):
         page = self.pages[index]
+        self._panel_cache = {key:value for key,value in self._panel_cache.items() if page['first']<=key<page['last']}
         from moviepy import VideoFileClip
         for key in list(self._clips):
             if key < page['first'] or key >= page['last']:
                 self._clips.pop(key).close()
+        layout_name = page['layout']
+        layout = LAYOUTS[layout_name]
         w, h = self.resolution
         canvas = Image.new('RGB', (w, h), '#f7f2e8')
         d = ImageDraw.Draw(canvas)
-        if len(self.layout) == 2 and self.options.get('layout', 'spread') == 'spread':
+        if layout_name in ('spread','double'):
             d.line([(w // 2, int(h * .02)), (w // 2, int(h * .98))], fill='#c8bfae', width=max(1, w // 640))
         for slot, scene_index in enumerate(range(page['first'], page['last'])):
-            rect = self.layout[slot]
+            rect = layout[slot]
             x, y, pw, ph = [round(v * (w if j % 2 == 0 else h)) for j, v in enumerate(rect)]
             media = self.media[scene_index]
             if isinstance(media, str):
@@ -208,19 +193,42 @@ class ComicFrames:
                     self.starts[scene_index + 1] - self.starts[scene_index], max(0, media.duration - 1 / max(1, media.fps))))
                 frame = Image.fromarray(media.get_frame(local_time))
             option = self.panel_options[scene_index]
-            if option.get('fit') == 'cover':
+            if isinstance(media, Image.Image) and scene_index in self._panel_cache:
+                panel=self._panel_cache[scene_index].copy()
+            elif option.get('fit') == 'cover':
                 panel = ImageOps.fit(frame, (pw, ph), method=Image.Resampling.LANCZOS)
             else:
                 fitted = ImageOps.contain(frame, (pw, ph), method=Image.Resampling.LANCZOS)
                 panel = Image.new('RGB', (pw, ph), '#ebe5d9')
                 panel.paste(fitted, ((pw - fitted.width) // 2, (ph - fitted.height) // 2))
+            if isinstance(media, Image.Image) and scene_index not in self._panel_cache:
+                self._panel_cache[scene_index]=panel.copy()
+            if option.get('motion')=='pan' and isinstance(media, Image.Image):
+                progress=max(0,min(1,(source_time-self.starts[scene_index])/(self.starts[scene_index+1]-self.starts[scene_index])))
+                zoom=1+.07*progress
+                panel=ImageOps.fit(panel.resize((round(pw*zoom),round(ph*zoom)),Image.Resampling.LANCZOS),(pw,ph))
             if self.options.get('dim_inactive') and not all_balloons and not self.starts[scene_index] <= source_time < self.starts[scene_index + 1]:
                 panel = Image.blend(panel, Image.new('RGB', panel.size), .22)
             for start, balloon, position in self.balloons[scene_index]:
                 if all_balloons or source_time >= start:
                     panel.paste(balloon, position, balloon)
-            canvas.paste(panel, (x, y))
-            d.rectangle((x, y, x + pw - 1, y + ph - 1), outline='#222222', width=max(2, round(w / 640)))
+            if layout_name == 'diagonal':
+                points = [(0,0),(pw-1,0),(0,ph-1)] if slot == 0 else [(pw-1,5),(pw-1,ph-1),(5,ph-1)]
+                mask = Image.new('L',(pw,ph)); ImageDraw.Draw(mask).polygon(points,fill=255)
+                canvas.paste(panel,(x,y),mask)
+                d.line([(x+px,y+py) for px,py in points+[points[0]]],fill='#222',width=2)
+            elif layout_name == 'breakout' and slot == 1:
+                if not isinstance(frame,Image.Image) or frame.mode != 'RGBA' or frame.getchannel('A').getextrema()[0] == 255:
+                    raise ValueError('경계 돌파형의 두 번째 컷은 배경이 투명한 PNG 전경이 필요합니다.')
+                foreground=ImageOps.contain(frame,(pw,ph),method=Image.Resampling.LANCZOS)
+                canvas.paste(foreground,(x+(pw-foreground.width)//2,y+(ph-foreground.height)//2),foreground)
+                for start, balloon, position in self.balloons[scene_index]:
+                    if all_balloons or source_time >= start:
+                        canvas.paste(balloon,(x+position[0],y+position[1]),balloon)
+            else:
+                canvas.paste(panel, (x, y))
+                if layout_name not in ('borderless','bleed','double'):
+                    d.rectangle((x, y, x + pw - 1, y + ph - 1), outline='#222222', width=max(2, round(w / 640)))
         return np.asarray(canvas)
 
     def frame(self, t):

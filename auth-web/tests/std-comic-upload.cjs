@@ -19,7 +19,7 @@ new Function('exports','require',compile(path.join(__dirname,'../app/api/std/pro
  if(id.endsWith('gcsStorage')) return {sanitizeGcsObjectName:s=>s,buildStdGcsObjectPath:()=> 'test/file.png',isGcsConfiguredAsync:async()=>true,createGcsSignedUploadUrl:async()=>{signed++;return {signedUrl:'https://example.invalid/upload',bucket:'test'}}}
  return lib(path.basename(id))
 })
-const call=(scene=1)=>exportsRoute.POST(new Request('https://test.invalid',{method:'POST',body:JSON.stringify({asset_type:'image',mime_type:'image/png',file_name:'a.png',scene_number:scene,comic:{version:1,mode:'comic'}})}),{params:{projectId:'p'}})
+const call=(scene=1,type='image')=>exportsRoute.POST(new Request('https://test.invalid',{method:'POST',body:JSON.stringify({asset_type:type,mime_type:type==='video'?'video/mp4':'image/png',file_name:type==='video'?'a.mp4':'a.png',scene_number:scene,comic:{version:1,mode:'comic'}})}),{params:{projectId:'p'}})
 ;(async()=>{
  project={id:'p',status:'in_progress',project_payload:{}}
  assert.equal((await call()).status,422,'standard hook remains protected even if caller supplies mode')
@@ -27,10 +27,12 @@ const call=(scene=1)=>exportsRoute.POST(new Request('https://test.invalid',{meth
  project.project_payload.render_settings={comic:{version:1,mode:'comic'}}
  assert.equal((await call()).status,200)
  assert.equal((await call(13)).status,200)
+ project.project_payload.render_settings.comic.mode='moving_comic'
+ assert.equal((await call(13,'video')).status,200,'manual clips are accepted after the opening twelve scenes')
  assert(filters.some(([k,v])=>k==='employee_email'&&v==='owner@test.invalid'))
  project.status='approved'; assert.equal((await call()).status,409)
  project=null; assert.equal((await call()).status,404)
  authorized=false; assert.equal((await call()).status,401)
- assert.equal(signed,2)
+ assert.equal(signed,3)
  console.log('PASS: upload opt-in uses persisted owned project; standard restrictions and auth remain intact')
 })().catch(e=>{console.error(e);process.exitCode=1})
