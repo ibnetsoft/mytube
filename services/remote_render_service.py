@@ -1075,6 +1075,18 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             raise Exception('원격 렌더링에 사용할 이미지 리소스를 찾을 수 없습니다.')
 
         durations = _compute_image_durations(image_timing_starts, len(images), audio_duration)
+        # Explicit opt-in: legacy projects continue through the original pipeline below.
+        comic_options = render_settings.get('comic') or {}
+        if isinstance(comic_options, dict) and comic_options.get('version') == 1 and comic_options.get('mode') in ('comic', 'moving_comic'):
+            from services.comic_render_service import render_comic
+            render_comic(temp_dir=temp_dir, images=images, durations=durations,
+                         audio_path=audio_path, subtitles=subs if metadata.get('use_subtitles') else [],
+                         settings=render_settings, resolution=target_resolution,
+                         scene_numbers=metadata.get('scene_numbers'), sfx_cues=sfx_cues,
+                         progress_callback=update_progress)
+            update_progress(100, '만화책 렌더링 완료')
+            return
+
         template_overlay_filename = metadata.get('template_overlay_filename')
         template_overlay_path = os.path.join(temp_dir, 'overlays', template_overlay_filename) if template_overlay_filename else None
         if not template_overlay_path or not os.path.exists(template_overlay_path):

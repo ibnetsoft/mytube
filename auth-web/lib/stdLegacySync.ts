@@ -39,7 +39,7 @@ function buildSteps(project: any, scenes: any[], assets: any[]) {
     )
     const allScenesReady = scenes.length > 0 && scenes.every((scene: any) => {
         const sceneNumber = Number(scene.scene_number)
-        return isStdRequiredVideoScene(sceneNumber)
+        return isStdRequiredVideoScene(sceneNumber, project)
             ? readyVideoSceneNumbers.has(sceneNumber)
             : readySceneNumbers.has(sceneNumber)
     })

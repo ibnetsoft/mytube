@@ -16,7 +16,7 @@ export function summarizeStdProject(project: any, assets: any[] = []) {
  const uploadedAssetsCount = scenes.filter((s: any, i: number) => {
    const n = Number(s.scene_number || s.scene_order || i + 1)
    const media = active.filter(a => Number(a.scene_number) === n)
-   return isStdRequiredVideoScene(n) ? Boolean(s.video_url || media.some(a => a.asset_type === 'video'))
+   return isStdRequiredVideoScene(n, project) ? Boolean(s.video_url || media.some(a => a.asset_type === 'video'))
      : Boolean(s.image_url || s.video_url || media.some(a => ['image', 'video'].includes(a.asset_type)))
  }).length
  const isImageDone = scenes.length > 0 && uploadedAssetsCount === scenes.length

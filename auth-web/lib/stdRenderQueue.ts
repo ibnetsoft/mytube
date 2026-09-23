@@ -1,3 +1,4 @@
+import { comicSettingsForProject, isComicProject, selectComicMedia, comicSceneTimings } from './stdComic'
 import { subtitleGain } from './stdSpeechGain'
 import { resolveSfxCues } from '@/lib/stdSfxCues'
 import { audioAssetRole } from './stdAudioMix'
@@ -188,7 +189,7 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
         if (
             !Number.isFinite(sceneNumber)
             || sceneNumber <= 0
-            || !isStdRequiredVideoScene(sceneNumber)
+            || (!isComicProject(project) && !isStdRequiredVideoScene(sceneNumber))
             || !generatedVideoStorageSource(scene)
         ) return false
         return !activeAssets.some((asset: any) => (
@@ -263,7 +264,7 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
         if (
             !Number.isFinite(sceneNumber)
             || sceneNumber <= 0
-            || isStdRequiredVideoScene(sceneNumber)
+            || isStdRequiredVideoScene(sceneNumber, project)
             || !generatedImageStorageSource(scene)
         ) return false
         return !activeAssets.some((asset: any) => (
@@ -649,7 +650,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
             Number(item.scene_number) === sceneNumber
             && String(item.asset_type || '').toLowerCase() === 'image'
         )
-        const asset = videoAsset || imageAsset
+        const asset = selectComicMedia(comicSettingsForProject(project).mode, imageAsset, videoAsset)
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
@@ -664,7 +665,9 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     }
 
     const subtitles = buildRenderSubtitles(project, scenes)
-    const imageTimingStarts = buildSceneTimingStarts(scenes, subtitles)
+    const imageTimingStarts = isComicProject(project)
+        ? comicSceneTimings(scenes, subtitles).map(scene => scene.start)
+        : buildSceneTimingStarts(scenes, subtitles)
     const workerTts = buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
@@ -731,6 +734,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         subtitle_sync_mode: 'preserve_subtitle_timings',
         render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed) },
         image_timing_starts: imageTimingStarts,
+        scene_numbers: scenes.map((scene: any) => Number(scene.scene_number)),
         image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),
@@ -789,7 +793,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
             Number(item.scene_number) === sceneNumber
             && String(item.asset_type || '').toLowerCase() === 'image'
         )
-        const asset = videoAsset || imageAsset
+        const asset = selectComicMedia(comicSettingsForProject(project).mode, imageAsset, videoAsset)
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
@@ -809,7 +813,9 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
     }
 
     const subtitles = buildRenderSubtitles(project, scenes)
-    const imageTimingStarts = buildSceneTimingStarts(scenes, subtitles)
+    const imageTimingStarts = isComicProject(project)
+        ? comicSceneTimings(scenes, subtitles).map(scene => scene.start)
+        : buildSceneTimingStarts(scenes, subtitles)
     const workerTts = buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
@@ -953,6 +959,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         subtitle_sync_mode: 'preserve_subtitle_timings',
         render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed) },
         image_timing_starts: imageTimingStarts,
+        scene_numbers: scenes.map((scene: any) => Number(scene.scene_number)),
         image_effects: scenes.map(sceneMotion),
         transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),

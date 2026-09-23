@@ -1,3 +1,4 @@
+import { isComicProject } from '@/lib/stdComic'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -45,25 +46,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (sceneNumber != null && !Number.isFinite(sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Invalid scene number' }, { status: 400 })
     }
-    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber) && assetType === 'image') {
-        return NextResponse.json({
-            success: false,
-            error: 'Video file is required for scenes 1-12.',
-            code: 'video_required_for_scene',
-        }, { status: 422 })
-    }
-    if (
-        sceneNumber != null
-        && sceneNumber > STD_REQUIRED_VIDEO_SCENE_COUNT
-        && ['image', 'video'].includes(assetType)
-    ) {
-        return NextResponse.json({
-            success: false,
-            error: 'Generated image scenes after scene 12 are protected and cannot be replaced.',
-            code: 'generated_image_scene_protected',
-        }, { status: 422 })
-    }
-
     const { data: project, error: projectError } = await supabaseAdmin
         .from('std_projects')
         .select('*')
@@ -75,6 +57,26 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
     if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
+    }
+
+    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber, project) && assetType === 'image') {
+        return NextResponse.json({
+            success: false,
+            error: 'Video file is required for scenes 1-12.',
+            code: 'video_required_for_scene',
+        }, { status: 422 })
+    }
+    if (
+        sceneNumber != null
+        && !isComicProject(project)
+        && sceneNumber > STD_REQUIRED_VIDEO_SCENE_COUNT
+        && ['image', 'video'].includes(assetType)
+    ) {
+        return NextResponse.json({
+            success: false,
+            error: 'Generated image scenes after scene 12 are protected and cannot be replaced.',
+            code: 'generated_image_scene_protected',
+        }, { status: 422 })
     }
 
     try {

@@ -1,3 +1,4 @@
+import { isComicProject } from '@/lib/stdComic'
 import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
@@ -78,7 +79,7 @@ function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | 
     }
 }
 
-async function updateSceneAssetStatus(projectId: string, sceneNumber: number) {
+async function updateSceneAssetStatus(projectId: string, sceneNumber: number, project: any) {
     const { data: activeAssets } = await supabaseAdmin
         .from('std_project_assets')
         .select('id,asset_type')
@@ -87,7 +88,7 @@ async function updateSceneAssetStatus(projectId: string, sceneNumber: number) {
         .in('asset_type', ['image', 'video'])
         .in('status', ['uploaded', 'assigned'])
 
-    const isReady = isStdRequiredVideoScene(sceneNumber)
+    const isReady = isStdRequiredVideoScene(sceneNumber, project)
         ? Boolean((activeAssets || []).some((asset: any) => asset.asset_type === 'video'))
         : Boolean(activeAssets && activeAssets.length > 0)
 
@@ -125,25 +126,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (sceneNumber != null && !Number.isFinite(sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Invalid scene number' }, { status: 400 })
     }
-    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber) && assetType === 'image') {
-        return NextResponse.json({
-            success: false,
-            error: 'Video file is required for scenes 1-12.',
-            code: 'video_required_for_scene',
-        }, { status: 422 })
-    }
-    if (
-        sceneNumber != null
-        && sceneNumber > STD_REQUIRED_VIDEO_SCENE_COUNT
-        && ['image', 'video'].includes(assetType)
-    ) {
-        return NextResponse.json({
-            success: false,
-            error: 'Generated image scenes after scene 12 are protected and cannot be replaced.',
-            code: 'generated_image_scene_protected',
-        }, { status: 422 })
-    }
-
     const { data: project, error: projectError } = await supabaseAdmin
         .from('std_projects')
         .select('*')
@@ -155,6 +137,26 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
     if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
+    }
+
+    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber, project) && assetType === 'image') {
+        return NextResponse.json({
+            success: false,
+            error: 'Video file is required for scenes 1-12.',
+            code: 'video_required_for_scene',
+        }, { status: 422 })
+    }
+    if (
+        sceneNumber != null
+        && !isComicProject(project)
+        && sceneNumber > STD_REQUIRED_VIDEO_SCENE_COUNT
+        && ['image', 'video'].includes(assetType)
+    ) {
+        return NextResponse.json({
+            success: false,
+            error: 'Generated image scenes after scene 12 are protected and cannot be replaced.',
+            code: 'generated_image_scene_protected',
+        }, { status: 422 })
     }
 
     let scene: any = null
@@ -171,7 +173,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 ? project.project_payload.structure.scenes
                 : (Array.isArray(project.project_payload?.scenes) ? project.project_payload.scenes : [])
             const payloadScene = payloadScenes.find((s: any, index: number) => sceneNumberOf(s, index) === sceneNumber) || {}
-            const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber)
+            const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber, project)
             const { data: insertedScene, error: insertSceneError } = await supabaseAdmin
                 .from('std_project_scenes')
                 .insert({
@@ -180,7 +182,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     scene_title: String(payloadScene.scene_title || payloadScene.title || `Scene ${sceneNumber}`).slice(0, 500),
                     scene_text: String(payloadScene.scene_text || payloadScene.script_excerpt || payloadScene.text || '').slice(0, 10000),
                     image_prompt: String(payloadScene.image_prompt || payloadScene.prompt || '').slice(0, 20000),
-                    video_prompt: requiresVideoPrompt ? String(payloadScene.video_prompt || '').slice(0, 20000) : '',
+                    video_prompt: (requiresVideoPrompt || isComicProject(project)) ? String(payloadScene.video_prompt || '').slice(0, 20000) : '',
                     asset_status: 'missing',
                     metadata: {
                         ...(payloadScene.metadata || payloadScene || {}),
@@ -269,7 +271,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }
 
         if (sceneNumber != null) {
-            await updateSceneAssetStatus(project.id, sceneNumber)
+            await updateSceneAssetStatus(project.id, sceneNumber, project)
         }
 
         const { count: readySceneCount } = await supabaseAdmin

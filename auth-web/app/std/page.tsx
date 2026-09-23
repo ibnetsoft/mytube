@@ -1,4 +1,6 @@
 'use client'
+import StdComicEditor from '@/components/StdComicEditor'
+import { isComicProject, ComicSettings } from '@/lib/stdComic'
 import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
@@ -178,7 +180,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene, subtitlesMatchSceneManifest } from '@/lib/stdSubtitleSceneIntegrity'
-import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
+import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
     calculateLongformSceneTimings,
@@ -829,6 +831,8 @@ export default function StdPortalPage() {
     const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
+    const comicProject = isComicProject(selectedProject?.project)
+    const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
     const mediaSession = JSON.stringify([token, user?.id || user?.email || '', isImpersonating ? impersonateEmail : ''])
     if (mediaScopeRef.current.session !== mediaSession) {
@@ -1557,16 +1561,16 @@ export default function StdPortalPage() {
             scene_title: String(scene?.scene_title || `Scene ${index + 1}`),
             scene_text: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
             image_prompt: String(scene?.image_prompt || ''),
-            video_prompt: isStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
+            video_prompt: baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
                 ? String(scene?.video_prompt || '')
                 : '',
             metadata: {
                 ...(scene?.metadata || {}),
                 script_excerpt: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
-                visual_type: isStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
+                visual_type: baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
                     ? (scene?.visual_type || 'video')
                     : 'image',
-                video_prompt_required: isStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1),
+                video_prompt_required: baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1),
                 synced_from_full_script_at: syncedAt,
             },
         }))
@@ -4091,7 +4095,7 @@ export default function StdPortalPage() {
         if (rawScenes.length === 0) {
             rawScenes = Array.from({ length: 53 }, (_, i) => {
                 const sceneNumber = i + 1
-                const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber)
+                const requiresVideoPrompt = baseIsStdRequiredVideoScene(sceneNumber)
                 const excerpt = realDefaultNarratives[i % realDefaultNarratives.length]
                 return {
                     scene_number: sceneNumber,
@@ -4129,7 +4133,7 @@ export default function StdPortalPage() {
 
             const rawScript = partitionedScript[i] || s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const scriptText = cleanScriptContextText(rawScript)
-            const requiresVideoPrompt = isStdRequiredVideoScene(num)
+            const requiresVideoPrompt = baseIsStdRequiredVideoScene(num)
             const videoPromptText = requiresVideoPrompt
                 ? (s.video_prompt || s.prompt_en || s.prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`)
                 : ''
@@ -5195,6 +5199,29 @@ export default function StdPortalPage() {
         }
     }
 
+    const saveComicSettings = async (comic: ComicSettings) => {
+        if (!selectedProject?.project?.id) return
+        const projectId = selectedProject.project.id
+        if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
+        const renderSettings = { ...(selectedProject.project.project_payload?.render_settings || {}), comic }
+        const res = await fetch('/api/std/projects/' + projectId, {
+            method: 'PATCH', headers: authedJsonHeaders,
+            body: JSON.stringify({ project_payload: { render_settings: renderSettings } }),
+        })
+        const payload = await safeParseJson(res, 'Comic settings save failed')
+        if (!res.ok || payload.success === false) throw new Error(payload.error || '제작 모드를 저장하지 못했습니다.')
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== projectId) return prev
+            const next = { ...prev, project: { ...prev.project, project_payload: {
+                ...(prev.project.project_payload || {}), render_settings: {
+                    ...(prev.project.project_payload?.render_settings || {}), comic,
+                },
+            } } }
+            rememberProjectState(next)
+            return next
+        })
+    }
+
     const persistSubtitleRenderSettings = (overrides: Record<string, any> = {}) => {
         if (!selectedProject?.project?.id) return
         const nextRenderSettings = {
@@ -5452,7 +5479,7 @@ export default function StdPortalPage() {
                     const payloadScene = payloadSceneByNumber.get(sceneNumber) || {}
                     const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
                     const cleanedText = cleanScriptContextText(rawText)
-                    const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber)
+                    const requiresVideoPrompt = baseIsStdRequiredVideoScene(sceneNumber)
                     return {
                         ...s,
                         scene_text: cleanedText,
@@ -5547,7 +5574,7 @@ export default function StdPortalPage() {
             setMessage(`씬 ${sceneNum}은 초반 필수 영상 구간이라 이미지 업로드는 무효입니다. 영상 파일을 업로드하세요.`)
             return false
         }
-        if (!isStdRequiredVideoScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
+        if (!comicProject && !isStdRequiredVideoScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
             setMessage(`씬 ${sceneNum}은 생성 이미지 보호 구간이라 유저가 이미지/영상을 교체할 수 없습니다.`)
             return false
         }
@@ -7258,7 +7285,7 @@ export default function StdPortalPage() {
         // 4. 이미지 (Image): 씬 에셋 등록 여부
         const readyVisualScenes = scenes.filter((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
-            return isStdRequiredVideoScene(sceneNumber)
+            return baseIsStdRequiredVideoScene(sceneNumber, p)
                 ? Boolean(scene?.video_url)
                 : Boolean(scene?.image_url || scene?.video_url || scene?.drive_file_id)
         })
@@ -8764,6 +8791,17 @@ export default function StdPortalPage() {
                         ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:pb-0 lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
+                    {selectedProject && (
+                        <StdComicEditor key={selectedProject.project.id}
+                            value={selectedProject.project.project_payload?.render_settings?.comic}
+                            scenes={selectedProject.scenes || []}
+                            subtitles={localSubtitles.length ? localSubtitles : selectedProject.project.project_payload?.subtitles || []}
+                            audioUrl={audioResultUrl || selectedProject.project.project_payload?.audio_url || ''}
+                            disabled={['review_requested', 'approved', 'canceled'].includes(selectedProject.project.status)}
+                            onSave={saveComicSettings}
+                            onUpload={(scene, file) => uploadAsset(scene, file.type.startsWith('video/') ? 'video' : 'image', file)}
+                        />
+                    )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
                         const isVrewSubtitleMode = true
@@ -10457,7 +10495,7 @@ export default function StdPortalPage() {
                                     )}
                                 </div>
 
-                                <div className="p-4 border-t border-white/5 space-y-4">
+                                <div className={comicProject ? 'hidden' : 'p-4 border-t border-white/5 space-y-4'}>
                                     {/* 1. 초반 필수 영상 구간 (1~12씬 - 진한 주황색) */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">

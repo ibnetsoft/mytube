@@ -185,7 +185,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     )
     const missingScenes = (scenes || []).filter((scene: any) => {
         const sceneNumber = Number(scene.scene_number)
-        return isStdRequiredVideoScene(sceneNumber)
+        return isStdRequiredVideoScene(sceneNumber, project)
             ? !activeVideoSceneNumbers.has(sceneNumber)
             : !activeSceneNumbers.has(sceneNumber)
     })
@@ -196,7 +196,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             missing_scene_numbers: missingScenes.map((scene: any) => scene.scene_number),
             required_video_scene_numbers: (scenes || [])
                 .map((scene: any) => Number(scene.scene_number))
-                .filter((sceneNumber: number) => isStdRequiredVideoScene(sceneNumber)),
+                .filter((sceneNumber: number) => isStdRequiredVideoScene(sceneNumber, project)),
         }, { status: 409 })
     }
 

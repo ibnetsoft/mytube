@@ -1,3 +1,4 @@
+import { normalizeComicSettings, isComicProject } from '@/lib/stdComic'
 import { canEditStdProject } from '@/lib/stdProjectEditPolicy'
 import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { NextResponse } from 'next/server'
@@ -420,9 +421,24 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const progressPatch = Object.fromEntries(
         Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))
     )
-    const projectPayloadPatch = Object.fromEntries(
+    const projectPayloadPatch: Record<string, any> = Object.fromEntries(
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
+    if (projectPayloadPatch.render_settings?.comic !== undefined) {
+        projectPayloadPatch.render_settings = {
+            ...(project.project_payload?.render_settings || {}),
+            ...projectPayloadPatch.render_settings,
+            comic: normalizeComicSettings(projectPayloadPatch.render_settings.comic),
+        }
+    }
+    // Older subtitle/BGM forms may submit a settings snapshot without this new field.
+    if (projectPayloadPatch.render_settings && projectPayloadPatch.render_settings.comic === undefined
+        && project.project_payload?.render_settings?.comic !== undefined) {
+        projectPayloadPatch.render_settings = {
+            ...projectPayloadPatch.render_settings,
+            comic: project.project_payload.render_settings.comic,
+        }
+    }
     const scriptChanged = Object.prototype.hasOwnProperty.call(projectPayloadPatch, 'script')
         && String(projectPayloadPatch.script || '').trim() !== String(project.project_payload?.script || '').trim()
     if (!allowSceneUpdate) {
@@ -453,7 +469,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 const sceneNumber = Number(scene?.scene_number || index + 1)
                 if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null
                 const normalizedSceneNumber = Math.floor(sceneNumber)
-                const requiresVideoPrompt = isStdRequiredVideoScene(normalizedSceneNumber)
+                const requiresVideoPrompt = isStdRequiredVideoScene(normalizedSceneNumber, project)
                 const currentScene = findSceneByNumber(currentPayloadScenes, normalizedSceneNumber) || {}
                 const imageUrl = sceneSupabaseImageUrl(scene)
                     || sceneSupabaseImageUrl(currentScene)
@@ -469,7 +485,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                     scene_title: String(scene?.scene_title || scene?.title || `Scene ${normalizedSceneNumber}`).slice(0, 500),
                     scene_text: String(scene?.text || scene?.script_excerpt || scene?.scene_text || '').slice(0, 10000),
                     image_prompt: String(scene?.image_prompt || scene?.prompt || '').slice(0, 20000),
-                    video_prompt: requiresVideoPrompt ? String(scene?.video_prompt || '').slice(0, 20000) : '',
+                    video_prompt: (requiresVideoPrompt || isComicProject(project)) ? String(scene?.video_prompt || '').slice(0, 20000) : '',
                     ...(imageUrl ? { image_url: imageUrl } : {}),
                     ...(videoUrl ? { video_url: videoUrl } : {}),
                     metadata: {
