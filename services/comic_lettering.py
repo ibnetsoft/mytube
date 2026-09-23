@@ -11,14 +11,16 @@ def outline(x,y,w,h,kind,style,target):
                  cy+math.sin(math.tau*i/80)*h/2*(.91 if style=='shout' and i%2 else 1)) for i in range(80)]
     theta=math.atan2((ty-cy)/(h/2),(tx-cx)/(w/2))
     # The ellipse arc at the tail root is omitted; one closed boundary is stroked.
-    delta=.20;points=[]
+    tangent=math.hypot(w/2*math.sin(theta),h/2*math.cos(theta))
+    delta=min(.12,min(w,h)*.08/max(tangent,1));points=[]
     for i in range(81):
         a=theta+delta+(math.tau-2*delta)*i/80
         radius=.91 if style=='shout' and i%2 else 1
         points.append((cx+math.cos(a)*w/2*radius,cy+math.sin(a)*h/2*radius))
     bx,by=cx+math.cos(theta)*w/2,cy+math.sin(theta)*h/2
     dx,dy=tx-bx,ty-by;length=math.hypot(dx,dy)
-    if length>2:points.append((bx+dx/length*min(length,90),by+dy/length*min(length,90)))
+    tail_length=min(length,min(w,h)*.28)
+    if length>2:points.append((bx+dx/length*tail_length,by+dy/length*tail_length))
     return points
 
 def caption_layers(size,blocks,font_path,font_size,position='bottom'):

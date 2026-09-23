@@ -2,11 +2,12 @@ import { ComicLettering } from './stdComic'
 
 export function balloonOutline(x:number,y:number,w:number,h:number,kind:string,style:string,tx:number,ty:number): number[][] {
     if(kind!=='dialogue') return [[x,y],[x+w,y],[x+w,y+h],[x,y+h]]
-    const cx=x+w/2,cy=y+h/2,theta=Math.atan2((ty-cy)/(h/2),(tx-cx)/(w/2)),delta=.2,points:number[][]=[]
+    const cx=x+w/2,cy=y+h/2,theta=Math.atan2((ty-cy)/(h/2),(tx-cx)/(w/2)),tangent=Math.hypot(w/2*Math.sin(theta),h/2*Math.cos(theta)),delta=Math.min(.12,Math.min(w,h)*.08/Math.max(tangent,1)),points:number[][]=[]
     if(((tx-cx)/(w/2))**2+((ty-cy)/(h/2))**2<=1)return Array.from({length:80},(_,i)=>{const r=style==='shout'&&i%2?.91:1;return [cx+Math.cos(Math.PI*2*i/80)*w/2*r,cy+Math.sin(Math.PI*2*i/80)*h/2*r]})
     for(let i=0;i<=80;i++) {const a=theta+delta+(Math.PI*2-2*delta)*i/80,r=style==='shout'&&i%2?.91:1;points.push([cx+Math.cos(a)*w/2*r,cy+Math.sin(a)*h/2*r])}
     const bx=cx+Math.cos(theta)*w/2,by=cy+Math.sin(theta)*h/2,dx=tx-bx,dy=ty-by,length=Math.hypot(dx,dy)
-    if(length>2)points.push([bx+dx/length*Math.min(length,90),by+dy/length*Math.min(length,90)])
+    const tailLength=Math.min(length,Math.min(w,h)*.28)
+    if(length>2)points.push([bx+dx/length*tailLength,by+dy/length*tailLength])
     return points
 }
 export function drawLettering(ctx:CanvasRenderingContext2D,w:number,h:number,blocks:any[],fontSize:number,position:string,source:number,all:boolean,diagonal?:number) {
