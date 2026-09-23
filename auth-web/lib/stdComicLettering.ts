@@ -1,5 +1,12 @@
 import { ComicLettering } from './stdComic'
 
+export function balloonPopScale(elapsed:number) {
+    const t=Math.max(0,Math.min(1,elapsed/.36))
+    if(t<.55)return .72+.28*(1-(1-t/.55)**3)
+    if(t<.78)return 1-.055*Math.sin((t-.55)/.23*Math.PI/2)
+    return .945+.055*Math.sin((t-.78)/.22*Math.PI/2)
+}
+
 export function balloonOutline(x:number,y:number,w:number,h:number,kind:string,style:string,tx:number,ty:number): number[][] {
     if(kind!=='dialogue') return [[x,y],[x+w,y],[x+w,y+h],[x,y+h]]
     const cx=x+w/2,cy=y+h/2,theta=Math.atan2((ty-cy)/(h/2),(tx-cx)/(w/2)),tangent=Math.hypot(w/2*Math.sin(theta),h/2*Math.cos(theta)),delta=Math.min(.12,Math.min(w,h)*.08/Math.max(tangent,1)),points:number[][]=[]
@@ -30,11 +37,19 @@ export function drawLettering(ctx:CanvasRenderingContext2D,w:number,h:number,blo
         if(all||source>=Number(b.start_time??b.start??0)) {
             const points=balloonOutline(x,y,bw,bh,kind,cfg.style||'speech',(cfg.target_x??.5)*w,(cfg.target_y??.5)*h)
             if(diagonal!=null && points.some(([px,py])=>diagonal===0?px/w+py/h>1:px/w+py/h<1.01))throw new Error('문구가 대각선 컷 경계를 넘습니다. 위치나 폭을 조정해 주세요.')
+            ctx.save()
+            if(kind==='dialogue'&&!all){
+                const scale=balloonPopScale(source-Number(b.start_time??b.start??0))
+                const cx=(Math.min(...points.map(p=>p[0]))+Math.max(...points.map(p=>p[0])))/2
+                const cy=(Math.min(...points.map(p=>p[1]))+Math.max(...points.map(p=>p[1])))/2
+                ctx.translate(cx,cy);ctx.scale(scale,scale);ctx.translate(-cx,-cy)
+            }
             ctx.beginPath();points.forEach(([px,py],i)=>i?ctx.lineTo(px,py):ctx.moveTo(px,py));ctx.closePath()
             ctx.fillStyle=kind==='dialogue'?'#fffefa':'#f9f1df';ctx.strokeStyle='#252525';ctx.lineWidth=Math.max(2,Math.round(w/300));ctx.fill()
             ctx.setLineDash(kind==='dialogue'&&cfg.style==='whisper'?[6,5]:[]);ctx.stroke();ctx.setLineDash([])
             ctx.fillStyle='#171717';ctx.textBaseline='top';let ty=y+(bh-lines.length*lineH)/2
             for(const line of lines){ctx.fillText(line,kind==='dialogue'?x+(bw-ctx.measureText(line).width)/2:x+inset,ty);ty+=lineH}
+            ctx.restore()
         }
         cursor+=bh+pad
     }

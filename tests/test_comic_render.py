@@ -76,8 +76,22 @@ def test_curl_exact_endpoints_and_visible_fold():
     assert np.array_equal(page_curl(a, b, 1), b)
     half = page_curl(a, b, .5)
     assert np.array_equal(half[30, 10], a[30, 10])
-    assert half[30, 85].mean() > 150  # lit paper back
+    assert half[30, 85, 2] > half[30, 85, 0]  # next artwork, never a white reverse
     assert half[30, 150, 2] > 150  # revealed next page
+
+
+def test_leaf_hinge_and_back_texture_orientation():
+    from services.comic_page_turn import leaf_mesh
+    for p in (.1,.4,.7,.95):
+        vertices,_,_=leaf_mesh(p,320,180)
+        assert np.all(vertices[:,0,0]==160)
+        assert np.all(vertices[:,0,2]==0)
+        assert vertices[:,-1,2].max()>0
+    old=np.full((180,320,3),[180,20,20],dtype=np.uint8)
+    new=np.zeros_like(old);new[:,:80]=[20,220,20];new[:,80:160]=[20,20,220];new[:,160:]=[220,180,20]
+    frame=page_curl(old,new,.99)
+    assert frame[90,35,1]>180  # outer edge of next LEFT page is correctly oriented
+    assert frame[90,120,2]>180
 
 
 def fixtures(tmp_path):
@@ -168,6 +182,40 @@ def test_worker_dispatch_is_strictly_opt_in(monkeypatch):
     assert env['dispatch']() is None
     assert called[0]['scene_numbers'] == [8]
     assert called[0]['subtitles'] == [{'text':'hi'}]
+
+
+def test_balloon_pop_is_bounded_and_settles():
+    from services.comic_render_service import balloon_pop_scale, animated_balloon
+    samples=[balloon_pop_scale(t) for t in np.linspace(0,.36,100)]
+    assert min(samples)>=.72 and max(samples)<=1
+    assert balloon_pop_scale(.198)>balloon_pop_scale(.2808)
+    assert balloon_pop_scale(.36)==1 and balloon_pop_scale(10)==1
+    layer=Image.new('RGBA',(100,60),'white')
+    small,pos=animated_balloon(layer,(20,30),0,True)
+    assert small.size==(72,43) and pos==(34,38)
+    assert animated_balloon(layer,(20,30),0,False)==(layer,(20,30))
+    assert animated_balloon(layer,(20,30),1,True)==(layer,(20,30))
+
+
+def test_recorded_page_turns_cycle_and_stay_in_transition(tmp_path):
+    import wave
+    from services.comic_turn_audio import recorded_page_turns
+    paths=[]
+    for i in range(4):
+        path=tmp_path/f'turn-{i}.wav';paths.append(path)
+        with wave.open(str(path),'wb') as sound:
+            sound.setparams((1,2,44100,0,'NONE','not compressed'))
+            sound.writeframes(np.full(44100,3000*(i+1),dtype=np.int16).tobytes())
+    pages=[{'end':i*2+1} for i in range(13)]
+    tracks,resources=recorded_page_turns(paths,pages,.7,.5)
+    try:
+        assert len(tracks)==12
+        for i,track in enumerate(tracks):
+            assert track.start==pages[i]['end'] and track.duration==.7
+            assert np.allclose(track.get_frame(.2),tracks[i%4].get_frame(.2))
+        assert float(np.mean(tracks[0].get_frame(.2))) < float(np.mean(tracks[3].get_frame(.2)))
+    finally:
+        for resource in resources:resource.close()
 
 
 def test_turn_sound_and_background_mix(tmp_path):

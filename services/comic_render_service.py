@@ -50,40 +50,7 @@ def build_timeline(durations, panel_count, turn_duration, page_layouts=None, def
     return starts, pages, pages[-1]['end']
 
 
-def page_curl(previous, following, progress):
-    """Cylindrical fold: mapped front, shaded paper back, cast shadow.
-
-    Both complete pages (including balloons) are textures. Exact endpoint frames
-    avoid a flash at the cut. This is a stylized full-sheet turn, not a dissolve.
-    """
-    if progress <= 0:
-        return previous.copy()
-    if progress >= 1:
-        return following.copy()
-    h,w=previous.shape[:2]
-    p=progress*progress*(3-2*progress)
-    ys,xs=np.mgrid[0:h,0:w]
-    radius=max(2,w*.12*math.sin(math.pi*progress))
-    # A slanted cylinder opens a visible wedge of the following page early.
-    fold=w*(1-p)+(ys/h-.5)*w*.22*math.sin(math.pi*progress)
-    delta=xs-fold
-    out=following.astype(float).copy()
-    shadow=np.exp(-np.maximum(0,delta-radius)/max(1,radius*.65))*.24
-    out*= (1-np.where(delta>=radius,shadow,0))[:,:,None]
-    flat=delta < -radius
-    out[flat]=previous[flat]
-    bent=(delta>=-radius)&(delta<0)
-    u=np.clip((delta+radius)/radius,0,1)
-    sx=np.clip((fold-radius+np.arcsin(u)*radius).astype(int),0,w-1)
-    out[bent]=(previous[ys,sx]*(1-.25*u)[:,:,None])[bent]
-    back=(delta>=0)&(delta<radius)
-    v=np.clip(delta/radius,0,1)
-    backside=np.array([249,245,232])[None,None,:]*(.76+.24*np.sin(v*math.pi))[:,:,None]
-    # Faint reverse-side printing makes the curved sheet read as paper.
-    reverse=np.clip((fold-radius-v*radius).astype(int),0,w-1)
-    backside=backside*.96+previous[ys,reverse]*.04
-    out[back]=backside[back]
-    return np.clip(out,0,255).astype(np.uint8)
+from services.comic_page_turn import page_curl
 
 
 def wrap_text(draw, text, font, width):
@@ -102,6 +69,23 @@ def wrap_text(draw, text, font, width):
 
 from services.comic_lettering import caption_layers as balloon_layer
 
+def balloon_pop_scale(elapsed):
+    """Bounded bounce: never grow beyond the approved lettering footprint."""
+    t = max(0., min(1., elapsed / .36))
+    if t < .55:
+        return .72 + .28 * (1 - (1 - t / .55) ** 3)
+    if t < .78:
+        return 1 - .055 * math.sin((t - .55) / .23 * math.pi / 2)
+    return .945 + .055 * math.sin((t - .78) / .22 * math.pi / 2)
+
+def animated_balloon(layer, position, elapsed, animate):
+    if not animate or elapsed >= .36:
+        return layer, position
+    scale = balloon_pop_scale(elapsed)
+    width, height = layer.size
+    resized = layer.resize((max(1, round(width * scale)), max(1, round(height * scale))), Image.Resampling.LANCZOS)
+    return resized, (position[0] + (width-resized.width)//2, position[1] + (height-resized.height)//2)
+
 
 class ComicFrames:
     def __init__(self, images, durations, subtitles, settings, resolution, font_path, scene_numbers=None):
@@ -114,6 +98,7 @@ class ComicFrames:
         self.resolution = tuple(resolution)
         self.media = []
         self.balloons = []
+        self.balloon_kinds = []
         self.panel_options = []
         self._cache = {}
         self._panel_cache = {}
@@ -142,6 +127,7 @@ class ComicFrames:
                 default_letter = {}
                 if page['layout']=='diagonal': default_letter={'x':.05 if i==page['first'] else .55,'y':.05 if i==page['first'] else .68,'width':.4}
                 blocks = [{**b, 'comic': (self.options.get('lettering') or {}).get(f'{number}:{j}', b.get('comic', default_letter))} for j,b in enumerate(blocks)]
+                self.balloon_kinds.append([(b.get('comic') or {}).get('kind') or b.get('dialogue_kind') or 'narration' for b in blocks])
                 size = (round(rect[2] * resolution[0]), round(rect[3] * resolution[1]))
                 self.balloons.append(balloon_layer(size, blocks, font_path,
                     round(_number(self.options.get('font_size'), 28, 18, 44) * resolution[0] / 1280), option.get('bubble_position', 'bottom')))
@@ -209,8 +195,9 @@ class ComicFrames:
                 panel=ImageOps.fit(panel.resize((round(pw*zoom),round(ph*zoom)),Image.Resampling.LANCZOS),(pw,ph))
             if self.options.get('dim_inactive') and not all_balloons and not self.starts[scene_index] <= source_time < self.starts[scene_index + 1]:
                 panel = Image.blend(panel, Image.new('RGB', panel.size), .22)
-            for start, balloon, position in self.balloons[scene_index]:
+            for bi, (start, balloon, position) in enumerate(self.balloons[scene_index]):
                 if all_balloons or source_time >= start:
+                    balloon, position = animated_balloon(balloon, position, source_time-start, not all_balloons and self.balloon_kinds[scene_index][bi]=='dialogue')
                     panel.paste(balloon, position, balloon)
             if layout_name == 'diagonal':
                 points = [(0,0),(pw-1,0),(0,ph-1)] if slot == 0 else [(pw-1,5),(pw-1,ph-1),(5,ph-1)]
@@ -222,8 +209,9 @@ class ComicFrames:
                     raise ValueError('경계 돌파형의 두 번째 컷은 배경이 투명한 PNG 전경이 필요합니다.')
                 foreground=ImageOps.contain(frame,(pw,ph),method=Image.Resampling.LANCZOS)
                 canvas.paste(foreground,(x+(pw-foreground.width)//2,y+(ph-foreground.height)//2),foreground)
-                for start, balloon, position in self.balloons[scene_index]:
+                for bi, (start, balloon, position) in enumerate(self.balloons[scene_index]):
                     if all_balloons or source_time >= start:
+                        balloon, position = animated_balloon(balloon, position, source_time-start, not all_balloons and self.balloon_kinds[scene_index][bi]=='dialogue')
                         canvas.paste(balloon,(x+position[0],y+position[1]),balloon)
             else:
                 canvas.paste(panel, (x, y))
@@ -291,8 +279,16 @@ def render_comic(*, temp_dir, images, durations, audio_path, subtitles, settings
             tracks.append(effect.subclipped(0, length).with_start(start + page_index * frames.turn)
                 .with_volume_scaled(10 ** (_number(cue.get('volume_db'), -18, -60, 12) / 20)))
         if settings['comic'].get('turn_sound', True):
+            recordings=settings['comic'].get('turn_sound_paths') or []
+            if recordings:
+                from services.comic_turn_audio import recorded_page_turns
+                paths=[_resolve_audio_asset(temp_dir,value) for value in recordings]
+                if not all(paths):raise ValueError('책장 넘김 효과음 파일을 찾을 수 없습니다.')
+                sounds,opened=recorded_page_turns(paths,frames.pages,frames.turn,
+                    _number(settings['comic'].get('turn_sound_volume'),.55,0,1))
+                resources.extend(opened);tracks.extend(sounds)
             # Deterministic low-volume paper-like rustle; no external audio dependency.
-            for page in frames.pages[:-1]:
+            for page in ([] if recordings else frames.pages[:-1]):
                 duration = frames.turn
                 def rustle(t, duration=duration):
                     t = np.asarray(t)

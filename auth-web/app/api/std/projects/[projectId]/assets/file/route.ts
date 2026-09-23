@@ -98,7 +98,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         return NextResponse.json({ success: false, error: 'Asset does not have a storage path' }, { status: 404 })
     }
     try {
-        {
+        if (asset.metadata?.storage_provider !== 'gcs') {
             // Server-authenticated stream avoids expiring intermediate signed URLs.
             // Project/asset ownership has already been checked above.
             const objectPath = [storage.bucket, ...storage.path.split('/')].map(encodeURIComponent).join('/')

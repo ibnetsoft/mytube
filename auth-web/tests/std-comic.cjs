@@ -12,6 +12,12 @@ function load(name) {
     return exports
 }
 const comic = load('stdComic'), policy = load('stdPolicy'), steps = load('stdProjectStepStatus')
+const { balloonPopScale } = load('stdComicLettering')
+assert.equal(balloonPopScale(0), .72)
+assert.equal(balloonPopScale(.36), 1)
+assert.equal(balloonPopScale(2), 1)
+assert.ok(balloonPopScale(.198) > balloonPopScale(.2808))
+for(let i=0;i<=100;i++)assert.ok(balloonPopScale(i*.0036)>=.72 && balloonPopScale(i*.0036)<=1)
 const standard = { project_payload: {} }
 const book = { project_payload: {render_settings: {comic: {version: 1, mode: 'comic'}}} }
 assert.equal(comic.isComicProject(standard), false)
