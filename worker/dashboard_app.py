@@ -259,6 +259,29 @@ def _sync_hermes_process_status(snap: dict, autopilot_status: dict) -> dict:
     return hermes_process
 
 
+def _sync_ae_process_status(snap: dict) -> dict:
+    """Expose AE worker state even when Manager status is stale."""
+    ae_process = snap.setdefault("processes", {}).setdefault("ae_highlight_worker", {})
+    ae_state = _read_process_state("ae_highlight_worker")
+    if ae_state:
+        heartbeat_at = float(ae_state.get("heartbeat_at") or 0)
+        if not snap.get("manager_alive") or heartbeat_at >= float(ae_process.get("last_heartbeat_at") or 0):
+            status = str(ae_state.get("status") or "").strip() or ae_process.get("status") or "stopped"
+            is_fresh = heartbeat_at and (time.time() - heartbeat_at) < 45
+            ae_process.update(
+                {
+                    "pid": ae_state.get("pid") if is_fresh else None,
+                    "status": status if is_fresh else "stopped",
+                    "last_heartbeat_at": heartbeat_at or ae_process.get("last_heartbeat_at"),
+                    "last_error": ae_state.get("last_error") or "",
+                    "current_job": ae_state.get("current_job"),
+                    "progress": ae_state.get("progress") or 0,
+                    "last_success_at": ae_state.get("last_success_at") or ae_process.get("last_success_at"),
+                }
+            )
+    return ae_process
+
+
 def _job_pipeline_identity(job: dict) -> tuple[str, str, str]:
     payload = job.get("payload") or {}
     queue_id = str(payload.get("topic_queue_id") or payload.get("topic_id") or "").strip()
@@ -1809,7 +1832,119 @@ def api_status(
         snap["manager_recovery"] = _launch_manager_recovery_if_needed()
     autopilot_status = autopilot_manager.get_status()
     _sync_hermes_process_status(snap, autopilot_status)
+    _sync_ae_process_status(snap)
     return snap
+
+
+def _ae_topic_scene_summary(rows: list[dict]) -> dict:
+    counts = {
+        "planned": 0,
+        "ready": 0,
+        "rendering": 0,
+        "failed": 0,
+        "missing_source": 0,
+    }
+    recent: list[dict] = []
+    try:
+        import ae_highlight_worker
+    except Exception:
+        ae_highlight_worker = None
+
+    for row in rows:
+        structure = {}
+        raw_structure = row.get("pregenerated_structure")
+        if isinstance(raw_structure, dict):
+            structure = raw_structure
+        elif isinstance(raw_structure, str) and raw_structure.strip():
+            try:
+                parsed = json.loads(raw_structure)
+                if isinstance(parsed, dict):
+                    structure = parsed
+            except Exception:
+                structure = {}
+        scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+        for index, scene in enumerate(scenes):
+            if not isinstance(scene, dict):
+                continue
+            plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+            if not plan.get("enabled"):
+                continue
+            counts["planned"] += 1
+            metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+            ae_asset = metadata.get("ae_effect_asset") if isinstance(metadata.get("ae_effect_asset"), dict) else {}
+            status = str(ae_asset.get("status") or scene.get("ae_effect_status") or "planned").lower()
+            if status in counts:
+                counts[status] += 1
+            if ae_highlight_worker and not ae_highlight_worker._gcs_ref_from_scene(scene):
+                counts["missing_source"] += 1
+            try:
+                scene_number = int(scene.get("scene_number") or scene.get("scene_order") or index + 1)
+            except Exception:
+                scene_number = index + 1
+            if len(recent) < 12:
+                recent.append({
+                    "topic_id": row.get("id"),
+                    "title": row.get("generated_title") or row.get("topic") or row.get("id"),
+                    "scene_number": scene_number,
+                    "preset": plan.get("preset") or "wuxia_sword_aura",
+                    "priority": plan.get("priority") or 0,
+                    "status": status,
+                    "media_url": ae_asset.get("media_url") or scene.get("ae_video_url") or "",
+                    "error": ae_asset.get("error") or "",
+                })
+    return {**counts, "recent": recent}
+
+
+@app.get("/api/ae-highlight/status")
+def api_ae_highlight_status(
+    limit: int = 20,
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    state = _read_process_state("ae_highlight_worker") or {}
+    try:
+        import ae_highlight_worker
+        rows = ae_highlight_worker.fetch_candidate_topics(max(1, min(int(limit), 100)))
+        jobs = ae_highlight_worker._find_scene_jobs(rows, force=False)
+        summary = _ae_topic_scene_summary(rows)
+        afterfx = Path(os.getenv("AE_AFTERFX_PATH") or ae_highlight_worker.DEFAULT_AFTERFX)
+        aerender = Path(os.getenv("AE_AERENDER_PATH") or ae_highlight_worker.DEFAULT_AERENDER)
+        return {
+            "success": True,
+            "worker_state": state,
+            "candidate_count": len(jobs),
+            "topics_scanned": len(rows),
+            "summary": summary,
+            "jobs": [
+                {
+                    "topic_id": job.topic_id,
+                    "title": job.topic_title,
+                    "scene_number": job.scene_number,
+                    "preset": job.preset,
+                    "duration_seconds": job.duration_seconds,
+                    "source": {"bucket": job.source.bucket, "path": job.source.path},
+                }
+                for job in jobs[:20]
+            ],
+            "capability": {
+                "afterfx_path": str(afterfx),
+                "aerender_path": str(aerender),
+                "afterfx_exists": afterfx.is_file(),
+                "aerender_exists": aerender.is_file(),
+            },
+        }
+    except Exception as exc:
+        return {
+            "success": False,
+            "worker_state": state,
+            "candidate_count": 0,
+            "topics_scanned": 0,
+            "summary": {"planned": 0, "ready": 0, "rendering": 0, "failed": 0, "missing_source": 0, "recent": []},
+            "jobs": [],
+            "capability": {},
+            "error": str(exc),
+        }
 
 
 def _prune_job_for_list(job: dict) -> dict:
@@ -2275,6 +2410,26 @@ def api_render_stop(
     require_auth(authorization, cookie)
     from ipc import submit_command, wait_for_result
     return wait_for_result(submit_command("stop_process", {"name": "render_worker"}))
+
+
+@app.post("/api/processes/ae-highlight/start")
+def api_ae_highlight_start(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("start_process", {"name": "ae_highlight_worker"}))
+
+
+@app.post("/api/processes/ae-highlight/stop")
+def api_ae_highlight_stop(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("stop_process", {"name": "ae_highlight_worker"}))
 
 
 @app.post("/api/processes/remote-drive/start")
@@ -4171,6 +4326,9 @@ tr:hover { background: #161b22; }
       <div class="nav-item" data-tab="history" data-worker-scope="all" onclick="switchTab('history')">
         <span class="icon">&#x1F4CB;</span> 작업 히스토리
       </div>
+      <div class="nav-item" data-tab="ae-highlight" data-worker-scope="render" onclick="switchTab('ae-highlight')">
+        <span class="icon">&#x2728;</span> AE 하이라이트
+      </div>
       <div class="nav-item" data-tab="logs" data-worker-scope="all" onclick="switchTab('logs')">
         <span class="icon">&#x1F4C4;</span> 로그
       </div>
@@ -4699,6 +4857,32 @@ tr:hover { background: #161b22; }
         </div>
       </div>
 
+      <!-- ═══ Tab: AE Highlight ═══ -->
+      <div class="tab-content" id="tab-ae-highlight">
+        <div class="status-grid" id="ae-highlight-summary-cards"></div>
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>&#x2728; After Effects 하이라이트 Worker</span>
+            <span class="info" id="ae-highlight-updated" style="font-size:11px;">-</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+            <button class="btn btn-sm btn-start" onclick="startProcess('ae_highlight_worker')">&#x25B6; 시작</button>
+            <button class="btn btn-sm btn-stop" onclick="stopProcess('ae_highlight_worker')">&#x23F9; 중지</button>
+            <button class="btn btn-sm" onclick="loadAeHighlightStatus()">&#x1F504; 새로고침</button>
+            <button class="btn btn-sm" onclick="document.getElementById('log-process').value='ae_highlight_worker';switchTab('logs');loadLogs();">&#x1F4C4; AE 로그</button>
+          </div>
+          <div id="ae-highlight-worker-card"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">렌더 후보</div>
+          <div id="ae-highlight-candidates"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">최근 AE 장면</div>
+          <div id="ae-highlight-scenes"></div>
+        </div>
+      </div>
+
       <!-- ═══ Tab: Logs ═══ -->
       <div class="tab-content" id="tab-logs">
         <div class="card">
@@ -4708,6 +4892,7 @@ tr:hover { background: #161b22; }
               <select id="log-process" onchange="loadLogs()">
                 <option value="manager">작업 관리자</option>
                 <option value="render_worker">영상 작업 Worker</option>
+                <option value="ae_highlight_worker">AE Highlight Worker</option>
                 <option value="remote_drive_worker">GCS API Render Worker</option>
                 <option value="hermes_worker">AI 기획·대본 Worker</option>
                 <option value="local_api">앱 연결 API</option>
@@ -5246,6 +5431,7 @@ const tabTitles = {
   'styles': '스타일 관리',
   'category-image-styles': '카테고리 이미지 스타일',
   'history': '작업 히스토리',
+  'ae-highlight': 'AE 하이라이트',
   'logs': '로그',
   'settings': '설정',
 };
@@ -5261,8 +5447,12 @@ const SCRIPT_TAB_IDS = new Set([
   'styles',
   'category-image-styles',
 ]);
+const RENDER_TAB_IDS = new Set([
+  'ae-highlight',
+]);
 
 function tabScope(tabId) {
+  if (RENDER_TAB_IDS.has(tabId)) return 'render';
   return SCRIPT_TAB_IDS.has(tabId) ? 'script' : 'all';
 }
 
@@ -5291,6 +5481,7 @@ function switchTab(tabId) {
   if (tabId === 'hermes-autopilot') loadAutopilotStatus();
   if (tabId === 'generated-results') loadGeneratedResults();
   if (tabId === 'voicebox-tts') loadVoiceboxTtsTab();
+  if (tabId === 'ae-highlight') loadAeHighlightStatus();
 }
 
 /* ── Time formatting ── */
@@ -5310,7 +5501,7 @@ function applyWorkerProfileNavigation(status) {
   if (active && active.style.display === 'none') switchTab('overview');
 }
 
-const RENDER_JOB_TYPES = new Set(['render_video', 'gcs_api_render']);
+const RENDER_JOB_TYPES = new Set(['render_video', 'gcs_api_render', 'render_ae_highlight']);
 const SCRIPT_JOB_TYPES = new Set([
   'topic_research',
   'topic_benchmark_analyze',
@@ -5323,6 +5514,7 @@ const SCRIPT_JOB_TYPES = new Set([
   'hermes_autopilot_step',
 ]);
 const RENDER_PROCESS_NAMES = new Set(['render_worker', 'remote_drive_worker']);
+RENDER_PROCESS_NAMES.add('ae_highlight_worker');
 const SCRIPT_PROCESS_NAMES = new Set(['hermes_worker']);
 
 function visibleForWorkerProfile(scope, profile) {
@@ -5381,12 +5573,13 @@ const STATUS_LABELS = {
   QUEUED: '대기 중', PENDING: '대기 중', pending: '대기 중', CLAIMED: '작업 준비', PREPARING: '준비 중',
   RENDERING: '렌더링 중', rendering: '렌더링 중', UPLOADING: '결과 저장 중', COMPLETED: '완료', completed: '완료',
   FAILED: '실패', failed: '실패', CANCELED: '취소됨', canceled: '취소됨', ABANDONED: '중단됨',
-  running: '실행 중', idle: '대기 중', stopped: '중지됨',
+  running: '실행 중', idle: '대기 중', stopped: '중지됨', polling: '감지 중', downloading: '다운로드 중', transcoding: '변환 중', planned: '계획됨', ready: '준비됨',
   starting: '시작 중', disabled: '사용 안 함',
 };
 const JOB_TYPE_LABELS = {
   render_video: '영상 렌더링',
   gcs_api_render: 'GCS API 렌더링',
+  render_ae_highlight: 'AE 하이라이트 렌더링',
   topic_research: '주제 탐색',
   topic_benchmark_analyze: '고성과 영상 분석',
   web_research: 'Gemini 웹 자료 조사',
@@ -5400,6 +5593,7 @@ const JOB_TYPE_LABELS = {
 const JOB_TYPE_DESCRIPTIONS = {
   render_video: '대본과 미디어를 조합해 최종 영상을 만들고 있습니다.',
   gcs_api_render: 'STD에서 제출된 프로젝트의 최종 영상을 만들고 있습니다.',
+  render_ae_highlight: 'After Effects로 장면 하이라이트 클립을 합성하고 있습니다.',
   topic_research: '키워드와 시청자 반응을 바탕으로 콘텐츠 주제를 찾고 있습니다.',
   topic_benchmark_analyze: 'YouTube 고성과 영상의 제목, 구성, 반응을 분석하고 있습니다.',
   web_research: 'Gemini가 기사·논문·공식 자료를 검색해 대본 근거와 출처를 정리하고 있습니다.',
@@ -5464,6 +5658,80 @@ function statusBadge(s) {
   return `<span class="badge badge-${String(s).toLowerCase()}">${humanStatus(s)}</span>`;
 }
 
+function aeMetricCard(label, value, note, badgeClass = 'badge-idle') {
+  return `<div class="status-card">
+    <div class="name">${escapeHtml(label)} <span class="badge ${badgeClass}">${escapeHtml(String(value ?? '-'))}</span></div>
+    <div class="info">${escapeHtml(note || '')}</div>
+  </div>`;
+}
+
+async function loadAeHighlightStatus() {
+  const summaryEl = document.getElementById('ae-highlight-summary-cards');
+  const workerEl = document.getElementById('ae-highlight-worker-card');
+  const candidatesEl = document.getElementById('ae-highlight-candidates');
+  const scenesEl = document.getElementById('ae-highlight-scenes');
+  const updatedEl = document.getElementById('ae-highlight-updated');
+  if (!summaryEl || !workerEl || !candidatesEl || !scenesEl) return;
+  summaryEl.innerHTML = aeMetricCard('AE 상태', '조회 중', 'GCS 후보와 워커 상태를 확인합니다.');
+  try {
+    const data = await api('GET', '/api/ae-highlight/status?limit=40');
+    const state = data?.worker_state || {};
+    const summary = data?.summary || {};
+    const capability = data?.capability || {};
+    const workerStatus = state.status || 'stopped';
+    const canRender = Boolean(capability.afterfx_exists && capability.aerender_exists);
+    if (updatedEl) updatedEl.textContent = `갱신: ${new Date().toLocaleTimeString('ko-KR')}`;
+    summaryEl.innerHTML = [
+      aeMetricCard('워커', humanStatus(workerStatus), `PID ${state.pid || '-'} · ${state.current_job_id || 'idle'}`, canRender ? 'badge-completed' : 'badge-review'),
+      aeMetricCard('렌더 후보', data?.candidate_count ?? 0, `${data?.topics_scanned ?? 0}개 토픽 스캔`, Number(data?.candidate_count || 0) > 0 ? 'badge-running' : 'badge-idle'),
+      aeMetricCard('계획 장면', summary.planned ?? 0, `완료 ${summary.ready || 0} · 진행 ${summary.rendering || 0} · 실패 ${summary.failed || 0}`, 'badge-idle'),
+      aeMetricCard('AE 설치', canRender ? 'OK' : '확인 필요', capability.aerender_path || data?.error || 'aerender 경로 없음', canRender ? 'badge-completed' : 'badge-failed'),
+    ].join('');
+
+    const currentJob = state.current_job && typeof state.current_job === 'object' ? state.current_job : null;
+    workerEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+      <div><div class="label">상태</div><div>${statusBadge(workerStatus)}</div></div>
+      <div><div class="label">진행률</div><div>${Number(state.progress || 0)}%</div></div>
+      <div><div class="label">마지막 성공</div><div>${fmtTime(state.last_success_at)}</div></div>
+      <div><div class="label">AE 실행 파일</div><div style="font-family:monospace;font-size:12px;color:#8b949e">${escapeHtml(capability.aerender_path || '-')}</div></div>
+    </div>
+    ${currentJob ? `<div class="info" style="margin-top:12px;padding:10px;border:1px solid rgba(88,166,255,.22);border-radius:6px;background:rgba(13,17,23,.55)">
+      <div><span style="color:#8b949e">작업:</span> ${escapeHtml(currentJob.project_name || currentJob.job_id || '-')}</div>
+      <div><span style="color:#8b949e">씬:</span> ${escapeHtml(String(currentJob.scene_number || '-'))} · ${escapeHtml(currentJob.preset || '-')}</div>
+      <div><span style="color:#8b949e">진행:</span> ${escapeHtml(currentJob.progress_message || '-')}</div>
+    </div>` : ''}
+    ${state.last_error ? `<div class="info" style="margin-top:10px;color:#f85149">${escapeHtml(state.last_error)}</div>` : ''}`;
+
+    const jobs = data?.jobs || [];
+    candidatesEl.innerHTML = jobs.length ? `<table style="width:100%">
+      <thead><tr><th>토픽</th><th>씬</th><th>프리셋</th><th>소스</th></tr></thead>
+      <tbody>${jobs.map(job => `<tr>
+        <td>${escapeHtml(truncate(job.title || job.topic_id, 42))}<div class="info">${escapeHtml(job.topic_id || '')}</div></td>
+        <td>${escapeHtml(String(job.scene_number || '-'))}</td>
+        <td>${escapeHtml(job.preset || '-')}</td>
+        <td style="font-family:monospace;font-size:11px;color:#8b949e">${escapeHtml(truncate(`${job.source?.bucket || ''}/${job.source?.path || ''}`, 56))}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<div class="empty"><div class="icon">&#x2728;</div>현재 렌더 대기 중인 AE 장면이 없습니다</div>';
+
+    const scenes = summary.recent || [];
+    scenesEl.innerHTML = scenes.length ? `<table style="width:100%">
+      <thead><tr><th>토픽</th><th>씬</th><th>프리셋</th><th>상태</th><th>결과</th></tr></thead>
+      <tbody>${scenes.map(scene => `<tr>
+        <td>${escapeHtml(truncate(scene.title || scene.topic_id, 38))}</td>
+        <td>${escapeHtml(String(scene.scene_number || '-'))}</td>
+        <td>${escapeHtml(scene.preset || '-')}</td>
+        <td>${statusBadge(scene.status || 'planned')}</td>
+        <td>${scene.media_url ? `<a href="${escapeHtml(scene.media_url)}" target="_blank" rel="noreferrer">보기</a>` : escapeHtml(truncate(scene.error || '-', 40))}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<div class="empty"><div class="icon">&#x1F4ED;</div>아직 AE 계획 장면이 없습니다</div>';
+  } catch (e) {
+    summaryEl.innerHTML = aeMetricCard('AE 상태', '오류', String(e), 'badge-failed');
+    workerEl.innerHTML = '';
+    candidatesEl.innerHTML = '<div class="empty"><div class="icon">&#x26A0;</div>AE 상태를 불러오지 못했습니다</div>';
+    scenesEl.innerHTML = '';
+  }
+}
+
 function isActiveHermesStatus(status) {
   return ['RUNNING', 'RENDERING', 'PREPARING', 'CLAIMED', 'QUEUED', 'PENDING'].includes(String(status || '').toUpperCase());
 }
@@ -5492,8 +5760,8 @@ function renderProcessCards(status, jobs = []) {
     if (name === 'updater') continue;
     if (!visibleForWorkerProfile(processScope(name), workerProfile)) continue;
     const s = info.status || 'stopped';
-    const label = {render_worker:'영상 작업 Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
-    const icon = {render_worker:'\u{1F3AC}', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
+    const label = {render_worker:'영상 작업 Worker', ae_highlight_worker:'AE Highlight Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
+    const icon = {render_worker:'\u{1F3AC}', ae_highlight_worker:'\u2728', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
     const progress = Math.max(0, Math.min(100, Number(info.progress || 0)));
     const currentJobId = typeof info.current_job === 'string'
       ? info.current_job
@@ -5512,6 +5780,7 @@ function renderProcessCards(status, jobs = []) {
       : '';
     const workerDescription = {
       render_worker: '영상 조립, 렌더링, 결과 파일 저장을 담당합니다.',
+      ae_highlight_worker: 'GCS 장면 이미지를 감지해 After Effects 하이라이트 클립을 합성합니다.',
       hermes_worker: '',
       local_api: 'AIR Studio 앱과 Worker 사이의 요청을 연결합니다.',
       updater: 'Worker 업데이트를 확인하고 적용합니다.',
@@ -7316,7 +7585,7 @@ function canCancel(status) {
 }
 
 /* ── Process start / stop ── */
-const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render', remote_drive_worker: 'remote-drive' };
+const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render', ae_highlight_worker: 'ae-highlight', remote_drive_worker: 'remote-drive' };
 
 async function startProcess(name) {
   try {
@@ -7326,7 +7595,7 @@ async function startProcess(name) {
     }
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/start`);
-    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 시작을 요청했습니다.`, 'info');
+    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker', ae_highlight_worker:'AE Highlight Worker'}[name] || name} 시작을 요청했습니다.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
     showToast(`시작 실패: ${e}`, 'error');
@@ -7389,7 +7658,7 @@ async function stopProcess(name) {
     }
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/stop`);
-    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker'}[name] || name} 중지를 요청했습니다.`, 'info');
+    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker', ae_highlight_worker:'AE Highlight Worker'}[name] || name} 중지를 요청했습니다.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
     showToast(`중지 실패: ${e}`, 'error');
@@ -7423,6 +7692,7 @@ async function refreshAll() {
     const activeTab = document.querySelector('.nav-item.active')?.dataset.tab;
     if (activeTab === 'history') loadHistory();
     if (activeTab === 'hermes-autopilot') loadAutopilotStatus();
+    if (activeTab === 'ae-highlight') loadAeHighlightStatus();
   } catch(e) { /* silent */ }
   finally {
     refreshAllInFlight = false;

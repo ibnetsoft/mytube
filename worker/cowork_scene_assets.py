@@ -8,6 +8,7 @@ script crops the returned grids and persists the scene mapping in Supabase.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
 import os
@@ -21,8 +22,13 @@ from urllib.parse import quote
 import requests
 from dotenv import load_dotenv
 from PIL import Image
+from PIL import ImageDraw
 from PIL import ImageFilter
 from PIL import ImageOps
+try:
+    from . import image_recovery
+except ImportError:
+    import image_recovery
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -143,6 +149,8 @@ def _scene_number(scene: dict[str, Any], fallback: int) -> int:
 
 
 def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
+    if destination.exists():
+        raise FileExistsError('Preserve existing manifest/recovery state; use a new revision path')
     row, structure, _base_url, _ = _topic(topic_id)
     scenes = structure.get("scenes")
     grids = structure.get("image_grid_prompts")
@@ -209,10 +217,17 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "scene_count": len(known_scenes),
         "character_references": references,
+        "scene_specs": [{"scene_number": _scene_number(s, i), "scene_id": s.get("scene_id"),
+                         "scene_text": s.get("scene_text") or s.get("narration"),
+                         "image_prompt": s.get("image_prompt"), "image_style": s.get("image_style")}
+                        for i, s in enumerate(scenes, 1)],
+        "recovery_policy": image_recovery.POLICY,
+        "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
         "generation_instruction": "Attach the character_references local PNGs as reference images to EVERY grid generation. Preserve each named character's face, age and wardrobe. Generate still images only, never video clips.",
         "grids": manifest_grids,
     }
     destination.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    image_recovery.ensure_state(destination)
     return destination
 
 
@@ -248,6 +263,40 @@ def _upscale_panel(image: Image.Image, target_width: int, target_height: int) ->
     return resized.filter(ImageFilter.UnsharpMask(radius=1.2, percent=105, threshold=3))
 
 
+def _first_target(policy: dict[str, Any]) -> tuple[float, float]:
+    targets = policy.get("targets") if isinstance(policy.get("targets"), list) else []
+    for target in targets:
+        if isinstance(target, dict):
+            try:
+                return max(0.05, min(float(target.get("x") or 0.5), 0.95)), max(0.05, min(float(target.get("y") or 0.52), 0.95))
+            except (TypeError, ValueError):
+                pass
+    return 0.5, 0.52
+
+
+def _write_depth_proxy_layers(source_path: Path, output_dir: Path, scene_number: int, policy: dict[str, Any]) -> dict[str, Path]:
+    """Create no-credit proxy layers for subtle AE parallax from a single generated still."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with Image.open(source_path) as source:
+        image = ImageOps.exif_transpose(source).convert("RGBA")
+    width, height = image.size
+    cx_ratio, cy_ratio = _first_target(policy)
+    cx, cy = int(width * cx_ratio), int(height * cy_ratio)
+    rx, ry = int(width * 0.24), int(height * 0.36)
+    mask = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.ellipse((cx - rx, cy - ry, cx + rx, cy + ry), fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=max(18, width // 48)))
+    foreground = image.copy()
+    foreground.putalpha(mask)
+    background = image.convert("RGB").filter(ImageFilter.GaussianBlur(radius=8))
+    foreground_path = output_dir / f"scene-{scene_number:03d}-foreground.png"
+    background_path = output_dir / f"scene-{scene_number:03d}-background.png"
+    foreground.save(foreground_path, format="PNG", optimize=True)
+    background.save(background_path, format="PNG", optimize=True)
+    return {"foreground_rgba": foreground_path, "background_plate": background_path}
+
+
 def crop_grids(
     manifest_path: Path,
     input_dir: Path,
@@ -259,15 +308,22 @@ def crop_grids(
     if target_width < 320 or target_height < 180:
         raise ValueError("output dimensions are too small for scene assets")
     manifest = _manifest(manifest_path)
+    recovery_path = image_recovery.state_path(manifest_path)
+    jobs = None
+    if manifest.get('recovery_policy') and not recovery_path.exists():
+        raise ValueError('Recovery state missing; cannot bypass image review')
+    if recovery_path.exists():
+        jobs = image_recovery.recipes(json.loads(recovery_path.read_text(encoding='utf-8')), manifest)
     output_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     assigned: set[int] = set()
-    for grid in manifest["grids"]:
-        raw_path = input_dir / str(grid["raw_file"])
+    for grid in jobs if jobs is not None else manifest["grids"]:
+        raw_path = Path(grid['image_file']) if jobs is not None else input_dir / str(grid["raw_file"])
         if not raw_path.is_file():
             raise FileNotFoundError(f"generated grid is missing: {raw_path}")
         scene_numbers = grid.get("scene_numbers")
-        if not isinstance(scene_numbers, list) or len(scene_numbers) != 4:
+        single = grid.get('layout') == 'single'
+        if not isinstance(scene_numbers, list) or len(scene_numbers) != (1 if single else 4):
             raise ValueError(f"grid {grid.get('grid_number')} does not map exactly four scenes")
         with Image.open(raw_path) as source:
             image = ImageOps.exif_transpose(source).convert("RGB")
@@ -275,7 +331,7 @@ def crop_grids(
             if width < 4 or height < 4:
                 raise ValueError(f"grid {raw_path.name} is too small to crop")
             x_mid, y_mid = width // 2, height // 2
-            boxes = ((0, 0, x_mid, y_mid), (x_mid, 0, width, y_mid), (0, y_mid, x_mid, height), (x_mid, y_mid, width, height))
+            boxes = ((0, 0, width, height),) if single else ((0, 0, x_mid, y_mid), (x_mid, 0, width, y_mid), (0, y_mid, x_mid, height), (x_mid, y_mid, width, height))
             for scene_number, box in zip(scene_numbers, boxes):
                 number = int(scene_number)
                 if number in assigned:
@@ -288,17 +344,38 @@ def crop_grids(
                     continue
                 assigned.add(number)
                 target = output_dir / f"scene-{number:03d}.png"
+                expected_image = _upscale_panel(image.crop(box), target_width, target_height)
                 if target.exists():
-                    raise FileExistsError(f"refusing to overwrite existing crop: {target}")
-                _upscale_panel(image.crop(box), target_width, target_height).save(
+                    with Image.open(target) as existing:
+                        if existing.size != expected_image.size or existing.convert('RGB').tobytes() != expected_image.tobytes():
+                            raise FileExistsError(f"refusing to overwrite different crop: {target}")
+                    continue
+                expected_image.save(
                     target, format="PNG", optimize=True
                 )
                 written.append(target)
+    if jobs is not None:
+        receipt = {"source_hash": image_recovery.digest(manifest), "files": {
+            f"scene-{n:03d}.png": hashlib.sha256((output_dir / f"scene-{n:03d}.png").read_bytes()).hexdigest()
+            for n in assigned}}
+        (output_dir / 'crop-receipt.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
     return written
 
 
 def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[str]:
     manifest = _manifest(manifest_path)
+    recovery_path = image_recovery.state_path(manifest_path)
+    if manifest.get('recovery_policy') and not recovery_path.exists():
+        raise ValueError('Recovery state missing; cannot publish')
+    if recovery_path.exists():
+        image_recovery.recipes(json.loads(recovery_path.read_text(encoding='utf-8')), manifest)
+        receipt = json.loads((images_dir / 'crop-receipt.json').read_text(encoding='utf-8'))
+        expected = {f"scene-{int(n):03d}.png" for g in manifest['grids'] for n in g['scene_numbers']}
+        if receipt['source_hash'] != image_recovery.digest(manifest) or set(receipt['files']) != expected:
+            raise ValueError('Crop receipt does not match manifest')
+        for name, sha in receipt['files'].items():
+            if hashlib.sha256((images_dir / name).read_bytes()).hexdigest() != sha:
+                raise ValueError('Crop changed after review: ' + name)
     topic_id = str(manifest["topic_id"])
     bucket = str(manifest.get("bucket") or DEFAULT_BUCKET)
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", bucket):
@@ -309,6 +386,8 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
 
     scene_urls: dict[int, str] = {}
     scene_refs: dict[int, tuple[str, str]] = {}
+    scene_layer_assets: dict[int, dict[str, Any]] = {}
+    layer_dir = images_dir / "derived-layers"
     for grid in manifest["grids"]:
         for scene_number in grid["scene_numbers"]:
             number = int(scene_number)
@@ -326,6 +405,31 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
             gcs_bucket, gcs_path, media_url = _upload_gcs_file(file_path, object_path, mime_type)
             scene_urls[number] = media_url
             scene_refs[number] = (gcs_bucket, gcs_path)
+            scene_spec = next((s for s in structure.get("scenes", []) if isinstance(s, dict) and _scene_number(s, 0) == number), {})
+            layer_plan = scene_spec.get("local_layer_plan") if isinstance(scene_spec.get("local_layer_plan"), dict) else {}
+            image_policy = scene_spec.get("image_generation_policy") if isinstance(scene_spec.get("image_generation_policy"), dict) else {}
+            if layer_plan.get("enabled"):
+                layer_files = _write_depth_proxy_layers(file_path, layer_dir, number, image_policy)
+                uploaded_layers: dict[str, Any] = {
+                    "source": "local_depth_proxy_from_single_scene_image",
+                    "credit_cost": 0,
+                    "method": "soft_target_matte_and_blurred_background_plate",
+                    "assets": {},
+                }
+                for layer_name, layer_path in layer_files.items():
+                    layer_object = f"topics/{topic_id}/layers/scene-{number:03d}-{layer_name}.png"
+                    lbucket, lpath, lurl = _upload_gcs_file(layer_path, layer_object, "image/png")
+                    uploaded_layers["assets"][layer_name] = {
+                        "storage_provider": "gcs",
+                        "bucket": lbucket,
+                        "object_path": lpath,
+                        "gcs_bucket": lbucket,
+                        "gcs_path": lpath,
+                        "media_url": lurl,
+                        "width": DEFAULT_ASSET_WIDTH,
+                        "height": DEFAULT_ASSET_HEIGHT,
+                    }
+                scene_layer_assets[number] = uploaded_layers
 
     scenes = structure.get("scenes")
     if not isinstance(scenes, list):
@@ -337,6 +441,8 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
         number = _scene_number(scene, index)
         if number in scene_urls:
             gcs_bucket, gcs_path = scene_refs[number]
+            image_policy = scene.get("image_generation_policy") if isinstance(scene.get("image_generation_policy"), dict) else {}
+            layer_plan = scene.get("local_layer_plan") if isinstance(scene.get("local_layer_plan"), dict) else {}
             scene["image_url"] = scene_urls[number]
             scene["asset_status"] = "ready"
             scene.setdefault("metadata", {})["cowork_image_asset"] = {
@@ -348,7 +454,25 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
                 "gcs_path": gcs_path,
                 "width": DEFAULT_ASSET_WIDTH,
                 "height": DEFAULT_ASSET_HEIGHT,
+                "credit_policy": {
+                    "base_images": int(image_policy.get("base_images") or 1),
+                    "generation_unit": image_policy.get("generation_unit") or "2x2_grid_panel",
+                    "additional_images_allowed": int(image_policy.get("additional_images_allowed") or 0),
+                    "multi_image_allowed": bool(image_policy.get("multi_image_allowed")),
+                    "api_generation_units_estimate": float(image_policy.get("api_generation_units_estimate") or 0.25),
+                    "estimated_generation_credits": float(image_policy.get("estimated_generation_credits") or 0.25),
+                    "max_api_generation_units_with_optional_extra": float(image_policy.get("max_api_generation_units_with_optional_extra") or 0.25),
+                },
+                "local_layer_plan": {
+                    "enabled": bool(layer_plan.get("enabled")),
+                    "source": layer_plan.get("source") or "",
+                    "method": layer_plan.get("method") or "",
+                    "credit_cost": int(layer_plan.get("credit_cost") or 0),
+                },
             }
+            if number in scene_layer_assets:
+                scene.setdefault("metadata", {})["local_layer_asset"] = scene_layer_assets[number]
+                scene["local_layer_status"] = "ready"
             updated_count += 1
     if updated_count != len(scene_urls):
         raise RuntimeError("not every cropped image could be mapped to a topic scene")

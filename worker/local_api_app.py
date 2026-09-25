@@ -144,6 +144,20 @@ async def render_stop(authorization: str | None = Header(default=None)):
     return wait_for_result(submit_command("stop_process", {"name": "render_worker"}))
 
 
+@app.post("/processes/ae-highlight/start")
+async def ae_highlight_start(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/ae-highlight/start")
+    return wait_for_result(submit_command("start_process", {"name": "ae_highlight_worker"}))
+
+
+@app.post("/processes/ae-highlight/stop")
+async def ae_highlight_stop(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/ae-highlight/stop")
+    return wait_for_result(submit_command("stop_process", {"name": "ae_highlight_worker"}))
+
+
 @app.post("/processes/remote-drive/start")
 async def remote_drive_start(authorization: str | None = Header(default=None)):
     require_auth(authorization)

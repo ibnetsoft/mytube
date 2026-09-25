@@ -28,6 +28,18 @@ python worker/run_full_autopilot_pipeline.py --category '옛날이야기' --dura
 
 이 흐름은 `worker/cowork_scene_assets.py`의 `export → crop → publish` 명령으로 검증·저장되며, 이미지 생성 도구는 CoWork가 각 매니페스트 프롬프트마다 직접 호출합니다.
 
+새 작업은 [이미지 실패·거절 폴백 절차](docs/IMAGE_GENERATION_RECOVERY.md)를 반드시 적용합니다. export가 만든 recovery 상태에서 호출 전 start, 도구 결과, 시각 검수를 기록합니다. 일시 오류만 제한 재시도하며, 품질 불량 그리드는 씬별 이미지로 분리합니다. 안전 거절·원인 불명은 자동 재시도 없이 대안 검토로 넘기고, 성공 이미지와 참조 캐릭터는 보존합니다. 미완료 상태에서는 전체 crop/publish가 차단됩니다. 설치된 구버전 씬 스킬의 단순 그리드 반복 설명보다 이 프로젝트의 실패 처리 지침을 우선합니다.
+
+## After Effects 하이라이트 단계
+
+대본워커는 After Effects가 없어도 실행할 수 있습니다. Codex 콘텐츠 워커는 장면별 `ae_effect_plan`만 생성하고, 실제 AE 합성은 After Effects가 설치된 Windows 렌더 워커가 선택적으로 처리합니다.
+
+- 일반 컷: 기존 FFmpeg 모션/자막/최종 조립 경로를 사용합니다.
+- 하이라이트 컷: `ae_effect_plan.enabled=true`인 씬만 AE 워커가 가져가 검기, 안개, 입자, 빛줄기, 왜곡 같은 합성 클립을 만듭니다.
+- AE 실패/미설치/미지원 프리셋: `ffmpeg_basic_motion`으로 폴백합니다.
+
+현재 검증된 로컬 AE 경로는 `C:\Program Files\Adobe\Adobe After Effects CS6\Support Files\aerender.exe`입니다. 자세한 운영 계약은 [After Effects Highlight Pipeline](docs/AFTER_EFFECTS_HIGHLIGHT_PIPELINE.md)을 따릅니다.
+
 ## CoWork 썸네일 배경 생성·미리보기
 
 Codex 콘텐츠 워커는 대본 완성 뒤 썸네일 문구 3개와 텍스트 없는 16:9 배경 프롬프트를 함께 저장합니다. 해당 토픽의 배경을 만들 때는 다음 순서를 따릅니다.
@@ -39,7 +51,7 @@ python worker/cowork_thumbnail_asset.py export --topic-id <TOPIC_ID> --out cowor
 `thumbnail.json`의 `prompt`로 CoWork 이미지 도구에서 텍스트 없는 16:9 이미지를 생성합니다. 매니페스트의 `output`에는 목표 해상도와 최종 Storage 경로가 함께 들어 있습니다. 생성이 끝나면 선택한 이미지 파일을 아래처럼 저장합니다.
 
 ```powershell
-python worker/cowork_thumbnail_asset.py publish --topic-id <TOPIC_ID> --image <GENERATED_IMAGE_PATH> --create-bucket
+python worker/cowork_thumbnail_asset.py publish --topic-id <TOPIC_ID> --manifest cowork_batches/<TOPIC_ID>/thumbnail.json --image <GENERATED_IMAGE_PATH> --create-bucket
 ```
 
 대본·문구 생성 후 상태는 `ready_for_cowork`가 됩니다. `publish`는 실제 이미지 파일을 1920×1080으로 맞춰 Storage에 저장하고, 완료 상태 및 `thumbnail_bg_url`을 기록합니다. 이미 클레임된 사용자 웹 프로젝트가 있어도 해당 프로젝트의 스냅샷을 함께 갱신하므로, 프로젝트를 새로 열면 썸네일 페이지의 16:9 캔버스가 이 URL을 배경으로 불러오며 Codex가 생성한 문구 후보를 바로 얹어 미리볼 수 있습니다.

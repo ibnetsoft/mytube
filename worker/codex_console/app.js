@@ -2,8 +2,8 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="local-token"]').content;
 let page = 0, hasMore = false, currentSource = null, selectedJob = null, busy = false, catalogRevision = 0;
-const titles = {overview:'AI 대본 워커',new:'신규 콘텐츠 생성',repair:'대본 보관함 · 리페어',jobs:'작업 이력 · 결과',doc:'작업 지침'};
-const labels = {completed:'완료',pending:'대기',rendering:'실행 중',canceled:'취소',queued:'대기',running:'실행 중',failed:'실패',interrupted:'중단 · 재시작 필요',awaiting_approval:'검토 대기',approved_pending_repair:'승인 · 적용 대기'};
+const titles = {overview:'AI 대본 워커',new:'신규 콘텐츠 생성',repair:'대본 보관함 · 리페어',jobs:'작업 이력 · 결과',ae:'AE 하이라이트',doc:'작업 지침'};
+const labels = {completed:'완료',pending:'대기',rendering:'실행 중',canceled:'취소',queued:'대기',running:'실행 중',failed:'실패',interrupted:'중단 · 재시작 필요',awaiting_approval:'검토 대기',approved_pending_repair:'승인 · 적용 대기',ready:'완료',planned:'계획됨',polling:'감지 중',downloading:'다운로드',preparing:'준비 중',transcoding:'변환 중',idle:'대기',stopped:'중지'};
 function displayLabel(value){return String(value??'').replace(/codex/gi,'AI').replace(/supabase/gi,'Database');}
 function error(message) { $('error').textContent = displayLabel(message); $('error').hidden = !message; }
 function notice(message) { $('notice').textContent = displayLabel(message); $('notice').hidden = !message; }
@@ -14,15 +14,73 @@ async function api(path, body) {
   return data;
 }
 function element(tag,text,className) { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; }
+function shortText(value,max=48){const text=String(value??'');return text.length>max?text.slice(0,max-1)+'…':text;}
+function statusText(value){const key=String(value||'').toLowerCase();return labels[key]||labels[value]||String(value||'—');}
 function view(name) {
   document.querySelectorAll('main>section').forEach(s=>s.hidden=s.id!=='view-'+name);
   document.querySelectorAll('nav [data-view]').forEach(b=>b.classList.toggle('selected',b.dataset.view===name));
   $('heading').textContent=titles[name];
   if(name==='repair')loadCatalog();
   if(name==='jobs')refresh();
+  if(name==='ae')loadAeHighlight();
 }
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.view)));
 document.querySelectorAll('[data-doc]').forEach(b=>b.addEventListener('click',async()=>{try{const data=await api('docs/'+b.dataset.doc);$('document').textContent=displayLabel(data.text);view('doc');}catch(e){error(e.message);}}));
+function aeTableEmpty(tbody,message,colSpan){
+  const row=element('tr'),cell=element('td',message,'muted');
+  cell.colSpan=colSpan;row.append(cell);tbody.replaceChildren(row);
+}
+function aeDirectionText(item){
+  const targets=Array.isArray(item.targets)?item.targets:[];
+  const targetText=targets.map(target=>target&&target.type).filter(Boolean).slice(0,2).join(', ');
+  return [item.mood,item.camera,targetText].filter(Boolean).map(value=>shortText(value,24)).join(' · ')||'—';
+}
+function aePresetText(item){
+  const kind=item.plan_kind==='motion'?'일반 모션':'하이라이트';
+  return `${kind} · ${item.preset||'—'}`;
+}
+function aeJobRow(job){
+  const row=element('tr');
+  const title=element('td');
+  title.append(element('strong',shortText(job.title||job.topic_id,48)),element('small',job.topic_id||''));
+  row.append(title,element('td',String(job.scene_number||'—')),element('td',aePresetText(job)),element('td',aeDirectionText(job)),element('td',shortText((job.source?.bucket||'')+'/'+(job.source?.path||''),72)));
+  return row;
+}
+function aeSceneRow(scene){
+  const row=element('tr');
+  row.append(element('td',shortText(scene.title||scene.topic_id,48)),element('td',String(scene.scene_number||'—')),element('td',aePresetText(scene)),element('td',aeDirectionText(scene)),element('td',statusText(scene.status)));
+  const result=element('td');
+  if(scene.media_url){const link=element('a','보기');link.href=scene.media_url;link.target='_blank';link.rel='noreferrer';result.append(link);}
+  else result.textContent=shortText(scene.error||'—',44);
+  row.append(result);
+  return row;
+}
+async function loadAeHighlight(){
+  try{
+    const data=await api('ae-highlight/status?limit=40');
+    const state=data.state||{},summary=data.summary||{},cap=data.capability||{};
+    const current=state.current_job&&typeof state.current_job==='object'?state.current_job:null;
+    const status=statusText(state.status||'stopped');
+    const capability=Boolean(cap.afterfx_exists&&cap.aerender_exists);
+    $('ae-worker-status').textContent=status;
+    $('ae-state').textContent=status;
+    $('ae-state-note').textContent=state.pid?`PID ${state.pid}`:'프로세스 없음';
+    $('ae-candidates').textContent=String(data.candidate_count??0);
+    $('ae-scan-note').textContent=`${data.topics_scanned??0}개 토픽 스캔`;
+    $('ae-planned').textContent=String(summary.planned??0);
+    $('ae-plan-note').textContent=`완료 ${summary.ready||0} · 진행 ${summary.rendering||0} · 실패 ${summary.failed||0}`;
+    $('ae-capability').textContent=capability?'OK':'확인 필요';
+    $('ae-path').textContent=cap.aerender_path||data.error||'aerender 경로 없음';
+    $('ae-current').textContent=current?`현재 작업: ${current.project_name||current.job_id||'—'} · 씬 ${current.scene_number||'—'} · ${current.preset||'—'} · ${current.progress_message||''}`:(state.last_error?`최근 오류: ${displayLabel(state.last_error)}`:'현재 진행 중인 AE 작업이 없습니다.');
+    const jobsBody=$('ae-jobs');
+    const jobRows=(data.jobs||[]).map(aeJobRow);
+    if(jobRows.length)jobsBody.replaceChildren(...jobRows);else aeTableEmpty(jobsBody,'렌더 대기 중인 AE 장면이 없습니다.',5);
+    const scenesBody=$('ae-scenes');
+    const sceneRows=(summary.recent||[]).map(aeSceneRow);
+    if(sceneRows.length)scenesBody.replaceChildren(...sceneRows);else aeTableEmpty(scenesBody,'아직 AE 계획 장면이 없습니다.',6);
+    error('');
+  }catch(e){error(e.message);}
+}
 async function refresh(){try{
   const data=await api('status'); error('');
   $('cli').textContent=data.codex_installed?'CLI 설치 확인':'CLI 없음'; $('cli-note').textContent=data.login_status;
@@ -32,6 +90,7 @@ async function refresh(){try{
   busy=Boolean(data.cloud_summary?.active)||data.jobs.some(j=>['running','queued'].includes(j.status));
   document.querySelector('#new-form button[type=submit]').disabled=busy; $('repair-start').disabled=busy||!currentSource; if($('topic-start'))$('topic-start').disabled=busy;
   if(window.refreshManagement)await window.refreshManagement(data);
+  if(!$('view-ae').hidden)await loadAeHighlight();
 }catch(e){error(e.message);}}
 async function loadCatalog(){const revision=++catalogRevision;$('catalog-count').textContent='불러오는 중…';try{
   const kind=$('kind').value;const data=await api('catalog?'+new URLSearchParams({kind,page,q:$('search').value}));if(revision!==catalogRevision)return;
@@ -118,6 +177,9 @@ $('new-form').onsubmit=e=>{
   });
 };
 $('repair-start').onclick=()=>{if(!currentSource||busy)return;if(!confirm('이 대본의 Astra 수정안을 생성할까요? 원본은 보존하고 결과를 Database에 저장합니다.'))return;start({production_mode:$('repair-production-mode').value,mode:'repair',kind:currentSource.kind,source_id:currentSource.id,notes:$('repair-notes').value});};
+if($('ae-refresh'))$('ae-refresh').onclick=loadAeHighlight;
+if($('ae-start'))$('ae-start').onclick=async()=>{try{await api('ae-highlight/start',{});notice('AE 워커 시작을 요청했습니다.');await loadAeHighlight();}catch(e){error(e.message);}};
+if($('ae-stop'))$('ae-stop').onclick=async()=>{try{await api('ae-highlight/stop',{});notice('AE 워커 중지를 요청했습니다.');await loadAeHighlight();}catch(e){error(e.message);}};
 let resultRevision=0;
 async function showJob(id,origin='dedicated'){const revision=++resultRevision;try{
   const data=await api(origin==='legacy'?'history/legacy/'+id:'jobs/'+id);

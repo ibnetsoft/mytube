@@ -16,6 +16,12 @@
 구현하지 않는다 — `job_store.claim_next_job()`에 넘기는 job_type 리스트에서 아예 제외되어
 있어 실수로 클레임될 일이 없다.
 
+After Effects 하이라이트 렌더는 별도 capability 작업으로 취급한다. 대본/콘텐츠 워커는
+`structure.ae_effect_plans`와 각 씬의 `ae_effect_plan`만 생성하고, 실제 합성은
+After Effects가 설치된 Windows 워커가 `render_ae_highlight`류 작업으로 처리해야 한다.
+AE가 없는 일반 Render Worker는 이 작업을 클레임하지 않는다. 운영 계약은
+[AFTER_EFFECTS_HIGHLIGHT_PIPELINE.md](./AFTER_EFFECTS_HIGHLIGHT_PIPELINE.md)를 따른다.
+
 ## 3. 입력 준비 (다운로드 대체)
 
 ```

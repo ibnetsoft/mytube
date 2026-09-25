@@ -22,6 +22,7 @@ from worker_config import OUTPUT_DIR, PROJECT_ROOT
 from senior_script_guard import PROFILE as SENIOR_PROFILE, contract as senior_contract, text_issues, review_issues
 from codex_dialogue import ASTRA_MODEL, DIALOGUE_TASK, validate_dialogue
 from listener_review import improve_for_listener
+from child_image_guidance import CHILD_IMAGE_GUIDANCE
 from worker.content_language import (
     LANGUAGE_NAMES,
     language_directive,
@@ -37,6 +38,453 @@ APPROVED_VIDEO_CAMERA_MOVEMENTS = (
     "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly",
     "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift",
 )
+
+
+AE_EFFECT_PRESET_KEYWORDS = (
+    (
+        "wuxia_sword_aura",
+        ("무협", "검", "검기", "칼", "비검", "문파", "무림", "내공", "기운", "혈투", "wuxia", "sword"),
+        "After Effects highlight: cyan sword aura, qi particles, fog, glow streaks, and mild turbulent distortion.",
+    ),
+    (
+        "memory_ink_wash",
+        ("회상", "기억", "과거", "비밀", "문서", "편지", "진실", "memory", "secret", "letter"),
+        "After Effects highlight: ink-vignette reveal, paper-grain flicker, drifting dust, and soft radial light.",
+    ),
+    (
+        "anger_impact",
+        ("분노", "배신", "충격", "폭발", "기습", "절규", "복수", "anger", "betrayal", "ambush"),
+        "After Effects highlight: red impact pulse, camera shake, glow flash, and short heat distortion.",
+    ),
+    (
+        "moon_fog_reveal",
+        ("밤", "달", "안개", "폐허", "산문", "은신", "추적", "moon", "fog", "ruins"),
+        "After Effects highlight: moving fractal fog, moon-ray overlay, floating motes, and slow atmosphere drift.",
+    ),
+)
+
+AE_EFFECT_PRESET_DESIGN = {
+    "wuxia_sword_aura": {
+        "mood": "contained_power",
+        "camera": "slow_push_in",
+        "light": "cold_cyan_edge_light",
+        "vfx": ["blade_aura", "qi_particles", "energy_rings", "heat_distortion"],
+        "primary_target": {"type": "sword_or_hand", "x": 0.26, "y": 0.62},
+        "secondary_target": {"type": "energy_arc", "x": 0.58, "y": 0.38},
+        "palette": {"primary": [0.52, 0.86, 1.0], "accent": [0.18, 0.56, 1.0], "flash": [0.86, 0.96, 1.0]},
+        "intensity": 0.78,
+        "motion": {"push": 0.065, "drift_x": -0.018, "drift_y": -0.012, "shake": 0.012},
+        "transition_in": "qi_wake",
+        "transition_out": "mist_hold",
+    },
+    "memory_ink_wash": {
+        "mood": "revelation_memory",
+        "camera": "slow_pull_back",
+        "light": "warm_paper_bloom",
+        "vfx": ["ink_wipe", "paper_flicker", "dust_motes", "soft_radial_light"],
+        "primary_target": {"type": "letter_or_memory_focus", "x": 0.50, "y": 0.56},
+        "secondary_target": {"type": "ink_edge", "x": 0.22, "y": 0.72},
+        "palette": {"primary": [0.86, 0.79, 0.58], "accent": [0.34, 0.30, 0.24], "flash": [0.95, 0.88, 0.68]},
+        "intensity": 0.52,
+        "motion": {"push": -0.025, "drift_x": 0.008, "drift_y": 0.006, "shake": 0.0},
+        "transition_in": "ink_bleed",
+        "transition_out": "paper_fade",
+    },
+    "anger_impact": {
+        "mood": "violent_realization",
+        "camera": "impact_push_shake",
+        "light": "red_white_flash",
+        "vfx": ["impact_slash", "shock_ring", "heat_distortion", "flash_cut"],
+        "primary_target": {"type": "face_or_collision", "x": 0.50, "y": 0.46},
+        "secondary_target": {"type": "slash_path", "x": 0.70, "y": 0.25},
+        "palette": {"primary": [1.0, 0.20, 0.08], "accent": [1.0, 0.82, 0.62], "flash": [1.0, 0.96, 0.86]},
+        "intensity": 0.92,
+        "motion": {"push": 0.085, "drift_x": -0.012, "drift_y": -0.006, "shake": 0.035},
+        "transition_in": "impact_flash",
+        "transition_out": "smoke_drop",
+    },
+    "moon_fog_reveal": {
+        "mood": "ominous_discovery",
+        "camera": "slow_drift",
+        "light": "moon_backlight",
+        "vfx": ["volumetric_moon_ray", "moving_fog", "floating_motes", "cool_vignette"],
+        "primary_target": {"type": "moon_or_gate", "x": 0.74, "y": 0.18},
+        "secondary_target": {"type": "foreground_mist", "x": 0.45, "y": 0.78},
+        "palette": {"primary": [0.58, 0.76, 1.0], "accent": [0.38, 0.48, 0.62], "flash": [0.80, 0.90, 1.0]},
+        "intensity": 0.62,
+        "motion": {"push": 0.038, "drift_x": -0.016, "drift_y": 0.004, "shake": 0.004},
+        "transition_in": "fog_reveal",
+        "transition_out": "moon_hold",
+    },
+}
+
+AE_TARGET_KEYWORDS = (
+    ("sword", ("검", "칼", "검기", "비검", "sword", "blade"), {"type": "sword", "x": 0.25, "y": 0.58}),
+    ("hand", ("손", "장심", "내공", "기운", "hand", "palm", "qi"), {"type": "hand_qi", "x": 0.42, "y": 0.62}),
+    ("eye", ("눈", "시선", "노려", "분노", "eye", "gaze"), {"type": "eyes", "x": 0.50, "y": 0.34}),
+    ("moon", ("달", "월광", "밤", "moon"), {"type": "moon", "x": 0.75, "y": 0.16}),
+    ("lamp", ("등불", "촛불", "불빛", "lamp", "candle"), {"type": "lamp", "x": 0.18, "y": 0.20}),
+    ("book", ("서책", "비급", "문서", "편지", "book", "manual", "letter"), {"type": "book_or_letter", "x": 0.52, "y": 0.62}),
+)
+
+
+def _ae_plan_design(preset: str, scene_blob: str, priority: int) -> dict[str, Any]:
+    design = json.loads(json.dumps(AE_EFFECT_PRESET_DESIGN.get(preset, AE_EFFECT_PRESET_DESIGN["wuxia_sword_aura"])))
+    targets = []
+    for _, keywords, target in AE_TARGET_KEYWORDS:
+        if any(keyword.lower() in scene_blob for keyword in keywords):
+            targets.append(dict(target))
+    if not targets:
+        targets.append(dict(design["primary_target"]))
+    if len(targets) == 1:
+        targets.append(dict(design["secondary_target"]))
+    emotional_boost = 0.08 if any(word in scene_blob for word in ("절정", "결정적", "죽음", "배신", "폭발", "climax", "death")) else 0
+    design["targets"] = targets[:3]
+    design["intensity"] = round(min(1.0, max(0.35, float(design["intensity"]) + (priority - 2) * 0.04 + emotional_boost)), 2)
+    design["quality_checks"] = {
+        "min_duration_seconds": 1.0,
+        "min_output_bytes": 1024,
+        "targeted_effects_required": True,
+        "fallback_on_failure": "ffmpeg_basic_motion",
+    }
+    return design
+
+
+def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Attach optional AE highlight render hints without making AE mandatory."""
+    category_blob = _text_blob(
+        payload.get("category"),
+        payload.get("category_name"),
+        payload.get("category_name_ko"),
+        payload.get("category_name_en"),
+        payload.get("script_style"),
+    )
+    plans: list[dict[str, Any]] = []
+    max_highlights = max(1, min(8, round(len(scenes) * 0.16)))
+    for index, scene in enumerate(scenes, 1):
+        if not isinstance(scene, dict):
+            continue
+        scene_blob = _text_blob(
+            category_blob,
+            scene.get("scene_summary"),
+            scene.get("scene_situation"),
+            scene.get("scene_purpose"),
+            scene.get("scene_emotion"),
+            scene.get("scene_text"),
+            scene.get("narration"),
+            scene.get("image_prompt"),
+        )
+        selected = None
+        for preset, keywords, direction in AE_EFFECT_PRESET_KEYWORDS:
+            if any(keyword.lower() in scene_blob for keyword in keywords):
+                selected = (preset, direction)
+                break
+        if not selected:
+            scene["ae_effect_plan"] = {"enabled": False, "reason": "standard_scene_ffmpeg_only"}
+            continue
+        priority = 2
+        if index <= 12:
+            priority += 1
+        if any(word in scene_blob for word in ("결정적", "절정", "폭발", "검기", "진실", "배신", "final", "climax")):
+            priority += 1
+        design = _ae_plan_design(selected[0], scene_blob, priority)
+        plans.append({
+            "scene_number": int(scene.get("scene_number") or scene.get("scene_order") or index),
+            "preset": selected[0],
+            "priority": min(priority, 5),
+            "duration_seconds": int(scene.get("duration_seconds") or scene.get("target_duration") or 4),
+            "direction": selected[1],
+            "mood": design["mood"],
+            "camera": design["camera"],
+            "light": design["light"],
+            "vfx": design["vfx"],
+            "targets": design["targets"],
+            "palette": design["palette"],
+            "intensity": design["intensity"],
+            "motion": design["motion"],
+            "transition_in": design["transition_in"],
+            "transition_out": design["transition_out"],
+            "quality_checks": design["quality_checks"],
+            "fallback": "ffmpeg_basic_motion",
+        })
+
+    plans.sort(key=lambda item: (-int(item["priority"]), int(item["scene_number"])))
+    selected_numbers = {int(item["scene_number"]) for item in plans[:max_highlights]}
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        scene_number = int(scene.get("scene_number") or scene.get("scene_order") or 0)
+        if scene_number in selected_numbers:
+            match = next(item for item in plans if int(item["scene_number"]) == scene_number)
+            scene["ae_effect_plan"] = {"enabled": True, **match}
+        elif scene.get("ae_effect_plan", {}).get("enabled") or any(int(item["scene_number"]) == scene_number for item in plans):
+            scene["ae_effect_plan"] = {"enabled": False, "reason": "below_highlight_threshold"}
+    return [item for item in plans if int(item["scene_number"]) in selected_numbers]
+
+
+AE_MOTION_MOOD_PRESETS = (
+    (
+        "ambient_memory_motion",
+        ("회상", "기억", "그리움", "슬픔", "후회", "memory", "sad", "regret"),
+        {
+            "mood": "quiet_memory",
+            "camera": "slow_pull_back",
+            "light": "soft_paper_bloom",
+            "atmosphere": "paper_grain_dust",
+            "palette": {"primary": [0.82, 0.76, 0.62], "accent": [0.42, 0.37, 0.30], "flash": [0.92, 0.86, 0.70]},
+            "motion": {"push": -0.018, "drift_x": 0.006, "drift_y": 0.006, "shake": 0.0},
+            "intensity": 0.32,
+        },
+    ),
+    (
+        "ambient_tension_motion",
+        ("긴장", "불안", "추적", "위기", "의심", "밤", "tension", "danger", "chase"),
+        {
+            "mood": "low_tension",
+            "camera": "slow_push_in",
+            "light": "narrow_contrast_edge",
+            "atmosphere": "thin_fog_motes",
+            "palette": {"primary": [0.56, 0.66, 0.78], "accent": [0.24, 0.28, 0.34], "flash": [0.72, 0.82, 0.92]},
+            "motion": {"push": 0.042, "drift_x": -0.012, "drift_y": -0.006, "shake": 0.006},
+            "intensity": 0.42,
+        },
+    ),
+    (
+        "ambient_lantern_motion",
+        ("등불", "촛불", "방", "집", "실내", "서책", "편지", "lamp", "candle", "room", "letter"),
+        {
+            "mood": "intimate_lantern",
+            "camera": "slow_drift",
+            "light": "warm_lantern_flicker",
+            "atmosphere": "warm_dust_motes",
+            "palette": {"primary": [0.94, 0.72, 0.42], "accent": [0.50, 0.34, 0.22], "flash": [1.0, 0.86, 0.58]},
+            "motion": {"push": 0.024, "drift_x": 0.010, "drift_y": -0.004, "shake": 0.0},
+            "intensity": 0.36,
+        },
+    ),
+    (
+        "ambient_landscape_motion",
+        ("산", "길", "마을", "들판", "강", "바다", "하늘", "landscape", "road", "village"),
+        {
+            "mood": "wide_breathing_scene",
+            "camera": "gentle_pan",
+            "light": "natural_airlight",
+            "atmosphere": "slow_air_drift",
+            "palette": {"primary": [0.66, 0.76, 0.70], "accent": [0.34, 0.42, 0.38], "flash": [0.82, 0.88, 0.80]},
+            "motion": {"push": 0.012, "drift_x": -0.024, "drift_y": 0.002, "shake": 0.0},
+            "intensity": 0.28,
+        },
+    ),
+)
+
+AE_DEFAULT_MOTION_PRESET = {
+    "preset": "ambient_scene_motion",
+    "mood": "cinematic_still_life",
+    "camera": "slow_push_in",
+    "light": "soft_focus_edge_light",
+    "atmosphere": "subtle_dust_motes",
+    "palette": {"primary": [0.66, 0.74, 0.82], "accent": [0.32, 0.38, 0.46], "flash": [0.78, 0.84, 0.90]},
+    "motion": {"push": 0.026, "drift_x": -0.006, "drift_y": -0.004, "shake": 0.0},
+    "intensity": 0.30,
+}
+
+
+def _motion_target(scene_blob: str) -> dict[str, Any]:
+    for _, keywords, target in AE_TARGET_KEYWORDS:
+        if any(keyword.lower() in scene_blob for keyword in keywords):
+            return dict(target)
+    if any(word in scene_blob for word in ("인물", "얼굴", "표정", "woman", "man", "face", "person")):
+        return {"type": "face", "x": 0.50, "y": 0.36}
+    return {"type": "scene_focus", "x": 0.50, "y": 0.52}
+
+
+def _motion_design(scene_blob: str) -> dict[str, Any]:
+    selected = {"preset": AE_DEFAULT_MOTION_PRESET["preset"], **AE_DEFAULT_MOTION_PRESET}
+    for preset, keywords, design in AE_MOTION_MOOD_PRESETS:
+        if any(keyword.lower() in scene_blob for keyword in keywords):
+            selected = {"preset": preset, **design}
+            break
+    design = json.loads(json.dumps(selected))
+    target = _motion_target(scene_blob)
+    design["targets"] = [target, {"type": "ambient_depth", "x": 1.0 - float(target["x"]) * 0.45, "y": min(0.86, float(target["y"]) + 0.24)}]
+    design["vfx"] = ["cinematic_camera", design["atmosphere"], "focus_glow", "subtle_vignette"]
+    design["quality_checks"] = {
+        "min_duration_seconds": 1.0,
+        "min_output_bytes": 1024,
+        "targeted_effects_required": False,
+        "fallback_on_failure": "ffmpeg_basic_motion",
+    }
+    return design
+
+
+def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Attach lightweight AE motion plans so ordinary images can be video-finished too."""
+    category_blob = _text_blob(
+        payload.get("category"),
+        payload.get("category_name"),
+        payload.get("category_name_ko"),
+        payload.get("category_name_en"),
+        payload.get("script_style"),
+    )
+    plans: list[dict[str, Any]] = []
+    for index, scene in enumerate(scenes, 1):
+        if not isinstance(scene, dict):
+            continue
+        scene_number = int(scene.get("scene_number") or scene.get("scene_order") or index)
+        effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+        if effect_plan.get("enabled"):
+            scene["ae_motion_plan"] = {"enabled": False, "reason": "covered_by_ae_effect_plan"}
+            continue
+        scene_blob = _text_blob(
+            category_blob,
+            scene.get("scene_summary"),
+            scene.get("scene_situation"),
+            scene.get("scene_purpose"),
+            scene.get("scene_emotion"),
+            scene.get("scene_text"),
+            scene.get("narration"),
+            scene.get("image_prompt"),
+        )
+        design = _motion_design(scene_blob)
+        plan = {
+            "enabled": True,
+            "tier": "ambient",
+            "scene_number": scene_number,
+            "preset": design["preset"],
+            "priority": 1,
+            "duration_seconds": int(scene.get("duration_seconds") or scene.get("target_duration") or 4),
+            "direction": "After Effects ambient motion: cinematic camera drift, atmosphere, focus glow, and subtle vignette.",
+            "mood": design["mood"],
+            "camera": design["camera"],
+            "light": design["light"],
+            "atmosphere": design["atmosphere"],
+            "vfx": design["vfx"],
+            "targets": design["targets"],
+            "palette": design["palette"],
+            "intensity": design["intensity"],
+            "motion": design["motion"],
+            "transition_in": "soft_settle",
+            "transition_out": "hold_frame",
+            "quality_checks": design["quality_checks"],
+            "fallback": "ffmpeg_basic_motion",
+        }
+        scene["ae_motion_plan"] = plan
+        plans.append({key: value for key, value in plan.items() if key != "enabled"})
+    return plans
+
+
+def _scene_policy_blob(scene: dict[str, Any], category_blob: str) -> str:
+    return _text_blob(
+        category_blob,
+        scene.get("scene_summary"),
+        scene.get("scene_situation"),
+        scene.get("scene_purpose"),
+        scene.get("scene_emotion"),
+        scene.get("scene_text"),
+        scene.get("narration"),
+        scene.get("image_prompt"),
+    )
+
+
+def _scene_has_character_focus(blob: str) -> bool:
+    return any(word in blob for word in (
+        "인물", "얼굴", "표정", "손", "눈", "소년", "소녀", "남자", "여자", "노인", "주인공",
+        "face", "person", "man", "woman", "boy", "girl", "eyes", "hand", "character",
+    ))
+
+
+def _plan_image_generation_efficiency(
+    scenes: list[dict[str, Any]],
+    payload: dict[str, Any],
+    ae_effect_plans: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Keep image credits flat: one base image per scene, local layers for motion, extra images only for top highlights."""
+    scene_count = len([scene for scene in scenes if isinstance(scene, dict)])
+    multi_cap = max(0, min(3, round(scene_count * 0.08)))
+    layer_cap = max(1, min(scene_count, round(scene_count * 0.25))) if scene_count else 0
+    effect_by_scene = {int(plan["scene_number"]): plan for plan in ae_effect_plans if str(plan.get("scene_number", "")).isdigit()}
+    multi_numbers = {
+        int(item["scene_number"])
+        for item in sorted(effect_by_scene.values(), key=lambda p: (-int(p.get("priority") or 0), int(p["scene_number"])))[:multi_cap]
+    }
+    category_blob = _text_blob(
+        payload.get("category"),
+        payload.get("category_name"),
+        payload.get("category_name_ko"),
+        payload.get("category_name_en"),
+        payload.get("script_style"),
+    )
+    layer_candidates: list[tuple[int, int, bool]] = []
+    for index, scene in enumerate(scenes, 1):
+        if not isinstance(scene, dict):
+            continue
+        number = int(scene.get("scene_number") or scene.get("scene_order") or index)
+        blob = _scene_policy_blob(scene, category_blob)
+        effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+        motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
+        priority = int(effect_plan.get("priority") or motion_plan.get("priority") or 1)
+        has_character = _scene_has_character_focus(blob)
+        if has_character or effect_plan.get("enabled"):
+            layer_candidates.append((number, priority, has_character))
+
+    layer_numbers = {
+        number for number, _priority, _has_character in sorted(layer_candidates, key=lambda item: (-item[1], item[0]))[:layer_cap]
+    }
+    scene_policies: list[dict[str, Any]] = []
+    for index, scene in enumerate(scenes, 1):
+        if not isinstance(scene, dict):
+            continue
+        number = int(scene.get("scene_number") or scene.get("scene_order") or index)
+        effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+        motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
+        targets = effect_plan.get("targets") or motion_plan.get("targets") or []
+        local_layers = number in layer_numbers
+        multi_image = number in multi_numbers
+        policy = {
+            "scene_number": number,
+            "base_images": 1,
+            "generation_unit": "2x2_grid_panel",
+            "api_generation_units_estimate": 0.25,
+            "estimated_generation_credits": 0.25,
+            "additional_images_allowed": 1 if multi_image else 0,
+            "max_api_generation_units_with_optional_extra": 1.25 if multi_image else 0.25,
+            "multi_image_allowed": multi_image,
+            "multi_image_reason": "top_highlight_only" if multi_image else "credit_guardrail",
+            "layer_strategy": "local_depth_layers" if local_layers else "ae_motion_from_single_image",
+            "local_layer_separation": local_layers,
+            "local_layer_source": "derived_from_single_scene_image_no_generation_credit" if local_layers else "",
+            "preferred_motion_source": "local_layers_then_ae" if local_layers else "single_image_ae_motion",
+            "targets": targets[:3] if isinstance(targets, list) else [],
+        }
+        scene["image_generation_policy"] = policy
+        if local_layers:
+            scene["local_layer_plan"] = {
+                "enabled": True,
+                "source": "single_scene_image",
+                "method": "local_segmentation_or_depth_proxy",
+                "outputs": ["foreground_rgba", "background_plate"],
+                "credit_cost": 0,
+                "targets": policy["targets"],
+            }
+        else:
+            scene["local_layer_plan"] = {"enabled": False, "reason": "single_image_ae_motion_sufficient"}
+        scene_policies.append(policy)
+
+    return {
+        "mode": "credit_efficient_ae_first",
+        "scene_image_generation_mode": "strict_2x2_grid_one_generation_per_four_scenes",
+        "default_base_images_per_scene": 1,
+        "estimated_api_generation_units_per_scene": 0.25,
+        "grid_panels_per_generation": 4,
+        "multi_image_scene_cap": multi_cap,
+        "local_layer_scene_cap": layer_cap,
+        "extra_images_default": "disabled",
+        "extra_images_allowed_only_for": "top_5_to_10_percent_highlights",
+        "ordinary_scene_strategy": "single_image_plus_ae_motion",
+        "important_scene_strategy": "single_image_plus_local_layers_plus_ae_2_5d",
+        "highlight_scene_strategy": "single_image_plus_ae_effect; optional second image only within cap",
+        "scene_policies": scene_policies,
+    }
 
 
 def _scene_char_budgets(scenes: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, int]]:
@@ -462,6 +910,9 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
     canonical_grids = build_image_grid_prompts(scenes)
     for grid in canonical_grids:
         grid["template"] = "strict_2x2_compact_v1"
+    ae_effect_plans = _plan_ae_effects_for_scenes(scenes, payload or {})
+    ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload or {})
+    image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload or {}, ae_effect_plans)
     anchors = package.get("character_continuity_anchors") or []
     main = anchors[0] if anchors else {"character": "narrator", "anchor": "Keep continuity across scenes."}
     supporting = anchors[1:] if len(anchors) > 1 else []
@@ -471,6 +922,13 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
         "image_grid_prompt_status": package.get("image_grid_prompt_status") or "ready",
         "image_grid_prompt_mode": package.get("image_grid_prompt_mode") or "direct_2x2_only",
         "image_grid_prompts": canonical_grids,
+        "ae_effect_plan_status": "planned" if ae_effect_plans else "not_required",
+        "ae_effect_scene_count": len(ae_effect_plans),
+        "ae_effect_plans": ae_effect_plans,
+        "ae_motion_plan_status": "planned" if ae_motion_plans else "not_required",
+        "ae_motion_scene_count": len(ae_motion_plans),
+        "ae_motion_plans": ae_motion_plans,
+        "image_generation_policy": image_efficiency_policy,
         "scenes": scenes,
         "story_core": {
             "protagonist": str((anchors[0] or {}).get("character") or "").strip(),
@@ -837,7 +1295,7 @@ class CodexStagedContentRunner:
             scenes[index - 1]["narration"] = text
             parts.append(text)
         script = "\n\n".join(parts)
-        character_context = {**script_context, "script": script}
+        character_context = {**script_context, "script": script, "child_image_guidance": CHILD_IMAGE_GUIDANCE}
         dialogue_context = {**character_context, 'scenes': scenes}
         for attempt in range(2):
             dialogue_result = self._stage(job_id, '02e_dialogue', dialogue_context, DIALOGUE_TASK)
@@ -876,7 +1334,7 @@ class CodexStagedContentRunner:
         script_context.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"])
         structure.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"],
                          character_anchors=anchors, character_reference_status="ready")
-        media_context = {**script_context, "script": script, "character_anchors": anchors,
+        media_context = {**script_context, "script": script, "character_anchors": anchors, "child_image_guidance": CHILD_IMAGE_GUIDANCE,
                          "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Never substitute a different character."}
         media_task = (
             f"Create prompts only from each final scene_text. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
@@ -916,6 +1374,9 @@ class CodexStagedContentRunner:
                 video = str(item.get("video_prompt") or "").strip()
                 _validate_video_prompt(video, index)
                 scenes[index - 1]["video_prompt"] = video
+        ae_effect_plans = _plan_ae_effects_for_scenes(scenes, payload)
+        ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
+        image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload, ae_effect_plans)
         from services.image_grid_prompts import (
             build_compact_image_grid_prompts,
             grid_windows,
@@ -958,7 +1419,18 @@ class CodexStagedContentRunner:
             validate_image_grid_prompt_readiness(
                 scenes, grids, status="ready", require_status="ready", require_compact_template=True,
             )
-        structure.update({"image_grid_prompt_status": "ready", "image_grid_prompt_mode": "direct_2x2_only", "image_grid_prompts": grids})
+        structure.update({
+            "image_grid_prompt_status": "ready",
+            "image_grid_prompt_mode": "direct_2x2_only",
+            "image_grid_prompts": grids,
+            "ae_effect_plan_status": "planned" if ae_effect_plans else "not_required",
+            "ae_effect_scene_count": len(ae_effect_plans),
+            "ae_effect_plans": ae_effect_plans,
+            "ae_motion_plan_status": "planned" if ae_motion_plans else "not_required",
+            "ae_motion_scene_count": len(ae_motion_plans),
+            "ae_motion_plans": ae_motion_plans,
+            "image_generation_policy": image_efficiency_policy,
+        })
         metadata_context = {**script_context, "structure": structure, "script": script}
         metadata = None
         metadata_error = ""
@@ -982,6 +1454,7 @@ class CodexStagedContentRunner:
         if not isinstance(metadata, dict):
             raise CodexContentError(metadata_error or "metadata stage returned no publish_metadata")
         thumbnail_context = {
+            "child_image_guidance": CHILD_IMAGE_GUIDANCE,
             **script_context,
             "structure": structure,
             "script": script,

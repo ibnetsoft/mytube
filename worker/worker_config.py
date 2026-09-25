@@ -102,6 +102,7 @@ _load_worker_settings_file()
 LOG_FILES = {
     "manager": LOG_DIR / "manager.log",
     "render_worker": LOG_DIR / "render_worker.log",
+    "ae_highlight_worker": LOG_DIR / "ae_highlight_worker.log",
     "remote_drive_worker": LOG_DIR / "remote_drive_worker.log",
     "hermes_worker": LOG_DIR / "hermes_worker.log",
     "local_api": LOG_DIR / "local_api.log",
@@ -136,9 +137,9 @@ WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "poc-worker-token-not-real")
 
 WORKER_PROFILES = ("full", "content_only", "render_only")
 PROFILE_CHILD_SCRIPTS = {
-    "full": ("render_worker", "remote_drive_worker", "hermes_worker", "local_api"),
+    "full": ("render_worker", "ae_highlight_worker", "remote_drive_worker", "hermes_worker", "local_api"),
     "content_only": ("hermes_worker", "local_api"),
-    "render_only": ("render_worker", "remote_drive_worker", "local_api"),
+    "render_only": ("render_worker", "ae_highlight_worker", "remote_drive_worker", "local_api"),
 }
 
 

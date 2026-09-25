@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -40,6 +41,7 @@ WORKER_ID = hashlib.sha256((socket.gethostname() + str(ROOT)).encode()).hexdiges
 ASSETS = ROOT / 'worker/codex_console'
 DOCS = {'repair': ROOT / 'docs/리페어프로세스.md', 'new': ROOT / 'docs/신규생성프로세스.md'}
 app = FastAPI(title='AIR AI Local Worker', docs_url=None, redoc_url=None, openapi_url=None)
+AE_WORKER_ROLE = 'ae_highlight_worker'
 
 
 def digest(value):
@@ -77,6 +79,119 @@ def db_read(table, **params):
 
 def object_value(value):
     return value if isinstance(value, dict) else {}
+
+
+def read_ae_state():
+    path = ROOT / 'output/codex-local-console/ae_state_unused.json'
+    try:
+        import worker_config
+        path = worker_config.STATE_DIR / 'ae_highlight_worker.json'
+    except Exception:
+        pass
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+        heartbeat = float(data.get('heartbeat_at') or 0)
+        data['fresh'] = bool(heartbeat and time.time() - heartbeat < 45)
+        if not data['fresh']:
+            data['status'] = 'stopped'
+            data['pid'] = None
+        return data
+    except Exception:
+        return {}
+
+
+def ae_console_status(limit=20):
+    state = read_ae_state()
+    try:
+        import ae_highlight_worker
+        rows = ae_highlight_worker.fetch_candidate_topics(max(1, min(int(limit), 100)))
+        jobs_for_render = ae_highlight_worker._find_scene_jobs(rows, force=False)
+        planned = ready = rendering = failed = missing_source = 0
+        recent = []
+        for row in rows:
+            structure = object_value(row.get('pregenerated_structure'))
+            scenes = structure.get('scenes') if isinstance(structure.get('scenes'), list) else []
+            for index, scene in enumerate(scenes):
+                if not isinstance(scene, dict):
+                    continue
+                effect_plan = object_value(scene.get('ae_effect_plan'))
+                motion_plan = object_value(scene.get('ae_motion_plan'))
+                plan_kind = 'effect' if effect_plan.get('enabled') else 'motion' if motion_plan.get('enabled') else ''
+                plan = effect_plan if plan_kind == 'effect' else motion_plan
+                if not plan.get('enabled'):
+                    continue
+                planned += 1
+                metadata = object_value(scene.get('metadata'))
+                asset_key = 'ae_motion_asset' if plan_kind == 'motion' else 'ae_effect_asset'
+                status_key = 'ae_motion_status' if plan_kind == 'motion' else 'ae_effect_status'
+                video_key = 'ae_motion_video_url' if plan_kind == 'motion' else 'ae_video_url'
+                ae_asset = object_value(metadata.get(asset_key))
+                status = str(ae_asset.get('status') or scene.get(status_key) or 'planned').lower()
+                ready += status == 'ready'
+                rendering += status == 'rendering'
+                failed += status == 'failed'
+                missing_source += 0 if ae_highlight_worker._gcs_ref_from_scene(scene) else 1
+                if len(recent) < 12:
+                    recent.append({
+                        'topic_id': str(row.get('id') or ''),
+                        'title': row.get('generated_title') or row.get('topic') or str(row.get('id') or ''),
+                        'scene_number': scene.get('scene_number') or scene.get('scene_order') or index + 1,
+                        'preset': plan.get('preset') or 'wuxia_sword_aura',
+                        'plan_kind': plan_kind,
+                        'mood': plan.get('mood') or '',
+                        'camera': plan.get('camera') or '',
+                        'targets': plan.get('targets') if isinstance(plan.get('targets'), list) else [],
+                        'status': status,
+                        'media_url': ae_asset.get('media_url') or scene.get(video_key) or '',
+                        'error': ae_asset.get('error') or '',
+                    })
+        afterfx = Path(os.environ.get('AE_AFTERFX_PATH') or ae_highlight_worker.DEFAULT_AFTERFX)
+        aerender = Path(os.environ.get('AE_AERENDER_PATH') or ae_highlight_worker.DEFAULT_AERENDER)
+        return {
+            'success': True,
+            'state': state,
+            'candidate_count': len(jobs_for_render),
+            'topics_scanned': len(rows),
+            'summary': {'planned': planned, 'ready': ready, 'rendering': rendering,
+                        'failed': failed, 'missing_source': missing_source, 'recent': recent},
+            'jobs': [{'topic_id': job.topic_id, 'title': job.topic_title, 'scene_number': job.scene_number,
+                      'preset': job.preset, 'plan_kind': job.plan_kind, 'duration_seconds': job.duration_seconds,
+                      'mood': object_value(job.scene.get('ae_motion_plan' if job.plan_kind == 'motion' else 'ae_effect_plan')).get('mood') or '',
+                      'camera': object_value(job.scene.get('ae_motion_plan' if job.plan_kind == 'motion' else 'ae_effect_plan')).get('camera') or '',
+                      'targets': object_value(job.scene.get('ae_motion_plan' if job.plan_kind == 'motion' else 'ae_effect_plan')).get('targets') or [],
+                      'source': {'bucket': job.source.bucket, 'path': job.source.path}}
+                     for job in jobs_for_render[:20]],
+            'capability': {'afterfx_path': str(afterfx), 'aerender_path': str(aerender),
+                           'afterfx_exists': afterfx.is_file(), 'aerender_exists': aerender.is_file()},
+        }
+    except Exception as exc:
+        return {
+            'success': False,
+            'state': state,
+            'candidate_count': 0,
+            'topics_scanned': 0,
+            'summary': {'planned': 0, 'ready': 0, 'rendering': 0, 'failed': 0, 'missing_source': 0, 'recent': []},
+            'jobs': [],
+            'capability': {},
+            'error': str(exc),
+        }
+
+
+def start_ae_worker_process():
+    state = read_ae_state()
+    if state.get('fresh') and state.get('status') not in ('stopped', 'failed'):
+        return {'success': True, 'already_running': True, 'pid': state.get('pid')}
+    log_path = OUT / 'ae_highlight_worker.log'
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_handle = log_path.open('a', encoding='utf-8', errors='replace')
+    cmd = [sys.executable, str(ROOT / 'worker/ae_highlight_worker.py'), '--loop']
+    kwargs = {'cwd': str(ROOT), 'stdin': subprocess.DEVNULL, 'stdout': log_handle, 'stderr': log_handle}
+    if sys.platform == 'win32':
+        kwargs['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
+    process = subprocess.Popen(cmd, **kwargs)
+    return {'success': True, 'pid': process.pid, 'log_path': str(log_path)}
 
 
 def summary(row, kind):
@@ -408,6 +523,29 @@ def status():
             'storage': {'connected': jobs.cloud_ready and not storage_error, 'error': storage_error or jobs.cloud_error,
                         'pending': sum(r.get('sync_status') == 'pending' for r in jobs.rows.values())},
             'login_status': '미확인 — CLI 설치 확인은 로그인/실행 성공을 보장하지 않습니다.'}
+
+
+@app.get('/api/ae-highlight/status')
+def ae_highlight_status(limit: int = 20):
+    return ae_console_status(limit)
+
+
+@app.post('/api/ae-highlight/start')
+def ae_highlight_start():
+    try:
+        return start_ae_worker_process()
+    except Exception as exc:
+        raise HTTPException(502, f'AE 워커 시작 실패: {exc}')
+
+
+@app.post('/api/ae-highlight/stop')
+def ae_highlight_stop():
+    try:
+        from shutdown_flag import request_shutdown
+        request_shutdown(AE_WORKER_ROLE)
+        return {'success': True, 'status': 'shutdown_requested'}
+    except Exception as exc:
+        raise HTTPException(502, f'AE 워커 중지 요청 실패: {exc}')
 
 
 @app.get('/api/catalog')
