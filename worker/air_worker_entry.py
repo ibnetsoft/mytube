@@ -27,6 +27,7 @@ Usage:
   AIRWorker.exe --role render_worker
   AIRWorker.exe --role ae_highlight_worker
   AIRWorker.exe --role remote_drive_worker
+  AIRWorker.exe --role premiere_final_worker
   AIRWorker.exe --role hermes_worker
   AIRWorker.exe --role local_api
 
@@ -74,7 +75,7 @@ try:
 except Exception:
     pass
 
-ROLES = ("manager", "render_worker", "ae_highlight_worker", "remote_drive_worker", "hermes_worker", "local_api")
+ROLES = ("manager", "render_worker", "ae_highlight_worker", "premiere_final_worker", "remote_drive_worker", "hermes_worker", "local_api")
 
 
 def _dispatch(role: str, crash_now: bool):
@@ -93,6 +94,8 @@ def _dispatch(role: str, crash_now: bool):
         import render_worker as mod
     elif role == "ae_highlight_worker":
         import ae_highlight_worker as mod
+    elif role == "premiere_final_worker":
+        import premiere_final_worker as mod
     elif role == "remote_drive_worker":
         import remote_drive_worker_process as mod
     elif role == "hermes_worker":

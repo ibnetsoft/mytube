@@ -24,6 +24,7 @@ from PIL import Image, ImageFilter, ImageOps
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from worker.thumbnail_contract import background_ready, can_sync_background
+from worker import image_recovery
 BUCKET = "content-assets"
 WIDTH, HEIGHT = 1920, 1080
 
@@ -52,6 +53,7 @@ def _topic(topic_id: str) -> tuple[dict[str, Any], str, dict[str, str]]:
 
 
 def export_prompt(topic_id: str, output_path: Path) -> Path:
+    if output_path.exists(): raise FileExistsError('Use a new revision path; preserve recovery history')
     row, _, _ = _topic(topic_id)
     progress = row.get("progress_payload") if isinstance(row.get("progress_payload"), dict) else {}
     prompt = str(progress.get("thumbnail_image_prompt") or "").strip()
@@ -79,6 +81,7 @@ def export_prompt(topic_id: str, output_path: Path) -> Path:
         ),
         encoding="utf-8",
     )
+    image_recovery.ensure_state(output_path)
     return output_path
 
 
@@ -170,7 +173,16 @@ def _sync_claimed_std_projects(
     return synced
 
 
-def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False) -> str:
+def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False, manifest_path: Path | None = None) -> str:
+    if manifest_path is not None:
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        state = json.loads(image_recovery.state_path(manifest_path).read_text(encoding='utf-8'))
+        if str(manifest['topic_id']) != str(topic_id) or state['source_hash'] != image_recovery.digest(manifest):
+            raise ValueError('Thumbnail recovery manifest mismatch')
+        if not image_recovery.summary(state)['complete']: raise ValueError('Thumbnail recovery incomplete')
+        jobs = [j for j in state['jobs'] if j['status']=='ready']
+        if len(jobs)!=1 or image_recovery.verify_file(jobs[0]).read_bytes()!=source_path.read_bytes():
+            raise ValueError('Thumbnail does not match reviewed image')
     if not source_path.is_file():
         raise FileNotFoundError(source_path)
     row, base_url, headers = _topic(topic_id)
@@ -229,11 +241,12 @@ def main() -> None:
     publish_cmd.add_argument("--topic-id", required=True)
     publish_cmd.add_argument("--image", required=True, type=Path)
     publish_cmd.add_argument("--create-bucket", action="store_true")
+    publish_cmd.add_argument("--manifest", required=True, type=Path)
     args = parser.parse_args()
     if args.command == "export":
         print(export_prompt(args.topic_id, args.out))
     else:
-        print(publish(args.topic_id, args.image, create_bucket=args.create_bucket))
+        print(publish(args.topic_id, args.image, create_bucket=args.create_bucket, manifest_path=args.manifest))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,11 @@
+imported_name=source
+imported_type=Composition
+comp_width=2000
+comp_height=27000
+comp_duration=30
+layer_count=4
+1	name=식자	source=식자	size=2000x27000	start=0	in=0	out=30
+2	name=컷 1	source=컷 1/source.psd	size=2000x27000	start=0	in=0	out=30
+3	name=컷 1	source=컷 1	size=2000x27000	start=0	in=0	out=30
+4	name=용지	source=용지/source.psd	size=2000x27000	start=0	in=0	out=30
+project_saved=D:/Projects/에어스튜디오/mytube_clone_20260828/ae_layer_tests/layer_import_test.aep

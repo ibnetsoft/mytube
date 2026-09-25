@@ -1,0 +1,7 @@
+source_comp=source 2000x27000 layers=4
+test_scale_percent=27
+queued=test_01_scroll_pan.avi
+queued=test_02_layer_parallax.avi
+effect_added=Glow on 식자
+queued=test_03_shake_flash_glow.avi
+project_saved=D:/Projects/에어스튜디오/mytube_clone_20260828/ae_layer_tests/layer_effect_tests.aep

@@ -1,0 +1,10 @@
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'output/repair-3292-20260915');
+const webRequire=require('module').createRequire(path.join(root,'auth-web/package.json'));
+const ts=webRequire('typescript'),box={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'auth-web/lib/stdDialogueAnnotations.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module:box,exports:box.exports,require});
+const before=JSON.parse(fs.readFileSync(path.join(out,'before-quote-removal.json'),'utf8')).project.project_payload;
+const after=JSON.parse(fs.readFileSync(path.join(out,'after-quote-removal.json'),'utf8')).project.project_payload;
+const classify=p=>Array.from(box.exports.mapDialogueAnnotations(p.subtitles,p.structure.dialogue_annotations)).map(([index,parts])=>({index,chars:parts.flatMap(part=>Array.from(part.text).filter(c=>!/[\s"'“”‘’「」『』]/u.test(c)).map(c=>({c,dialogue:part.dialogue,speaker:part.speaker})))}));
+assert.strictEqual(JSON.stringify(classify(before)),JSON.stringify(classify(after)));
+console.log('PASS: all subtitle character speaker/dialogue classifications unchanged after quote removal');

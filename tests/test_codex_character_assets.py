@@ -23,6 +23,22 @@ def test_portraits_must_be_real_bitmaps(tmp_path):
         assets.validate_portrait(path)
 
 
+def test_child_portrait_preserves_age_and_safe_guidance(tmp_path):
+    class Generator:
+        def generate(self, prompt):
+            assert "Approved character age: 12" in prompt
+            assert "Never conceal age" in prompt
+            assert "recorded human review" in prompt
+            return tmp_path / "portrait.png"
+    class Store:
+        def publish(self, topic, c, path, fingerprint, payload):
+            return {**c, "image_url": "https://assets.example/portrait.png"}
+    assets.generate_character_references(
+        {"script": "A quiet family moment", "main_character": {
+            **character("순덕"), "age_group": "12", "visual_dna_en": "Korean girl, black braid"}},
+        {"topic_queue_id": 3292}, None, tmp_path, generator=Generator(), store=Store())
+
+
 def test_generation_and_storage_are_mandatory(tmp_path):
     calls = []
     class Generator:

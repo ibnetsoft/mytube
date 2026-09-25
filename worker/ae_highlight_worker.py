@@ -26,6 +26,7 @@ from urllib.parse import parse_qs, quote, urlparse
 import requests
 
 import worker_config
+from adobe_tools import find_aerender, find_afterfx
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -942,10 +943,10 @@ def _quality_report(job: SceneJob, mp4_path: Path) -> dict[str, Any]:
 
 
 def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
-    afterfx = Path(os.getenv("AE_AFTERFX_PATH") or DEFAULT_AFTERFX)
-    aerender = Path(os.getenv("AE_AERENDER_PATH") or DEFAULT_AERENDER)
+    afterfx = find_afterfx() or Path(DEFAULT_AFTERFX)
+    aerender = find_aerender() or Path(DEFAULT_AERENDER)
     if not afterfx.is_file() or not aerender.is_file():
-        raise AeWorkerError(f"After Effects CS6 executables not found: {afterfx} / {aerender}")
+        raise AeWorkerError(f"After Effects executables not found: {afterfx} / {aerender}")
 
     workdir = worker_config.TEMP_DIR / "ae_highlight" / f"{job.topic_id}-{job.scene_number:03d}-{uuid.uuid4().hex[:8]}"
     source_suffix = Path(job.source.path).suffix.lower()

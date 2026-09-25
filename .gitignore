@@ -56,6 +56,7 @@ worker/voicebox_outputs/
 *.zip
 *.rar
 *.7z
+*.psd
 *.mp4
 *.mov
 *.avi
