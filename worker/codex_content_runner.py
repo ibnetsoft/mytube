@@ -605,9 +605,9 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
         voice = (
             "[Category narration voice: 옛날이야기]\n"
             "A warm Korean folk-storyteller is telling the tale directly to listeners. Use 구수한 구연체, gentle suspense, "
-            "and old-tale transitions such as '그런데 말입니다', '그날 밤이 깊어질수록', '사람들은 그제야' when natural. "
+            "and old-tale transitions such as '그런데 말입니다' or '그날 밤이 깊어질수록' when natural. "
             "Let emotional moments breathe in slightly longer flowing sentences. The narration should feel like a lived tale "
-            "with moral aftertaste, not a list of facts. Avoid modern YouTube commentary or stiff news/report style."
+            "whose meaning comes from action and consequence, not a list of facts or a stated lesson. Avoid modern YouTube commentary or stiff news/report style."
         )
     elif category_id == "4" or any(key in blob for key in ("탈북", "north_korea", "north korean", "survival")):
         voice = (
@@ -625,7 +625,7 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
         voice = (
             "[Category narration voice: 해외감동]\n"
             "Write like a warm translated human documentary: clear Korean, universally understandable emotion, vivid setting, "
-            "and a gentle uplifting payoff. Avoid awkward literal translation tone and avoid excessive sentimentality."
+            "and a concrete humane outcome. Avoid awkward literal translation tone, excessive sentimentality, and direct moral summaries."
         )
     elif category_id == "7" or any(key in blob for key in ("무협", "martial", "wuxia")):
         voice = (
@@ -670,7 +670,7 @@ def _script_rhythm_contract(payload: dict[str, Any]) -> str:
         if int(scene.get("duration_seconds") or 0) > 6:
             break
         first_hook_count += 1
-    hook_rule = (f"- Scenes 1-{first_hook_count} are short opening beats: concise, vivid, and distinct, but still spoken naturally.\n"
+    hook_rule = (f"- Scenes 1-{first_hook_count} are short opening beats, but they must behave like one connected opening question, not unrelated teasers.\n"
                  if first_hook_count else "- This existing project has no mandatory 5-second opening cuts; follow its actual scene_budgets and introduce the story naturally.\n")
     rhythm = (
         "[Script rhythm QA contract]\n"
@@ -685,6 +685,24 @@ def _script_rhythm_contract(payload: dict[str, Any]) -> str:
         rhythm = rhythm.replace('such as 했다/였다/있었다/나왔다', 'in the selected language')
         rhythm = rhythm.replace('under 25 Korean characters', 'that are unnaturally short in the selected language')
     return rhythm
+
+
+def _story_spine_contract(payload: dict[str, Any]) -> str:
+    notes = str(payload.get("notes") or payload.get("user_direction") or "").strip()
+    source_based = any(token in notes for token in ("고정 story_spine", "주인공이 원하는 것", "첫 원인 사건", "구체적 해결", "마지막에 달라진 행동"))
+    authority = (
+        "- The supplied notes include a fixed story_spine. Treat it as the story's authority: preserve the protagonist, want, causal problem, escalation, turn, resolution, and final changed action.\n"
+        if source_based else
+        "- Build one explicit story_spine before writing: protagonist, want, causal problem, escalation, irreversible turn, resolution, and final changed action.\n"
+    )
+    return (
+        "[Story spine and anti-sermon contract]\n"
+        + authority +
+        "- Every scene must advance the same cause-effect chain. Do not insert unrelated dialogue, sudden confessions, new villains, new letters, or unexplained emotional speeches just to raise emotion.\n"
+        "- Direct dialogue is optional and scarce. Use it only when the surrounding action makes the line necessary; no speaker labels, interview format, or floating quote exchanges.\n"
+        "- The ending must close on a concrete changed action and visible consequence. Do not state the lesson, moral, healing message, or what listeners should feel.\n"
+        "- A first-time listener should be able to summarize who wanted what, what blocked them, what changed, and what they did at the end without guessing."
+    )
 
 
 _BLUNT_KOREAN_ENDINGS = (
@@ -744,6 +762,39 @@ def _script_rhythm_warnings(sections: list[Any]) -> list[str]:
                 warnings.append("body narration contains 4+ consecutive very short Korean sentences")
                 return warnings[:5]
     return warnings[:5]
+
+
+_FORCED_MORAL_PATTERNS = (
+    "교훈", "감동을 주", "감동을 남", "진정한 의미", "소중함을 깨달", "그제야 깨달",
+    "비로소 깨달", "마음속 깊이", "가슴 깊이", "따뜻한 울림", "새 삶을 시작",
+    "모두가 용서", "기적처럼", "눈물을 흘리며", "행복하게 살",
+)
+
+
+def _story_flow_warnings(sections: list[Any]) -> list[str]:
+    texts = [
+        str((section or {}).get("text") or "").strip() if isinstance(section, dict) else ""
+        for section in sections
+    ]
+    full_script = "\n".join(texts)
+    warnings: list[str] = []
+    moral_hits = [pattern for pattern in _FORCED_MORAL_PATTERNS if pattern in full_script]
+    tail = "\n".join(texts[max(0, len(texts) - 5):])
+    tail_moral_hits = [pattern for pattern in _FORCED_MORAL_PATTERNS if pattern in tail]
+    if len(moral_hits) >= 3 or tail_moral_hits:
+        warnings.append("script leans on direct lesson/emotional-summary phrases instead of changed action")
+
+    speaker_label_count = sum(
+        1 for text in texts
+        if re.search(r"(^|\n)\s*[가-힣A-Za-z0-9_]{1,12}\s*[:：]", text)
+    )
+    if speaker_label_count:
+        warnings.append("narration contains speaker-label dialogue formatting")
+
+    quote_scenes = sum(1 for text in texts if re.search(r"[\"“”‘’][^\"“”‘’]{2,80}[\"“”‘’]", text))
+    if quote_scenes > max(4, len(texts) // 5):
+        warnings.append("too many scenes rely on direct quoted dialogue for a narration-first script")
+    return warnings[:4]
 
 
 @dataclass(frozen=True)
@@ -817,12 +868,17 @@ def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = 
         raise CodexContentError("Codex response requires publish_metadata object")
     raw_script = package.get("script")
     sections = [{"scene_order": i, "text": text} for i, text in enumerate(raw_script.split("\n\n"), 1)] if isinstance(raw_script, str) else []
-    issues = text_issues(sections, payload or {}) + review_issues(package.get("script_quality_report"))
+    issues = text_issues(sections, payload or {}) + _story_flow_warnings(sections) + review_issues(package.get("script_quality_report"))
     issues += text_issues([
         {"scene_order": i, "text": scene.get("scene_text") or scene.get("narration")}
         if isinstance(scene, dict) else {}
         for i, scene in enumerate(structure["scenes"], 1)
     ], payload or {})
+    issues += _story_flow_warnings([
+        {"scene_order": i, "text": scene.get("scene_text") or scene.get("narration")}
+        if isinstance(scene, dict) else {}
+        for i, scene in enumerate(structure["scenes"], 1)
+    ])
     if issues:
         raise CodexContentError("senior script gate rejected package: " + "; ".join(issues[:12]))
     schedule = _pacing_schedule((payload or {}).get("target_duration_seconds"))
@@ -1184,6 +1240,7 @@ class CodexStagedContentRunner:
         )
         category_narration_voice = _category_narration_voice(payload)
         script_rhythm_contract = _script_rhythm_contract(payload)
+        story_spine_contract = _story_spine_contract(payload)
         plan_context = {
             **payload,
             "content_setting": setting,
@@ -1193,8 +1250,9 @@ class CodexStagedContentRunner:
             "script_style_directive": script_style_directive,
             "category_narration_voice": category_narration_voice,
             "script_rhythm_contract": script_rhythm_contract,
+            "story_spine_contract": story_spine_contract,
         }
-        plan = self._stage(job_id, "01_plan", plan_context, f"Create exactly {len(schedule)} scene plans using this mandatory internal pacing schedule: {json.dumps(schedule)}. Return JSON with narrative_blueprint, main_character, supporting_characters, story_core, and scenes. story_core must contain protagonist, opening_incident, personal_stake, central_conflict, midpoint_reversal, and final_payoff. Every scene needs scene_order, scene_summary, scene_situation, scene_purpose, scene_emotion, character_choice, emotional_shift, reveal_or_question, and duration_seconds. The first 12 must be distinct 5-second hook beats. Use category_narration_voice and script_style_directive to shape scene purposes, emotional rhythm, and payoff texture; do not plan a chain of clipped factual summaries.")
+        plan = self._stage(job_id, "01_plan", plan_context, f"Create exactly {len(schedule)} scene plans using this mandatory internal pacing schedule: {json.dumps(schedule)}. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract. Return JSON with narrative_blueprint, main_character, supporting_characters, story_core, and scenes. narrative_blueprint must include story_spine and cause_effect_chain. story_core must contain protagonist, protagonist_want, first_causal_problem, personal_stake, central_conflict, escalation, irreversible_turn, concrete_resolution, and final_changed_action. Every scene needs scene_order, scene_summary, scene_situation, scene_purpose, scene_emotion, character_choice, emotional_shift, reveal_or_question, and duration_seconds. The first 12 short scenes must form one connected opening question, not 12 unrelated hook lines. Plan scene purposes around cause and consequence, not message delivery; do not plan moral speeches, clipped factual summaries, or a forced inspirational payoff.")
         scenes = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
         if len(scenes) != len(schedule):
             raise CodexContentError(f"legacy pacing requires {len(schedule)} planned scenes; got {len(scenes)}")
@@ -1212,7 +1270,7 @@ class CodexStagedContentRunner:
             "main_character": plan.get("main_character") or {},
             "supporting_characters": plan.get("supporting_characters") or [],
         }
-        written = self._stage(job_id, "02_script", script_context, f"Write narration for the supplied scene plans using scene_budgets as hard per-scene character budgets. Apply category_narration_voice, script_style_directive, and script_rhythm_contract strictly. Return {{'sections':[{{'scene_order':n,'text':'...'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'revision_notes':[]}}}}. Return exactly {len(scenes)} ordered sections. Each section must fit its duration and concatenate without omissions or duplication into the finished narration. For each scene, dramatize a concrete action, choice, reveal, or consequence; do not summarize the plan. Make the narration sound read aloud and category-specific, not like short scene cards. Never use headings, timestamps, camera directions, or metadata in narration.")
+        written = self._stage(job_id, "02_script", script_context, f"Write narration for the supplied scene plans using scene_budgets as hard per-scene character budgets. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract strictly. Return {{'sections':[{{'scene_order':n,'text':'...'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'story_spine_score':0-100,'anti_sermon_score':0-100,'dialogue_context_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'revision_notes':[]}}}}. Return exactly {len(scenes)} ordered sections. Each section must fit its duration and concatenate without omissions or duplication into the finished narration. For each scene, dramatize a concrete action, choice, reveal, or consequence; do not summarize the plan. Prefer narration over direct dialogue; use quoted speech only when the surrounding action makes it necessary and never use speaker labels. End through concrete changed behavior and consequence, not a lesson sentence. Make the narration sound read aloud and category-specific, not like short scene cards. Never use headings, timestamps, camera directions, or metadata in narration.")
         sections = written.get("sections") if isinstance(written.get("sections"), list) else []
         if len(sections) != len(scenes):
             raise CodexContentError(f"script requires {len(scenes)} sections; got {len(sections)}")
@@ -1229,7 +1287,7 @@ class CodexStagedContentRunner:
             parts.append(text)
         script = "\n\n".join(parts)
         qa_context = {**script_context, "script": script, "sections": sections}
-        qa_task = f"Perform the legacy script QA/rewrite pass. Apply category_narration_voice, script_style_directive, and script_rhythm_contract as hard QA criteria. Score hook, title promise, protagonist/conflict, rising tension, continuity, midpoint reversal, final payoff, spoken naturalness, category voice fit, sentence rhythm, repetitive-ending control, emotion cues, and paragraph-opening variety. Return {{'sections':[{{'scene_order':n,'text':'final narration'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'hook_score':0-100,'structure_score':0-100,'retention_score':0-100,'payoff_score':0-100,'naturalness_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'strengths':[],'revision_notes':[]}}}} with exactly {len(scenes)} ordered sections. A pass requires score >=82, category_voice_score >=85, rhythm_score >=85, repetitive_ending_score >=85, and an empty critical_issues array. Preserve scene order and character budgets. Rewrite any section chain that sounds like clipped factual reports, repeats blunt endings such as 했다/였다/있었다/나왔다, or loses the category-specific spoken voice. Do not add headings/timestamps/camera directions."
+        qa_task = f"Perform the legacy script QA/rewrite pass. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract as hard QA criteria. Score hook, title promise, story spine fidelity, protagonist/want/conflict clarity, rising tension, continuity, midpoint reversal, concrete final changed action, spoken naturalness, dialogue context, anti-sermon restraint, category voice fit, sentence rhythm, repetitive-ending control, emotion cues, and paragraph-opening variety. Before scoring, write a private first-time-listener summary of protagonist, want, obstacle, turn, and ending; if that summary is not clear from the script alone, revise. Return {{'sections':[{{'scene_order':n,'text':'final narration'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'hook_score':0-100,'structure_score':0-100,'story_spine_score':0-100,'retention_score':0-100,'payoff_score':0-100,'naturalness_score':0-100,'dialogue_context_score':0-100,'anti_sermon_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'listener_summary':'5-sentence max summary of the final script','critical_issues':[],'strengths':[],'revision_notes':[]}}}} with exactly {len(scenes)} ordered sections. A pass requires score >=82, story_spine_score >=88, dialogue_context_score >=85, anti_sermon_score >=90, category_voice_score >=85, rhythm_score >=85, repetitive_ending_score >=85, and an empty critical_issues array. Preserve scene order and character budgets. Rewrite any section chain that sounds like clipped factual reports, repeats blunt endings such as 했다/였다/있었다/나왔다, inserts unmotivated dialogue, states a moral lesson directly, or loses the category-specific spoken voice. Do not add headings/timestamps/camera directions."
         qa: dict[str, Any] = {}
         qa_sections: list[Any] = []
         rhythm_warnings: list[str] = []
@@ -1239,6 +1297,7 @@ class CodexStagedContentRunner:
             if len(qa_sections) != len(scenes):
                 raise CodexContentError(f"script QA requires {len(scenes)} sections; got {len(qa_sections)}")
             rhythm_warnings = _script_rhythm_warnings(qa_sections)
+            rhythm_warnings += _story_flow_warnings(qa_sections)
             rhythm_warnings += text_issues(qa_sections, payload)
             if not rhythm_warnings:
                 review = self._stage(job_id, "02c_senior_review", {
@@ -1279,7 +1338,7 @@ class CodexStagedContentRunner:
             }, 'Independently recheck the exact revised script against the complete senior listening contract. '
                'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.')
             qa['script_quality_report'] = final_review.get('script_quality_report')
-            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + review_issues(qa['script_quality_report'])
+            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report'])
             if final_issues:
                 raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
         structure['listener_quality_report'] = listener_audit
