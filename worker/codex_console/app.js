@@ -164,6 +164,7 @@ $('new-form').onsubmit=e=>{
   start({
     mode:'new',
     production_mode:form.get('production_mode')||'standard',
+    image_layer_mode:form.get('image_layer_mode')||'hybrid',
     title:form.get('title'),
     category,
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',

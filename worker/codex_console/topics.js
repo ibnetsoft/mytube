@@ -137,6 +137,7 @@ window.renderTopicResult=data=>{
       window.newCountryOverridden = true;
       if (form.elements.era_region) form.elements.era_region.value = draft.era_region || '현대 지방 소도시';
       if (form.elements.image_style) form.elements.image_style.value = draft.image_style || '실사';
+      if (form.elements.image_layer_mode) form.elements.image_layer_mode.value = draft.image_layer_mode || 'hybrid';
       form.elements.duration.value=draft.duration_minutes;
       form.elements.notes.value=draft.notes;
       if (window.updateNewSettingSummary) window.updateNewSettingSummary();

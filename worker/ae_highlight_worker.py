@@ -464,10 +464,19 @@ function addFx(layer, matchName, label) {{
   var candidates = [matchName];
   if (label == "Glow") candidates = [matchName, "ADBE Glo2", "Glow"];
   if (label == "Gaussian Blur") candidates = [matchName, "ADBE Fast Blur", "ADBE Gaussian Blur", "Gaussian Blur"];
+  if (label == "Wave Warp") candidates = [matchName, "ADBE Wave Warp", "Wave Warp"];
+  if (label == "Page Turn") candidates = [matchName, "CC Page Turn", "ADBE Page Turn"];
   for (var i = 0; i < candidates.length; i++) {{
     try {{ return layer.property("Effects").addProperty(candidates[i]); }} catch (err) {{}}
   }}
   return null;
+}}
+
+function hasVfx(name) {{
+  for (var i = 0; i < PLAN.vfx.length; i++) {{
+    if (PLAN.vfx[i] == name) return true;
+  }}
+  return false;
 }}
 
 function scaled(value, minValue, maxValue) {{
@@ -586,6 +595,127 @@ function makeLightSweep(comp, name, startPos, endPos, color, delay) {{
   return layer;
 }}
 
+function applyDepthProxy(comp, footage) {{
+  var bgDepth = comp.layers.add(footage);
+  bgDepth.name = "background_depth_plate";
+  var bgScale = Math.max(W / footage.width, H / footage.height) * 105;
+  bgDepth.property("Scale").setValueAtTime(0, [bgScale, bgScale]);
+  bgDepth.property("Scale").setValueAtTime(DUR, [bgScale * (1.01 + INTENSITY * 0.012), bgScale * (1.01 + INTENSITY * 0.012)]);
+  bgDepth.property("Position").setValueAtTime(0, [W / 2 + PLAN.drift_x * W * 0.12, H / 2 + PLAN.drift_y * H * 0.10]);
+  bgDepth.property("Position").setValueAtTime(DUR, [W / 2 - PLAN.drift_x * W * 0.38, H / 2 - PLAN.drift_y * H * 0.25]);
+  bgDepth.moveToEnd();
+  addFx(bgDepth, "ADBE Fast Blur", "Gaussian Blur");
+
+  var fg = comp.layers.add(footage);
+  fg.name = "foreground_focus_depth_proxy";
+  var fgScale = Math.max(W / footage.width, H / footage.height) * (104 + 5 * INTENSITY);
+  fg.property("Scale").setValueAtTime(0, [fgScale, fgScale]);
+  fg.property("Scale").setValueAtTime(DUR, [fgScale * (1.018 + Math.max(0, PLAN.push) * 0.12), fgScale * (1.018 + Math.max(0, PLAN.push) * 0.12)]);
+  fg.property("Position").setValueAtTime(0, [W / 2 - PLAN.drift_x * W * 0.20, H / 2 - PLAN.drift_y * H * 0.18]);
+  fg.property("Position").setValueAtTime(DUR, [W / 2 + PLAN.drift_x * W * 0.65, H / 2 + PLAN.drift_y * H * 0.50]);
+  var mask = fg.Masks.addProperty("Mask");
+  var shape = new Shape();
+  var cx = PRIMARY[0], cy = PRIMARY[1];
+  var rx = W * 0.28, ry = H * 0.34;
+  shape.vertices = [[cx-rx, cy], [cx, cy-ry], [cx+rx, cy], [cx, cy+ry]];
+  shape.inTangents = [[0,-ry*0.55],[-rx*0.55,0],[0,ry*0.55],[rx*0.55,0]];
+  shape.outTangents = [[0,ry*0.55],[rx*0.55,0],[0,-ry*0.55],[-rx*0.55,0]];
+  shape.closed = true;
+  mask.property("Mask Path").setValue(shape);
+  mask.property("Mask Feather").setValue([70, 70]);
+  mask.property("Mask Opacity").setValue(72);
+  return fg;
+}}
+
+function makeBreathingProxy(comp, footage) {{
+  var breath = comp.layers.add(footage);
+  breath.name = "puppet_proxy_breath_idle";
+  var s = Math.max(W / footage.width, H / footage.height) * 100;
+  breath.property("Scale").setValueAtTime(0, [s, s]);
+  breath.property("Scale").setValueAtTime(Math.min(DUR, DUR * 0.45), [s * (1.006 + INTENSITY * 0.014), s * (1.012 + INTENSITY * 0.018)]);
+  breath.property("Scale").setValueAtTime(DUR, [s * 1.003, s * 1.006]);
+  breath.property("Position").setValue([W / 2, H / 2]);
+  var mask = breath.Masks.addProperty("Mask");
+  var shape = new Shape();
+  var cx = PRIMARY[0], cy = PRIMARY[1] + H * 0.08;
+  var rx = W * 0.20, ry = H * 0.30;
+  shape.vertices = [[cx-rx, cy], [cx, cy-ry], [cx+rx, cy], [cx, cy+ry]];
+  shape.inTangents = [[0,-ry*0.55],[-rx*0.55,0],[0,ry*0.55],[rx*0.55,0]];
+  shape.outTangents = [[0,ry*0.55],[rx*0.55,0],[0,-ry*0.55],[-rx*0.55,0]];
+  shape.closed = true;
+  mask.property("Mask Path").setValue(shape);
+  mask.property("Mask Feather").setValue([44, 44]);
+  mask.property("Mask Opacity").setValue(44);
+  setOpacity(breath, 0, 0, 0.3, 34 + 18 * INTENSITY, DUR, 22 + 12 * INTENSITY);
+  addFx(breath, "ADBE Turbulent Displace", "Turbulent Displace");
+  return breath;
+}}
+
+function makeHairClothWave(comp) {{
+  for (var i = 0; i < 6; i++) {{
+    var x = PRIMARY[0] - W * 0.13 + i * W * 0.052;
+    var y = PRIMARY[1] - H * 0.28 + (i % 2) * 12;
+    makeStroke(comp, "hair_cloth_wave_" + i, [[x, y], [x + 12 + i * 2, y + 55], [x - 8, y + 115]], 2 + (i % 2), PRIMARY_COLOR, 0.08 + i * 0.05);
+  }}
+}}
+
+function makeSpeedLines(comp) {{
+  var center = [PRIMARY[0], PRIMARY[1]];
+  for (var i = 0; i < 18; i++) {{
+    var a = (Math.PI * 2 * i) / 18;
+    var r0 = W * 0.18;
+    var r1 = W * (0.55 + (i % 4) * 0.045);
+    var p0 = [center[0] + Math.cos(a) * r0, center[1] + Math.sin(a) * r0];
+    var p1 = [center[0] + Math.cos(a) * r1, center[1] + Math.sin(a) * r1];
+    makeStroke(comp, "speedline_burst_" + i, [p0, p1], 2 + (i % 3), FLASH_COLOR, 0.02 + (i % 5) * 0.025);
+  }}
+}}
+
+function makeSpeechBubbleTypeOn(comp) {{
+  var bubble = comp.layers.addShape();
+  bubble.name = "speech_bubble_type_on_proxy";
+  var group = bubble.property("Contents").addProperty("ADBE Vector Group");
+  var contents = group.property("Contents");
+  var rect = contents.addProperty("ADBE Vector Shape - Rect");
+  rect.property("Size").setValue([px(W * 0.42), px(H * 0.13)]);
+  rect.property("Roundness").setValue(28);
+  var fill = contents.addProperty("ADBE Vector Graphic - Fill");
+  fill.property("Color").setValue([0.96, 0.94, 0.86]);
+  var stroke = contents.addProperty("ADBE Vector Graphic - Stroke");
+  stroke.property("Color").setValue([0.08, 0.08, 0.08]);
+  stroke.property("Stroke Width").setValue(2);
+  bubble.property("Position").setValue([Math.min(W * 0.72, PRIMARY[0] + W * 0.16), Math.max(H * 0.16, PRIMARY[1] - H * 0.22)]);
+  bubble.property("Scale").setValueAtTime(0, [84, 84]);
+  bubble.property("Scale").setValueAtTime(0.28, [104, 104]);
+  bubble.property("Scale").setValueAtTime(0.50, [100, 100]);
+  setOpacity(bubble, 0, 0, 0.18, 86, DUR, 78);
+  for (var i = 0; i < 3; i++) {{
+    var dot = comp.layers.addShape();
+    dot.name = "typing_dot_" + i;
+    var dg = dot.property("Contents").addProperty("ADBE Vector Group");
+    var dc = dg.property("Contents");
+    var el = dc.addProperty("ADBE Vector Shape - Ellipse");
+    el.property("Size").setValue([9, 9]);
+    var df = dc.addProperty("ADBE Vector Graphic - Fill");
+    df.property("Color").setValue([0.12, 0.12, 0.12]);
+    dot.property("Position").setValue([bubble.property("Position").value[0] - 26 + i * 26, bubble.property("Position").value[1]]);
+    setOpacity(dot, 0, 0, 0.34 + i * 0.18, 100, DUR, 70);
+  }}
+}}
+
+function applyPageTurn(comp, layer) {{
+  var fx = addFx(layer, "CC Page Turn", "Page Turn");
+  if (fx) {{
+    try {{
+      fx.property("Fold Position").setValueAtTime(0, [W * 0.98, H * 0.08]);
+      fx.property("Fold Position").setValueAtTime(Math.min(DUR, 1.15), [W * 0.80, H * 0.24]);
+    }} catch (err) {{}}
+  }} else {{
+    layer.property("Rotation").setValueAtTime(0, 0);
+    layer.property("Rotation").setValueAtTime(Math.min(DUR, 0.9), -1.8);
+  }}
+}}
+
 app.beginSuppressDialogs();
 try {{
   if (app.project) app.project.close(CloseOptions.DO_NOT_SAVE_CHANGES);
@@ -612,6 +742,18 @@ try {{
     bg.property("Position").setValueAtTime(0.42, [W / 2 - shakePixels * 0.7, H / 2 + shakePixels * 0.25]);
     bg.property("Position").setValueAtTime(0.55, [W / 2 + PLAN.drift_x * W * 0.3, H / 2 + PLAN.drift_y * H * 0.3]);
   }}
+  if (hasVfx("layered_depth_proxy") || hasVfx("comic_parallax_camera") || hasVfx("depth_of_field")) {{
+    applyDepthProxy(comp, footage);
+  }}
+  if (hasVfx("puppet_breath_idle")) {{
+    makeBreathingProxy(comp, footage);
+  }}
+  if (hasVfx("hair_cloth_wave")) {{
+    makeHairClothWave(comp);
+  }}
+  if (hasVfx("page_turn_transition")) {{
+    applyPageTurn(comp, bg);
+  }}
 
   var fog = comp.layers.addSolid(ACCENT_COLOR, "fractal_moving_fog", W, H, 1, DUR);
   fog.blendingMode = BlendingMode.SCREEN;
@@ -627,6 +769,9 @@ try {{
   }}
   addFx(fog, "ADBE Turbulent Displace", "Turbulent Displace");
   addFx(fog, "ADBE Fast Blur", "Gaussian Blur");
+  if (hasVfx("displacement_wave")) {{
+    addFx(bg, "ADBE Wave Warp", "Wave Warp");
+  }}
   makeFocusGlow(comp, "targeted_primary_glow_" + PLAN.primary.type, PRIMARY, PRIMARY_COLOR, 170 + 130 * INTENSITY, 0.18);
   makeFocusGlow(comp, "targeted_secondary_glow_" + PLAN.secondary.type, SECONDARY, ACCENT_COLOR, 115 + 90 * INTENSITY, 0.55);
   makeLightSweep(comp, "targeted_light_sweep_" + PLAN.light, [PRIMARY[0] - W * 0.55, PRIMARY[1] + H * 0.18], [SECONDARY[0] + W * 0.42, SECONDARY[1] - H * 0.08], FLASH_COLOR, 0.65);
@@ -653,6 +798,7 @@ try {{
     makeStroke(comp, "red_impact_slash", [[PRIMARY[0]-260, PRIMARY[1]+170], [PRIMARY[0]-90, PRIMARY[1]+45], [SECONDARY[0], SECONDARY[1]], [SECONDARY[0]+210, SECONDARY[1]-130]], 18, PRIMARY_COLOR, 0.05);
     makeStroke(comp, "white_impact_core", [[PRIMARY[0]-190, PRIMARY[1]+110], [PRIMARY[0]-20, PRIMARY[1]+5], [SECONDARY[0]+110, SECONDARY[1]-60]], 6, FLASH_COLOR, 0.12);
     makeEllipseRing(comp, "impact_ring", PRIMARY, 25, 250, PRIMARY_COLOR, 0.35);
+    makeSpeedLines(comp);
   }} else if ("{preset}" == "memory_ink_wash") {{
     makeStroke(comp, "ink_memory_reveal", [[PRIMARY[0]-310, PRIMARY[1]+130], [PRIMARY[0]-150, PRIMARY[1]+10], [PRIMARY[0]+60, PRIMARY[1]-40], [SECONDARY[0]+190, SECONDARY[1]-90]], 14, PRIMARY_COLOR, 0.1);
     makeEllipseRing(comp, "paper_memory_ring", PRIMARY, 30, 210, FLASH_COLOR, 0.45);
@@ -666,6 +812,12 @@ try {{
     makeStroke(comp, "flying_sword_arc_02", [[PRIMARY[0]-165, PRIMARY[1]+105], [PRIMARY[0]+25, PRIMARY[1]+65], [SECONDARY[0]+75, SECONDARY[1]+35], [SECONDARY[0]+210, SECONDARY[1]+5]], 4, ACCENT_COLOR, 0.32);
     makeEllipseRing(comp, "qi_ring_ground_01", PRIMARY, 35, 185, PRIMARY_COLOR, 0.45);
     makeEllipseRing(comp, "qi_ring_ground_02", PRIMARY, 20, 245, ACCENT_COLOR, 1.15);
+  }}
+  if (hasVfx("speedline_burst")) {{
+    makeSpeedLines(comp);
+  }}
+  if (hasVfx("speech_bubble_type_on")) {{
+    makeSpeechBubbleTypeOn(comp);
   }}
 
   var moteCount = Math.round(24 + 54 * INTENSITY);

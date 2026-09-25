@@ -54,7 +54,7 @@ AE_EFFECT_PRESET_KEYWORDS = (
     (
         "anger_impact",
         ("분노", "배신", "충격", "폭발", "기습", "절규", "복수", "anger", "betrayal", "ambush"),
-        "After Effects highlight: red impact pulse, camera shake, glow flash, and short heat distortion.",
+        "After Effects highlight: red impact pulse, camera shake, speedlines, glow flash, and short heat distortion.",
     ),
     (
         "moon_fog_reveal",
@@ -140,6 +140,14 @@ def _ae_plan_design(preset: str, scene_blob: str, priority: int) -> dict[str, An
         targets.append(dict(design["secondary_target"]))
     emotional_boost = 0.08 if any(word in scene_blob for word in ("절정", "결정적", "죽음", "배신", "폭발", "climax", "death")) else 0
     design["targets"] = targets[:3]
+    vfx = list(design.get("vfx") or [])
+    vfx.extend(["layered_depth_proxy", "comic_parallax_camera", "depth_of_field"])
+    if any(word in scene_blob for word in ("타격", "공격", "달려", "추격", "폭발", "기습", "action", "attack", "chase")):
+        vfx.extend(["impact_camera_shake", "speedline_burst", "displacement_wave"])
+    if any(word in scene_blob for word in ("말", "대답", "말풍선", "대사", "dialogue", "speech")):
+        vfx.extend(["speech_bubble_type_on"])
+    seen: set[str] = set()
+    design["vfx"] = [item for item in vfx if not (item in seen or seen.add(item))]
     design["intensity"] = round(min(1.0, max(0.35, float(design["intensity"]) + (priority - 2) * 0.04 + emotional_boost)), 2)
     design["quality_checks"] = {
         "min_duration_seconds": 1.0,
@@ -263,6 +271,20 @@ AE_MOTION_MOOD_PRESETS = (
         },
     ),
     (
+        "puppet_character_idle",
+        ("인물", "얼굴", "표정", "머리", "머리카락", "눈", "손", "옷", "character", "face", "hair", "eyes", "hand", "robe", "cloth"),
+        {
+            "mood": "living_character_still",
+            "camera": "slow_push_in",
+            "light": "soft_character_focus",
+            "atmosphere": "subtle_dust_motes",
+            "palette": {"primary": [0.72, 0.78, 0.84], "accent": [0.38, 0.42, 0.48], "flash": [0.86, 0.90, 0.94]},
+            "motion": {"push": 0.032, "drift_x": -0.006, "drift_y": -0.006, "shake": 0.0},
+            "intensity": 0.36,
+            "vfx_extra": ["layered_depth_proxy", "puppet_breath_idle", "hair_cloth_wave", "depth_of_field"],
+        },
+    ),
+    (
         "ambient_landscape_motion",
         ("산", "길", "마을", "들판", "강", "바다", "하늘", "landscape", "road", "village"),
         {
@@ -273,6 +295,21 @@ AE_MOTION_MOOD_PRESETS = (
             "palette": {"primary": [0.66, 0.76, 0.70], "accent": [0.34, 0.42, 0.38], "flash": [0.82, 0.88, 0.80]},
             "motion": {"push": 0.012, "drift_x": -0.024, "drift_y": 0.002, "shake": 0.0},
             "intensity": 0.28,
+            "vfx_extra": ["layered_depth_proxy", "comic_parallax_camera", "depth_of_field"],
+        },
+    ),
+    (
+        "comic_dialogue_motion",
+        ("말", "대답", "속삭", "외쳤", "말풍선", "대사", "dialogue", "said", "speech", "whisper"),
+        {
+            "mood": "dialogue_focus",
+            "camera": "locked_focus_push",
+            "light": "speaker_focus_light",
+            "atmosphere": "quiet_panel_air",
+            "palette": {"primary": [0.88, 0.86, 0.78], "accent": [0.34, 0.36, 0.42], "flash": [0.96, 0.92, 0.80]},
+            "motion": {"push": 0.018, "drift_x": 0.004, "drift_y": -0.004, "shake": 0.0},
+            "intensity": 0.31,
+            "vfx_extra": ["layered_depth_proxy", "speech_bubble_type_on", "puppet_breath_idle", "depth_of_field"],
         },
     ),
 )
@@ -307,7 +344,14 @@ def _motion_design(scene_blob: str) -> dict[str, Any]:
     design = json.loads(json.dumps(selected))
     target = _motion_target(scene_blob)
     design["targets"] = [target, {"type": "ambient_depth", "x": 1.0 - float(target["x"]) * 0.45, "y": min(0.86, float(target["y"]) + 0.24)}]
-    design["vfx"] = ["cinematic_camera", design["atmosphere"], "focus_glow", "subtle_vignette"]
+    vfx = ["cinematic_camera", "layered_depth_proxy", "comic_parallax_camera", design["atmosphere"], "focus_glow", "depth_of_field", "subtle_vignette"]
+    vfx.extend(str(item) for item in design.get("vfx_extra", []))
+    if any(word in scene_blob for word in ("타격", "공격", "달려", "추격", "폭발", "검기", "action", "attack", "chase")):
+        vfx.extend(["impact_camera_shake", "speedline_burst", "displacement_wave"])
+    if any(word in scene_blob for word in ("책", "장", "비급", "문서", "편지", "book", "page", "letter")):
+        vfx.extend(["page_turn_transition"])
+    seen: set[str] = set()
+    design["vfx"] = [item for item in vfx if not (item in seen or seen.add(item))]
     design["quality_checks"] = {
         "min_duration_seconds": 1.0,
         "min_output_bytes": 1024,
@@ -393,15 +437,60 @@ def _scene_has_character_focus(blob: str) -> bool:
     ))
 
 
+def _resolve_image_layer_mode(payload: dict[str, Any] | None) -> str:
+    raw = str((payload or {}).get("image_layer_mode") or "").strip().lower().replace("-", "_")
+    if raw in {"full", "full_psd", "psd", "all", "all_psd", "full_layers", "all_layers"}:
+        return "full_psd"
+    return "hybrid"
+
+
+def _psd_layer_targets(scene_blob: str, targets: list[Any]) -> list[str]:
+    result = ["background_plate", "foreground_subject_or_focus", "depth_matte"]
+    if _scene_has_character_focus(scene_blob):
+        result.extend(["character_cutout_alpha", "hair_cloth_motion_matte"])
+    if any(word in scene_blob for word in ("대사", "말", "말풍선", "dialogue", "speech", "said", "whisper")):
+        result.append("speech_bubble_text_safe_layer")
+    if any(word in scene_blob for word in ("검", "검기", "불", "물", "안개", "먼지", "오라", "폭발", "sword", "fire", "water", "fog", "aura", "dust")):
+        result.append("effect_overlay_alpha")
+    for target in targets:
+        if isinstance(target, dict) and target.get("type"):
+            result.append(str(target["type"]) + "_focus_matte")
+    seen: set[str] = set()
+    return [item for item in result if not (item in seen or seen.add(item))]
+
+
+def _psd_layer_prompt(scene: dict[str, Any], outputs: list[str], mode: str) -> str:
+    scene_number = int(scene.get("scene_number") or scene.get("scene_order") or 0)
+    image_prompt = str(scene.get("image_prompt") or scene.get("scene_summary") or "").strip()
+    output_text = ", ".join(outputs)
+    return (
+        f"Create a PSD-style layered image asset sheet for scene {scene_number}. "
+        "Use the approved scene image prompt as the visual source of truth, but produce clean layer-friendly assets for After Effects compositing. "
+        "Make a strict 2x2 sheet: Top-Left background plate with the main subject removed or absent; Top-Right main character/foreground subject cutout on a plain keyable background with clean full silhouette; "
+        "Bottom-Left props/effects/atmosphere layer such as fog, glow, fabric, dust, speedlines or aura where relevant; Bottom-Right depth matte or speech-bubble/text-safe layer if dialogue is present. "
+        "No captions, no readable words, no watermark, no panel dividers inside the artwork, preserve the same composition, camera angle, lighting, wardrobe, identity and era. "
+        f"Required AE layer outputs: {output_text}. Layer mode: {mode}. Source scene prompt: {image_prompt}"
+    )
+
+
 def _plan_image_generation_efficiency(
     scenes: list[dict[str, Any]],
     payload: dict[str, Any],
     ae_effect_plans: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Keep image credits flat while sending every scene through AE post-production."""
+    """Plan image credits while sending every scene through AE post-production."""
     scene_count = len([scene for scene in scenes if isinstance(scene, dict)])
+    image_layer_mode = _resolve_image_layer_mode(payload)
     multi_cap = max(0, min(3, round(scene_count * 0.08)))
     layer_cap = scene_count
+    psd_cap = scene_count if image_layer_mode == "full_psd" else max(1, min(scene_count, round(scene_count * 0.18)))
+    category_blob = _text_blob(
+        payload.get("category"),
+        payload.get("category_name"),
+        payload.get("category_name_ko"),
+        payload.get("category_name_en"),
+        payload.get("script_style"),
+    )
     effect_by_scene = {int(plan["scene_number"]): plan for plan in ae_effect_plans if str(plan.get("scene_number", "")).isdigit()}
     multi_numbers = {
         int(item["scene_number"])
@@ -412,30 +501,72 @@ def _plan_image_generation_efficiency(
         for index, scene in enumerate(scenes, 1)
         if isinstance(scene, dict)
     }
-    scene_policies: list[dict[str, Any]] = []
+    psd_candidates: list[tuple[int, int]] = []
     for index, scene in enumerate(scenes, 1):
         if not isinstance(scene, dict):
             continue
         number = int(scene.get("scene_number") or scene.get("scene_order") or index)
+        blob = _scene_policy_blob(scene, category_blob)
+        effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+        motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
+        score = 0
+        if effect_plan.get("enabled"):
+            score += 80 + int(effect_plan.get("priority") or 0)
+        if number <= 12:
+            score += 18
+        if _scene_has_character_focus(blob):
+            score += 16
+        if any(word in blob for word in ("대사", "말풍선", "말했다", "속삭", "dialogue", "speech", "said")):
+            score += 12
+        if any(word in blob for word in ("타격", "공격", "추격", "검기", "폭발", "action", "attack", "chase")):
+            score += 14
+        if motion_plan.get("enabled"):
+            score += 4
+        psd_candidates.append((number, score))
+    if image_layer_mode == "full_psd":
+        psd_numbers = {number for number, _score in psd_candidates}
+    else:
+        psd_numbers = {
+            number for number, _score in sorted(psd_candidates, key=lambda item: (-item[1], item[0]))[:psd_cap]
+        }
+    scene_policies: list[dict[str, Any]] = []
+    psd_layer_prompts: list[dict[str, Any]] = []
+    for index, scene in enumerate(scenes, 1):
+        if not isinstance(scene, dict):
+            continue
+        number = int(scene.get("scene_number") or scene.get("scene_order") or index)
+        scene_blob = _scene_policy_blob(scene, category_blob)
         effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
         motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
         targets = effect_plan.get("targets") or motion_plan.get("targets") or []
         local_layers = number in layer_numbers
         multi_image = number in multi_numbers
+        psd_required = number in psd_numbers
+        psd_outputs = _psd_layer_targets(scene_blob, targets if isinstance(targets, list) else [])
+        psd_units = 1.0 if psd_required else 0.0
         ae_postprocess_kind = "effect" if effect_plan.get("enabled") else "motion"
         policy = {
             "scene_number": number,
             "base_images": 1,
             "generation_unit": "2x2_grid_panel",
-            "api_generation_units_estimate": 0.25,
-            "estimated_generation_credits": 0.25,
+            "image_layer_mode": image_layer_mode,
+            "api_generation_units_estimate": 0.25 + psd_units,
+            "estimated_generation_credits": 0.25 + psd_units,
             "additional_images_allowed": 1 if multi_image else 0,
-            "max_api_generation_units_with_optional_extra": 1.25 if multi_image else 0.25,
+            "max_api_generation_units_with_optional_extra": 0.25 + psd_units + (1.0 if multi_image else 0.0),
             "multi_image_allowed": multi_image,
             "multi_image_reason": "top_highlight_only" if multi_image else "credit_guardrail",
             "layer_strategy": "local_depth_layers",
             "local_layer_separation": local_layers,
             "local_layer_source": "derived_from_single_scene_image_no_generation_credit",
+            "psd_layer_package_required": psd_required,
+            "psd_layer_generation_unit": "additional_psd_style_2x2_layer_sheet" if psd_required else "none",
+            "psd_layer_generation_units_estimate": psd_units,
+            "psd_layer_package_reason": (
+                "full_psd_mode" if image_layer_mode == "full_psd" and psd_required
+                else "hybrid_priority_scene" if psd_required
+                else "hybrid_base_scene_uses_local_layers"
+            ),
             "preferred_motion_source": "local_layers_then_ae",
             "ae_postprocess_required": True,
             "ae_postprocess_kind": ae_postprocess_kind,
@@ -450,22 +581,52 @@ def _plan_image_generation_efficiency(
             "credit_cost": 0,
             "targets": policy["targets"],
         }
+        psd_prompt = _psd_layer_prompt(scene, psd_outputs, image_layer_mode) if psd_required else ""
+        scene["psd_layer_plan"] = {
+            "enabled": psd_required,
+            "mode": image_layer_mode,
+            "source": "additional_layer_sheet_generation" if psd_required else "local_derived_layers_only",
+            "method": "psd_style_2x2_layer_sheet" if psd_required else "single_image_depth_proxy",
+            "outputs": psd_outputs if psd_required else [],
+            "transparent_layers_required": psd_required,
+            "alpha_channel_preferred": psd_required,
+            "credit_cost_estimate": psd_units,
+            "prompt": psd_prompt,
+        }
+        if psd_required:
+            psd_layer_prompts.append({
+                "scene_number": number,
+                "scene_id": scene.get("scene_id") or f"scene{number:03d}",
+                "mode": image_layer_mode,
+                "outputs": psd_outputs,
+                "prompt": psd_prompt,
+                "negative_prompt": "no text, no words, no readable letters, no captions, no watermarks, no panel labels, no borders, no grid dividers inside artwork, no extra limbs, preserve character identity",
+            })
         scene_policies.append(policy)
 
     return {
-        "mode": "all_scenes_ae_postprocess",
+        "mode": "full_psd_ae_postprocess" if image_layer_mode == "full_psd" else "hybrid_ae_postprocess",
+        "image_layer_mode": image_layer_mode,
         "scene_image_generation_mode": "strict_2x2_grid_one_generation_per_four_scenes",
         "default_base_images_per_scene": 1,
-        "estimated_api_generation_units_per_scene": 0.25,
+        "estimated_api_generation_units_per_scene": (
+            round((scene_count * 0.25 + len(psd_layer_prompts)) / scene_count, 3) if scene_count else 0
+        ),
+        "estimated_total_api_generation_units": round(scene_count * 0.25 + len(psd_layer_prompts), 3),
         "grid_panels_per_generation": 4,
         "multi_image_scene_cap": multi_cap,
         "local_layer_scene_cap": layer_cap,
+        "psd_layer_package_mode": "all_scenes" if image_layer_mode == "full_psd" else "priority_scenes_only",
+        "psd_layer_scene_cap": psd_cap,
+        "psd_layer_scene_count": len(psd_layer_prompts),
+        "psd_layer_generation_unit": "additional_psd_style_2x2_layer_sheet_per_selected_scene",
         "extra_images_default": "disabled",
         "extra_images_allowed_only_for": "top_5_to_10_percent_highlights",
         "ae_postprocess_required_for_all_scenes": True,
-        "ordinary_scene_strategy": "single_image_plus_local_layers_plus_ae_motion",
-        "important_scene_strategy": "single_image_plus_local_layers_plus_ae_2_5d",
-        "highlight_scene_strategy": "single_image_plus_local_layers_plus_ae_effect; optional second image only within cap",
+        "ordinary_scene_strategy": "single_image_plus_local_layers_plus_ae_motion" if image_layer_mode == "hybrid" else "base_image_plus_psd_style_layers_plus_ae_motion",
+        "important_scene_strategy": "base_image_plus_psd_style_layers_plus_ae_2_5d",
+        "highlight_scene_strategy": "base_image_plus_psd_style_layers_plus_ae_effect; optional second image only within cap",
+        "psd_layer_prompts": psd_layer_prompts,
         "scene_policies": scene_policies,
     }
 
@@ -520,20 +681,20 @@ class CodexContentError(RuntimeError):
 
 
 def _pacing_schedule(target_duration_seconds: Any) -> list[dict[str, int]]:
-    """The former worker's mandatory five-step visual pacing policy."""
+    """Mandatory visual pacing policy: fast hook, then gradually longer scenes."""
     try:
         remaining = max(1, int(float(target_duration_seconds)))
     except (TypeError, ValueError):
         return []
     schedule: list[dict[str, int]] = []
     number = 1
-    for stage_seconds, unit in ((60, 5), (240, 15), (300, 20), (300, 30), (None, 60)):
-        take = remaining if stage_seconds is None else min(remaining, stage_seconds)
-        while take > 0:
-            duration = min(unit, take)
+    for scene_limit, unit in ((12, 5), (8, 7), (10, 10), (15, 12), (15, 15), (None, 18)):
+        used = 0
+        while remaining > 0 and (scene_limit is None or used < scene_limit):
+            duration = min(unit, remaining)
             schedule.append({"scene_number": number, "duration_seconds": duration})
             number += 1
-            take -= duration
+            used += 1
             remaining -= duration
         if remaining <= 0:
             break
@@ -1095,9 +1256,11 @@ image prompts and video prompts, SFX cues, and publish metadata.
 The legacy visual pacing policy is mandatory. The exact internal scene schedule
 is {json.dumps(_pacing_schedule(payload.get("target_duration_seconds")), ensure_ascii=False)}.
 Generate exactly that many ordered scenes. Scenes 1-12 are the first 60 seconds:
-each is exactly 5 seconds and must include image_prompt plus video_prompt. All
-later scenes are 15/20/30/40-second pacing scenes as listed and must include
-image_prompt only; do not include video_prompt after scene 12. Put
+each is exactly 5 seconds and must include image_prompt plus video_prompt. Later
+scenes gradually lengthen as listed in the schedule: scenes 13-20 are 7 seconds,
+21-30 are 10 seconds, 31-45 are 12 seconds, 46-60 are 15 seconds, and scenes
+61 onward are 18 seconds unless the final remainder is shorter. Later scenes
+must include image_prompt only; do not include video_prompt after scene 12. Put
 duration_seconds on every scene. Never print timestamps or timecodes in the
 narration; duration_seconds is internal JSON metadata only.
 
@@ -1389,12 +1552,15 @@ class CodexStagedContentRunner:
         script_context.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"])
         structure.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"],
                          character_anchors=anchors, character_reference_status="ready")
+        image_layer_mode = _resolve_image_layer_mode(payload)
         media_context = {**script_context, "script": script, "character_anchors": anchors, "child_image_guidance": CHILD_IMAGE_GUIDANCE,
+                         "image_layer_mode": image_layer_mode,
                          "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Never substitute a different character."}
         media_task = (
             f"Create prompts only from each final scene_text. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
             f"Visual style: {setting['image_style_en']}. Maintain authentic local architecture, interior spaces, streetscape, vehicles, and props without caricature. "
             f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
+            f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
             "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-12 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 13 onward must not contain video_prompt."
         )
         media = {}
@@ -1484,6 +1650,10 @@ class CodexStagedContentRunner:
             "ae_motion_plan_status": "planned" if ae_motion_plans else "not_required",
             "ae_motion_scene_count": len(ae_motion_plans),
             "ae_motion_plans": ae_motion_plans,
+            "image_layer_mode": image_efficiency_policy.get("image_layer_mode") or image_layer_mode,
+            "psd_layer_prompt_status": "planned" if image_efficiency_policy.get("psd_layer_prompts") else "not_required",
+            "psd_layer_scene_count": image_efficiency_policy.get("psd_layer_scene_count") or 0,
+            "psd_layer_prompts": image_efficiency_policy.get("psd_layer_prompts") or [],
             "image_generation_policy": image_efficiency_policy,
         })
         metadata_context = {**script_context, "structure": structure, "script": script}

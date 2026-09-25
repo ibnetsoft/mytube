@@ -219,8 +219,14 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "character_references": references,
         "scene_specs": [{"scene_number": _scene_number(s, i), "scene_id": s.get("scene_id"),
                          "scene_text": s.get("scene_text") or s.get("narration"),
-                         "image_prompt": s.get("image_prompt"), "image_style": s.get("image_style")}
+                         "image_prompt": s.get("image_prompt"), "image_style": s.get("image_style"),
+                         "image_generation_policy": s.get("image_generation_policy") if isinstance(s.get("image_generation_policy"), dict) else {},
+                         "local_layer_plan": s.get("local_layer_plan") if isinstance(s.get("local_layer_plan"), dict) else {},
+                         "psd_layer_plan": s.get("psd_layer_plan") if isinstance(s.get("psd_layer_plan"), dict) else {}}
                         for i, s in enumerate(scenes, 1)],
+        "image_layer_mode": structure.get("image_layer_mode") or (structure.get("image_generation_policy") or {}).get("image_layer_mode") or "hybrid",
+        "psd_layer_prompt_status": structure.get("psd_layer_prompt_status") or "not_required",
+        "psd_layer_prompts": structure.get("psd_layer_prompts") if isinstance(structure.get("psd_layer_prompts"), list) else [],
         "recovery_policy": image_recovery.POLICY,
         "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
         "generation_instruction": "Attach the character_references local PNGs as reference images to EVERY grid generation. Preserve each named character's face, age and wardrobe. Generate still images only, never video clips.",
@@ -457,8 +463,12 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
                 "credit_policy": {
                     "base_images": int(image_policy.get("base_images") or 1),
                     "generation_unit": image_policy.get("generation_unit") or "2x2_grid_panel",
+                    "image_layer_mode": image_policy.get("image_layer_mode") or "hybrid",
                     "additional_images_allowed": int(image_policy.get("additional_images_allowed") or 0),
                     "multi_image_allowed": bool(image_policy.get("multi_image_allowed")),
+                    "psd_layer_package_required": bool(image_policy.get("psd_layer_package_required")),
+                    "psd_layer_generation_unit": image_policy.get("psd_layer_generation_unit") or "none",
+                    "psd_layer_generation_units_estimate": float(image_policy.get("psd_layer_generation_units_estimate") or 0),
                     "api_generation_units_estimate": float(image_policy.get("api_generation_units_estimate") or 0.25),
                     "estimated_generation_credits": float(image_policy.get("estimated_generation_credits") or 0.25),
                     "max_api_generation_units_with_optional_extra": float(image_policy.get("max_api_generation_units_with_optional_extra") or 0.25),
@@ -473,6 +483,16 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
             if number in scene_layer_assets:
                 scene.setdefault("metadata", {})["local_layer_asset"] = scene_layer_assets[number]
                 scene["local_layer_status"] = "ready"
+            psd_plan = scene.get("psd_layer_plan") if isinstance(scene.get("psd_layer_plan"), dict) else {}
+            if psd_plan:
+                scene.setdefault("metadata", {})["psd_layer_plan"] = {
+                    "enabled": bool(psd_plan.get("enabled")),
+                    "mode": psd_plan.get("mode") or "hybrid",
+                    "source": psd_plan.get("source") or "",
+                    "method": psd_plan.get("method") or "",
+                    "outputs": psd_plan.get("outputs") if isinstance(psd_plan.get("outputs"), list) else [],
+                    "credit_cost_estimate": float(psd_plan.get("credit_cost_estimate") or 0),
+                }
             updated_count += 1
     if updated_count != len(scene_urls):
         raise RuntimeError("not every cropped image could be mapped to a topic scene")

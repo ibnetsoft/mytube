@@ -248,6 +248,7 @@ class StartRequest(BaseModel):
     era_region: str = Field(default='현대 지방 소도시', max_length=120)
     image_style: str = Field(default='실사', max_length=80)
     production_mode: Literal['standard', 'moving_comic'] = 'standard'
+    image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
     generate_bgm_prompt: bool = Field(default=False, strict=True)
     notes: str = Field(default='', max_length=4000)
     source_ids: list[str] = Field(default_factory=list, max_length=12)

@@ -86,19 +86,26 @@ def test_codex_runner_rejects_incomplete_package(monkeypatch, tmp_path):
         raise AssertionError("incomplete Codex package was accepted")
 
 
-def test_legacy_five_minute_pacing_is_12_micro_scenes_then_16_development_scenes():
+def test_visual_pacing_uses_fast_hook_then_gradual_scene_lengths():
     schedule = runner_module._pacing_schedule(300)
 
-    assert len(schedule) == 28
+    assert len(schedule) == 37
     assert [item["duration_seconds"] for item in schedule[:12]] == [5] * 12
-    assert [item["duration_seconds"] for item in schedule[12:]] == [15] * 16
+    assert [item["duration_seconds"] for item in schedule[12:20]] == [7] * 8
+    assert [item["duration_seconds"] for item in schedule[20:30]] == [10] * 10
+    assert [item["duration_seconds"] for item in schedule[30:]] == [12] * 7
 
 
-def test_legacy_pacing_uses_sixty_second_cuts_after_fifteen_minutes():
+def test_visual_pacing_uses_eighteen_second_cuts_after_scene_sixty():
     schedule = runner_module._pacing_schedule(960)
 
     assert [item["duration_seconds"] for item in schedule[:12]] == [5] * 12
-    assert [item["duration_seconds"] for item in schedule[-1:]] == [60]
+    assert [item["duration_seconds"] for item in schedule[12:20]] == [7] * 8
+    assert [item["duration_seconds"] for item in schedule[20:30]] == [10] * 10
+    assert [item["duration_seconds"] for item in schedule[30:45]] == [12] * 15
+    assert [item["duration_seconds"] for item in schedule[45:60]] == [15] * 15
+    assert [item["duration_seconds"] for item in schedule[60:-1]] == [18] * 18
+    assert schedule[-1]["duration_seconds"] == 15
     assert sum(item["duration_seconds"] for item in schedule) == 960
 
 
@@ -117,6 +124,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
         return {"main_character": {"name": "연화", "character_key": "yeonhwa", "image_url": "https://assets.example/portrait.png"},
                 "supporting_characters": [], "character_image_generation": {"status": "ready"}}
     monkeypatch.setattr(codex_character_assets, "generate_character_references", fake_characters)
+    scene_count = len(runner_module._pacing_schedule(300))
 
     def fake_stage(self, job_id, name, context, task):
         calls.append((name, context))
@@ -128,14 +136,14 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                 "story_core": {"protagonist": "연화"},
                 "scenes": [
                     {"scene_summary": f"사건 {i}", "scene_situation": f"상황 {i}", "scene_purpose": "전진", "scene_emotion": "긴장", "character_choice": "선택", "emotional_shift": "변화", "reveal_or_question": "의문"}
-                    for i in range(1, 29)
+                    for i in range(1, scene_count + 1)
                 ],
             }
         if name in {"02_script", "02b_script_qa"}:
             return {
                 "sections": [
                     {"scene_order": i, "text": f"{i}번째 날, 연화는 편지에서 어머니의 흔적을 찾았지요." + (f" 그날의 기록 {i}장을 이웃과 확인하자 헤어졌던 이유가 드러났습니다. 연화는 {i}번째 기록을 듣고 다시 집으로 돌아갈 용기를 얻었지요." if i > 12 else "")}
-                    for i in range(1, 29)
+                    for i in range(1, scene_count + 1)
                 ],
                 "script_quality_report": {"verdict": "pass", "score": 90, "critical_issues": []},
             }
@@ -152,17 +160,18 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                 report.pop("anti_sermon_score")
             return {"script_quality_report": report}
         if name == '02e_dialogue':
-            return {'scenes': [{'scene_number': i, 'spans': []} for i in range(1, 29)]}
+            return {'scenes': [{'scene_number': i, 'spans': []} for i in range(1, scene_count + 1)]}
         if name.startswith('02f_listener_'):
             assert set(context) == {'title', 'sections'}
             return {'verdict': 'pass', 'issues': [], 'strengths': [{'scene_order': 1,
                 'quote': context['sections'][0]['text'], 'reason': 'The protagonist and action are understandable.'}]}
         if name == "03_media":
             assert context["character_anchors"]["character_image_generation"]["status"] == "ready"
+            from services.image_grid_prompts import grid_windows
             positions = ("Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right")
             grids = []
-            for grid_number, start in enumerate(range(1, 29, 4), 1):
-                numbers = list(range(start, start + 4))
+            for grid_number, (start, end) in enumerate(grid_windows(scene_count), 1):
+                numbers = list(range(start + 1, end + 1))
                 grids.append({
                     "grid_number": grid_number,
                     "scene_numbers": numbers,
@@ -175,7 +184,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                 })
             return {"scenes": [
                     {"scene_order": i, "image_prompt": (f"Scene {i}: Detailed English image prompt with concrete subject action, period setting, lighting, composition, emotion, continuity wardrobe, and unique prop. " * 2), **({"video_prompt": (f"Scene {i}: A continuous period-drama shot showing a character discovering a concrete clue in a lantern-lit courtyard; slow push-in follows restrained hand movement, drifting smoke and fabric respond naturally, focus settles on the clue, then the character holds a stable final pose. no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio.")} if i <= 12 else {})}
-                for i in range(1, 29)
+                for i in range(1, scene_count + 1)
             ], "image_grid_prompts": grids}
         if name == "05_thumbnail_copy":
             return {
@@ -201,9 +210,17 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert package["structure"]["character_reference_status"] == "ready"
     assert package["character_anchors"]["character_image_generation"]["status"] == "ready"
     assert package["structure"]["image_grid_prompts"][0]["character_references"][0]["image_url"]
-    assert len(scenes) == 28
+    assert len(scenes) == scene_count
+    assert package["structure"]["image_layer_mode"] == "hybrid"
+    assert package["structure"]["image_generation_policy"]["mode"] == "hybrid_ae_postprocess"
+    assert package["structure"]["psd_layer_prompt_status"] == "planned"
+    assert 0 < package["structure"]["psd_layer_scene_count"] < len(scenes)
+    assert any(scene["psd_layer_plan"]["enabled"] for scene in scenes)
+    assert any(not scene["psd_layer_plan"]["enabled"] for scene in scenes)
     assert [scene["duration_seconds"] for scene in scenes[:12]] == [5] * 12
-    assert [scene["duration_seconds"] for scene in scenes[12:]] == [15] * 16
+    assert [scene["duration_seconds"] for scene in scenes[12:20]] == [7] * 8
+    assert [scene["duration_seconds"] for scene in scenes[20:30]] == [10] * 10
+    assert [scene["duration_seconds"] for scene in scenes[30:]] == [12] * 7
     assert all(scene["scene_text"] for scene in scenes)
     assert all(scene.get("video_prompt") for scene in scenes[:12])
     assert all("video_prompt" not in scene for scene in scenes[12:])
@@ -225,9 +242,34 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert draft["production_ready"] is False
     assert draft["script_model"] == "gpt-6-astra"
     assert draft["structure"]["dialogue_annotations"]["model"] == "gpt-6-astra"
-    assert len(draft["structure"]["scenes"]) == 28
+    assert len(draft["structure"]["scenes"]) == scene_count
     assert not any(name in ("02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy") for name, _ in calls)
     assert "02f_listener_engagement" in [name for name, _ in calls]
+
+
+def test_full_psd_layer_mode_marks_every_scene():
+    scenes = [
+        {
+            "scene_order": i,
+            "scene_summary": "인물이 검을 들고 대사를 말하는 무협 장면",
+            "scene_text": "그는 검을 들어 올리며 말했다.",
+            "image_prompt": "A wuxia character holding a sword in a moonlit courtyard, clean foreground and background separation.",
+            "ae_motion_plan": {"enabled": True, "targets": [{"type": "face", "x": 0.5, "y": 0.35}]},
+        }
+        for i in range(1, 7)
+    ]
+    policy = runner_module._plan_image_generation_efficiency(
+        scenes,
+        {"image_layer_mode": "full_psd", "category": "무협"},
+        [{"scene_number": 1, "priority": 5}],
+    )
+
+    assert policy["image_layer_mode"] == "full_psd"
+    assert policy["mode"] == "full_psd_ae_postprocess"
+    assert policy["psd_layer_scene_count"] == len(scenes)
+    assert len(policy["psd_layer_prompts"]) == len(scenes)
+    assert all(scene["psd_layer_plan"]["enabled"] for scene in scenes)
+    assert all(scene["image_generation_policy"]["psd_layer_package_required"] for scene in scenes)
 
 
 @pytest.mark.parametrize('text', [

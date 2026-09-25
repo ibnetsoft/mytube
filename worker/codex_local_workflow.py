@@ -75,6 +75,7 @@ def produce(identity, request, snapshot, output, notify, sources=None):
                    'era_region': setting['era_region'],
                    'image_style': setting['image_style_en'],
                    'content_setting': setting,
+                   'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
                    'script_style': 'story',
                    'target_duration_seconds': request['duration_minutes'] * 60,
                    'legacy_stage_directives': 'Use the current category narration and senior listening contracts. ' +

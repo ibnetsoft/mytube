@@ -147,6 +147,7 @@ def produce_topics(identity, request, sources, runner, notify):
             'setting_country': setting['setting_country'],
             'era_region': setting['era_region'],
             'image_style': setting['image_style'],
+            'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
             'duration_minutes': request['duration_minutes'], 'notes': notes
         }
     script = '원문 요약\n' + analysis['summary'] + '\n\n핵심 갈등\n' + analysis['core_conflict']
