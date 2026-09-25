@@ -398,37 +398,19 @@ def _plan_image_generation_efficiency(
     payload: dict[str, Any],
     ae_effect_plans: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Keep image credits flat: one base image per scene, local layers for motion, extra images only for top highlights."""
+    """Keep image credits flat while sending every scene through AE post-production."""
     scene_count = len([scene for scene in scenes if isinstance(scene, dict)])
     multi_cap = max(0, min(3, round(scene_count * 0.08)))
-    layer_cap = max(1, min(scene_count, round(scene_count * 0.25))) if scene_count else 0
+    layer_cap = scene_count
     effect_by_scene = {int(plan["scene_number"]): plan for plan in ae_effect_plans if str(plan.get("scene_number", "")).isdigit()}
     multi_numbers = {
         int(item["scene_number"])
         for item in sorted(effect_by_scene.values(), key=lambda p: (-int(p.get("priority") or 0), int(p["scene_number"])))[:multi_cap]
     }
-    category_blob = _text_blob(
-        payload.get("category"),
-        payload.get("category_name"),
-        payload.get("category_name_ko"),
-        payload.get("category_name_en"),
-        payload.get("script_style"),
-    )
-    layer_candidates: list[tuple[int, int, bool]] = []
-    for index, scene in enumerate(scenes, 1):
-        if not isinstance(scene, dict):
-            continue
-        number = int(scene.get("scene_number") or scene.get("scene_order") or index)
-        blob = _scene_policy_blob(scene, category_blob)
-        effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
-        motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
-        priority = int(effect_plan.get("priority") or motion_plan.get("priority") or 1)
-        has_character = _scene_has_character_focus(blob)
-        if has_character or effect_plan.get("enabled"):
-            layer_candidates.append((number, priority, has_character))
-
     layer_numbers = {
-        number for number, _priority, _has_character in sorted(layer_candidates, key=lambda item: (-item[1], item[0]))[:layer_cap]
+        int(scene.get("scene_number") or scene.get("scene_order") or index)
+        for index, scene in enumerate(scenes, 1)
+        if isinstance(scene, dict)
     }
     scene_policies: list[dict[str, Any]] = []
     for index, scene in enumerate(scenes, 1):
@@ -440,6 +422,7 @@ def _plan_image_generation_efficiency(
         targets = effect_plan.get("targets") or motion_plan.get("targets") or []
         local_layers = number in layer_numbers
         multi_image = number in multi_numbers
+        ae_postprocess_kind = "effect" if effect_plan.get("enabled") else "motion"
         policy = {
             "scene_number": number,
             "base_images": 1,
@@ -450,28 +433,27 @@ def _plan_image_generation_efficiency(
             "max_api_generation_units_with_optional_extra": 1.25 if multi_image else 0.25,
             "multi_image_allowed": multi_image,
             "multi_image_reason": "top_highlight_only" if multi_image else "credit_guardrail",
-            "layer_strategy": "local_depth_layers" if local_layers else "ae_motion_from_single_image",
+            "layer_strategy": "local_depth_layers",
             "local_layer_separation": local_layers,
-            "local_layer_source": "derived_from_single_scene_image_no_generation_credit" if local_layers else "",
-            "preferred_motion_source": "local_layers_then_ae" if local_layers else "single_image_ae_motion",
+            "local_layer_source": "derived_from_single_scene_image_no_generation_credit",
+            "preferred_motion_source": "local_layers_then_ae",
+            "ae_postprocess_required": True,
+            "ae_postprocess_kind": ae_postprocess_kind,
             "targets": targets[:3] if isinstance(targets, list) else [],
         }
         scene["image_generation_policy"] = policy
-        if local_layers:
-            scene["local_layer_plan"] = {
-                "enabled": True,
-                "source": "single_scene_image",
-                "method": "local_segmentation_or_depth_proxy",
-                "outputs": ["foreground_rgba", "background_plate"],
-                "credit_cost": 0,
-                "targets": policy["targets"],
-            }
-        else:
-            scene["local_layer_plan"] = {"enabled": False, "reason": "single_image_ae_motion_sufficient"}
+        scene["local_layer_plan"] = {
+            "enabled": True,
+            "source": "single_scene_image",
+            "method": "local_segmentation_or_depth_proxy",
+            "outputs": ["foreground_rgba", "background_plate"],
+            "credit_cost": 0,
+            "targets": policy["targets"],
+        }
         scene_policies.append(policy)
 
     return {
-        "mode": "credit_efficient_ae_first",
+        "mode": "all_scenes_ae_postprocess",
         "scene_image_generation_mode": "strict_2x2_grid_one_generation_per_four_scenes",
         "default_base_images_per_scene": 1,
         "estimated_api_generation_units_per_scene": 0.25,
@@ -480,9 +462,10 @@ def _plan_image_generation_efficiency(
         "local_layer_scene_cap": layer_cap,
         "extra_images_default": "disabled",
         "extra_images_allowed_only_for": "top_5_to_10_percent_highlights",
-        "ordinary_scene_strategy": "single_image_plus_ae_motion",
+        "ae_postprocess_required_for_all_scenes": True,
+        "ordinary_scene_strategy": "single_image_plus_local_layers_plus_ae_motion",
         "important_scene_strategy": "single_image_plus_local_layers_plus_ae_2_5d",
-        "highlight_scene_strategy": "single_image_plus_ae_effect; optional second image only within cap",
+        "highlight_scene_strategy": "single_image_plus_local_layers_plus_ae_effect; optional second image only within cap",
         "scene_policies": scene_policies,
     }
 
