@@ -34,7 +34,8 @@ STATE_DIR = worker_config.STATE_DIR / "ae_highlight"
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 WORKER_STATE_FILE = worker_config.STATE_DIR / "ae_highlight_worker.json"
 
-DEFAULT_AFTERFX = r"C:\Program Files\Adobe\Adobe After Effects CS6\Support Files\AfterFX.exe"
+DEFAULT_AFTERFX = r"C:\Program Files\Adobe\Adobe After Effects CS6\Support Files\AfterFX.com"
+FALLBACK_AFTERFX_EXE = r"C:\Program Files\Adobe\Adobe After Effects CS6\Support Files\AfterFX.exe"
 DEFAULT_AERENDER = r"C:\Program Files\Adobe\Adobe After Effects CS6\Support Files\aerender.exe"
 DEFAULT_BUCKET = os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"
 DEFAULT_WIDTH = int(os.getenv("AE_HIGHLIGHT_WIDTH", "720"))
@@ -455,6 +456,10 @@ var PRIMARY_COLOR = PLAN.primary_color;
 var ACCENT_COLOR = PLAN.accent_color;
 var FLASH_COLOR = PLAN.flash_color;
 
+function px(value) {{
+  return Math.max(1, Math.round(value));
+}}
+
 function addFx(layer, matchName, label) {{
   var candidates = [matchName];
   if (label == "Glow") candidates = [matchName, "ADBE Glo2", "Glow"];
@@ -570,9 +575,9 @@ function makeFocusGlow(comp, name, pos, color, radius, delay) {{
 }}
 
 function makeLightSweep(comp, name, startPos, endPos, color, delay) {{
-  var layer = comp.layers.addSolid(color, name, W, Math.max(24, 64 * INTENSITY), 1, DUR);
+  var layer = comp.layers.addSolid(color, name, px(W), px(Math.max(24, 64 * INTENSITY)), 1, DUR);
   layer.blendingMode = BlendingMode.ADD;
-  layer.property("Anchor Point").setValue([W / 2, Math.max(12, 32 * INTENSITY)]);
+  layer.property("Anchor Point").setValue([W / 2, px(Math.max(12, 32 * INTENSITY))]);
   layer.property("Position").setValueAtTime(delay, startPos);
   layer.property("Position").setValueAtTime(Math.min(DUR, delay + 1.2), endPos);
   layer.property("Rotation").setValue(-18);
@@ -703,10 +708,68 @@ def _ffmpeg_executable() -> str:
 
 
 def _run_checked(command: list[str], *, timeout: int = 900) -> None:
-    result = subprocess.run(command, cwd=str(ROOT), text=True, capture_output=True, timeout=timeout)
+    result = subprocess.run(
+        command,
+        cwd=str(ROOT),
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        timeout=timeout,
+    )
     if result.returncode != 0:
         detail = "\n".join(part for part in (result.stdout[-1500:], result.stderr[-2500:]) if part)
         raise AeWorkerError(f"command failed ({result.returncode}): {' '.join(command)}\n{detail}")
+
+
+def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, timeout: int = 240) -> None:
+    """Run AE scripting and accept success once the expected AEP appears.
+
+    AE CS6's console wrapper may keep the parent process attached even after
+    the JSX has completed, while AfterFX.exe may ignore -r on some hosts. Poll
+    for the project artifact and terminate the wrapper after success.
+    """
+    candidates = [afterfx]
+    if afterfx.suffix.lower() == ".exe":
+        com_path = afterfx.with_suffix(".com")
+        if com_path.is_file():
+            candidates.insert(0, com_path)
+    else:
+        exe_path = Path(FALLBACK_AFTERFX_EXE)
+        if exe_path.is_file():
+            candidates.append(exe_path)
+
+    errors: list[str] = []
+    for candidate in dict.fromkeys(candidates):
+        process = subprocess.Popen(
+            [str(candidate), "-r", str(jsx_path)],
+            cwd=str(ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        deadline = time.time() + timeout
+        try:
+            while time.time() < deadline:
+                if project_path.is_file() and project_path.stat().st_size > 1024:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                    return
+                if process.poll() is not None:
+                    break
+                time.sleep(2)
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+        errors.append(f"{candidate} did not create {project_path}")
+    raise AeWorkerError("After Effects did not create a project file: " + "; ".join(errors))
 
 
 def _quality_report(job: SceneJob, mp4_path: Path) -> dict[str, Any]:
@@ -733,7 +796,10 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
         raise AeWorkerError(f"After Effects CS6 executables not found: {afterfx} / {aerender}")
 
     workdir = worker_config.TEMP_DIR / "ae_highlight" / f"{job.topic_id}-{job.scene_number:03d}-{uuid.uuid4().hex[:8]}"
-    input_image = workdir / "input" / "scene.png"
+    source_suffix = Path(job.source.path).suffix.lower()
+    if source_suffix not in {".png", ".jpg", ".jpeg"}:
+        source_suffix = ".png"
+    input_image = workdir / "input" / f"scene{source_suffix}"
     project_path = workdir / "project" / "ae_highlight.aep"
     avi_path = workdir / "render" / "ae_highlight.avi"
     mp4_path = workdir / "render" / "ae_highlight.mp4"
@@ -746,7 +812,7 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     write_state("preparing", 25, _job_summary(job))
     _write_jsx(job, input_image, project_path, avi_path, jsx_path)
     write_state("preparing", 35, _job_summary(job))
-    _run_checked([str(afterfx), "-r", str(jsx_path)], timeout=240)
+    _run_afterfx_script(afterfx, jsx_path, project_path, timeout=240)
     if not project_path.is_file():
         raise AeWorkerError("After Effects did not create a project file")
     write_state("rendering", 50, _job_summary(job))

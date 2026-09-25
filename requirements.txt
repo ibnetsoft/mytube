@@ -18,6 +18,7 @@ torchaudio>=2.0.0
 
 # 영상 처리
 moviepy>=2.1.2
+imageio-ffmpeg>=0.6.0
 Pillow>=11.0.0
 
 # 유틸리티
