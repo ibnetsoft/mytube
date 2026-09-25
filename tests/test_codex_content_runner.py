@@ -18,6 +18,8 @@ from senior_script_guard import PROFILE, CHECKS
 
 def _review_report():
     return {"profile": PROFILE, "verdict": "pass", "score": 90, "critical_issues": [],
+            "story_spine_score": 90, "dialogue_context_score": 90, "anti_sermon_score": 95,
+            "listener_summary": "연화가 어머니를 찾으려 편지의 기록을 추적하고 이웃의 증언을 확인해 집으로 돌아갑니다.",
             "checks": {key: {"pass": True, "evidence": "Scene 1 introduces the protagonist; later scenes resolve the established conflict."} for key in CHECKS}}
 
 
@@ -100,7 +102,7 @@ def test_legacy_pacing_uses_sixty_second_cuts_after_fifteen_minutes():
     assert sum(item["duration_seconds"] for item in schedule) == 960
 
 
-@pytest.mark.parametrize("review_failure", [None, "verdict", "evidence"])
+@pytest.mark.parametrize("review_failure", [None, "verdict", "evidence", "story_score", "missing_story_score"])
 def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_path, review_failure):
     monkeypatch.setattr(runner_module, "OUTPUT_DIR", tmp_path)
     monkeypatch.setattr(
@@ -138,11 +140,16 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                 "script_quality_report": {"verdict": "pass", "score": 90, "critical_issues": []},
             }
         if name == "02c_senior_review":
+            assert "story_spine_score" in task and "fixed source-topic notes" in task
             report = _review_report()
             if review_failure == "verdict":
                 report["verdict"] = "revise"
             elif review_failure == "evidence":
                 report["checks"]["relationships"]["evidence"] = ""
+            if review_failure == "story_score":
+                report["story_spine_score"] = 87
+            elif review_failure == "missing_story_score":
+                report.pop("anti_sermon_score")
             return {"script_quality_report": report}
         if name == '02e_dialogue':
             return {'scenes': [{'scene_number': i, 'spans': []} for i in range(1, 29)]}
@@ -221,3 +228,30 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert len(draft["structure"]["scenes"]) == 28
     assert not any(name in ("02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy") for name, _ in calls)
     assert "02f_listener_engagement" in [name for name, _ in calls]
+
+
+@pytest.mark.parametrize('text', [
+    '그는 눈물을 흘리며 열쇠를 동료의 손에 쥐여 주었습니다.',
+    '장부를 확인한 그는 그제야 깨달았습니다. 빚은 이미 갚아져 있었지요.',
+    '그는 “문을 열어 주세요”라고 말하며 닫힌 대문을 두드렸습니다.',
+])
+def test_emotional_actions_and_motivated_quotes_do_not_auto_reject(text):
+    assert runner_module._story_flow_warnings([{'text': text}] * 10) == []
+
+
+def test_speaker_labels_still_rejected():
+    assert runner_module._story_flow_warnings([{'text': '연화: 문을 열어 주세요.'}])
+
+
+@pytest.mark.parametrize('value', [None, True, 84, 101, float('nan'), float('inf'), '95'])
+def test_independent_story_scores_fail_closed(value):
+    report = _review_report()
+    report['dialogue_context_score'] = value
+    assert runner_module._story_review_issues(report)
+
+
+def test_final_package_rejects_missing_story_review():
+    package = _package()
+    package['script_quality_report'].pop('story_spine_score')
+    with pytest.raises(runner_module.CodexContentError, match='story_spine_score'):
+        runner_module._validate_package(package)

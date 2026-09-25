@@ -764,37 +764,49 @@ def _script_rhythm_warnings(sections: list[Any]) -> list[str]:
     return warnings[:5]
 
 
-_FORCED_MORAL_PATTERNS = (
-    "교훈", "감동을 주", "감동을 남", "진정한 의미", "소중함을 깨달", "그제야 깨달",
-    "비로소 깨달", "마음속 깊이", "가슴 깊이", "따뜻한 울림", "새 삶을 시작",
-    "모두가 용서", "기적처럼", "눈물을 흘리며", "행복하게 살",
-)
+_STORY_REVIEW_MINIMUMS = {
+    "story_spine_score": 88,
+    "dialogue_context_score": 85,
+    "anti_sermon_score": 90,
+}
+
+
+def _story_review_contract() -> str:
+    return (
+        " Independently apply the supplied story_spine_contract to the exact final script. "
+        "Include story_spine_score (88-100 to pass), dialogue_context_score (85-100 to pass), "
+        "anti_sermon_score (90-100 to pass), and a nonempty listener_summary in script_quality_report. "
+        "The summary must identify the protagonist, want, obstacle, turn, and final changed action "
+        "from the script. Compare these with the fixed source-topic notes when supplied; flag any drift. "
+        "Evaluate moral summaries and dialogue in context with script evidence. A character crying, "
+        "realizing something, mentioning a lesson, or speaking in quotes is not by itself a defect. "
+        "Do not reject dialogue just because of its frequency; check whether surrounding actions motivate it."
+    )
+
+
+def _story_review_issues(report: Any) -> list[str]:
+    if not isinstance(report, dict):
+        return ["missing independent story review"]
+    issues = []
+    for key, minimum in _STORY_REVIEW_MINIMUMS.items():
+        value = report.get(key)
+        if type(value) not in (int, float) or not minimum <= value <= 100:
+            issues.append(f"{key} must be {minimum}-100")
+    if not isinstance(report.get("listener_summary"), str) or not report["listener_summary"].strip():
+        issues.append("missing first-time listener summary")
+    return issues
 
 
 def _story_flow_warnings(sections: list[Any]) -> list[str]:
+    # Only unambiguous formatting defects belong in the automatic rejection
+    # gate. Moralizing and unmotivated dialogue require contextual review.
     texts = [
-        str((section or {}).get("text") or "").strip() if isinstance(section, dict) else ""
+        str(section.get("text") or "").strip() if isinstance(section, dict) else ""
         for section in sections
     ]
-    full_script = "\n".join(texts)
-    warnings: list[str] = []
-    moral_hits = [pattern for pattern in _FORCED_MORAL_PATTERNS if pattern in full_script]
-    tail = "\n".join(texts[max(0, len(texts) - 5):])
-    tail_moral_hits = [pattern for pattern in _FORCED_MORAL_PATTERNS if pattern in tail]
-    if len(moral_hits) >= 3 or tail_moral_hits:
-        warnings.append("script leans on direct lesson/emotional-summary phrases instead of changed action")
-
-    speaker_label_count = sum(
-        1 for text in texts
-        if re.search(r"(^|\n)\s*[가-힣A-Za-z0-9_]{1,12}\s*[:：]", text)
-    )
-    if speaker_label_count:
-        warnings.append("narration contains speaker-label dialogue formatting")
-
-    quote_scenes = sum(1 for text in texts if re.search(r"[\"“”‘’][^\"“”‘’]{2,80}[\"“”‘’]", text))
-    if quote_scenes > max(4, len(texts) // 5):
-        warnings.append("too many scenes rely on direct quoted dialogue for a narration-first script")
-    return warnings[:4]
+    if any(re.search(r"(^|\n)\s*[가-힣A-Za-z0-9_]{1,12}\s*[:：]", text) for text in texts):
+        return ["narration contains speaker-label dialogue formatting"]
+    return []
 
 
 @dataclass(frozen=True)
@@ -868,7 +880,7 @@ def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = 
         raise CodexContentError("Codex response requires publish_metadata object")
     raw_script = package.get("script")
     sections = [{"scene_order": i, "text": text} for i, text in enumerate(raw_script.split("\n\n"), 1)] if isinstance(raw_script, str) else []
-    issues = text_issues(sections, payload or {}) + _story_flow_warnings(sections) + review_issues(package.get("script_quality_report"))
+    issues = text_issues(sections, payload or {}) + _story_flow_warnings(sections) + review_issues(package.get("script_quality_report")) + _story_review_issues(package.get("script_quality_report"))
     issues += text_issues([
         {"scene_order": i, "text": scene.get("scene_text") or scene.get("narration")}
         if isinstance(scene, dict) else {}
@@ -1035,7 +1047,8 @@ class CodexContentRunner:
         result = CodexStagedContentRunner(self.config)._stage(job_id, "02c_senior_review", {
             **payload, "script": package.get("script"), "structure": package.get("structure"),
             "narrative_blueprint": package.get("narrative_blueprint"),
-        }, "Independently review the exact full script against the mandatory senior listening contract. Do not rewrite or trust author self-scores. Return only script_quality_report with the required profile, verdict, score, critical_issues and all evidence-backed checks. Fail unresolved contradictions and unsupported factual claims.")
+            "story_spine_contract": _story_spine_contract(payload),
+        }, "Independently review the exact full script against the mandatory senior listening contract. Do not rewrite or trust author self-scores. Return only script_quality_report with the required profile, verdict, score, critical_issues and all evidence-backed checks. Fail unresolved contradictions and unsupported factual claims." + _story_review_contract())
         package["script_quality_report"] = result.get("script_quality_report")
 
     def __init__(self, config: CodexContentConfig | None = None):
@@ -1306,9 +1319,9 @@ class CodexStagedContentRunner:
                     "script": "\n\n".join(s["text"].strip() for s in qa_sections),
                 }, "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
                    "Compare the cast, timeline, object custody, character knowledge and title promise across the entire script. Check factual claims against supplied evidence. "
-                   "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in category_narration_voice's senior listening contract.")
+                   "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in category_narration_voice's senior listening contract." + _story_review_contract())
                 qa["script_quality_report"] = review.get("script_quality_report")
-                rhythm_warnings += review_issues(qa["script_quality_report"])
+                rhythm_warnings += review_issues(qa["script_quality_report"]) + _story_review_issues(qa["script_quality_report"])
                 if rhythm_warnings:
                     qa_context["independent_review_feedback"] = review
             if not rhythm_warnings:
@@ -1336,9 +1349,9 @@ class CodexStagedContentRunner:
                 **script_context, 'sections': qa_sections,
                 'script': '\n\n'.join(s['text'] for s in qa_sections),
             }, 'Independently recheck the exact revised script against the complete senior listening contract. '
-               'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.')
+               'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.' + _story_review_contract())
             qa['script_quality_report'] = final_review.get('script_quality_report')
-            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report'])
+            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report']) + _story_review_issues(qa['script_quality_report'])
             if final_issues:
                 raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
         structure['listener_quality_report'] = listener_audit

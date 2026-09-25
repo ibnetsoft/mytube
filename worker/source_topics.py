@@ -38,6 +38,23 @@ class Topics(BaseModel):
     topics: list[Topic] = Field(min_length=3, max_length=3)
 
 
+def _topic_notes(topic):
+    labels = [('premise', '줄거리'), ('protagonist', '주인공'), ('conflict', '핵심 갈등'),
+              ('hook', '도입'), ('twist', '반전'), ('ending', '결말'), ('differentiation', '원작과 차별점')]
+    spine_labels = [('protagonist_want', '주인공이 원하는 것'),
+                    ('first_causal_problem', '첫 원인 사건'),
+                    ('escalation', '악화/압박'),
+                    ('irreversible_turn', '돌이킬 수 없는 전환'),
+                    ('concrete_resolution', '구체적 해결'),
+                    ('final_changed_action', '마지막에 달라진 행동')]
+    notes = '아래는 참고자료의 사실 요약이 아닌 새로 재구성한 창작 토픽입니다.\n' + '\n'.join(
+        label + ': ' + topic[key] for key, label in labels)
+    notes += '\n\n[고정 story_spine - 대본 생성 시 임의 변경 금지]\n' + '\n'.join(
+        label + ': ' + topic[key] for key, label in spine_labels)
+    notes += '\n결말 원칙: 교훈/감동 문장을 직접 말하지 말고, 마지막에 달라진 행동과 그 결과로 닫으세요.'
+    return notes
+
+
 def produce_topics(identity, request, sources, runner, notify):
     from worker.grounded_script import validate_source, MAX_PACKET_CHARS
     from worker.content_language import resolve_setting, setting_directive
@@ -96,6 +113,8 @@ def produce_topics(identity, request, sources, runner, notify):
             )
             if any(not str(topic[key]).strip() for key in required_fields):
                 raise ValueError('토픽 구성 요소가 비어 있습니다.')
+            if len(_topic_notes(topic)) > 4000:
+                raise ValueError('대본 생성용 토픽 설명은 4,000자 이하여야 합니다. 이야기 뼈대를 유지하면서 각 항목을 줄이세요.')
             if not set(topic['source_ids']).issubset(by_id):
                 raise ValueError('존재하지 않는 출처입니다.')
             if topic['title'].strip() in [s['title'].strip() for s in sources]:
@@ -104,7 +123,8 @@ def produce_topics(identity, request, sources, runner, notify):
 
     creative_task = (
         policy + '\n' + language_directive(language) + '\n' + setting_directive(setting, mode='story') + '\n'
-        'Write all creative topic fields in the output language. '
+        'Write all creative topic fields in the output language. Keep the combined narrative fields of each '
+        'topic within 3,500 characters so its complete story spine fits the generation handoff. '
         'Create exactly 3 DISTINCT original fictional story topics for the requested category, duration, and setting. '
         'Reuse only abstract emotional conflicts or narrative techniques from the source. Adapt setting, relationships, '
         'character names, causal chain, reveal and resolution to fit the target country and era authentically. '
@@ -120,19 +140,7 @@ def produce_topics(identity, request, sources, runner, notify):
                           'analysis': analysis, 'category': request['category'],
                           'duration_minutes': request['duration_minutes'], 'direction': request['notes']})
     for topic in topics:
-        labels = [('premise', '줄거리'), ('protagonist', '주인공'), ('conflict', '핵심 갈등'),
-                  ('hook', '도입'), ('twist', '반전'), ('ending', '결말'), ('differentiation', '원작과 차별점')]
-        spine_labels = [('protagonist_want', '주인공이 원하는 것'),
-                        ('first_causal_problem', '첫 원인 사건'),
-                        ('escalation', '악화/압박'),
-                        ('irreversible_turn', '돌이킬 수 없는 전환'),
-                        ('concrete_resolution', '구체적 해결'),
-                        ('final_changed_action', '마지막에 달라진 행동')]
-        notes = '아래는 참고자료의 사실 요약이 아닌 새로 재구성한 창작 토픽입니다.\n' + '\n'.join(
-            label + ': ' + topic[key] for key, label in labels)
-        notes += '\n\n[고정 story_spine - 대본 생성 시 임의 변경 금지]\n' + '\n'.join(
-            label + ': ' + topic[key] for key, label in spine_labels)
-        notes += '\n결말 원칙: 교훈/감동 문장을 직접 말하지 말고, 마지막에 달라진 행동과 그 결과로 닫으세요.'
+        notes = _topic_notes(topic)
         topic['generation_request'] = {
             'mode': 'new', 'title': topic['title'], 'category': request['category'],
             'category_id': '', 'language': setting['language'],

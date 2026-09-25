@@ -25,7 +25,9 @@ def analysis():
 
 def candidates():
     return {'topics': [dict(title=f'새로운 가족 이야기 {i}', premise='함께 식당을 지키는 동료들',
-        protagonist='식당 주인', conflict='폐업 위기', hook='사라진 장부', twist='남몰래 갚은 빚',
+        protagonist='식당 주인', protagonist_want='식당을 지킨다', first_causal_problem='빚 상환 기한이 다가온다',
+        escalation='거래처가 납품을 중단한다', irreversible_turn='동료에게 장부를 공개한다',
+        concrete_resolution='동료들과 공동 출자한다', final_changed_action='동료에게 가게 열쇠를 나눠준다', conflict='폐업 위기', hook='사라진 장부', twist='남몰래 갚은 빚',
         ending='협동조합으로 재출발', differentiation='가족의 상속 갈등을 동료의 신뢰 회복으로 변경',
         source_ids=[source()['id']]) for i in range(3)]}
 
@@ -51,6 +53,8 @@ def test_analysis_topics_and_generation_handoff():
         draft = console.StartRequest(**topic['generation_request'])
         assert draft.category == '가족 사연' and draft.duration_minutes == 12
         assert topic['twist'] in draft.notes and topic['ending'] in draft.notes
+        for key in ('protagonist_want', 'first_causal_problem', 'escalation', 'irreversible_turn', 'concrete_resolution', 'final_changed_action'):
+            assert topic[key] in draft.notes
         assert len(draft.notes) <= 4000
 
 
@@ -161,3 +165,27 @@ def test_topic_setting_survives_handoff():
         assert req['era_region'] == '도쿄 근교 1990년대'
         assert req['image_style'] == '실사 영화 스틸'
 
+
+
+def test_overlong_handoff_retries_without_truncating_story_spine():
+    from worker.source_topics import Topic, _topic_notes
+    oversized = candidates()
+    for topic in oversized['topics']:
+        for key in ('premise', 'protagonist', 'protagonist_want', 'conflict', 'first_causal_problem',
+                    'hook', 'escalation', 'twist', 'irreversible_turn', 'concrete_resolution',
+                    'final_changed_action', 'ending', 'differentiation'):
+            limit = next(m.max_length for m in Topic.model_fields[key].metadata if hasattr(m, 'max_length'))
+            topic[key] = '가' * limit
+        assert len(_topic_notes(topic)) > 4000
+    result, calls = run_with([analysis(), oversized, candidates()])
+    assert len(calls) == 3
+    assert '4,000' in calls[2][2]['validation_feedback']
+    assert all(len(t['generation_request']['notes']) <= 4000 for t in result['topics'])
+
+
+def test_missing_spine_is_rejected_and_retried():
+    incomplete = candidates()
+    del incomplete['topics'][0]['final_changed_action']
+    result, calls = run_with([analysis(), incomplete, candidates()])
+    assert 'final_changed_action' in calls[2][2]['validation_feedback']
+    assert result['topics'][0]['final_changed_action']
