@@ -131,6 +131,10 @@ MANAGER_TICK_SECONDS = 1.0          # how often the manager's supervisor loop ru
 # [AIR-0227B Stage 3] graceful shutdown protocol timings
 SHUTDOWN_GRACE_SECONDS = 8.0
 SHUTDOWN_JOB_ABORT_GRACE_SECONDS = 5.0
+# AE and Premiere only inspect their shutdown flag between jobs. Give an
+# already-running scene/final export time to finish and persist its checkpoint.
+# This is a bounded drain, not an unconditional wait on a hung Adobe process.
+SHUTDOWN_MEDIA_DRAIN_SECONDS = max(0.0, float(os.environ.get("AIRWORKER_MEDIA_DRAIN_SECONDS", "7200")))
 COMMAND_RESULT_TIMEOUT_SECONDS = 10.0
 
 WORKER_ID = os.environ.get("AIRWORKER_ID", "poc-worker-not-real")

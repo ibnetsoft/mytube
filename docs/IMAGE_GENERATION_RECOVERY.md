@@ -89,6 +89,21 @@ python worker/image_recovery.py event --manifest cowork_batches/<ID>/v2/manifest
 - 부분 저장이 필요한 운영 리페어는 별도의 범위 한정 저장 절차를 이용하고 전체 ready로 보고하지 않는다. 이 큐는 자동으로 기존 사용자 프로젝트나 DB를 변경하지 않는다.
 - 이미 진행 중이던 옛 manifest는 `init`으로 명시적으로 도입할 수 있지만 기존 생성/검수 결과는 실제 파일 확인 후 이력을 등록해야 한다. 거절을 pending으로 초기화해 재시도하지 않는다.
 
+### 무빙툰 AE 템플릿의 실제 레이어
+
+`ae_effect_plan.template`가 `angled_triple_reaction`, `body_following_qi`, `ink_splat_impact`, `wall_impact_debris`, `glasses_reflection`, `kinetic_title_reveal`, `backlit_hand_reveal`인 씬은 `manifest.json`의 `layer_package_specs`를 따른다. 각 역할 파일은 `images-dir/scene-NNN-<role>.png` 형태이고 역할 이름의 밑줄은 파일명에서 하이픈으로 바꾼다. 예: `scene-007-character-left.png`. 배경은 캔버스 전체를 덮고, 인물·손·벽·반사 장면·소품·추가 효과는 실제 투명 영역이 있는 1920×1080 독립 PNG여야 한다. 평면 크롭이나 흐린 깊이 프록시를 인물 레이어로 간주하지 않는다.
+
+```powershell
+python worker/cowork_scene_assets.py prepare-layers --manifest cowork_batches/<ID>/v2/manifest.json --images-dir cowork_batches/<ID>/v2/cropped
+# layer-packages/scene-NNN-preview.png와 각 PSD 레이어를 눈으로 확인한 뒤:
+python worker/cowork_scene_assets.py approve-layers --manifest cowork_batches/<ID>/v2/manifest.json --images-dir cowork_batches/<ID>/v2/cropped --reviewer "검수자" --note "인물 경계·부적 위치·가림 순서 확인"
+python worker/cowork_scene_assets.py publish --manifest cowork_batches/<ID>/v2/manifest.json --images-dir cowork_batches/<ID>/v2/cropped
+```
+
+입력 부족 또는 알파 오류는 `manga-layer-issues.json`에 `needs_review`로 남는다. 준비 결과는 `manga-layer-review.json`에 PSD·프리뷰·원본 파일 해시와 검수자를 기록한다. 수정된 원본이나 미승인 PSD는 **첫 GCS 업로드 전에** publish를 차단한다. 새 레이어를 만들거나 계획을 바꾼 경우 새 작업 디렉터리/manifest 리비전을 사용한다.
+
+승인된 PSD는 내용 해시를 포함한 GCS 경로에 저장해 AE 재시작 시 이전 리비전이 재사용되지 않게 한다. 토픽이 이미 배정·제출되었더라도 씬 계획과 이미지가 청구 당시 상태 그대로라면 데이터베이스 행 잠금 아래 승인된 이미지·PSD 메타데이터만 프로젝트에 병합한다. 사용자 이미지·연출 수정, 진행 중인 AE 작업, 사람의 영상 반려는 건드리지 않는다. 과거 PSD 부재로만 실패한 씬은 새 PSD를 병합하는 같은 트랜잭션에서 다시 대기열에 올린다. `air_sync_manga_layer_assets` RPC 마이그레이션이 적용되어야 이 동기화가 동작한다.
+
 ## 캐릭터와 썸네일
 
 `NativeCodexImageGenerator`는 캐릭터 작업 폴더의 image-job.recovery.json을 자동으로 사용한다. 거절/원인불명은 재실행해도 다시 생성하지 않는다. 검토된 대안 작업이 있으면 그 프롬프트를 사용하며 성공 파일은 해시 검증 후 재사용한다. 캐릭터 실패 시 같은 이야기에 종속된 씬 생성은 중단하지만 다른 이야기 작업까지 폐기하지 않는다.

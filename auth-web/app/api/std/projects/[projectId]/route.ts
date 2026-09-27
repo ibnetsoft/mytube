@@ -559,15 +559,18 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     }
     if (titlePatch) updatePayload.title = titlePatch
 
-    const { data: updated, error: updateError } = await supabaseAdmin
+    let updateQuery = supabaseAdmin
         .from('std_projects')
         .update(updatePayload)
         .eq('id', project.id)
         .eq('status', project.status)
-        .select('*')
-        .single()
+    updateQuery = project.updated_at
+        ? updateQuery.eq('updated_at', project.updated_at)
+        : updateQuery.is('updated_at', null)
+    const { data: updated, error: updateError } = await updateQuery.select('*').maybeSingle()
 
     if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
+    if (!updated) return NextResponse.json({ success: false, error: 'Project changed while saving; reload and retry' }, { status: 409 })
 
     let updatedScenes: any[] | null = null
     if (normalizedScenes.length > 0) {

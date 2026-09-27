@@ -1,4 +1,5 @@
 'use client'
+import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
 import StdComicEditor from '@/components/StdComicEditor'
 import { isComicProject, ComicSettings, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
@@ -8,6 +9,7 @@ import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
+import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
@@ -990,6 +992,7 @@ export default function StdPortalPage() {
     // 2.1 주제 큐 & 모달 팝업 상태 (유저앱 topic.html 완벽 대응)
     const [selectedTopicForModal, setSelectedTopicForModal] = useState<any>(null)
     const [topicModalOpen, setTopicModalOpen] = useState(false)
+    const [topicAeSceneDelivery, setTopicAeSceneDelivery] = useState<'local' | 'gcs'>('local')
     const [trendLang, setTrendLang] = useState<'ko' | 'ja' | 'en'>('ko')
     const [trendPeriod, setTrendPeriod] = useState('now')
     const [trendAge, setTrendAge] = useState('50s')
@@ -997,8 +1000,8 @@ export default function StdPortalPage() {
     const [topicLengthFilter, setTopicLengthFilter] = useState('')
 
     // 3. 네비게이션: 유저앱 사이드바 및 스텝퍼와 100% 동일
-    type StdNavKey = 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'subtitle_vrew' | 'tts' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
-    const STD_NAV_KEYS: StdNavKey[] = ['topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_vrew', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
+    type StdNavKey = 'topic_submissions' | 'topics' | 'script_plan' | 'script_gen' | 'image_gen' | 'subtitle_vrew' | 'tts' | 'thumbnail' | 'music_missions' | 'projects' | 'template' | 'render' | 'settings'
+    const STD_NAV_KEYS: StdNavKey[] = ['topic_submissions', 'topics', 'script_plan', 'script_gen', 'image_gen', 'subtitle_vrew', 'tts', 'thumbnail', 'music_missions', 'projects', 'template', 'render', 'settings']
     const normalizeStdNav = (value: string | null | undefined): StdNavKey | null => {
         if (value === 'subtitle_gen') return 'subtitle_vrew'
         if (value === 'tts') return 'subtitle_vrew'
@@ -4825,6 +4828,7 @@ export default function StdPortalPage() {
             const res = await fetch(`/api/std/topics/${topicId}/claim`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
+                body: JSON.stringify({ ae_scene_delivery: topicAeSceneDelivery }),
             })
             const payload = await safeParseJson(res, '주제 선택 실패')
             if (res.ok && payload?.project?.id) {
@@ -8663,6 +8667,7 @@ export default function StdPortalPage() {
                             {sidebarProgress}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                                 {[
+                                    { id: 'topic_submissions', label: '토픽 등록' },
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
                                     { id: 'subtitle_vrew', label: t('nav_subtitles') },
@@ -8765,6 +8770,7 @@ export default function StdPortalPage() {
                     {sidebarProgress}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
+                            { id: 'topic_submissions', label: '토픽 등록' },
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_vrew', label: t('nav_subtitles') },
@@ -10815,6 +10821,7 @@ export default function StdPortalPage() {
                     )}
 
                     {/* [주제 탐색 탭 (유저앱 topic.html 100% 동일 구현 + 상세 모달 + 프로젝트 자동 연동)] */}
+                    {currentNav === 'topic_submissions' && <TopicSubmissionPanel headers={authedJsonHeaders} />}
                     {currentNav === 'topics' && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full pb-10">
                             {SHOW_TOPIC_TREND_PANEL && (
@@ -10998,6 +11005,7 @@ export default function StdPortalPage() {
                                             key={topic.id}
                                             onClick={() => {
                                                 setSelectedTopicForModal(topic)
+                                                setTopicAeSceneDelivery(resolveClaimAeSceneDelivery(topic.pregenerated_structure))
                                                 setTopicModalOpen(true)
                                             }}
                                             className="bg-[#1c2027] border border-white/10 hover:border-indigo-500 rounded-2xl p-4 cursor-pointer hover:-translate-y-1.5 transition-all shadow-lg group flex flex-col justify-between relative overflow-hidden"
@@ -11106,6 +11114,20 @@ export default function StdPortalPage() {
                                                 </p>
                                             </div>
                                         </div>
+
+                                        <fieldset className="rounded-xl border border-white/10 bg-[#14181f] p-4 text-xs">
+                                            <legend className="px-1 font-bold text-gray-200">AE 씬 영상 전달 방식</legend>
+                                            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                                                <label className="flex cursor-pointer gap-2 rounded-lg border border-white/10 p-3">
+                                                    <input type="radio" name="topic_ae_scene_delivery" value="local" checked={topicAeSceneDelivery === 'local'} onChange={() => setTopicAeSceneDelivery('local')} className="mt-0.5 accent-indigo-500" />
+                                                    <span><strong className="block text-gray-100">로컬 전달</strong><span className="mt-1 block text-gray-400">같은 PC의 프리미어 워커가 AE 씬 영상을 직접 사용합니다.</span></span>
+                                                </label>
+                                                <label className="flex cursor-pointer gap-2 rounded-lg border border-white/10 p-3">
+                                                    <input type="radio" name="topic_ae_scene_delivery" value="gcs" checked={topicAeSceneDelivery === 'gcs'} onChange={() => setTopicAeSceneDelivery('gcs')} className="mt-0.5 accent-indigo-500" />
+                                                    <span><strong className="block text-gray-100">GCS 업로드</strong><span className="mt-1 block text-gray-400">씬별 웹 미리보기나 다른 PC의 워커로 인계할 때 사용합니다.</span></span>
+                                                </label>
+                                            </div>
+                                        </fieldset>
 
                                         {/* 액션 버튼 */}
                                         <div className="flex items-center justify-end gap-3 pt-2">

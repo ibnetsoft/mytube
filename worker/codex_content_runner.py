@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
 import os
 import re
 import subprocess
@@ -128,6 +129,398 @@ AE_TARGET_KEYWORDS = (
 )
 
 
+AE_MANGA_CLIP_MAX_SECONDS = 12  # Must match the AE worker's SceneJob duration cap.
+
+AE_MANGA_TEMPLATES = {
+    "angled_triple_reaction": {
+        "preset": "comic_triple_reaction",
+        "direction": "Reveal three slanted character panels in sequence, then land on their simultaneous reaction.",
+        "required_layers": ["background", "character_left", "character_center", "character_right"],
+        "optional_layers": ["speedlines"],
+    },
+    "body_following_qi": {
+        "preset": "wuxia_body_qi",
+        "direction": "Attach the talisman, then trace violet qi along the character's body in timed pulses.",
+        "required_layers": ["background", "character", "talisman"],
+        "optional_layers": ["qi_overlay"],
+    },
+    "ink_splat_impact": {
+        "preset": "comic_ink_splat_impact",
+        "direction": "Strike with the talisman, burst an ink splat, and reveal Korean impact lettering on the beat.",
+        "required_layers": ["background", "character", "talisman"],
+        "optional_layers": ["ink_splat", "speedlines"],
+    },
+    "wall_impact_debris": {
+        "preset": "comic_wall_impact_debris",
+        "direction": "Drive the character into the wall at the marked contact point, replace the intact wall with its matching fracture, then throw debris outward.",
+        "required_layers": ["background", "character", "wall_intact", "wall_broken"],
+        "optional_layers": ["debris", "speedlines"],
+    },
+    "glasses_reflection": {
+        "preset": "comic_glasses_reflection",
+        "direction": "Reveal the remembered event inside both lens masks, catch a glint, and push toward the observer's eyes.",
+        "required_layers": ["background", "character", "reflection_scene"],
+        "optional_layers": ["lens_glint"],
+    },
+    "kinetic_title_reveal": {
+        "preset": "comic_kinetic_title_reveal",
+        "direction": "Punch a short Korean emphasis title onto the image at the scripted beat, with a distinct accent and readable hold.",
+        "required_layers": ["background", "character"],
+        "optional_layers": ["training_prop", "title_backdrop", "speedlines"],
+    },
+    "backlit_hand_reveal": {
+        "preset": "comic_backlit_hand_reveal",
+        "direction": "Raise the silhouetted hand toward the sky, ignite light at the specified palm point, and let rays bloom before settling.",
+        "required_layers": ["background", "hand_foreground"],
+        "optional_layers": ["light_core", "light_rays"],
+    },
+}
+
+
+def _manga_template_for_scene(scene: dict[str, Any]) -> str:
+    """Prefer an explicit visual direction; otherwise use only scene-local action cues."""
+    existing = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+    previous_template = existing.get("template") if existing.get("enabled") and existing.get("template_source") != "scene_semantics" else ""
+    explicit = str(scene.get("ae_template") or previous_template or "").strip()
+    if explicit in AE_MANGA_TEMPLATES:
+        return explicit
+    blob = _text_blob(
+        scene.get("scene_summary"), scene.get("scene_situation"),
+        scene.get("scene_text"), scene.get("narration"), scene.get("image_prompt"),
+    ).lower()
+    three_named = any(word in blob for word in (
+        "세 사람", "세 명", "세 인물", "셋의", "삼인", "삼자", "3인",
+        "three characters", "three figures", "three people",
+    ))
+    flanking = any(word in blob for word in ("양옆", "좌우", "두 호위", "flanking")) and any(
+        word in blob for word in ("가운데", "중앙", "주인공", "center", "centre")
+    )
+    triple = (three_named or flanking) and any(word in blob for word in (
+        "반응", "경악", "놀라", "대치", "서로", "양쪽", "좌우",
+        "reaction", "surprise", "standoff",
+    ))
+    talisman = any(word in blob for word in ("부적", "talisman", "charm", "符"))
+    body_qi = talisman and any(word in blob for word in (
+        "기운", "내공", "기맥", "검기", "보랏빛", "자줏빛", "qi", "aura", "energy",
+    )) and any(word in blob for word in (
+        "몸", "가슴", "팔", "피부", "혈맥", "경락", "온몸", "전신", "body", "chest", "vein",
+    )) and any(word in blob for word in (
+        "흐르", "타고", "퍼지", "번지", "치솟", "일렁", "감싸", "순환", "따라", "flow", "trace", "coil", "course",
+    ))
+    ink_impact = talisman and any(word in blob for word in (
+        "폭발", "격발", "파열", "터지", "내리꽂", "때리", "부딪", "타격", "충돌", "impact", "burst", "explode", "splat",
+    ))
+    wall_impact = (
+        any(word in blob for word in ("벽", "담벼락", "wall", "masonry"))
+        and any(word in blob for word in ("충돌", "부딪", "처박", "내던져", "날아가", "꿰뚫", "smash into", "slam into", "crash into", "wall impact"))
+        and any(word in blob for word in ("깨지", "부서", "금이", "파편", "잔해", "뚫", "무너", "crack", "fracture", "debris", "shatter", "break through"))
+    )
+    glasses_reflection = (
+        any(word in blob for word in ("안경", "렌즈", "고글", "glasses", "spectacles", "goggles", "lenses"))
+        and any(word in blob for word in ("비친", "비치", "비쳤", "비춰", "반사", "투영", "reflection", "reflected", "mirrored in"))
+        and any(word in blob for word in ("사람", "인물", "모습", "장면", "벽", "사건", "figure", "scene", "victim", "event"))
+    )
+    title_reveal = (
+        any(word in blob for word in ("강조 문구", "큰 글자", "붉은 글자", "화면 문구", "타이포그래피", "타이틀 카드", "title card", "on-screen title", "kinetic typography"))
+        and any(word in blob for word in ("훈련", "근력", "살아남", "생존", "위협", "선언", "경고", "training", "strength", "survive", "threat", "warning"))
+    )
+    backlit_hand = (
+        any(word in blob for word in ("손", "손바닥", "손끝", "hand", "palm", "fingers"))
+        and any(word in blob for word in ("햇빛", "태양", "역광", "광선", "섬광", "빛줄기", "sun", "backlight", "sunray", "light rays", "sun flare"))
+        and any(word in blob for word in ("들어 올", "들어올", "뻗", "치켜", "향해", "raise", "reach", "stretch toward"))
+    )
+    if wall_impact:
+        return "wall_impact_debris"
+    if glasses_reflection:
+        return "glasses_reflection"
+    if title_reveal:
+        return "kinetic_title_reveal"
+    if backlit_hand:
+        return "backlit_hand_reveal"
+    if triple:
+        return "angled_triple_reaction"
+    if ink_impact:
+        return "ink_splat_impact"
+    if body_qi:
+        return "body_following_qi"
+    return ""
+
+
+def _impact_lettering(scene: dict[str, Any]) -> str:
+    explicit = str(scene.get("impact_text") or scene.get("onomatopoeia") or "").strip()
+    if re.fullmatch(r"[가-힣]{1,10}[!?！]{0,2}", explicit):
+        return explicit
+    blob = _text_blob(scene.get("sfx_cue"), scene.get("sfx_cues"), scene.get("scene_text"), scene.get("narration"))
+    found = re.search(r"(?:쾅쾅|우지끈|파직|촤악|찌릿|쾅|펑|뻥|퍽|쿵|팡|탁)[!?！]{0,2}", blob)
+    return found.group(0) if found else "쾅!"
+
+
+def _unit_point(value: Any) -> list[float] | None:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    try:
+        point = [float(value[0]), float(value[1])]
+    except (TypeError, ValueError):
+        return None
+    return [round(number, 4) for number in point] if all(math.isfinite(number) and 0 <= number <= 1 for number in point) else None
+
+
+def _valid_panel_polygon(points: list[list[float] | None], role: str) -> bool:
+    if len(points) != 4 or any(point is None for point in points):
+        return False
+    solid = [point for point in points if point is not None]
+    area = abs(sum(solid[index][0] * solid[(index + 1) % 4][1]
+                   - solid[(index + 1) % 4][0] * solid[index][1]
+                   for index in range(4))) / 2
+    slanted = any(abs(a[0] - b[0]) > .025 and abs(a[1] - b[1]) > .025
+                  for a, b in zip(solid, solid[1:] + solid[:1]))
+    return area >= .002 and (slanted or role == "character_center")
+
+
+def _character_role_mapping(scene: dict[str, Any], payload: dict[str, Any], template: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Bind named composition roles to verified portrait keys without guessing order."""
+    params = scene.get("ae_template_parameters") if isinstance(scene.get("ae_template_parameters"), dict) else {}
+    role_names = scene.get("ae_character_roles") or scene.get("character_roles") or params.get("character_roles") or {}
+    role_names = role_names if isinstance(role_names, dict) else {}
+    explicit_keys = scene.get("ae_character_role_keys") or params.get("character_role_keys") or {}
+    explicit_keys = explicit_keys if isinstance(explicit_keys, dict) else {}
+    roles = (
+        ("character_left", "character_center", "character_right") if template == "angled_triple_reaction"
+        else ("hand_foreground",) if template == "backlit_hand_reveal"
+        else ("character",)
+    )
+    anchors = payload.get("character_anchors")
+    if isinstance(anchors, dict):
+        records = [anchors.get("main_character"), *(anchors.get("supporting_characters") or [])]
+    elif isinstance(anchors, list):
+        records = anchors
+    else:
+        records = [payload.get("main_character"), *(payload.get("supporting_characters") or [])]
+    known = [item for item in records if isinstance(item, dict) and item.get("character_key") and item.get("name")]
+    by_key = {str(item["character_key"]): item for item in known}
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for item in known:
+        by_name.setdefault(str(item["name"]).strip().lower(), []).append(item)
+    names: dict[str, str] = {}
+    keys: dict[str, str] = {}
+    for role in roles:
+        alias = "hand" if role == "hand_foreground" else role.removeprefix("character_") if role != "character" else role
+        name = str(role_names.get(role) or role_names.get(alias) or "").strip()
+        key = str(explicit_keys.get(role) or explicit_keys.get(alias) or "").strip()
+        candidates = by_name.get(name.lower(), []) if name else []
+        anchor = by_key.get(key) if key else candidates[0] if len(candidates) == 1 else None
+        if anchor and name and str(anchor["name"]).strip().lower() != name.lower():
+            anchor = None
+        if not anchor and role in {"character", "hand_foreground"} and not name and not key:
+            blob = _text_blob(scene.get("scene_summary"), scene.get("scene_text"), scene.get("narration"))
+            matches = [item for item in known if str(item["name"]).strip().lower() in blob]
+            anchor = matches[0] if len(matches) == 1 else None
+            if anchor is None and role == "hand_foreground":
+                main = anchors.get("main_character") if isinstance(anchors, dict) else payload.get("main_character")
+                if isinstance(main, dict) and main.get("character_key") and main.get("name"):
+                    anchor = by_key.get(str(main["character_key"]))
+        if name:
+            names[role] = name
+        if anchor:
+            names[role] = str(anchor["name"])
+            keys[role] = str(anchor["character_key"])
+    return names, keys
+
+
+def _manga_title_text(value: Any, fallback: str) -> str:
+    """Keep on-screen copy short and free of control characters or line breaks."""
+    candidate = re.sub(r"\s+", " ", str(value or fallback)).strip()
+    candidate = "".join(char for char in candidate if ord(char) >= 32 and char != "�")
+    return candidate[:42].strip() or fallback
+
+
+def _manga_lens(value: Any, default_center: list[float]) -> dict[str, list[float]]:
+    entry = value if isinstance(value, dict) else {}
+    center = _unit_point(entry.get("center")) or default_center
+    radius = _unit_point(entry.get("radius"))
+    if radius is None or not (.035 <= radius[0] <= .32 and .035 <= radius[1] <= .32):
+        radius = [0.115, 0.135]
+    if not (radius[0] <= center[0] <= 1 - radius[0]
+            and radius[1] <= center[1] <= 1 - radius[1]):
+        return {"center": default_center, "radius": [0.115, 0.135]}
+    return {"center": center, "radius": radius}
+
+
+def _manga_template_plan(template: str, scene: dict[str, Any], duration: float) -> dict[str, Any]:
+    """Renderer-facing normalized geometry and second-based animation beats."""
+    end = max(1.0, duration)
+    at = lambda fraction: round(min(end - 0.05, end * fraction), 3)
+    params = scene.get("ae_template_parameters") if isinstance(scene.get("ae_template_parameters"), dict) else {}
+    def seconds(value: Any, fallback: float) -> float:
+        try:
+            number = float(value)
+            return round(max(0.0, min(end - 0.05, number)), 3) if math.isfinite(number) else fallback
+        except (TypeError, ValueError):
+            return fallback
+    spec = AE_MANGA_TEMPLATES[template]
+    plan: dict[str, Any] = {
+        "template": template,
+        "asset_requirements": {
+            "required_layers": list(spec["required_layers"]),
+            "optional_layers": list(spec["optional_layers"]),
+        },
+        "direction": spec["direction"],
+    }
+    if template == "angled_triple_reaction":
+        panels = [
+            {"role": "character_left", "polygon": [[0.04, 0.02], [0.33, 0.02], [0.28, 0.98], [0.04, 0.98]], "enter_at": at(0.08)},
+            {"role": "character_center", "polygon": [[0.33, 0.02], [0.79, 0.02], [0.73, 0.98], [0.28, 0.98]], "enter_at": at(0.20)},
+            {"role": "character_right", "polygon": [[0.79, 0.02], [0.98, 0.02], [0.98, 0.98], [0.73, 0.98]], "enter_at": at(0.32)},
+        ]
+        custom_panels = params.get("panels") if isinstance(params.get("panels"), list) else []
+        for panel in panels:
+            override = next((item for item in custom_panels if isinstance(item, dict) and item.get("role") == panel["role"]), None)
+            if override:
+                polygon = [_unit_point(item) for item in override.get("polygon", [])] if isinstance(override.get("polygon"), list) else []
+                if _valid_panel_polygon(polygon, panel["role"]):
+                    panel["polygon"] = polygon
+                panel["enter_at"] = min(
+                    seconds(override.get("enter_at"), panel["enter_at"]),
+                    end - min(0.45, end * 0.4),
+                )
+        plan["panels"] = panels
+        reaction_at = min(end - 0.05, max(at(0.55), max(panel["enter_at"] for panel in panels) + 0.08))
+        reaction_text = str(params.get("speech_bubble_text") or scene.get("speech_bubble_text") or "?!").strip()
+        if not re.fullmatch(r"[가-힣A-Za-z0-9?!？！.,]{1,12}", reaction_text):
+            reaction_text = "?!"
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "background_speedline_in"},
+            *({"at_seconds": panel["enter_at"], "action": "panel_reveal", "target": panel["role"]} for panel in panels),
+            {"at_seconds": round(reaction_at, 3), "action": "reaction_push", "target": "character_center"},
+            {"at_seconds": round(min(end - 0.05, reaction_at + 0.04), 3), "action": "speech_bubble", "target": "character_center", "text": reaction_text},
+        ]
+    elif template == "body_following_qi":
+        default_path = [[0.48, 0.72], [0.39, 0.59], [0.52, 0.48], [0.61, 0.38], [0.50, 0.24]]
+        custom_path = [_unit_point(item) for item in params.get("qi_path", [])] if isinstance(params.get("qi_path"), list) else []
+        path_travel = sum(math.dist(a, b) for a, b in zip(custom_path, custom_path[1:])) if all(point is not None for point in custom_path) else 0
+        plan["qi_path"] = custom_path if 2 <= len(custom_path) <= 12 and path_travel >= .05 else default_path
+        talisman_target = params.get("talisman_target")
+        if isinstance(talisman_target, dict):
+            talisman_target = [talisman_target.get("x"), talisman_target.get("y")]
+        plan["talisman_target"] = _unit_point(talisman_target) or [0.5, 0.6]
+        talisman_at = seconds(params.get("talisman_at_seconds"), at(0.18))
+        qi_start_at = min(end - 0.05, max(talisman_at, seconds(params.get("qi_start_at_seconds"), at(0.25))))
+        qi_pulse_at = min(end - 0.05, max(qi_start_at, seconds(params.get("qi_pulse_at_seconds"), at(0.58))))
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "character_hold"},
+            {"at_seconds": talisman_at, "action": "talisman_attach", "target": "character"},
+            {"at_seconds": qi_start_at, "action": "qi_trace_start", "target": "qi_path"},
+            {"at_seconds": qi_pulse_at, "action": "qi_pulse", "target": "character"},
+            {"at_seconds": min(end - 0.05, max(qi_pulse_at, at(0.84))), "action": "qi_decay"},
+        ]
+    elif template == "ink_splat_impact":
+        custom_impact = params.get("impact") if isinstance(params.get("impact"), dict) else {}
+        impact_at = min(seconds(custom_impact.get("at_seconds"), at(0.38)), end - 0.55)
+        location = _unit_point([custom_impact.get("x"), custom_impact.get("y")]) or [0.51, 0.56]
+        text = _impact_lettering({**scene, "impact_text": custom_impact.get("text") or scene.get("impact_text")})
+        plan["impact"] = {"x": location[0], "y": location[1], "at_seconds": impact_at, "text": text}
+        ink_at = min(end - 0.05, round(impact_at + 0.06, 3))
+        lettering_at = min(end - 0.05, round(impact_at + 0.12, 3))
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "character_hold"},
+            {"at_seconds": min(impact_at, seconds(custom_impact.get("strike_at_seconds"), at(0.22))), "action": "talisman_strike", "target": "character"},
+            {"at_seconds": impact_at, "action": "impact_flash", "target": "impact"},
+            {"at_seconds": ink_at, "action": "ink_splat", "target": "impact"},
+            {"at_seconds": lettering_at, "action": "onomatopoeia", "target": "impact", "text": text},
+            {"at_seconds": min(end - 0.05, max(lettering_at + 0.15, at(0.75))), "action": "ink_settle"},
+        ]
+    elif template == "wall_impact_debris":
+        custom_impact = params.get("impact") if isinstance(params.get("impact"), dict) else {}
+        contact_at = min(seconds(custom_impact.get("at_seconds"), at(0.38)), end - min(0.45, end * 0.40))
+        point = _unit_point([custom_impact.get("x"), custom_impact.get("y")]) or [0.52, 0.43]
+        plan["impact"] = {"x": point[0], "y": point[1], "at_seconds": round(contact_at, 3)}
+        approach_at = min(contact_at, seconds(params.get("approach_at_seconds"), at(0.12)))
+        debris_at = min(end - 0.05, round(contact_at + 0.04, 3))
+        settle_at = min(end - 0.05, max(debris_at + 0.20, at(0.76)))
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "wall_hold", "target": "wall_intact"},
+            {"at_seconds": approach_at, "action": "character_approach", "target": "character"},
+            {"at_seconds": round(contact_at, 3), "action": "wall_contact", "target": "impact"},
+            {"at_seconds": round(contact_at, 3), "action": "wall_reveal", "target": "wall_broken"},
+            {"at_seconds": debris_at, "action": "debris_burst", "target": "impact"},
+            {"at_seconds": round(settle_at, 3), "action": "debris_settle", "target": "impact"},
+        ]
+    elif template == "glasses_reflection":
+        custom = params.get("reflection") if isinstance(params.get("reflection"), dict) else {}
+        reveal_at = min(seconds(custom.get("at_seconds"), at(0.35)), end - min(0.40, end * 0.35))
+        plan["reflection"] = {
+            "left_lens": _manga_lens(custom.get("left_lens"), [0.355, 0.39]),
+            "right_lens": _manga_lens(custom.get("right_lens"), [0.645, 0.39]),
+            "at_seconds": round(reveal_at, 3),
+        }
+        glint_at = min(end - 0.05, round(reveal_at + 0.12, 3))
+        push_at = min(end - 0.05, round(reveal_at + 0.25, 3))
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "face_hold", "target": "character"},
+            {"at_seconds": round(reveal_at, 3), "action": "reflection_reveal", "target": "reflection_scene"},
+            {"at_seconds": glint_at, "action": "lens_glint", "target": "reflection_scene"},
+            {"at_seconds": push_at, "action": "camera_push", "target": "character"},
+        ]
+    elif template == "kinetic_title_reveal":
+        custom = params.get("title") if isinstance(params.get("title"), dict) else {}
+        scene_text = _text_blob(scene.get("scene_summary"), scene.get("scene_text"), scene.get("narration"))
+        style = str(custom.get("style") or "").strip()
+        if style not in {"threat_red", "training_emphasis"}:
+            style = "training_emphasis" if any(word in scene_text.lower() for word in (
+                "훈련", "근력", "단련", "수련", "training", "strength",
+            )) else "threat_red"
+        text = _manga_title_text(
+            custom.get("text") or scene.get("ae_title_text") or scene.get("title_text"),
+            str(scene.get("scene_summary") or "결정적인 순간"),
+        )
+        accent = _manga_title_text(custom.get("accent_text"), "")
+        if not accent or accent not in text:
+            preferred = ("근력 훈련", "훈련", "근력") if style == "training_emphasis" else ("살아남", "위협", "경고")
+            accent = next((word for word in preferred if word in text), text.split(" ")[0])
+        position = _unit_point(custom.get("position")) or ([0.5, 0.55] if style == "training_emphasis" else [0.5, 0.73])
+        # Reserve the punch beat and a readable 0.35-second hold, even for a
+        # one-second AE clip or a requested event beyond the 12-second cap.
+        hold_limit = round(end - 0.35, 3)
+        reveal_at = min(seconds(custom.get("at_seconds"), at(0.38)), round(hold_limit - 0.10, 3))
+        plan["title"] = {"text": text, "accent_text": accent, "style": style,
+                         "position": position, "at_seconds": round(reveal_at, 3)}
+        if style == "training_emphasis":
+            plan["asset_requirements"]["required_layers"].append("training_prop")
+            plan["asset_requirements"]["optional_layers"].remove("training_prop")
+        punch_at = min(hold_limit, round(reveal_at + 0.10, 3))
+        hold_at = min(hold_limit, max(punch_at, at(0.72)))
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "subject_hold", "target": "character"},
+            {"at_seconds": round(reveal_at, 3), "action": "text_reveal", "target": "title", "text": text},
+            {"at_seconds": punch_at, "action": "text_punch", "target": "title", "text": accent},
+            {"at_seconds": hold_at, "action": "text_hold", "target": "title"},
+        ]
+    elif template == "backlit_hand_reveal":
+        point = params.get("light_origin")
+        if isinstance(point, dict):
+            point = [point.get("x"), point.get("y")]
+        plan["light_origin"] = _unit_point(point) or [0.52, 0.29]
+        # A late requested ignition needs room for separate ray and afterglow
+        # beats, followed by at least 0.15 seconds of visible final state.
+        beat_gap = min(0.12, max(0.05, end * 0.08))
+        glow_limit = round(end - 0.15, 3)
+        ignite_limit = round(glow_limit - 2 * beat_gap, 3)
+        raise_at = min(seconds(params.get("raise_at_seconds"), at(0.12)), ignite_limit)
+        ignite_at = max(raise_at, min(seconds(params.get("light_at_seconds"), at(0.38)), ignite_limit))
+        ray_at = max(round(ignite_at + beat_gap, 3),
+                     min(seconds(params.get("ray_at_seconds"), at(0.49)), round(glow_limit - beat_gap, 3)))
+        glow_at = min(glow_limit, max(ray_at, at(0.80)))
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "sky_hold", "target": "background"},
+            {"at_seconds": raise_at, "action": "hand_raise", "target": "hand_foreground"},
+            {"at_seconds": round(ignite_at, 3), "action": "light_ignite", "target": "light_origin"},
+            {"at_seconds": ray_at, "action": "ray_burst", "target": "light_origin"},
+            {"at_seconds": glow_at, "action": "afterglow", "target": "light_origin"},
+        ]
+    plan["beats"].sort(key=lambda beat: beat["at_seconds"])
+    return plan
+
+
 def _ae_plan_design(preset: str, scene_blob: str, priority: int) -> dict[str, Any]:
     design = json.loads(json.dumps(AE_EFFECT_PRESET_DESIGN.get(preset, AE_EFFECT_PRESET_DESIGN["wuxia_sword_aura"])))
     targets = []
@@ -182,11 +575,16 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             scene.get("narration"),
             scene.get("image_prompt"),
         )
+        template = _manga_template_for_scene(scene)
         selected = None
-        for preset, keywords, direction in AE_EFFECT_PRESET_KEYWORDS:
-            if any(keyword.lower() in scene_blob for keyword in keywords):
-                selected = (preset, direction)
-                break
+        if template:
+            spec = AE_MANGA_TEMPLATES[template]
+            selected = (spec["preset"], spec["direction"])
+        else:
+            for preset, keywords, direction in AE_EFFECT_PRESET_KEYWORDS:
+                if any(keyword.lower() in scene_blob for keyword in keywords):
+                    selected = (preset, direction)
+                    break
         if not selected:
             scene["ae_effect_plan"] = {"enabled": False, "reason": "standard_scene_ffmpeg_only"}
             continue
@@ -195,12 +593,55 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             priority += 1
         if any(word in scene_blob for word in ("결정적", "절정", "폭발", "검기", "진실", "배신", "final", "climax")):
             priority += 1
-        design = _ae_plan_design(selected[0], scene_blob, priority)
+        if template:
+            priority = min(5, priority + 2)
+        design_preset = (
+            "wuxia_sword_aura" if template == "body_following_qi"
+            else "anger_impact" if template else selected[0]
+        )
+        design = _ae_plan_design(design_preset, scene_blob, priority)
+        if template == "angled_triple_reaction":
+            design["targets"] = [{"type": "center_face", "x": 0.51, "y": 0.37}, {"type": "side_reactions", "x": 0.18, "y": 0.42}]
+            design["vfx"].extend(["angled_panel_reveal", "reaction_speedlines"])
+        elif template == "body_following_qi":
+            design["targets"] = [{"type": "talisman_on_chest", "x": 0.48, "y": 0.61}, {"type": "qi_trace", "x": 0.51, "y": 0.43}]
+            design["palette"] = {"primary": [0.65, 0.28, 0.93], "accent": [0.91, 0.41, 0.99], "flash": [0.99, 0.78, 1.0]}
+            design["vfx"].extend(["body_qi_trace", "violet_energy_pulse"])
+        elif template == "ink_splat_impact":
+            design["targets"] = [{"type": "impact", "x": 0.51, "y": 0.56}, {"type": "ink_splat", "x": 0.66, "y": 0.49}]
+            design["vfx"].extend(["ink_splat_burst", "korean_impact_lettering"])
+        elif template == "wall_impact_debris":
+            design["targets"] = [{"type": "wall_contact", "x": 0.52, "y": 0.43}]
+            design["vfx"].extend(["wall_break_swap", "debris_burst", "impact_camera_shake"])
+        elif template == "glasses_reflection":
+            design["targets"] = [{"type": "left_lens", "x": 0.355, "y": 0.39},
+                                 {"type": "right_lens", "x": 0.645, "y": 0.39}]
+            design["vfx"].extend(["dual_lens_reflection", "lens_glint", "camera_push"])
+        elif template == "kinetic_title_reveal":
+            design["targets"] = [{"type": "title", "x": 0.5, "y": 0.7}]
+            design["vfx"].extend(["timed_korean_title", "accent_text_punch"])
+        elif template == "backlit_hand_reveal":
+            design["targets"] = [{"type": "palm_light", "x": 0.52, "y": 0.29}]
+            design["vfx"].extend(["backlight_rays", "light_bloom", "hand_silhouette"])
+        source_duration = int(scene.get("duration_seconds") or scene.get("target_duration") or 4)
+        duration = min(AE_MANGA_CLIP_MAX_SECONDS, max(1, source_duration)) if template else source_duration
+        template_plan = _manga_template_plan(template, scene, duration) if template else {}
+        if template:
+            existing = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+            template_plan["template_source"] = (
+                "explicit" if scene.get("ae_template") == template
+                or (existing.get("enabled") and existing.get("template") == template and existing.get("template_source") != "scene_semantics")
+                else "scene_semantics"
+            )
+            names, keys = _character_role_mapping(scene, payload, template)
+            template_plan["character_role_names"] = names
+            template_plan["character_role_keys"] = keys
         plans.append({
             "scene_number": int(scene.get("scene_number") or scene.get("scene_order") or index),
             "preset": selected[0],
             "priority": min(priority, 5),
-            "duration_seconds": int(scene.get("duration_seconds") or scene.get("target_duration") or 4),
+            "duration_seconds": duration,
+            **({"source_scene_duration_seconds": source_duration} if template else {}),
             "direction": selected[1],
             "mood": design["mood"],
             "camera": design["camera"],
@@ -214,10 +655,25 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             "transition_out": design["transition_out"],
             "quality_checks": design["quality_checks"],
             "fallback": "ffmpeg_basic_motion",
+            **template_plan,
         })
 
+    # A short passage can contain all three visually distinct beats. Preserve
+    # those distinct directions even when the generic highlight quota is one.
+    distinct_templates = {str(plan.get("template")) for plan in plans if plan.get("template")}
+    max_highlights = max(max_highlights, min(8, len(distinct_templates)))
     plans.sort(key=lambda item: (-int(item["priority"]), int(item["scene_number"])))
-    selected_numbers = {int(item["scene_number"]) for item in plans[:max_highlights]}
+    selected_numbers: set[int] = set()
+    seen_templates: set[str] = set()
+    for plan in plans:
+        template = str(plan.get("template") or "")
+        if template and template not in seen_templates and len(selected_numbers) < max_highlights:
+            selected_numbers.add(int(plan["scene_number"]))
+            seen_templates.add(template)
+    for plan in plans:
+        if len(selected_numbers) >= max_highlights:
+            break
+        selected_numbers.add(int(plan["scene_number"]))
     for scene in scenes:
         if not isinstance(scene, dict):
             continue
@@ -463,6 +919,25 @@ def _psd_layer_prompt(scene: dict[str, Any], outputs: list[str], mode: str) -> s
     scene_number = int(scene.get("scene_number") or scene.get("scene_order") or 0)
     image_prompt = str(scene.get("image_prompt") or scene.get("scene_summary") or "").strip()
     output_text = ", ".join(outputs)
+    effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+    template = str(effect_plan.get("template") or "") if effect_plan.get("enabled") else ""
+    if template in AE_MANGA_TEMPLATES:
+        tiles = {
+            "angled_triple_reaction": "Top-Left clean background without characters; Top-Right left character cutout; Bottom-Left center character cutout; Bottom-Right right character cutout.",
+            "body_following_qi": "Top-Left clean background; Top-Right full character cutout with torso visible; Bottom-Left separate talisman prop cutout; Bottom-Right optional violet qi overlay without baked-in text.",
+            "ink_splat_impact": "Top-Left clean background; Top-Right full character cutout; Bottom-Left separate talisman prop cutout; Bottom-Right optional ink-splat overlay without baked-in text.",
+            "wall_impact_debris": "Top-Left clean background plate; Top-Right full character impact-pose cutout; Bottom-Left intact wall cutout; Bottom-Right matching broken wall cutout with a registered hole and transparent opening. Optional loose debris stays separate.",
+            "glasses_reflection": "Top-Left clean background; Top-Right close-up character face with visible, empty glasses lenses; Bottom-Left separate scene seen inside both lenses; Bottom-Right optional lens-glint overlay. Do not paint reflected figures into the base glasses.",
+            "kinetic_title_reveal": "Top-Left clean scene background; Top-Right character cutout; Bottom-Left separate training apparatus cutout when the plan requires training_prop; Bottom-Right optional title-safe backdrop. Leave the composition free of all captions and lettering.",
+            "backlit_hand_reveal": "Top-Left sky or environment background; Top-Right isolated foreground hand and arm cutout with verified character identity and a readable open-palm silhouette; Bottom-Left optional light-core glow; Bottom-Right optional rays. Keep sunlight and bloom out of the hand artwork.",
+        }[template]
+        return (
+            f"Create a strict 2x2 PSD-style layer sheet for scene {scene_number}, template {template}. "
+            f"{tiles} Keep each item isolated on a flat, clean keyable background so it can be extracted as its own AE layer. "
+            "Each character must retain the approved identity, expression, wardrobe, camera perspective and lighting. "
+            "The required pieces must not overlap or be merged. Do not bake panel borders, qi animation, debris, lens reflections, sunlight, ink lettering, captions, watermarks or sound words into character artwork; AE adds these on the timed beats. "
+            f"Named layer outputs (only roles listed as required by the scene plan are mandatory): {output_text}. Layer mode: {mode}. Source scene prompt: {image_prompt}"
+        )
     return (
         f"Create a PSD-style layered image asset sheet for scene {scene_number}. "
         "Use the approved scene image prompt as the visual source of truth, but produce clean layer-friendly assets for After Effects compositing. "
@@ -529,6 +1004,14 @@ def _plan_image_generation_efficiency(
         psd_numbers = {
             number for number, _score in sorted(psd_candidates, key=lambda item: (-item[1], item[0]))[:psd_cap]
         }
+    psd_numbers.update(
+        int(scene.get("scene_number") or scene.get("scene_order") or index)
+        for index, scene in enumerate(scenes, 1)
+        if isinstance(scene, dict)
+        and isinstance(scene.get("ae_effect_plan"), dict)
+        and scene["ae_effect_plan"].get("enabled")
+        and scene["ae_effect_plan"].get("template") in AE_MANGA_TEMPLATES
+    )
     scene_policies: list[dict[str, Any]] = []
     psd_layer_prompts: list[dict[str, Any]] = []
     for index, scene in enumerate(scenes, 1):
@@ -538,11 +1021,20 @@ def _plan_image_generation_efficiency(
         scene_blob = _scene_policy_blob(scene, category_blob)
         effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
         motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
+        template = str(effect_plan.get("template") or "") if effect_plan.get("enabled") else ""
+        template_assets = effect_plan.get("asset_requirements") if template in AE_MANGA_TEMPLATES else {}
         targets = effect_plan.get("targets") or motion_plan.get("targets") or []
         local_layers = number in layer_numbers
         multi_image = number in multi_numbers
         psd_required = number in psd_numbers
-        psd_outputs = _psd_layer_targets(scene_blob, targets if isinstance(targets, list) else [])
+        psd_outputs = (
+            list(template_assets.get("required_layers") or [])
+            + [item for item in template_assets.get("optional_layers") or []
+               if item not in {"speedlines"}
+               and not (template == "kinetic_title_reveal" and item == "training_prop")]
+            if isinstance(template_assets, dict) and template
+            else _psd_layer_targets(scene_blob, targets if isinstance(targets, list) else [])
+        )
         psd_units = 1.0 if psd_required else 0.0
         ae_postprocess_kind = "effect" if effect_plan.get("enabled") else "motion"
         policy = {
@@ -563,7 +1055,8 @@ def _plan_image_generation_efficiency(
             "psd_layer_generation_unit": "additional_psd_style_2x2_layer_sheet" if psd_required else "none",
             "psd_layer_generation_units_estimate": psd_units,
             "psd_layer_package_reason": (
-                "full_psd_mode" if image_layer_mode == "full_psd" and psd_required
+                "ae_manga_template_required" if template and psd_required
+                else "full_psd_mode" if image_layer_mode == "full_psd" and psd_required
                 else "hybrid_priority_scene" if psd_required
                 else "hybrid_base_scene_uses_local_layers"
             ),
@@ -588,6 +1081,9 @@ def _plan_image_generation_efficiency(
             "source": "additional_layer_sheet_generation" if psd_required else "local_derived_layers_only",
             "method": "psd_style_2x2_layer_sheet" if psd_required else "single_image_depth_proxy",
             "outputs": psd_outputs if psd_required else [],
+            "template": template or None,
+            "required_layers": list(template_assets.get("required_layers") or []) if isinstance(template_assets, dict) else [],
+            "optional_layers": list(template_assets.get("optional_layers") or []) if isinstance(template_assets, dict) else [],
             "transparent_layers_required": psd_required,
             "alpha_channel_preferred": psd_required,
             "credit_cost_estimate": psd_units,
@@ -617,7 +1113,7 @@ def _plan_image_generation_efficiency(
         "multi_image_scene_cap": multi_cap,
         "local_layer_scene_cap": layer_cap,
         "psd_layer_package_mode": "all_scenes" if image_layer_mode == "full_psd" else "priority_scenes_only",
-        "psd_layer_scene_cap": psd_cap,
+        "psd_layer_scene_cap": max(psd_cap, len(psd_numbers)),
         "psd_layer_scene_count": len(psd_layer_prompts),
         "psd_layer_generation_unit": "additional_psd_style_2x2_layer_sheet_per_selected_scene",
         "extra_images_default": "disabled",
@@ -1111,6 +1607,12 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
         scene["scene_purpose"] = str(scene.get("scene_purpose") or purpose or "").strip()
         scene["retention_hook"] = str(scene.get("retention_hook") or purpose or beat or "").strip()
         scene["character_choice"] = str(scene.get("character_choice") or beat or "").strip()
+        if not scene.get("ae_template") and plan.get("ae_template"):
+            scene["ae_template"] = plan["ae_template"]
+        if not scene.get("ae_template_parameters") and isinstance(plan.get("ae_template_parameters"), dict):
+            scene["ae_template_parameters"] = plan["ae_template_parameters"]
+        if not scene.get("ae_character_roles") and isinstance(plan.get("ae_character_roles"), dict):
+            scene["ae_character_roles"] = plan["ae_character_roles"]
     raw_titles = package.get("title_candidates") or []
     title_candidates = [
         item if isinstance(item, dict) else {"title": str(item).strip()}
@@ -1122,7 +1624,7 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
     canonical_grids = build_image_grid_prompts(scenes)
     for grid in canonical_grids:
         grid["template"] = "strict_2x2_compact_v1"
-    ae_effect_plans = _plan_ae_effects_for_scenes(scenes, payload or {})
+    ae_effect_plans = _plan_ae_effects_for_scenes(scenes, {**(payload or {}), "character_anchors": package.get("character_anchors") or package.get("character_continuity_anchors")})
     ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload or {})
     image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload or {}, ae_effect_plans)
     anchors = package.get("character_continuity_anchors") or []
@@ -1378,6 +1880,13 @@ class CodexStagedContentRunner:
                 command.extend(["--model", model])
             if reasoning:
                 command.extend(['-c', 'model_reasoning_effort="low"'])
+            # Only internally prepared local attachments are passed to the CLI.
+            for image_path in context.get('_local_image_paths', []):
+                resolved = Path(image_path).resolve()
+                allowed = (PROJECT_ROOT / 'output' / 'codex-local-console').resolve()
+                if not resolved.is_relative_to(allowed) or not resolved.is_file():
+                    raise CodexContentError('Invalid local character reference path')
+                command.extend(['--image', str(resolved)])
             command.append(prompt)
             completed = subprocess.run(command, cwd=str(PROJECT_ROOT), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=self.config.timeout_seconds, check=False)
             if completed.returncode == 0 and response_path.exists():
@@ -1411,7 +1920,31 @@ class CodexStagedContentRunner:
             "script_rhythm_contract": script_rhythm_contract,
             "story_spine_contract": story_spine_contract,
         }
-        plan = self._stage(job_id, "01_plan", plan_context, f"Create exactly {len(schedule)} scene plans using this mandatory internal pacing schedule: {json.dumps(schedule)}. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract. Return JSON with narrative_blueprint, main_character, supporting_characters, story_core, and scenes. narrative_blueprint must include story_spine and cause_effect_chain. story_core must contain protagonist, protagonist_want, first_causal_problem, personal_stake, central_conflict, escalation, irreversible_turn, concrete_resolution, and final_changed_action. Every scene needs scene_order, scene_summary, scene_situation, scene_purpose, scene_emotion, character_choice, emotional_shift, reveal_or_question, and duration_seconds. The first 12 short scenes must form one connected opening question, not 12 unrelated hook lines. Plan scene purposes around cause and consequence, not message delivery; do not plan moral speeches, clipped factual summaries, or a forced inspirational payoff.")
+        plan = self._stage(job_id, "01_plan", plan_context,
+            f"Create exactly {len(schedule)} scene plans using this mandatory internal pacing schedule: {json.dumps(schedule)}. "
+            "Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract. "
+            "Return JSON with narrative_blueprint, main_character, supporting_characters, story_core, and scenes. "
+            "narrative_blueprint must include story_spine and cause_effect_chain. story_core must contain protagonist, "
+            "protagonist_want, first_causal_problem, personal_stake, central_conflict, escalation, irreversible_turn, "
+            "concrete_resolution, and final_changed_action. Every scene needs scene_order, scene_summary, "
+            "scene_situation, scene_purpose, scene_emotion, character_choice, emotional_shift, reveal_or_question, "
+            "and duration_seconds. When the story action truly calls for it, a scene may name ae_template as "
+            "angled_triple_reaction (three characters reacting), body_following_qi (energy crossing a character's body "
+            "after talisman contact), ink_splat_impact (talisman strike with timed impact lettering), "
+            "wall_impact_debris (a body breaks a wall and ejects debris), glasses_reflection (another scene appears "
+            "inside two eyeglass lenses), kinetic_title_reveal (a short dramatic threat or training title appears "
+            "on a deliberate beat), or backlit_hand_reveal (a raised hand catches sunlight and rays bloom). "
+            "For a triple reaction scene, provide ae_character_roles mapping character_left/character_center/character_right "
+            "to the actual character names; for a single-character scene, map character to the actual name, or "
+            "map hand_foreground to the protagonist in a backlit hand scene. "
+            "Such a scene may add ae_template_parameters with normalized 0..1 qi_path points, talisman_target [x,y] "
+            "on the character's body, impact x/y and at_seconds, panel polygons and enter_at seconds, "
+            "reflection left_lens/right_lens center and radius plus at_seconds, title text/accent_text/style/position/at_seconds, "
+            "or light_origin and light_at_seconds. Use threat_red or training_emphasis as the title style. "
+            "Keep all timings inside that scene's duration; do not invent action to force a template. "
+            "The first 12 short scenes must form one connected opening question, not 12 unrelated hook lines. "
+            "Plan scene purposes around cause and consequence, not message delivery; do not plan moral speeches, "
+            "clipped factual summaries, or a forced inspirational payoff.")
         scenes = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
         if len(scenes) != len(schedule):
             raise CodexContentError(f"legacy pacing requires {len(schedule)} planned scenes; got {len(scenes)}")
@@ -1528,6 +2061,18 @@ class CodexStagedContentRunner:
         if script_only:
             # Local approval console: use the exact production script gates,
             # but stop before character uploads or any media/publication work.
+            # Surface timed visual direction and required cutouts for approval
+            # even though image prompts are still pending at this stage.
+            draft_effect_plans = _plan_ae_effects_for_scenes(scenes, payload)
+            draft_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
+            structure.update({
+                "ae_effect_plan_status": "planned" if draft_effect_plans else "not_required",
+                "ae_effect_scene_count": len(draft_effect_plans),
+                "ae_effect_plans": draft_effect_plans,
+                "ae_motion_plan_status": "planned" if draft_motion_plans else "not_required",
+                "ae_motion_scene_count": len(draft_motion_plans),
+                "ae_motion_plans": draft_motion_plans,
+            })
             return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""),
                     "language": setting["language"],
                     "setting_country": setting["setting_country"],
@@ -1561,6 +2106,7 @@ class CodexStagedContentRunner:
             f"Visual style: {setting['image_style_en']}. Maintain authentic local architecture, interior spaces, streetscape, vehicles, and props without caricature. "
             f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
             f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
+            "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
             "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-12 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 13 onward must not contain video_prompt."
         )
         media = {}
@@ -1595,7 +2141,7 @@ class CodexStagedContentRunner:
                 video = str(item.get("video_prompt") or "").strip()
                 _validate_video_prompt(video, index)
                 scenes[index - 1]["video_prompt"] = video
-        ae_effect_plans = _plan_ae_effects_for_scenes(scenes, payload)
+        ae_effect_plans = _plan_ae_effects_for_scenes(scenes, {**payload, "character_anchors": anchors})
         ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
         image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload, ae_effect_plans)
         from services.image_grid_prompts import (

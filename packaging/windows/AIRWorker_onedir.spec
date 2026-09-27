@@ -117,6 +117,10 @@ hiddenimports = [
     "google.oauth2.credentials",
     "win32crypt",
     "win32api",
+    "pywinauto",
+    "pywinauto.application",
+    "pywinauto.controls.uiawrapper",
+    "comtypes",
     "pywintypes",
     "win32timezone",
     # pystray — 시스템 트레이 (worker/tray_app.py)
@@ -132,6 +136,7 @@ hiddenimports += collect_submodules("app")
 hiddenimports += collect_submodules("services")
 hiddenimports += collect_submodules("moviepy")
 hiddenimports += collect_submodules("PIL")
+hiddenimports += collect_submodules("psd_tools")
 
 a = Analysis(
     [os.path.join(worker_dir, "air_worker_entry.py")],

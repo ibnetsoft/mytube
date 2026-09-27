@@ -129,6 +129,10 @@ hiddenimports = [
     # lazily in a way static analysis regularly misses).
     "win32crypt",
     "win32api",
+    "pywinauto",
+    "pywinauto.application",
+    "pywinauto.controls.uiawrapper",
+    "comtypes",
     "pywintypes",
     "win32timezone",
     # pystray — 시스템 트레이 (worker/tray_app.py)
@@ -148,6 +152,7 @@ hiddenimports += collect_submodules("services")
 # same broad-net approach AIRStudio.spec uses for pykakasi.
 hiddenimports += collect_submodules("moviepy")
 hiddenimports += collect_submodules("PIL")
+hiddenimports += collect_submodules("psd_tools")
 
 a = Analysis(
     [os.path.join(worker_dir, "air_worker_entry.py")],

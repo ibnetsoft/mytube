@@ -11,7 +11,7 @@ Changes from the AIR-0227A skeleton (worker/manager.py history):
   - A file-based command channel (worker/ipc.py) lets the now-separate
     Local API process ask the Manager to start/stop children, cancel a
     job, or shut everything down - polled once per supervisor tick.
-  - graceful_shutdown() implements the full timed/logged 11-step shutdown
+  - graceful_shutdown() implements a timed/logged shutdown
     protocol (docs/AIR_WORKER_SHUTDOWN_PROTOCOL.md) and REPLACES the
     os._exit(0) workaround entirely - normal process exit is now expected
     to actually terminate the interpreter, since nothing non-daemon is
@@ -42,6 +42,7 @@ from worker_config import (
     RESTART_BACKOFF_SECONDS,
     SHUTDOWN_GRACE_SECONDS,
     SHUTDOWN_JOB_ABORT_GRACE_SECONDS,
+    SHUTDOWN_MEDIA_DRAIN_SECONDS,
     STATE_DIR,
     ALLOWED_CHILD_SCRIPTS,
     WORKER_PROFILE,
@@ -75,6 +76,7 @@ STATE_FILES = {
     "local_api": STATE_DIR / "local_api.json",
 }
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
+MEDIA_WORKERS = frozenset(("ae_highlight_worker", "premiere_final_worker"))
 
 
 def _child_command(role: str) -> list[str]:
@@ -103,6 +105,9 @@ class WorkerManager:
         self._stopping = False
         self._shutdown_thread: threading.Thread | None = None
         self._shutdown_started = threading.Event()
+        self._media_stop_lock = threading.Lock()
+        self._media_stop_threads: dict[str, threading.Thread] = {}
+        self._draining_roles: set[str] = set()
         # [AIR-0227C Stage 6] One instance id per Manager process start -
         # NEVER reused across restarts (docs/AIR_WORKER_LEASE_PROTOCOL.md:
         # "같은 PC라도 이전 instance의 만료되지 않은 작업을 임의로 완료하지
@@ -120,7 +125,15 @@ class WorkerManager:
     # ---- process lifecycle -------------------------------------------------
 
     def start_process(self, name: str) -> bool:
+        # A stop command may be waiting for an active Adobe job in another
+        # thread. Do not block the command channel on that wait or restart the
+        # worker while its stop request is still pending.
+        if self._stopping or name in self._draining_roles:
+            logger.info(f"Refusing to start '{name}' while shutdown is in progress")
+            return False
         with self._lock:
+            if self._stopping or name in self._draining_roles:
+                return False
             rec = self.registry.get(name)
             if rec is None:
                 logger.warning(f"Refusing to start unknown process '{name}'")
@@ -175,13 +188,16 @@ class WorkerManager:
         except Exception as e:
             logger.error(f"taskkill failed for pid={pid}: {e}")
 
-    def stop_process(self, name: str, timeout: float = SHUTDOWN_GRACE_SECONDS, force_tree_kill: bool = False) -> bool:
+    def stop_process(self, name: str, timeout: float = SHUTDOWN_GRACE_SECONDS,
+                     force_tree_kill: bool = False, drain_current_job: bool = False) -> bool:
         """Graceful-first, escalate-on-timeout. On Windows, Popen.terminate()
         is an unconditional TerminateProcess() that the child's Python
         signal handlers never see - see worker/shutdown_flag.py. The actual
         graceful path is: write the child's shutdown flag file, poll for it
         to self-exit within `timeout`; only escalate to terminate()/
-        _kill_process_tree() if it hasn't."""
+        _kill_process_tree() if it hasn't. For Adobe workers, an active job
+        gets a longer bounded drain so its render/upload checkpoint completes
+        before the worker observes the flag and exits."""
         with self._lock:
             popen = self.popens.get(name)
             rec = self.registry.get(name)
@@ -198,15 +214,35 @@ class WorkerManager:
             pid = popen.pid
             logger.info(f"Stopping '{name}' (pid={pid}) - requesting graceful shutdown via flag file, timeout={timeout}s")
             request_shutdown(name)
+            rec.status = "stopping"
 
-            deadline = time.time() + timeout
-            while time.time() < deadline:
-                if popen.poll() is not None:
-                    break
+            idle_deadline = time.monotonic() + timeout
+            drain_deadline = None
+            was_active = False
+            while popen.poll() is None:
+                now = time.monotonic()
+                state = self._read_state_file(name) if drain_current_job else None
+                active = bool(state and state.get("current_job"))
+                if active:
+                    was_active = True
+                    if drain_deadline is None:
+                        drain_deadline = now + SHUTDOWN_MEDIA_DRAIN_SECONDS
+                        logger.info(f"'{name}' has an active job; waiting up to {SHUTDOWN_MEDIA_DRAIN_SECONDS}s for it to finish")
+                    if now >= drain_deadline:
+                        logger.error(f"'{name}' active job exceeded media drain limit")
+                        break
+                else:
+                    if was_active:
+                        # The job just cleared its current_job field. Give the
+                        # loop time to observe the flag and exit normally.
+                        idle_deadline = now + timeout
+                        was_active = False
+                    if now >= idle_deadline:
+                        break
                 time.sleep(0.2)
 
             if popen.poll() is None:
-                logger.warning(f"'{name}' did not self-exit within {timeout}s of the shutdown flag, escalating to a hard kill")
+                logger.warning(f"'{name}' did not self-exit after its shutdown grace/drain, escalating to a hard kill")
                 if force_tree_kill:
                     self._kill_process_tree(pid)
                 else:
@@ -224,9 +260,36 @@ class WorkerManager:
                 logger.info(f"'{name}' (pid={pid}) exited gracefully")
 
             clear_shutdown_flag(name)
-            rec.status = "stopped"
-            rec.pid = None
-            return True
+            stopped = popen.poll() is not None
+            rec.status = "stopped" if stopped else "stopping"
+            rec.pid = None if stopped else pid
+            return stopped
+
+    def _request_media_stop(self, name: str) -> dict:
+        """Return to the Local API before a long Adobe job finishes."""
+        with self._media_stop_lock:
+            thread = self._media_stop_threads.get(name)
+            if thread is not None and thread.is_alive():
+                return {"success": True, "status": "stopping"}
+            self._draining_roles.add(name)
+
+            def finish_stop():
+                try:
+                    self.stop_process(name, force_tree_kill=True, drain_current_job=True)
+                except Exception as exc:
+                    logger.error(f"Failed to stop '{name}' after media drain request: {exc}")
+                    rec = self.registry.get(name)
+                    if rec is not None:
+                        rec.last_error = str(exc)
+                finally:
+                    with self._media_stop_lock:
+                        self._draining_roles.discard(name)
+                        self._media_stop_threads.pop(name, None)
+
+            thread = threading.Thread(target=finish_stop, name=f"stop-{name}", daemon=False)
+            self._media_stop_threads[name] = thread
+            thread.start()
+            return {"success": True, "status": "stopping"}
 
     def restart_process(self, name: str):
         self.stop_process(name)
@@ -270,7 +333,10 @@ class WorkerManager:
                 ok = self.start_process(params["name"])
                 return {"success": ok}
             if command == "stop_process":
-                ok = self.stop_process(params["name"])
+                name = params["name"]
+                if name in MEDIA_WORKERS:
+                    return self._request_media_stop(name)
+                ok = self.stop_process(name)
                 return {"success": ok}
             if command == "cancel_job":
                 return self._cancel_job(params["job_id"])
@@ -377,6 +443,8 @@ class WorkerManager:
 
         for name in list(CHILD_SCRIPTS):
             rec = self.registry.get(name)
+            if name in self._draining_roles:
+                continue
             if rec.status == "disabled":
                 continue
             popen = self.popens.get(name)
@@ -439,21 +507,23 @@ class WorkerManager:
         """docs/AIR_WORKER_RESOURCE_POLICY.md §2/§3: if the render worker
         currently reports a running job, pause Hermes by writing the pause
         flag file; otherwise clear it."""
-        if "render_worker" not in ALWAYS_ON_CHILD_SCRIPTS and "ae_highlight_worker" not in ALWAYS_ON_CHILD_SCRIPTS:
+        if not ({"render_worker", "ae_highlight_worker", "premiere_final_worker"} & set(ALWAYS_ON_CHILD_SCRIPTS)):
             if PAUSE_FLAG_FILE.exists():
                 logger.info("Render/AE workers disabled by profile -> clearing Hermes pause flag")
                 PAUSE_FLAG_FILE.unlink(missing_ok=True)
             return
         render_state = self._read_state_file("render_worker")
         ae_state = self._read_state_file("ae_highlight_worker")
+        premiere_state = self._read_state_file("premiere_final_worker")
         render_busy = bool(render_state and render_state.get("current_job"))
         ae_busy = bool(ae_state and ae_state.get("current_job"))
-        media_busy = render_busy or ae_busy
+        premiere_busy = bool(premiere_state and premiere_state.get("current_job"))
+        media_busy = render_busy or ae_busy or premiere_busy
         if media_busy and not PAUSE_FLAG_FILE.exists():
-            logger.info("Render/AE job active -> pausing Hermes new-job intake")
+            logger.info("Render/AE/Premiere job active -> pausing Hermes new-job intake")
             PAUSE_FLAG_FILE.write_text("paused", encoding="utf-8")
         elif not media_busy and PAUSE_FLAG_FILE.exists():
-            logger.info("Render/AE queues idle -> resuming Hermes")
+            logger.info("Media queues idle -> resuming Hermes")
             PAUSE_FLAG_FILE.unlink(missing_ok=True)
 
     def _publish_status(self):
@@ -496,7 +566,7 @@ class WorkerManager:
     # ---- graceful shutdown (Stage 3) -----------------------------------------
 
     def graceful_shutdown(self, reason: str):
-        """Timed, logged, 11-step shutdown protocol - docs/AIR_WORKER_SHUTDOWN_PROTOCOL.md.
+        """Timed, logged shutdown protocol - docs/AIR_WORKER_SHUTDOWN_PROTOCOL.md.
         Replaces AIR-0227A's os._exit(0) workaround: Local API is now its
         own subprocess (no more uvicorn-in-a-thread), so once every child is
         confirmed stopped and the supervisor loop has returned, normal
@@ -507,7 +577,7 @@ class WorkerManager:
         def log_step(msg):
             nonlocal step
             step += 1
-            logger.info(f"[SHUTDOWN step {step}/11] {msg} (+{time.time() - t0:.2f}s)")
+            logger.info(f"[SHUTDOWN step {step}] {msg} (+{time.time() - t0:.2f}s)")
 
         log_step(f"SHUTDOWN_INITIATED reason='{reason}'")
         self._stopping = True
@@ -527,9 +597,13 @@ class WorkerManager:
 
         ae_state = self._read_state_file("ae_highlight_worker")
         ae_job_active = bool(ae_state and ae_state.get("current_job"))
-        ae_timeout = SHUTDOWN_GRACE_SECONDS + (SHUTDOWN_JOB_ABORT_GRACE_SECONDS if ae_job_active else 0)
-        log_step(f"AE Highlight Worker job_active={ae_job_active}")
-        self.stop_process("ae_highlight_worker", timeout=ae_timeout, force_tree_kill=True)
+        log_step(f"AE Highlight Worker job_active={ae_job_active}; draining active scene")
+        self.stop_process("ae_highlight_worker", force_tree_kill=True, drain_current_job=True)
+
+        premiere_state = self._read_state_file("premiere_final_worker")
+        premiere_job_active = bool(premiere_state and premiere_state.get("current_job"))
+        log_step(f"Premiere Final Worker job_active={premiere_job_active}; draining active export")
+        self.stop_process("premiere_final_worker", force_tree_kill=True, drain_current_job=True)
 
         render_state = self._read_state_file("render_worker")
         job_active = bool(render_state and render_state.get("current_job"))

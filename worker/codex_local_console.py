@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import secrets
 import shutil
@@ -106,12 +107,17 @@ def ae_console_status(limit=20):
     state = read_ae_state()
     try:
         import ae_highlight_worker
-        rows = ae_highlight_worker.fetch_candidate_topics(max(1, min(int(limit), 100)))
+        scan_limit = max(1, min(int(limit), 100))
+        rows = ae_highlight_worker.fetch_candidate_projects(scan_limit)
+        if os.getenv('AE_RENDER_PREGEN_TOPICS') == '1':
+            rows.extend(ae_highlight_worker.fetch_candidate_topics(scan_limit))
         jobs_for_render = ae_highlight_worker._find_scene_jobs(rows, force=False)
-        planned = ready = rendering = failed = missing_source = 0
+        planned = ready = rendering = failed = missing_source = review_pending = 0
         recent = []
         for row in rows:
-            structure = object_value(row.get('pregenerated_structure'))
+            source_type = str(row.get('__source_type') or 'topic')
+            structure = (object_value(object_value(row.get('project_payload')).get('structure'))
+                         if source_type == 'project' else object_value(row.get('pregenerated_structure')))
             scenes = structure.get('scenes') if isinstance(structure.get('scenes'), list) else []
             for index, scene in enumerate(scenes):
                 if not isinstance(scene, dict):
@@ -131,11 +137,13 @@ def ae_console_status(limit=20):
                 status = str(ae_asset.get('status') or scene.get(status_key) or 'planned').lower()
                 ready += status == 'ready'
                 rendering += status == 'rendering'
-                failed += status == 'failed'
+                failed += status in ('failed', 'needs_attention')
+                review_pending += status == 'review_pending'
                 missing_source += 0 if ae_highlight_worker._gcs_ref_from_scene(scene) else 1
-                if len(recent) < 12:
+                if len(recent) < 100:
                     recent.append({
                         'topic_id': str(row.get('id') or ''),
+                        'source_type': source_type,
                         'title': row.get('generated_title') or row.get('topic') or str(row.get('id') or ''),
                         'scene_number': scene.get('scene_number') or scene.get('scene_order') or index + 1,
                         'preset': plan.get('preset') or 'wuxia_sword_aura',
@@ -145,8 +153,13 @@ def ae_console_status(limit=20):
                         'targets': plan.get('targets') if isinstance(plan.get('targets'), list) else [],
                         'status': status,
                         'media_url': ae_asset.get('media_url') or scene.get(video_key) or '',
+                        'review_sha256': ae_asset.get('render_sha256') or '',
+                        'review_points': (object_value(object_value(ae_asset.get('manga_qa')).get('render'))
+                                          .get('review_points') or []),
+                        'review_available': bool(ae_asset.get('review_local_path')),
                         'error': ae_asset.get('error') or '',
                     })
+        recent.sort(key=lambda item: (item['status'] != 'review_pending', item['status'] != 'needs_attention'))
         afterfx = Path(os.environ.get('AE_AFTERFX_PATH') or ae_highlight_worker.DEFAULT_AFTERFX)
         aerender = Path(os.environ.get('AE_AERENDER_PATH') or ae_highlight_worker.DEFAULT_AERENDER)
         return {
@@ -155,7 +168,8 @@ def ae_console_status(limit=20):
             'candidate_count': len(jobs_for_render),
             'topics_scanned': len(rows),
             'summary': {'planned': planned, 'ready': ready, 'rendering': rendering,
-                        'failed': failed, 'missing_source': missing_source, 'recent': recent},
+                        'failed': failed, 'review_pending': review_pending,
+                        'missing_source': missing_source, 'recent': recent[:20]},
             'jobs': [{'topic_id': job.topic_id, 'title': job.topic_title, 'scene_number': job.scene_number,
                       'preset': job.preset, 'plan_kind': job.plan_kind, 'duration_seconds': job.duration_seconds,
                       'mood': object_value(job.scene.get('ae_motion_plan' if job.plan_kind == 'motion' else 'ae_effect_plan')).get('mood') or '',
@@ -172,11 +186,41 @@ def ae_console_status(limit=20):
             'state': state,
             'candidate_count': 0,
             'topics_scanned': 0,
-            'summary': {'planned': 0, 'ready': 0, 'rendering': 0, 'failed': 0, 'missing_source': 0, 'recent': []},
+            'summary': {'planned': 0, 'ready': 0, 'rendering': 0, 'failed': 0,
+                        'review_pending': 0, 'missing_source': 0, 'recent': []},
             'jobs': [],
             'capability': {},
             'error': str(exc),
         }
+
+
+def ae_review_target(source_type: str, identity: str, scene_number: int):
+    import ae_highlight_worker as ae
+    if source_type not in ('project', 'topic') or not re.fullmatch(r'[A-Za-z0-9-]{1,80}', identity):
+        raise ValueError('Invalid AE review target')
+    if scene_number < 1:
+        raise ValueError('Invalid AE scene number')
+    table = 'std_projects' if source_type == 'project' else 'topics_queue'
+    column = 'project_payload' if source_type == 'project' else 'pregenerated_structure'
+    base_url, headers = ae._supabase()
+    response = ae._request('GET', f'{base_url}/rest/v1/{table}', headers,
+                           params={'select': f'id,{column}', 'id': 'eq.' + identity, 'limit': '1'})
+    rows = response.json()
+    if not isinstance(rows, list) or not rows:
+        raise ValueError('AE review target was not found')
+    row = rows[0]
+    if not isinstance(row, dict) or str(row.get('id') or '') != identity:
+        raise ValueError('AE review target identity changed; refresh the review')
+    payload = object_value(row.get('project_payload')) if source_type == 'project' else {}
+    structure = (object_value(payload.get('structure')) if source_type == 'project'
+                 else object_value(row.get('pregenerated_structure')))
+    scenes = structure.get('scenes') if isinstance(structure.get('scenes'), list) else []
+    scene = next((item for index, item in enumerate(scenes, 1)
+                  if isinstance(item, dict) and str(item.get('scene_number') or item.get('scene_order') or index) == str(scene_number)), None)
+    if scene is None:
+        raise ValueError('AE review scene was not found')
+    asset = object_value(object_value(scene.get('metadata')).get('ae_effect_asset'))
+    return ae, base_url, headers, table, column, row, payload, structure, scene, asset
 
 
 def start_ae_worker_process():
@@ -249,8 +293,11 @@ class StartRequest(BaseModel):
     image_style: str = Field(default='실사', max_length=80)
     production_mode: Literal['standard', 'moving_comic'] = 'standard'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
+    ae_scene_delivery: Literal['local', 'gcs'] = 'local'
     generate_bgm_prompt: bool = Field(default=False, strict=True)
     notes: str = Field(default='', max_length=4000)
+    web_topic_id: str = Field(default='', max_length=36)
+    web_brief: dict = Field(default_factory=dict)
     source_ids: list[str] = Field(default_factory=list, max_length=12)
     grounded_type: Literal['sermon', 'education'] = 'sermon'
     audience: str = Field(default='시니어 성도', max_length=200)
@@ -390,12 +437,14 @@ class Jobs:
         with self.lock:
             return sorted((dict(r) for r in self.rows.values()), key=lambda r: r['created_at'], reverse=True)
 
-    def start(self, request, snapshot, sources=None, retry_of=None):
+    def start(self, request, snapshot, sources=None, retry_of=None, identity=None):
         with self.lock:
             self.connect()
             if any(r['status'] in ('queued', 'running') for r in self.rows.values()):
                 raise ValueError('이미 실행 또는 대기 중인 작업이 있습니다. 완료 후 시작하세요.')
-            identity = uuid.uuid4().hex
+            identity = identity or uuid.uuid4().hex
+            if len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity):
+                raise ValueError('잘못된 작업 ID입니다.')
             title = snapshot['summary']['title'] if snapshot else request.title.strip()
             from worker.content_language import resolve_setting
             setting = resolve_setting(request.model_dump())
@@ -443,8 +492,10 @@ class Jobs:
                         candidate_hash=digest(candidate), remaining=candidate.get('remaining', []))
         except Exception as exc:
             # Do not expose HTTP URLs, credentials, CLI stdout or source dumps to browser logs.
+            from worker.web_topic_submissions import BriefPreparationError
             self.update(identity, status='failed', stage=f'생성 중단 ({type(exc).__name__})',
-                        error='검수 또는 실행 실패. 원본은 변경되지 않았습니다. 로컬 단계 산출물을 확인하세요.')
+                        error=str(exc) if isinstance(exc, BriefPreparationError) else
+                        '검수 또는 실행 실패. 원본은 변경되지 않았습니다. 로컬 단계 산출물을 확인하세요.')
         finally:
             with self.lock:
                 self.inflight.discard(identity)
@@ -498,7 +549,7 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
 
@@ -549,6 +600,69 @@ def ae_highlight_stop():
         raise HTTPException(502, f'AE 워커 중지 요청 실패: {exc}')
 
 
+class AeSceneReviewRequest(BaseModel):
+    source_type: Literal['project', 'topic']
+    identity: str
+    scene_number: int = Field(ge=1)
+    decision: Literal['approved', 'rejected']
+    reviewer: str = Field(min_length=1, max_length=120)
+    note: str = Field(min_length=1, max_length=1000)
+    render_sha256: str
+
+
+@app.get('/api/ae-highlight/review-media/{source_type}/{identity}/{scene_number}')
+def ae_review_media(source_type: str, identity: str, scene_number: int):
+    try:
+        import worker_config
+        from media_checkpoint import verified_local_mp4
+        _, _, _, _, _, _, _, _, _, asset = ae_review_target(source_type, identity, scene_number)
+        path = asset.get('review_local_path')
+        if asset.get('status') not in ('review_pending', 'ready') or not verified_local_mp4(
+                path, worker_config.TEMP_DIR / 'ae_highlight', 0.5):
+            raise ValueError('Review media is unavailable')
+        return FileResponse(path, media_type='video/mp4', filename=f'ae-scene-{scene_number:03d}.mp4',
+                            content_disposition_type='inline')
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f'AE review media lookup failed: {exc}')
+
+
+@app.post('/api/ae-highlight/review')
+def review_ae_scene(request: AeSceneReviewRequest):
+    try:
+        import worker_config
+        from manga_scene_review import apply_review
+        ae, base_url, headers, _, _, _, _, structure, _, _ = ae_review_target(
+            request.source_type, request.identity, request.scene_number)
+        apply_review(structure, scene_number=request.scene_number, decision=request.decision,
+                     reviewer=request.reviewer, note=request.note,
+                     expected_sha256=request.render_sha256,
+                     allowed_media_root=worker_config.TEMP_DIR / 'ae_highlight')
+        result = ae._request('POST', f'{base_url}/rest/v1/rpc/air_update_ae_scene',
+                             {**headers, 'Content-Type': 'application/json'}, json={
+                                 'p_source_type': request.source_type,
+                                 'p_identity': request.identity,
+                                 'p_scene_number': request.scene_number,
+                                 'p_operation': 'review',
+                                 'p_plan_kind': 'effect',
+                                 'p_expected_sha256': request.render_sha256,
+                                 'p_review_decision': request.decision,
+                                 'p_reviewer': request.reviewer,
+                                 'p_note': request.note,
+                             }).json()
+        if not isinstance(result, dict) or not result.get('applied'):
+            code = result.get('code') if isinstance(result, dict) else 'invalid_response'
+            raise ValueError(f'AE review conflict ({code}); refresh the scene')
+        return {'status': 'ready' if request.decision == 'approved' else 'needs_attention',
+                'scene_number': request.scene_number, 'source_type': request.source_type,
+                'identity': request.identity}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f'AE visual review could not be saved: {exc}')
+
+
 @app.get('/api/catalog')
 def catalog(kind: str = 'topic', page: int = 0, q: str = ''):
     if kind not in ('topic', 'project') or page < 0 or page > 10000 or len(q) > 200:
@@ -596,6 +710,63 @@ def document(name: str):
     if name not in DOCS:
         raise HTTPException(404)
     return {'text': DOCS[name].read_text(encoding='utf-8')}
+
+
+class SubmissionReview(BaseModel):
+    action: Literal['approve', 'reject']
+    note: str = Field(default='', max_length=1000)
+
+
+@app.get('/api/web-topics')
+def web_topics(state: str = 'pending'):
+    from worker.web_topic_submissions import list_submissions
+    try:
+        return list_submissions(store, state)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+
+
+@app.get('/api/web-topics/{identity}')
+def web_topic(identity: str):
+    from worker.web_topic_submissions import get_submission
+    try:
+        return get_submission(store, identity)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+
+
+@app.post('/api/web-topics/{identity}/review')
+def review_web_topic(identity: str, request: SubmissionReview):
+    from worker.web_topic_submissions import get_submission, generation_request, review_submission
+    try:
+        with jobs.lock:
+            row = get_submission(store, identity)
+            if row['status'] != 'pending':
+                raise ValueError('이미 검토된 토픽입니다.')
+            if request.action == 'reject':
+                if not request.note.strip():
+                    raise ValueError('반려 사유를 입력하세요.')
+                return review_submission(store, identity, 'rejected', request.note.strip())
+            generation = StartRequest.model_validate(generation_request(row))
+            jobs.connect()
+            if store.active() or any(r['status'] in ('queued', 'running') for r in jobs.rows.values()):
+                raise ValueError('대본 작업이 실행 중입니다. 완료 후 승인하세요.')
+            # Claim once before invoking any model; a second console cannot approve again.
+            claimed = review_submission(store, identity, 'approved', request.note.strip())
+            try:
+                job = jobs.start(generation, None, identity=claimed['job_id'])
+            except Exception:
+                # Keep the durable claim on ambiguous failures. Never double-execute a paid job.
+                raise HTTPException(502, '승인은 저장되었지만 실행을 확인하지 못했습니다. 승인됨 목록의 작업 상태와 작업 이력에서 확인하세요.')
+            return {'id': job['id'], 'status': 'approved'}
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
 
 
 @app.post('/api/jobs')

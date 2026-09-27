@@ -11,6 +11,7 @@ import {
 } from '@/lib/stdWeb'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
+import { parseClaimAeSceneDelivery, resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +89,13 @@ export async function POST(req: Request, { params }: { params: { topicId: string
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response
 
+    let requestedDelivery
+    try {
+        requestedDelivery = parseClaimAeSceneDelivery(await req.text())
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+    }
+
     const topicId = Number(params.topicId)
     if (!Number.isFinite(topicId)) {
         return NextResponse.json({ success: false, error: 'Invalid topic id' }, { status: 400 })
@@ -134,6 +142,8 @@ export async function POST(req: Request, { params }: { params: { topicId: string
     }
 
     const imageGridPrompts = buildStdImageGridPrompts(topic)
+    const aeSceneDelivery = resolveClaimAeSceneDelivery(topic.pregenerated_structure, requestedDelivery)
+    const projectStructure = { ...(topic.pregenerated_structure || {}), ae_scene_delivery: aeSceneDelivery }
     const { data: patchedRows, error: patchError } = await supabaseAdmin
         .from('topics_queue')
         .update({
@@ -170,7 +180,8 @@ export async function POST(req: Request, { params }: { params: { topicId: string
             project_payload: {
                 script: firstText(topic.pregenerated_script),
                 original_worker_script: firstText(topic.pregenerated_script),
-                structure: topic.pregenerated_structure || {},
+                structure: projectStructure,
+                ae_scene_delivery: aeSceneDelivery,
                 character_anchors: topic.pregenerated_structure?.character_anchors || topic.progress_payload?.character_anchors || {},
                 supporting_characters: topic.pregenerated_structure?.supporting_characters || topic.progress_payload?.supporting_characters || [],
                 image_grid_prompts: imageGridPrompts,
@@ -185,7 +196,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 thumbnail_hook_reasoning: topic.progress_payload?.thumbnail_hook_reasoning || '',
                 thumbnail_image_prompt: topic.progress_payload?.thumbnail_image_prompt || '',
                 thumbnail_bg_url: topic.progress_payload?.thumbnail_bg_url || '',
-                render_settings: subtitleDefaults,
+                render_settings: { ...subtitleDefaults, ae_scene_delivery: aeSceneDelivery },
             },
             progress_payload: {
                 scene_count: summary.scene_count,

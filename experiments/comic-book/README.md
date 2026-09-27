@@ -42,3 +42,20 @@ this code does not deploy those features to the editor or rebuild AIRWorker.
 
 Raw media, generated videos, database exports, migration backups, credentials and
 machine-local caches are not tracked here. Existing local files are preserved.
+
+## Topic 3197 mixed-media test
+
+`render_3197.py` applies book mode to the first 12 scenes of the bundle story:
+6 existing video clips, 12 still images, saved dialogue/narration audio, and
+four page-turn sounds. Output is approximately 74 seconds / 12 pages / 6 spreads.
+
+Inputs in `output/comic-book-3197/`: `source-private.json` (projects, scenes,
+assets arrays, including audio metadata.subtitle_timeline), `image-01.png`
+through `image-12.png`, `video-NN.mp4` for 1, 3, 5, 8, 10, 11, and `voice.mp3`.
+Page-turn recordings are read from the 3285 sample directory. Private snapshots
+and source media are excluded from Git and the public preview directory.
+
+Run with the repository Python environment. `--preview` creates page stills
+without video encoding. Video motion retains original speed and holds on its
+last frame. Audio is 1.10x with preserved pitch; page sounds last 15% longer.
+No database writes or new AI generation are performed.

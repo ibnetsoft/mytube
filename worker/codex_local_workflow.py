@@ -49,6 +49,9 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     # The script/review/dialogue runner itself pins Astra; general model config
     # remains untouched for other existing content stages.
     runner = ReportingRunner(config)
+    if request.get('web_brief'):
+        from worker.web_topic_submissions import prepare_brief
+        request = {**request, 'notes': prepare_brief(request, output, runner, notify)}
     moving = request.get('production_mode') == 'moving_comic'
     if moving:
         from worker.comic_plan import DIRECTIVE, plan_comic
@@ -76,6 +79,7 @@ def produce(identity, request, snapshot, output, notify, sources=None):
                    'image_style': setting['image_style_en'],
                    'content_setting': setting,
                    'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
+                   'ae_scene_delivery': request.get('ae_scene_delivery') or 'local',
                    'script_style': 'story',
                    'target_duration_seconds': request['duration_minutes'] * 60,
                    'legacy_stage_directives': 'Use the current category narration and senior listening contracts. ' +
@@ -88,6 +92,12 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         package['era_region'] = setting['era_region']
         package['image_style'] = setting['image_style']
         package['content_setting'] = setting
+        package['ae_scene_delivery'] = payload['ae_scene_delivery']
+        package['structure']['ae_scene_delivery'] = payload['ae_scene_delivery']
+        package['render_settings'] = {
+            **package.get('render_settings', {}),
+            'ae_scene_delivery': payload['ae_scene_delivery'],
+        }
         from worker.codex_bgm import plan_package_bgm
         plan_package_bgm(runner, 'local-' + identity, package,
                          enabled=request.get('generate_bgm_prompt') is True)

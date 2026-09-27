@@ -8,6 +8,7 @@ script crops the returned grids and persists the scene mapping in Supabase.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import mimetypes
@@ -27,8 +28,12 @@ from PIL import ImageFilter
 from PIL import ImageOps
 try:
     from . import image_recovery
+    from . import manga_layer_generation
+    from . import manga_layer_package
 except ImportError:
     import image_recovery
+    import manga_layer_generation
+    import manga_layer_package
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -61,6 +66,14 @@ def _request(method: str, url: str, headers: dict[str, str], **kwargs: Any) -> r
     if not response.ok:
         raise RuntimeError(f"Supabase request failed ({response.status_code}): {response.text[:500]}")
     return response
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _gcs_credentials():
@@ -127,7 +140,7 @@ def _topic(topic_id: str) -> tuple[dict[str, Any], dict[str, Any], str, dict[str
     safe_id = quote(topic_id, safe="")
     response = _request(
         "GET",
-        f"{base_url}/rest/v1/topics_queue?id=eq.{safe_id}&select=id,topic,generated_title,pregenerated_structure,pregenerated_structure_status",
+        f"{base_url}/rest/v1/topics_queue?id=eq.{safe_id}&select=id,topic,generated_title,status,pregenerated_structure,pregenerated_structure_status",
         headers,
     )
     rows = response.json()
@@ -146,6 +159,69 @@ def _scene_number(scene: dict[str, Any], fallback: int) -> int:
     if number < 1:
         raise ValueError(f"invalid scene number: {number}")
     return number
+
+
+def _template_source_snapshot(scene: dict[str, Any], fallback: int) -> dict[str, Any]:
+    """Art direction and timed beats that the approved PSD must still match."""
+    return {
+        "scene_number": _scene_number(scene, fallback),
+        "scene_text": scene.get("scene_text") or scene.get("narration"),
+        "image_prompt": scene.get("image_prompt"),
+        "image_style": scene.get("image_style"),
+        "ae_effect_plan": scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {},
+    }
+
+
+_PUBLISHED_METADATA_KEYS = (
+    "cowork_image_asset", "local_layer_plan", "local_layer_asset",
+    "psd_layer_asset", "psd_layer_plan",
+)
+
+
+def _publish_source_snapshot(scene: dict[str, Any], fallback: int) -> dict[str, Any]:
+    """Fields that bind uploaded art to the current scene under the DB row lock."""
+    snapshot = _template_source_snapshot(scene, fallback)
+    for key in ("image_generation_policy", "local_layer_plan", "psd_layer_plan"):
+        value = scene.get(key)
+        snapshot[key] = copy.deepcopy(value) if isinstance(value, dict) else {}
+    return snapshot
+
+
+def _scene_asset_snapshot(scene: dict[str, Any]) -> dict[str, Any]:
+    metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    return {
+        "image_url": copy.deepcopy(scene.get("image_url")),
+        "asset_status": copy.deepcopy(scene.get("asset_status")),
+        "local_layer_status": copy.deepcopy(scene.get("local_layer_status")),
+        "psd_layer_status": copy.deepcopy(scene.get("psd_layer_status")),
+        "metadata": {key: copy.deepcopy(metadata.get(key)) for key in _PUBLISHED_METADATA_KEYS},
+    }
+
+
+def _scene_asset_patch(scene: dict[str, Any]) -> dict[str, Any]:
+    metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    patch = {
+        "image_url": scene["image_url"],
+        "asset_status": "ready",
+        "metadata": {key: copy.deepcopy(metadata[key]) for key in _PUBLISHED_METADATA_KEYS if key in metadata},
+    }
+    for key in ("local_layer_status", "psd_layer_status"):
+        if key in scene:
+            patch[key] = scene[key]
+    return patch
+
+
+def _patch_topic_scene_assets(topic_id: str, updates: list[dict[str, Any]],
+                              base_url: str, headers: dict[str, str]) -> dict[str, Any]:
+    """Atomically merge scene assets without replacing concurrent AE state."""
+    result = _request(
+        "POST", f"{base_url}/rest/v1/rpc/air_patch_topic_scene_assets",
+        {**headers, "Content-Type": "application/json"},
+        json={"p_topic_id": str(topic_id), "p_scene_updates": updates},
+    ).json()
+    if not isinstance(result, dict) or result.get("applied") is not True:
+        raise RuntimeError(f"Atomic topic scene asset publish failed: {result}")
+    return result
 
 
 def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
@@ -169,16 +245,17 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
     for index, character in enumerate(characters, 1):
         url = str(character["image_url"] or "")
         metadata = character.get("metadata") if isinstance(character.get("metadata"), dict) else {}
-        bucket = str(character.get("gcs_bucket") or character.get("storage_bucket") or metadata.get("gcs_bucket") or "").strip()
+        character_bucket = str(character.get("gcs_bucket") or character.get("storage_bucket") or metadata.get("gcs_bucket") or "").strip()
         object_path = str(character.get("gcs_path") or character.get("storage_object_path") or metadata.get("gcs_path") or "").strip()
         if not object_path:
             raise RuntimeError("Character reference must include a GCS object path")
         reference_path = destination.parent / f"character-reference-{index}.png"
-        reference_path.write_bytes(_download_gcs_bytes(bucket, object_path))
+        reference_path.write_bytes(_download_gcs_bytes(character_bucket, object_path))
         from codex_character_assets import validate_portrait
         validate_portrait(reference_path)
         references.append({"name": character.get("name"), "character_key": character.get("character_key"),
-                           "image_url": url, "local_file": str(reference_path.resolve())})
+                           "image_url": url, "local_file": str(reference_path.resolve()),
+                           "sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest()})
 
     known_scenes = {_scene_number(scene, index) for index, scene in enumerate(scenes, start=1) if isinstance(scene, dict)}
     manifest_grids: list[dict[str, Any]] = []
@@ -220,6 +297,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "scene_specs": [{"scene_number": _scene_number(s, i), "scene_id": s.get("scene_id"),
                          "scene_text": s.get("scene_text") or s.get("narration"),
                          "image_prompt": s.get("image_prompt"), "image_style": s.get("image_style"),
+                         "ae_effect_plan": s.get("ae_effect_plan") if isinstance(s.get("ae_effect_plan"), dict) else {},
                          "image_generation_policy": s.get("image_generation_policy") if isinstance(s.get("image_generation_policy"), dict) else {},
                          "local_layer_plan": s.get("local_layer_plan") if isinstance(s.get("local_layer_plan"), dict) else {},
                          "psd_layer_plan": s.get("psd_layer_plan") if isinstance(s.get("psd_layer_plan"), dict) else {}}
@@ -227,6 +305,8 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "image_layer_mode": structure.get("image_layer_mode") or (structure.get("image_generation_policy") or {}).get("image_layer_mode") or "hybrid",
         "psd_layer_prompt_status": structure.get("psd_layer_prompt_status") or "not_required",
         "psd_layer_prompts": structure.get("psd_layer_prompts") if isinstance(structure.get("psd_layer_prompts"), list) else [],
+        "layer_package_specs": manga_layer_package.scene_specs(scenes),
+        "layer_package_instruction": "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. A flattened scene crop or soft depth proxy is not a separate role layer. Run generate-layers or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish.",
         "recovery_policy": image_recovery.POLICY,
         "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
         "generation_instruction": "Attach the character_references local PNGs as reference images to EVERY grid generation. Preserve each named character's face, age and wardrobe. Generate still images only, never video clips.",
@@ -244,6 +324,23 @@ def _manifest(path: Path) -> dict[str, Any]:
     if not isinstance(data.get("grids"), list) or not data.get("topic_id"):
         raise ValueError("manifest is incomplete")
     return data
+
+
+def _propagate_published_template_assets(topic_id: str, base_url: str,
+                                         headers: dict[str, str]) -> dict[str, Any]:
+    """Merge approved assets under project row locks, including submitted work.
+
+    The database RPC compares each scene with its claim-time source and leaves
+    in-progress AE, user-edited scenes, and human-rejected renders untouched.
+    """
+    result = _request(
+        "POST", f"{base_url}/rest/v1/rpc/air_sync_manga_layer_assets",
+        {**headers, "Content-Type": "application/json"},
+        json={"p_topic_id": str(topic_id)},
+    ).json()
+    if not isinstance(result, dict) or result.get("applied") is not True:
+        raise RuntimeError(f"Manga layer project sync failed: {result}")
+    return result
 
 
 def _crop_to_aspect(image: Image.Image, target_width: int, target_height: int) -> Image.Image:
@@ -387,12 +484,57 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", bucket):
         raise ValueError("bucket must be a safe lowercase storage bucket name")
     row, structure, base_url, headers = _topic(topic_id)
+    manifest_layer_specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
+    current_layer_specs = manga_layer_package.scene_specs(structure.get("scenes") or [])
+    if manifest_layer_specs != current_layer_specs:
+        raise ValueError("manga layer plan changed after manifest export; create a new manifest revision")
+    manifest_sources = {
+        source["scene_number"]: source
+        for index, scene in enumerate(manifest.get("scene_specs") or [], 1)
+        if isinstance(scene, dict)
+        for source in [_publish_source_snapshot(scene, index)]
+    }
+    current_sources = {
+        source["scene_number"]: source
+        for index, scene in enumerate(structure.get("scenes") or [], 1)
+        if isinstance(scene, dict)
+        for source in [_publish_source_snapshot(scene, index)]
+    }
+    if manifest_sources != current_sources:
+        raise ValueError("manga scene art direction or timing changed after manifest export; create a new revision")
+    expected_assets = {
+        _scene_number(scene, index): _scene_asset_snapshot(scene)
+        for index, scene in enumerate(structure.get("scenes") or [], 1)
+        if isinstance(scene, dict)
+    }
+    if manifest_layer_specs:
+        selected = {spec["scene_number"] for spec in manifest_layer_specs}
+        exported_sources = {
+            snapshot["scene_number"]: snapshot
+            for index, scene in enumerate(manifest.get("scene_specs") or [], 1)
+            if isinstance(scene, dict)
+            for snapshot in [_template_source_snapshot(scene, index)]
+            if snapshot["scene_number"] in selected
+        }
+        current_sources = {
+            snapshot["scene_number"]: snapshot
+            for index, scene in enumerate(structure.get("scenes") or [], 1)
+            if isinstance(scene, dict)
+            for snapshot in [_template_source_snapshot(scene, index)]
+            if snapshot["scene_number"] in selected
+        }
+        if exported_sources != current_sources:
+            raise ValueError("manga scene art direction or timing changed after manifest export; create a new revision")
+    layer_receipt = (manga_layer_package.validate_receipt(
+        manifest_path, images_dir, manifest_layer_specs, require_approved=True)
+        if manifest_layer_specs else None)
     if create_bucket:
         print("--create-bucket is ignored: scene images are uploaded to GCS, not Supabase Storage.", file=sys.stderr)
 
     scene_urls: dict[int, str] = {}
     scene_refs: dict[int, tuple[str, str]] = {}
     scene_layer_assets: dict[int, dict[str, Any]] = {}
+    scene_psd_assets: dict[int, dict[str, Any]] = {}
     layer_dir = images_dir / "derived-layers"
     for grid in manifest["grids"]:
         for scene_number in grid["scene_numbers"]:
@@ -406,11 +548,35 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
                         f"scene {number} is not the required upscaled "
                         f"{DEFAULT_ASSET_WIDTH}x{DEFAULT_ASSET_HEIGHT} asset: {file_path}"
                     )
-            object_path = f"topics/{topic_id}/images/scene-{number:03d}.png"
+            # Immutable names keep a losing concurrent publisher from changing
+            # the bytes behind the winning topic scene URL after the DB CAS.
+            object_path = f"topics/{topic_id}/images/scene-{number:03d}-{_file_sha256(file_path)}.png"
             mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
             gcs_bucket, gcs_path, media_url = _upload_gcs_file(file_path, object_path, mime_type)
             scene_urls[number] = media_url
             scene_refs[number] = (gcs_bucket, gcs_path)
+            if layer_receipt is not None and str(number) in layer_receipt["packages"]:
+                package = layer_receipt["packages"][str(number)]
+                psd_file = images_dir / package["psd_file"]
+                # AE checkpoints identify their source by GCS object path. A
+                # content-addressed PSD path prevents a later approved revision
+                # from silently reusing an older local PSD or MP4.
+                psd_object = f"topics/{topic_id}/layers/scene-{number:03d}-{package['psd_sha256']}.psd"
+                pbucket, ppath, purl = _upload_gcs_file(psd_file, psd_object, "image/vnd.adobe.photoshop")
+                scene_psd_assets[number] = {
+                    "source": "independently_authored_png_layers",
+                    "storage_provider": "gcs",
+                    "gcs_bucket": pbucket,
+                    "gcs_path": ppath,
+                    "media_url": purl,
+                    "template": package["template"],
+                    "layers": [layer["role"] for layer in package["layers"]],
+                    "qa_status": "approved",
+                    "review": package["review"],
+                    "sha256": package["psd_sha256"],
+                    "width": DEFAULT_ASSET_WIDTH,
+                    "height": DEFAULT_ASSET_HEIGHT,
+                }
             scene_spec = next((s for s in structure.get("scenes", []) if isinstance(s, dict) and _scene_number(s, 0) == number), {})
             layer_plan = scene_spec.get("local_layer_plan") if isinstance(scene_spec.get("local_layer_plan"), dict) else {}
             image_policy = scene_spec.get("image_generation_policy") if isinstance(scene_spec.get("image_generation_policy"), dict) else {}
@@ -423,7 +589,8 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
                     "assets": {},
                 }
                 for layer_name, layer_path in layer_files.items():
-                    layer_object = f"topics/{topic_id}/layers/scene-{number:03d}-{layer_name}.png"
+                    layer_object = (f"topics/{topic_id}/layers/scene-{number:03d}-{layer_name}-"
+                                    f"{_file_sha256(layer_path)}.png")
                     lbucket, lpath, lurl = _upload_gcs_file(layer_path, layer_object, "image/png")
                     uploaded_layers["assets"][layer_name] = {
                         "storage_provider": "gcs",
@@ -441,6 +608,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
     if not isinstance(scenes, list):
         raise ValueError("topic structure has no scenes")
     updated_count = 0
+    published_scenes: dict[int, dict[str, Any]] = {}
     for index, scene in enumerate(scenes, start=1):
         if not isinstance(scene, dict):
             continue
@@ -483,6 +651,9 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
             if number in scene_layer_assets:
                 scene.setdefault("metadata", {})["local_layer_asset"] = scene_layer_assets[number]
                 scene["local_layer_status"] = "ready"
+            if number in scene_psd_assets:
+                scene.setdefault("metadata", {})["psd_layer_asset"] = scene_psd_assets[number]
+                scene["psd_layer_status"] = "ready"
             psd_plan = scene.get("psd_layer_plan") if isinstance(scene.get("psd_layer_plan"), dict) else {}
             if psd_plan:
                 scene.setdefault("metadata", {})["psd_layer_plan"] = {
@@ -493,16 +664,20 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
                     "outputs": psd_plan.get("outputs") if isinstance(psd_plan.get("outputs"), list) else [],
                     "credit_cost_estimate": float(psd_plan.get("credit_cost_estimate") or 0),
                 }
+            published_scenes[number] = scene
             updated_count += 1
     if updated_count != len(scene_urls):
         raise RuntimeError("not every cropped image could be mapped to a topic scene")
 
-    _request(
-        "PATCH",
-        f"{base_url}/rest/v1/topics_queue?id=eq.{quote(topic_id, safe='')}",
-        {**headers, "Content-Type": "application/json", "Prefer": "return=representation"},
-        json={"pregenerated_structure": structure},
-    )
+    updates = [{
+        "scene_number": number,
+        "expected_source": manifest_sources[number],
+        "expected_assets": expected_assets[number],
+        "asset_patch": _scene_asset_patch(published_scenes[number]),
+    } for number in sorted(scene_urls)]
+    _patch_topic_scene_assets(topic_id, updates, base_url, headers)
+    if manifest_layer_specs:
+        _propagate_published_template_assets(topic_id, base_url, headers)
     return [scene_urls[number] for number in sorted(scene_urls)]
 
 
@@ -523,6 +698,17 @@ def parse_args() -> argparse.Namespace:
     publish_cmd.add_argument("--manifest", type=Path, required=True)
     publish_cmd.add_argument("--images-dir", type=Path, required=True)
     publish_cmd.add_argument("--create-bucket", action="store_true")
+    prepare_cmd = commands.add_parser("prepare-layers", help="독립 PNG 레이어를 검수 대기 PSD 패키지로 만듭니다")
+    prepare_cmd.add_argument("--manifest", type=Path, required=True)
+    prepare_cmd.add_argument("--images-dir", type=Path, required=True)
+    generate_cmd = commands.add_parser("generate-layers", help="검증된 인물 레퍼런스로 독립 PNG 레이어를 생성합니다")
+    generate_cmd.add_argument("--manifest", type=Path, required=True)
+    generate_cmd.add_argument("--images-dir", type=Path, required=True)
+    approve_cmd = commands.add_parser("approve-layers", help="PSD 프리뷰 육안 검수를 기록합니다")
+    approve_cmd.add_argument("--manifest", type=Path, required=True)
+    approve_cmd.add_argument("--images-dir", type=Path, required=True)
+    approve_cmd.add_argument("--reviewer", required=True)
+    approve_cmd.add_argument("--note", required=True)
     return parser.parse_args()
 
 
@@ -550,6 +736,22 @@ def main() -> int:
                 ensure_ascii=False,
             )
         )
+    elif args.command == "prepare-layers":
+        manifest = _manifest(args.manifest)
+        specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
+        receipt = manga_layer_package.prepare(args.manifest, args.images_dir, specs)
+        print(json.dumps({"prepared": len(receipt["packages"]), "receipt": str(manga_layer_package.receipt_path(args.images_dir))}, ensure_ascii=False))
+    elif args.command == "generate-layers":
+        receipt = manga_layer_generation.generate_layers(args.manifest, args.images_dir)
+        print(json.dumps({"generated_or_provided": len(receipt["jobs"]),
+                          "review_required": True,
+                          "report": str(manga_layer_generation.report_path(args.images_dir))}, ensure_ascii=False))
+    elif args.command == "approve-layers":
+        manifest = _manifest(args.manifest)
+        specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
+        receipt = manga_layer_package.approve(args.manifest, args.images_dir, specs,
+                                              reviewer=args.reviewer, note=args.note)
+        print(json.dumps({"approved": len(receipt["packages"])}, ensure_ascii=False))
     else:
         urls = publish(args.manifest, args.images_dir, args.create_bucket)
         print(json.dumps({"published": len(urls), "urls": urls}, ensure_ascii=False))

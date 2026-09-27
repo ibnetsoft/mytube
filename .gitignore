@@ -97,4 +97,6 @@ rebuild_*_log.txt
 
 # Local render verification and Google service-account credentials
 /.pytest_tmp/
+/.pytest-*/
+/supabase/.temp/
 /secret-well-*.json

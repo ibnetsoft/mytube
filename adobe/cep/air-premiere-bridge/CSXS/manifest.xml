@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionManifest Version="6.0" ExtensionBundleId="com.airstudio.premiere.bridge" ExtensionBundleVersion="1.0.0" ExtensionBundleName="AIR Studio Premiere Bridge">
+  <ExtensionList><Extension Id="com.airstudio.premiere.bridge" Version="1.0" /></ExtensionList>
+  <ExecutionEnvironment>
+    <HostList><Host Name="PPRO" Version="[25.0,99.9]" /></HostList>
+    <LocaleList><Locale Code="All" /></LocaleList>
+    <RequiredRuntimeList><RequiredRuntime Name="CSXS" Version="6.0" /></RequiredRuntimeList>
+  </ExecutionEnvironment>
+  <DispatchInfoList>
+    <Extension Id="com.airstudio.premiere.bridge">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./index.html</MainPath>
+          <CEFCommandLine><Parameter>--enable-nodejs</Parameter><Parameter>--mixed-context</Parameter></CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>false</AutoVisible>
+          <StartOn><Event>com.adobe.csxs.events.ApplicationActivate</Event></StartOn>
+        </Lifecycle>
+        <UI><Type>Panel</Type><Menu>AIR Studio Bridge</Menu><Geometry><Size><Height>200</Height><Width>360</Width></Size></Geometry></UI>
+      </DispatchInfo>
+    </Extension>
+  </DispatchInfoList>
+</ExtensionManifest>

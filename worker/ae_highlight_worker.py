@@ -8,6 +8,7 @@ pregenerated_structure.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import mimetypes
 import os
@@ -27,6 +28,10 @@ import requests
 
 import worker_config
 from adobe_tools import find_aerender, find_afterfx
+from ae_recovery import AeRecoveryError, continue_crash_recovery
+from manga_ae_templates import template_for_scene, write_manga_jsx
+from manga_scene_qa import validate_scene_plan, validate_render
+from media_checkpoint import Checkpoint, fingerprint, valid_file, valid_mp4, verified_local_mp4
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -39,15 +44,26 @@ DEFAULT_AFTERFX = r"C:\Program Files\Adobe\Adobe After Effects CS6\Support Files
 FALLBACK_AFTERFX_EXE = r"C:\Program Files\Adobe\Adobe After Effects CS6\Support Files\AfterFX.exe"
 DEFAULT_AERENDER = r"C:\Program Files\Adobe\Adobe After Effects CS6\Support Files\aerender.exe"
 DEFAULT_BUCKET = os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"
-DEFAULT_WIDTH = int(os.getenv("AE_HIGHLIGHT_WIDTH", "720"))
-DEFAULT_HEIGHT = int(os.getenv("AE_HIGHLIGHT_HEIGHT", "720"))
+DEFAULT_WIDTH = int(os.getenv("AE_HIGHLIGHT_WIDTH", "1920"))
+DEFAULT_HEIGHT = int(os.getenv("AE_HIGHLIGHT_HEIGHT", "1080"))
 DEFAULT_FPS = int(os.getenv("AE_HIGHLIGHT_FPS", "24"))
 DEFAULT_POLL_SECONDS = float(os.getenv("AE_HIGHLIGHT_POLL_SECONDS", "20"))
 DEFAULT_TOPIC_LIMIT = int(os.getenv("AE_HIGHLIGHT_TOPIC_LIMIT", "20"))
 DEFAULT_MAX_SCENES_PER_TICK = int(os.getenv("AE_HIGHLIGHT_MAX_SCENES_PER_TICK", "3"))
+MAX_ATTEMPTS = int(os.getenv("AE_HIGHLIGHT_MAX_ATTEMPTS", "3"))
 
 
 class AeWorkerError(RuntimeError):
+    pass
+
+
+class AeSceneConflict(AeWorkerError):
+    """The database scene changed after this worker read it."""
+    pass
+
+
+class AeReviewRequired(AeWorkerError):
+    """A deterministic input or QA failure that needs asset/plan correction."""
     pass
 
 
@@ -69,6 +85,8 @@ class SceneJob:
     preset: str
     duration_seconds: float
     source: GcsRef
+    source_type: str = "topic"
+    project_payload: dict[str, Any] | None = None
 
 
 def write_state(
@@ -104,6 +122,14 @@ def write_state(
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _safe_name(value: Any, fallback: str = "item") -> str:
@@ -200,6 +226,10 @@ def _upload_gcs_file(file_path: Path, object_path: str, mime_type: str) -> tuple
 
 def _gcs_ref_from_scene(scene: dict[str, Any]) -> GcsRef | None:
     metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    layered = metadata.get("psd_layer_asset") if isinstance(metadata.get("psd_layer_asset"), dict) else {}
+    layered_path = str(layered.get("gcs_path") or layered.get("object_path") or "").strip()
+    if layered_path.lower().endswith(".psd"):
+        return GcsRef(bucket=str(layered.get("gcs_bucket") or layered.get("bucket") or DEFAULT_BUCKET), path=layered_path)
     asset = metadata.get("cowork_image_asset") if isinstance(metadata.get("cowork_image_asset"), dict) else {}
     bucket = str(
         asset.get("gcs_bucket")
@@ -253,11 +283,34 @@ def _video_url_key(job_or_kind: SceneJob | str) -> str:
     return "ae_motion_video_url" if kind == "motion" else "ae_video_url"
 
 
+def _scene_delivery(source_type: str, project_payload: dict[str, Any] | None,
+                    structure: dict[str, Any], scene: dict[str, Any]) -> str:
+    """Use a topic's explicit delivery choice before the host-wide fallback."""
+    payload = project_payload or {}
+    settings = payload.get("render_settings") if isinstance(payload.get("render_settings"), dict) else {}
+    brief = payload.get("web_brief") if isinstance(payload.get("web_brief"), dict) else {}
+    source = payload.get("source_payload") if isinstance(payload.get("source_payload"), dict) else {}
+    candidates = (payload.get("ae_scene_delivery"), settings.get("ae_scene_delivery"),
+                  brief.get("ae_scene_delivery"), source.get("ae_scene_delivery"),
+                  structure.get("ae_scene_delivery"), scene.get("ae_scene_delivery"),
+                  os.getenv("AE_SCENE_DELIVERY"))
+    for candidate in candidates:
+        if candidate is None or candidate == "":
+            continue
+        value = str(candidate).strip().lower()
+        if value not in {"local", "gcs"}:
+            raise AeWorkerError(f"Unknown ae_scene_delivery: {value}")
+        return value
+    return "local" if source_type == "project" else "gcs"
+
+
 def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[SceneJob]:
     jobs: list[SceneJob] = []
     for row in rows:
         topic_id = str(row.get("id") or "")
-        structure = _json_object(row.get("pregenerated_structure"))
+        source_type = str(row.get("__source_type") or "topic")
+        project_payload = _json_object(row.get("project_payload")) if source_type == "project" else None
+        structure = _json_object(project_payload.get("structure")) if project_payload is not None else _json_object(row.get("pregenerated_structure"))
         scenes = structure.get("scenes")
         if not topic_id or not isinstance(scenes, list):
             continue
@@ -272,12 +325,31 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
             asset_key = _asset_key(plan_kind)
             url_key = _video_url_key(plan_kind)
             ae_meta = meta.get(asset_key) if isinstance(meta.get(asset_key), dict) else {}
-            if not force and (ae_meta.get("status") == "ready" or scene.get(url_key)):
+            delivery = _scene_delivery(source_type, project_payload, structure, scene)
+            if not force:
+                if delivery == "local" and ae_meta.get("storage_provider") == "local" and ae_meta.get("status") == "ready":
+                    try:
+                        required_seconds = max(0.5, float(ae_meta.get("duration_seconds") or 1) * 0.8)
+                    except (TypeError, ValueError):
+                        required_seconds = 0.5
+                    if verified_local_mp4(ae_meta.get("local_path"), worker_config.TEMP_DIR / "ae_highlight",
+                                          required_seconds):
+                        continue
+                elif (delivery == "gcs" and ae_meta.get("storage_provider") != "local" and
+                      (ae_meta.get("status") == "ready" or
+                       (scene.get(url_key) and ae_meta.get("status") in {None, "", "ready"}))):
+                    continue
+            if not force and ae_meta.get("status") in {"needs_attention", "review_pending"}:
                 continue
-            if not force and ae_meta.get("status") == "rendering":
-                started = str(ae_meta.get("started_at") or "")
-                # A stale rendering marker can be retried by restarting with --force.
-                if started:
+            if not force and float(ae_meta.get("next_retry_at") or 0) > time.time():
+                continue
+            if plan_kind == "effect" and plan.get("template"):
+                layered = meta.get("psd_layer_asset") if isinstance(meta.get("psd_layer_asset"), dict) else {}
+                layered_path = str(layered.get("gcs_path") or layered.get("object_path") or "").strip()
+                # Claim-time projects can exist before their separate PSD
+                # package is approved. Never consume a flattened preview and
+                # leave a permanent missing-PSD failure while it is arriving.
+                if layered.get("qa_status") != "approved" or not layered_path.lower().endswith(".psd"):
                     continue
             source = _gcs_ref_from_scene(scene)
             if not source:
@@ -293,7 +365,7 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
             jobs.append(
                 SceneJob(
                     topic_id=topic_id,
-                    topic_title=str(row.get("generated_title") or row.get("topic") or topic_id),
+                    topic_title=str(row.get("title") or row.get("generated_title") or row.get("topic") or topic_id),
                     structure=structure,
                     scene_index=index,
                     scene=scene,
@@ -302,6 +374,8 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
                     preset=_safe_name(plan.get("preset"), "wuxia_sword_aura"),
                     duration_seconds=max(1.0, min(duration, 12.0)),
                     source=source,
+                    source_type=source_type,
+                    project_payload=project_payload,
                 )
             )
     jobs.sort(key=lambda job: (0 if job.plan_kind == "effect" else 1, -int((_render_plan_from_scene(job.scene) or ("", {}))[1].get("priority") or 0), job.topic_id, job.scene_number))
@@ -325,37 +399,74 @@ def fetch_candidate_topics(limit: int) -> list[dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
-def patch_topic_structure(topic_id: str, structure: dict[str, Any]) -> None:
+def fetch_candidate_projects(limit: int) -> list[dict[str, Any]]:
     base_url, headers = _supabase()
-    _request(
-        "PATCH",
-        f"{base_url}/rest/v1/topics_queue?id=eq.{quote(str(topic_id), safe='')}",
-        {**headers, "Content-Type": "application/json", "Prefer": "return=minimal"},
-        json={"pregenerated_structure": structure},
+    response = _request(
+        "GET", f"{base_url}/rest/v1/std_projects", headers,
+        params={"select": "id,title,submitted_at,project_payload,updated_at",
+                "submitted_at": "not.is.null", "order": "updated_at.desc", "limit": str(limit)},
     )
+    rows = response.json()
+    return [{**row, "__source_type": "project"} for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
+def _patch_job_structure(job: SceneJob, *, expected_status: str = "",
+                         expected_started_at: str | None = None,
+                         asset_patch: dict[str, Any] | None = None,
+                         next_status: str = "", media_url: str | None = None,
+                         clear_media_url: bool = False) -> None:
+    base_url, headers = _supabase()
+    response = _request(
+        "POST", f"{base_url}/rest/v1/rpc/air_update_ae_scene",
+        {**headers, "Content-Type": "application/json"},
+        json={
+            "p_source_type": job.source_type, "p_identity": job.topic_id,
+            "p_scene_number": job.scene_number, "p_operation": "worker",
+            "p_plan_kind": job.plan_kind,
+            "p_expected_status": expected_status,
+            "p_expected_started_at": expected_started_at,
+            "p_asset_patch": asset_patch or {}, "p_next_status": next_status,
+            "p_media_url": media_url, "p_clear_media_url": clear_media_url,
+        },
+    )
+    result = response.json()
+    if not isinstance(result, dict) or not result.get("applied"):
+        code = result.get("code") if isinstance(result, dict) else "invalid_response"
+        raise AeSceneConflict(f"AE scene update was not applied: {code}")
+    updated = result.get("scene")
+    if not isinstance(updated, dict):
+        raise AeWorkerError("AE scene update returned no scene")
+    current = job.structure["scenes"][job.scene_index]
+    current.clear()
+    current.update(updated)
 
 
 def _mark_scene(job: SceneJob, status: str, **extra: Any) -> None:
     scene = job.structure["scenes"][job.scene_index]
     metadata = scene.setdefault("metadata", {})
     asset_key = _asset_key(job)
-    metadata[asset_key] = {
-        **(metadata.get(asset_key) if isinstance(metadata.get(asset_key), dict) else {}),
+    old_asset = metadata.get(asset_key) if isinstance(metadata.get(asset_key), dict) else {}
+    patch = {
         "status": status,
         "plan_kind": job.plan_kind,
         "worker": os.getenv("AE_HIGHLIGHT_WORKER_ID") or worker_config.WORKER_INSTANCE_ID,
         "updated_at": _now(),
         **extra,
     }
+    metadata[asset_key] = {**old_asset, **patch}
     scene[_status_key(job)] = status
-    patch_topic_structure(job.topic_id, job.structure)
+    _patch_job_structure(job, expected_status=str(old_asset.get("status") or ""),
+                         asset_patch=patch, next_status=status,
+                         clear_media_url=bool(job.plan_kind == "effect" and
+                                              isinstance(job.scene.get("ae_effect_plan"), dict) and
+                                              job.scene["ae_effect_plan"].get("template")))
 
 
 def _job_summary(job: SceneJob) -> dict[str, Any]:
     return {
         "job_id": f"ae:{job.plan_kind}:{job.topic_id}:{job.scene_number}",
         "job_type": "render_ae_highlight" if job.plan_kind == "effect" else "render_ae_motion",
-        "source": "topics_queue",
+        "source": "std_projects" if job.source_type == "project" else "topics_queue",
         "status": "rendering",
         "project_name": job.topic_title,
         "scene_number": job.scene_number,
@@ -431,7 +542,7 @@ def _js_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=True)
 
 
-def _write_jsx(job: SceneJob, input_image: Path, project_path: Path, avi_path: Path, jsx_path: Path) -> None:
+def _write_jsx(job: SceneJob, input_image: Path, project_path: Path, render_path: Path, jsx_path: Path) -> None:
     preset = job.preset
     plan = _effect_plan(job)
     duration = job.duration_seconds
@@ -444,7 +555,7 @@ def _write_jsx(job: SceneJob, input_image: Path, project_path: Path, avi_path: P
     jsx = f'''
 var imagePath = "{_ae_path(input_image)}";
 var projectPath = "{_ae_path(project_path)}";
-var renderPath = "{_ae_path(avi_path)}";
+var renderPath = "{_ae_path(render_path)}";
 var W = {width};
 var H = {height};
 var DUR = {duration:.3f};
@@ -721,11 +832,38 @@ app.beginSuppressDialogs();
 try {{
   if (app.project) app.project.close(CloseOptions.DO_NOT_SAVE_CHANGES);
   app.newProject();
-  var footage = app.project.importFile(new ImportOptions(new File(imagePath)));
+  var importOptions = new ImportOptions(new File(imagePath));
+  if (/\\.psd$/i.test(imagePath) && importOptions.canImportAs(ImportAsType.COMP_CROPPED_LAYERS)) {{
+    importOptions.importAs = ImportAsType.COMP_CROPPED_LAYERS;
+  }}
+  var footage = app.project.importFile(importOptions);
   var comp = app.project.items.addComp("ae_highlight_{_safe_name(preset)}", W, H, 1, DUR, FPS);
   comp.bgColor = [0, 0, 0];
-  var bg = comp.layers.add(footage);
-  bg.name = "source_scene";
+  var layeredPsd = footage instanceof CompItem && footage.numLayers > 1;
+  var bg = null;
+  if (layeredPsd) {{
+    for (var li = footage.numLayers; li >= 1; li--) {{
+      var original = footage.layer(li);
+      if (!original.source) continue;
+      var separated = comp.layers.add(original.source);
+      separated.name = original.name;
+      var originalPosition = original.property("Position").value;
+      if (/background|backdrop|배경/i.test(original.name) || bg == null) {{
+        if (bg == null) bg = separated;
+        separated.property("Position").setValue(originalPosition);
+      }} else {{
+        var direction = li % 2 == 0 ? 1 : -1;
+        separated.property("Position").setValueAtTime(0, [originalPosition[0] - 12 * direction, originalPosition[1] + 5]);
+        separated.property("Position").setValueAtTime(DUR, [originalPosition[0] + 14 * direction, originalPosition[1] - 5]);
+        separated.property("Scale").setValueAtTime(0, [100,100]);
+        separated.property("Scale").setValueAtTime(DUR, [104,104]);
+      }}
+    }}
+  }}
+  if (bg == null) {{
+    bg = comp.layers.add(footage);
+    bg.name = "source_scene";
+  }}
   var scale = Math.max(W / footage.width, H / footage.height) * 100;
   var startScale = scale * (1.015 + Math.max(0, PLAN.push) * 0.35);
   var endScale = scale * (1.015 + Math.abs(PLAN.push) + INTENSITY * 0.025);
@@ -743,10 +881,10 @@ try {{
     bg.property("Position").setValueAtTime(0.42, [W / 2 - shakePixels * 0.7, H / 2 + shakePixels * 0.25]);
     bg.property("Position").setValueAtTime(0.55, [W / 2 + PLAN.drift_x * W * 0.3, H / 2 + PLAN.drift_y * H * 0.3]);
   }}
-  if (hasVfx("layered_depth_proxy") || hasVfx("comic_parallax_camera") || hasVfx("depth_of_field")) {{
+  if (!layeredPsd && (hasVfx("layered_depth_proxy") || hasVfx("comic_parallax_camera") || hasVfx("depth_of_field"))) {{
     applyDepthProxy(comp, footage);
   }}
-  if (hasVfx("puppet_breath_idle")) {{
+  if (!layeredPsd && hasVfx("puppet_breath_idle")) {{
     makeBreathingProxy(comp, footage);
   }}
   if (hasVfx("hair_cloth_wave")) {{
@@ -773,6 +911,7 @@ try {{
   if (hasVfx("displacement_wave")) {{
     addFx(bg, "ADBE Wave Warp", "Wave Warp");
   }}
+  if (PLAN.plan_kind == "effect") {{
   makeFocusGlow(comp, "targeted_primary_glow_" + PLAN.primary.type, PRIMARY, PRIMARY_COLOR, 170 + 130 * INTENSITY, 0.18);
   makeFocusGlow(comp, "targeted_secondary_glow_" + PLAN.secondary.type, SECONDARY, ACCENT_COLOR, 115 + 90 * INTENSITY, 0.55);
   makeLightSweep(comp, "targeted_light_sweep_" + PLAN.light, [PRIMARY[0] - W * 0.55, PRIMARY[1] + H * 0.18], [SECONDARY[0] + W * 0.42, SECONDARY[1] - H * 0.08], FLASH_COLOR, 0.65);
@@ -817,13 +956,15 @@ try {{
   if (hasVfx("speedline_burst")) {{
     makeSpeedLines(comp);
   }}
+  }}
   if (hasVfx("speech_bubble_type_on")) {{
     makeSpeechBubbleTypeOn(comp);
   }}
 
-  var moteCount = Math.round(24 + 54 * INTENSITY);
+  var moteCount = PLAN.plan_kind == "effect" ? Math.round(24 + 54 * INTENSITY) : 8;
   for (var i = 0; i < moteCount; i++) makeMote(comp, i, PRIMARY_COLOR);
 
+  if (PLAN.plan_kind == "effect") {{
   var pulse = comp.layers.addSolid(FLASH_COLOR, "additive_pulse", W, H, 1, DUR);
   pulse.blendingMode = BlendingMode.ADD;
   setOpacity(pulse, 0, 0, 1.05, 6 + 16 * INTENSITY, 1.35, 0);
@@ -835,6 +976,7 @@ try {{
   warp.adjustmentLayer = true;
   setOpacity(warp, 0, 0, 1.0, 8 + 42 * INTENSITY, DUR, 4 + 14 * INTENSITY);
   addFx(warp, "ADBE Turbulent Displace", "Turbulent Displace");
+  }}
 
   var vignette = comp.layers.addSolid([0, 0, 0], "ink_vignette", W, H, 1, DUR);
   vignette.blendingMode = BlendingMode.MULTIPLY;
@@ -860,68 +1002,147 @@ def _ffmpeg_executable() -> str:
         return os.getenv("FFMPEG_PATH") or "ffmpeg"
 
 
+def _log_tail(path: Path, limit: int = 4000) -> str:
+    try:
+        with path.open("rb") as log:
+            log.seek(0, os.SEEK_END)
+            log.seek(max(0, log.tell() - limit))
+            return log.read().decode("utf-8", errors="replace").strip()
+    except OSError:
+        return ""
+
+
+def _stop_command(process: subprocess.Popen[Any]) -> None:
+    if process.poll() is not None:
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        if process.poll() is None:
+            try:
+                process.kill()
+                process.wait(timeout=5)
+            except OSError:
+                # It may have exited between poll() and kill().
+                pass
+
+
 def _run_checked(command: list[str], *, timeout: int = 900) -> None:
-    result = subprocess.run(
-        command,
-        cwd=str(ROOT),
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        capture_output=True,
-        timeout=timeout,
-    )
-    if result.returncode != 0:
-        detail = "\n".join(part for part in (result.stdout[-1500:], result.stderr[-2500:]) if part)
-        raise AeWorkerError(f"command failed ({result.returncode}): {' '.join(command)}\n{detail}")
+    """Run aerender with a durable log while checking for AE recovery UI."""
+    log_path = Path(command[-1]).with_suffix(".aerender.log")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    with log_path.open("wb") as log:
+        process = subprocess.Popen(command, cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT)
+        recovery_clicks = 0
+        last_recovery_check = 0.0
+        try:
+            while process.poll() is None:
+                now = time.monotonic()
+                if now - started >= timeout:
+                    raise AeWorkerError(
+                        f"aerender timed out after {timeout}s; log={log_path}\n{_log_tail(log_path)}"
+                    )
+                if now - last_recovery_check >= 5:
+                    last_recovery_check = now
+                    if continue_crash_recovery():
+                        recovery_clicks += 1
+                        if recovery_clicks > 3:
+                            raise AeRecoveryError(
+                                f"AE crash-recovery dialog did not clear after 3 attempts; log={log_path}"
+                            )
+                try:
+                    process.wait(timeout=min(2.0, max(0.1, timeout - (time.monotonic() - started))))
+                except subprocess.TimeoutExpired:
+                    pass
+        except BaseException:
+            _stop_command(process)
+            raise
+    if process.returncode != 0:
+        raise AeWorkerError(
+            f"aerender failed (exit={process.returncode}); log={log_path}\n{_log_tail(log_path)}"
+        )
 
 
 def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, timeout: int = 240) -> None:
-    """Run AE scripting and accept success once the expected AEP appears.
+    """Run JSX and wait for its AEP even if the launcher exits first.
 
-    AE CS6's console wrapper may keep the parent process attached even after
-    the JSX has completed, while AfterFX.exe may ignore -r on some hosts. Poll
-    for the project artifact and terminate the wrapper after success.
+    AE 2026 forwards scripts to an already-running app asynchronously. Killing
+    its launcher immediately after project creation can trigger crash recovery.
     """
     candidates = [afterfx]
     if afterfx.suffix.lower() == ".exe":
         com_path = afterfx.with_suffix(".com")
         if com_path.is_file():
-            candidates.insert(0, com_path)
+            candidates.append(com_path)
     else:
         exe_path = Path(FALLBACK_AFTERFX_EXE)
         if exe_path.is_file():
             candidates.append(exe_path)
 
     errors: list[str] = []
-    for candidate in dict.fromkeys(candidates):
-        process = subprocess.Popen(
-            [str(candidate), "-r", str(jsx_path)],
-            cwd=str(ROOT),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+    previous_mtime = project_path.stat().st_mtime_ns if project_path.is_file() else None
+    status_path = jsx_path.with_suffix(".status.txt")
+    previous_status_mtime = status_path.stat().st_mtime_ns if status_path.is_file() else None
+    for index, candidate in enumerate(dict.fromkeys(candidates)):
+        log_path = jsx_path.with_name(f"afterfx-launch-{index}.log")
+        with log_path.open("wb") as log:
+            process = subprocess.Popen(
+                [str(candidate), "-r", str(jsx_path)],
+                cwd=str(ROOT),
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+            deadline = time.monotonic() + timeout
+            exited_at: float | None = None
+            last_recovery_check = 0.0
+            recovery_clicks = 0
+            stable_project_size = 0
+            try:
+                while time.monotonic() < deadline:
+                    if status_path.is_file():
+                        status_stat = status_path.stat()
+                        if status_stat.st_mtime_ns != previous_status_mtime:
+                            status_text = status_path.read_text(encoding="utf-8", errors="replace")
+                            if status_text.startswith("error|"):
+                                raise AeWorkerError(f"After Effects script failed: {status_text[:800]}")
+                    try:
+                        stat = project_path.stat()
+                    except OSError:
+                        stat = None
+                    if stat and stat.st_size > 1024 and stat.st_mtime_ns != previous_mtime:
+                        if stat.st_size == stable_project_size:
+                            return
+                        stable_project_size = stat.st_size
+                    else:
+                        stable_project_size = 0
+                    now = time.monotonic()
+                    if now - last_recovery_check >= 5:
+                        last_recovery_check = now
+                        if continue_crash_recovery():
+                            recovery_clicks += 1
+                            if recovery_clicks > 3:
+                                raise AeRecoveryError(
+                                    f"AE crash-recovery dialog did not clear after 3 attempts; log={log_path}"
+                                )
+                            # AE needs a moment to finish launching and run the JSX.
+                            exited_at = None
+                    if process.poll() is not None:
+                        exited_at = exited_at or time.monotonic()
+                        if time.monotonic() - exited_at > 30:
+                            break
+                    time.sleep(1)
+            except BaseException:
+                if candidate.suffix.lower() == ".com":
+                    _stop_command(process)
+                raise
+            if process.poll() is None and candidate.suffix.lower() == ".com":
+                _stop_command(process)
+        errors.append(
+            f"{candidate} did not create {project_path} (exit={process.poll()}, log={log_path}): "
+            f"{_log_tail(log_path, 1200)}"
         )
-        deadline = time.time() + timeout
-        try:
-            while time.time() < deadline:
-                if project_path.is_file() and project_path.stat().st_size > 1024:
-                    if process.poll() is None:
-                        process.terminate()
-                        try:
-                            process.wait(timeout=10)
-                        except subprocess.TimeoutExpired:
-                            process.kill()
-                    return
-                if process.poll() is not None:
-                    break
-                time.sleep(2)
-        finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-        errors.append(f"{candidate} did not create {project_path}")
     raise AeWorkerError("After Effects did not create a project file: " + "; ".join(errors))
 
 
@@ -942,135 +1163,252 @@ def _quality_report(job: SceneJob, mp4_path: Path) -> dict[str, Any]:
     }
 
 
+def _manga_preflight(job: SceneJob, input_psd: Path) -> dict[str, Any]:
+    """Verify the downloaded PSD itself, not just a possibly stale manifest."""
+    if input_psd.suffix.lower() != ".psd":
+        raise AeReviewRequired("Manga template needs a layered PSD; scene has only a flattened image")
+    metadata = job.scene.get("metadata") if isinstance(job.scene.get("metadata"), dict) else {}
+    asset = metadata.get("psd_layer_asset") if isinstance(metadata.get("psd_layer_asset"), dict) else {}
+    if asset.get("qa_status") != "approved":
+        raise AeReviewRequired("Manga PSD layer package has not passed layer review")
+    expected_sha256 = str(asset.get("sha256") or "")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+        raise AeReviewRequired("Manga PSD approval is missing a valid SHA-256")
+    if _sha256_file(input_psd) != expected_sha256:
+        raise AeReviewRequired("Manga PSD differs from the approved layer package")
+    try:
+        from psd_tools import PSDImage
+
+        psd = PSDImage.open(input_psd)
+        layer_names = [str(layer.name).strip().lower() for layer in psd]
+        dimensions = psd.size
+        layer_centers = {}
+        for layer in psd:
+            bounds = layer.topil().convert("RGBA").getchannel("A").getbbox()
+            if bounds:
+                layer_centers[str(layer.name).strip().lower()] = [
+                    round((bounds[0] + bounds[2]) / (2 * dimensions[0]), 6),
+                    round((bounds[1] + bounds[3]) / (2 * dimensions[1]), 6),
+                ]
+    except Exception as exc:
+        raise AeReviewRequired(f"Manga PSD could not be read: {exc}") from exc
+    if dimensions != (DEFAULT_WIDTH, DEFAULT_HEIGHT):
+        raise AeReviewRequired(f"Manga PSD dimensions {dimensions} do not match AE output "
+                               f"{DEFAULT_WIDTH}x{DEFAULT_HEIGHT}")
+    declared = {str(name).strip().lower() for name in (asset.get("layers") or [])}
+    if set(layer_names) != declared:
+        raise AeReviewRequired("Manga PSD layers differ from the approved layer manifest")
+    verified_asset = {**asset, "local_path": str(input_psd), "layers": layer_names}
+    report = validate_scene_plan(job.scene, verified_asset, job.duration_seconds)
+    if not report["passed"]:
+        raise AeReviewRequired("Manga scene plan failed preflight: " + "; ".join(report["errors"]))
+    report["layer_centers"] = layer_centers
+    return report
+
+
 def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     afterfx = find_afterfx() or Path(DEFAULT_AFTERFX)
     aerender = find_aerender() or Path(DEFAULT_AERENDER)
     if not afterfx.is_file() or not aerender.is_file():
         raise AeWorkerError(f"After Effects executables not found: {afterfx} / {aerender}")
 
-    workdir = worker_config.TEMP_DIR / "ae_highlight" / f"{job.topic_id}-{job.scene_number:03d}-{uuid.uuid4().hex[:8]}"
+    template = template_for_scene(job.scene)
+    direction_plan = job.scene.get("ae_effect_plan") if template else _effect_plan(job)
+    identity = fingerprint({
+        "version": 3 if template else 2, "source": job.source.__dict__, "kind": job.plan_kind,
+        "preset": job.preset, "plan": direction_plan, "duration": job.duration_seconds,
+        "width": DEFAULT_WIDTH, "height": DEFAULT_HEIGHT, "fps": DEFAULT_FPS,
+    })
+    workdir = worker_config.TEMP_DIR / "ae_highlight" / f"{_safe_name(job.topic_id)}-{job.scene_number:03d}-{job.plan_kind}-{identity}"
+    checkpoint = Checkpoint(workdir / "checkpoint.json", identity)
     source_suffix = Path(job.source.path).suffix.lower()
-    if source_suffix not in {".png", ".jpg", ".jpeg"}:
+    if source_suffix not in {".png", ".jpg", ".jpeg", ".psd"}:
         source_suffix = ".png"
     input_image = workdir / "input" / f"scene{source_suffix}"
     project_path = workdir / "project" / "ae_highlight.aep"
-    avi_path = workdir / "render" / "ae_highlight.avi"
     mp4_path = workdir / "render" / "ae_highlight.mp4"
     jsx_path = workdir / "create_project.jsx"
     project_path.parent.mkdir(parents=True, exist_ok=True)
-    avi_path.parent.mkdir(parents=True, exist_ok=True)
+    mp4_path.parent.mkdir(parents=True, exist_ok=True)
 
     write_state("downloading", 10, _job_summary(job))
-    _download_gcs_file(job.source, input_image)
+    if not valid_file(input_image):
+        _download_gcs_file(job.source, input_image)
+    checkpoint.mark("downloaded", {"path": str(input_image), "bytes": input_image.stat().st_size})
+    plan_qa = _manga_preflight(job, input_image) if template else None
+    if plan_qa:
+        (workdir / "plan-qa.json").write_text(json.dumps(plan_qa, ensure_ascii=False, indent=2), encoding="utf-8")
     write_state("preparing", 25, _job_summary(job))
-    _write_jsx(job, input_image, project_path, avi_path, jsx_path)
+    saved_project = checkpoint.get("project_ready")
+    project_reusable = (valid_file(project_path) and isinstance(saved_project, dict) and
+                        saved_project.get("bytes") == project_path.stat().st_size)
+    if not project_reusable:
+        if project_path.exists():
+            project_path.replace(project_path.with_name(project_path.name + ".stale-" + uuid.uuid4().hex))
+        if template:
+            write_manga_jsx(
+                scene=job.scene, input_psd=input_image, project_path=project_path,
+                render_path=mp4_path, jsx_path=jsx_path,
+                comp_name=f"ae_highlight_{_safe_name(job.preset)}",
+                width=DEFAULT_WIDTH, height=DEFAULT_HEIGHT, fps=DEFAULT_FPS,
+                duration=job.duration_seconds,
+                layer_centers=(plan_qa or {}).get("layer_centers"),
+            )
+        else:
+            _write_jsx(job, input_image, project_path, mp4_path, jsx_path)
     write_state("preparing", 35, _job_summary(job))
-    _run_afterfx_script(afterfx, jsx_path, project_path, timeout=240)
-    if not project_path.is_file():
+    if not project_reusable:
+        _run_afterfx_script(afterfx, jsx_path, project_path, timeout=240)
+    if not valid_file(project_path):
         raise AeWorkerError("After Effects did not create a project file")
+    checkpoint.mark("project_ready", {"path": str(project_path), "bytes": project_path.stat().st_size})
     write_state("rendering", 50, _job_summary(job))
-    _run_checked([str(aerender), "-project", str(project_path), "-comp", f"ae_highlight_{_safe_name(job.preset)}", "-output", str(avi_path)], timeout=1200)
-    if not avi_path.is_file() or avi_path.stat().st_size < 1024:
-        raise AeWorkerError("After Effects render did not create a valid AVI")
-
-    ffmpeg = _ffmpeg_executable()
-    write_state("transcoding", 75, _job_summary(job))
-    _run_checked(
-        [
-            ffmpeg,
-            "-y",
-            "-i",
-            str(avi_path),
-            "-an",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            "-crf",
-            os.getenv("AE_HIGHLIGHT_CRF", "19"),
-            str(mp4_path),
-        ],
-        timeout=900,
-    )
-    if not mp4_path.is_file() or mp4_path.stat().st_size < 1024:
-        raise AeWorkerError("FFmpeg transcode did not create a valid MP4")
+    if not valid_mp4(mp4_path, job.duration_seconds * 0.8):
+        try:
+            _run_checked([str(aerender), "-project", str(project_path), "-comp", f"ae_highlight_{_safe_name(job.preset)}", "-output", str(mp4_path)], timeout=1200)
+        except Exception:
+            # A partially saved AEP can be large enough to pass a size check.
+            # Rebuild it on the next attempt instead of looping on the same file.
+            checkpoint.mark("project_ready", None)
+            raise
+    if not valid_mp4(mp4_path, job.duration_seconds * 0.8):
+        raise AeWorkerError("After Effects render did not create a valid MP4")
+    checkpoint.mark("rendered", {"path": str(mp4_path), "bytes": mp4_path.stat().st_size})
     quality = _quality_report(job, mp4_path)
     if not quality["passed"]:
         raise AeWorkerError(f"AE render quality check failed: {quality}")
+    render_qa = validate_render(job.scene, mp4_path, fps=DEFAULT_FPS,
+                                duration_seconds=job.duration_seconds) if template else None
+    if render_qa:
+        (workdir / "render-qa.json").write_text(json.dumps(render_qa, ensure_ascii=False, indent=2), encoding="utf-8")
+        if not render_qa["passed"]:
+            raise AeReviewRequired("Manga render failed QA: " + "; ".join(render_qa["errors"]))
 
-    object_name = f"topics/{job.topic_id}/ae/{job.plan_kind}/scene-{job.scene_number:03d}-{_safe_name(job.preset)}.mp4"
-    write_state("uploading", 88, _job_summary(job))
-    bucket, gcs_path, media_url = _upload_gcs_file(mp4_path, object_name, "video/mp4")
+    delivery = _scene_delivery(job.source_type, job.project_payload, job.structure, job.scene)
+    if delivery == "local":
+        write_state("ready_local", 88, _job_summary(job))
+        location = {"storage_provider": "local", "local_path": str(mp4_path.resolve()),
+                    "local_bytes": mp4_path.stat().st_size,
+                    "local_mtime_ns": mp4_path.stat().st_mtime_ns, "media_url": ""}
+    else:
+        object_name = f"{'projects' if job.source_type == 'project' else 'topics'}/{job.topic_id}/ae/{job.plan_kind}/scene-{job.scene_number:03d}-{_safe_name(job.preset)}.mp4"
+        write_state("uploading", 88, _job_summary(job))
+        uploaded = checkpoint.get("uploaded")
+        if isinstance(uploaded, dict) and uploaded.get("object_path") == object_name:
+            bucket, gcs_path, media_url = uploaded["bucket"], uploaded["gcs_path"], uploaded["media_url"]
+        else:
+            bucket, gcs_path, media_url = _upload_gcs_file(mp4_path, object_name, "video/mp4")
+            checkpoint.mark("uploaded", {"bucket": bucket, "gcs_path": gcs_path,
+                                         "media_url": media_url, "object_path": object_name})
+        location = {"storage_provider": "gcs", "bucket": bucket, "object_path": gcs_path,
+                    "gcs_bucket": bucket, "gcs_path": gcs_path, "media_url": media_url}
     result = {
-        "storage_provider": "gcs",
-        "bucket": bucket,
-        "object_path": gcs_path,
-        "gcs_bucket": bucket,
-        "gcs_path": gcs_path,
-        "media_url": media_url,
+        **location,
         "plan_kind": job.plan_kind,
         "preset": job.preset,
         "duration_seconds": job.duration_seconds,
         "width": DEFAULT_WIDTH,
         "height": DEFAULT_HEIGHT,
         "fps": DEFAULT_FPS,
-        "direction_plan": _effect_plan(job),
+        "direction_plan": direction_plan,
         "quality_report": quality,
+        "manga_qa": {"plan": plan_qa, "render": render_qa} if template else None,
+        "review_required": bool(render_qa and render_qa["review_required"]),
+        "render_sha256": _sha256_file(mp4_path) if template else "",
+        "review_local_path": str(mp4_path.resolve()) if template else "",
         "source_image": {"bucket": job.source.bucket, "object_path": job.source.path},
         "local_workdir": str(workdir) if keep_workdir else "",
     }
-    if not keep_workdir:
-        shutil.rmtree(workdir, ignore_errors=True)
+    # Preserve the render so Premiere and a restarted worker can verify and reuse it.
     return result
 
 
 def process_job(job: SceneJob, *, keep_workdir: bool = False) -> dict[str, Any]:
     write_state("claiming", 5, _job_summary(job))
-    _mark_scene(job, "rendering", started_at=_now(), preset=job.preset)
+    scene = job.structure["scenes"][job.scene_index]
+    old_meta = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    old_asset = old_meta.get(_asset_key(job)) if isinstance(old_meta.get(_asset_key(job)), dict) else {}
+    attempts = int(old_asset.get("attempts") or 0) + 1
+    _mark_scene(job, "rendering", started_at=_now(), preset=job.preset,
+                attempts=attempts, next_retry_at=0)
     try:
         result = _render_job(job, keep_workdir=keep_workdir)
         scene = job.structure["scenes"][job.scene_index]
         metadata = scene.setdefault("metadata", {})
         asset_key = _asset_key(job)
+        render_started_at = str((metadata.get(asset_key) or {}).get("started_at") or "")
+        rendered_status = "review_pending" if result.get("review_required") else "ready"
         metadata[asset_key] = {
             **result,
-            "status": "ready",
+            "status": rendered_status,
             "worker": os.getenv("AE_HIGHLIGHT_WORKER_ID") or worker_config.WORKER_INSTANCE_ID,
             "updated_at": _now(),
+            "attempts": attempts,
         }
-        scene[_status_key(job)] = "ready"
-        scene[_video_url_key(job)] = result["media_url"]
-        scene["video_url"] = result["media_url"]
-        scene["asset_status"] = "ready"
-        patch_topic_structure(job.topic_id, job.structure)
+        scene[_status_key(job)] = rendered_status
+        if result["media_url"] and rendered_status == "ready":
+            scene[_video_url_key(job)] = result["media_url"]
+            scene["video_url"] = result["media_url"]
+        else:
+            scene.pop(_video_url_key(job), None)
+            if scene.get("video_url") in {result.get("media_url"), old_asset.get("media_url")} and scene.get("video_url"):
+                scene.pop("video_url", None)
+        scene["asset_status"] = rendered_status
+        _patch_job_structure(
+            job, expected_status="rendering",
+            expected_started_at=render_started_at or None,
+            asset_patch={**metadata[asset_key], "error": None, "next_retry_at": 0},
+            next_status=rendered_status,
+            media_url=result["media_url"] if rendered_status == "ready" else None,
+            clear_media_url=rendered_status != "ready" or not bool(result["media_url"]),
+        )
         state = _json_object(WORKER_STATE_FILE.read_text(encoding="utf-8")) if WORKER_STATE_FILE.exists() else {}
         state["last_success_at"] = time.time()
         WORKER_STATE_FILE.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
         write_state("idle", 100, None, "")
         return result
+    except AeSceneConflict:
+        # A review or another render changed this scene. Never turn its newer
+        # state into retry_wait from this stale worker snapshot.
+        raise
     except Exception as exc:
         scene = job.structure["scenes"][job.scene_index]
         metadata = scene.setdefault("metadata", {})
         asset_key = _asset_key(job)
+        retry_at = time.time() + min(1800, 30 * (2 ** min(attempts - 1, 6)))
+        failed_status = "needs_attention" if isinstance(exc, (AeRecoveryError, AeReviewRequired)) or attempts >= MAX_ATTEMPTS else "retry_wait"
         metadata[asset_key] = {
             **(metadata.get(asset_key) if isinstance(metadata.get(asset_key), dict) else {}),
-            "status": "failed",
+            "status": failed_status,
             "plan_kind": job.plan_kind,
             "worker": os.getenv("AE_HIGHLIGHT_WORKER_ID") or worker_config.WORKER_INSTANCE_ID,
             "updated_at": _now(),
             "error": str(exc)[:800],
+            "attempts": attempts,
+            "next_retry_at": retry_at if failed_status == "retry_wait" else 0,
         }
-        scene[_status_key(job)] = "failed"
-        patch_topic_structure(job.topic_id, job.structure)
+        scene[_status_key(job)] = failed_status
+        _patch_job_structure(
+            job, expected_status="rendering",
+            expected_started_at=str(metadata[asset_key].get("started_at") or "") or None,
+            asset_patch={
+                "plan_kind": job.plan_kind,
+                "worker": metadata[asset_key]["worker"],
+                "updated_at": metadata[asset_key]["updated_at"],
+                "error": metadata[asset_key]["error"],
+                "attempts": attempts,
+                "next_retry_at": metadata[asset_key]["next_retry_at"],
+            }, next_status=failed_status,
+        )
         write_state("failed", 0, _job_summary(job), str(exc)[:800])
         raise
 
 
 def run_once(args: argparse.Namespace) -> int:
     write_state("polling", 0)
-    rows = fetch_candidate_topics(args.topic_limit)
+    rows = fetch_candidate_projects(args.topic_limit)
+    if os.getenv("AE_RENDER_PREGEN_TOPICS") == "1":
+        rows.extend(fetch_candidate_topics(args.topic_limit))
     jobs = _find_scene_jobs(rows, force=args.force)
     if args.topic_id:
         jobs = [job for job in jobs if job.topic_id == str(args.topic_id)]
@@ -1081,15 +1419,22 @@ def run_once(args: argparse.Namespace) -> int:
         print(json.dumps({"candidate_count": len(jobs), "jobs": [job.__dict__ | {"source": job.source.__dict__, "structure": "...", "scene": "..."} for job in jobs]}, ensure_ascii=False, indent=2))
         return 0
     completed = []
+    errors: list[str] = []
     for job in jobs:
+        if is_shutdown_requested("ae_highlight_worker"):
+            break
         print(f"[AE] Rendering topic={job.topic_id} scene={job.scene_number} preset={job.preset}", flush=True)
-        result = process_job(job, keep_workdir=args.keep_workdir)
-        completed.append({"topic_id": job.topic_id, "scene_number": job.scene_number, "result": result})
-        print(f"[AE] Uploaded scene={job.scene_number}: {result['media_url']}", flush=True)
+        try:
+            result = process_job(job, keep_workdir=args.keep_workdir)
+            completed.append({"topic_id": job.topic_id, "scene_number": job.scene_number, "result": result})
+            print(f"[AE] Ready scene={job.scene_number}: {result.get('media_url') or result.get('local_path')}", flush=True)
+        except Exception as exc:
+            errors.append(f"scene {job.scene_number}: {exc}")
+            print(f"[AE] scene {job.scene_number} deferred: {exc}", file=sys.stderr, flush=True)
     if not jobs:
         write_state("idle", 0)
-    print(json.dumps({"completed": len(completed), "items": completed}, ensure_ascii=False))
-    return 0
+    print(json.dumps({"completed": len(completed), "errors": errors, "items": completed}, ensure_ascii=False))
+    return 1 if errors and not args.loop else 0
 
 
 def run_loop(args: argparse.Namespace) -> int:

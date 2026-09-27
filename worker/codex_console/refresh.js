@@ -63,10 +63,11 @@ document.addEventListener('DOMContentLoaded',async()=>{
   window.updateNewSettingSummary?.();
   if(typeof updateTopicSettingSummary==='function')updateTopicSettingSummary();
   page=Math.max(0,Number(saved.catalogPage)||0);historyPage=Math.max(0,Number(saved.historyPage)||0);
-  const name=['overview','new','repair','jobs','grounded'].includes(saved.view)?saved.view:'overview';
+  const name=['overview','new','repair','jobs','grounded','submissions'].includes(saved.view)?saved.view:'overview';
   view(name);
   try{
-    if(name==='jobs'){
+    if(name==='submissions')await window.loadWebTopics?.();
+    else if(name==='jobs'){
       await loadHistory();
       if(saved.job)await showJob(saved.job.id,saved.job.origin||'dedicated');
     }else if(name==='repair'&&saved.source){await readSource(saved.source);}

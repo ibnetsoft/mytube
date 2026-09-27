@@ -60,6 +60,19 @@ class ScriptStore:
                'candidate': bundle.get('candidate', {}), 'reference_sources': bundle.get('references', [])}
         self.request('POST', TABLE, params={'on_conflict': 'id'}, body=row,
                      prefer='resolution=merge-duplicates,return=minimal')
+        web_topic_id = bundle.get('request', {}).get('web_topic_id')
+        if web_topic_id:
+            import uuid
+            web_topic_id = str(uuid.UUID(web_topic_id))
+            linked_ids = [job['id']]
+            if job.get('retry_of'):
+                linked_ids.append(job['retry_of'])
+            if any(not re.fullmatch(r'[a-f0-9]{32}', value) for value in linked_ids):
+                raise ValueError('잘못된 토픽 연결 작업 ID입니다.')
+            self.request('PATCH', 'user_topic_submissions', params={
+                'id': 'eq.' + web_topic_id, 'status': 'eq.approved',
+                'job_id': 'in.(' + ','.join(linked_ids) + ')'},
+                body={'job_id': job['id']}, prefer='return=minimal')
         self._stats_at = 0
 
     def stats(self):

@@ -41,6 +41,7 @@ aiohttp
 pydub
 openai>=1.0.0
 psd-tools>=1.12.1
+pywinauto>=0.6.9; sys_platform == "win32"
 pykakasi
 
 eth-account
