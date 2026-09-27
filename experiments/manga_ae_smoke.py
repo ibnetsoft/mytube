@@ -7,11 +7,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import subprocess
 import sys
+import wave
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 from psd_tools import PSDImage
+import imageio_ffmpeg
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,11 +28,14 @@ from codex_content_runner import _manga_template_plan  # noqa: E402
 from manga_ae_templates import MANGA_TEMPLATES, write_manga_jsx  # noqa: E402
 from manga_layer_package import _build_psd  # noqa: E402
 from manga_scene_qa import validate_render, validate_scene_plan  # noqa: E402
+from manga_lip_sync import MOUTH_ROLES, prepare_lip_sync  # noqa: E402
+from manga_caption_animation import PRESETS, prepare_caption_animation  # noqa: E402
 
 
 SIZE = (1920, 1080)
 OUT = ROOT / "output" / "manga-ae-smoke"
 ROLES = {
+    "dialogue_closeup": ("background", "character", *MOUTH_ROLES),
     "angled_triple_reaction": ("background", "character_left", "character_center", "character_right"),
     "body_following_qi": ("background", "character", "talisman"),
     "ink_splat_impact": ("background", "character", "talisman"),
@@ -60,6 +67,16 @@ def _draw_layer(role: str, template: str) -> Image.Image:
         return image
     image = Image.new("RGBA", SIZE, (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
+    if role in MOUTH_ROLES:
+        draw.rounded_rectangle((826, 325, 1094, 410), radius=24,
+                               fill=(225, 171, 143, 255))
+        if role == "mouth_closed":
+            draw.arc((885, 355, 1035, 382), 0, 180, fill=(45, 22, 31, 255), width=7)
+        elif role == "mouth_half":
+            draw.ellipse((900, 349, 1020, 387), fill=(77, 27, 46, 255))
+        else:
+            draw.ellipse((890, 337, 1030, 400), fill=(70, 22, 40, 255))
+        return image
     if role == "wall_intact":
         draw.rectangle((570, 110, 1540, 970), fill=(194, 189, 173, 255),
                        outline=(41, 40, 41, 255), width=13)
@@ -122,7 +139,8 @@ def _draw_layer(role: str, template: str) -> Image.Image:
 
 
 def render_template(template: str, folder: Path, *, force: bool = False,
-                    title_style: str = "training_emphasis") -> dict:
+                    title_style: str = "training_emphasis",
+                    caption_preset: str | None = None) -> dict:
     folder.mkdir(parents=True, exist_ok=True)
     layers = []
     roles = (("background", "character") if template == "kinetic_title_reveal"
@@ -145,6 +163,38 @@ def render_template(template: str, folder: Path, *, force: bool = False,
             "title": title}
     plan = _manga_template_plan(template, scene_seed, 4)
     scene = {"duration_seconds": 4, "ae_effect_plan": {"enabled": True, **plan}}
+    if template == "dialogue_closeup":
+        voice = folder / "synthetic-dialogue-timing.wav"
+        if not voice.is_file():
+            samples = bytearray()
+            for index in range(4 * 24000):
+                seconds = index / 24000
+                speaking = .8 <= seconds < 1.4 or 2 <= seconds < 2.5
+                level = int(3500 * math.sin(seconds * 2 * math.pi * 220)) if speaking else 0
+                samples.extend(level.to_bytes(2, "little", signed=True))
+            with wave.open(str(voice), "wb") as output:
+                output.setnchannels(1)
+                output.setsampwidth(2)
+                output.setframerate(24000)
+                output.writeframes(samples)
+        scene["ae_effect_plan"]["character_role_keys"] = {"character": "smoke-speaker"}
+        spoken_words = [
+            {"text": "테스트", "start_seconds": .8, "end_seconds": 1.4,
+             "speaker_key": "smoke-speaker"},
+            {"text": "대사", "start_seconds": 2, "end_seconds": 2.5,
+             "speaker_key": "smoke-speaker"},
+        ]
+        scene["ae_effect_plan"]["lip_sync"] = prepare_lip_sync(
+            audio_path=voice, speaker_key="smoke-speaker", duration=4,
+            mouth_box=[.43, .30, .57, .38], words=spoken_words,
+        )
+        if caption_preset:
+            scene["ae_effect_plan"]["caption_animation"] = prepare_caption_animation(
+                audio_path=voice, words=spoken_words, duration=4,
+                captions=[{"preset": caption_preset, "text": "테스트 대사",
+                           "accent_text": "대사", "position": [.50, .78]}],
+            )
+        scene["ae_effect_plan"]["asset_requirements"]["required_layers"].extend(MOUTH_ROLES)
     asset = {"local_path": str(psd_path), "layers": [layer["role"] for layer in layers],
              "qa_status": "approved"}
     plan_report = validate_scene_plan(scene, asset, 4)
@@ -180,8 +230,21 @@ def render_template(template: str, folder: Path, *, force: bool = False,
             _run_checked([str(aerender), "-project", str(project), "-comp", comp,
                           "-output", str(video)], timeout=1200)
     render_report = validate_render(scene, video, fps=24, duration_seconds=4)
+    preview = None
+    if template == "dialogue_closeup":
+        preview = folder / "scene-with-audio.mp4"
+        if force:
+            preview.unlink(missing_ok=True)
+        if not preview.is_file():
+            subprocess.run([
+                imageio_ffmpeg.get_ffmpeg_exe(), "-hide_banner", "-loglevel", "error",
+                "-i", str(video), "-i", str(folder / "synthetic-dialogue-timing.wav"),
+                "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac",
+                "-shortest", "-movflags", "+faststart", str(preview),
+            ], check=True, timeout=120)
     report = {"template": template, "plan": plan_report, "render": render_report,
-              "psd": str(psd_path), "aep": str(project), "mp4": str(video)}
+              "psd": str(psd_path), "aep": str(project), "mp4": str(video),
+              "audio_preview": str(preview) if preview else None}
     (folder / "qa.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return report
 
@@ -192,13 +255,18 @@ def main() -> None:
     parser.add_argument("--title-style", choices=("training_emphasis", "threat_red"),
                         default="training_emphasis")
     parser.add_argument("--force", action="store_true", help="Rebuild the AEP and MP4 with the current template script")
+    parser.add_argument("--caption-preset", choices=sorted(PRESETS),
+                        help="Render one opt-in animated-caption smoke on dialogue_closeup")
     args = parser.parse_args()
+    if args.caption_preset and args.template != "dialogue_closeup":
+        parser.error("--caption-preset requires --template dialogue_closeup")
     templates = [args.template] if args.template else sorted(MANGA_TEMPLATES)
     for template in templates:
-        folder = OUT / (template + "_threat_red" if template == "kinetic_title_reveal"
+        folder = OUT / (template + "_caption_" + args.caption_preset if args.caption_preset else
+                        template + "_threat_red" if template == "kinetic_title_reveal"
                         and args.title_style == "threat_red" else template)
         report = render_template(template, folder, force=args.force,
-                                 title_style=args.title_style)
+                                 title_style=args.title_style, caption_preset=args.caption_preset)
         print(json.dumps({"template": template, "plan_passed": report["plan"]["passed"],
                           "render_passed": report["render"]["passed"], "mp4": report["mp4"]},
                          ensure_ascii=False), flush=True)

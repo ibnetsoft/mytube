@@ -230,6 +230,21 @@ def _gcs_ref_from_scene(scene: dict[str, Any]) -> GcsRef | None:
     layered_path = str(layered.get("gcs_path") or layered.get("object_path") or "").strip()
     if layered_path.lower().endswith(".psd"):
         return GcsRef(bucket=str(layered.get("gcs_bucket") or layered.get("bucket") or DEFAULT_BUCKET), path=layered_path)
+    # For explicitly planned post-effects, uploaded/ComfyUI clips can be the
+    # source footage. Otherwise preserve the existing PSD/still-image path.
+    video_asset = metadata.get("video_asset") if isinstance(metadata.get("video_asset"), dict) else {}
+    comfy_asset = metadata.get("comfyui_video_asset") if isinstance(metadata.get("comfyui_video_asset"), dict) else {}
+    video_path = str(
+        comfy_asset.get("gcs_path") or comfy_asset.get("object_path")
+        or video_asset.get("gcs_path") or video_asset.get("object_path")
+        or metadata.get("video_gcs_path") or metadata.get("video_storage_path") or ""
+    ).strip()
+    if video_path.lower().endswith((".mp4", ".mov", ".webm", ".m4v")):
+        return GcsRef(bucket=str(
+            comfy_asset.get("gcs_bucket") or comfy_asset.get("bucket")
+            or video_asset.get("gcs_bucket") or video_asset.get("bucket")
+            or metadata.get("video_gcs_bucket") or metadata.get("video_storage_bucket") or DEFAULT_BUCKET
+        ), path=video_path)
     asset = metadata.get("cowork_image_asset") if isinstance(metadata.get("cowork_image_asset"), dict) else {}
     bucket = str(
         asset.get("gcs_bucket")
@@ -864,6 +879,7 @@ try {{
     bg = comp.layers.add(footage);
     bg.name = "source_scene";
   }}
+  try {{ bg.audioEnabled = false; }} catch (audioErr) {{}}
   var scale = Math.max(W / footage.width, H / footage.height) * 100;
   var startScale = scale * (1.015 + Math.max(0, PLAN.push) * 0.35);
   var endScale = scale * (1.015 + Math.abs(PLAN.push) + INTENSITY * 0.025);
@@ -1222,7 +1238,7 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     workdir = worker_config.TEMP_DIR / "ae_highlight" / f"{_safe_name(job.topic_id)}-{job.scene_number:03d}-{job.plan_kind}-{identity}"
     checkpoint = Checkpoint(workdir / "checkpoint.json", identity)
     source_suffix = Path(job.source.path).suffix.lower()
-    if source_suffix not in {".png", ".jpg", ".jpeg", ".psd"}:
+    if source_suffix not in {".png", ".jpg", ".jpeg", ".psd", ".mp4", ".mov", ".webm", ".m4v"}:
         source_suffix = ".png"
     input_image = workdir / "input" / f"scene{source_suffix}"
     project_path = workdir / "project" / "ae_highlight.aep"

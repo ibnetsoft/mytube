@@ -110,6 +110,7 @@ hiddenimports = [
     "urllib3",
     "remote_drive_worker",
     "remote_drive_worker_process",
+    "comfy_scene_video_worker",
     "codex_content_runner",
     "codex_character_assets",
     "worker.cowork_narration",

@@ -58,7 +58,7 @@ export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
         if (fallbackMarkers.some(marker => imagePrompt.toLowerCase().includes(marker))) return false
         if (seenImagePrompts.has(imagePrompt)) return false
         seenImagePrompts.add(imagePrompt)
-        const requiresVideo = scene?.video_prompt_required !== false && sceneNumber <= 12
+        const requiresVideo = scene?.video_prompt_required !== false && sceneNumber <= 18
         if (requiresVideo && !String(scene?.video_prompt || '').trim()) return false
         return coveredSceneNumbers.has(String(Number.isFinite(sceneNumber) ? sceneNumber : index + 1))
     })

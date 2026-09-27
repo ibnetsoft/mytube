@@ -16,6 +16,7 @@ import database as db
 from config import config
 from services.prompts import prompts
 from services.prompt_assembler import prompt_assembler
+from services.scene_pacing import format_pacing_bands, pacing_schedule
 
 from google import genai
 from google.genai import types
@@ -1612,25 +1613,9 @@ Motion prompt for this image:"""
             num_scenes = target_scene_count
             print(f"[Gemini] Using user-specified scene count: {num_scenes}")
         else:
-            # [NEW] 5-Step Dynamic Pacing Policy
-            # 1. 0 ~ 1분 (60s): 5초당 1장 (무조건 12장) - 후킹 강화
-            # 2. 1 ~ 5분 (240s): 15초당 1장 (16장)
-            # 3. 5 ~ 10분 (300s): 20초당 1장 (15장)
-            # 4. 10 ~ 20분 (600s): 30초당 1장 (20장)
-            # 5. 20분 이후: 40초당 1장
-            num_scenes = 0
-            if duration_seconds <= 60:
-                num_scenes = duration_seconds // 5
-            elif duration_seconds <= 300:
-                num_scenes = 12 + (duration_seconds - 60) // 15
-            elif duration_seconds <= 600:
-                num_scenes = 12 + 16 + (duration_seconds - 300) // 20
-            elif duration_seconds <= 1200:
-                num_scenes = 12 + 16 + 15 + (duration_seconds - 600) // 30
-            else:
-                num_scenes = 12 + 16 + 15 + 20 + (duration_seconds - 1200) // 40
-            num_scenes = max(3, int(num_scenes))
-            print(f"[Gemini] Calculated scene count (5-Step Pacing) from {duration_seconds}s: {num_scenes}")
+            schedule = pacing_schedule(duration_seconds)
+            num_scenes = max(3, len(schedule))
+            print(f"[Gemini] Calculated scene count (canonical pacing) from {duration_seconds}s: {num_scenes}")
         
         # [NEW] Get project aspect ratio and video prompt mode
         project_aspect_ratio = "16:9"
@@ -1740,15 +1725,11 @@ Motion prompt for this image:"""
 - JSON 배열에 반드시 scene_number 1번부터 {num_scenes}번까지 순서대로 포함하세요.
 """
         else:
-            # 자동 계산된 경우 - 기존 페이싱 지침 사용
+            # 자동 계산된 경우 - canonical schedule 지침 사용
             limit_instruction = f"""
 [중요: 영상 페이싱 정책]
-사용자의 몰입도를 극대화하기 위해 다음 5단계 구간별 페이싱을 엄격히 준수하세요:
-1. **황금 시간대 (0~1분)**: ⚠️ 예외 없이 5초당 1장으로 화면을 전환하여 시선을 고정시키세요 (반드시 정확히 12장, 절대 축소 금지).
-2. **전개 단계 (1~5분)**: 15초당 1장 수준으로 내용을 깊이 있게 전달하세요.
-3. **설명 단계 (5~10분)**: 20초당 1장 수준으로 정보를 명확히 시각화하세요.
-4. **안정 단계 (10~20분)**: 30초당 1장 수준으로 흐름을 이어가세요.
-5. **마무리 단계 (20분 이후)**: 40초당 1장 수준으로 대미를 장식하세요.
+장면 수는 반드시 {num_scenes}개입니다. 장면별 시간은 다음 schedule을 따르세요: {format_pacing_bands(schedule)}.
+1~12씬은 각 5초 비디오 훅이고, 13씬 이후는 이미지 장면입니다.
 - ⚠️ 절대 금지: 대본의 어떤 구간도 건너뛰지 마세요. 도입부 전환(소개, 예고, 목차 설명)도 반드시 씬으로 포함하세요.
 - 각 씬의 scene_text: 해당 구간의 원본 대본 텍스트를 요약 없이 그대로 인용하세요. 단, 5초 내외의 짧은 도입 씬은 시니어 낭독 속도에 맞게 20~35자도 허용합니다.
 - 연속된 씬들의 scene_text를 이어 붙이면 대본 전체가 순서대로 재구성되어야 합니다.

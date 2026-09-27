@@ -1,6 +1,6 @@
 # Manga scene layer generation
 
-An exported CoWork scene manifest supports independent asset generation for seven AE manga templates: triple reaction, body qi, ink impact, wall impact, glasses reflection, kinetic title, and backlit hand. The exporter downloads the already approved character portraits beside the manifest and includes their hashes. The scene plan must identify each character or hand role with `ae_effect_plan.character_role_keys`; an ambiguous or missing identity stops generation before an image tool call.
+An exported CoWork scene manifest supports independent asset generation for eight AE manga templates: selective dialogue close-up, triple reaction, body qi, ink impact, wall impact, glasses reflection, kinetic title, and backlit hand. The exporter downloads the already approved character portraits beside the manifest and includes their hashes. The scene plan must identify each character or hand role with `ae_effect_plan.character_role_keys`; an ambiguous or missing identity stops generation before an image tool call. A speaking close-up additionally requires three registered mouth patches and an approved final-voice timing plan; see `docs/MANGA_LIP_SYNC.md`.
 
 The existing grid generation and `crop` step still supplies `scene-NNN.png` base images for every scene. Run that step with the same manifest and images directory before `publish`; `generate-layers` only creates the additional template layers.
 

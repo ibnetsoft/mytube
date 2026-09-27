@@ -183,14 +183,16 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene, subtitlesMatchSceneManifest } from '@/lib/stdSubtitleSceneIntegrity'
-import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
+import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdComfyVideoScene as baseIsStdComfyVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
     calculateLongformSceneTimings,
+    buildSceneDurationSchedule,
     cleanKoreanScriptLine,
+    DEFAULT_15_MINUTE_SCENE_COUNT,
     estimateRequiredSceneCount,
     partitionScriptByExistingSceneBoundaries,
-    partitionScriptTo53Scenes,
+    partitionScriptToScenes,
     repairSubtitleItemQuoteBoundaries,
     stripGeneratedPlanningText,
     StdSubtitleItem,
@@ -836,6 +838,8 @@ export default function StdPortalPage() {
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const comicProject = isComicProject(selectedProject?.project)
     const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
+    const isStdVideoPromptScene = (number: any) => baseIsStdVideoPromptScene(number, selectedProject?.project)
+    const isStdComfyVideoScene = (number: any) => baseIsStdComfyVideoScene(number, selectedProject?.project)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
     const mediaSession = JSON.stringify([token, user?.id || user?.email || '', isImpersonating ? impersonateEmail : ''])
     if (mediaScopeRef.current.session !== mediaSession) {
@@ -1511,7 +1515,7 @@ export default function StdPortalPage() {
             if (showSuccessAlert) alert('동기화할 대본 내용이 없습니다.')
             return false
         }
-        const totalCount = estimateRequiredSceneCount(scriptToUse, selectedProject.scenes.length || 53)
+        const totalCount = estimateRequiredSceneCount(scriptToUse, selectedProject.scenes.length)
         const partitioned = partitionScriptByExistingSceneBoundaries(scriptToUse, selectedProject.scenes || [], totalCount)
         const buildExtendedSceneImagePrompt = (sceneText: string, sceneNumber: number) => {
             const topicTitle = selectedProject.project?.title || selectedProject.project?.project_payload?.title || ''
@@ -1565,16 +1569,16 @@ export default function StdPortalPage() {
             scene_title: String(scene?.scene_title || `Scene ${index + 1}`),
             scene_text: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
             image_prompt: String(scene?.image_prompt || ''),
-            video_prompt: (comicProject || baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1))
+            video_prompt: (comicProject || baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1))
                 ? String(scene?.video_prompt || '')
                 : '',
             metadata: {
                 ...(scene?.metadata || {}),
                 script_excerpt: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
-                visual_type: baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1)
+                visual_type: baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1)
                     ? (scene?.visual_type || 'video')
                     : 'image',
-                video_prompt_required: baseIsStdRequiredVideoScene(scene?.scene_number || scene?.scene_order || index + 1),
+                video_prompt_required: baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1),
                 synced_from_full_script_at: syncedAt,
             },
         }))
@@ -1654,7 +1658,7 @@ export default function StdPortalPage() {
         }
         setScriptSyncDirty(false)
         if (showSuccessAlert) {
-            alert('✅ 초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱으로 씬과 자막이 완벽 동기화되었습니다!')
+            alert('✅ 씬 페이싱(1~18: 5초, 19~24: 7초, 25~30: 10초, 31~45: 12초, 46~60: 15초, 61씬 이후: 18초) 기준으로 대본과 자막을 동기화했습니다.')
         }
         return true
     }
@@ -2229,7 +2233,7 @@ export default function StdPortalPage() {
 
     const getSceneVideoPromptText = (scene: any, sceneNumber?: number) => {
         const num = Number(sceneNumber || scene?.scene_number || scene?.scene_order || 0)
-        if (!comicProject && !isStdRequiredVideoScene(num)) return ''
+        if (!comicProject && !isStdVideoPromptScene(num)) return ''
         const explicit = String(
             scene?.video_prompt
             || scene?.metadata?.video_prompt
@@ -4098,10 +4102,16 @@ export default function StdPortalPage() {
         ]
 
         let rawScenes = Array.isArray(struct.scenes) && struct.scenes.length > 0 ? struct.scenes : []
+        const projectScript = cleanScriptContextText(
+            topic.pregenerated_script
+            || topic.script
+            || rawScenes.map((s: any) => s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || '').join('\n\n')
+        )
         if (rawScenes.length === 0) {
-            rawScenes = Array.from({ length: 53 }, (_, i) => {
+            const defaultSceneCount = estimateRequiredSceneCount(projectScript)
+            rawScenes = Array.from({ length: defaultSceneCount }, (_, i) => {
                 const sceneNumber = i + 1
-                const requiresVideoPrompt = baseIsStdRequiredVideoScene(sceneNumber)
+                const requiresVideoPrompt = baseIsStdVideoPromptScene(sceneNumber)
                 const excerpt = realDefaultNarratives[i % realDefaultNarratives.length]
                 return {
                     scene_number: sceneNumber,
@@ -4115,13 +4125,10 @@ export default function StdPortalPage() {
             })
         }
 
-        const projectScript = cleanScriptContextText(
-            topic.pregenerated_script
-            || topic.script
-            || rawScenes.map((s: any) => s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || '').join('\n\n')
-        )
-        const requiredSceneCount = rawScenes.length > 0 ? rawScenes.length : estimateRequiredSceneCount(projectScript, 53)
-        const partitionedScript = partitionScriptTo53Scenes(projectScript, requiredSceneCount)
+        const requiredSceneCount = rawScenes.length > 0 ? rawScenes.length : estimateRequiredSceneCount(projectScript)
+        const partitionedScript = partitionScriptToScenes(projectScript, requiredSceneCount)
+        const requestedDurationMinutes = Number(topic.assigned_duration_minutes || topic.recommended_duration_minutes || 15)
+        const durationSchedule = buildSceneDurationSchedule(requestedDurationMinutes * 60)
 
         if (rawScenes.length < requiredSceneCount) {
             rawScenes = Array.from({ length: requiredSceneCount }, (_, i) => rawScenes[i] || {
@@ -4139,7 +4146,7 @@ export default function StdPortalPage() {
 
             const rawScript = partitionedScript[i] || s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const scriptText = cleanScriptContextText(rawScript)
-            const requiresVideoPrompt = baseIsStdRequiredVideoScene(num)
+            const requiresVideoPrompt = baseIsStdVideoPromptScene(num)
             const videoPromptText = (requiresVideoPrompt || struct.comic_plan?.mode === 'moving_comic')
                 ? (s.video_prompt || s.prompt_en || s.prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`)
                 : ''
@@ -4153,6 +4160,10 @@ export default function StdPortalPage() {
                 scene_title: s.scene_title || `Scene ${num}`,
                 scene_text: scriptText,
                 script_excerpt: scriptText,
+                duration_seconds: Number(s.duration_seconds || s.target_duration)
+                    || (durationSchedule.length === rawScenes.length
+                        ? durationSchedule[num - 1]?.duration_seconds
+                        : undefined),
                 prompt_ko: s.prompt_ko || scriptText,
                 prompt_en: videoPromptText,
                 video_prompt: videoPromptText,
@@ -4490,7 +4501,7 @@ export default function StdPortalPage() {
             if (joined) setCustomScriptText(joined)
         }
 
-        // 1~12씬(5초 비디오 훅) + 13~53씬(동적 런닝타임) 3중 싱크 자막 생성
+        // 1~12씬은 사용자 영상, 13~18씬은 ComfyUI 영상, 19씬 이후는 정지 이미지; scene timing은 canonical pacing 적용
         const scenes = selectedProject?.scenes || []
         const savedSubtitles = selectedProject?.project?.project_payload?.subtitles
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
@@ -5486,7 +5497,7 @@ export default function StdPortalPage() {
                     const payloadScene = payloadSceneByNumber.get(sceneNumber) || {}
                     const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
                     const cleanedText = cleanScriptContextText(rawText)
-                    const requiresVideoPrompt = baseIsStdRequiredVideoScene(sceneNumber)
+                    const requiresVideoPrompt = baseIsStdVideoPromptScene(sceneNumber)
                     return {
                         ...s,
                         scene_text: cleanedText,
@@ -5560,6 +5571,73 @@ export default function StdPortalPage() {
         }
         return null
     }
+
+    useEffect(() => {
+        const projectId = String(selectedProject?.project?.id || '')
+        const status = String(selectedProject?.project?.status || '')
+        const stillWaitingForComfy = (selectedProject?.scenes || []).some((scene: any) => {
+            const number = Number(scene?.scene_number || scene?.scene_order || 0)
+            return number >= 13 && number <= 18 && !scene?.video_url
+        })
+        if (!projectId || !stillWaitingForComfy || ['review_requested', 'approved', 'canceled'].includes(status)) return
+
+        let stopped = false
+        let activeController: AbortController | null = null
+        let timer: ReturnType<typeof setInterval> | null = null
+        const poll = async () => {
+            if (stopped) return
+            activeController = new AbortController()
+            try {
+                const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+                if (isImpersonating && impersonateEmail) headers['x-impersonate-email'] = impersonateEmail
+                const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}`, {
+                    headers, signal: activeController.signal,
+                })
+                const payload = await safeParseJson(response, 'ComfyUI scene refresh failed')
+                if (!response.ok || payload?.success === false || stopped) return
+                const incomingScenes = Array.isArray(payload.scenes) ? payload.scenes : []
+                const incomingVideoNumbers = new Set(incomingScenes
+                    .filter((scene: any) => Boolean(scene?.video_url))
+                    .map((scene: any) => Number(scene?.scene_number || scene?.scene_order)))
+                if ([13, 14, 15, 16, 17, 18].every(number => incomingVideoNumbers.has(number))) {
+                    if (timer) clearInterval(timer)
+                    timer = null
+                }
+                const incomingByNumber = new Map(incomingScenes.map((scene: any, index: number) => [
+                    Number(scene?.scene_number || scene?.scene_order || index + 1), scene,
+                ]))
+                setSelectedProject((current: any) => {
+                    if (!current || String(current.project?.id || '') !== projectId) return current
+                    const refreshedScenes = (current.scenes || []).map((scene: any, index: number) => {
+                        const number = Number(scene?.scene_number || scene?.scene_order || index + 1)
+                        const incoming: any = incomingByNumber.get(number)
+                        if (!incoming) return scene
+                        return {
+                            ...scene,
+                            ...(incoming.video_url ? { video_url: incoming.video_url, asset_status: incoming.asset_status || 'ready' } : {}),
+                            metadata: { ...(scene.metadata || {}), ...(incoming.metadata || {}) },
+                        }
+                    })
+                    const next = {
+                        ...current,
+                        scenes: refreshedScenes,
+                        assets: Array.isArray(payload.assets) ? payload.assets : current.assets,
+                    }
+                    rememberProjectState(next)
+                    return next
+                })
+            } catch (error: any) {
+                if (!stopped && error?.name !== 'AbortError') console.warn('[STD] ComfyUI scene refresh failed:', error?.message)
+            }
+        }
+        void poll()
+        timer = setInterval(() => void poll(), 12000)
+        return () => {
+            stopped = true
+            if (timer) clearInterval(timer)
+            activeController?.abort()
+        }
+    }, [selectedProject?.project?.id, selectedProject?.project?.status, token, isImpersonating, impersonateEmail])
 
     const uploadAsset = async (
         scene: any,
@@ -6878,7 +6956,7 @@ export default function StdPortalPage() {
     // 에셋 완성도 및 통계 계산
     const assetStats = useMemo(() => {
         const scenes = selectedProject?.scenes || []
-        const totalScenes = scenes.length || 53
+        const totalScenes = scenes.length || DEFAULT_15_MINUTE_SCENE_COUNT
         const sceneNumberOf = (scene: any, index: number) => Number(scene?.scene_number || scene?.scene_order || index + 1)
         const videoScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
@@ -7019,7 +7097,7 @@ export default function StdPortalPage() {
             if (paragraphs.length > 0) {
                 const pIdx = Math.min(
                     paragraphs.length - 1,
-                    Math.floor((sceneIndex / Math.max(1, selectedProject?.scenes?.length || 53)) * paragraphs.length)
+                    Math.floor((sceneIndex / Math.max(1, selectedProject?.scenes?.length || DEFAULT_15_MINUTE_SCENE_COUNT)) * paragraphs.length)
                 )
                 if (paragraphs[pIdx]) {
                     return paragraphs[pIdx].slice(0, 100)
@@ -7333,7 +7411,7 @@ export default function StdPortalPage() {
             isThumbnailDone,
             allDone,
             uploadedAssetsCount,
-            totalScenesCount: scenes.length || 53,
+            totalScenesCount: scenes.length || DEFAULT_15_MINUTE_SCENE_COUNT,
         }
     }
 
@@ -9348,7 +9426,7 @@ export default function StdPortalPage() {
                                                     )
                                                     setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
                                                     setSelectedSubIndex(0)
-                                                    alert('초반 1분(1~12씬: 5s 훅) + 전개(13~28씬: 15s) + 심화(29~43씬: 20s) + 결말(44~53씬: 30s) + 확장(54씬+: 60s) 표준 페이싱 규칙으로 자막 싱크가 초기화되었습니다. 자막은 문장과 구문 경계를 우선해 나누었습니다.')
+                                                    alert('씬 페이싱(1~18: 5초, 19~24: 7초, 25~30: 10초, 31~45: 12초, 46~60: 15초, 61씬 이후: 18초) 기준으로 자막 싱크를 초기화했습니다. 자막은 문장과 구문 경계를 우선해 나누었습니다.')
                                                 }}
                                                 className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all"
                                                 title={t('sub_reset_reload')}
@@ -10576,13 +10654,13 @@ export default function StdPortalPage() {
                                         </div>
                                     </div>
 
-                                    {/* 2. 본문 이미지/영상 구간 (13~53씬 - 흐린 주황/앰버색) */}
+                                    {/* 2. ComfyUI 영상(13~18) + 본문 이미지(19씬 이후) 구간 */}
                                     <div className="space-y-2 pt-2 border-t border-white/5">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-amber-500/70" />
                                                 <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
-                                                    본문 이미지 구간 (씬 13 ~ {selectedProject.scenes.length})
+                                                    본문 미디어 구간 (ComfyUI 영상 13~18, 이미지 19~{selectedProject.scenes.length})
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -10605,6 +10683,7 @@ export default function StdPortalPage() {
                                                 {selectedProject.scenes.slice(12).map((scene: any, offsetIdx: number) => {
                                                     const idx = offsetIdx + 12
                                                     const sNum = scene.scene_number || idx + 1
+                                                    const isComfyVideo = isStdComfyVideoScene(sNum)
                                                     const isReady = Boolean(scene.image_url || scene.video_url)
                                                     const isUploading = uploadingKey.startsWith(`${sNum}-`)
                                                     return (
@@ -10621,7 +10700,9 @@ export default function StdPortalPage() {
                                                                     #{sNum}
                                                                 </span>
                                                                 <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
-                                                                    {isReady ? '🔒 이미지 고정' : isUploading ? '처리 중...' : '이미지 없음'}
+                                                                    {isComfyVideo
+                                                                        ? scene.video_url ? '🎬 ComfyUI 완료' : isUploading ? '처리 중...' : 'ComfyUI 대기'
+                                                                        : scene.image_url ? '🔒 이미지 고정' : isUploading ? '처리 중...' : '이미지 없음'}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -10652,10 +10733,12 @@ export default function StdPortalPage() {
                             </div>}
                             <div className="space-y-4">
                                 {selectedProject.scenes
-                                    .filter((scene: any, i: number) => comicProject || isStdRequiredVideoScene(scene?.scene_number || i + 1))
+                                    .filter((scene: any, i: number) => comicProject || isStdVideoPromptScene(scene?.scene_number || i + 1))
                                     .map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
+                                    const inComfyZone = isStdComfyVideoScene(sceneNum)
+                                    const comfyStatus = String(scene?.metadata?.comfyui_video_generation?.status || scene?.comfyui_video_generation?.status || '')
                                     const videoSpec = sceneVideoGeneration(selectedProject.project, selectedProject.scenes.indexOf(scene))
                                     const ratioLabels = videoRatioLabels(currentLocale)
                                     const videoPromptText = getSceneVideoPromptText(scene, sceneNum)
@@ -10694,12 +10777,14 @@ export default function StdPortalPage() {
                                             </div>}
                                             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
                                                 <div className="lg:col-span-4 relative bg-[#11141a] rounded-lg overflow-hidden border border-white/10 aspect-video flex items-center justify-center group">
-                                                    {inRequiredZone && (
-                                                        <div className="absolute top-2 left-2 bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow z-10">
-                                                            영상 필수
+                                                    {(inRequiredZone || inComfyZone) && (
+                                                        <div className={`absolute top-2 left-2 ${inRequiredZone ? 'bg-orange-500' : 'bg-violet-600'} text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow z-10`}>
+                                                            {inRequiredZone ? '직접 업로드 영상' : 'ComfyUI 영상'}
                                                         </div>
                                                     )}
-                                                    {scene.image_url ? (
+                                                    {inComfyZone && scene.video_url ? (
+                                                        <video src={scene.video_url} className="w-full h-full object-cover" controls loop muted playsInline />
+                                                    ) : scene.image_url ? (
                                                         <>
                                                             <img
                                                                 src={scene.image_url}
@@ -10768,7 +10853,9 @@ export default function StdPortalPage() {
                                                                 </label>
                                                             ) : (
                                                                 <span className="mt-1 px-3 py-1 bg-emerald-950/20 border border-emerald-500/20 text-emerald-300/90 rounded text-[11px] font-bold">
-                                                                    🔒 교체 불가
+                                                                    {inComfyZone
+                                                                        ? comfyStatus === 'generating' ? 'ComfyUI 생성 중' : comfyStatus === 'failed' ? 'ComfyUI 생성 대기' : 'ComfyUI 생성 대기'
+                                                                        : '🔒 교체 불가'}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -10777,7 +10864,7 @@ export default function StdPortalPage() {
 
                                                 <div className="lg:col-span-5 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-blue-500/20">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-bold text-blue-400">🌊 Video Prompt</span>
+                                                        <span className="text-[10px] font-bold text-blue-400">🌊 {inComfyZone ? 'ComfyUI Video Prompt' : 'Video Prompt'}</span>
                                                         <div className="flex items-center gap-1">
                                                             <button
                                                                 onClick={() => copyPromptText(videoPromptText)}
@@ -11043,7 +11130,7 @@ export default function StdPortalPage() {
                                                     <span className="flex items-center gap-1">
                                                         <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
                                                     </span>
-                                                    <span className="text-cyan-400">{topic.scene_count || 53} Scenes</span>
+                                                    <span className="text-cyan-400">{topic.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT} Scenes</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -11093,7 +11180,7 @@ export default function StdPortalPage() {
                                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-white/5 font-mono text-[11px]">
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
                                                     <span className="text-gray-400 block">🎬 씬 구성</span>
-                                                    <span className="font-bold text-emerald-400">총 {selectedTopicForModal.scene_count || 53}개 씬 구조</span>
+                                                    <span className="font-bold text-emerald-400">총 {selectedTopicForModal.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT}개 씬 구조</span>
                                                 </div>
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
                                                     <span className="text-gray-400 block">⚡ 초반 1분 훅</span>
@@ -13253,7 +13340,7 @@ export default function StdPortalPage() {
                                                 </div>
                                                 <h5 className="font-bold text-white text-sm pt-1">롱폼 스튜디오 v2.3.46 정식 업데이트 안내</h5>
                                                 <p className="text-gray-400 leading-relaxed text-[11px] pt-1">
-                                                    초반 1분 12개 씬 고정 훅 및 13~53씬 동적 런닝타임 연동과 지능형 1줄 자막 분할 시스템이 전면 적용되었습니다.
+                                                    1~12씬은 사용자 업로드 영상, 13~18씬은 ComfyUI 5초 영상, 19씬 이후는 정지 이미지를 사용합니다. 모든 구간은 새 페이싱 시간표를 적용하며 자막을 씬 타이밍에 맞춰 분할합니다.
                                                 </p>
                                             </div>
                                         </div>

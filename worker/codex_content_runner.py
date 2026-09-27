@@ -24,6 +24,8 @@ from senior_script_guard import PROFILE as SENIOR_PROFILE, contract as senior_co
 from codex_dialogue import ASTRA_MODEL, DIALOGUE_TASK, validate_dialogue
 from listener_review import improve_for_listener
 from child_image_guidance import CHILD_IMAGE_GUIDANCE
+from manga_caption_animation import validate_caption_animation, validate_sfx_text_animation
+from services.scene_pacing import pacing_schedule
 from worker.content_language import (
     LANGUAGE_NAMES,
     language_directive,
@@ -132,6 +134,12 @@ AE_TARGET_KEYWORDS = (
 AE_MANGA_CLIP_MAX_SECONDS = 12  # Must match the AE worker's SceneJob duration cap.
 
 AE_MANGA_TEMPLATES = {
+    "dialogue_closeup": {
+        "preset": "comic_dialogue_closeup",
+        "direction": "Hold a single speaker's face, slowly push in, and animate only an explicitly approved dialogue mouth.",
+        "required_layers": ["background", "character"],
+        "optional_layers": [],
+    },
     "angled_triple_reaction": {
         "preset": "comic_triple_reaction",
         "direction": "Reveal three slanted character panels in sequence, then land on their simultaneous reaction.",
@@ -366,7 +374,12 @@ def _manga_template_plan(template: str, scene: dict[str, Any], duration: float) 
         },
         "direction": spec["direction"],
     }
-    if template == "angled_triple_reaction":
+    if template == "dialogue_closeup":
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "face_hold", "target": "character"},
+            {"at_seconds": at(0.12), "action": "camera_push", "target": "character"},
+        ]
+    elif template == "angled_triple_reaction":
         panels = [
             {"role": "character_left", "polygon": [[0.04, 0.02], [0.33, 0.02], [0.28, 0.98], [0.04, 0.98]], "enter_at": at(0.08)},
             {"role": "character_center", "polygon": [[0.33, 0.02], [0.79, 0.02], [0.73, 0.98], [0.28, 0.98]], "enter_at": at(0.20)},
@@ -576,6 +589,17 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             scene.get("image_prompt"),
         )
         template = _manga_template_for_scene(scene)
+        requested_lips = scene.get("ae_lip_sync")
+        requested_captions = scene.get("ae_caption_animation")
+        requested_sfx_text = scene.get("ae_sfx_text_animation")
+        if ((isinstance(requested_lips, dict) and requested_lips.get("enabled")
+             or requested_captions is not None or requested_sfx_text is not None)
+                and not template):
+            raise ValueError("lip sync and animated text need an explicitly selected manga AE template")
+        if isinstance(requested_lips, dict) and requested_lips.get("enabled") and template != "dialogue_closeup":
+            raise ValueError("lip sync needs an explicitly selected dialogue_closeup AE template")
+        if requested_captions is not None and not template:
+            raise ValueError("animated captions need an explicitly selected manga AE template")
         selected = None
         if template:
             spec = AE_MANGA_TEMPLATES[template]
@@ -595,6 +619,8 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             priority += 1
         if template:
             priority = min(5, priority + 2)
+        if isinstance(requested_lips, dict) and requested_lips.get("enabled"):
+            priority = 5
         design_preset = (
             "wuxia_sword_aura" if template == "body_following_qi"
             else "anger_impact" if template else selected[0]
@@ -636,6 +662,26 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             names, keys = _character_role_mapping(scene, payload, template)
             template_plan["character_role_names"] = names
             template_plan["character_role_keys"] = keys
+            lip_sync = scene.get("ae_lip_sync") or existing.get("lip_sync")
+            if isinstance(lip_sync, dict) and lip_sync.get("enabled"):
+                if template != "dialogue_closeup":
+                    raise ValueError("lip sync is supported only on explicit dialogue_closeup AE scenes")
+                template_plan["lip_sync"] = lip_sync
+                template_plan["asset_requirements"]["required_layers"].extend(
+                    ["mouth_closed", "mouth_half", "mouth_open"]
+                )
+            captions = requested_captions if requested_captions is not None else existing.get("caption_animation")
+            if captions is not None:
+                issues = validate_caption_animation(captions, duration=duration)
+                if issues:
+                    raise ValueError("invalid animated caption plan: " + "; ".join(issues))
+                template_plan["caption_animation"] = captions
+            sfx_text = requested_sfx_text if requested_sfx_text is not None else existing.get("sfx_text_animation")
+            if sfx_text is not None:
+                issues = validate_sfx_text_animation(sfx_text, duration=duration)
+                if issues:
+                    raise ValueError("invalid SFX text plan: " + "; ".join(issues))
+                template_plan["sfx_text_animation"] = sfx_text
         plans.append({
             "scene_number": int(scene.get("scene_number") or scene.get("scene_order") or index),
             "preset": selected[0],
@@ -664,6 +710,20 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
     max_highlights = max(max_highlights, min(8, len(distinct_templates)))
     plans.sort(key=lambda item: (-int(item["priority"]), int(item["scene_number"])))
     selected_numbers: set[int] = set()
+    lip_sync_numbers = {int(plan["scene_number"]) for plan in plans
+                        if isinstance(plan.get("lip_sync"), dict) and plan["lip_sync"].get("enabled")}
+    if len(lip_sync_numbers) > 8:
+        raise ValueError("at most eight explicitly selected lip-sync highlights are supported")
+    selected_numbers.update(lip_sync_numbers)
+    caption_numbers = {int(plan["scene_number"]) for plan in plans
+                       if isinstance(plan.get("caption_animation"), dict) and plan["caption_animation"].get("enabled")}
+    sfx_text_numbers = {int(plan["scene_number"]) for plan in plans
+                        if isinstance(plan.get("sfx_text_animation"), dict) and plan["sfx_text_animation"].get("enabled")}
+    if len(lip_sync_numbers | caption_numbers | sfx_text_numbers) > 8:
+        raise ValueError("at most eight explicitly selected AE dialogue/caption highlights are supported")
+    selected_numbers.update(caption_numbers)
+    selected_numbers.update(sfx_text_numbers)
+    max_highlights = max(max_highlights, len(selected_numbers))
     seen_templates: set[str] = set()
     for plan in plans:
         template = str(plan.get("template") or "")
@@ -923,6 +983,7 @@ def _psd_layer_prompt(scene: dict[str, Any], outputs: list[str], mode: str) -> s
     template = str(effect_plan.get("template") or "") if effect_plan.get("enabled") else ""
     if template in AE_MANGA_TEMPLATES:
         tiles = {
+            "dialogue_closeup": "Top-Left clean background; Top-Right the verified speaker's close-up face cutout. Keep the mouth region visible and free of captions. Additional closed, half-open, and open mouth patches are authored separately from this character layer after final voice timing is approved.",
             "angled_triple_reaction": "Top-Left clean background without characters; Top-Right left character cutout; Bottom-Left center character cutout; Bottom-Right right character cutout.",
             "body_following_qi": "Top-Left clean background; Top-Right full character cutout with torso visible; Bottom-Left separate talisman prop cutout; Bottom-Right optional violet qi overlay without baked-in text.",
             "ink_splat_impact": "Top-Left clean background; Top-Right full character cutout; Bottom-Left separate talisman prop cutout; Bottom-Right optional ink-splat overlay without baked-in text.",
@@ -1177,24 +1238,8 @@ class CodexContentError(RuntimeError):
 
 
 def _pacing_schedule(target_duration_seconds: Any) -> list[dict[str, int]]:
-    """Mandatory visual pacing policy: fast hook, then gradually longer scenes."""
-    try:
-        remaining = max(1, int(float(target_duration_seconds)))
-    except (TypeError, ValueError):
-        return []
-    schedule: list[dict[str, int]] = []
-    number = 1
-    for scene_limit, unit in ((12, 5), (8, 7), (10, 10), (15, 12), (15, 15), (None, 18)):
-        used = 0
-        while remaining > 0 and (scene_limit is None or used < scene_limit):
-            duration = min(unit, remaining)
-            schedule.append({"scene_number": number, "duration_seconds": duration})
-            number += 1
-            used += 1
-            remaining -= duration
-        if remaining <= 0:
-            break
-    return schedule
+    """Expose the canonical scene timing policy to existing worker callers."""
+    return pacing_schedule(target_duration_seconds)
 
 
 def _text_blob(*parts: Any) -> str:
@@ -1538,7 +1583,7 @@ def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = 
         scenes = structure["scenes"]
         if len(scenes) != len(schedule):
             raise CodexContentError(
-                f"Codex scene count violates legacy pacing: expected {len(schedule)}, got {len(scenes)}"
+                f"Codex scene count violates the required pacing: expected {len(schedule)}, got {len(scenes)}"
             )
         for index, expected in enumerate(schedule, start=1):
             scene = scenes[index - 1] if isinstance(scenes[index - 1], dict) else {}
@@ -1548,10 +1593,10 @@ def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = 
                 actual = 0
             if actual != expected["duration_seconds"]:
                 raise CodexContentError(
-                    f"Codex scene {index} duration violates legacy pacing: expected {expected['duration_seconds']}s"
+                    f"Codex scene {index} duration violates required pacing: expected {expected['duration_seconds']}s"
                 )
-        if len(scenes) >= 12 and any(not bool((scene if isinstance(scene, dict) else {}).get("video_prompt_required")) for scene in scenes[:12]):
-            raise CodexContentError("Codex first minute requires video prompts for scenes 1-12")
+        if len(scenes) >= 18 and any(not bool((scene if isinstance(scene, dict) else {}).get("video_prompt_required")) for scene in scenes[:18]):
+            raise CodexContentError("Codex scenes 1-18 require video prompts (user clips 1-12; ComfyUI clips 13-18)")
 
 
 def _validate_title_uniqueness(package: dict[str, Any], payload: dict[str, Any]) -> None:
@@ -1585,8 +1630,12 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
                 scene["scene_number"] = scene_number
                 scene["duration_seconds"] = schedule[index - 1]["duration_seconds"]
                 scene["target_duration"] = schedule[index - 1]["duration_seconds"]
-                scene["video_prompt_required"] = index <= 12
-                if index > 12:
+                scene["video_prompt_required"] = index <= 18
+                if index <= 18:
+                    scene["visual_type"] = "video"
+                    scene["video_generation_mode"] = "user_upload" if index <= 12 else "comfyui"
+                else:
+                    scene["visual_type"] = "image"
                     scene.pop("video_prompt", None)
             scene["narration"] = str(scene.get("narration") or narration_by_scene.get(scene_number) or "").strip()
             if scene.get("sfx_cue") and not scene.get("sfx_cues"):
@@ -1755,26 +1804,29 @@ language: choose the final upload title, title candidates, narrative plan,
 scene structure, narration script, character continuity anchors, per-scene
 image prompts and video prompts, SFX cues, and publish metadata.
 
-The legacy visual pacing policy is mandatory. The exact internal scene schedule
+The visual pacing policy is mandatory. The exact internal scene schedule
 is {json.dumps(_pacing_schedule(payload.get("target_duration_seconds")), ensure_ascii=False)}.
-Generate exactly that many ordered scenes. Scenes 1-12 are the first 60 seconds:
-each is exactly 5 seconds and must include image_prompt plus video_prompt. Later
-scenes gradually lengthen as listed in the schedule: scenes 13-20 are 7 seconds,
-21-30 are 10 seconds, 31-45 are 12 seconds, 46-60 are 15 seconds, and scenes
-61 onward are 18 seconds unless the final remainder is shorter. Later scenes
-must include image_prompt only; do not include video_prompt after scene 12. Put
-duration_seconds on every scene. Never print timestamps or timecodes in the
-narration; duration_seconds is internal JSON metadata only.
+Generate exactly that many ordered scenes with the listed duration_seconds.
+Scenes 1-12 are five-second user-uploaded video-prompt scenes. Scenes 13-18 are
+five-second ComfyUI image-to-video scenes. Scenes 19-24 are seven seconds, scenes 25-30 are
+ten seconds, scenes 31-45 are twelve seconds, scenes 46-60 are fifteen seconds,
+and scenes 61 onward are eighteen seconds unless the final remainder is shorter.
+Scenes 1-18 require video_prompt. Scenes 13-18 also require image_prompt as
+ComfyUI's first-frame input. Scenes 19 onward use image_prompt only.
+Never print timestamps or timecodes in the narration; duration_seconds is
+internal JSON metadata only.
 
 Compatibility requirements for AIR Studio: structure must contain scene_count,
 image_grid_prompt_status="ready", image_grid_prompt_mode="direct_2x2_only",
 and compact 2x2 image_grid_prompts. Every scene must set
-media_prompt_status="ready". For the first 12 scenes, include a unique English
+media_prompt_status="ready". For scenes 1-18, include a unique English
 video_prompt of at least 260 characters with exactly one approved movement
 (slow push-in, slow pull-back, gentle pan, gentle tilt, slow dolly, slow
 tracking shot, locked-off shot, subtle crane movement, or slow drift) and all
 of these literal guards: no dialogue, no narration, no subtitles, no captions,
-no music, no sound effects, no audio. Produce prompts only, never media files.
+no music, no sound effects, no audio. Mark scenes 1-12 as
+video_generation_mode="user_upload" and scenes 13-18 as
+video_generation_mode="comfyui". Produce prompts only, never media files.
 For Korean packages, write at least 1,000 Hangul characters in the script and
 a Korean publish_metadata.description of at least 120 characters. Include at
 least five tags and three hashtags.
@@ -1947,11 +1999,13 @@ class CodexStagedContentRunner:
             "clipped factual summaries, or a forced inspirational payoff.")
         scenes = plan.get("scenes") if isinstance(plan.get("scenes"), list) else []
         if len(scenes) != len(schedule):
-            raise CodexContentError(f"legacy pacing requires {len(schedule)} planned scenes; got {len(scenes)}")
+            raise CodexContentError(f"required pacing needs {len(schedule)} planned scenes; got {len(scenes)}")
         for index, (scene, timing) in enumerate(zip(scenes, schedule), 1):
             if not isinstance(scene, dict):
                 raise CodexContentError(f"plan scene {index} is not an object")
-            scene.update({"scene_order": index, "scene_number": index, "duration_seconds": timing["duration_seconds"], "target_duration": timing["duration_seconds"], "video_prompt_required": index <= 12})
+            scene.update({"scene_order": index, "scene_number": index, "duration_seconds": timing["duration_seconds"], "target_duration": timing["duration_seconds"], "video_prompt_required": index <= 18,
+                          "visual_type": "video" if index <= 18 else "image",
+                          "video_generation_mode": "user_upload" if index <= 12 else "comfyui" if index <= 18 else "image"})
         structure = {"scene_count": len(scenes), "scenes": scenes, "story_core": plan.get("story_core") or {}}
         scene_budgets = _scene_char_budgets(scenes, payload)
         script_context = {
@@ -2107,7 +2161,7 @@ class CodexStagedContentRunner:
             f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
             f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
             "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
-            "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-12 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 13 onward must not contain video_prompt."
+            "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-18 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-12 use video_generation_mode=user_upload; scenes 13-18 use video_generation_mode=comfyui and retain image_prompt as the ComfyUI first frame. Scenes 19 onward must not contain video_prompt."
         )
         media = {}
         for media_attempt in range(2):
@@ -2120,7 +2174,7 @@ class CodexStagedContentRunner:
                     image = str((item or {}).get("image_prompt") or "").strip() if isinstance(item, dict) else ""
                     if len(image) < 120:
                         raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
-                    if index <= 12:
+                    if index <= 18:
                         _validate_video_prompt(str(item.get("video_prompt") or "").strip(), index)
                 break
             except CodexContentError as exc:
@@ -2137,10 +2191,18 @@ class CodexStagedContentRunner:
             if len(image) < 120:
                 raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
             scenes[index - 1].update({"image_prompt": image, "media_prompt_status": "ready"})
-            if index <= 12:
+            if index <= 18:
                 video = str(item.get("video_prompt") or "").strip()
                 _validate_video_prompt(video, index)
                 scenes[index - 1]["video_prompt"] = video
+                scenes[index - 1]["video_prompt_required"] = True
+                scenes[index - 1]["visual_type"] = "video"
+                scenes[index - 1]["video_generation_mode"] = "user_upload" if index <= 12 else "comfyui"
+                scenes[index - 1]["duration_seconds"] = 5
+            else:
+                scenes[index - 1]["video_prompt_required"] = False
+                scenes[index - 1]["visual_type"] = "image"
+                scenes[index - 1].pop("video_prompt", None)
         ae_effect_plans = _plan_ae_effects_for_scenes(scenes, {**payload, "character_anchors": anchors})
         ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
         image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload, ae_effect_plans)

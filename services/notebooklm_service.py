@@ -10,9 +10,10 @@ import httpx
 from typing import Dict, Any, List, Optional
 from config import config
 from services.gemini_service import gemini_service
+from services.scene_pacing import format_pacing_bands, pacing_schedule
 
 SCRIPT_WRITER_PROMPT_TEMPLATE = """당신은 최고 시청률의 유튜브 롱폼 다큐멘터리 및 토크쇼 메인 작가(Anthropic Claude)입니다.
-구글 노트북LM(Gemini)이 심층 조사하여 정리한 [팩트 연구 브리프]를 바탕으로, 한국어 특유의 흡입력과 몰입감을 극대화한 최고 품질의 유튜브 롱폼 대본과 53개 씬(Scene) 구성을 작성하세요.
+구글 노트북LM(Gemini)이 심층 조사하여 정리한 [팩트 연구 브리프]를 바탕으로, 한국어 특유의 흡입력과 몰입감을 극대화한 최고 품질의 유튜브 롱폼 대본과 씬 구성을 작성하세요.
 
 [요청 설정]
 - 카테고리: {category}
@@ -32,13 +33,17 @@ SCRIPT_WRITER_PROMPT_TEMPLATE = """당신은 최고 시청률의 유튜브 롱�
 [작성 지침]
 1. {mode_specific_rules}
 2. 문장력 및 흡입력: 시청자가 15~20분 동안 이탈하지 않도록 문장 끝맺음, 감정의 완급 조절, 생생한 구어체를 적용하세요.
-3. 씬 구성(Scenes): 유튜브 롱폼 영상에 맞게 총 50개~53개의 씬으로 분할하세요.
+3. 씬 구성(Scenes): 아래 시간표에 맞는 정확히 {scene_count}개의 씬으로 분할하세요.
+   - 시간표: {scene_schedule}
+   - 1~12씬은 각 5초 비디오 장면, 13씬 이후는 정지 이미지 장면입니다.
+   - 각 씬의 duration_seconds는 위 시간표와 정확히 일치해야 합니다.
    - 각 씬마다:
      * scene_number: 1, 2, ...
      * speaker: 대사를 말하는 화자 이름 (2인 대화 모드면 "진행자1" 또는 "진행자2", 1인 모드면 "나레이터")
      * scene_text: 해당 씬에서 읽을 대사 (2~3문장)
+     * duration_seconds: 시간표에 명시된 길이
      * image_prompt: 해당 씬에 어울리는 구체적인 영어 이미지 프롬프트 (Cinematic lighting, 8k, photorealistic style)
-     * visual_type: 1~12씬은 "video" (초반 훅 5초 비디오), 13~53씬은 "image"
+     * visual_type: 1~12씬은 "video" (초반 훅 5초 비디오), 13씬 이후는 "image"
 
 [반환 JSON 스키마 - 반드시 순수 JSON만 반환하세요]
 {{
@@ -52,6 +57,7 @@ SCRIPT_WRITER_PROMPT_TEMPLATE = """당신은 최고 시청률의 유튜브 롱�
   "scenes": [
     {{
       "scene_number": 1,
+      "duration_seconds": 5,
       "speaker": "{default_speaker_1}",
       "scene_text": "첫 번째 씬 대사...",
       "image_prompt": "Cinematic visual description in English...",
@@ -108,9 +114,10 @@ async def generate_notebooklm_project(
         research_summary = source_text[:5000]
 
     # ──────────────────────────────────────────────────────────
-    # ✍️ STEP 2: Claude 3.5 Haiku - 명품 대본 집필 & 53개 씬 생성 (Writer)
+    # ✍️ STEP 2: Claude 3.5 Haiku - 대본 집필 및 canonical pacing 씬 생성 (Writer)
     # ──────────────────────────────────────────────────────────
     is_dialogue = (mode == "dialogue_podcast")
+    scene_schedule = pacing_schedule(max(1, int(duration_minutes or 15)) * 60)
     if is_dialogue:
         mode_instruction = "2인 대화형 팟캐스트 (노트북LM Audio Overview 스타일 - 남/여 진행자 티키타카 토크쇼)"
         mode_specific_rules = (
@@ -134,6 +141,8 @@ async def generate_notebooklm_project(
     writer_prompt = SCRIPT_WRITER_PROMPT_TEMPLATE.format(
         category=category,
         duration_minutes=duration_minutes,
+        scene_count=len(scene_schedule),
+        scene_schedule=format_pacing_bands(scene_schedule),
         mode=mode,
         mode_instruction=mode_instruction,
         mode_specific_rules=mode_specific_rules,
@@ -182,5 +191,25 @@ async def generate_notebooklm_project(
 
     if custom_title and custom_title.strip():
         parsed["title"] = custom_title.strip()
+
+    generated_scenes = parsed.get("scenes")
+    if not isinstance(generated_scenes, list) or len(generated_scenes) != len(scene_schedule):
+        raise RuntimeError(
+            f"대본 씬 수가 페이싱 규칙과 다릅니다: expected {len(scene_schedule)}, "
+            f"got {len(generated_scenes) if isinstance(generated_scenes, list) else 0}"
+        )
+    for index, (scene, timing) in enumerate(zip(generated_scenes, scene_schedule), 1):
+        if not isinstance(scene, dict):
+            raise RuntimeError(f"대본 scene {index} 형식이 올바르지 않습니다.")
+        scene["scene_number"] = index
+        scene["duration_seconds"] = timing["duration_seconds"]
+        scene["visual_type"] = "video" if index <= 18 else "image"
+        scene["video_prompt_required"] = index <= 18
+        if 13 <= index <= 18:
+            scene["video_generation_mode"] = "comfyui"
+        elif index <= 12:
+            scene["video_generation_mode"] = "user_upload"
+        else:
+            scene.pop("video_prompt", None)
 
     return parsed

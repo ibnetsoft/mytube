@@ -4,7 +4,7 @@ import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
+import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 import { isGcsConfiguredAsync, createGcsSignedReadUrl } from '@/lib/gcsStorage'
@@ -469,7 +469,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 const sceneNumber = Number(scene?.scene_number || index + 1)
                 if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null
                 const normalizedSceneNumber = Math.floor(sceneNumber)
-                const requiresVideoPrompt = isStdRequiredVideoScene(normalizedSceneNumber, project)
+                const requiresVideoPrompt = isStdVideoPromptScene(normalizedSceneNumber, project)
                 const currentScene = findSceneByNumber(currentPayloadScenes, normalizedSceneNumber) || {}
                 const imageUrl = sceneSupabaseImageUrl(scene)
                     || sceneSupabaseImageUrl(currentScene)

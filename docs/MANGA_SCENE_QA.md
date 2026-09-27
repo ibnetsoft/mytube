@@ -1,11 +1,12 @@
 # Manga scene direction and review gate
 
-Seven AE scene directions can be selected by an explicit `scene.ae_template` or
+Eight AE scene directions can be selected by an explicit `scene.ae_template` or
 by a matching scene action. The script planner writes the renderer-facing
 `scene.ae_effect_plan` with normalized 0–1 coordinates and times in seconds:
 
 | Template | Required PSD layers | Direction data |
 | --- | --- | --- |
+| `dialogue_closeup` | `background`, `character`; plus `mouth_closed`, `mouth_half`, `mouth_open` when opted in | Explicit speaker key, final dialogue audio hash, registered mouth box, scene-relative word timings, and held mouth-pose cues. |
 | `angled_triple_reaction` | `background`, `character_left`, `character_center`, `character_right` | Three `panels` with `role`, four-point `polygon`, and `enter_at`; timed panel beats. |
 | `body_following_qi` | `background`, `character`, `talisman` | `qi_path` points over the character, normalized `talisman_target`, and timed attachment/trace/pulse beats. |
 | `ink_splat_impact` | `background`, `character`, `talisman` | `impact` x/y, `at_seconds`, short text; timed strike, burst, and lettering beats. |
@@ -82,13 +83,14 @@ For manga scenes, the worker leaves any GCS MP4 URL in asset metadata while
 review is pending. Approval publishes the URL to the scene atomically;
 rejection removes it.
 
-To exercise all seven templates through the installed After Effects and
+To exercise all eight templates through the installed After Effects and
 `aerender`, with self-contained placeholder art instead of production
 character images, run:
 
 ```powershell
 python experiments/manga_ae_smoke.py --force
 python experiments/manga_ae_smoke.py --template kinetic_title_reveal --title-style threat_red --force
+python experiments/manga_ae_smoke.py --template dialogue_closeup --force
 ```
 
 Each template produces a layered PSD, `.aep`, four-second MP4 and JSON QA
@@ -99,5 +101,5 @@ credentials, image model quality, or a production project submission.
 Run the focused checks with:
 
 ```powershell
-python -m pytest tests/test_manga_scene_qa.py tests/test_manga_console_review.py -q --basetemp=.pytest-manga-qa
+python -m pytest tests/test_manga_scene_qa.py tests/test_manga_console_review.py tests/test_manga_lip_sync.py -q --basetemp=.pytest-manga-qa
 ```

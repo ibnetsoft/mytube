@@ -27,6 +27,9 @@ except ImportError:
 
 SCHEMA = "manga_layer_generation/v1"
 SLOTS = {
+    "mouth_closed": (0.42, 0.43, 0.58, 0.56),
+    "mouth_half": (0.42, 0.43, 0.58, 0.56),
+    "mouth_open": (0.42, 0.43, 0.58, 0.56),
     "character_left": (0.04, 0.02, 0.32, 0.98),
     "character_center": (0.30, 0.02, 0.77, 0.98),
     "character_right": (0.74, 0.02, 0.97, 0.98),
@@ -142,7 +145,12 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
     for key in ("impact", "reflection", "light_origin", "title"):
         if key in plan:
             source[key] = plan[key]
+    if role in manga_layer_package.MOUTH_ROLES:
+        source["mouth_box"] = (plan.get("lip_sync") or {}).get("mouth_box")
     directions = {
+        "mouth_closed": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with closed lips. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
+        "mouth_half": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with slightly parted lips. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
+        "mouth_open": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with an open speaking mouth. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
         "background": "Draw only the environmental background plate; no people, props, letters, impact art, effects, or watermarks.",
         "character_left": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
         "character_center": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
@@ -170,6 +178,8 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         source["verified_character"] = {"key": reference["character_key"], "name": reference["name"]}
         direction += " The attached verified character portrait is the identity reference."
     elif role == "wall_broken" and reference:
+        source["source_layer_sha256"] = reference["sha256"]
+    elif role in manga_layer_package.MOUTH_ROLES and reference:
         source["source_layer_sha256"] = reference["sha256"]
     return (
         "Independently author ONE manga artwork layer for After Effects. " + direction +
@@ -244,6 +254,13 @@ class NativeCodexLayerGenerator:
 def _slot_for_scene(scene: dict[str, Any], role: str) -> tuple[float, float, float, float]:
     if role == "background":
         return (0.0, 0.0, 1.0, 1.0)
+    if role in manga_layer_package.MOUTH_ROLES:
+        plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+        lip_sync = plan.get("lip_sync") if isinstance(plan.get("lip_sync"), dict) else {}
+        box = lip_sync.get("mouth_box")
+        if not isinstance(box, list) or len(box) != 4:
+            raise ValueError("lip sync mouth_box is required for mouth-layer generation")
+        return tuple(box)
     slot = SLOTS[role]
     if role not in ("wall_intact", "wall_broken", "debris", "light_core"):
         return slot
@@ -306,6 +323,10 @@ def _normalize(source: Path, target: Path, role: str,
 
 def _visual_reference_for_job(job: dict[str, Any], images_dir: Path) -> dict[str, str] | None:
     """Use the approved identity ref, or the just-authored intact wall geometry."""
+    if job["role"] in manga_layer_package.MOUTH_ROLES:
+        character = images_dir / job["spec"]["layer_files"]["character"]
+        manga_layer_package._validate_png(character, "character")
+        return {"kind": "character_layer", "path": str(character), "sha256": _sha(character)}
     if job["role"] != "wall_broken":
         return job["reference"]
     intact = images_dir / job["spec"]["layer_files"]["wall_intact"]

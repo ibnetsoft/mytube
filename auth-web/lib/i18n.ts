@@ -77,7 +77,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         // Header / Project Bar
         active_project: '활성 프로젝트',
         badge_hook_scenes: '1~12씬: 5초 훅 구간',
-        badge_story_scenes: '13~53씬: 메인 스토리 구간',
+        badge_story_scenes: '13~18씬: ComfyUI 영상 · 19씬 이후: 이미지',
         btn_submit_remote: '원격 렌더 제출',
         btn_submitting: '제출 진행 중...',
 
@@ -246,7 +246,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         // Header / Project Bar
         active_project: 'Active Project',
         badge_hook_scenes: 'Scenes 1~12: 5s Hook Phase',
-        badge_story_scenes: 'Scenes 13~53: Main Story Phase',
+        badge_story_scenes: 'Scenes 13~18: ComfyUI Video · 19+: Still Images',
         btn_submit_remote: 'Submit for Render',
         btn_submitting: 'Submitting...',
 
@@ -376,7 +376,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         // Header / Project Bar
         active_project: 'Dự án đang làm',
         badge_hook_scenes: 'Cảnh 1~12: Giai đoạn móc câu 5s',
-        badge_story_scenes: 'Cảnh 13~53: Câu chuyện chính',
+        badge_story_scenes: 'Cảnh 13~18: Video ComfyUI · 19+: Ảnh tĩnh',
         btn_submit_remote: 'Gửi kết xuất video',
         btn_submitting: 'Đang gửi...',
 
@@ -506,7 +506,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         // Header / Project Bar
         active_project: 'โปรเจกต์ที่ใช้งานอยู่',
         badge_hook_scenes: 'ฉาก 1~12: ช่วงฮุกดึงดูด 5 วินาที',
-        badge_story_scenes: 'ฉาก 13~53: ช่วงเนื้อเรื่องหลัก',
+        badge_story_scenes: 'ฉาก 13~18: วิดีโอ ComfyUI · 19+: ภาพนิ่ง',
         btn_submit_remote: 'ส่งประมวลผลวิดีโอ',
         btn_submitting: 'กำลังส่ง...',
 

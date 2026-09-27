@@ -12,6 +12,7 @@ from typing import Any
 
 
 MANGA_TEMPLATES = frozenset({
+    "dialogue_closeup",
     "angled_triple_reaction", "body_following_qi", "ink_splat_impact",
     "wall_impact_debris", "glasses_reflection", "kinetic_title_reveal",
     "backlit_hand_reveal",
@@ -217,6 +218,30 @@ function speechBubble(comp, start) {
   for (var i = 0; i < beats.length; i++) if (beats[i].action == "speech_bubble" && beats[i].text) value = beats[i].text;
   text(comp, "reaction_bubble_text", value, 0.348, 0.255, Math.round(H * 0.13), [0,0,0], null,
        start + 0.04, null);
+}
+function dialogueCloseup(comp) {
+  var face = layerByRole(comp, "character", true);
+  var start = firstBeat("camera_push", 0.25);
+  face.property("Scale").setValueAtTime(0, [100,100]);
+  face.property("Scale").setValueAtTime(at(start), [101,101]);
+  face.property("Scale").setValueAtTime(DUR, [108,108]);
+  var sync = PLAN.lip_sync || {};
+  if (!sync.enabled) return;
+  var roles = ["mouth_closed", "mouth_half", "mouth_open"];
+  var poses = ["closed", "half", "open"];
+  for (var i = 0; i < roles.length; i++) {
+    var mouth = layerByRole(comp, roles[i], true);
+    mouth.property("Scale").setValueAtTime(0, [100,100]);
+    mouth.property("Scale").setValueAtTime(at(start), [101,101]);
+    mouth.property("Scale").setValueAtTime(DUR, [108,108]);
+    var opacity = mouth.property("Opacity");
+    var cues = sync.cues || [];
+    for (var j = 0; j < cues.length; j++) {
+      var key = opacity.addKey(at(cues[j].at_seconds));
+      opacity.setValueAtKey(key, cues[j].pose == poses[i] ? 100 : 0);
+      opacity.setInterpolationTypeAtKey(key, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+    }
+  }
 }
 function triple(comp) {
   speedLines(comp, [0.5, 0.47], firstBeat("background_speedline_in", 0.05));
@@ -501,6 +526,95 @@ function kineticTitle(comp) {
     punchScale(main);
   }
 }
+function animatedCaptions(comp) {
+  var config = PLAN.caption_animation || {};
+  if (!config.enabled) return;
+  var cues = config.captions || [];
+  for (var i = 0; i < cues.length; i++) {
+    var cue = cues[i], preset = String(cue.preset), phrase = String(cue.text);
+    var accent = String(cue.accent_text || "");
+    var x = Number(cue.position[0]), y = Number(cue.position[1]);
+    var start = Number(cue.start_seconds), end = Math.min(DUR - 0.01, Number(cue.end_seconds) + 0.28);
+    var size = Math.round(H * (preset == "headline_punch" ? 0.086 : preset == "punctuation_pop" ? 0.077 : 0.065));
+    var limit = W * (preset == "floating_dialogue" ? 0.42 : 0.80);
+    size = Math.max(26, Math.min(size, Math.floor(limit / Math.max(1, phrase.length * 0.68))));
+    var white = [1, 1, 1], red = [0.96, 0.06, 0.04], yellow = [1, 0.9, 0.03];
+    var base = preset == "floating_dialogue" ? red : white;
+    var accentColor = preset == "headline_punch" ? yellow : red;
+    var outline = preset == "floating_dialogue" ? [0.02, 0.01, 0.01] : [0.01, 0.01, 0.02];
+    var parts = [], accentIndex = accent ? phrase.indexOf(accent) : -1;
+    if (accentIndex >= 0) {
+      parts.push({value: phrase.substring(0, accentIndex), color: base, at: start});
+      parts.push({value: accent, color: accentColor, at: Number(cue.accent_at_seconds)});
+      parts.push({value: phrase.substring(accentIndex + accent.length), color: base, at: start});
+    } else {
+      parts.push({value: phrase, color: base, at: start});
+    }
+    var layers = [], total = 0;
+    for (var j = 0; j < parts.length; j++) {
+      if (!parts[j].value) continue;
+      var layer = text(comp, "animated_caption_" + i + "_" + j,
+        parts[j].value, x, y, size, parts[j].color, outline, parts[j].at, end);
+      var letterStyle = layer.property("Source Text").value;
+      try { letterStyle.font = preset == "brush_phrase" ? "HCRBatang-Bold" : "MalgunGothicBold"; }
+      catch (fontError) { letterStyle.fauxBold = true; }
+      layer.property("Source Text").setValue(letterStyle);
+      layer.property("Opacity").setValueAtTime(at(Math.max(parts[j].at, end - 0.10)), 100);
+      if (preset == "brush_phrase") layer.property("Rotation").setValue(-2);
+      var width = layer.sourceRectAtTime(at(Math.min(DUR - 0.02, start + 0.3)), false).width;
+      layers.push({layer: layer, width: width});
+      total += width;
+    }
+    var left = pxX(x) - total / 2;
+    for (var k = 0; k < layers.length; k++) {
+      var item = layers[k];
+      if (preset == "floating_dialogue") {
+        item.layer.property("Position").setValueAtTime(at(start), [left + item.width / 2 - 18, pxY(y)]);
+        item.layer.property("Position").setValueAtTime(at(start + 0.16), [left + item.width / 2, pxY(y)]);
+      } else item.layer.property("Position").setValue([left + item.width / 2, pxY(y)]);
+      left += item.width;
+    }
+    if (preset == "punctuation_pop") {
+      var punctuation = text(comp, "animated_caption_punctuation_" + i, "!!!", Math.min(0.88, x + 0.17),
+        Math.max(0.12, y - 0.17), Math.round(H * 0.15), red, [0,0,0], start, end);
+      var punctuationStyle = punctuation.property("Source Text").value;
+      try { punctuationStyle.font = "MalgunGothicBold"; } catch (fontError) { punctuationStyle.fauxBold = true; }
+      punctuation.property("Source Text").setValue(punctuationStyle);
+      punctuation.property("Opacity").setValueAtTime(at(Math.max(start, end - 0.10)), 100);
+    }
+  }
+}
+function animatedSfxText(comp) {
+  var config = PLAN.sfx_text_animation || {};
+  if (!config.enabled) return;
+  var cues = config.cues || [];
+  for (var i = 0; i < cues.length; i++) {
+    var cue = cues[i], preset = String(cue.preset), phrase = String(cue.text);
+    var x = Number(cue.position[0]), y = Number(cue.position[1]);
+    var start = Number(cue.start_seconds), end = Math.min(DUR - 0.01, Number(cue.end_seconds));
+    var units = Math.max(1, phrase.length);
+    var size = Math.max(34, Math.min(Math.round(H * (preset == "sfx_impact" ? 0.15 : 0.12)), Math.floor(W * 0.68 / units)));
+    var color = preset == "sfx_emphasis" ? [1,0.88,0.04] : preset == "sfx_whoosh" ? [1,1,1] : [0.98,0.08,0.04];
+    var outline = preset == "sfx_whoosh" ? [0.05,0.18,0.55] : [0.015,0.01,0.01];
+    var layer = text(comp, "animated_sfx_text_" + i, phrase, x, y, size, color, outline, start, end);
+    var style = layer.property("Source Text").value;
+    try { style.font = "MalgunGothicBold"; } catch (fontError) { style.fauxBold = true; }
+    layer.property("Source Text").setValue(style);
+    var scale = layer.property("Scale");
+    if (preset == "sfx_impact") {
+      scale.setValueAtTime(at(start), [42,42]);
+      scale.setValueAtTime(at(start+0.10), [128,128]);
+      scale.setValueAtTime(at(start+0.22), [100,100]);
+      layer.property("Rotation").setValueAtTime(at(start), -8);
+      layer.property("Rotation").setValueAtTime(at(start+0.18), 2);
+      layer.property("Rotation").setValueAtTime(at(start+0.30), 0);
+    } else if (preset == "sfx_whoosh") {
+      layer.property("Position").setValueAtTime(at(start), [pxX(x)-W*0.16, pxY(y)]);
+      layer.property("Position").setValueAtTime(at(start+0.20), [pxX(x), pxY(y)]);
+      layer.property("Rotation").setValue(-5);
+    }
+  }
+}
 function backlitHand(comp) {
   var origin = PLAN.light_origin || [0.5,0.42];
   var cx = Number(origin[0]), cy = Number(origin[1]);
@@ -576,7 +690,8 @@ try {
   bg.moveToEnd();
   bg.property("Scale").setValueAtTime(0, [101,101]);
   bg.property("Scale").setValueAtTime(DUR, [104,104]);
-  if (CFG.template == "angled_triple_reaction") triple(comp);
+  if (CFG.template == "dialogue_closeup") dialogueCloseup(comp);
+  else if (CFG.template == "angled_triple_reaction") triple(comp);
   else if (CFG.template == "body_following_qi") qi(comp);
   else if (CFG.template == "ink_splat_impact") impact(comp);
   else if (CFG.template == "wall_impact_debris") wallImpact(comp);
@@ -584,6 +699,8 @@ try {
   else if (CFG.template == "kinetic_title_reveal") kineticTitle(comp);
   else if (CFG.template == "backlit_hand_reveal") backlitHand(comp);
   else throw "Unknown manga template: " + CFG.template;
+  animatedCaptions(comp);
+  animatedSfxText(comp);
   var rq = app.project.renderQueue.items.add(comp);
   rq.outputModule(1).file = new File(CFG.render);
   app.project.save(new File(CFG.project));

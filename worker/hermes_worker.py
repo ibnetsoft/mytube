@@ -2996,7 +2996,7 @@ MEDIA_CAMERA_MOVEMENTS = (
     "subtle crane movement",
     "slow drift",
 )
-MAX_VIDEO_PROMPT_SCENES = 12
+MAX_VIDEO_PROMPT_SCENES = 18
 
 
 def _category_visual_grammar(topic: str, upload_title: str, structure: dict | None = None) -> str:
@@ -7775,54 +7775,6 @@ def _upload_topic_character_image(topic_queue_id: str, character_key: str, image
     return bucket, object_path, _gcs_asset_api_url(bucket, object_path)
 
 
-async def _generate_character_anchor_images(
-    *,
-    topic_queue_id: str,
-    topic: str,
-    upload_title: str,
-    image_style_directive: str,
-    characters: list[dict],
-    job_log,
-) -> list[dict]:
-    if not characters:
-        return []
-    from services.gemini_service import gemini_service
-
-    enriched: list[dict] = []
-    for index, character in enumerate(characters, start=1):
-        if not isinstance(character, dict):
-            continue
-        character = dict(character)
-        character_key = _character_anchor_key(character, f"character-{index}")
-        prompt = _build_character_reference_image_prompt(
-            character,
-            image_style_directive=image_style_directive,
-            topic=topic,
-            upload_title=upload_title,
-        )
-        job_log.info(f"Generating character reference image: {character.get('name') or character_key}")
-        images_bytes = await gemini_service.generate_image(
-            prompt=prompt,
-            num_images=1,
-            aspect_ratio="1:1",
-        )
-        if not images_bytes:
-            raise RuntimeError(f"character reference image generation failed for {character.get('name') or character_key}")
-        bucket, object_path, image_url = _upload_topic_character_image(topic_queue_id, character_key, images_bytes[0])
-        character.update({
-            "character_key": character_key,
-            "prompt_en": character.get("prompt_en") or character.get("visual_dna_en") or "",
-            "image_prompt": prompt,
-            "image_url": image_url,
-            "storage_bucket": bucket,
-            "storage_object_path": object_path,
-            "image_generation_status": "ready",
-            "image_generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        })
-        enriched.append(character)
-    return enriched
-
-
 def _save_topic_character_assets(
     topic_queue_id: str,
     *,
@@ -9463,27 +9415,6 @@ Hard retry rules:
         )
     )[:2]
     image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
-    characters_for_image_generation = [main_character] + supporting_characters[:2]
-    generated_characters = asyncio.run(
-        _generate_character_anchor_images(
-            topic_queue_id=str(topic_queue_id),
-            topic=topic,
-            upload_title=upload_title,
-            image_style_directive=image_style_directive,
-            characters=characters_for_image_generation,
-            job_log=job_log,
-        )
-    )
-    if generated_characters:
-        main_character = _normalize_character_anchor(
-            generated_characters[0],
-            fallback_name="protagonist",
-            role="protagonist",
-        )
-        supporting_characters = [
-            _normalize_character_anchor(item, fallback_name=f"supporting_character_{idx}", role="supporting")
-            for idx, item in enumerate(generated_characters[1:3], start=1)
-        ]
     _save_topic_character_assets(
         str(topic_queue_id),
         topic=topic,
@@ -9493,7 +9424,7 @@ Hard retry rules:
         image_style=image_style_key,
         story_style=script_style,
         characters=[main_character] + supporting_characters[:2],
-        generation_model="gemini_service.generate_image",
+        generation_model="text_visual_dna_only",
         job_log=job_log,
     )
     character_anchors = {
@@ -9501,8 +9432,9 @@ Hard retry rules:
         "supporting_characters": supporting_characters,
         "max_character_anchors": 3,
         "character_image_generation": {
-            "enabled": True,
-            "status": "ready",
+            "enabled": False,
+            "status": "deferred_to_codex_image_workflow",
+            "reason": "Automatic Gemini image generation is disabled; use the Codex built-in image generation workflow.",
             "stage": "after_script_before_media_prompts",
             "storage_bucket": os.getenv("GCS_BUCKET_NAME") or "air-studio-prod",
             "registry_table": "topic_character_assets",

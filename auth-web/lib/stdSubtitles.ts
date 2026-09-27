@@ -21,7 +21,7 @@ export interface SceneTiming {
     is_video_required: boolean
 }
 
-export const BASE_STORY_SCENE_COUNT = 53
+export const DEFAULT_15_MINUTE_SCENE_COUNT = 77
 export const SENIOR_READING_CHARS_PER_SECOND = 5.0
 export const DEFAULT_SENIOR_SUBTITLE_MAX_CHARS = 20
 
@@ -124,17 +124,37 @@ export function cleanKoreanScriptLine(text: string): string {
 }
 
 export function getStandardSceneDuration(sceneNumber: number): number {
-    if (sceneNumber <= 12) return 5.0
-    if (sceneNumber <= 28) return 15.0
-    if (sceneNumber <= 43) return 20.0
-    if (sceneNumber <= BASE_STORY_SCENE_COUNT) return 30.0
-    return 60.0
+    if (sceneNumber <= 18) return 5.0
+    if (sceneNumber <= 24) return 7.0
+    if (sceneNumber <= 30) return 10.0
+    if (sceneNumber <= 45) return 12.0
+    if (sceneNumber <= 60) return 15.0
+    return 18.0
+}
+
+export function buildSceneDurationSchedule(targetDurationSeconds: number): { scene_number: number; duration_seconds: number }[] {
+    const parsed = Number(targetDurationSeconds)
+    if (!Number.isFinite(parsed) || parsed <= 0) return []
+    let remaining = Math.max(1, Math.floor(parsed))
+    const schedule: { scene_number: number; duration_seconds: number }[] = []
+    const bands: [number | null, number][] = [[18, 5], [6, 7], [6, 10], [15, 12], [15, 15], [null, 18]]
+    for (const [sceneLimit, seconds] of bands) {
+        let used = 0
+        while (remaining > 0 && (sceneLimit === null || used < sceneLimit)) {
+            const duration = Math.min(seconds, remaining)
+            schedule.push({ scene_number: schedule.length + 1, duration_seconds: duration })
+            remaining -= duration
+            used += 1
+        }
+        if (remaining <= 0) break
+    }
+    return schedule
 }
 
 export function estimateRequiredSceneCount(rawScriptText: string, existingSceneCount: number = 0): number {
     const textLength = normalizedScriptText(rawScriptText).length
     const explicitSceneCount = Number(existingSceneCount || 0)
-    const minimumScenes = explicitSceneCount > 0 ? explicitSceneCount : BASE_STORY_SCENE_COUNT
+    const minimumScenes = explicitSceneCount > 0 ? explicitSceneCount : DEFAULT_15_MINUTE_SCENE_COUNT
     if (textLength <= 0) return minimumScenes
 
     // An existing storyboard is authoritative at EVERY length, not only <53.
@@ -153,8 +173,9 @@ export function estimateRequiredSceneCount(rawScriptText: string, existingSceneC
     return sceneCount
 }
 
-export function calculateLongformSceneTimings(scenes: any[]): SceneTiming[] {
-    const totalScenes = scenes.length || BASE_STORY_SCENE_COUNT
+export function calculateLongformSceneTimings(scenes: any[], targetDurationSeconds: number = 900): SceneTiming[] {
+    const defaultSchedule = buildSceneDurationSchedule(targetDurationSeconds)
+    const totalScenes = scenes.length || defaultSchedule.length || DEFAULT_15_MINUTE_SCENE_COUNT
     const timings: SceneTiming[] = []
     let currentTime = 0.0
 
@@ -162,10 +183,12 @@ export function calculateLongformSceneTimings(scenes: any[]): SceneTiming[] {
         const isHook = i <= 12
         const sceneData = scenes[i - 1] || {}
 
-        let duration = getStandardSceneDuration(i)
-        if (typeof sceneData.target_duration === 'number' && sceneData.target_duration > 0) {
-            duration = sceneData.target_duration
-        }
+        const explicitDuration = Number(sceneData.duration_seconds ?? sceneData.target_duration ?? sceneData.metadata?.duration_seconds)
+        const duration = Number.isFinite(explicitDuration) && explicitDuration > 0
+            ? explicitDuration
+            : defaultSchedule.length === totalScenes
+                ? defaultSchedule[i - 1].duration_seconds
+                : getStandardSceneDuration(i)
 
         const start = Math.round(currentTime * 10) / 10
         const end = Math.round((start + duration) * 10) / 10
@@ -554,7 +577,7 @@ function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: num
     return repaired
 }
 
-export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCount: number = BASE_STORY_SCENE_COUNT): string[] {
+export function partitionScriptToScenes(rawScriptText: string, totalScenesCount: number = DEFAULT_15_MINUTE_SCENE_COUNT): string[] {
     const fullText = normalizedScriptText(rawScriptText)
     if (!fullText) {
         return Array.from({ length: totalScenesCount }, (_, i) => `Scene ${i + 1} narration`)
@@ -592,7 +615,7 @@ export function partitionScriptTo53Scenes(rawScriptText: string, totalScenesCoun
 export function partitionScriptByExistingSceneBoundaries(
     rawScriptText: string,
     scenes: any[],
-    totalScenesCount: number = BASE_STORY_SCENE_COUNT
+    totalScenesCount: number = DEFAULT_15_MINUTE_SCENE_COUNT
 ): string[] {
     const fullText = normalizedScriptText(rawScriptText)
     if (!fullText) {

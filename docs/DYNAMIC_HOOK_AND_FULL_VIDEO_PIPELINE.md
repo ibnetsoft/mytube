@@ -14,7 +14,7 @@
 
 ### 1.2 문제점 및 한계
 1. **연출의 경직성**: 장르나 채널 스타일에 따라 3초짜리 빠른 템포의 쇼츠형 훅(15~20컷), 혹은 차분한 다큐멘터리형 훅(8초 × 8컷) 등 다양한 호흡을 구성할 수 없음.
-2. **풀 비디오(Full Video) 제작 불가**: 전체 씬(53씬+)을 100% 영상 클립으로 이어 붙여 시네마틱한 고몰입 영상을 제작하고자 하는 요구를 수용하지 못함.
+2. **풀 비디오(Full Video) 제작 불가**: 전체 씬을 100% 영상 클립으로 이어 붙여 시네마틱한 고몰입 영상을 제작하고자 하는 요구를 수용하지 못함.
 3. **영상 클립 수급 부담**: 12개의 비디오 클립을 마련하기 어려운 프로젝트의 경우에도 무조건 12컷이 강제됨.
 
 ### 1.3 목표 (To-Be)
@@ -124,10 +124,13 @@ export function getStandardSceneDuration(
         return hookDuration
     }
 
-    if (sceneNumber <= hookCount) return hookDuration
-    if (sceneNumber <= hookCount + 16) return 15.0
-    if (sceneNumber <= hookCount + 31) return 20.0
-    return 30.0
+    // Canonical story pacing; hook video coverage is a separate media policy.
+    if (sceneNumber <= 18) return 5.0
+    if (sceneNumber <= 24) return 7.0
+    if (sceneNumber <= 30) return 10.0
+    if (sceneNumber <= 45) return 12.0
+    if (sceneNumber <= 60) return 15.0
+    return 18.0
 }
 ```
 
@@ -169,7 +172,7 @@ sequenceDiagram
   - 1씬부터 마지막 씬까지 전체 씬 카드가 **`비디오 전용 테두리(보라색/청록색)`**로 강조.
   - 씬별로 `영상 업로드`, `영상 교체`, `AI 영상 프롬프트` 버튼 상시 노출.
   - 상단 대시보드 인디케이터:  
-    `🎥 영상 클립 준비 현황: 53개 중 42개 완료 (79%)` 프로그레스 바 표시.
+    `🎥 영상 클립 준비 현황: 전체 씬 수 기준 진행률` 프로그레스 바 표시.
 
 #### ③ 일괄 업로드 (Batch Drag & Drop)
 - 사용자가 `scene_01.mp4`, `scene_02.mp4` ... 형식의 파일들을 한 번에 드래그 앤 드롭하면 씬 번호에 맞춰 자동 배치.
@@ -196,4 +199,4 @@ sequenceDiagram
 | **Phase 1** | **정책 & 타임라인 엔진** | • `stdPolicy.ts` & `stdSubtitles.ts`에 `video_mode` 분기 추가<br>• 풀 비디오 모드 시 전체 씬 `visual_type = 'video'` 동적 할당 | 정책 헬퍼 및 타임라인 유닛 테스트 |
 | **Phase 2** | **스튜디오 UI 개편** | • 상단 툴바에 연출 모드 선택기 UI 배치<br>• 풀 비디오 모드 시 전체 씬 비디오 업로더 활성화<br>• 영상 클립 업로드 진행률 프로그레스 바 | 스튜디오 자막/씬 뷰 UI 업데이트 |
 | **Phase 3** | **AI 프롬프트 연동** | • 전체 씬 대상 Gemini AI 영상 모션 프롬프트 일괄 생성 버튼 연결<br>• Kling / Runway 호환 프롬프트 원클릭 복사 | 영상 프롬프트 일괄 생성 모달 |
-| **Phase 4** | **렌더러 최종 검증** | • 53씬 전체가 영상 클립인 대용량 프로젝트 렌더링 E2E 테스트<br>• 오디오 믹싱 및 화면비 정규화 검증 | 최종 렌더링 검증 및 릴리즈 |
+| **Phase 4** | **렌더러 최종 검증** | • 전체 씬을 영상 클립으로 구성한 대용량 프로젝트 렌더링 E2E 테스트<br>• 오디오 믹싱 및 화면비 정규화 검증 | 최종 렌더링 검증 및 릴리즈 |

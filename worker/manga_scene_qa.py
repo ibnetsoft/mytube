@@ -14,8 +14,16 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+try:
+    from .manga_lip_sync import MOUTH_ROLES, validate_lip_sync
+    from .manga_caption_animation import validate_caption_animation, validate_sfx_text_animation
+except ImportError:
+    from manga_lip_sync import MOUTH_ROLES, validate_lip_sync
+    from manga_caption_animation import validate_caption_animation, validate_sfx_text_animation
+
 
 TEMPLATES = {
+    "dialogue_closeup": ("background", "character"),
     "angled_triple_reaction": ("background", "character_left", "character_center", "character_right"),
     "body_following_qi": ("background", "character", "talisman"),
     "ink_splat_impact": ("background", "character", "talisman"),
@@ -25,6 +33,8 @@ TEMPLATES = {
     "backlit_hand_reveal": ("background", "hand_foreground"),
 }
 REVIEW_POINTS = {
+    "dialogue_closeup": ["Listen to the final dialogue while checking mouth changes frame by frame at the first word, pauses, and last word.",
+                         "Check that all three mouth patches cover the original lips without seams, face drift, identity changes, or a visible mouth during silence."],
     "angled_triple_reaction": ["Check that all three faces remain visible and the panel seams do not cut through eyes or captions.",
                                "Check character identity, panel order, and text readability at playback speed."],
     "body_following_qi": ["Check that the qi follows the body rather than floating over the background.",
@@ -132,6 +142,8 @@ def _required_layers(plan: dict[str, Any], template: str) -> set[str]:
     }
     if template == "kinetic_title_reveal" and _mapping(plan.get("title")).get("style") == "training_emphasis":
         required.add("training_prop")
+    if _mapping(plan.get("lip_sync")).get("enabled") is True:
+        required.update(MOUTH_ROLES)
     return required
 
 
@@ -236,6 +248,24 @@ def validate_scene_plan(scene: dict[str, Any], asset_metadata: dict[str, Any] | 
     missing = sorted(required - names)
     _check(checks, errors, "required_layers", not missing,
            "PSD layer manifest is missing: " + ", ".join(missing) if missing else "required PSD layers are declared")
+    if plan.get("lip_sync") is not None:
+        lip_errors = validate_lip_sync(
+            plan.get("lip_sync"), template=template,
+            character_key=str(_mapping(plan.get("character_role_keys")).get("character") or ""),
+            duration=seconds,
+        )
+        _check(checks, errors, "lip_sync", not lip_errors,
+               "; ".join(lip_errors) if lip_errors else "lip sync uses the approved final voice timing")
+    if plan.get("caption_animation") is not None:
+        caption_errors = validate_caption_animation(plan.get("caption_animation"), duration=seconds)
+        _check(checks, errors, "caption_animation", not caption_errors,
+               "; ".join(caption_errors) if caption_errors else "animated captions match the approved voice words")
+        warnings.append("Review animated Korean glyphs, emphasis colors, subject overlap, and caption timing at playback speed")
+    if plan.get("sfx_text_animation") is not None:
+        sfx_text_errors = validate_sfx_text_animation(plan.get("sfx_text_animation"), duration=seconds)
+        _check(checks, errors, "sfx_text_animation", not sfx_text_errors,
+               "; ".join(sfx_text_errors) if sfx_text_errors else "onomatopoeia is bound to approved scene SFX event times")
+        warnings.append("Review onomatopoeia spelling, placement, and sync against the final sound-effect mix")
 
     beats = plan.get("beats")
     _check(checks, errors, "beats", isinstance(beats, list) and bool(beats),
@@ -260,7 +290,17 @@ def validate_scene_plan(scene: dict[str, Any], asset_metadata: dict[str, Any] | 
     if timed_beats and [at for at, _, _ in timed_beats] != sorted(at for at, _, _ in timed_beats):
         errors.append("beats must be ordered by at_seconds")
 
-    if template == "angled_triple_reaction":
+    if template == "dialogue_closeup":
+        closeup = _template_beat_times(timed_beats, {
+            "face_hold": "character", "camera_push": "character",
+        }, checks, errors)
+        if len(closeup) == 2:
+            _check(checks, errors, "closeup_beat_order",
+                   closeup["face_hold"] <= closeup["camera_push"] < seconds,
+                   "close-up must hold the speaker before its camera push")
+        if not _mapping(plan.get("character_role_keys")).get("character"):
+            errors.append("close-up needs an approved visible character key")
+    elif template == "angled_triple_reaction":
         panels = plan.get("panels")
         _check(checks, errors, "panel_count", isinstance(panels, list) and len(panels) == 3,
                "angled triple reaction requires exactly three panels")
@@ -544,6 +584,17 @@ def validate_render(scene: dict[str, Any], mp4_path: Path | str, fps: float | No
 
     duration = probe["duration_seconds"]
     times = [min(.3, duration / 4), duration / 2, max(.0, duration - .25)]
+    lip_sync = _mapping(plan.get("lip_sync"))
+    mouth_times: tuple[float, float] | None = None
+    if lip_sync.get("enabled") is True:
+        cues = lip_sync.get("cues") if isinstance(lip_sync.get("cues"), list) else []
+        first_open = next((item for item in cues if isinstance(item, dict) and item.get("pose") == "open"), None)
+        first_closed = next((item for item in cues if isinstance(item, dict) and item.get("pose") == "closed"), None)
+        if not first_open or not first_closed:
+            return _result("render", template, ["lip sync needs closed and open mouth frames"], warnings, checks, video=probe)
+        mouth_times = (round(min(duration - .03, float(first_closed["at_seconds"]) + .5 / (actual_fps or 24)), 3),
+                       round(min(duration - .03, float(first_open["at_seconds"]) + .5 / (actual_fps or 24)), 3))
+        times.extend(mouth_times)
     beats = plan.get("beats")
     ignite_at = next((beat.get("at_seconds") for beat in beats
                       if isinstance(beat, dict) and beat.get("action") == "light_ignite"), None) if isinstance(beats, list) else None
@@ -566,6 +617,22 @@ def validate_render(scene: dict[str, Any], mp4_path: Path | str, fps: float | No
             return _result("render", template, errors, warnings, checks, video=probe)
         event_times = (max(0, event_at - .12), min(duration - .03, event_at + .12))
         times.extend(event_times)
+    caption_pairs = []
+    for cue in _mapping(plan.get("caption_animation")).get("captions", []):
+        start = _number(_mapping(cue).get("start_seconds"))
+        position = _point(_mapping(cue).get("position"))
+        if start is not None and position is not None and start >= .08:
+            pair = (round(max(0, start - .06), 3), round(min(duration - .03, start + .18), 3), position)
+            caption_pairs.append(pair)
+            times.extend(pair[:2])
+    sfx_text_pairs = []
+    for cue in _mapping(plan.get("sfx_text_animation")).get("cues", []):
+        start = _number(_mapping(cue).get("start_seconds"))
+        position = _point(_mapping(cue).get("position"))
+        if start is not None and position is not None and start >= .08:
+            pair = (round(max(0, start - .06), 3), round(min(duration - .03, start + .18), 3), position)
+            sfx_text_pairs.append(pair)
+            times.extend(pair[:2])
     samples: list[dict[str, Any]] = []
     try:
         for time_value in sorted(set(round(max(0, t), 3) for t in times)):
@@ -592,6 +659,22 @@ def validate_render(scene: dict[str, Any], mp4_path: Path | str, fps: float | No
     else:
         differences = []
     event_difference = None
+    mouth_difference = None
+    if mouth_times is not None:
+        by_time = {item["at_seconds"]: item for item in samples}
+        closed = by_time.get(mouth_times[0])
+        opened = by_time.get(mouth_times[1])
+        box = lip_sync.get("mouth_box")
+        if closed and opened and isinstance(box, list) and len(box) == 4:
+            from PIL import ImageChops, ImageStat
+            w, h = closed["image"].size
+            crop = tuple(round(float(box[index]) * (w if index % 2 == 0 else h)) for index in range(4))
+            before = closed["image"].crop(crop)
+            after = opened["image"].crop(crop)
+            mouth_difference = round(sum(ImageStat.Stat(ImageChops.difference(before, after)).mean) / 3, 2)
+        _check(checks, errors, "mouth_frame_change", mouth_difference is not None and mouth_difference >= .5,
+               "the approved mouth area must visibly change between closed and spoken frames")
+        warnings.append("Mouth-area frame change does not prove lip sync; listen to the final audio and inspect seam-free poses")
     if event_times is not None:
         by_time = {item["at_seconds"]: item for item in samples}
         before = by_time.get(round(event_times[0], 3))
@@ -601,8 +684,38 @@ def validate_render(scene: dict[str, Any], mp4_path: Path | str, fps: float | No
             _check(checks, errors, f"{event_name}_frame_change", event_difference >= .7,
                    f"frames around the {event_description} must show a visible change")
         warnings.append(f"Frame change cannot prove the {event_description} is visually correct; inspect the event frame")
+    if caption_pairs:
+        by_time = {item["at_seconds"]: item for item in samples}
+        for index, (before_at, after_at, position) in enumerate(caption_pairs, 1):
+            before, after = by_time.get(before_at), by_time.get(after_at)
+            if before and after:
+                width, height = before["image"].size
+                x, y = position
+                bounds = (max(0, round((x - .24) * width)), max(0, round((y - .13) * height)),
+                          min(width, round((x + .24) * width)), min(height, round((y + .13) * height)))
+                region_before = {"image": before["image"].crop(bounds)}
+                region_after = {"image": after["image"].crop(bounds)}
+                _check(checks, errors, f"animated_caption_{index}_frame_change",
+                       difference(region_before, region_after) >= .7,
+                       f"caption {index} area must visibly change at its approved spoken word")
+        warnings.append("Caption-area frame change does not prove legibility or exact lip/voice sync; inspect the rendered text while listening")
+    if sfx_text_pairs:
+        by_time = {item["at_seconds"]: item for item in samples}
+        for index, (before_at, after_at, position) in enumerate(sfx_text_pairs, 1):
+            before, after = by_time.get(before_at), by_time.get(after_at)
+            if before and after:
+                width, height = before["image"].size
+                bounds = (max(0, round((position[0] - .24) * width)), max(0, round((position[1] - .13) * height)),
+                          min(width, round((position[0] + .24) * width)), min(height, round((position[1] + .13) * height)))
+                region_before = {"image": before["image"].crop(bounds)}
+                region_after = {"image": after["image"].crop(bounds)}
+                _check(checks, errors, f"sfx_text_{index}_frame_change",
+                       difference(region_before, region_after) >= .7,
+                       f"SFX text cue {index} area must visibly change at its sound-effect event")
+        warnings.append("SFX text frame change does not prove exact sync with the final mixed effect audio; inspect playback")
     sample_summary = [{key: value for key, value in item.items() if key != "image"} for item in samples]
     return _result("render", template, errors, warnings, checks, video=probe,
                    samples=sample_summary, adjacent_frame_differences=differences,
+                   mouth_frame_difference=mouth_difference,
                    event_frame_difference=event_difference,
                    impact_frame_difference=event_difference if template == "ink_splat_impact" else None)

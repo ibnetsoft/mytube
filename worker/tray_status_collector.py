@@ -23,6 +23,7 @@ logger = get_logger("tray_status_collector")
 STATE_FILES = {
     "render_worker": STATE_DIR / "render_worker.json",
     "hermes_worker": STATE_DIR / "hermes_worker.json",
+    "comfy_scene_video_worker": STATE_DIR / "comfy_scene_video_worker.json",
     "local_api": STATE_DIR / "local_api.json",
 }
 

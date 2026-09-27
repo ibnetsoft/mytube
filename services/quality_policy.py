@@ -17,7 +17,7 @@ DEFAULT_QUALITY_POLICY: dict[str, Any] = {
     },
     "media": {
         "enabled": True, "min_image_prompt_chars": 120, "min_video_prompt_chars": 260,
-        "max_video_prompt_scenes": 12, "required_camera_movements": 1,
+        "max_video_prompt_scenes": 18, "required_camera_movements": 1,
         "require_video_guardrails": True, "prohibit_duplicate_prompts": True,
         "prohibit_duplicate_scene_summaries": True,
         "prohibit_duplicate_retention_hooks": True, "require_image_grids": True,

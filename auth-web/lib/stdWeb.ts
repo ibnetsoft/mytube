@@ -3,8 +3,11 @@ import { createClient, type User } from '@supabase/supabase-js'
 import { isPreparedUserTopic } from './preparedTopic'
 import { supabaseAdmin } from './supabaseAdmin'
 import {
+    DEFAULT_15_MINUTE_SCENE_COUNT,
+    buildSceneDurationSchedule,
     estimateRequiredSceneCount,
-    partitionScriptTo53Scenes,
+    getStandardSceneDuration,
+    partitionScriptToScenes,
     stripGeneratedPlanningText,
 } from './stdSubtitles'
 import { calculateLongformPayoutByScenes } from './stdPayoutPolicy'
@@ -181,7 +184,7 @@ export function sceneVideoPrompt(scene: any): string {
     return firstText(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
 }
 
-export const MAX_VIDEO_PROMPT_SCENES = 12
+export const MAX_VIDEO_PROMPT_SCENES = 18
 
 export function sceneNumber(scene: any, index: number): number {
     const value = Number(scene?.scene_order || scene?.scene_number || index + 1)
@@ -275,8 +278,10 @@ export function buildStdScenes(topic: any) {
         .map((scene: any) => firstText(scene?.script_excerpt, scene?.scene_text, scene?.narration, scene?.description))
         .filter(Boolean)
         .join('\n\n'))
-    const sceneCount = scenes.length > 0 ? scenes.length : estimateRequiredSceneCount(script, 53)
-    const partitioned = partitionScriptTo53Scenes(script, sceneCount)
+    const sceneCount = scenes.length > 0 ? scenes.length : estimateRequiredSceneCount(script)
+    const partitioned = partitionScriptToScenes(script, sceneCount)
+    const requestedDurationMinutes = Number(topic?.assigned_duration_minutes || topic?.recommended_duration_minutes || 15)
+    const durationSchedule = buildSceneDurationSchedule(requestedDurationMinutes * 60)
 
     return Array.from({ length: sceneCount }, (_, index) => scenes[index] || {
         scene_number: index + 1,
@@ -309,10 +314,15 @@ export function buildStdScenes(topic: any) {
                 scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
                 scene_text: sceneText,
+                duration_seconds: Number(scene?.duration_seconds || scene?.target_duration)
+                    || (durationSchedule.length === sceneCount
+                        ? durationSchedule[normalizedSceneNumber - 1]?.duration_seconds
+                        : getStandardSceneDuration(normalizedSceneNumber)),
                 image_prompt: styleLockedImagePrompt,
                 video_prompt: videoPrompt,
                 visual_type: requiresVideoPrompt ? 'video' : 'image',
                 video_prompt_required: requiresVideoPrompt,
+                video_generation_mode: normalizedSceneNumber <= 12 ? 'user_upload' : (requiresVideoPrompt ? 'comfyui' : 'image'),
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
                 metadata: scene || {},
             }
@@ -352,7 +362,7 @@ export function normalizeTopicSummary(topic: any) {
     const category = topic?.categories || {}
     const structure = topic?.pregenerated_structure || topic?.structure || {}
     const scenes = buildStdScenes(topic)
-    const sceneCount = scenes.length || 53
+    const sceneCount = scenes.length || DEFAULT_15_MINUTE_SCENE_COUNT
     const inferredDurationMinutes = (() => {
         const rawScenes = Array.isArray(structure?.scenes) ? structure.scenes : []
         const totalSeconds = rawScenes.reduce((sum: number, scene: any) => {

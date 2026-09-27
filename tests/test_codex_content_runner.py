@@ -89,24 +89,27 @@ def test_codex_runner_rejects_incomplete_package(monkeypatch, tmp_path):
 def test_visual_pacing_uses_fast_hook_then_gradual_scene_lengths():
     schedule = runner_module._pacing_schedule(300)
 
-    assert len(schedule) == 37
+    assert len(schedule) == 39
     assert [item["duration_seconds"] for item in schedule[:12]] == [5] * 12
-    assert [item["duration_seconds"] for item in schedule[12:20]] == [7] * 8
-    assert [item["duration_seconds"] for item in schedule[20:30]] == [10] * 10
-    assert [item["duration_seconds"] for item in schedule[30:]] == [12] * 7
+    assert [item["duration_seconds"] for item in schedule[:18]] == [5] * 18
+    assert [item["duration_seconds"] for item in schedule[18:24]] == [7] * 6
+    assert [item["duration_seconds"] for item in schedule[24:30]] == [10] * 6
+    assert [item["duration_seconds"] for item in schedule[30:]] == [12] * 9
 
 
 def test_visual_pacing_uses_eighteen_second_cuts_after_scene_sixty():
-    schedule = runner_module._pacing_schedule(960)
+    schedule = runner_module._pacing_schedule(900)
 
     assert [item["duration_seconds"] for item in schedule[:12]] == [5] * 12
-    assert [item["duration_seconds"] for item in schedule[12:20]] == [7] * 8
-    assert [item["duration_seconds"] for item in schedule[20:30]] == [10] * 10
+    assert [item["duration_seconds"] for item in schedule[:18]] == [5] * 18
+    assert [item["duration_seconds"] for item in schedule[18:24]] == [7] * 6
+    assert [item["duration_seconds"] for item in schedule[24:30]] == [10] * 6
     assert [item["duration_seconds"] for item in schedule[30:45]] == [12] * 15
     assert [item["duration_seconds"] for item in schedule[45:60]] == [15] * 15
-    assert [item["duration_seconds"] for item in schedule[60:-1]] == [18] * 18
+    assert [item["duration_seconds"] for item in schedule[60:-1]] == [18] * 16
     assert schedule[-1]["duration_seconds"] == 15
-    assert sum(item["duration_seconds"] for item in schedule) == 960
+    assert len(schedule) == 77
+    assert sum(item["duration_seconds"] for item in schedule) == 900
 
 
 @pytest.mark.parametrize("review_failure", [None, "verdict", "evidence", "story_score", "missing_story_score"])
@@ -142,7 +145,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
         if name in {"02_script", "02b_script_qa"}:
             return {
                 "sections": [
-                    {"scene_order": i, "text": f"{i}번째 날, 연화는 편지에서 어머니의 흔적을 찾았지요." + (f" 그날의 기록 {i}장을 이웃과 확인하자 헤어졌던 이유가 드러났습니다. 연화는 {i}번째 기록을 듣고 다시 집으로 돌아갈 용기를 얻었지요." if i > 12 else "")}
+                    {"scene_order": i, "text": f"{i}번째 날, 연화는 편지에서 어머니의 흔적을 찾았지요." + (f" 그날의 기록 {i}장을 이웃과 확인하자 헤어졌던 이유가 드러났습니다. 연화는 {i}번째 기록을 듣고 다시 집으로 돌아갈 용기를 얻었지요." if i > 18 else "")}
                     for i in range(1, scene_count + 1)
                 ],
                 "script_quality_report": {"verdict": "pass", "score": 90, "critical_issues": []},
@@ -183,7 +186,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                     ],
                 })
             return {"scenes": [
-                    {"scene_order": i, "image_prompt": (f"Scene {i}: Detailed English image prompt with concrete subject action, period setting, lighting, composition, emotion, continuity wardrobe, and unique prop. " * 2), **({"video_prompt": (f"Scene {i}: A continuous period-drama shot showing a character discovering a concrete clue in a lantern-lit courtyard; slow push-in follows restrained hand movement, drifting smoke and fabric respond naturally, focus settles on the clue, then the character holds a stable final pose. no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio.")} if i <= 12 else {})}
+                    {"scene_order": i, "image_prompt": (f"Scene {i}: Detailed English image prompt with concrete subject action, period setting, lighting, composition, emotion, continuity wardrobe, and unique prop. " * 2), **({"video_prompt": (f"Scene {i}: A continuous period-drama shot showing a character discovering a concrete clue in a lantern-lit courtyard; slow push-in follows restrained hand movement, drifting smoke and fabric respond naturally, focus settles on the clue, then the character holds a stable final pose. no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio.")} if i <= 18 else {})}
                 for i in range(1, scene_count + 1)
             ], "image_grid_prompts": grids}
         if name == "05_thumbnail_copy":
@@ -218,12 +221,16 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert any(scene["psd_layer_plan"]["enabled"] for scene in scenes)
     assert any(not scene["psd_layer_plan"]["enabled"] for scene in scenes)
     assert [scene["duration_seconds"] for scene in scenes[:12]] == [5] * 12
-    assert [scene["duration_seconds"] for scene in scenes[12:20]] == [7] * 8
-    assert [scene["duration_seconds"] for scene in scenes[20:30]] == [10] * 10
-    assert [scene["duration_seconds"] for scene in scenes[30:]] == [12] * 7
+    assert [scene["duration_seconds"] for scene in scenes[12:18]] == [5] * 6
+    assert [scene["duration_seconds"] for scene in scenes[18:24]] == [7] * 6
+    assert [scene["duration_seconds"] for scene in scenes[24:30]] == [10] * 6
+    assert [scene["duration_seconds"] for scene in scenes[30:]] == [12] * 9
     assert all(scene["scene_text"] for scene in scenes)
-    assert all(scene.get("video_prompt") for scene in scenes[:12])
-    assert all("video_prompt" not in scene for scene in scenes[12:])
+    assert all(scene.get("video_prompt") for scene in scenes[:18])
+    assert all("video_prompt" not in scene for scene in scenes[18:])
+    assert [scene["video_generation_mode"] for scene in scenes[:18]] == ["user_upload"] * 12 + ["comfyui"] * 6
+    assert [scene["duration_seconds"] for scene in scenes[12:18]] == [5] * 6
+    assert [scene["video_generation_mode"] for scene in scenes[18:]] == ["image"] * (len(scenes) - 18)
     assert "연화" in next(context for name, context in calls if name == '02e_dialogue')["script"]
     assert "Category narration voice: 옛날이야기" in calls[0][1]["category_narration_voice"]
     assert "구수한 테스트 문체" in calls[1][1]["script_style_directive"]

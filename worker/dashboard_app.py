@@ -907,7 +907,7 @@ def _scene_has_video_prompt(scene: dict) -> bool:
     )
 
 
-MAX_VIDEO_PROMPT_SCENES = 12
+MAX_VIDEO_PROMPT_SCENES = 18
 
 
 def _scene_number(scene: dict, index: int) -> int:
@@ -6509,7 +6509,7 @@ function sceneVideoPrompt(scene) {
   return String(scene?.video_prompt || scene?.motion_desc || scene?.flow_prompt || scene?.camera_motion || '').trim();
 }
 
-const MAX_VIDEO_PROMPT_SCENES = 12;
+const MAX_VIDEO_PROMPT_SCENES = 18;
 
 function sceneNumber(scene, index) {
   const value = Number(scene?.scene_order || scene?.scene_number || index + 1);

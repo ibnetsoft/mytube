@@ -15,6 +15,11 @@ from typing import Any
 from PIL import Image
 from psd_tools import PSDImage
 
+try:
+    from .manga_lip_sync import MOUTH_ROLES, validate_lip_sync
+except ImportError:
+    from manga_lip_sync import MOUTH_ROLES, validate_lip_sync
+
 
 SCHEMA = "manga_layer_packages/v1"
 CANVAS_SIZE = (1920, 1080)
@@ -23,9 +28,10 @@ ROLE_ORDER = (
     "character_center", "character_right", "character", "hand_foreground",
     "talisman", "reflection_scene", "training_prop", "title_backdrop",
     "debris", "qi_overlay", "ink_splat", "speedlines", "lens_glint",
-    "light_core", "light_rays",
+    "light_core", "light_rays", *MOUTH_ROLES,
 )
 TEMPLATE_REQUIRED = {
+    "dialogue_closeup": ("background", "character"),
     "angled_triple_reaction": ("background", "character_left", "character_center", "character_right"),
     "body_following_qi": ("background", "character", "talisman"),
     "ink_splat_impact": ("background", "character", "talisman"),
@@ -35,6 +41,7 @@ TEMPLATE_REQUIRED = {
     "backlit_hand_reveal": ("background", "hand_foreground"),
 }
 TEMPLATE_OPTIONAL = {
+    "dialogue_closeup": (),
     "angled_triple_reaction": ("speedlines",),
     "body_following_qi": ("qi_overlay", "speedlines"),
     "ink_splat_impact": ("ink_splat", "speedlines"),
@@ -76,13 +83,27 @@ def scene_spec(scene: dict[str, Any], fallback: int) -> dict[str, Any] | None:
         requirements = {}
     if not isinstance(requirements, dict):
         raise ValueError("asset_requirements must be an object")
+    lip_sync = plan.get("lip_sync")
+    enabled_lips = isinstance(lip_sync, dict) and lip_sync.get("enabled") is True
+    if lip_sync is not None:
+        errors = validate_lip_sync(
+            lip_sync, template=template,
+            character_key=str((plan.get("character_role_keys") or {}).get("character") or ""),
+            duration=float(plan.get("duration_seconds") or scene.get("duration_seconds") or 0),
+        )
+        if errors:
+            raise ValueError("; ".join(errors))
     allowed = set(TEMPLATE_REQUIRED[template]) | set(TEMPLATE_OPTIONAL[template])
+    if enabled_lips:
+        allowed.update(MOUTH_ROLES)
     declared_required = set(_roles(requirements.get("required_layers"), "required_layers"))
     declared_optional = set(_roles(requirements.get("optional_layers"), "optional_layers"))
     unsupported = (declared_required | declared_optional) - allowed
     if unsupported:
         raise ValueError(f"{template}: unrelated layer roles are not allowed: {sorted(unsupported)}")
     required = set(TEMPLATE_REQUIRED[template]) | declared_required
+    if enabled_lips:
+        required.update(MOUTH_ROLES)
     optional = (set(TEMPLATE_OPTIONAL[template]) | declared_optional) - required
     number = _scene_number(scene, fallback)
     if number < 1:
@@ -90,6 +111,7 @@ def scene_spec(scene: dict[str, Any], fallback: int) -> dict[str, Any] | None:
     return {
         "scene_number": number,
         "template": template,
+        "mouth_box": lip_sync["mouth_box"] if enabled_lips else None,
         "required_layers": [role for role in ROLE_ORDER if role in required],
         "optional_layers": [role for role in ROLE_ORDER if role in optional],
         "layer_files": {role: f"scene-{number:03d}-{role.replace('_', '-')}.png"
@@ -137,6 +159,23 @@ def _inputs(spec: dict[str, Any], images_dir: Path) -> list[dict[str, Any]]:
         path = images_dir / filename
         if role in spec["required_layers"] or path.exists():
             layers.append(_validate_png(path, role))
+    if spec.get("mouth_box"):
+        left, top, right, bottom = spec["mouth_box"]
+        centers = []
+        for role in MOUTH_ROLES:
+            with Image.open(images_dir / spec["layer_files"][role]) as image:
+                bounds = image.convert("RGBA").getchannel("A").getbbox()
+            if not bounds:
+                raise ValueError(f"{role}: mouth patch is empty")
+            x0, y0, x1, y1 = [float(v) for v in bounds]
+            width, height = CANVAS_SIZE
+            if (x0 / width < left - .01 or x1 / width > right + .01
+                    or y0 / height < top - .01 or y1 / height > bottom + .01):
+                raise ValueError(f"{role}: mouth patch falls outside the approved mouth_box")
+            centers.append(((x0 + x1) / (2 * width), (y0 + y1) / (2 * height)))
+        if any(abs(x - centers[0][0]) > .018 or abs(y - centers[0][1]) > .018
+               for x, y in centers[1:]):
+            raise ValueError("mouth poses do not share the same face registration")
     return layers
 
 

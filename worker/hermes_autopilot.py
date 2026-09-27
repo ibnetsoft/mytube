@@ -1210,7 +1210,7 @@ class HermesAutopilotManager:
             return False
         if structure.get("media_prompt_status") != "ready":
             return False
-        max_video_prompt_scenes = 12
+        max_video_prompt_scenes = 18
         for index, scene in enumerate(scenes, start=1):
             if not isinstance(scene, dict):
                 return False

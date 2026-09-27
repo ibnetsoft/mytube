@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredVideoScene } from '@/lib/stdPolicy'
+import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '@/lib/stdRenderQueue'
@@ -185,7 +185,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     )
     const missingScenes = (scenes || []).filter((scene: any) => {
         const sceneNumber = Number(scene.scene_number)
-        return isStdRequiredVideoScene(sceneNumber, project)
+        return isStdVideoPromptScene(sceneNumber, project)
             ? !activeVideoSceneNumbers.has(sceneNumber)
             : !activeSceneNumbers.has(sceneNumber)
     })
@@ -196,7 +196,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             missing_scene_numbers: missingScenes.map((scene: any) => scene.scene_number),
             required_video_scene_numbers: (scenes || [])
                 .map((scene: any) => Number(scene.scene_number))
-                .filter((sceneNumber: number) => isStdRequiredVideoScene(sceneNumber, project)),
+                .filter((sceneNumber: number) => isStdVideoPromptScene(sceneNumber, project)),
         }, { status: 409 })
     }
 

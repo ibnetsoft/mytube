@@ -4,6 +4,24 @@ const path = require('node:path');
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
 const ts = require(process.env.TYPESCRIPT_PATH || path.join(root, 'auth-web/node_modules/typescript'));
+const resolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, isMain, options) {
+  if (request === './stdDialogueAnnotations') return path.resolve(root, 'auth-web/lib/stdDialogueAnnotations.ts');
+  try { return resolveFilename.call(this, request, parent, isMain, options); }
+  catch (error) {
+    if (typeof request === 'string' && request.startsWith('.') && typeof parent?.filename === 'string') {
+      const tsPath = path.resolve(path.dirname(parent.filename), `${request}.ts`);
+      if (fs.existsSync(tsPath)) return tsPath;
+    }
+    throw error;
+  }
+};
+require.extensions['.ts'] = (mod, filename) => {
+  const output = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  mod._compile(output, filename);
+};
 function load(name) {
   const filename = path.join(root, 'auth-web/lib', name + '.ts');
   const result = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }, reportDiagnostics: true });
@@ -21,7 +39,7 @@ for (const count of [28, 53, 161]) {
   assert.equal(Math.max(...generated.map(s => s.scene_number)), count);
   assert.equal(integrity.subtitlesMatchSceneManifest(generated, scenes), true);
 }
-assert.equal(subtitles.estimateRequiredSceneCount('가'.repeat(4879), 0), 55);
+assert.equal(subtitles.estimateRequiredSceneCount('가'.repeat(4879), 0), 82);
 const scenes = Array.from({length: 53}, (_, i) => ({scene_number:i+1,image_url:`image-${i+1}`}));
 assert.equal(integrity.findExactSubtitleScene({scene_number:53}, scenes).image_url, 'image-53');
 for (const number of [0, -1, 54, 55, 1.5, NaN]) assert.equal(integrity.findExactSubtitleScene({scene_number:number},scenes,[...scenes,...scenes]),null);
@@ -38,4 +56,4 @@ const visualSection=page.slice(page.indexOf('const subtitleSceneVisual'),page.in
 assert(!visualSection.includes('scenes[0]') && !visualSection.includes('payloadScenes[sceneNumber - 1]'));
 assert(!visualSection.includes('runtimeAssetUrl(subtitle?.image_url'));
 assert(page.includes('subtitlesMatchSceneManifest(savedSubtitles, scenes)'));
-console.log('PASS: explicit 28/53/161 scenes; long scripts; exact boundaries; invalid cached mappings; missing image never substituted.');
+console.log('PASS: explicit 28/53/161 scenes; new 15-minute baseline; long scripts; exact boundaries; invalid cached mappings; missing image never substituted.');

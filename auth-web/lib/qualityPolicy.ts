@@ -11,7 +11,7 @@ export const DEFAULT_QUALITY_POLICY = {
     },
     media: {
         enabled: true, min_image_prompt_chars: 120, min_video_prompt_chars: 260,
-        max_video_prompt_scenes: 12, required_camera_movements: 1,
+        max_video_prompt_scenes: 18, required_camera_movements: 1,
         require_video_guardrails: true, prohibit_duplicate_prompts: true,
         prohibit_duplicate_scene_summaries: true,
         prohibit_duplicate_retention_hooks: true, require_image_grids: true,
@@ -60,7 +60,7 @@ export function normalizeQualityPolicy(value: unknown) {
         media: {
             enabled: bool(media.enabled, true), min_image_prompt_chars: number(media.min_image_prompt_chars, 120, 1, 10000),
             min_video_prompt_chars: number(media.min_video_prompt_chars, 260, 1, 10000),
-            max_video_prompt_scenes: number(media.max_video_prompt_scenes, 12, 0, 500),
+            max_video_prompt_scenes: number(media.max_video_prompt_scenes, 18, 0, 500),
             required_camera_movements: number(media.required_camera_movements, 1, 0, 10),
             require_video_guardrails: bool(media.require_video_guardrails, true),
             prohibit_duplicate_prompts: true,

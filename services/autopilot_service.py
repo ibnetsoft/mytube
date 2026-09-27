@@ -647,52 +647,7 @@ Return JSON only:
                 db.save_project_characters(project_id, characters)
                 print(f"✅ [Auto-Pilot] {len(characters)}명의 캐릭터를 식별하고 저장했습니다. (Style: {style_prefix})")
                 
-                # [NEW] 캐릭터 샘플 이미지 생성 및 적용 (최대 3명)
-                processed_chars = characters[:3]
-                has_applied_reference = False
-                
-                for idx, char in enumerate(processed_chars):
-                    try:
-                        print(f"👤 [Auto-Pilot] 캐릭터 '{char['name']}' ({char['role']}) 샘플 이미지 생성 중...")
-                        detailed_style = style_data.get('prompt_value', style_prefix)
-                        full_prompt = f"{char['prompt_en']}, {detailed_style}"
-                        
-                        # Portrait aspect ratio 1:1
-                        images_bytes = None
-
-                        try:
-                            print(f"🎨 [Auto-Pilot Char] Attempting Gemini...")
-                            images_bytes = await gemini_service.generate_image(
-                                prompt=full_prompt,
-                                num_images=1,
-                                aspect_ratio="1:1"
-                            )
-                        except Exception as e:
-                            print(f"⚠️ [Auto-Pilot Char] Gemini failed: {e}")
-
-                        if images_bytes:
-                            now = config.get_kst_time()
-                            filename = f"char_{project_id}_{idx}_{now.strftime('%H%M%S')}.png"
-                            file_path = os.path.join(config.OUTPUT_DIR, filename)
-                            web_url = f"/output/{filename}"
-                            
-                            with open(file_path, "wb") as f:
-                                f.write(images_bytes[0])
-                            
-                            # DB 업데이트
-                            db.update_character_image(project_id, char['name'], web_url)
-                            
-                            # [핵심] 주인공이거나 첫 번째 캐릭터인 경우 프로젝트 레퍼런스로 자동 적용 (Apply 버튼 효과)
-                            is_protagonist = "주인공" in char.get("role", "")
-                            if not has_applied_reference:
-                                if is_protagonist or (idx == len(processed_chars) - 1) or (idx == 0 and len(processed_chars) == 1):
-                                    db.update_project_setting(project_id, "character_ref_text", char['prompt_en'])
-                                    db.update_project_setting(project_id, "character_ref_image_path", web_url)
-                                    has_applied_reference = True
-                                    print(f"✨ [Auto-Pilot] 주인공 '{char['name']}'을(를) 캐릭터 레퍼런스로 적용했습니다.")
-                        
-                    except Exception as char_e:
-                        print(f"⚠️ [Auto-Pilot] 캐릭터 '{char['name']}' 이미지 생성 실패: {char_e}")
+                print("🖼️ [Auto-Pilot] 캐릭터 이미지는 Codex 이미지 생성 워크플로에서 생성합니다.")
 
         except Exception as e:
             print(f"⚠️ [Auto-Pilot] 캐릭터 추출 실패: {e}")
@@ -1174,29 +1129,10 @@ JSON만 출력하세요:
                     
                     self.set_step(project_id, f"씬 {scene_num} 이미지 생성 중... ({aspect_ratio})")
                     print(f"🎨 [Auto-Pilot] Generating image for Scene {scene_num} (Mode: {mode}, Duration: {duration_sec}s, Aspect Ratio: {aspect_ratio})")
-                    images = None
-                    used_backend = "none"
-
-                    try:
-                        print(f"🎨 [Auto-Pilot] Attempting Gemini...")
-                        images = await gemini_service.generate_image(prompt=prompt_en, aspect_ratio=aspect_ratio)
-                        if images:
-                            used_backend = "Gemini"
-                    except Exception as e:
-                        print(f"⚠️ [Scene {scene_num}] Gemini failed: {e}")
-
-                    print(f"🎨 [Scene {scene_num}] Image generated via {used_backend}")
-
-                    if not images:
-                        err_msg = f"[Asset Gen Error] Image generation failed for Scene {scene_num}."
-                        db.update_project_setting(project_id, "error_msg", err_msg)
-                        db.update_project(project_id, status="error")
-                        raise Exception(err_msg)
-                    
-                    filename = f"img_{project_id}_{scene_num}_{now.strftime('%H%M%S')}.png"
-                    image_abs_path = os.path.join(config.OUTPUT_DIR, filename)
-                    with open(image_abs_path, 'wb') as f: f.write(images[0])
-                    db.update_image_prompt_url(project_id, scene_num, f"/output/{filename}")
+                    raise RuntimeError(
+                        "Gemini 이미지 생성은 비활성화되었습니다. Codex/CoWork 이미지 생성 워크플로에서 "
+                        f"씬 {scene_num} 이미지를 생성한 뒤 다시 실행하세요."
+                    )
                 
                 return True # Image only path success
             except Exception as e:
@@ -1883,31 +1819,7 @@ JSON만 출력하세요:
             duration_sec = config_dict.get("duration_seconds", 300)
             aspect_ratio = "16:9" if duration_sec > 60 else "9:16"
             
-            print(f"🎨 [Auto-Pilot] Generating thumbnail background. Style: {image_style_key}, Aspect: {aspect_ratio}")
-            print(f"📝 Prompt: {final_thumb_prompt[:120]}...")
-            
-            images = None
-
-            try:
-                print(f"🎨 [Auto-Pilot Thumb] Attempting Gemini Imagen...")
-                images = await gemini_service.generate_image(final_thumb_prompt, aspect_ratio=aspect_ratio)
-            except Exception as e:
-                print(f"⚠️ [Auto-Pilot Thumb] Gemini failed: {e}")
-                # [FALLBACK] Retry with generic prompt
-                print("🔄 [Auto-Pilot Thumb] Retrying Gemini with generic prompt due to safety/filter...")
-                generic_prompt = f"Minimal aesthetic abstract background, Style: {style_prefix}, 8k, high quality"
-                try:
-                    images = await gemini_service.generate_image(generic_prompt, aspect_ratio=aspect_ratio)
-                except Exception: pass
-
-            if not images: 
-                print("⚠️ [Auto-Pilot] No images generated for thumbnail. Skipping synthesis.")
-                return
-
-            now = config.get_kst_time()
-            bg_filename = f"thumb_bg_{project_id}_{now.strftime('%H%M%S')}.png"
-            bg_path = os.path.join(config.OUTPUT_DIR, bg_filename)
-            with open(bg_path, 'wb') as f: f.write(images[0])
+            print("🖼️ [Auto-Pilot] Automatic Gemini thumbnail image generation is disabled.")
             
             # 3. 텍스트 합성 (저장된 설정 반영)
             from services.thumbnail_service import thumbnail_service

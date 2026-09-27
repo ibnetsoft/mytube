@@ -3,7 +3,7 @@ import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
+import { isStdRequiredVideoScene, isStdVideoPromptScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
@@ -173,7 +173,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 ? project.project_payload.structure.scenes
                 : (Array.isArray(project.project_payload?.scenes) ? project.project_payload.scenes : [])
             const payloadScene = payloadScenes.find((s: any, index: number) => sceneNumberOf(s, index) === sceneNumber) || {}
-            const requiresVideoPrompt = isStdRequiredVideoScene(sceneNumber, project)
+            const requiresVideoPrompt = isStdVideoPromptScene(sceneNumber, project)
             const { data: insertedScene, error: insertSceneError } = await supabaseAdmin
                 .from('std_project_scenes')
                 .insert({
