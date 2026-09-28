@@ -2896,6 +2896,9 @@ def _resolve_image_style_directive(image_style: str, image_style_selection: dict
     desktop image generation. Worker pre-generation must honor the same admin
     style choice because STD users now see these prompts immediately."""
     style_key = str(image_style or "realistic").strip().lower() or "realistic"
+    from services.japanese_folktale_style import STYLE_KEY, STYLE_PROMPT
+    if style_key == STYLE_KEY:
+        return style_key, STYLE_PROMPT
     style_prompt = ""
     try:
         ensure_project_root_on_path()
@@ -2950,6 +2953,9 @@ def _select_worker_image_style_for_plan(
         except Exception as e:
             logger.warning(f"Worker image style category lookup failed: {e}")
 
+    from services.japanese_folktale_style import category_style
+    category_default = category_style(category_name or ("日本昔話" if category_id == "13" else ""), category_default)
+
     try:
         ensure_project_root_on_path()
         from hermes_autopilot import HermesAutopilotManager
@@ -2961,7 +2967,6 @@ def _select_worker_image_style_for_plan(
         selection = asyncio.run(
             manager._select_image_style(
                 category_name or "uncategorized",
-                topic,
                 upload_title,
                 category_default,
                 manual_override,

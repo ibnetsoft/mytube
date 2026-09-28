@@ -68,7 +68,7 @@ DEFAULT_OFFICIAL_CATEGORIES = [
     {"id": 5, "name": "한국사연", "language": "ko", "keywords": "국내 사연, 시청자 제보, 부부 갈등", "default_script_style": "story", "default_image_style": "he moonlit hanok palace"},
     {"id": 7, "name": "무협", "language": "ko", "keywords": "무협 소설, 강호, 낭인, 동양풍", "default_script_style": "mystery_thriller", "default_image_style": "classic vintage cinema"},
     {"id": 12, "name": "English Folktales", "language": "en", "keywords": "ancient folklore, folktales, classic bedtime stories, fairy tales, mythology storytelling, historical narration", "default_script_style": "story", "default_image_style": "realistic"},
-    {"id": 13, "name": "日本昔話", "language": "ja", "keywords": "江戸時代 昔話,民話,日本の民話,歴史物語 朗読,怖い話,神話伝説", "default_script_style": "story", "default_image_style": "realistic"},
+    {"id": 13, "name": "日本昔話", "language": "ja", "keywords": "江戸時代 昔話,民話,日本の民話,歴史物語 朗読,怖い話,神話伝説", "default_script_style": "story", "default_image_style": "jidaigeki_cel"},
 ]
 
 RETIRED_CATEGORY_NAMES = frozenset({"노후금융", "경제"})
@@ -2403,7 +2403,24 @@ Return ONLY valid JSON in this schema:
         if not manual_override:
             manual_override = (self.settings.get("category_image_style_overrides") or {}).get(category)
 
-        styles = self._available_image_styles()
+        from services.japanese_folktale_style import STYLE_KEY, STYLE_PROMPT, category_style
+        category_default = category_style(category, category_default)
+        if not manual_override and category_default == STYLE_KEY:
+            return {
+                "assigned_image_style": STYLE_KEY,
+                "automatic_style": STYLE_KEY,
+                "selection_source": "category_default",
+                "reason": "일본 옛날이야기 전용 지다이게키 셀화 스타일을 적용합니다.",
+                "category_default": STYLE_KEY,
+            }
+
+        styles = list(self._available_image_styles())
+        if category == "日本昔話" or manual_override == STYLE_KEY:
+            styles.append({
+                "key_code": STYLE_KEY,
+                "display_name_ko": "정통 일본 시대극 애니메이션 (지다이게키 셀화)",
+                "prompt_template": STYLE_PROMPT,
+            })
         by_key = {}
         for item in styles:
             k = str(item.get("key_code") or "").strip().lower()

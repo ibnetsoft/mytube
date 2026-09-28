@@ -2,7 +2,10 @@
 공유 유틸리티 — 여러 라우터에서 공통으로 사용하는 헬퍼/상수/딕셔너리
 """
 
+from services.japanese_folktale_style import STYLE_KEY, STYLE_PROMPT
+
 STYLE_PROMPTS = {
+    STYLE_KEY: STYLE_PROMPT,
     "realistic": "A highly realistic photo, 8k resolution, highly detailed photography, lifelike textures, natural lighting, professional cinematography, high quality",
     "anime": "Anime style illustration, vibrant colors, detailed background, Makoto Shinkai style, high quality",
     "cinematic": "Cinematic movie shot, dramatic lighting, shadow and light depth, highly detailed, 4k",

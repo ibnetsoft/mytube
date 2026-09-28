@@ -1,3 +1,5 @@
+import japaneseFolktaleStyle from './japaneseFolktaleStyle.json'
+
 const LEGACY_AUTOMATIC_IMAGE_STYLES = new Set(['', 'realistic', 'cinematic'])
 
 // Restored from the existing AIR Worker category-image-style screen.
@@ -11,7 +13,7 @@ export const CATEGORY_IMAGE_STYLE_DEFAULTS: Record<string, string> = {
     '한국사연': 'he moonlit hanok palace',
     '무협': 'classic vintage cinema',
     'English Folktales': 'realistic',
-    '日本昔話': 'realistic',
+    '日本昔話': japaneseFolktaleStyle.key,
 }
 
 export function resolveCategoryImageStyle(categoryName: unknown, configuredStyle: unknown): string {
@@ -25,5 +27,5 @@ export function resolveCategoryImageStyle(categoryName: unknown, configuredStyle
 
 export function imageStyleLabelForPrompt(styleKey: unknown): string {
     const style = String(styleKey || '').trim() || 'realistic'
-    return `Selected image style: ${style}.`
+    return `Selected image style: ${style}.` + (style.toLowerCase() === japaneseFolktaleStyle.key ? `\n${japaneseFolktaleStyle.prompt}` : '')
 }
