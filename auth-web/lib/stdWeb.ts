@@ -7,7 +7,7 @@ import {
     buildSceneDurationSchedule,
     estimateRequiredSceneCount,
     getStandardSceneDuration,
-    partitionScriptToScenes,
+    partitionScriptByExistingSceneBoundaries,
     stripGeneratedPlanningText,
 } from './stdSubtitles'
 import { calculateLongformPayoutByScenes } from './stdPayoutPolicy'
@@ -279,7 +279,7 @@ export function buildStdScenes(topic: any) {
         .filter(Boolean)
         .join('\n\n'))
     const sceneCount = scenes.length > 0 ? scenes.length : estimateRequiredSceneCount(script)
-    const partitioned = partitionScriptToScenes(script, sceneCount)
+    const partitioned = partitionScriptByExistingSceneBoundaries(script, scenes, sceneCount)
     const requestedDurationMinutes = Number(topic?.assigned_duration_minutes || topic?.recommended_duration_minutes || 15)
     const durationSchedule = buildSceneDurationSchedule(requestedDurationMinutes * 60)
 
