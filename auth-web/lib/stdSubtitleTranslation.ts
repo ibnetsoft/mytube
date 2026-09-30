@@ -5,6 +5,7 @@ export type SubtitleTranslationBlock = {
 }
 
 export const SUBTITLE_TRANSLATION_LANGUAGES = {
+    ko: 'Korean',
     en: 'English',
     vi: 'Vietnamese',
     th: 'Thai',
@@ -62,7 +63,7 @@ export function buildSubtitleTranslationPrompt(
     targetLanguage: SubtitleTranslationLanguage,
 ): string {
     const languageName = SUBTITLE_TRANSLATION_LANGUAGES[targetLanguage]
-    return `You are translating Korean video subtitle blocks into ${languageName} for a human dialogue reviewer.
+    return `You are translating video subtitle blocks from their original language into ${languageName} for a human dialogue reviewer.
 
 Translate each block independently and faithfully. The reviewer must be able to tell whether the text is character dialogue or narration.
 

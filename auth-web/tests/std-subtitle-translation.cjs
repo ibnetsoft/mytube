@@ -10,14 +10,14 @@ vm.runInNewContext(js, { module: moduleBox, exports: moduleBox.exports, require 
 
 const { buildSubtitleTranslationPrompt, isSubtitleTranslationLanguage, parseStrictTranslationResponse, translationMapFromBlocks } = moduleBox.exports
 const sourceBlocks = [{ id: 'b0', text: '그가 말했다. "가지 마."' }, { id: 'b1', text: '비가 내렸다.' }]
-for (const [language, name] of [['en', 'English'], ['vi', 'Vietnamese'], ['th', 'Thai']]) {
+for (const [language, name] of [['ko', 'Korean'], ['en', 'English'], ['vi', 'Vietnamese'], ['th', 'Thai']]) {
     assert.equal(isSubtitleTranslationLanguage(language), true)
     const prompt = buildSubtitleTranslationPrompt(sourceBlocks, language)
     assert.match(prompt, new RegExp(name))
     assert.match(prompt, /Never merge, split, summarize/)
     assert.match(prompt, /Preserve direct speech as direct speech/)
 }
-assert.equal(isSubtitleTranslationLanguage('ko'), false)
+assert.equal(isSubtitleTranslationLanguage('xx'), false)
 
 const parsed = parseStrictTranslationResponse(JSON.stringify({ translations: [
     { id: 'b0', translation: 'เขาพูดว่า “อย่าไป”' },

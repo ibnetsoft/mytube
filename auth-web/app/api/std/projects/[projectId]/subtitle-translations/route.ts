@@ -56,15 +56,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
     if (!isSubtitleTranslationLanguage(body?.target_language) || !Array.isArray(body?.blocks)) {
-        return NextResponse.json({ success: false, error: 'English, Vietnamese, or Thai subtitle blocks are required' }, { status: 400 })
+        return NextResponse.json({ success: false, error: 'Korean, English, Vietnamese, or Thai subtitle blocks are required' }, { status: 400 })
     }
     const targetLanguage = body.target_language
     const preferGeminiForSubtitleEdit = body?.prefer_gemini === true
     const translationScope = await subtitleTranslationScope()
-    if (translationScope !== 'all' && targetLanguage !== 'th') {
+    if (translationScope !== 'all' && targetLanguage !== 'th' && targetLanguage !== 'ko') {
         return NextResponse.json({
             success: false,
-            error: 'Subtitle translation is configured for Thai only',
+            error: 'Subtitle translation is configured for Thai and Korean',
             scope: translationScope,
         }, { status: 403 })
     }

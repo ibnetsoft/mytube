@@ -805,7 +805,8 @@ export default function StdPortalPage() {
 
     const ui = (text: string) => stdUiText(currentLocale, text)
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
-    const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale) && (subtitleTranslationScope === 'all' || currentLocale === 'th') ? currentLocale : null
+    const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale)
+        && (subtitleTranslationScope === 'all' || currentLocale === 'th' || currentLocale === 'ko') ? currentLocale : null
     const subtitleReviewCopy = subtitleReviewLocale ? SUBTITLE_REVIEW_COPY[subtitleReviewLocale] : null
     const tf = (key: string, values: Record<string, string | number>, fallback?: string) => (
         Object.entries(values).reduce(
