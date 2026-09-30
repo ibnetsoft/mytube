@@ -135,7 +135,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                     0.1,
                     {
                         defaultModel: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,
-                        disableFallback: !preferGeminiForSubtitleEdit,
+                        // Translation must continue with the configured Gemini fallback when
+                        // a selected provider/model returns a transient service error.
+                        disableFallback: false,
                     },
                 )
                 const result = parseStrictTranslationResponse(raw, source)

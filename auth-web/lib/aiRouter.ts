@@ -191,5 +191,12 @@ export async function generateJsonWithModelSetting(
         }
     }
 
-    return await callGemini(geminiApiKey, prompt, selectedModel || FALLBACK_GEMINI_MODEL, temperature)
+    const geminiModel = selectedModel || FALLBACK_GEMINI_MODEL
+    try {
+        return await callGemini(geminiApiKey, prompt, geminiModel, temperature)
+    } catch (err) {
+        if (options?.disableFallback || geminiModel === FALLBACK_GEMINI_MODEL) throw err
+        console.warn(`[AI Router] Gemini failed for ${modelSettingKey} (model=${geminiModel}), falling back to ${FALLBACK_GEMINI_MODEL}`)
+        return await callGemini(geminiApiKey, prompt, FALLBACK_GEMINI_MODEL, temperature)
+    }
 }
