@@ -164,6 +164,14 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
             return {"script_quality_report": report}
         if name == '02e_dialogue':
             return {'scenes': [{'scene_number': i, 'spans': []} for i in range(1, scene_count + 1)]}
+        if name == "02f_scene_visual_director":
+            return {"scene_directions": [
+                {"dramatic_intent": f"Beat {i}", "visual_strategy": "Hold the image for this story beat.",
+                 "timed_beats": [{"start_seconds": 0, "end_seconds": 4, "action": "hold", "target": "scene"}],
+                 "required_layers": [], "additional_keyframes": [], "ae_operations": ["hold"],
+                 "requires_layered_assets": False, "continuity_rules": [],
+                 "qa_assertions": ["No unintended visual change during the hold."]}
+                for i in range(1, scene_count + 1)]}
         if name.startswith('02f_listener_'):
             assert set(context) == {'title', 'sections'}
             return {'verdict': 'pass', 'issues': [], 'strengths': [{'scene_order': 1,
@@ -208,7 +216,9 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     package = runner_module.CodexStagedContentRunner().generate("staged-job", {"target_duration_seconds": 300, "upload_title": "테스트 제목", "title_generation": {"title_candidates": [{"title": "테스트 제목"}]}, "category_name": "옛날이야기", "script_style": "story"})
 
     scenes = package["structure"]["scenes"]
-    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert package["structure"]["scene_visual_director_persona"] == "scene_visual_director"
+    assert all(scene["ae_directorial_plan"]["timed_beats"] for scene in scenes)
+    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02f_scene_visual_director", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
     assert package['structure']['dialogue_annotations']['model'] == 'gpt-6-astra'
     assert package["structure"]["character_reference_status"] == "ready"
     assert package["character_anchors"]["character_image_generation"]["status"] == "ready"
@@ -228,9 +238,15 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert all(scene["scene_text"] for scene in scenes)
     assert all(scene.get("video_prompt") for scene in scenes[:18])
     assert all("video_prompt" not in scene for scene in scenes[18:])
-    assert [scene["video_generation_mode"] for scene in scenes[:18]] == ["user_upload"] * 12 + ["comfyui"] * 6
+    assert [scene["video_generation_mode"] for scene in scenes[:18]] == ["user_upload"] * 18
     assert [scene["duration_seconds"] for scene in scenes[12:18]] == [5] * 6
     assert [scene["video_generation_mode"] for scene in scenes[18:]] == ["image"] * (len(scenes) - 18)
+    assert all(scene["ae_motion_plan"].get("enabled") is True for scene in scenes[:18])
+    assert all(scene["ae_motion_plan"].get("input_source") == "uploaded_video_asset" for scene in scenes[:18])
+    assert all(scene["ae_motion_plan"].get("postprocess_after") == "user_video_ready" for scene in scenes[:18])
+    assert all(scene["ae_directorial_plan"].get("source_video_review_status") == "pending_upload_review" for scene in scenes[:18])
+    assert all("image_fps" not in scene["ae_directorial_plan"] for scene in scenes)
+    assert all(not scene["ae_directorial_plan"].get("storyboard_frames") for scene in scenes)
     assert "연화" in next(context for name, context in calls if name == '02e_dialogue')["script"]
     assert "Category narration voice: 옛날이야기" in calls[0][1]["category_narration_voice"]
     assert "구수한 테스트 문체" in calls[1][1]["script_style_directive"]

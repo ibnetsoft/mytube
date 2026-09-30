@@ -35,6 +35,7 @@ from worker.content_language import (
     setting_directive,
     visual_setting_prompt,
 )
+from scene_visual_director import PERSONA as SCENE_VISUAL_DIRECTOR_PERSONA, validate_directorial_plans
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -134,6 +135,12 @@ AE_TARGET_KEYWORDS = (
 AE_MANGA_CLIP_MAX_SECONDS = 12  # Must match the AE worker's SceneJob duration cap.
 
 AE_MANGA_TEMPLATES = {
+    "directed_performance": {
+        "preset": "directed_scene_performance",
+        "direction": "Stage separately authored character poses and props on timed narration beats; preserve composition and guide attention to the declared target.",
+        "required_layers": ["background"],
+        "optional_layers": [],
+    },
     "dialogue_closeup": {
         "preset": "comic_dialogue_closeup",
         "direction": "Hold a single speaker's face, slowly push in, and animate only an explicitly approved dialogue mouth.",
@@ -374,7 +381,20 @@ def _manga_template_plan(template: str, scene: dict[str, Any], duration: float) 
         },
         "direction": spec["direction"],
     }
-    if template == "dialogue_closeup":
+    if template == "directed_performance":
+        existing = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+        plan["asset_requirements"] = existing.get("asset_requirements") or plan["asset_requirements"]
+        directorial = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
+        required = directorial.get("required_layers")
+        if isinstance(required, list) and required:
+            plan["asset_requirements"] = {**plan["asset_requirements"], "required_layers": list(required)}
+        plan["dramatic_intent"] = existing.get("dramatic_intent") or ""
+        plan["qa_assertions"] = existing.get("qa_assertions") or []
+        plan["continuity_rules"] = existing.get("continuity_rules") or []
+        plan["required_keyframes"] = existing.get("required_keyframes") or []
+        plan["pose_crossfade_seconds"] = float(existing.get("pose_crossfade_seconds") or 0.14)
+        plan["beats"] = existing.get("beats") or []
+    elif template == "dialogue_closeup":
         plan["beats"] = [
             {"at_seconds": 0.0, "action": "face_hold", "target": "character"},
             {"at_seconds": at(0.12), "action": "camera_push", "target": "character"},
@@ -578,6 +598,12 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
     for index, scene in enumerate(scenes, 1):
         if not isinstance(scene, dict):
             continue
+        video_mode = str(scene.get("video_generation_mode") or "").lower()
+        if video_mode in {"user_upload", "comfyui"}:
+            # Video-source scenes get their dedicated motion/post-process plan
+            # below; do not accidentally schedule an image-only AE highlight.
+            scene["ae_effect_plan"] = {"enabled": False, "reason": "video_source_uses_ae_motion_plan"}
+            continue
         scene_blob = _text_blob(
             category_blob,
             scene.get("scene_summary"),
@@ -622,10 +648,19 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
         if isinstance(requested_lips, dict) and requested_lips.get("enabled"):
             priority = 5
         design_preset = (
+            "directed_scene_performance" if template == "directed_performance" else
             "wuxia_sword_aura" if template == "body_following_qi"
             else "anger_impact" if template else selected[0]
         )
         design = _ae_plan_design(design_preset, scene_blob, priority)
+        if template == "directed_performance":
+            existing = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+            design.update({"vfx": [], "targets": [{"type": "directed_focus", "x": 0.5, "y": 0.5}],
+                           "intensity": 0.2, "motion": {"push": 0.0, "drift_x": 0.0,
+                           "drift_y": 0.0, "shake": 0.0}, "transition_in": "none",
+                           "transition_out": "hold_frame",
+                           "quality_checks": {"min_duration_seconds": 1.0,
+                           "min_output_bytes": 1024, "targeted_effects_required": True}})
         if template == "angled_triple_reaction":
             design["targets"] = [{"type": "center_face", "x": 0.51, "y": 0.37}, {"type": "side_reactions", "x": 0.18, "y": 0.42}]
             design["vfx"].extend(["angled_panel_reveal", "reaction_speedlines"])
@@ -723,6 +758,8 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
         raise ValueError("at most eight explicitly selected AE dialogue/caption highlights are supported")
     selected_numbers.update(caption_numbers)
     selected_numbers.update(sfx_text_numbers)
+    selected_numbers.update(int(plan["scene_number"]) for plan in plans
+                            if plan.get("template") == "directed_performance")
     max_highlights = max(max_highlights, len(selected_numbers))
     seen_templates: set[str] = set()
     for plan in plans:
@@ -895,6 +932,32 @@ def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, 
         if effect_plan.get("enabled"):
             scene["ae_motion_plan"] = {"enabled": False, "reason": "covered_by_ae_effect_plan"}
             continue
+        video_mode = str(scene.get("video_generation_mode") or "").lower()
+        if video_mode == "user_upload":
+            directorial = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
+            operations = set(directorial.get("ae_operations") or [])
+            vfx = []
+            if "light_flicker" in operations:
+                vfx.append("warm_lantern_flicker")
+            if "atmosphere_drift" in operations:
+                vfx.append("atmospheric_haze")
+            scene["ae_motion_plan"] = {
+                "enabled": True,
+                "tier": "video_finish",
+                "scene_number": scene_number,
+                "preset": "restrained_video_finish",
+                "priority": 2,
+                "duration_seconds": int(scene.get("duration_seconds") or scene.get("target_duration") or 5),
+                "input_source": "uploaded_video_asset",
+                "postprocess_after": "user_video_ready",
+                "direction": directorial.get("visual_strategy") or "After Effects post-process for the registered user-uploaded source clip; preserve source action, audio timing and duration; apply only restrained, story-motivated finishing.",
+                **({"directorial_plan": directorial, "vfx": vfx} if directorial else {}),
+                "quality_checks": {"min_duration_seconds": 1.0, "min_output_bytes": 1024,
+                                   "targeted_effects_required": False, "fallback_on_failure": "copy_source_video"},
+                "fallback": "copy_source_video",
+            }
+            plans.append({key: value for key, value in scene["ae_motion_plan"].items() if key != "enabled"})
+            continue
         scene_blob = _text_blob(
             category_blob,
             scene.get("scene_summary"),
@@ -928,6 +991,36 @@ def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, 
             "quality_checks": design["quality_checks"],
             "fallback": "ffmpeg_basic_motion",
         }
+        if video_mode not in {"user_upload", "comfyui"}:
+            directorial = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
+            if directorial:
+                operations = set(directorial.get("ae_operations") or [])
+                plan["direction"] = directorial.get("visual_strategy") or plan["direction"]
+                plan["directorial_plan"] = directorial
+                plan["vfx"] = (["cinematic_camera"] if "camera_move" in operations else [])
+                if "light_flicker" in operations:
+                    plan["vfx"].append("warm_lantern_flicker")
+                if "atmosphere_drift" in operations:
+                    plan["vfx"].append("atmospheric_haze")
+                focus = next((beat.get("attention_target") for beat in directorial.get("timed_beats", [])
+                              if isinstance(beat, dict) and isinstance(beat.get("attention_target"), list)), None)
+                if focus:
+                    plan["targets"] = [{"type": "directorial_focus", "x": focus[0], "y": focus[1]}]
+                if "camera_move" not in operations:
+                    plan["motion"] = {"push": 0.0, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.0}
+        if video_mode == "comfyui":
+            plan["input_source"] = "comfyui_video_asset"
+            plan["postprocess_after"] = "comfyui_video_ready"
+            plan["direction"] = (
+                "After Effects post-process for the registered ComfyUI source clip: "
+                "preserve the generated action and timing; apply restrained cinematic "
+                "color, stabilization, subtle camera finish and a clean transition."
+            )
+            plan["quality_checks"] = {
+                **design["quality_checks"],
+                "fallback_on_failure": "copy_source_video",
+            }
+            plan["fallback"] = "copy_source_video"
         scene["ae_motion_plan"] = plan
         plans.append({key: value for key, value in plan.items() if key != "enabled"})
     return plans
@@ -982,6 +1075,18 @@ def _psd_layer_prompt(scene: dict[str, Any], outputs: list[str], mode: str) -> s
     effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
     template = str(effect_plan.get("template") or "") if effect_plan.get("enabled") else ""
     if template in AE_MANGA_TEMPLATES:
+        if template == "directed_performance":
+            director = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
+            return (
+                f"Create independent, registered 1920x1080 PNG layers for directed scene {scene_number}. "
+                f"Dramatic intent: {director.get('dramatic_intent') or effect_plan.get('dramatic_intent') or ''}. "
+                f"Timed actions: {json.dumps(director.get('timed_beats') or effect_plan.get('beats') or [], ensure_ascii=False)}. "
+                "The background layer must be a complete clean plate with every foreground person, blanket, and movable prop removed and the hidden background naturally reconstructed. "
+                "Each foreground or pose role must be a separate transparent-alpha full-canvas PNG, registered to exactly the same camera, scale, lighting, and coordinates as the background. "
+                "Alternate pose roles show only the same character in the named distinct pose; preserve face, age, clothing, anatomy, and blanket coverage. Do not include action from another beat in that pose. "
+                "Prop and shoji layers must contain only the named object, with clean edges and transparent pixels elsewhere. No duplicated flat full-scene copies, fake depth, text, captions, borders, or watermark. "
+                f"Required roles: {', '.join(outputs)}. Source scene prompt: {image_prompt}"
+            )
         tiles = {
             "dialogue_closeup": "Top-Left clean background; Top-Right the verified speaker's close-up face cutout. Keep the mouth region visible and free of captions. Additional closed, half-open, and open mouth patches are authored separately from this character layer after final voice timing is approved.",
             "angled_triple_reaction": "Top-Left clean background without characters; Top-Right left character cutout; Bottom-Left center character cutout; Bottom-Right right character cutout.",
@@ -1072,6 +1177,14 @@ def _plan_image_generation_efficiency(
         and isinstance(scene.get("ae_effect_plan"), dict)
         and scene["ae_effect_plan"].get("enabled")
         and scene["ae_effect_plan"].get("template") in AE_MANGA_TEMPLATES
+    )
+    psd_numbers.update(
+        int(scene.get("scene_number") or scene.get("scene_order") or index)
+        for index, scene in enumerate(scenes, 1)
+        if isinstance(scene, dict)
+        and isinstance(scene.get("ae_effect_plan"), dict)
+        and scene["ae_effect_plan"].get("enabled")
+        and scene["ae_effect_plan"].get("template") == "directed_performance"
     )
     scene_policies: list[dict[str, Any]] = []
     psd_layer_prompts: list[dict[str, Any]] = []
@@ -1596,7 +1709,7 @@ def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = 
                     f"Codex scene {index} duration violates required pacing: expected {expected['duration_seconds']}s"
                 )
         if len(scenes) >= 18 and any(not bool((scene if isinstance(scene, dict) else {}).get("video_prompt_required")) for scene in scenes[:18]):
-            raise CodexContentError("Codex scenes 1-18 require video prompts (user clips 1-12; ComfyUI clips 13-18)")
+            raise CodexContentError("Codex scenes 1-18 require video prompts for user-uploaded clips")
 
 
 def _validate_title_uniqueness(package: dict[str, Any], payload: dict[str, Any]) -> None:
@@ -1633,7 +1746,7 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
                 scene["video_prompt_required"] = index <= 18
                 if index <= 18:
                     scene["visual_type"] = "video"
-                    scene["video_generation_mode"] = "user_upload" if index <= 12 else "comfyui"
+                    scene["video_generation_mode"] = "user_upload"
                 else:
                     scene["visual_type"] = "image"
                     scene.pop("video_prompt", None)
@@ -1807,12 +1920,10 @@ image prompts and video prompts, SFX cues, and publish metadata.
 The visual pacing policy is mandatory. The exact internal scene schedule
 is {json.dumps(_pacing_schedule(payload.get("target_duration_seconds")), ensure_ascii=False)}.
 Generate exactly that many ordered scenes with the listed duration_seconds.
-Scenes 1-12 are five-second user-uploaded video-prompt scenes. Scenes 13-18 are
-five-second ComfyUI image-to-video scenes. Scenes 19-24 are seven seconds, scenes 25-30 are
+Scenes 1-18 are user-uploaded video clips. Scenes 1-12 use the existing early-scene upload flow; scenes 13-18 are user-generated from the scene images, uploaded, and submitted before post-processing. Scenes 19-24 are seven seconds, scenes 25-30 are
 ten seconds, scenes 31-45 are twelve seconds, scenes 46-60 are fifteen seconds,
 and scenes 61 onward are eighteen seconds unless the final remainder is shorter.
-Scenes 1-18 require video_prompt. Scenes 13-18 also require image_prompt as
-ComfyUI's first-frame input. Scenes 19 onward use image_prompt only.
+Scenes 1-18 require video_prompt. Scenes 13-18 retain image_prompt as the user's source for creating their uploaded clips. Scenes 19 onward use image_prompt only.
 Never print timestamps or timecodes in the narration; duration_seconds is
 internal JSON metadata only.
 
@@ -1824,9 +1935,8 @@ video_prompt of at least 260 characters with exactly one approved movement
 (slow push-in, slow pull-back, gentle pan, gentle tilt, slow dolly, slow
 tracking shot, locked-off shot, subtle crane movement, or slow drift) and all
 of these literal guards: no dialogue, no narration, no subtitles, no captions,
-no music, no sound effects, no audio. Mark scenes 1-12 as
-video_generation_mode="user_upload" and scenes 13-18 as
-video_generation_mode="comfyui". Produce prompts only, never media files.
+no music, no sound effects, no audio. Mark scenes 1-18 as
+video_generation_mode="user_upload". Produce prompts only, never media files.
 For Korean packages, write at least 1,000 Hangul characters in the script and
 a Korean publish_metadata.description of at least 120 characters. Include at
 least five tags and three hashtags.
@@ -2005,7 +2115,7 @@ class CodexStagedContentRunner:
                 raise CodexContentError(f"plan scene {index} is not an object")
             scene.update({"scene_order": index, "scene_number": index, "duration_seconds": timing["duration_seconds"], "target_duration": timing["duration_seconds"], "video_prompt_required": index <= 18,
                           "visual_type": "video" if index <= 18 else "image",
-                          "video_generation_mode": "user_upload" if index <= 12 else "comfyui" if index <= 18 else "image"})
+                          "video_generation_mode": "user_upload" if index <= 18 else "image"})
         structure = {"scene_count": len(scenes), "scenes": scenes, "story_core": plan.get("story_core") or {}}
         scene_budgets = _scene_char_budgets(scenes, payload)
         script_context = {
@@ -2112,6 +2222,60 @@ class CodexStagedContentRunner:
                 if attempt:
                     raise CodexContentError(str(exc)) from exc
                 dialogue_context['validation_feedback'] = str(exc)
+        visual_context = {
+            **script_context,
+            "script": script,
+            "scenes": [{key: scene.get(key) for key in (
+                "scene_number", "duration_seconds", "scene_summary", "scene_situation",
+                "scene_purpose", "scene_emotion", "character_choice", "emotional_shift",
+                "reveal_or_question", "scene_text", "narration",
+            )} for scene in scenes],
+        }
+        visual_result = self._stage(
+            job_id, "02f_scene_visual_director", visual_context,
+            SCENE_VISUAL_DIRECTOR_PERSONA + "\n\nFor every supplied scene return one scene_directions item "
+            "in order. Each item must contain dramatic_intent, visual_strategy, timed_beats (start_seconds, "
+            "end_seconds, action, target, optional attention_target), required_layers (empty when no separated "
+            "asset is needed), optional additional_keyframes (only individually justified layers, never a timed "
+            "full-frame storyboard), ae_operations, continuity_rules and observable qa_assertions. Set "
+            "source_video_reviewed=true only when actual uploaded-clip keyframes are supplied. Use only the "
+            "persona's operation allowlist and these layer roles: background, "
+            "character, character_left, character_center, character_right, hand_foreground, talisman, "
+            "reflection_scene, training_prop, title_backdrop, debris, qi_overlay, ink_splat, speedlines, "
+            "lens_glint, light_core, light_rays, pose_sleeping, pose_waking, pose_turning, pose_resting, "
+            "blanket, shoji, prop_focus, mouth_closed, mouth_half, mouth_open. Request only layers whose absence "
+            "would prevent the specified effect; each must have role, reason, and image_prompt. Never request "
+            "one generated image per frame or per second. Never claim AE can invent facial expressions or body "
+            "actions from footage that does not show them. Every beat must fit its scene duration. Do not add "
+            "decorative movement without a story reason. "
+            "Return {'scene_directions':[...]} only.",
+        )
+        try:
+            directorial_plans = validate_directorial_plans(scenes, visual_result)
+        except ValueError as exc:
+            raise CodexContentError(f"scene visual direction rejected: {exc}") from exc
+        for scene, direction in zip(scenes, directorial_plans):
+            if direction["requires_layered_assets"]:
+                scene["ae_effect_plan"] = {
+                    "enabled": True,
+                    "template": "directed_performance",
+                    "template_source": "scene_visual_director",
+                    "preset": "directed_scene_performance",
+                    "duration_seconds": float(scene.get("duration_seconds") or 4),
+                    "direction": direction["visual_strategy"],
+                    "dramatic_intent": direction["dramatic_intent"],
+                    "asset_requirements": {"required_layers": direction["required_layers"], "optional_layers": []},
+                    "pose_crossfade_seconds": 0.14,
+                    "beats": [{"at_seconds": beat["start_seconds"],
+                               "end_seconds": beat["end_seconds"], "action": beat["action"],
+                               "target": beat["target"],
+                               **({"attention_target": beat["attention_target"]}
+                                  if isinstance(beat.get("attention_target"), (list, dict)) else {})}
+                              for beat in direction["timed_beats"]],
+                    "qa_assertions": direction["qa_assertions"],
+                    "continuity_rules": direction["continuity_rules"],
+                    "required_keyframes": direction["additional_keyframes"],
+                }
         if script_only:
             # Local approval console: use the exact production script gates,
             # but stop before character uploads or any media/publication work.
@@ -2120,6 +2284,9 @@ class CodexStagedContentRunner:
             draft_effect_plans = _plan_ae_effects_for_scenes(scenes, payload)
             draft_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
             structure.update({
+                "scene_visual_direction_status": "planned",
+                "scene_visual_director_persona": "scene_visual_director",
+                "scene_visual_direction_count": len(directorial_plans),
                 "ae_effect_plan_status": "planned" if draft_effect_plans else "not_required",
                 "ae_effect_scene_count": len(draft_effect_plans),
                 "ae_effect_plans": draft_effect_plans,
@@ -2152,16 +2319,19 @@ class CodexStagedContentRunner:
         structure.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"],
                          character_anchors=anchors, character_reference_status="ready")
         image_layer_mode = _resolve_image_layer_mode(payload)
-        media_context = {**script_context, "script": script, "character_anchors": anchors, "child_image_guidance": CHILD_IMAGE_GUIDANCE,
+        media_context = {**script_context, "script": script, "scenes": scenes,
+                         "character_anchors": anchors, "child_image_guidance": CHILD_IMAGE_GUIDANCE,
                          "image_layer_mode": image_layer_mode,
+                         "scene_visual_director_persona": SCENE_VISUAL_DIRECTOR_PERSONA,
                          "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Never substitute a different character."}
         media_task = (
             f"Create prompts only from each final scene_text. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
             f"Visual style: {setting['image_style_en']}. Maintain authentic local architecture, interior spaces, streetscape, vehicles, and props without caricature. "
             f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
             f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
+            "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including an inpainted clean background and aligned alternate pose/prop layers. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
             "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
-            "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-18 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-12 use video_generation_mode=user_upload; scenes 13-18 use video_generation_mode=comfyui and retain image_prompt as the ComfyUI first frame. Scenes 19 onward must not contain video_prompt."
+            "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-18 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-18 use video_generation_mode=user_upload. Scenes 19 onward must not contain video_prompt."
         )
         media = {}
         for media_attempt in range(2):
@@ -2197,13 +2367,20 @@ class CodexStagedContentRunner:
                 scenes[index - 1]["video_prompt"] = video
                 scenes[index - 1]["video_prompt_required"] = True
                 scenes[index - 1]["visual_type"] = "video"
-                scenes[index - 1]["video_generation_mode"] = "user_upload" if index <= 12 else "comfyui"
+                scenes[index - 1]["video_generation_mode"] = "user_upload"
                 scenes[index - 1]["duration_seconds"] = 5
             else:
                 scenes[index - 1]["video_prompt_required"] = False
                 scenes[index - 1]["visual_type"] = "image"
                 scenes[index - 1].pop("video_prompt", None)
         ae_effect_plans = _plan_ae_effects_for_scenes(scenes, {**payload, "character_anchors": anchors})
+        for scene in scenes:
+            try:
+                scene_number = int(scene.get("scene_number") or scene.get("scene_order") or 0)
+            except (TypeError, ValueError):
+                continue
+            if scene_number <= 18:
+                scene["video_generation_mode"] = "user_upload"
         ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
         image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload, ae_effect_plans)
         from services.image_grid_prompts import (
@@ -2249,6 +2426,9 @@ class CodexStagedContentRunner:
                 scenes, grids, status="ready", require_status="ready", require_compact_template=True,
             )
         structure.update({
+            "scene_visual_direction_status": "planned",
+            "scene_visual_director_persona": "scene_visual_director",
+            "scene_visual_direction_count": len(directorial_plans),
             "image_grid_prompt_status": "ready",
             "image_grid_prompt_mode": "direct_2x2_only",
             "image_grid_prompts": grids,

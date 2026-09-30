@@ -189,6 +189,13 @@ def _gcs_credentials():
 
 
 def _download_gcs_file(ref: GcsRef, target: Path) -> None:
+    if ref.bucket == "__local__":
+        source = Path(ref.path).expanduser().resolve()
+        if not source.is_file():
+            raise AeWorkerError(f"Local AE source image is missing: {source}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        return
     creds, default_bucket = _gcs_credentials()
     bucket = ref.bucket or default_bucket
     clean_path = ref.path.strip().replace("\\", "/").lstrip("/")
@@ -226,6 +233,24 @@ def _upload_gcs_file(file_path: Path, object_path: str, mime_type: str) -> tuple
 
 def _gcs_ref_from_scene(scene: dict[str, Any]) -> GcsRef | None:
     metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
+    source_kind = str(motion_plan.get("input_source") or "").strip().lower()
+    video_mode = str(scene.get("video_generation_mode") or metadata.get("video_generation_mode") or "").strip().lower()
+    # When a post-process plan names generated video as its input, never fall
+    # back to the scene's still image. Wait for the registered clip instead.
+    if source_kind in {"comfyui_video_asset", "uploaded_video_asset"} or video_mode in {"comfyui", "user_upload"}:
+        asset_key = "comfyui_video_asset" if source_kind == "comfyui_video_asset" or video_mode == "comfyui" else "video_asset"
+        asset = metadata.get(asset_key) if isinstance(metadata.get(asset_key), dict) else {}
+        if not asset and asset_key == "video_asset":
+            asset = metadata.get("cowork_video_asset") if isinstance(metadata.get("cowork_video_asset"), dict) else {}
+        path = str(asset.get("gcs_path") or asset.get("object_path") or asset.get("storage_path")
+                   or metadata.get("video_gcs_path") or metadata.get("uploaded_video_path") or "").strip()
+        if not path and asset.get("storage_url"):
+            path = str(asset.get("storage_url") or "").strip()
+        if not path.lower().endswith((".mp4", ".mov", ".webm", ".m4v")):
+            return None
+        return GcsRef(bucket=str(asset.get("gcs_bucket") or asset.get("bucket") or asset.get("storage_bucket")
+                                  or metadata.get("video_gcs_bucket") or metadata.get("uploaded_video_bucket") or DEFAULT_BUCKET), path=path)
     layered = metadata.get("psd_layer_asset") if isinstance(metadata.get("psd_layer_asset"), dict) else {}
     layered_path = str(layered.get("gcs_path") or layered.get("object_path") or "").strip()
     if layered_path.lower().endswith(".psd"):
@@ -246,6 +271,15 @@ def _gcs_ref_from_scene(scene: dict[str, Any]) -> GcsRef | None:
             or metadata.get("video_gcs_bucket") or metadata.get("video_storage_bucket") or DEFAULT_BUCKET
         ), path=video_path)
     asset = metadata.get("cowork_image_asset") if isinstance(metadata.get("cowork_image_asset"), dict) else {}
+    local_path = str(asset.get("local_path") or "").strip()
+    if asset.get("storage_provider") == "local" and local_path:
+        return GcsRef(bucket="__local__", path=local_path)
+    # Locally prepared AE motion plans may point directly at the cropped still
+    # in the user's workspace. This avoids uploading a still to GCS only to
+    # download it again on the same machine for rendering.
+    planned_local_path = str(motion_plan.get("local_source_path") or "").strip()
+    if planned_local_path:
+        return GcsRef(bucket="__local__", path=planned_local_path)
     bucket = str(
         asset.get("gcs_bucket")
         or asset.get("bucket")
@@ -271,6 +305,38 @@ def _gcs_ref_from_scene(scene: dict[str, Any]) -> GcsRef | None:
         if url_path:
             return GcsRef(bucket=url_bucket or DEFAULT_BUCKET, path=url_path)
     return None
+
+
+def _scene_requires_comfyui(scene: dict[str, Any]) -> bool:
+    """Only queue AE post-processing for ComfyUI scenes after their clip exists."""
+    metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    generation_mode = str(scene.get("video_generation_mode") or metadata.get("video_generation_mode") or "").lower()
+    if generation_mode != "comfyui":
+        return False
+    asset = metadata.get("comfyui_video_asset") if isinstance(metadata.get("comfyui_video_asset"), dict) else {}
+    path = str(
+        asset.get("gcs_path") or asset.get("object_path")
+        or metadata.get("video_gcs_path") or metadata.get("video_storage_path") or ""
+    ).strip()
+    return bool(path and path.lower().endswith((".mp4", ".mov", ".webm", ".m4v")))
+
+
+def _scene_requires_uploaded_video(scene: dict[str, Any]) -> bool:
+    """Only queue user-upload post-processing once their video is registered."""
+    metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    mode = str(scene.get("video_generation_mode") or metadata.get("video_generation_mode") or "").lower()
+    if mode != "user_upload":
+        return False
+    candidates = [metadata.get("video_asset"), metadata.get("cowork_video_asset")]
+    for value in candidates:
+        asset = value if isinstance(value, dict) else {}
+        path = str(asset.get("gcs_path") or asset.get("object_path") or asset.get("storage_path") or "").strip()
+        if path.lower().endswith((".mp4", ".mov", ".webm", ".m4v")):
+            return True
+    return any(
+        str(scene.get(key) or "").strip().lower().endswith((".mp4", ".mov", ".webm", ".m4v"))
+        for key in ("video_url", "uploaded_video_url")
+    )
 
 
 def _render_plan_from_scene(scene: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
@@ -334,6 +400,13 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
                 continue
             render_plan = _render_plan_from_scene(scene)
             if not render_plan:
+                continue
+            # ComfyUI scenes have an AE post-process plan before generation,
+            # but must not be claimed until the source clip has been registered.
+            video_mode = str(scene.get("video_generation_mode") or "").lower()
+            if video_mode == "comfyui" and not _scene_requires_comfyui(scene):
+                continue
+            if video_mode == "user_upload" and not _scene_requires_uploaded_video(scene):
                 continue
             plan_kind, plan = render_plan
             meta = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
@@ -495,6 +568,143 @@ def _ae_path(value: Path) -> str:
     return str(value.resolve()).replace("\\", "/")
 
 
+def _uploaded_video_review_frames(job: SceneJob, clip_path: Path) -> tuple[list[str], list[float]]:
+    """Extract a small set of review frames from the actual uploaded clip."""
+    digest = hashlib.sha256()
+    with clip_path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    source_sha256 = digest.hexdigest()
+    review_dir = ROOT / "output" / "codex-local-console" / "ae-video-review" / f"{_safe_name(job.topic_id)}-{job.scene_number:03d}-{source_sha256[:12]}"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    ffmpeg = _ffmpeg_executable()
+    timestamps = [round(job.duration_seconds * ratio, 3) for ratio in (0.08, 0.5, 0.9)]
+    frame_paths: list[str] = []
+    used_timestamps: list[float] = []
+    for index, timestamp in enumerate(timestamps, 1):
+        frame = review_dir / f"frame_{index:02d}_{timestamp:.3f}s.jpg"
+        if not frame.is_file() or frame.stat().st_size < 1024:
+            result = subprocess.run(
+                [ffmpeg, "-y", "-ss", f"{timestamp:.3f}", "-i", str(clip_path),
+                 "-frames:v", "1", "-vf", "scale=1024:-2", "-q:v", "3", str(frame)],
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90,
+            )
+            if result.returncode != 0 or not frame.is_file() or frame.stat().st_size < 1024:
+                frame.unlink(missing_ok=True)
+                continue
+        frame_paths.append(str(frame.resolve()))
+        used_timestamps.append(timestamp)
+    if len(frame_paths) < 2:
+        raise AeReviewRequired("Could not extract at least two representative frames from the uploaded video")
+    return frame_paths, used_timestamps
+
+
+def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[dict[str, Any], str]:
+    """Finalize the scene direction against frames sampled from its uploaded clip."""
+    frame_paths, timestamps = _uploaded_video_review_frames(job, clip_path)
+    digest = hashlib.sha256()
+    with clip_path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    source_sha256 = digest.hexdigest()
+    asset_key = _asset_key(job)
+    metadata = job.scene.get("metadata") if isinstance(job.scene.get("metadata"), dict) else {}
+    old_asset = metadata.get(asset_key) if isinstance(metadata.get(asset_key), dict) else {}
+    saved_direction = old_asset.get("directorial_plan") if isinstance(old_asset.get("directorial_plan"), dict) else {}
+    if saved_direction.get("source_video_sha256") == source_sha256 and saved_direction.get("source_video_review_status") == "reviewed":
+        direction = saved_direction
+    else:
+        from codex_content_runner import CodexStagedContentRunner
+        from scene_visual_director import PERSONA, validate_directorial_plans
+
+        scene_context = {
+            key: job.scene.get(key)
+            for key in ("scene_number", "scene_order", "scene_summary", "scene_situation", "scene_purpose",
+                        "scene_emotion", "scene_text", "narration", "dialogue_annotations", "video_prompt",
+                        "ae_directorial_plan")
+            if job.scene.get(key) is not None
+        }
+        scene_context["duration_seconds"] = job.duration_seconds
+        scene_context["source_video_review"] = {
+            "status": "uploaded_clip_keyframes_attached",
+            "frame_timestamps_seconds": timestamps,
+            "source_sha256": source_sha256,
+        }
+        result = CodexStagedContentRunner()._stage(
+            f"ae-video-{_safe_name(job.topic_id)}-{job.scene_number:03d}-{source_sha256[:12]}",
+            "02g_uploaded_video_scene_director",
+            {"scenes": [scene_context], "_local_image_paths": frame_paths},
+            PERSONA + "\n\nReview the attached frames from this exact uploaded clip in timestamp order. "
+            "Return one final scene_directions item with source_video_reviewed=true. "
+            "Use no storyboard frames. Keep timed beats tied to visible moments in the attached footage. "
+            "Return {'scene_directions':[...]} only.",
+        )
+        normalized = validate_directorial_plans([scene_context], result)
+        direction = {**normalized[0], "source_video_sha256": source_sha256,
+                     "review_frame_timestamps_seconds": timestamps}
+        if direction.get("source_video_review_status") != "reviewed":
+            raise AeReviewRequired("Scene director did not confirm review of the uploaded video frames")
+
+    if direction.get("requires_layered_assets"):
+        existing_layers = metadata.get("ae_layer_assets") if isinstance(metadata.get("ae_layer_assets"), list) else []
+        available = {str(item.get("role") or "") for item in existing_layers if isinstance(item, dict) and item.get("status") == "ready"}
+        requested_roles = set(direction.get("required_layers") or [])
+        requested_roles.update(str(item.get("role") or "") for item in direction.get("additional_keyframes", [])
+                               if isinstance(item, dict))
+        missing = sorted(requested_roles - available)
+        if missing:
+            raise AeReviewRequired("Scene direction needs prepared layers before AE: " + ", ".join(missing))
+
+    job.scene["ae_directorial_plan"] = direction
+    plan_key = "ae_motion_plan" if job.plan_kind == "motion" else "ae_effect_plan"
+    render_plan = job.scene.get(plan_key) if isinstance(job.scene.get(plan_key), dict) else {}
+    operations = set(direction.get("ae_operations") or [])
+    vfx = []
+    if "light_flicker" in operations:
+        vfx.append("warm_lantern_flicker")
+    if "atmosphere_drift" in operations:
+        vfx.append("atmospheric_haze")
+    render_plan = {**render_plan, "directorial_plan": direction,
+                   "direction": direction.get("visual_strategy") or render_plan.get("direction"),
+                   "vfx": vfx}
+    if "camera_move" not in operations:
+        render_plan["motion"] = {"push": 0.0, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.0}
+    job.scene[plan_key] = render_plan
+    return direction, source_sha256
+
+
+def _qa_uploaded_video_render(job: SceneJob, render_path: Path,
+                             direction: dict[str, Any]) -> dict[str, Any]:
+    """Compare representative rendered frames with the approved scene direction."""
+    frame_paths, timestamps = _uploaded_video_review_frames(job, render_path)
+    from codex_content_runner import CodexStagedContentRunner
+
+    result = CodexStagedContentRunner()._stage(
+        f"ae-qa-{_safe_name(job.topic_id)}-{job.scene_number:03d}-{_sha256_file(render_path)[:12]}",
+        "02h_ae_scene_visual_qa",
+        {
+            "scene_number": job.scene_number,
+            "duration_seconds": job.duration_seconds,
+            "approved_direction": direction,
+            "review_frame_timestamps_seconds": timestamps,
+            "_local_image_paths": frame_paths,
+        },
+        "Review the attached frames from the rendered AE scene against approved_direction and its qa_assertions. "
+        "Check that directed effects happen in the stated time windows, the uploaded action and identities remain "
+        "consistent, and no unintended zoom, repeated motion, color/wardrobe drift, or visual damage appears. "
+        "Return JSON only: {\"passed\":boolean,\"critical_issues\":[string],\"checks\":[{\"assertion\":string,\"passed\":boolean,\"evidence\":string}]}.",
+    )
+    if not isinstance(result, dict) or not isinstance(result.get("passed"), bool):
+        raise AeReviewRequired("Scene visual QA did not return a valid pass/fail result")
+    critical = result.get("critical_issues") if isinstance(result.get("critical_issues"), list) else []
+    checks = result.get("checks") if isinstance(result.get("checks"), list) else []
+    report = {"passed": result["passed"] and not critical, "critical_issues": critical,
+              "checks": checks, "review_frame_timestamps_seconds": timestamps}
+    if not report["passed"]:
+        raise AeReviewRequired("AE scene visual QA failed: " + "; ".join(str(issue) for issue in critical[:6]))
+    return report
+
+
 def _clamp_float(value: Any, default: float, minimum: float, maximum: float) -> float:
     try:
         number = float(value)
@@ -538,6 +748,7 @@ def _effect_plan(job: SceneJob) -> dict[str, Any]:
         "camera": str(plan.get("camera") or "slow_push_in"),
         "light": str(plan.get("light") or "cinematic_edge_light"),
         "vfx": [str(item) for item in (plan.get("vfx") if isinstance(plan.get("vfx"), list) else [])[:8]],
+        "directorial_plan": plan.get("directorial_plan") if isinstance(plan.get("directorial_plan"), dict) else {},
         "primary": primary,
         "secondary": secondary,
         "primary_color": _color_value(palette.get("primary"), [0.58, 0.78, 1.0]),
@@ -571,6 +782,7 @@ def _write_jsx(job: SceneJob, input_image: Path, project_path: Path, render_path
 var imagePath = "{_ae_path(input_image)}";
 var projectPath = "{_ae_path(project_path)}";
 var renderPath = "{_ae_path(render_path)}";
+var statusPath = "{_ae_path(jsx_path.with_suffix('.status.txt'))}";
 var W = {width};
 var H = {height};
 var DUR = {duration:.3f};
@@ -582,9 +794,18 @@ var SECONDARY = [PLAN.secondary.x * W, PLAN.secondary.y * H];
 var PRIMARY_COLOR = PLAN.primary_color;
 var ACCENT_COLOR = PLAN.accent_color;
 var FLASH_COLOR = PLAN.flash_color;
+app.exitAfterLaunchAndEval = true;
 
 function px(value) {{
   return Math.max(1, Math.round(value));
+}}
+
+function writeStatus(value) {{
+  var statusFile = new File(statusPath);
+  if (statusFile.open("w")) {{
+    statusFile.write(value);
+    statusFile.close();
+  }}
 }}
 
 function addFx(layer, matchName, label) {{
@@ -881,16 +1102,33 @@ try {{
   }}
   try {{ bg.audioEnabled = false; }} catch (audioErr) {{}}
   var scale = Math.max(W / footage.width, H / footage.height) * 100;
-  var startScale = scale * (1.015 + Math.max(0, PLAN.push) * 0.35);
-  var endScale = scale * (1.015 + Math.abs(PLAN.push) + INTENSITY * 0.025);
+  var directorCameraMove = false;
+  var directedOps = PLAN.directorial_plan.ae_operations || [];
+  for (var opIndex = 0; opIndex < directedOps.length; opIndex++) {{
+    if (directedOps[opIndex] == "camera_move") directorCameraMove = true;
+  }}
+  var reviewedUploadedClip = PLAN.directorial_plan.source_video_review_status == "reviewed";
+  var startScale = scale * (reviewedUploadedClip && !directorCameraMove ? 1.0 : 1.015 + Math.max(0, PLAN.push) * 0.35);
+  var endScale = scale * (reviewedUploadedClip && !directorCameraMove ? 1.0 : 1.015 + Math.abs(PLAN.push) + INTENSITY * 0.025);
   if (PLAN.push < 0) {{
     startScale = scale * (1.065 + INTENSITY * 0.025);
     endScale = scale * (1.02 + INTENSITY * 0.01);
   }}
   bg.property("Scale").setValueAtTime(0, [startScale, startScale]);
   bg.property("Scale").setValueAtTime(DUR, [endScale, endScale]);
-  bg.property("Position").setValueAtTime(0, [W / 2 - PLAN.drift_x * W * 0.35, H / 2 - PLAN.drift_y * H * 0.35]);
-  bg.property("Position").setValueAtTime(DUR, [W / 2 + PLAN.drift_x * W, H / 2 + PLAN.drift_y * H]);
+  var focusX = PRIMARY[0], focusY = PRIMARY[1];
+  var startRatio = startScale / scale, endRatio = endScale / scale;
+  var startX = W / 2 - (focusX - W / 2) * (startRatio - 1) - PLAN.drift_x * W * 0.35;
+  var startY = H / 2 - (focusY - H / 2) * (startRatio - 1) - PLAN.drift_y * H * 0.35;
+  var endX = W / 2 - (focusX - W / 2) * (endRatio - 1) + PLAN.drift_x * W;
+  var endY = H / 2 - (focusY - H / 2) * (endRatio - 1) + PLAN.drift_y * H;
+  if (reviewedUploadedClip && !directorCameraMove) {{ startX = W / 2; startY = H / 2; endX = W / 2; endY = H / 2; }}
+  bg.property("Position").setValueAtTime(0, [
+    startX, startY
+  ]);
+  bg.property("Position").setValueAtTime(DUR, [
+    endX, endY
+  ]);
   if (PLAN.shake > 0.001) {{
     var shakePixels = Math.round(PLAN.shake * 170);
     bg.property("Position").setValueAtTime(0.32, [W / 2 + shakePixels, H / 2 - shakePixels * 0.35]);
@@ -910,20 +1148,44 @@ try {{
     applyPageTurn(comp, bg);
   }}
 
-  var fog = comp.layers.addSolid(ACCENT_COLOR, "fractal_moving_fog", W, H, 1, DUR);
-  fog.blendingMode = BlendingMode.SCREEN;
-  setOpacity(fog, 0, 0, 1.0, 12 + 30 * INTENSITY, DUR, 8 + 22 * INTENSITY);
-  var fractal = addFx(fog, "ADBE Fractal Noise", "Fractal Noise");
-  if (fractal) {{
-    try {{
-      fractal.property("Contrast").setValue(105 + 95 * INTENSITY);
-      fractal.property("Brightness").setValue(-60 + 24 * INTENSITY);
-      fractal.property("Evolution").setValueAtTime(0, 0);
-      fractal.property("Evolution").setValueAtTime(DUR, 160 + 210 * INTENSITY);
-    }} catch (err1) {{}}
+  if (hasVfx("atmospheric_haze")) {{
+    var fog = comp.layers.addSolid(ACCENT_COLOR, "fractal_moving_fog", W, H, 1, DUR);
+    fog.blendingMode = BlendingMode.SCREEN;
+    var hazeBeats = PLAN.directorial_plan.timed_beats || [];
+    var hazeOpacity = fog.property("Opacity");
+    hazeOpacity.setValueAtTime(0, 0);
+    for (var hb = 0; hb < hazeBeats.length; hb++) {{
+      if (hazeBeats[hb].action != "atmosphere_drift") continue;
+      var ht = Number(hazeBeats[hb].start_seconds), he = Number(hazeBeats[hb].end_seconds);
+      hazeOpacity.setValueAtTime(ht, 0);
+      hazeOpacity.setValueAtTime(Math.min(he, ht + 0.25), 8 + 18 * INTENSITY);
+      hazeOpacity.setValueAtTime(he, 0);
+    }}
+    var fractal = addFx(fog, "ADBE Fractal Noise", "Fractal Noise");
+    if (fractal) {{
+      try {{
+        fractal.property("Contrast").setValue(105 + 95 * INTENSITY);
+        fractal.property("Brightness").setValue(-60 + 24 * INTENSITY);
+        fractal.property("Evolution").setValueAtTime(0, 0);
+        fractal.property("Evolution").setValueAtTime(DUR, 160 + 210 * INTENSITY);
+      }} catch (err1) {{}}
+    }}
+    addFx(fog, "ADBE Turbulent Displace", "Turbulent Displace");
+    addFx(fog, "ADBE Fast Blur", "Gaussian Blur");
   }}
-  addFx(fog, "ADBE Turbulent Displace", "Turbulent Displace");
-  addFx(fog, "ADBE Fast Blur", "Gaussian Blur");
+  if (hasVfx("warm_lantern_flicker")) {{
+    var lantern = comp.layers.addSolid([1.0, 0.67, 0.34], "directed_warm_lantern_bounce", W, H, 1, DUR);
+    lantern.blendingMode = BlendingMode.SCREEN;
+    lantern.property("Opacity").setValueAtTime(0, 0);
+    var visualBeats = PLAN.directorial_plan.timed_beats || [];
+    for (var lb = 0; lb < visualBeats.length; lb++) {{
+      if (visualBeats[lb].action != "light_flicker") continue;
+      var lt = Number(visualBeats[lb].start_seconds), le = Number(visualBeats[lb].end_seconds);
+      lantern.property("Opacity").setValueAtTime(lt, 0);
+      lantern.property("Opacity").setValueAtTime(Math.min(le, lt + 0.08), 7);
+      lantern.property("Opacity").setValueAtTime(le, 0);
+    }}
+  }}
   if (hasVfx("displacement_wave")) {{
     addFx(bg, "ADBE Wave Warp", "Wave Warp");
   }}
@@ -977,7 +1239,10 @@ try {{
     makeSpeechBubbleTypeOn(comp);
   }}
 
-  var moteCount = PLAN.plan_kind == "effect" ? Math.round(24 + 54 * INTENSITY) : 8;
+  var moteCount = 0;
+  if (hasVfx("warm_dust_motes")) {{
+    moteCount = PLAN.plan_kind == "effect" ? Math.round(24 + 54 * INTENSITY) : Math.round(3 + 5 * INTENSITY);
+  }}
   for (var i = 0; i < moteCount; i++) makeMote(comp, i, PRIMARY_COLOR);
 
   if (PLAN.plan_kind == "effect") {{
@@ -994,18 +1259,28 @@ try {{
   addFx(warp, "ADBE Turbulent Displace", "Turbulent Displace");
   }}
 
-  var vignette = comp.layers.addSolid([0, 0, 0], "ink_vignette", W, H, 1, DUR);
-  vignette.blendingMode = BlendingMode.MULTIPLY;
-  setOpacity(vignette, 0, 10 + 12 * INTENSITY, DUR / 2, 20 + 24 * INTENSITY, DUR, 14 + 20 * INTENSITY);
-  addFx(vignette, "ADBE Radial Wipe", "Radial Wipe");
+  if (hasVfx("subtle_vignette")) {{
+    var vignette = comp.layers.addSolid([0, 0, 0], "ink_vignette", W, H, 1, DUR);
+    vignette.blendingMode = BlendingMode.MULTIPLY;
+    setOpacity(vignette, 0, 10 + 12 * INTENSITY, DUR / 2, 20 + 24 * INTENSITY, DUR, 14 + 20 * INTENSITY);
+    addFx(vignette, "ADBE Radial Wipe", "Radial Wipe");
+  }}
 
   var rqItem = app.project.renderQueue.items.add(comp);
   rqItem.outputModule(1).file = new File(renderPath);
   app.project.save(new File(projectPath));
+  if (!new File(projectPath).exists) throw new Error("Project save returned without creating AEP: " + projectPath);
+  writeStatus("success|" + projectPath + "|" + new Date().toUTCString());
+  app.scheduleTask("app.quit()", 1200, false);
+}} catch (err) {{
+  writeStatus("error|" + err.toString() + "|line=" + err.line);
+  app.scheduleTask("app.quit()", 1200, false);
+  throw err;
 }} finally {{
   app.endSuppressDialogs(false);
 }}
 '''
+    jsx_path.with_suffix(".status.txt").unlink(missing_ok=True)
     jsx_path.write_text(jsx, encoding="utf-8")
 
 
@@ -1081,85 +1356,119 @@ def _run_checked(command: list[str], *, timeout: int = 900) -> None:
         )
 
 
-def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, timeout: int = 240) -> None:
-    """Run JSX and wait for its AEP even if the launcher exits first.
+def _request_afterfx_close(process: subprocess.Popen[Any], *, timeout: float = 12) -> bool:
+    """Close only the AE window started by this worker, without force-killing it."""
+    if process.poll() is not None:
+        return True
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
 
-    AE 2026 forwards scripts to an already-running app asynchronously. Killing
-    its launcher immediately after project creation can trigger crash recovery.
-    """
-    candidates = [afterfx]
-    if afterfx.suffix.lower() == ".exe":
-        com_path = afterfx.with_suffix(".com")
-        if com_path.is_file():
-            candidates.append(com_path)
-    else:
-        exe_path = Path(FALLBACK_AFTERFX_EXE)
-        if exe_path.is_file():
-            candidates.append(exe_path)
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            enum_windows = user32.EnumWindows
+            callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+            enum_windows.argtypes = [callback_type, wintypes.LPARAM]
+            enum_windows.restype = wintypes.BOOL
+            get_pid = user32.GetWindowThreadProcessId
+            get_pid.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+            get_pid.restype = wintypes.DWORD
+            post_message = user32.PostMessageW
+            post_message.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+            post_message.restype = wintypes.BOOL
+            target_pid = int(process.pid)
+            sent = False
 
-    errors: list[str] = []
-    previous_mtime = project_path.stat().st_mtime_ns if project_path.is_file() else None
-    status_path = jsx_path.with_suffix(".status.txt")
-    previous_status_mtime = status_path.stat().st_mtime_ns if status_path.is_file() else None
-    for index, candidate in enumerate(dict.fromkeys(candidates)):
-        log_path = jsx_path.with_name(f"afterfx-launch-{index}.log")
-        with log_path.open("wb") as log:
-            process = subprocess.Popen(
-                [str(candidate), "-r", str(jsx_path)],
-                cwd=str(ROOT),
-                stdout=log,
-                stderr=subprocess.STDOUT,
-            )
-            deadline = time.monotonic() + timeout
-            exited_at: float | None = None
-            last_recovery_check = 0.0
-            recovery_clicks = 0
-            stable_project_size = 0
+            @callback_type
+            def visit(hwnd: int, _lparam: int) -> bool:
+                nonlocal sent
+                window_pid = wintypes.DWORD()
+                get_pid(hwnd, ctypes.byref(window_pid))
+                if window_pid.value == target_pid:
+                    sent = bool(post_message(hwnd, 0x0010, 0, 0)) or sent  # WM_CLOSE
+                return True
+
+            enum_windows(visit, 0)
+            if not sent:
+                return False
             try:
-                while time.monotonic() < deadline:
-                    if status_path.is_file():
-                        status_stat = status_path.stat()
-                        if status_stat.st_mtime_ns != previous_status_mtime:
-                            status_text = status_path.read_text(encoding="utf-8", errors="replace")
-                            if status_text.startswith("error|"):
-                                raise AeWorkerError(f"After Effects script failed: {status_text[:800]}")
-                    try:
-                        stat = project_path.stat()
-                    except OSError:
-                        stat = None
-                    if stat and stat.st_size > 1024 and stat.st_mtime_ns != previous_mtime:
-                        if stat.st_size == stable_project_size:
-                            return
-                        stable_project_size = stat.st_size
-                    else:
-                        stable_project_size = 0
-                    now = time.monotonic()
-                    if now - last_recovery_check >= 5:
-                        last_recovery_check = now
-                        if continue_crash_recovery():
-                            recovery_clicks += 1
-                            if recovery_clicks > 3:
-                                raise AeRecoveryError(
-                                    f"AE crash-recovery dialog did not clear after 3 attempts; log={log_path}"
-                                )
-                            # AE needs a moment to finish launching and run the JSX.
-                            exited_at = None
-                    if process.poll() is not None:
-                        exited_at = exited_at or time.monotonic()
-                        if time.monotonic() - exited_at > 30:
-                            break
-                    time.sleep(1)
-            except BaseException:
-                if candidate.suffix.lower() == ".com":
-                    _stop_command(process)
-                raise
-            if process.poll() is None and candidate.suffix.lower() == ".com":
-                _stop_command(process)
-        errors.append(
-            f"{candidate} did not create {project_path} (exit={process.poll()}, log={log_path}): "
-            f"{_log_tail(log_path, 1200)}"
+                process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                return False
+            return True
+        except Exception as exc:
+            print(f"[AE] could not close worker-owned After Effects window: {exc}",
+                  file=sys.stderr, flush=True)
+            return False
+    try:
+        process.terminate()
+        process.wait(timeout=timeout)
+        return True
+    except Exception:
+        return False
+
+
+def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, timeout: int = 240) -> None:
+    """Run JSX in an isolated AE instance and wait for its explicit receipt.
+
+    Without ``-m``, ``-r`` forwards the script to whichever interactive AE
+    instance is already open. That instance may be busy with an unrelated
+    project, so project creation must use a separate command-line instance.
+    """
+    candidate = afterfx
+    if candidate.suffix.lower() == ".com":
+        exe_path = candidate.with_suffix(".exe")
+        if exe_path.is_file():
+            candidate = exe_path
+
+    status_path = jsx_path.with_suffix(".status.txt")
+    status_path.unlink(missing_ok=True)
+    log_path = jsx_path.with_name("afterfx-launch.log")
+    with log_path.open("wb") as log:
+        process = subprocess.Popen(
+            [str(candidate), "-m", "-r", str(jsx_path)],
+            cwd=str(ROOT),
+            stdout=log,
+            stderr=subprocess.STDOUT,
         )
-    raise AeWorkerError("After Effects did not create a project file: " + "; ".join(errors))
+        deadline = time.monotonic() + timeout
+        last_recovery_check = 0.0
+        recovery_clicks = 0
+        try:
+            while time.monotonic() < deadline:
+                if status_path.is_file():
+                    status_text = status_path.read_text(encoding="utf-8", errors="replace")
+                    if status_text.startswith("error|"):
+                        raise AeWorkerError(f"After Effects script failed: {status_text[:800]}")
+                    if status_text.startswith("success|") and project_path.is_file():
+                        if not _request_afterfx_close(process):
+                            print(f"[AE] project saved; worker-owned AE window did not close: pid={process.pid}",
+                                  file=sys.stderr, flush=True)
+                        return
+                now = time.monotonic()
+                if now - last_recovery_check >= 5:
+                    last_recovery_check = now
+                    if continue_crash_recovery():
+                        recovery_clicks += 1
+                        if recovery_clicks > 3:
+                            raise AeRecoveryError(
+                                f"AE crash-recovery dialog did not clear after 3 attempts; log={log_path}"
+                            )
+                if process.poll() is not None and not status_path.exists():
+                    raise AeWorkerError(
+                        f"After Effects command exited without a JSX status receipt "
+                        f"(exit={process.returncode}, log={log_path}): {_log_tail(log_path, 1200)}"
+                    )
+                time.sleep(1)
+        except BaseException:
+            _request_afterfx_close(process)
+            raise
+        if process.poll() is None:
+            _request_afterfx_close(process)
+    raise AeWorkerError(
+        f"After Effects timed out without a JSX status receipt for {project_path}; "
+        f"log={log_path}: {_log_tail(log_path, 1200)}"
+    )
 
 
 def _quality_report(job: SceneJob, mp4_path: Path) -> dict[str, Any]:
@@ -1175,7 +1484,7 @@ def _quality_report(job: SceneJob, mp4_path: Path) -> dict[str, Any]:
         "file_size_bytes": size,
         "min_output_bytes": min_bytes,
         "targeted_effects_required": bool(checks.get("targeted_effects_required", True)),
-        "fallback_on_failure": checks.get("fallback_on_failure") or "ffmpeg_basic_motion",
+        "failure_behavior": "retry_scene_without_substitute_render",
     }
 
 
@@ -1251,6 +1560,24 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     if not valid_file(input_image):
         _download_gcs_file(job.source, input_image)
     checkpoint.mark("downloaded", {"path": str(input_image), "bytes": input_image.stat().st_size})
+
+    # Uploaded clips are the visual ground truth. Finalize the director's
+    # provisional plan against representative frames before creating an AEP;
+    # this also invalidates a cached project when either the clip or its
+    # reviewed direction changes.
+    uploaded_video_direction = None
+    uploaded_video_sha256 = ""
+    if source_suffix in {".mp4", ".mov", ".webm", ".m4v"}:
+        uploaded_video_direction, uploaded_video_sha256 = _review_uploaded_video_direction(job, input_image)
+        direction_plan = _effect_plan(job)
+        identity = fingerprint({
+            "version": 4, "source": job.source.__dict__, "kind": job.plan_kind,
+            "preset": job.preset, "plan": direction_plan, "duration": job.duration_seconds,
+            "width": DEFAULT_WIDTH, "height": DEFAULT_HEIGHT, "fps": DEFAULT_FPS,
+            "source_video_sha256": uploaded_video_sha256,
+        })
+        checkpoint = Checkpoint(workdir / "checkpoint.json", identity)
+
     plan_qa = _manga_preflight(job, input_image) if template else None
     if plan_qa:
         (workdir / "plan-qa.json").write_text(json.dumps(plan_qa, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1290,6 +1617,8 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     if not valid_mp4(mp4_path, job.duration_seconds * 0.8):
         raise AeWorkerError("After Effects render did not create a valid MP4")
     checkpoint.mark("rendered", {"path": str(mp4_path), "bytes": mp4_path.stat().st_size})
+    scene_visual_qa = (_qa_uploaded_video_render(job, mp4_path, uploaded_video_direction)
+                       if uploaded_video_direction is not None else None)
     quality = _quality_report(job, mp4_path)
     if not quality["passed"]:
         raise AeWorkerError(f"AE render quality check failed: {quality}")
@@ -1327,12 +1656,16 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
         "height": DEFAULT_HEIGHT,
         "fps": DEFAULT_FPS,
         "direction_plan": direction_plan,
+        "directorial_plan": uploaded_video_direction,
+        "source_video_sha256": uploaded_video_sha256,
+        "scene_visual_qa": scene_visual_qa,
         "quality_report": quality,
         "manga_qa": {"plan": plan_qa, "render": render_qa} if template else None,
         "review_required": bool(render_qa and render_qa["review_required"]),
         "render_sha256": _sha256_file(mp4_path) if template else "",
         "review_local_path": str(mp4_path.resolve()) if template else "",
         "source_image": {"bucket": job.source.bucket, "object_path": job.source.path},
+        "postprocess_mode": "after_effects",
         "local_workdir": str(workdir) if keep_workdir else "",
     }
     # Preserve the render so Premiere and a restarted worker can verify and reuse it.
@@ -1403,6 +1736,10 @@ def process_job(job: SceneJob, *, keep_workdir: bool = False) -> dict[str, Any]:
             "attempts": attempts,
             "next_retry_at": retry_at if failed_status == "retry_wait" else 0,
         }
+        failed_direction = job.scene.get("ae_directorial_plan")
+        if isinstance(failed_direction, dict) and failed_direction.get("source_video_review_status") == "reviewed":
+            metadata[asset_key]["directorial_plan"] = failed_direction
+            metadata[asset_key]["source_video_sha256"] = failed_direction.get("source_video_sha256")
         scene[_status_key(job)] = failed_status
         _patch_job_structure(
             job, expected_status="rendering",
@@ -1414,6 +1751,9 @@ def process_job(job: SceneJob, *, keep_workdir: bool = False) -> dict[str, Any]:
                 "error": metadata[asset_key]["error"],
                 "attempts": attempts,
                 "next_retry_at": metadata[asset_key]["next_retry_at"],
+                **({"directorial_plan": metadata[asset_key]["directorial_plan"],
+                    "source_video_sha256": metadata[asset_key]["source_video_sha256"]}
+                   if metadata[asset_key].get("directorial_plan") else {}),
             }, next_status=failed_status,
         )
         write_state("failed", 0, _job_summary(job), str(exc)[:800])
@@ -1423,7 +1763,7 @@ def process_job(job: SceneJob, *, keep_workdir: bool = False) -> dict[str, Any]:
 def run_once(args: argparse.Namespace) -> int:
     write_state("polling", 0)
     rows = fetch_candidate_projects(args.topic_limit)
-    if os.getenv("AE_RENDER_PREGEN_TOPICS") == "1":
+    if os.getenv("AE_RENDER_PREGEN_TOPICS") == "1" or args.topic_id:
         rows.extend(fetch_candidate_topics(args.topic_limit))
     jobs = _find_scene_jobs(rows, force=args.force)
     if args.topic_id:
