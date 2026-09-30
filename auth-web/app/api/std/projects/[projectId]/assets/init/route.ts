@@ -2,7 +2,7 @@ import { isComicProject } from '@/lib/stdComic'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
+import { isStdRequiredClipScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
     buildStdGcsObjectPath,
     createGcsSignedUploadUrl,
@@ -59,22 +59,22 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
-    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber, project) && assetType === 'image') {
+    if (sceneNumber != null && isStdRequiredClipScene(sceneNumber, project) && assetType === 'image') {
         return NextResponse.json({
             success: false,
-            error: 'Video file is required for scenes 1-12.',
+            error: 'Video files are required for scenes 1-18.',
             code: 'video_required_for_scene',
         }, { status: 422 })
     }
     if (
         sceneNumber != null
         && !isComicProject(project)
-        && sceneNumber > STD_REQUIRED_VIDEO_SCENE_COUNT
+        && sceneNumber > STD_REQUIRED_CLIP_SCENE_END
         && ['image', 'video'].includes(assetType)
     ) {
         return NextResponse.json({
             success: false,
-            error: 'Generated image scenes after scene 12 are protected and cannot be replaced.',
+            error: 'Image scenes after scene 18 are protected and cannot be replaced.',
             code: 'generated_image_scene_protected',
         }, { status: 422 })
     }

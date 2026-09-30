@@ -5,7 +5,7 @@ import { audioAssetRole } from './stdAudioMix'
 import { sceneMotion, sceneMotionSpeed } from './stdSceneMotion'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
-import { isStdRequiredVideoScene } from './stdPolicy'
+import { isStdRequiredClipScene, isStdRequiredVideoScene } from './stdPolicy'
 import { nextStdRenderVersion, normalizeStdRenderHistory } from './stdRenderVersion'
 import {
     createGcsSignedReadUrl,
@@ -189,7 +189,7 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
         if (
             !Number.isFinite(sceneNumber)
             || sceneNumber <= 0
-            || (!isComicProject(project) && !isStdRequiredVideoScene(sceneNumber))
+            || (!isComicProject(project) && !isStdRequiredClipScene(sceneNumber, project))
             || !generatedVideoStorageSource(scene)
         ) return false
         return !activeAssets.some((asset: any) => (

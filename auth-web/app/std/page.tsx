@@ -190,7 +190,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene, subtitlesMatchSceneManifest } from '@/lib/stdSubtitleSceneIntegrity'
-import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdComfyVideoScene as baseIsStdComfyVideoScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
+import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
     calculateLongformSceneTimings,
@@ -846,8 +846,9 @@ export default function StdPortalPage() {
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const comicProject = isComicProject(selectedProject?.project)
     const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
+    const isStdRequiredClipScene = (number: any) => baseIsStdRequiredClipScene(number, selectedProject?.project)
     const isStdVideoPromptScene = (number: any) => baseIsStdVideoPromptScene(number, selectedProject?.project)
-    const isStdComfyVideoScene = (number: any) => baseIsStdComfyVideoScene(number, selectedProject?.project)
+    const isStdMiddleVideoScene = (number: any) => baseIsStdMiddleVideoScene(number, selectedProject?.project)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
     const mediaSession = JSON.stringify([token, user?.id || user?.email || '', isImpersonating ? impersonateEmail : ''])
     if (mediaScopeRef.current.session !== mediaSession) {
@@ -4509,7 +4510,7 @@ export default function StdPortalPage() {
             if (joined) setCustomScriptText(joined)
         }
 
-        // 1~12씬은 사용자 영상, 13~18씬은 ComfyUI 영상, 19씬 이후는 정지 이미지; scene timing은 canonical pacing 적용
+        // 1~18씬은 사용자 영상 클립, 19씬 이후는 정지 이미지; scene timing은 canonical pacing 적용
         const scenes = selectedProject?.scenes || []
         const savedSubtitles = selectedProject?.project?.project_payload?.subtitles
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
@@ -5557,73 +5558,6 @@ export default function StdPortalPage() {
         return null
     }
 
-    useEffect(() => {
-        const projectId = String(selectedProject?.project?.id || '')
-        const status = String(selectedProject?.project?.status || '')
-        const stillWaitingForComfy = (selectedProject?.scenes || []).some((scene: any) => {
-            const number = Number(scene?.scene_number || scene?.scene_order || 0)
-            return number >= 13 && number <= 18 && !scene?.video_url
-        })
-        if (!projectId || !stillWaitingForComfy || ['review_requested', 'approved', 'canceled'].includes(status)) return
-
-        let stopped = false
-        let activeController: AbortController | null = null
-        let timer: ReturnType<typeof setInterval> | null = null
-        const poll = async () => {
-            if (stopped) return
-            activeController = new AbortController()
-            try {
-                const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
-                if (isImpersonating && impersonateEmail) headers['x-impersonate-email'] = impersonateEmail
-                const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}`, {
-                    headers, signal: activeController.signal,
-                })
-                const payload = await safeParseJson(response, 'ComfyUI scene refresh failed')
-                if (!response.ok || payload?.success === false || stopped) return
-                const incomingScenes = Array.isArray(payload.scenes) ? payload.scenes : []
-                const incomingVideoNumbers = new Set(incomingScenes
-                    .filter((scene: any) => Boolean(scene?.video_url))
-                    .map((scene: any) => Number(scene?.scene_number || scene?.scene_order)))
-                if ([13, 14, 15, 16, 17, 18].every(number => incomingVideoNumbers.has(number))) {
-                    if (timer) clearInterval(timer)
-                    timer = null
-                }
-                const incomingByNumber = new Map(incomingScenes.map((scene: any, index: number) => [
-                    Number(scene?.scene_number || scene?.scene_order || index + 1), scene,
-                ]))
-                setSelectedProject((current: any) => {
-                    if (!current || String(current.project?.id || '') !== projectId) return current
-                    const refreshedScenes = (current.scenes || []).map((scene: any, index: number) => {
-                        const number = Number(scene?.scene_number || scene?.scene_order || index + 1)
-                        const incoming: any = incomingByNumber.get(number)
-                        if (!incoming) return scene
-                        return {
-                            ...scene,
-                            ...(incoming.video_url ? { video_url: incoming.video_url, asset_status: incoming.asset_status || 'ready' } : {}),
-                            metadata: { ...(scene.metadata || {}), ...(incoming.metadata || {}) },
-                        }
-                    })
-                    const next = {
-                        ...current,
-                        scenes: refreshedScenes,
-                        assets: Array.isArray(payload.assets) ? payload.assets : current.assets,
-                    }
-                    rememberProjectState(next)
-                    return next
-                })
-            } catch (error: any) {
-                if (!stopped && error?.name !== 'AbortError') console.warn('[STD] ComfyUI scene refresh failed:', error?.message)
-            }
-        }
-        void poll()
-        timer = setInterval(() => void poll(), 12000)
-        return () => {
-            stopped = true
-            if (timer) clearInterval(timer)
-            activeController?.abort()
-        }
-    }, [selectedProject?.project?.id, selectedProject?.project?.status, token, isImpersonating, impersonateEmail])
-
     const uploadAsset = async (
         scene: any,
         assetType: 'image' | 'video' | 'thumbnail',
@@ -5640,12 +5574,12 @@ export default function StdPortalPage() {
             : file.type?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(lowerFileName)
                 ? 'image'
                 : assetType
-        if (isStdRequiredVideoScene(sceneNum) && actualAssetType !== 'video') {
-            setMessage(`씬 ${sceneNum}은 초반 필수 영상 구간이라 이미지 업로드는 무효입니다. 영상 파일을 업로드하세요.`)
+        if (isStdRequiredClipScene(sceneNum) && actualAssetType !== 'video') {
+            setMessage(`씬 ${sceneNum}은 필수 영상 구간입니다. 영상 파일을 업로드하세요.`)
             return false
         }
-        if (!comicProject && !isStdRequiredVideoScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
-            setMessage(`씬 ${sceneNum}은 생성 이미지 보호 구간이라 유저가 이미지/영상을 교체할 수 없습니다.`)
+        if (!comicProject && !isStdRequiredClipScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
+            setMessage(`씬 ${sceneNum}의 미디어는 교체할 수 없습니다.`)
             return false
         }
         const key = `${sceneNum}-${actualAssetType}`
@@ -6949,12 +6883,12 @@ export default function StdPortalPage() {
             .map(({ sceneNumber }) => sceneNumber)
         const imageScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
-            .filter(({ scene, sceneNumber }) => Boolean(scene.image_url) && !scene.video_url && !isStdRequiredVideoScene(sceneNumber))
+            .filter(({ scene, sceneNumber }) => Boolean(scene.image_url) && !scene.video_url && !isStdRequiredClipScene(sceneNumber))
             .map(({ sceneNumber }) => sceneNumber)
         const completeScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
             .filter(({ scene, sceneNumber }) =>
-                isStdRequiredVideoScene(sceneNumber)
+                isStdRequiredClipScene(sceneNumber)
                     ? Boolean(scene.video_url)
                     : Boolean(scene.video_url || scene.image_url)
             )
@@ -6962,13 +6896,13 @@ export default function StdPortalPage() {
         const missingScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
             .filter(({ scene, sceneNumber }) =>
-                isStdRequiredVideoScene(sceneNumber)
+                isStdRequiredClipScene(sceneNumber)
                     ? !scene.video_url
                     : !scene.video_url && !scene.image_url
             )
             .map(({ sceneNumber }) => sceneNumber)
 
-        const requiredVideoZone = Array.from({ length: STD_REQUIRED_VIDEO_SCENE_COUNT }, (_, index) => index + 1)
+        const requiredVideoZone = Array.from({ length: STD_REQUIRED_CLIP_SCENE_END }, (_, index) => index + 1)
         const videoReadyInZone = videoScenes.filter(num => requiredVideoZone.includes(num))
         const requiredZoneOnlyImage = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
@@ -10539,7 +10473,7 @@ export default function StdPortalPage() {
                                         <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">씬 {assetStats.totalScenes}</span>
                                         <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">유효 이미지 {assetStats.imageCount}</span>
                                         <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">영상 {assetStats.videoCount}</span>
-                                        <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/12</span>
+                                        <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/{STD_REQUIRED_CLIP_SCENE_END}</span>
                                         <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">비주얼 누락 {assetStats.missingScenes.length}</span>
                                     </div>
                                 </div>
@@ -10559,7 +10493,7 @@ export default function StdPortalPage() {
                                     )}
                                     {assetStats.requiredZoneOnlyImage.length > 0 && (
                                         <p className="text-xs text-orange-400">
-                                            🔒 초반 구간 영상 필요 (이미지만 있음: {assetStats.requiredZoneOnlyImage.join(', ')})
+                                            🔒 필수 영상 클립 필요 (이미지만 있음: {assetStats.requiredZoneOnlyImage.join(', ')})
                                         </p>
                                     )}
                                 </div>
@@ -10629,13 +10563,13 @@ export default function StdPortalPage() {
                                         </div>
                                     </div>
 
-                                    {/* 2. ComfyUI 영상(13~18) + 본문 이미지(19씬 이후) 구간 */}
+                                    {/* 2. 필수 영상 클립(13~18) + 본문 이미지(19씬 이후) 구간 */}
                                     <div className="space-y-2 pt-2 border-t border-white/5">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-amber-500/70" />
                                                 <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
-                                                    본문 미디어 구간 (ComfyUI 영상 13~18, 이미지 19~{selectedProject.scenes.length})
+                                                    본문 미디어 구간 (영상 클립 13~18, 이미지 19~{selectedProject.scenes.length})
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -10658,8 +10592,8 @@ export default function StdPortalPage() {
                                                 {selectedProject.scenes.slice(12).map((scene: any, offsetIdx: number) => {
                                                     const idx = offsetIdx + 12
                                                     const sNum = scene.scene_number || idx + 1
-                                                    const isComfyVideo = isStdComfyVideoScene(sNum)
-                                                    const isReady = Boolean(scene.image_url || scene.video_url)
+                                                    const isMiddleVideo = isStdMiddleVideoScene(sNum)
+                                                    const isReady = isMiddleVideo ? Boolean(scene.video_url) : Boolean(scene.image_url || scene.video_url)
                                                     const isUploading = uploadingKey.startsWith(`${sNum}-`)
                                                     return (
                                                         <div
@@ -10675,8 +10609,8 @@ export default function StdPortalPage() {
                                                                     #{sNum}
                                                                 </span>
                                                                 <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
-                                                                    {isComfyVideo
-                                                                        ? scene.video_url ? '🎬 ComfyUI 완료' : isUploading ? '처리 중...' : 'ComfyUI 대기'
+                                                                    {isMiddleVideo
+                                                                        ? scene.video_url ? '🎬 영상 준비됨' : isUploading ? '업로드 중...' : '영상 필요'
                                                                         : scene.image_url ? '🔒 이미지 고정' : isUploading ? '처리 중...' : '이미지 없음'}
                                                                 </span>
                                                             </div>
@@ -10691,6 +10625,10 @@ export default function StdPortalPage() {
                                                                 >
                                                                     보기
                                                                 </button>
+                                                                {isMiddleVideo && <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-300 hover:text-amber-200'} transition-colors`}>
+                                                                    <span className="text-gray-600">|</span> {isUploading ? '업로드 중...' : scene.video_url ? '영상 교체' : '영상 업로드'}
+                                                                    <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || ['review_requested','approved','canceled'].includes(selectedProject.project.status)} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />
+                                                                </label>}
                                                             </div>
                                                         </div>
                                                     )
@@ -10712,8 +10650,8 @@ export default function StdPortalPage() {
                                     .map((scene: any, i: number) => {
                                     const sceneNum = scene.scene_number || i + 1
                                     const inRequiredZone = isStdRequiredVideoScene(sceneNum)
-                                    const inComfyZone = isStdComfyVideoScene(sceneNum)
-                                    const comfyStatus = String(scene?.metadata?.comfyui_video_generation?.status || scene?.comfyui_video_generation?.status || '')
+                                    const inMiddleVideoZone = isStdMiddleVideoScene(sceneNum)
+                                    const requiresClip = isStdRequiredClipScene(sceneNum)
                                     const videoSpec = sceneVideoGeneration(selectedProject.project, selectedProject.scenes.indexOf(scene))
                                     const ratioLabels = videoRatioLabels(currentLocale)
                                     const videoPromptText = getSceneVideoPromptText(scene, sceneNum)
@@ -10752,12 +10690,12 @@ export default function StdPortalPage() {
                                             </div>}
                                             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
                                                 <div className="lg:col-span-4 relative bg-[#11141a] rounded-lg overflow-hidden border border-white/10 aspect-video flex items-center justify-center group">
-                                                    {(inRequiredZone || inComfyZone) && (
+                                                    {(inRequiredZone || inMiddleVideoZone) && (
                                                         <div className={`absolute top-2 left-2 ${inRequiredZone ? 'bg-orange-500' : 'bg-violet-600'} text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow z-10`}>
-                                                            {inRequiredZone ? '직접 업로드 영상' : 'ComfyUI 영상'}
+                                                            {inRequiredZone ? '필수 영상 클립' : '영상 클립'}
                                                         </div>
                                                     )}
-                                                    {inComfyZone && scene.video_url ? (
+                                                    {inMiddleVideoZone && scene.video_url ? (
                                                         <video src={scene.video_url} className="w-full h-full object-cover" controls loop muted playsInline />
                                                     ) : scene.image_url ? (
                                                         <>
@@ -10815,8 +10753,8 @@ export default function StdPortalPage() {
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
                                                             <span className="text-xl">{inRequiredZone ? '🎬' : '🖼️'}</span>
-                                                            <span className="text-xs font-bold text-gray-400">{inRequiredZone ? '영상만 등록 가능' : '생성 이미지 보호됨'}</span>
-                                                            {inRequiredZone || isComicProject(selectedProject.project) ? (
+                                                            <span className="text-xs font-bold text-gray-400">{requiresClip ? '영상 클립 등록 필요' : '생성 이미지 보호됨'}</span>
+                                                            {requiresClip || isComicProject(selectedProject.project) ? (
                                                                 <label className="cursor-pointer mt-1 px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-[11px] font-bold transition-all">
                                                                     📁 영상 업로드
                                                                     <input
@@ -10828,9 +10766,7 @@ export default function StdPortalPage() {
                                                                 </label>
                                                             ) : (
                                                                 <span className="mt-1 px-3 py-1 bg-emerald-950/20 border border-emerald-500/20 text-emerald-300/90 rounded text-[11px] font-bold">
-                                                                    {inComfyZone
-                                                                        ? comfyStatus === 'generating' ? 'ComfyUI 생성 중' : comfyStatus === 'failed' ? 'ComfyUI 생성 대기' : 'ComfyUI 생성 대기'
-                                                                        : '🔒 교체 불가'}
+                                                                    🔒 교체 불가
                                                                 </span>
                                                             )}
                                                         </div>
@@ -10839,7 +10775,7 @@ export default function StdPortalPage() {
 
                                                 <div className="lg:col-span-5 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-blue-500/20">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-bold text-blue-400">🌊 {inComfyZone ? 'ComfyUI Video Prompt' : 'Video Prompt'}</span>
+                                                        <span className="text-[10px] font-bold text-blue-400">🌊 Video Prompt</span>
                                                         <div className="flex items-center gap-1">
                                                             <button
                                                                 onClick={() => copyPromptText(videoPromptText)}
@@ -13315,7 +13251,7 @@ export default function StdPortalPage() {
                                                 </div>
                                                 <h5 className="font-bold text-white text-sm pt-1">롱폼 스튜디오 v2.3.46 정식 업데이트 안내</h5>
                                                 <p className="text-gray-400 leading-relaxed text-[11px] pt-1">
-                                                    1~12씬은 사용자 업로드 영상, 13~18씬은 ComfyUI 5초 영상, 19씬 이후는 정지 이미지를 사용합니다. 모든 구간은 새 페이싱 시간표를 적용하며 자막을 씬 타이밍에 맞춰 분할합니다.
+                                                    1~18씬은 사용자 업로드 영상 클립, 19씬 이후는 정지 이미지를 사용합니다. 모든 구간은 새 페이싱 시간표를 적용하며 자막을 씬 타이밍에 맞춰 분할합니다.
                                                 </p>
                                             </div>
                                         </div>

@@ -322,7 +322,7 @@ export function buildStdScenes(topic: any) {
                 video_prompt: videoPrompt,
                 visual_type: requiresVideoPrompt ? 'video' : 'image',
                 video_prompt_required: requiresVideoPrompt,
-                video_generation_mode: normalizedSceneNumber <= 12 ? 'user_upload' : (requiresVideoPrompt ? 'comfyui' : 'image'),
+                video_generation_mode: requiresVideoPrompt ? 'user_upload' : 'image',
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
                 metadata: scene || {},
             }

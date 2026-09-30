@@ -3,7 +3,7 @@ import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredVideoScene, isStdVideoPromptScene, STD_REQUIRED_VIDEO_SCENE_COUNT } from '@/lib/stdPolicy'
+import { isStdRequiredClipScene, isStdVideoPromptScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
@@ -88,7 +88,7 @@ async function updateSceneAssetStatus(projectId: string, sceneNumber: number, pr
         .in('asset_type', ['image', 'video'])
         .in('status', ['uploaded', 'assigned'])
 
-    const isReady = isStdRequiredVideoScene(sceneNumber, project)
+    const isReady = isStdRequiredClipScene(sceneNumber, project)
         ? Boolean((activeAssets || []).some((asset: any) => asset.asset_type === 'video'))
         : Boolean(activeAssets && activeAssets.length > 0)
 
@@ -139,22 +139,22 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
-    if (sceneNumber != null && isStdRequiredVideoScene(sceneNumber, project) && assetType === 'image') {
+    if (sceneNumber != null && isStdRequiredClipScene(sceneNumber, project) && assetType === 'image') {
         return NextResponse.json({
             success: false,
-            error: 'Video file is required for scenes 1-12.',
+            error: 'Video files are required for scenes 1-18.',
             code: 'video_required_for_scene',
         }, { status: 422 })
     }
     if (
         sceneNumber != null
         && !isComicProject(project)
-        && sceneNumber > STD_REQUIRED_VIDEO_SCENE_COUNT
+        && sceneNumber > STD_REQUIRED_CLIP_SCENE_END
         && ['image', 'video'].includes(assetType)
     ) {
         return NextResponse.json({
             success: false,
-            error: 'Generated image scenes after scene 12 are protected and cannot be replaced.',
+            error: 'Image scenes after scene 18 are protected and cannot be replaced.',
             code: 'generated_image_scene_protected',
         }, { status: 422 })
     }
