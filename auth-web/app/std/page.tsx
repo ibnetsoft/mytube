@@ -1,7 +1,6 @@
 'use client'
 import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
-import StdComicEditor from '@/components/StdComicEditor'
-import { isComicProject, ComicSettings, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
+import { isComicProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
 import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
@@ -5226,29 +5225,6 @@ export default function StdPortalPage() {
         }
     }
 
-    const saveComicSettings = async (comic: ComicSettings) => {
-        if (!selectedProject?.project?.id) return
-        const projectId = selectedProject.project.id
-        if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
-        const renderSettings = { ...(selectedProject.project.project_payload?.render_settings || {}), comic }
-        const res = await fetch('/api/std/projects/' + projectId, {
-            method: 'PATCH', headers: authedJsonHeaders,
-            body: JSON.stringify({ project_payload: { render_settings: renderSettings } }),
-        })
-        const payload = await safeParseJson(res, 'Comic settings save failed')
-        if (!res.ok || payload.success === false) throw new Error(payload.error || '제작 모드를 저장하지 못했습니다.')
-        setSelectedProject(prev => {
-            if (!prev || prev.project.id !== projectId) return prev
-            const next = { ...prev, project: { ...prev.project, project_payload: {
-                ...(prev.project.project_payload || {}), render_settings: {
-                    ...(prev.project.project_payload?.render_settings || {}), comic,
-                },
-            } } }
-            rememberProjectState(next)
-            return next
-        })
-    }
-
     const persistSubtitleRenderSettings = (overrides: Record<string, any> = {}) => {
         if (!selectedProject?.project?.id) return
         const nextRenderSettings = {
@@ -8895,16 +8871,6 @@ export default function StdPortalPage() {
                         ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:pb-0 lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
-                    {selectedProject && (
-                        <StdComicEditor key={selectedProject.project.id}
-                            value={selectedProject.project.project_payload?.render_settings?.comic ?? selectedProject.project.project_payload?.structure?.comic_plan?.render_settings}
-                            scenes={selectedProject.scenes || []}
-                            subtitles={localSubtitles.length ? localSubtitles : selectedProject.project.project_payload?.subtitles || []}
-                            audioUrl={audioResultUrl || selectedProject.project.project_payload?.audio_url || ''}
-                            disabled={['review_requested', 'approved', 'canceled'].includes(selectedProject.project.status)}
-                            onSave={saveComicSettings}
-                        />
-                    )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
                         const isVrewSubtitleMode = true
