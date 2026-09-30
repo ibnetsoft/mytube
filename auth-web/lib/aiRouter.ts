@@ -9,7 +9,10 @@ export function detectProvider(model: string): 'claude' | 'deepseek' | 'openai' 
     return 'gemini'
 }
 
-const FALLBACK_GEMINI_MODEL = 'gemini-2.5-flash'
+// Gemini 2.5 Flash is restricted for new API users. Keep the fallback on a
+// currently supported stable model so subtitle translation can recover when
+// the configured model is temporarily overloaded.
+const FALLBACK_GEMINI_MODEL = 'gemini-3.5-flash'
 const FALLBACK_DEEPSEEK_MODEL = 'deepseek-chat'
 
 function safeProviderError(err: unknown): string {
