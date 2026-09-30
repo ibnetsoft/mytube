@@ -16,6 +16,7 @@ def test_reference_script_adapter_uses_codex_and_maps_scene_contract(monkeypatch
 
     def fake_stage(self, job_id, stage, context, task):
         calls["title_stage"] = stage
+        calls["title_task"] = task
         return {"title": "달빛 아래 비녀를 돌려준 아이"}
 
     def fake_generate(self, job_id, payload, *, script_only=False):
@@ -40,6 +41,7 @@ def test_reference_script_adapter_uses_codex_and_maps_scene_contract(monkeypatch
     ))
 
     assert calls["title_stage"] == "01_grounded_title"
+    assert "natural Korean" in calls["title_task"]
     assert calls["script_only"] is True
     assert calls["payload"]["category_id"] == "2"
     assert calls["payload"]["target_duration_seconds"] == 300
@@ -48,3 +50,26 @@ def test_reference_script_adapter_uses_codex_and_maps_scene_contract(monkeypatch
     assert result["dialogue_mode"] is False
     assert result["scenes"][0]["speaker"] == "나레이터"
     assert result["hook"] == "비녀에 새겨진 이름은 누구의 것일까요?"
+
+
+def test_japanese_folktale_title_stage_requests_japanese(monkeypatch):
+    calls = {}
+
+    def fake_stage(self, job_id, stage, context, task):
+        calls["task"] = task
+        return {"title": "月夜にかんざしを返した娘"}
+
+    def fake_generate(self, job_id, payload, *, script_only=False):
+        calls["language"] = payload["language"]
+        return {"script": "娘は持ち主にかんざしを返しました。", "structure": {"scenes": []}}
+
+    monkeypatch.setattr(codex_content_runner.CodexStagedContentRunner, "_stage", fake_stage)
+    monkeypatch.setattr(codex_content_runner.CodexStagedContentRunner, "generate", fake_generate)
+
+    result = asyncio.run(notebooklm_service.generate_notebooklm_project(
+        "かんざしを返した娘の昔話", category="日本昔話", duration_minutes=15
+    ))
+
+    assert "natural Japanese" in calls["task"]
+    assert calls["language"] == "ja"
+    assert result["title"] == "月夜にかんざしを返した娘"

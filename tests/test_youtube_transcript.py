@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -28,9 +29,18 @@ def test_invalid_urls(url):
 
 def fake_track(monkeypatch, text):
     import youtube_transcript_api
-    track = SimpleNamespace(language_code='ko', is_generated=True,
+    track = SimpleNamespace(language_code='ko', language='Korean', is_generated=True,
                             fetch=lambda: [SimpleNamespace(text=text)])
-    tracks = SimpleNamespace(find_transcript=lambda languages: track)
+    class Tracks:
+        def __iter__(self):
+            return iter([track])
+
+        def find_transcript(self, languages):
+            if 'ko' in languages:
+                return track
+            raise youtube_transcript_api.NoTranscriptFound('id', self, languages)
+
+    tracks = Tracks()
     monkeypatch.setattr(youtube_transcript_api.YouTubeTranscriptApi, 'list', lambda self, identity: tracks)
     monkeypatch.setattr(service.TimeoutSession, 'get', lambda *a, **k: SimpleNamespace(
         raise_for_status=lambda: None, json=lambda: {'title': '테스트 영상'}))
@@ -43,9 +53,39 @@ def test_extract_preserves_content_and_origin(monkeypatch):
     assert result['url'] == 'https://www.youtube.com/watch?v=vLB3e-eH2j8'
     assert result['title'] == '테스트 영상'
     assert result['is_generated'] is True
+    assert result['available_languages'] == [
+        {'code': 'ko', 'name': 'Korean', 'is_generated': True}
+    ]
 
 
-@pytest.mark.parametrize('text', ['', 'x' * 40001])
+def test_selected_language_is_not_silently_changed(monkeypatch):
+    fake_track(monkeypatch, '원문')
+    with pytest.raises(ValueError, match='사용 가능 언어: ko'):
+        service.extract_transcript('https://youtu.be/vLB3e-eH2j8', 'ja')
+
+
+def test_reference_url_builder_imports_youtube_transcript(monkeypatch):
+    from worker import dashboard_app
+
+    def fake_extract(url, language):
+        return {
+            'title': '테스트 영상', 'url': 'https://www.youtube.com/watch?v=vLB3e-eH2j8',
+            'video_id': 'vLB3e-eH2j8', 'text': '영상의 원문 자막', 'language': 'ko',
+            'language_name': 'Korean', 'is_generated': False,
+            'available_languages': [{'code': 'ko', 'name': 'Korean', 'is_generated': False}],
+        }
+
+    monkeypatch.setattr(service, 'extract_transcript', fake_extract)
+    text, sources = asyncio.run(dashboard_app._build_notebooklm_source_text({
+        'source_urls': 'https://youtu.be/vLB3e-eH2j8', 'source_language': 'ko',
+    }))
+
+    assert '영상의 원문 자막' in text
+    assert sources[0]['type'] == 'youtube_transcript'
+    assert sources[0]['language'] == 'ko'
+
+
+@pytest.mark.parametrize('text', ['', 'x' * 40001], ids=['empty', 'oversized'])
 def test_reject_empty_and_oversize(monkeypatch, text):
     fake_track(monkeypatch, text)
     with pytest.raises(ValueError):

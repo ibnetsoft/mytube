@@ -583,6 +583,25 @@ async def _build_notebooklm_source_text(body: dict) -> tuple[str, list[dict]]:
 
     for url in _split_reference_lines(body.get("source_urls")):
         try:
+            from worker.youtube_transcript import extract_transcript, is_youtube_url
+            if is_youtube_url(url):
+                transcript = await run_in_threadpool(
+                    extract_transcript, url, str(body.get("source_language") or "auto")
+                )
+                text = transcript["text"]
+                chunks.append(
+                    f"[YouTube transcript: {transcript['title']} | {transcript['url']} | "
+                    f"language={transcript['language']} | "
+                    f"{'auto-generated' if transcript['is_generated'] else 'human-authored'}]\n{text}"
+                )
+                sources.append({
+                    "type": "youtube_transcript", "value": transcript["url"],
+                    "title": transcript["title"], "language": transcript["language"],
+                    "language_name": transcript["language_name"],
+                    "is_generated": transcript["is_generated"], "chars": len(text),
+                    "available_languages": transcript["available_languages"],
+                })
+                continue
             text = await _fetch_reference_url(url)
             if text.strip():
                 chunks.append(f"[URL: {url}]\n{text}")
@@ -604,6 +623,24 @@ async def _build_notebooklm_source_text(body: dict) -> tuple[str, list[dict]]:
             sources.append({"type": "path", "value": raw_path, "error": str(exc)})
 
     return "\n\n---\n\n".join(chunks).strip(), sources
+
+
+@app.post("/api/notebooklm/extract-youtube")
+async def api_notebooklm_extract_youtube(
+    body: dict = Body(...),
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    """Preview a YouTube caption track before using it as a Codex source."""
+    require_auth(authorization, cookie)
+    from worker.youtube_transcript import extract_transcript
+    url = str(body.get("url") or "").strip()
+    language = str(body.get("source_language") or "auto").strip()
+    try:
+        result = await run_in_threadpool(extract_transcript, url, language)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"success": True, "transcript": result}
 
 
 def _run_hermes_offline_harness(*, force: bool = False) -> dict:
@@ -2522,7 +2559,14 @@ async def api_notebooklm_generate(
     require_auth(authorization, cookie)
     source_text, sources = await _build_notebooklm_source_text(body)
     if not source_text:
-        raise HTTPException(400, "참고 자료를 입력해주세요.")
+        failures = [
+            f"{item.get('value') or item.get('filename') or item.get('type')}: {item['error']}"
+            for item in sources if item.get("error")
+        ]
+        detail = "참고 자료를 입력해주세요."
+        if failures:
+            detail = "참고자료를 가져오지 못했습니다. " + " / ".join(failures[:4])
+        raise HTTPException(422, detail)
 
     mode = str(body.get("mode") or "dialogue_podcast")
     if mode not in {"dialogue_podcast", "narrator"}:
@@ -4615,7 +4659,19 @@ tr:hover { background: #161b22; }
             <div class="form-row">
               <div class="form-group">
                 <label>참고 URL (여러 줄 입력)</label>
-                <textarea id="nlm-urls" rows="4" placeholder="https://example.com/article-1&#10;https://example.com/report-2"></textarea>
+                <textarea id="nlm-urls" rows="4" placeholder="https://www.youtube.com/watch?v=...&#10;https://example.com/article"></textarea>
+                <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+                  <label for="nlm-source-language" style="margin:0">자막 언어</label>
+                  <select id="nlm-source-language" style="max-width:160px">
+                    <option value="auto">자동 선택</option>
+                    <option value="ko">한국어</option>
+                    <option value="ja">日本語</option>
+                    <option value="en">English</option>
+                    <option value="th">ไทย</option>
+                  </select>
+                  <button class="btn btn-sm" type="button" id="nlm-extract-youtube" onclick="extractYouTubeReference()">YouTube 자막 추출·미리보기</button>
+                  <span class="info" id="nlm-youtube-status">영상 URL은 제출 시 자막을 자동 추출합니다.</span>
+                </div>
               </div>
               <div class="form-group">
                 <label>로컬 파일 경로 (여러 줄 입력)</label>
@@ -7390,6 +7446,42 @@ async function handleNotebookLMFiles(files) {
   }
 }
 
+async function extractYouTubeReference() {
+  const urlsEl = document.getElementById('nlm-urls');
+  const sourceEl = document.getElementById('nlm-source');
+  const statusEl = document.getElementById('nlm-youtube-status');
+  const buttonEl = document.getElementById('nlm-extract-youtube');
+  const urls = (urlsEl?.value || '').split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+  if (urls.length !== 1) {
+    showToast('미리보기 추출은 URL 입력란에 YouTube URL 하나만 남겨주세요.', 'error');
+    return;
+  }
+  const sourceLanguage = document.getElementById('nlm-source-language')?.value || 'auto';
+  if (buttonEl) { buttonEl.disabled = true; buttonEl.textContent = '자막 추출 중...'; }
+  if (statusEl) statusEl.textContent = 'YouTube 자막 트랙을 확인하고 있습니다.';
+  try {
+    const data = await api('POST', '/api/notebooklm/extract-youtube', {
+      url: urls[0], source_language: sourceLanguage,
+    });
+    if (!data || data.success === false || !data.transcript) {
+      throw new Error(data?.detail || data?.error || '자막 추출 실패');
+    }
+    const transcript = data.transcript;
+    const originType = transcript.is_generated ? 'YouTube 자동 생성 자막' : '수동 자막';
+    const sourceBlock = `[YouTube 원문 자막 · ${transcript.title} · ${transcript.language_name || transcript.language} · ${originType}]\nURL: ${transcript.url}\n\n${transcript.text}`;
+    if (sourceEl) sourceEl.value = `${sourceEl.value || ''}${sourceEl.value?.trim() ? '\n\n---\n\n' : ''}${sourceBlock}`;
+    urlsEl.value = '';
+    const options = (transcript.available_languages || []).map(item => `${item.name} (${item.code})${item.is_generated ? ' 자동' : ''}`).join(', ');
+    if (statusEl) statusEl.textContent = `${transcript.language_name || transcript.language} 자막 ${transcript.text.length.toLocaleString()}자 추출 완료${options ? ` · 사용 가능: ${options}` : ''}`;
+    showToast('자막을 참고자료에 넣었습니다. 내용을 확인·수정한 뒤 Codex 대본을 생성하세요.');
+  } catch (e) {
+    if (statusEl) statusEl.textContent = e.message || String(e);
+    showToast(`YouTube 자막 추출 실패: ${e.message || e}`, 'error');
+  } finally {
+    if (buttonEl) { buttonEl.disabled = false; buttonEl.textContent = 'YouTube 자막 추출·미리보기'; }
+  }
+}
+
 async function submitNotebookLM() {
   const sourceEl = document.getElementById('nlm-source');
   const resultEl = document.getElementById('nlm-result');
@@ -7406,6 +7498,7 @@ async function submitNotebookLM() {
   const body = {
     source_text: sourceText,
     source_urls: sourceUrls,
+    source_language: document.getElementById('nlm-source-language')?.value || 'auto',
     source_paths: sourcePaths,
     mode: 'narrator',
     category: document.getElementById('nlm-category')?.value?.trim() || '옛날이야기',

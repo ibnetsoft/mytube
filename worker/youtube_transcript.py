@@ -5,15 +5,29 @@ from urllib.parse import urlsplit, parse_qs
 import requests
 
 
+YOUTUBE_HOSTS = {
+    'youtu.be', 'youtube.com', 'www.youtube.com', 'm.youtube.com',
+    'music.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com',
+}
+
+
+def is_youtube_url(value):
+    try:
+        return urlsplit(str(value).strip()).hostname in YOUTUBE_HOSTS
+    except ValueError:
+        return False
+
+
 def video_id_from_url(value):
     try:
         url = urlsplit(value.strip())
-        if url.scheme not in ('http', 'https') or url.username or url.password or url.port:
+        if (url.scheme not in ('http', 'https') or url.username or url.password
+                or url.port or url.hostname not in YOUTUBE_HOSTS):
             raise ValueError()
         parts = url.path.strip('/').split('/')
         if url.hostname == 'youtu.be' and len(parts) == 1:
             identity = parts[0]
-        elif url.hostname in ('youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'):
+        elif url.hostname in YOUTUBE_HOSTS - {'youtu.be'}:
             if url.path == '/watch':
                 identity = parse_qs(url.query).get('v', [''])[0]
             elif len(parts) == 2 and parts[0] in ('shorts', 'embed', 'live'):
@@ -35,7 +49,7 @@ class TimeoutSession(requests.Session):
         return super().request(*args, **kwargs)
 
 
-def extract_transcript(url):
+def extract_transcript(url, preferred_language='auto'):
     identity = video_id_from_url(url)
     try:
         from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
@@ -45,10 +59,21 @@ def extract_transcript(url):
     try:
         with TimeoutSession() as session:
             tracks = YouTubeTranscriptApi(http_client=session).list(identity)
-            try:
-                track = tracks.find_transcript(['ko', 'ko-KR', 'en', 'en-US'])
-            except NoTranscriptFound:
-                track = next(iter(tracks), None)
+            available = list(tracks)
+            if not available:
+                track = None
+            elif preferred_language and preferred_language != 'auto':
+                try:
+                    track = tracks.find_transcript([preferred_language])
+                except NoTranscriptFound:
+                    languages = ', '.join(dict.fromkeys(item.language_code for item in available))
+                    raise ValueError(
+                        f'선택한 자막 언어({preferred_language})가 없습니다. 사용 가능 언어: {languages}'
+                    ) from None
+            else:
+                # Prefer a human-authored track while preserving the video's own
+                # language order. Fall back to YouTube's generated captions.
+                track = next((item for item in available if not item.is_generated), available[0])
             if track is None:
                 raise ValueError('사용 가능한 자막이 없습니다. 자막을 직접 붙여넣거나 음성 전사가 필요합니다.')
             transcript = track.fetch()
@@ -65,7 +90,13 @@ def extract_transcript(url):
             except (requests.RequestException, ValueError):
                 pass
             return {'title': title, 'text': text, 'url': canonical,
-                    'language': track.language_code, 'is_generated': track.is_generated}
+                    'video_id': identity, 'language': track.language_code,
+                    'language_name': track.language, 'is_generated': track.is_generated,
+                    'available_languages': [
+                        {'code': item.language_code, 'name': item.language,
+                         'is_generated': item.is_generated}
+                        for item in available
+                    ]}
     except ValueError:
         raise
     except Exception as exc:
