@@ -8,6 +8,7 @@ import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 import { isGcsConfiguredAsync, createGcsSignedReadUrl } from '@/lib/gcsStorage'
+import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,13 +72,23 @@ function isSupabaseStorageUrl(value: any): boolean {
     return url.includes('/storage/v1/object/') || url.includes('/storage/v1/render/')
 }
 
+function gcsProxyUrl(bucket: any, objectPath: any): string {
+    const safeBucket = String(bucket || '').trim()
+    const safePath = String(objectPath || '').trim().replace(/^\/+/, '')
+    if (!safeBucket || !safePath || safePath.includes('..')) return ''
+    const query = new URLSearchParams({ bucket: safeBucket, path: safePath })
+    return `/api/std/assets/gcs-file?${query.toString()}`
+}
+
 function sceneSupabaseImageUrl(scene: any): string {
     const metadata = scene?.metadata || {}
     const nestedMetadata = metadata?.metadata || {}
     const coworkAsset = metadata?.cowork_image_asset || nestedMetadata?.cowork_image_asset || {}
+    const canonicalUrl = sceneImageUrl(scene)
     const directUrl = cleanUrl(scene?.image_url || scene?.image)
         || cleanUrl(metadata?.image_url || metadata?.image || nestedMetadata?.image_url || nestedMetadata?.image)
-    return (isSupabaseStorageUrl(directUrl) ? directUrl : '')
+    return (canonicalUrl !== directUrl ? canonicalUrl : '')
+        || (isSupabaseStorageUrl(directUrl) ? directUrl : '')
         || storagePublicUrl(coworkAsset?.bucket || metadata?.bucket || nestedMetadata?.bucket, coworkAsset?.object_path || metadata?.object_path || nestedMetadata?.object_path)
         || storagePublicUrl(
             metadata?.storage_bucket || nestedMetadata?.storage_bucket,
@@ -143,7 +154,17 @@ function assetFastMediaUrl(asset: any): string {
         metadata?.storage_public_url
         || nestedMetadata?.storage_public_url
     )
-    if (storagePublic) return storagePublic
+
+    const provider = String(metadata?.storage_provider || nestedMetadata?.storage_provider || '').trim().toLowerCase()
+    const gcsPath = String(metadata?.gcs_path || nestedMetadata?.gcs_path || (provider === 'gcs' ? metadata?.storage_path || nestedMetadata?.storage_path : '') || '').trim()
+    const gcsBucket = String(metadata?.gcs_bucket || nestedMetadata?.gcs_bucket || (provider === 'gcs' ? metadata?.storage_bucket || nestedMetadata?.storage_bucket : '') || '').trim()
+    const gcsProxy = gcsProxyUrl(gcsBucket, gcsPath)
+    if (gcsProxy) return gcsProxy
+
+    if (storagePublic) {
+        const canonicalStorageUrl = sceneImageUrl({ image_url: storagePublic, metadata })
+        if (canonicalStorageUrl) return canonicalStorageUrl
+    }
 
     // 3차: Supabase bucket/path 기반 공용 URL 동적 생성
     return storagePublicUrl(
