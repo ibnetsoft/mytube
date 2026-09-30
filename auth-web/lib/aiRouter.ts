@@ -12,14 +12,6 @@ export function detectProvider(model: string): 'claude' | 'deepseek' | 'openai' 
 const FALLBACK_GEMINI_MODEL = 'gemini-2.5-flash'
 const FALLBACK_DEEPSEEK_MODEL = 'deepseek-chat'
 
-function safeProviderError(err: unknown): string {
-    const message = err instanceof Error ? err.message : String(err || 'unknown provider error')
-    return message
-        .replace(/(AIza[0-9A-Za-z_-]{20,})/g, '[redacted-api-key]')
-        .replace(/(Bearer\s+)[^\s,;]+/gi, '$1[redacted]')
-        .slice(0, 240)
-}
-
 async function callClaude(supabaseAdmin: SupabaseClient, prompt: string, model: string, temperature?: number): Promise<string> {
     let claudeApiKey = process.env.CLAUDE_API_KEY
     if (!claudeApiKey) {
@@ -204,7 +196,7 @@ export async function generateJsonWithModelSetting(
         return await callGemini(geminiApiKey, prompt, geminiModel, temperature)
     } catch (err) {
         if (options?.disableFallback || geminiModel === FALLBACK_GEMINI_MODEL) throw err
-        console.warn(`[AI Router] Gemini failed for ${modelSettingKey} (model=${geminiModel}), falling back to ${FALLBACK_GEMINI_MODEL}: ${safeProviderError(err)}`)
+        console.warn(`[AI Router] Gemini failed for ${modelSettingKey} (model=${geminiModel}), falling back to ${FALLBACK_GEMINI_MODEL}`)
         return await callGemini(geminiApiKey, prompt, FALLBACK_GEMINI_MODEL, temperature)
     }
 }
