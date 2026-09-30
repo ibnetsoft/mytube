@@ -12,6 +12,7 @@ function load(name) {
     return exports
 }
 const comic = load('stdComic'), policy = load('stdPolicy'), steps = load('stdProjectStepStatus')
+const characterThumbnails = load('stdCharacterThumbnail')
 const { balloonPopScale } = load('stdComicLettering')
 assert.equal(balloonPopScale(0), .72)
 assert.equal(balloonPopScale(.36), 1)
@@ -33,6 +34,10 @@ assert.equal(policy.isStdMiddleVideoScene(13, standard), true)
 assert.equal(policy.isStdMiddleVideoScene(18, standard), true)
 assert.equal(policy.isStdMiddleVideoScene(19, standard), false)
 assert.equal(policy.isStdRequiredVideoScene(1, book), false)
+assert.deepEqual(characterThumbnails.gcsCharacterObjectFromUrl('/api/std/assets/gcs-file?bucket=air-studio-prod&path=topics%2F3373%2Fcharacters%2Fcodex-main.png', 'https://studio.example'), { bucket: 'air-studio-prod', path: 'topics/3373/characters/codex-main.png' })
+assert.equal(characterThumbnails.gcsCharacterObjectFromUrl('https://elsewhere.example/api/std/assets/gcs-file?bucket=air-studio-prod&path=topics%2F3373%2Fcharacters%2Fcodex-main.png', 'https://studio.example'), null)
+assert.equal(characterThumbnails.gcsCharacterObjectFromUrl('/api/std/assets/gcs-file?bucket=air-studio-prod&path=private%2Fsecret.png', 'https://studio.example'), null)
+assert.equal(characterThumbnails.characterImageContentType('topics/3373/characters/a.webp'), 'image/webp')
 assert.equal(policy.isStdRequiredVideoScene(1), true)
 assert.equal(comic.selectComicMedia('comic', 'image', 'video'), 'image')
 assert.equal(comic.selectComicMedia('moving_comic', 'image', 'video'), 'video')
