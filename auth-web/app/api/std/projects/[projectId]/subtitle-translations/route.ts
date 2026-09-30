@@ -146,7 +146,16 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }
     } catch (error: any) {
         const blocked = String(error?.message || '').includes('API_KEY_SERVICE_BLOCKED')
-        console.error('[subtitle-translations] generation failed', { status: error?.status, blocked })
+        const providerMessage = String(error?.message || 'unknown provider error')
+            .replace(/(AIza[0-9A-Za-z_-]{20,})/g, '[redacted-api-key]')
+            .replace(/(Bearer\s+)[^\s,;]+/gi, '$1[redacted]')
+            .slice(0, 240)
+        console.error('[subtitle-translations] generation failed', {
+            status: error?.status,
+            blocked,
+            provider: error?.name || 'Error',
+            message: providerMessage,
+        })
         return NextResponse.json({
             success: false,
             error: blocked
