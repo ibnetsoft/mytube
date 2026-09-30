@@ -33,4 +33,15 @@ const twoAnnotations = {version:1,source:'codex-ai',scenes:[{scene_number:1,sour
  {text:'어서 와.',start:0,end:5,speaker:'가',status:'confirmed'},
  {text:'반갑다.',start:5,end:9,speaker:'나',status:'confirmed'}]}]};
 assert.deepEqual(obj.splitSubtitleDialogueBlocks([{...original[0],text:two}],twoAnnotations).map(s=>s.dialogue_speaker),['가','나']);
+
+const jidaigeki = 'やがて身を引き、「まずは、お入り」と声をかけました。お鈴は小さく頭を下げ、';
+const jidaigekiStart = Array.from(jidaigeki).join('').indexOf('まずは');
+const jidaigekiDialogue = 'まずは、お入り';
+const jidaigekiAnnotations = {version:1,source:'codex-ai',scenes:[{scene_number:16,source_text:jidaigeki,spans:[
+ {text:jidaigekiDialogue,start:jidaigekiStart,end:jidaigekiStart+Array.from(jidaigekiDialogue).length,speaker:'大五郎',status:'confirmed'}
+]}]};
+const jidaigekiBlocks = obj.splitSubtitleDialogueBlocks([{scene_number:16,text:jidaigeki,start_num:0,end_num:1}],jidaigekiAnnotations,true);
+assert.deepEqual(jidaigekiBlocks.map(s=>s.text),['やがて身を引き、','「まずは、お入り」','と声をかけました。お鈴は小さく頭を下げ、']);
+assert.deepEqual(jidaigekiBlocks.map(s=>s.dialogue_kind),['narration','dialogue','narration']);
+assert.equal(jidaigekiBlocks[1].dialogue_speaker,'大五郎');
 console.log('AI speech-boundary splitting, speakers, timing and idempotency passed');

@@ -176,6 +176,16 @@ const meaningChunks = [
 ]
 assert.deepEqual(splitTextToSingleLineChunks(meaningChunks.join(' ')), meaningChunks)
 assert.deepEqual(splitTextToSingleLineChunks('왔습니다. 떠났습니다.'), ['왔습니다.', '떠났습니다.'])
+const japaneseNarration = '江戸から離れた下総の、静かな村でのことでございます。夜霧の降りた道を歩いていたお鈴は、母の声に足を止めました。'
+const japaneseChunks = splitTextToSingleLineChunks(japaneseNarration)
+assert.ok(japaneseChunks.length > 1, 'Japanese narration should split into readable subtitle units')
+assert.equal(japaneseChunks.join(''), japaneseNarration, 'Japanese splitting must preserve the original script')
+assert.ok(japaneseChunks.every(chunk => chunk.length <= 30), 'Japanese subtitle chunks should respect the configured reading length')
+assert.deepEqual(splitTextToSingleLineChunks('「まずは、お入り」と声をかけました。', 20, {dialogue:true}), ['「まずは、お入り」と声をかけました。'])
+const longJapaneseDialogue = '「お母さんと、また大げんかをしたの。今夜は、ここに泊めてください」'
+const longJapaneseDialogueChunks = splitTextToSingleLineChunks(longJapaneseDialogue, 20, {dialogue:true})
+assert.ok(longJapaneseDialogueChunks.length > 1, 'Long Japanese dialogue should split into readable units')
+assert.equal(longJapaneseDialogueChunks.join(''), longJapaneseDialogue, 'Japanese dialogue splitting must preserve quotes and text')
 assert.deepEqual(splitTextToSingleLineChunks('순덕은 밥을 먹고 있었습니다.'), ['순덕은 밥을 먹고 있었습니다.'])
 assert.deepEqual(splitTextToSingleLineChunks('창고 안에 물건이 있습니다.'), ['창고 안에 물건이 있습니다.'])
 assert.deepEqual(splitTextToSingleLineChunks('속도는 1.5배입니다. 괜찮습니다.'), ['속도는 1.5배입니다.', '괜찮습니다.'])

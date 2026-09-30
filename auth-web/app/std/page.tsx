@@ -36,12 +36,15 @@ import {
 } from '@/lib/stdMediaLoading'
 import {
     isSubtitleTranslationLanguage,
+    SUBTITLE_TRANSLATION_LANGUAGES,
     SubtitleTranslationLanguage,
     subtitleTranslationKey,
     translationMapFromBlocks,
     remapSubtitleTranslationMap,
     subtitleTranslationIndexes,
 } from '@/lib/stdSubtitleTranslation'
+
+const SUBTITLE_REVIEW_LANGUAGES = Object.keys(SUBTITLE_TRANSLATION_LANGUAGES) as SubtitleTranslationLanguage[]
 
 const SUBTITLE_REVIEW_COPY: Record<SubtitleTranslationLanguage, {
     code: string
@@ -56,6 +59,11 @@ const SUBTITLE_REVIEW_COPY: Record<SubtitleTranslationLanguage, {
     narrationVoice: string
     pending: string
 }> = {
+    ko: {
+        code: 'KO', name: '한국어', translating: '번역 중…', retry: '번역 실패 · 다시 시도',
+        candidate: '대사일 수 있음', markDialogue: '대사로 표시', markNarration: '나레이션', automatic: '자동 판별',
+        dialogueVoice: '인물 음성', narrationVoice: '나레이션 음성', pending: '번역 대기 중',
+    },
     en: {
         code: 'EN', name: '영어', translating: 'Translating…', retry: 'Translation failed · retry',
         candidate: 'Possible dialogue', markDialogue: 'Mark as dialogue', markNarration: 'Narration', automatic: 'Auto detect',
@@ -1776,7 +1784,7 @@ export default function StdPortalPage() {
     }, [token, authedJsonHeaders])
 
     const alignedSubtitleTranslations = useMemo(() => Object.fromEntries(
-        (['en', 'vi', 'th'] as const).map(language => [language,
+        SUBTITLE_REVIEW_LANGUAGES.map(language => [language,
             remapSubtitleTranslationMap(subtitleTranslations[language] || {}, localSubtitles),
         ]),
     ), [subtitleTranslations, localSubtitles])
@@ -1789,7 +1797,7 @@ export default function StdPortalPage() {
         setTranslatingSubtitleLanguage(null)
         setSubtitleTranslationError('')
         setSubtitleTranslations(Object.fromEntries(
-            (['en', 'vi', 'th'] as const).map(language => [
+            SUBTITLE_REVIEW_LANGUAGES.map(language => [
                 language,
                 translationMapFromBlocks(persistedSubtitleTranslations?.[language]?.blocks),
             ]),

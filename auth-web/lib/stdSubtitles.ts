@@ -217,8 +217,16 @@ export function splitTextToSingleLineChunks(
     const limit = Math.ceil(target * 1.5)
     const cleaned = text.replace(/\s+/g, ' ').trim()
     const chunks: string[] = []
+    const hasJapanese = /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}/u.test(cleaned)
     // A confirmed speaker turn is a single unit when it fits comfortably.
-    if (options.dialogue && cleaned.length <= Math.max(40, target * 2)) return [cleaned]
+    if (options.dialogue && cleaned.length <= (hasJapanese ? target : Math.max(40, target * 2))) return [cleaned]
+    // Japanese has no whitespace between words. Split narration on real clause
+    // boundaries (sentence punctuation, Japanese commas, and safe connectives)
+    // before falling back to a character-count split.
+    if (hasJapanese) {
+        const japanese = splitJapaneseNarration(cleaned, target, limit)
+        if (japanese.length > 1) return repairSubtitleQuoteBoundaries(japanese)
+    }
     // Keep sentence punctuation and closing quotes with the preceding sentence.
     // A decimal point is not a sentence boundary.
     const sentences = cleaned.match(/.*?[.!?。！？…]+["'”’」』]*(?=\s|$)|.+$/gu) || [cleaned]
@@ -285,6 +293,75 @@ export function splitTextToSingleLineChunks(
         }
     }
     return repairSubtitleQuoteBoundaries(chunks)
+}
+
+function splitJapaneseNarration(text: string, target: number, limit: number): string[] {
+    const clauses = text.split(/(?<=[。！？!?…])|(?<=、)|(?<=，)|(?<=；)|(?<=;)|(?<=：)|(?<=:)/u)
+        .map(part => part.trim()).filter(Boolean)
+    if (clauses.length < 2 && text.length <= limit) return [text]
+
+    const chunks: string[] = []
+    let start = 0
+    while (start < clauses.length) {
+        let end = start + 1
+        let length = clauses[start].length
+        while (end < clauses.length && length + clauses[end].length <= limit
+            && (!/[。！？!?…]$/u.test(clauses[end - 1]) || length < Math.ceil(target * 0.55))) {
+            length += clauses[end].length
+            end += 1
+        }
+        // Prefer a nearby sentence-ending boundary, then clause-ending comma.
+        // Never leave a very short remainder when a slightly longer chunk fits.
+        const candidates: {end:number; length:number; rank:number}[] = []
+        for (let candidate = start + 1; candidate <= end; candidate++) {
+            const chunkLength = clauses.slice(start, candidate).join('').length
+            if (chunkLength > limit) break
+            const last = clauses[candidate - 1]
+            const sentenceEnd = /[。！？!?…]$/u.test(last)
+            const clauseEnd = /[、，；;：:]$/u.test(last)
+            if ((sentenceEnd || clauseEnd) && chunkLength >= Math.ceil(target * 0.55)) {
+                candidates.push({end:candidate,length:chunkLength,rank:sentenceEnd ? 0 : 1})
+            }
+        }
+        const preferred = candidates.sort((a,b)=>a.rank-b.rank || Math.abs(target-a.length)-Math.abs(target-b.length))[0]
+        if (preferred && (end < clauses.length || preferred.end === end)) end = preferred.end
+        else if (end === start + 1 && end < clauses.length
+            && /[。！？!?…]$/u.test(clauses[start]) && clauses[start].length < target
+            && clauses[start].length + clauses[end].length <= limit) end += 1
+        if (end === start + 1 && clauses[start].length > limit) {
+            chunks.push(...splitLongJapaneseClause(clauses[start], target, limit))
+        } else {
+            chunks.push(clauses.slice(start,end).join(''))
+        }
+        start = end
+    }
+    return chunks
+}
+
+function splitLongJapaneseClause(text: string, target: number, limit: number): string[] {
+    const result: string[] = []
+    let rest = text
+    const boundaries = /(?:ので|けれども|けれど|けど|ながら|ところ|ため|そして|しかし|それから|ところが|けれど|から|のに|ても|ては|て、|、)/gu
+    while (rest.length > limit) {
+        const min = Math.max(1, Math.floor(target * 0.55))
+        const max = Math.min(rest.length - 1, limit)
+        const candidates: {index:number; end:number; score:number}[] = []
+        for (const match of rest.matchAll(boundaries)) {
+            const index = match.index ?? -1
+            const end = index + match[0].length
+            if (end < min || end > max) continue
+            // Prefer clause connectors/comma and balanced chunks. Avoid cutting
+            // on the common noun-ending が where it is not a conjunction.
+            const connective = /^(?:ので|けれども|けれど|けど|ながら|ため|そして|しかし|それから|ところが|から|のに|ても|ては|て、|、)$/.test(match[0])
+            candidates.push({index, end, score: Math.abs(end - target) - (connective ? 3 : 0)})
+        }
+        const best = candidates.sort((a,b)=>a.score-b.score)[0]
+        const cut = best?.end || Math.min(limit, Math.max(1,target))
+        result.push(rest.slice(0,cut))
+        rest = rest.slice(cut)
+    }
+    if (rest) result.push(rest)
+    return result
 }
 
 const closingQuotePairs: Record<string, string> = {

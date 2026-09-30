@@ -1,6 +1,25 @@
 export type DialoguePart = { text: string; dialogue: boolean; speaker?: string }
 // Whitespace/quote removal is subtitle alignment only, never speech classification.
 const ignored = (char: string) => /[\s"'“”‘’「」『』]/u.test(char)
+const quotePairs: Record<string, string> = { '「': '」', '『': '』', '“': '”', '‘': '’' }
+
+function confirmedQuoteBoundaries(source: string[], spans: any[]) {
+    const stack: { quote: string; index: number }[] = []
+    const pairs: { start: number; end: number }[] = []
+    source.forEach((char, index) => {
+        const close = quotePairs[char]
+        if (close) {
+            stack.push({ quote: close, index })
+            return
+        }
+        const openIndex = stack.map(item => item.quote).lastIndexOf(char)
+        if (openIndex < 0) return
+        const [open] = stack.splice(openIndex, 1)
+        pairs.push({ start: open.index, end: index })
+    })
+    return pairs.filter(pair => spans.some(span => span.start > pair.start && span.end <= pair.end))
+}
+
 export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<number, DialoguePart[]> {
     const result = new Map<number, DialoguePart[]>()
     if (annotations?.version !== 1 || annotations?.source !== 'codex-ai' || !Array.isArray(annotations.scenes)) return result
@@ -49,8 +68,6 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
 
                 if (matchedSpan) {
                     result.set(i, [{ text: subText, dialogue: true, speaker: String(matchedSpan.speaker) }])
-                } else {
-                    result.set(i, [{ text: subText, dialogue: false }])
                 }
             }
             continue
@@ -58,12 +75,22 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
         const spans = scene.spans.filter((s: any) => s.status === 'confirmed' && s.speaker &&
             Number.isInteger(s.start) && Number.isInteger(s.end) && s.start >= 0 && s.end > s.start &&
             source.slice(s.start, s.end).join('') === s.text)
+        const dialogueQuotePairs = confirmedQuoteBoundaries(source, spans)
         let cursor = 0
         for (const {s, i} of rows) {
             const parts: DialoguePart[] = []
             for (const char of Array.from(String(s.text || ''))) {
                 const position = compact[cursor]?.i
-                const span = !ignored(char) && spans.find((a: any) => position >= a.start && position < a.end)
+                const previousPosition = cursor > 0 ? compact[cursor - 1]?.i : -1
+                let span = !ignored(char) && spans.find((a: any) => position >= a.start && position < a.end)
+                if (!span && position != null && quotePairs[char]) {
+                    const pair = dialogueQuotePairs.find(a => a.start < position && position <= a.end)
+                    if (pair) span = spans.find((a: any) => a.start > pair.start && a.end <= pair.end)
+                }
+                if (!span && position != null && Object.values(quotePairs).includes(char)) {
+                    const pair = dialogueQuotePairs.find(a => a.start <= previousPosition && previousPosition < a.end && a.end < position)
+                    if (pair) span = spans.find((a: any) => a.start > pair.start && a.end <= pair.end)
+                }
                 if (!ignored(char)) cursor++
                 const part = {text: char, dialogue: Boolean(span), speaker: span ? String(span.speaker) : undefined}
                 const last = parts[parts.length - 1]
