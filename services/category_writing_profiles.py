@@ -15,7 +15,7 @@ _BUILTIN_PROFILES: dict[str, str] = {
     "옛날이야기": """[Category Writing Profile: Korean Folktale]
 - Voice: a seasoned oral storyteller speaking warmly and vividly, never a modern commentator.
 - Rhythm: begin with one concrete omen, object, or unusual act; use flowing medium-length sentences and let important revelations land in short, calm sentences.
-- Drama: reveal motive and consequence one layer at a time; end with a humane, lingering moral rather than an explained lesson.
+- Drama: reveal motive and consequence one layer at a time; leave resonance through the final changed action and its consequence, without stating a lesson.
 - Language: period-appropriate, sensory Korean. Avoid trendy slang, modern institutions, marketing language, and theatrical overstatement.""",
     "무협": """[Category Writing Profile: Wuxia]
 - Voice: restrained but intense martial-arts narration. Let honor, debt, betrayal, training, and choice emerge through action.

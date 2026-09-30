@@ -131,13 +131,12 @@ async function loadDirectPreparedTopics(limit: number) {
         .select('id,topic,generated_title,category_id,language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
         .eq('status', 'pending')
         .is('assigned_at', null)
-        .or('assigned_employee_email.is.null,assigned_employee_email.eq.')
         .not('generated_title', 'is', null)
         .order('created_at', { ascending: false })
         .limit(300)
     if (error) throw error
 
-    const withCategories = await attachCategories(data || [])
+    const withCategories = await attachCategories((data || []).filter(isUnclaimedPendingTopic))
     return withCategories
         .map(normalizeTopicJsonFields)
         .slice(0, limit)

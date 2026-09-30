@@ -29,8 +29,10 @@ ROLE_ORDER = (
     "talisman", "reflection_scene", "training_prop", "title_backdrop",
     "debris", "qi_overlay", "ink_splat", "speedlines", "lens_glint",
     "light_core", "light_rays", *MOUTH_ROLES,
+    "pose_sleeping", "pose_waking", "pose_turning", "pose_resting", "blanket", "shoji", "prop_focus", "atmosphere",
 )
 TEMPLATE_REQUIRED = {
+    "directed_performance": ("background",),
     "dialogue_closeup": ("background", "character"),
     "angled_triple_reaction": ("background", "character_left", "character_center", "character_right"),
     "body_following_qi": ("background", "character", "talisman"),
@@ -41,6 +43,9 @@ TEMPLATE_REQUIRED = {
     "backlit_hand_reveal": ("background", "hand_foreground"),
 }
 TEMPLATE_OPTIONAL = {
+    "directed_performance": ("character", "pose_sleeping", "pose_waking", "pose_turning",
+                             "pose_resting", "blanket", "shoji", "prop_focus", "light_core", "light_rays",
+                             "debris", "speedlines", "lens_glint", "atmosphere"),
     "dialogue_closeup": (),
     "angled_triple_reaction": ("speedlines",),
     "body_following_qi": ("qi_overlay", "speedlines"),

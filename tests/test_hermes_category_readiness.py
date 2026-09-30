@@ -437,7 +437,7 @@ def test_twilight_has_local_rss_channel_pool():
     assert len(manager._load_local_benchmark_channels("황혼19금")) >= 8
 
 
-def test_old_story_plan_repair_does_not_use_survival_story_beats():
+def test_old_story_repeated_plan_is_rejected_without_template_repair():
     structure = {
         "scenes": [
             {
@@ -449,16 +449,14 @@ def test_old_story_plan_repair_does_not_use_survival_story_beats():
         ]
     }
 
-    repaired = hermes_worker._repair_old_story_scene_plan_repetition(
-        structure,
-        "아들 삼형제가 어머니의 유언을 어기고 무덤을 팠다",
-        "아들 삼형제가 어머니의 유언을 어기고 무덤을 팠다",
-    )
-
-    assert not hermes_worker._scene_plan_repetition_errors(repaired)
-    blob = json.dumps(repaired, ensure_ascii=False)
-    for forbidden in ("탈북", "북한", "두만강", "국경", "보위부", "브로커", "safehouse", "defector"):
-        assert forbidden not in blob
+    with pytest.raises(RuntimeError, match="script_plan quality gate failed"):
+        hermes_worker._validate_script_plan_stage(
+            structure,
+            script_style="old_story",
+            topic="The hidden promise",
+            upload_title="The hidden promise",
+            image_style="folk tale",
+        )
 
 
 def test_scene_plan_repetition_detects_same_summary_with_different_hooks():
@@ -497,7 +495,7 @@ def test_scene_plan_repetition_allows_reused_voice_direction():
     assert not hermes_worker._scene_plan_repetition_errors(structure)
 
 
-def test_old_story_grave_vigil_repair_matches_daughter_in_law_title():
+def test_old_story_title_specific_plan_is_not_rewritten_by_template():
     structure = {
         "scenes": [
             {
@@ -509,19 +507,14 @@ def test_old_story_grave_vigil_repair_matches_daughter_in_law_title():
         ]
     }
 
-    repaired = hermes_worker._repair_old_story_scene_plan_repetition(
-        structure,
-        "며느리가 시어머니 묘에 3년을 묻고 산 이유",
-        "며느리가 시어머니 묘에 3년을 묻고 산 이유, 마을 사람들은 아무도 몰랐다",
-    )
-
-    assert not hermes_worker._scene_plan_repetition_errors(repaired)
-    blob = json.dumps(repaired, ensure_ascii=False)
-    assert "며느리" in blob
-    assert "시어머니" in blob
-    assert "중반 전환" not in blob
-    for forbidden in ("세 형제", "첫째", "둘째", "막내", "아들 삼형제"):
-        assert forbidden not in blob
+    with pytest.raises(RuntimeError, match="script_plan quality gate failed"):
+        hermes_worker._validate_script_plan_stage(
+            structure,
+            script_style="old_story",
+            topic="The hidden promise",
+            upload_title="The hidden promise",
+            image_style="folk tale",
+        )
 
 
 def test_old_story_scene_plan_rejects_survival_category_contamination():
@@ -594,7 +587,7 @@ def test_old_story_context_repairs_mojibake_title_for_retry_jobs():
     )
 
 
-def test_supported_story_categories_have_repetition_repair_handlers_and_pass_qa():
+def test_remaining_story_categories_have_repetition_repair_handlers_and_pass_qa():
     repeated_structure = {
         "scenes": [
             {
@@ -626,9 +619,6 @@ def test_supported_story_categories_have_repetition_repair_handlers_and_pass_qa(
     overseas_rep = hermes_worker._repair_overseas_touching_scene_plan_repetition(repeated_structure, "외국인 은인", "타국에서 만난 참전용사 은인")
     assert not hermes_worker._scene_plan_repetition_errors(overseas_rep)
     
-    # 6. 옛날이야기
-    old_rep = hermes_worker._repair_old_story_scene_plan_repetition(repeated_structure, "조선시대 야담", "조선시대 야담 실화")
-    assert not hermes_worker._scene_plan_repetition_errors(old_rep)
 
 
 def test_supported_story_categories_have_visual_motifs_refreshed():
@@ -656,4 +646,3 @@ def test_supported_story_categories_have_rescue_scripts():
     assert len(hermes_worker._build_twilight_rescue_script("황혼19금", "황혼의 사랑", structure)) >= 1000
     assert len(hermes_worker._build_korean_drama_rescue_script("한국사연", "사이다 응징", structure)) >= 1000
     assert len(hermes_worker._build_overseas_rescue_script("해외감동", "해외 은인 재회", structure)) >= 1000
-    assert len(hermes_worker._build_old_story_grave_vigil_rescue_script("옛날이야기", "무덤 지킨 며느리", structure)) >= 1000

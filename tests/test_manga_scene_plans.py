@@ -72,6 +72,50 @@ def test_three_manga_templates_produce_timed_geometry_and_required_layers():
         assert scene_qa.validate_scene_plan(scene, asset, 5)["passed"] is True
 
 
+def test_visual_director_layered_performance_routes_timed_poses_to_ae_assets():
+    scene = {
+        **_scene(19, "Daigoro wakes in pain, looks toward the shoji, then closes his eyes again."),
+        "ae_directorial_plan": {
+            "dramatic_intent": "Show the lonely cycle of pain, checking the quiet room, and returning to sleep.",
+            "visual_strategy": "Crossfade aligned poses only at the three narrated action beats.",
+            "requires_layered_assets": True,
+            "required_layers": ["background", "pose_sleeping", "pose_waking", "pose_turning", "pose_resting", "shoji"],
+            "timed_beats": [
+                {"start_seconds": 0, "end_seconds": 1.0, "action": "pose_reveal", "target": "pose_sleeping"},
+                {"start_seconds": 1.0, "end_seconds": 2.6, "action": "pose_reveal", "target": "pose_waking"},
+                {"start_seconds": 2.6, "end_seconds": 4.8, "action": "pose_reveal", "target": "pose_turning", "attention_target": [.72, .42]},
+                {"start_seconds": 4.8, "end_seconds": 7.0, "action": "pose_reveal", "target": "pose_resting"},
+            ],
+            "ae_operations": ["pose_change", "mask_reveal"],
+            "qa_assertions": ["All three pose changes are visible at their authored beat."],
+            "continuity_rules": ["Keep face, clothing, blanket and body placement registered."],
+        },
+        "ae_effect_plan": {
+            "enabled": True, "template": "directed_performance", "template_source": "scene_visual_director",
+            "preset": "directed_scene_performance", "dramatic_intent": "Pain, glance, rest.",
+            "duration_seconds": 7,
+            "asset_requirements": {"required_layers": ["background", "pose_sleeping", "pose_waking", "pose_turning", "pose_resting", "shoji"], "optional_layers": []},
+            "beats": [
+                {"at_seconds": 0, "end_seconds": 1.0, "action": "pose_reveal", "target": "pose_sleeping"},
+                {"at_seconds": 1.0, "end_seconds": 2.6, "action": "pose_reveal", "target": "pose_waking"},
+                {"at_seconds": 2.6, "end_seconds": 4.8, "action": "pose_reveal", "target": "pose_turning", "attention_target": [.72, .42]},
+                {"at_seconds": 4.8, "end_seconds": 7.0, "action": "pose_reveal", "target": "pose_resting"},
+            ],
+            "qa_assertions": ["Pose changes visible."],
+        },
+    }
+    effect_plans = runner._plan_ae_effects_for_scenes([scene], {})
+    policy = runner._plan_image_generation_efficiency([scene], {}, effect_plans)
+    plan = scene["ae_effect_plan"]
+    assert plan["template"] == "directed_performance"
+    assert plan["asset_requirements"]["required_layers"] == scene["ae_directorial_plan"]["required_layers"]
+    assert scene["psd_layer_plan"]["enabled"] is True
+    assert "complete clean plate" in scene["psd_layer_plan"]["prompt"]
+    assert scene["psd_layer_plan"]["outputs"] == ["background", "pose_sleeping", "pose_waking", "pose_turning", "pose_resting", "shoji"]
+    report = scene_qa.validate_scene_plan(scene, {"gcs_path": "scene.psd", "layers": scene["psd_layer_plan"]["outputs"]}, 7)
+    assert report["passed"] is True, report
+
+
 def test_explicit_template_geometry_and_timing_override_defaults():
     scene = {
         **_scene(1, "그는 조용히 서 있었다."),

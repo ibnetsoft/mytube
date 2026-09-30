@@ -291,35 +291,50 @@ def test_script_plan_rejects_finance_content_before_model_generation():
         )
 
 
-def test_old_story_short_plan_places_midpoint_and_payoff_proportionally():
-    title = "산속 우물에서 들린 아이의 노래와 나무꾼의 약속"
+
+
+def test_old_story_plan_gate_preserves_model_authored_story_core():
+    title = "The promise hidden in the old hairpin"
     structure = {
+        "story_core": {
+            "protagonist": "Yeonhwa",
+            "protagonist_want": "find the hairpin's owner and confirm her mother's promise",
+            "first_causal_problem": "she discovers a scratched-out name inside the hairpin",
+            "personal_stake": "the hairpin is tied to her mother's final request",
+            "central_conflict": "finding its owner means breaking the market's silence",
+            "escalation": "contradictory testimony exposes an old family choice",
+            "irreversible_turn": "Yeonhwa decides to reveal the hairpin publicly",
+            "concrete_resolution": "the owner appears and confirms the mother's promise",
+            "final_changed_action": "Yeonhwa returns the hairpin and reads her mother's letter",
+        },
         "scenes": [
-            {"scene_order": index, "scene_summary": f"{index}번째 사건", "scene_situation": f"{index}번째 사건"}
-            for index in range(1, 16)
-        ]
+            {"scene_order": 1, "scene_summary": "A child finds a hairpin beside the market well", "scene_situation": "The scratched name catches the morning light", "character_choice": "Yeonhwa takes the object home", "reveal_or_question": "Who owned the hairpin?"},
+            {"scene_order": 2, "scene_summary": "Her mother recognizes the engraving and turns away", "scene_situation": "Yeonhwa asks why the name was erased", "character_choice": "Her mother refuses to answer", "reveal_or_question": "What promise was made?"},
+            {"scene_order": 3, "scene_summary": "An old peddler points toward the eastern ferry", "scene_situation": "The market keeper admits he saw the former owner", "character_choice": "Yeonhwa leaves before sunset", "reveal_or_question": "Will the owner still be there?"},
+            {"scene_order": 4, "scene_summary": "A traveler returns the matching letter", "scene_situation": "The two objects reveal why the name was hidden", "character_choice": "Yeonhwa gives the hairpin back", "reveal_or_question": "Can the promise finally be kept?"},
+        ],
     }
 
-    repaired = hermes_worker._apply_old_story_story_core_to_structure(structure, title, title)
+    validated = hermes_worker._validate_script_plan_stage(
+        structure,
+        script_style="old_story",
+        topic=title,
+        upload_title=title,
+        image_style="folk tale",
+    )
 
-    assert not hermes_worker._old_story_drama_plan_errors(repaired, title, title)
-
-
-def test_old_story_four_scene_plan_has_reachable_midpoint_and_payoff():
-    title = "장터에서 산 낡은 비녀가 알려 준 어머니의 약속"
-    structure = {
-        "scenes": [
-            {"scene_order": index, "scene_summary": f"{index}번째 사건", "scene_situation": f"{index}번째 사건"}
-            for index in range(1, 5)
-        ]
+    assert validated["status"] == "pass"
+    assert structure["story_core"] == {
+        "protagonist": "Yeonhwa",
+        "protagonist_want": "find the hairpin's owner and confirm her mother's promise",
+        "first_causal_problem": "she discovers a scratched-out name inside the hairpin",
+        "personal_stake": "the hairpin is tied to her mother's final request",
+        "central_conflict": "finding its owner means breaking the market's silence",
+        "escalation": "contradictory testimony exposes an old family choice",
+        "irreversible_turn": "Yeonhwa decides to reveal the hairpin publicly",
+        "concrete_resolution": "the owner appears and confirms the mother's promise",
+        "final_changed_action": "Yeonhwa returns the hairpin and reads her mother's letter",
     }
-
-    repaired = hermes_worker._apply_old_story_story_core_to_structure(structure, title, title)
-
-    assert repaired["scenes"][1]["dramatic_function"] == "midpoint reversal"
-    assert repaired["scenes"][-1]["dramatic_function"] == "final payoff"
-    assert repaired["story_core"]["acts"][-1]["scene_range"] == "4-4"
-    assert not hermes_worker._old_story_drama_plan_errors(repaired, title, title)
 
 
 def test_script_generate_stage_rejects_finance_content_for_every_category():

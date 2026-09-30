@@ -12,6 +12,7 @@ from typing import Any
 
 
 MANGA_TEMPLATES = frozenset({
+    "directed_performance",
     "dialogue_closeup",
     "angled_triple_reaction", "body_following_qi", "ink_splat_impact",
     "wall_impact_debris", "glasses_reflection", "kinetic_title_reveal",
@@ -56,6 +57,7 @@ def write_manga_jsx(
 
 _JSX = r'''// Generated manga scene. Full-canvas PSD layers have semantic role names.
 var CFG = __MANGA_CONFIG__;
+app.exitAfterLaunchAndEval = true;
 var W = CFG.width, H = CFG.height, DUR = CFG.duration, FPS = CFG.fps;
 var PLAN = CFG.plan;
 function pxX(x) { return Number(x) * W; }
@@ -670,6 +672,65 @@ function backlitHand(comp) {
     }
   }
 }
+function directedPerformance(comp) {
+  var requirements = PLAN.asset_requirements || {};
+  var required = requirements.required_layers || [];
+  var poses = [];
+  for (var i = 0; i < required.length; i++) {
+    var role = String(required[i]);
+    if (role == "background") continue;
+    var layer = layerByRole(comp, role, true);
+    layer.property("Opacity").setValue(0);
+    if (role.indexOf("pose_") === 0) poses.push({role: role, layer: layer});
+    if (role == "blanket" || role == "shoji" || role == "character") {
+      layer.property("Opacity").setValue(100);
+    }
+  }
+  var beats = PLAN.beats || [];
+  var activePose = null;
+  var fadeFrames = Math.max(2 / FPS, Number(PLAN.pose_crossfade_seconds || 0.14));
+  for (var b = 0; b < beats.length; b++) {
+    var beat = beats[b], when = at(beat.at_seconds), action = String(beat.action);
+    var target = String(beat.target || "");
+    if (action == "pose_reveal") {
+      var next = null;
+      for (var p = 0; p < poses.length; p++) if (poses[p].role == target) next = poses[p].layer;
+      if (!next) throw "pose_reveal target is not an approved pose layer: " + target;
+      if (activePose) {
+        activePose.property("Opacity").setValueAtTime(Math.max(0, when - 1/FPS), 100);
+        activePose.property("Opacity").setValueAtTime(at(when + fadeFrames), 0);
+      }
+      next.property("Opacity").setValueAtTime(Math.max(0, when - 1/FPS), 0);
+      next.property("Opacity").setValueAtTime(when, 0);
+      next.property("Opacity").setValueAtTime(at(when + fadeFrames), 100);
+      activePose = next;
+    } else if (action == "prop_reveal" || action == "mask_reveal") {
+      var prop = layerByRole(comp, target, true);
+      prop.property("Opacity").setValueAtTime(Math.max(0, when - 1/FPS), 0);
+      prop.property("Opacity").setValueAtTime(when, 100);
+    }
+    var focus = beat.attention_target;
+    if (focus && focus.length == 2) {
+      var cue = comp.layers.addShape();
+      cue.name = "directorial_attention_" + b;
+      var cueGroup = cue.property("Contents").addProperty("ADBE Vector Group");
+      var cueContents = cueGroup.property("Contents");
+      var cueEllipse = cueContents.addProperty("ADBE Vector Shape - Ellipse");
+      cueEllipse.property("Size").setValue([190,190]);
+      var cueFill = cueContents.addProperty("ADBE Vector Graphic - Fill");
+      cueFill.property("Color").setValue([0.88,0.72,0.48]);
+      cue.property("Position").setValue([pxX(focus[0]),pxY(focus[1])]);
+      cue.blendingMode = BlendingMode.ADD;
+      try { cue.property("Effects").addProperty("ADBE Glo2"); } catch (focusError) {}
+      cue.property("Opacity").setValueAtTime(when, 0);
+      cue.property("Opacity").setValueAtTime(at(when + 0.18), 16);
+      cue.property("Opacity").setValueAtTime(at(Math.min(DUR, Number(beat.end_seconds || when + 0.8))), 0);
+    }
+  }
+  if (poses.length && !activePose) {
+    poses[0].layer.property("Opacity").setValueAtTime(0, 100);
+  }
+}
 var SOURCES = {};
 app.beginSuppressDialogs();
 try {
@@ -688,8 +749,9 @@ try {
   comp.bgColor = [0.03,0.02,0.05];
   var bg = layerByRole(comp, "background", true);
   bg.moveToEnd();
-  bg.property("Scale").setValueAtTime(0, [101,101]);
-  bg.property("Scale").setValueAtTime(DUR, [104,104]);
+  // Directed performance uses authored pose changes and story attention cues.
+  // Keep the plate locked; a continuous scale-up is not a substitute for direction.
+  bg.property("Scale").setValue([100,100]);
   if (CFG.template == "dialogue_closeup") dialogueCloseup(comp);
   else if (CFG.template == "angled_triple_reaction") triple(comp);
   else if (CFG.template == "body_following_qi") qi(comp);
@@ -698,17 +760,22 @@ try {
   else if (CFG.template == "glasses_reflection") glassesReflection(comp);
   else if (CFG.template == "kinetic_title_reveal") kineticTitle(comp);
   else if (CFG.template == "backlit_hand_reveal") backlitHand(comp);
+  else if (CFG.template == "directed_performance") directedPerformance(comp);
   else throw "Unknown manga template: " + CFG.template;
   animatedCaptions(comp);
   animatedSfxText(comp);
   var rq = app.project.renderQueue.items.add(comp);
   rq.outputModule(1).file = new File(CFG.render);
   app.project.save(new File(CFG.project));
+  if (!new File(CFG.project).exists) throw new Error("Project save returned without creating AEP: " + CFG.project);
   var success = new File(CFG.status);
-  if (success.open("w")) { success.write("ready|" + CFG.template + "|" + imported.numLayers); success.close(); }
+  if (success.open("w")) { success.write("success|" + CFG.project + "|" + CFG.template + "|" + imported.numLayers); success.close(); }
+  app.scheduleTask("app.quit()", 1200, false);
 } catch (error) {
   var failure = new File(CFG.status);
   if (failure.open("w")) { failure.write("error|" + error.toString() + "|line=" + error.line); failure.close(); }
+  app.scheduleTask("app.quit()", 1200, false);
+  throw error;
 } finally {
   app.endSuppressDialogs(false);
 }

@@ -309,9 +309,26 @@ def _patch_scene_payload(scene: Any, scene_number: int, asset_id: str, bucket: s
     if number != scene_number:
         return scene
     metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    # Keep the preplanned AE post-process plan intact and explicitly identify
+    # the registered ComfyUI MP4 as its source. The AE poller will only claim
+    # this scene after this source path appears.
+    motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
+    if motion_plan.get("enabled"):
+        motion_plan = {
+            **motion_plan,
+            "input_source": "comfyui_video_asset",
+            "postprocess_after": "comfyui_video_ready",
+        }
+    image_url = str(scene.get("image_url") or "").strip()
+    if not image_url and scene.get("image_generation_mode") == "comfyui":
+        # During the standard project handoff the approved first-frame image is
+        # attached as a std_project_assets row, then copied onto the scene.
+        # Preserve its AE fallback path for reference, but do not fabricate one.
+        image_url = str(metadata.get("image_url") or "").strip()
     return {
         **scene, "video_url": f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}&path={quote(path, safe='')}",
         "visual_type": "video", "video_prompt_required": True, "video_generation_mode": "comfyui",
+        **({"ae_motion_plan": motion_plan} if motion_plan else {}),
         "metadata": {**metadata, "visual_type": "video", "video_prompt_required": True,
                      "video_generation_mode": "comfyui", "video_gcs_bucket": bucket,
                      "video_gcs_path": path, "video_asset_id": asset_id,

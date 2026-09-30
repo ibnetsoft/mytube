@@ -7,6 +7,7 @@ import sys
 
 import pytest
 
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'worker'))
 
@@ -125,6 +126,42 @@ def test_final_worker_waits_for_ae_and_reuses_uploads(monkeypatch, tmp_path):
     assert result['status'] == 'ready'
     assert calls['download'] == 1 and calls['render'] == 1
     assert calls['upload'].count('projects/project/premiere/final-package/air-premiere-manifest.json') == 1
+
+
+def test_final_worker_never_uses_uploaded_source_video_before_ae_postprocess():
+    import premiere_final_worker as worker
+
+    scene = {
+        'scene_number': 1,
+        'video_generation_mode': 'user_upload',
+        'video_url': '/api/std/assets/gcs-file?bucket=b&path=source.mp4',
+        'ae_motion_plan': {'enabled': True, 'input_source': 'uploaded_video_asset'},
+    }
+    assert worker._scene_media_ref(scene) == ('', None)
+
+    scene['ae_motion_video_url'] = '/api/std/assets/gcs-file?bucket=b&path=ae-finished.mp4'
+    key, ref = worker._scene_media_ref(scene)
+    assert key == 'ae_motion_video_url'
+    assert ref is not None and ref.path == 'ae-finished.mp4'
+
+
+def test_ae_postprocesses_uploaded_scene_clip_only_after_video_registration():
+    import ae_highlight_worker as ae
+
+    scene = {
+        'scene_number': 1,
+        'video_generation_mode': 'user_upload',
+        'ae_motion_plan': {'enabled': True, 'input_source': 'uploaded_video_asset'},
+        'metadata': {'video_generation_mode': 'user_upload'},
+    }
+    row = {'id': 'project', '__source_type': 'project', 'title': 'test', 'submitted_at': '2026-09-26T00:00:00Z',
+           'project_payload': {'structure': {'scenes': [scene]}}}
+    assert ae._find_scene_jobs([row]) == []
+
+    scene['metadata']['video_asset'] = {'gcs_bucket': 'b', 'gcs_path': 'projects/p/upload.mp4'}
+    jobs = ae._find_scene_jobs([row])
+    assert len(jobs) == 1
+    assert jobs[0].source.path == 'projects/p/upload.mp4'
 
 
 def test_final_failure_backoff_and_terminal_state(monkeypatch):

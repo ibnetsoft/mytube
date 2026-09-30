@@ -92,6 +92,23 @@ def transition(state, event, now=None):
             if outcome=='safety': status='safety_review'
             j.update(status=status, failure_kind=outcome,
                      next_after=now+([30,120][min(j['attempts']-1,1)] if status=='retry_wait' else 0))
+    elif action=='provided_image':
+        # A user-supplied replacement is not a model retry and must not reset
+        # or consume the bounded image-generation attempt budget. Keep it in
+        # the same audited review path before it can be cropped/published.
+        if j['status'] not in ('quality_failed','safety_review'):
+            raise ValueError('A provided image is only for a blocked scene')
+        if j['kind']!='scene' or j['layout']!='single' or len(j['scene_numbers'])!=1:
+            raise ValueError('A provided scene image must map to one scene')
+        for key in ('user_approval','visual_review','source_file'):
+            if not str(event.get(key) or '').strip(): raise ValueError('Missing provided-image evidence: '+key)
+        path=Path(event['image_file']).resolve()
+        with Image.open(path) as im:
+            im.load()
+            if min(im.size)<320: raise ValueError('Provided image is too small')
+        j.update(status='quality_review',image_file=str(path),
+                 sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                 image_source='user_supplied')
     elif action=='accept':
         if j['status']!='quality_review' or not event.get('visual_review'): raise ValueError('Visual review required')
         verify_file(j); j['status']='ready'

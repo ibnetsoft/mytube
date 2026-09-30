@@ -7354,6 +7354,15 @@ export default function StdPortalPage() {
         })
     }, [topics, activeTopicTitleKeys, selectedCategories, trendLang])
 
+    // The work queue is a catalog of claimable topics, so profile preferences
+    // and the trend-language selector must not hide eligible work from users.
+    const topicQueuePool = useMemo(() => {
+        return topics.filter(t => {
+            const topicKey = String(t.generated_title || t.topic || '').trim().toLowerCase().replace(/\s+/g, '')
+            return !topicKey || !activeTopicTitleKeys.has(topicKey)
+        })
+    }, [topics, activeTopicTitleKeys])
+
     const trendKeywordChips = useMemo(() => {
         const stopwords = new Set([
             '그리고', '하지만', '에서', '으로', '에게', '영상', '주제', '사연', '이야기',
@@ -7386,7 +7395,7 @@ export default function StdPortalPage() {
     }, [trendTopicPool])
 
     const displayedTopics = useMemo(() => {
-        const rawList = trendTopicPool
+        const rawList = topicQueuePool
 
         // 2. 검색 및 길이 필터링
         const filtered = rawList.filter(t => {
@@ -7417,7 +7426,7 @@ export default function StdPortalPage() {
         }
 
         return unique
-    }, [trendTopicPool, topicSearchQuery, topicLengthFilter])
+    }, [topicQueuePool, topicSearchQuery, topicLengthFilter])
 
     const topicThumbnailUrl = (topic: any): string => {
         const structure = topic?.pregenerated_structure || topic?.structure || {}

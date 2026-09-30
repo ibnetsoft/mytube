@@ -112,6 +112,84 @@ def test_topic_delivery_choice_overrides_host_default_and_requeues_changed_mode(
     assert ae._find_scene_jobs([row]) == []
 
 
+def test_ae_uses_local_source_image_without_a_gcs_round_trip(tmp_path, monkeypatch):
+    import ae_highlight_worker as ae
+
+    source = tmp_path / "scene-019.png"
+    source.write_bytes(b"local-approved-image")
+    scene = {"metadata": {"cowork_image_asset": {
+        "source": "cowork_builtin_imagegen", "storage_provider": "local",
+        "local_path": str(source),
+    }}}
+    ref = ae._gcs_ref_from_scene(scene)
+    assert ref == ae.GcsRef(bucket="__local__", path=str(source))
+    target = tmp_path / "ae-work" / "input.png"
+    monkeypatch.setattr(ae, "_gcs_credentials", lambda: pytest.fail("unexpected GCS auth"))
+    ae._download_gcs_file(ref, target)
+    assert target.read_bytes() == source.read_bytes()
+
+
+def test_ae_motion_plan_can_point_at_local_source_without_marking_still_uploaded(tmp_path):
+    import ae_highlight_worker as ae
+
+    source = tmp_path / "scene-019.png"
+    source.write_bytes(b"locally-cropped-image")
+    scene = {"ae_motion_plan": {"enabled": True, "local_source_path": str(source)}}
+    assert ae._gcs_ref_from_scene(scene) == ae.GcsRef(bucket="__local__", path=str(source))
+    assert len(ae._find_scene_jobs([{"id": "3373", "pregenerated_structure": {
+        "ae_scene_delivery": "local", "scenes": [scene]}}])) == 1
+
+
+def test_ae_motion_scene_fails_without_silent_ffmpeg_fallback(tmp_path, monkeypatch):
+    import ae_highlight_worker as ae
+    assert not hasattr(ae, "_render_still_fallback")
+    assert not hasattr(ae, "_render_still_fallback_copy")
+    assert not hasattr(ae, "_video_input_fallback")
+
+
+def test_ae_jsx_records_project_creation_errors(tmp_path):
+    import ae_highlight_worker as ae
+
+    scene = {"scene_number": 20, "ae_motion_plan": {"enabled": True}}
+    job = ae.SceneJob("3373", "story", {"scenes": [scene]}, 0, scene, 20,
+                      "motion", "ambient_lantern_motion", 1.0, ae.GcsRef("bucket", "scene.png"))
+    jsx_path = tmp_path / "create_project.jsx"
+    status_path = jsx_path.with_suffix(".status.txt")
+    status_path.write_text("stale status", encoding="utf-8")
+
+    ae._write_jsx(job, tmp_path / "scene.png", tmp_path / "scene.aep", tmp_path / "scene.mp4", jsx_path)
+    jsx = jsx_path.read_text(encoding="utf-8")
+    assert not status_path.exists()
+    assert 'writeStatus("error|" + err.toString()' in jsx
+    assert 'writeStatus("success|" + projectPath' in jsx
+
+
+def test_ae_motion_jsx_only_builds_declared_atmosphere_and_targets_camera(tmp_path):
+    import ae_highlight_worker as ae
+
+    scene = {"scene_number": 19, "ae_motion_plan": {
+        "enabled": True,
+        "preset": "ambient_lantern_motion",
+        "vfx": ["cinematic_camera"],
+        "targets": [{"type": "elderly_man_face", "x": 0.31, "y": 0.42}],
+        "motion": {"push": 0.015, "drift_x": 0.003, "drift_y": -0.002, "shake": 0},
+        "intensity": 0.15,
+    }}
+    job = ae.SceneJob("3373", "story", {"scenes": [scene]}, 0, scene, 19,
+                      "motion", "ambient_lantern_motion", 7.0, ae.GcsRef("bucket", "scene.png"))
+    jsx_path = tmp_path / "create_project.jsx"
+    ae._write_jsx(job, tmp_path / "scene.png", tmp_path / "scene.aep", tmp_path / "scene.mp4", jsx_path)
+    jsx = jsx_path.read_text(encoding="utf-8")
+
+    plan_line = next(line for line in jsx.splitlines() if line.startswith("var PLAN = "))
+    assert "page_turn_transition" not in plan_line
+    assert "elderly_man_face" in plan_line
+    assert 'if (hasVfx("atmospheric_haze"))' in jsx
+    assert 'if (hasVfx("warm_dust_motes"))' in jsx
+    assert 'if (hasVfx("subtle_vignette"))' in jsx
+    assert "(focusX - W / 2) * (endRatio - 1)" in jsx
+
+
 def test_final_worker_uses_verified_local_ae_and_rejects_missing_file(monkeypatch, tmp_path):
     import media_checkpoint
     import premiere_final_worker as final

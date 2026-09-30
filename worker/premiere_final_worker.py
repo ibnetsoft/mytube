@@ -442,6 +442,24 @@ def _local_ref_from_asset(asset: dict[str, Any]) -> LocalRef | None:
 
 def _scene_media_ref(scene: dict[str, Any]) -> tuple[str, GcsRef | LocalRef | None]:
     metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    # User-upload and ComfyUI clips must finish their planned AE post-process
+    # before they can enter the final timeline. Do not fall through to the
+    # original video_url while that step is pending.
+    mode = str(scene.get("video_generation_mode") or metadata.get("video_generation_mode") or "").lower()
+    if mode in {"user_upload", "comfyui"}:
+        plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
+        if plan.get("enabled"):
+            ae_asset = metadata.get("ae_motion_asset") if isinstance(metadata.get("ae_motion_asset"), dict) else {}
+            local_ref = _local_ref_from_asset(ae_asset)
+            if local_ref:
+                return "ae_motion_asset", local_ref
+            ref = _gcs_ref_from_asset(ae_asset)
+            if ref:
+                return "ae_motion_asset", ref
+            ae_url = _gcs_ref_from_url(str(scene.get("ae_motion_video_url") or ""))
+            if ae_url:
+                return "ae_motion_video_url", ae_url
+            return "", None
     for key in ("ae_effect_asset", "ae_motion_asset", "video_asset", "cowork_video_asset"):
         asset = metadata.get(key) if isinstance(metadata.get(key), dict) else {}
         local_ref = _local_ref_from_asset(asset)
@@ -450,7 +468,7 @@ def _scene_media_ref(scene: dict[str, Any]) -> tuple[str, GcsRef | LocalRef | No
         ref = _gcs_ref_from_asset(asset)
         if ref:
             return key, ref
-    for key in ("video_url", "ae_video_url", "ae_motion_video_url", "image_url"):
+    for key in ("ae_video_url", "ae_motion_video_url", "video_url", "image_url"):
         ref = _gcs_ref_from_url(str(scene.get(key) or ""))
         if ref:
             return key, ref

@@ -8,6 +8,7 @@ script crops the returned grids and persists the scene mapping in Supabase.
 from __future__ import annotations
 
 import argparse
+import base64
 import copy
 import hashlib
 import json
@@ -40,6 +41,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_BUCKET = os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"
 DEFAULT_ASSET_WIDTH = 1920
 DEFAULT_ASSET_HEIGHT = 1080
+_GCS_CREDENTIALS_CACHE: tuple[Any, str] | None = None
 
 
 def _json(value: Any) -> dict[str, Any]:
@@ -77,12 +79,17 @@ def _file_sha256(path: Path) -> str:
 
 
 def _gcs_credentials():
+    global _GCS_CREDENTIALS_CACHE
     client_email = os.getenv("GCS_CLIENT_EMAIL") or os.getenv("GOOGLE_CLIENT_EMAIL") or ""
     private_key = os.getenv("GCS_PRIVATE_KEY") or os.getenv("GOOGLE_PRIVATE_KEY") or ""
     project_id = os.getenv("GCS_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "air-studio-prod"
     bucket = os.getenv("GCS_BUCKET_NAME") or DEFAULT_BUCKET
     if not (client_email and private_key and bucket):
         raise RuntimeError("GCS credentials are required for scene image publishing")
+    if _GCS_CREDENTIALS_CACHE is not None:
+        cached_credentials, cached_bucket = _GCS_CREDENTIALS_CACHE
+        if cached_bucket == bucket and cached_credentials.valid:
+            return cached_credentials, bucket
     from google.oauth2 import service_account
     from google.auth.transport.requests import Request
 
@@ -97,6 +104,7 @@ def _gcs_credentials():
         scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
     )
     creds.refresh(Request())
+    _GCS_CREDENTIALS_CACHE = (creds, bucket)
     return creds, bucket
 
 
@@ -116,6 +124,42 @@ def _upload_gcs_file(file_path: Path, object_path: str, mime_type: str) -> tuple
     if response.status_code not in (200, 201):
         raise RuntimeError(f"GCS scene image upload failed ({response.status_code}): {response.text[:300]}")
     return bucket, clean_path, f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}&path={quote(clean_path, safe='')}"
+
+
+def _list_gcs_object_metadata(bucket: str, prefix: str) -> dict[str, dict[str, Any]]:
+    creds, default_bucket = _gcs_credentials()
+    target_bucket = bucket or default_bucket
+    result: dict[str, dict[str, Any]] = {}
+    page_token = ""
+    while True:
+        params: dict[str, str] = {
+            "prefix": prefix,
+            "maxResults": "1000",
+            "fields": "items(name,size,md5Hash),nextPageToken",
+        }
+        if page_token:
+            params["pageToken"] = page_token
+        response = requests.get(
+            f"https://storage.googleapis.com/storage/v1/b/{quote(target_bucket, safe='')}/o",
+            headers={"Authorization": f"Bearer {creds.token}"}, params=params, timeout=60,
+        )
+        if not response.ok:
+            raise RuntimeError(f"GCS object listing failed ({response.status_code}): {response.text[:300]}")
+        data = response.json()
+        for item in data.get("items", []):
+            if isinstance(item, dict) and item.get("name"):
+                result[str(item["name"])] = item
+        page_token = str(data.get("nextPageToken") or "")
+        if not page_token:
+            return result
+
+
+def _file_md5_base64(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return base64.b64encode(digest.digest()).decode("ascii")
 
 
 def _download_gcs_bytes(bucket: str, object_path: str) -> bytes:
@@ -169,6 +213,7 @@ def _template_source_snapshot(scene: dict[str, Any], fallback: int) -> dict[str,
         "image_prompt": scene.get("image_prompt"),
         "image_style": scene.get("image_style"),
         "ae_effect_plan": scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {},
+        "ae_directorial_plan": scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {},
     }
 
 
@@ -297,6 +342,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "scene_specs": [{"scene_number": _scene_number(s, i), "scene_id": s.get("scene_id"),
                          "scene_text": s.get("scene_text") or s.get("narration"),
                          "image_prompt": s.get("image_prompt"), "image_style": s.get("image_style"),
+                         "ae_directorial_plan": s.get("ae_directorial_plan") if isinstance(s.get("ae_directorial_plan"), dict) else {},
                          "ae_effect_plan": s.get("ae_effect_plan") if isinstance(s.get("ae_effect_plan"), dict) else {},
                          "image_generation_policy": s.get("image_generation_policy") if isinstance(s.get("image_generation_policy"), dict) else {},
                          "local_layer_plan": s.get("local_layer_plan") if isinstance(s.get("local_layer_plan"), dict) else {},
@@ -306,7 +352,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "psd_layer_prompt_status": structure.get("psd_layer_prompt_status") or "not_required",
         "psd_layer_prompts": structure.get("psd_layer_prompts") if isinstance(structure.get("psd_layer_prompts"), list) else [],
         "layer_package_specs": manga_layer_package.scene_specs(scenes),
-        "layer_package_instruction": "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. A flattened scene crop or soft depth proxy is not a separate role layer. Run generate-layers or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish.",
+        "layer_package_instruction": "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. For directed_performance, make a genuinely clean inpainted background and separately aligned alternate poses/props; never use duplicate flattened-scene copies as fake layers. A soft depth proxy is not a separate action layer. Run generate-layers or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish.",
         "recovery_policy": image_recovery.POLICY,
         "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
         "generation_instruction": "Attach the character_references local PNGs as reference images to EVERY grid generation. Preserve each named character's face, age and wardrobe. Generate still images only, never video clips.",
@@ -465,7 +511,8 @@ def crop_grids(
     return written
 
 
-def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[str]:
+def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
+            defer_layers: bool = False, reuse_existing: bool = False) -> list[str]:
     manifest = _manifest(manifest_path)
     recovery_path = image_recovery.state_path(manifest_path)
     if manifest.get('recovery_policy') and not recovery_path.exists():
@@ -527,7 +574,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
             raise ValueError("manga scene art direction or timing changed after manifest export; create a new revision")
     layer_receipt = (manga_layer_package.validate_receipt(
         manifest_path, images_dir, manifest_layer_specs, require_approved=True)
-        if manifest_layer_specs else None)
+        if manifest_layer_specs and not defer_layers else None)
     if create_bucket:
         print("--create-bucket is ignored: scene images are uploaded to GCS, not Supabase Storage.", file=sys.stderr)
 
@@ -535,6 +582,8 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
     scene_refs: dict[int, tuple[str, str]] = {}
     scene_layer_assets: dict[int, dict[str, Any]] = {}
     scene_psd_assets: dict[int, dict[str, Any]] = {}
+    existing_objects = (_list_gcs_object_metadata(bucket, f"topics/{topic_id}/images/")
+                        if reuse_existing else {})
     layer_dir = images_dir / "derived-layers"
     for grid in manifest["grids"]:
         for scene_number in grid["scene_numbers"]:
@@ -552,7 +601,19 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
             # the bytes behind the winning topic scene URL after the DB CAS.
             object_path = f"topics/{topic_id}/images/scene-{number:03d}-{_file_sha256(file_path)}.png"
             mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
-            gcs_bucket, gcs_path, media_url = _upload_gcs_file(file_path, object_path, mime_type)
+            existing = existing_objects.get(object_path)
+            is_verified_existing = (
+                existing is not None
+                and str(existing.get("size")) == str(file_path.stat().st_size)
+                and existing.get("md5Hash") == _file_md5_base64(file_path)
+            )
+            if is_verified_existing:
+                gcs_bucket = bucket
+                gcs_path = object_path
+                media_url = (f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}"
+                             f"&path={quote(object_path, safe='')}")
+            else:
+                gcs_bucket, gcs_path, media_url = _upload_gcs_file(file_path, object_path, mime_type)
             scene_urls[number] = media_url
             scene_refs[number] = (gcs_bucket, gcs_path)
             if layer_receipt is not None and str(number) in layer_receipt["packages"]:
@@ -580,7 +641,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
             scene_spec = next((s for s in structure.get("scenes", []) if isinstance(s, dict) and _scene_number(s, 0) == number), {})
             layer_plan = scene_spec.get("local_layer_plan") if isinstance(scene_spec.get("local_layer_plan"), dict) else {}
             image_policy = scene_spec.get("image_generation_policy") if isinstance(scene_spec.get("image_generation_policy"), dict) else {}
-            if layer_plan.get("enabled"):
+            if layer_plan.get("enabled") and not defer_layers:
                 layer_files = _write_depth_proxy_layers(file_path, layer_dir, number, image_policy)
                 uploaded_layers: dict[str, Any] = {
                     "source": "local_depth_proxy_from_single_scene_image",
@@ -676,7 +737,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool) -> list[
         "asset_patch": _scene_asset_patch(published_scenes[number]),
     } for number in sorted(scene_urls)]
     _patch_topic_scene_assets(topic_id, updates, base_url, headers)
-    if manifest_layer_specs:
+    if manifest_layer_specs and not defer_layers:
         _propagate_published_template_assets(topic_id, base_url, headers)
     return [scene_urls[number] for number in sorted(scene_urls)]
 
@@ -698,6 +759,10 @@ def parse_args() -> argparse.Namespace:
     publish_cmd.add_argument("--manifest", type=Path, required=True)
     publish_cmd.add_argument("--images-dir", type=Path, required=True)
     publish_cmd.add_argument("--create-bucket", action="store_true")
+    publish_cmd.add_argument("--defer-layers", action="store_true",
+                             help="정지 이미지 업로드만 수행하고 PSD·AE 레이어 에셋 준비는 제출 후로 미룹니다")
+    publish_cmd.add_argument("--reuse-existing", action="store_true",
+                             help="기존 내용 해시 GCS 에셋의 크기와 MD5를 확인해 일치하면 재업로드를 건너뜁니다")
     prepare_cmd = commands.add_parser("prepare-layers", help="독립 PNG 레이어를 검수 대기 PSD 패키지로 만듭니다")
     prepare_cmd.add_argument("--manifest", type=Path, required=True)
     prepare_cmd.add_argument("--images-dir", type=Path, required=True)
@@ -753,7 +818,8 @@ def main() -> int:
                                               reviewer=args.reviewer, note=args.note)
         print(json.dumps({"approved": len(receipt["packages"])}, ensure_ascii=False))
     else:
-        urls = publish(args.manifest, args.images_dir, args.create_bucket)
+        urls = publish(args.manifest, args.images_dir, args.create_bucket,
+                       defer_layers=args.defer_layers, reuse_existing=args.reuse_existing)
         print(json.dumps({"published": len(urls), "urls": urls}, ensure_ascii=False))
     return 0
 

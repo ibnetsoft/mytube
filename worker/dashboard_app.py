@@ -2681,14 +2681,14 @@ async def api_notebooklm_send_to_hermes(
             "generated_title": title,
             "final_title": title,
             "category": category,
-            "source": "notebooklm",
+            "source": "codex_reference_script",
         },
         "benchmark_analysis": {
-            "source": "notebooklm",
-            "summary": hook or "NotebookLM 자료 기반 생성 결과",
+            "source": "user_supplied_references",
+            "summary": hook or "Codex 자료 기반 대본 생성 결과",
         },
         "research_bundle": {
-            "source": "notebooklm",
+            "source": "user_supplied_references",
             "sources": notebook_payload.get("sources") or [],
             "source_chars": notebook_payload.get("source_chars"),
         },
@@ -2703,11 +2703,11 @@ async def api_notebooklm_send_to_hermes(
             "upload_title": title,
             "title_promise": hook,
             "opening_hook": hook,
-            "global_mood": "NotebookLM grounded script",
+            "global_mood": "Codex reference-grounded script",
             "scenes": scenes,
             "media_prompt_status": "fallback_ready" if any(scene.get("visual_direction") for scene in scenes) else "missing",
             "research_bundle": {
-                "source": "notebooklm",
+                "source": "user_supplied_references",
                 "sources": notebook_payload.get("sources") or [],
             },
         },
@@ -2715,8 +2715,8 @@ async def api_notebooklm_send_to_hermes(
             "title": title,
             "titles": [title],
             "description": hook or script[:500],
-            "tags": [category, "NotebookLM", "자료기반대본"],
-            "hashtags": [f"#{category}", "#NotebookLM"],
+            "tags": [category, "Codex", "자료기반대본"],
+            "hashtags": [f"#{category}", "#Codex"],
         },
 "material_statuses": {
             "benchmark": "ready",
@@ -4315,7 +4315,7 @@ tr:hover { background: #161b22; }
         <span class="icon">&#x1F4DD;</span> Hermes 제목 생성
       </div>
       <div class="nav-item" data-tab="notebooklm" data-worker-scope="script" onclick="switchTab('notebooklm')">
-        <span class="icon">&#x2728;</span> NotebookLM 대본
+        <span class="icon">&#x2728;</span> 자료 기반 Codex 대본
       </div>
       <div class="nav-item" data-tab="styles" data-worker-scope="script" onclick="switchTab('styles')">
         <span class="icon">&#x1F3A8;</span> 스타일 관리
@@ -4583,20 +4583,13 @@ tr:hover { background: #161b22; }
         </div>
       </div>
 
-      <!-- ═══ Tab: NotebookLM Script Generation ═══ -->
+      <!-- ═══ Tab: Reference-grounded Codex Script Generation ═══ -->
       <div class="tab-content" id="tab-notebooklm">
         <div class="generated-result-layout">
           <div class="card">
-            <div class="card-title">&#x2728; NotebookLM 대본 생성</div>
-            <p class="info" style="margin:-4px 0 16px">자료 기반 심층 리서치와 1인/2인 대본 생성을 워커에서 실행합니다. 결과는 워커 로컬 output/notebooklm_results에 저장됩니다.</p>
+            <div class="card-title">&#x2728; 자료 기반 Codex 대본</div>
+            <p class="info" style="margin:-4px 0 16px">입력한 자료를 근거로 로컬 Codex가 1인 내레이션 대본과 씬 구성을 만듭니다. 결과는 워커 로컬에 저장되며, 영상·이미지 프롬프트는 Hermes에서 이어서 준비합니다.</p>
             <div class="form-row">
-              <div class="form-group">
-                <label>대본 모드</label>
-                <select id="nlm-mode">
-                  <option value="dialogue_podcast">2인 대화 팟캐스트</option>
-                  <option value="narrator">1인 심층 내레이션</option>
-                </select>
-              </div>
               <div class="form-group">
                 <label>카테고리</label>
                 <select id="nlm-category">
@@ -4639,9 +4632,9 @@ tr:hover { background: #161b22; }
               <textarea id="nlm-source" rows="8" placeholder="뉴스 기사, 리포트, 인터뷰, PDF 텍스트, 메모 등을 붙여넣으세요. URL/파일/경로만 사용해도 됩니다."></textarea>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button class="btn btn-primary" id="nlm-submit" onclick="submitNotebookLM()">NotebookLM 대본 생성</button>
+              <button class="btn btn-primary" id="nlm-submit" onclick="submitNotebookLM()">Codex 대본 생성</button>
               <button class="btn btn-primary" id="nlm-send-hermes" onclick="sendNotebookLMToHermes()" disabled>Hermes 패키지로 보내기</button>
-              <span class="info" id="nlm-send-hermes-hint">NotebookLM 대본 생성 후 활성화됩니다.</span>
+              <span class="info" id="nlm-send-hermes-hint">Codex 대본 생성 후 활성화됩니다.</span>
             </div>
           </div>
           <div class="card">
@@ -5427,7 +5420,7 @@ const tabTitles = {
   'yt-explore': 'YouTube 탐색',
   'hermes-autopilot': 'Hermes 자동 생성',
   'hermes-gen': 'Hermes 제목 생성',
-  'notebooklm': 'NotebookLM 대본 생성',
+  'notebooklm': '자료 기반 Codex 대본 생성',
   'styles': '스타일 관리',
   'category-image-styles': '카테고리 이미지 스타일',
   'history': '작업 히스토리',
@@ -7414,25 +7407,25 @@ async function submitNotebookLM() {
     source_text: sourceText,
     source_urls: sourceUrls,
     source_paths: sourcePaths,
-    mode: document.getElementById('nlm-mode')?.value || 'dialogue_podcast',
+    mode: 'narrator',
     category: document.getElementById('nlm-category')?.value?.trim() || '옛날이야기',
     duration_minutes: parseInt(document.getElementById('nlm-duration')?.value, 10) || 15,
     custom_title: document.getElementById('nlm-title')?.value?.trim() || '',
   };
   if (submitEl) {
     submitEl.disabled = true;
-    submitEl.textContent = 'NotebookLM 대본 생성 중...';
+    submitEl.textContent = 'Codex 대본 생성 중...';
   }
   notebookLMLastResultId = '';
   if (sendEl) sendEl.disabled = true;
-  if (sendHintEl) sendHintEl.textContent = 'NotebookLM 대본 생성 중입니다.';
+  if (sendHintEl) sendHintEl.textContent = 'Codex가 참고자료 기반 대본을 생성 중입니다.';
   if (resultEl) {
-    resultEl.innerHTML = '<div class="info">워커에서 Gemini/Claude 기반 대본을 생성하는 중입니다...</div>';
+    resultEl.innerHTML = '<div class="info">로컬 Codex가 참고자료 기반 대본을 생성하는 중입니다...</div>';
   }
   try {
     const data = await api('POST', '/api/notebooklm/generate', body);
     if (!data || data.success === false) {
-      throw new Error(data?.detail || data?.error || 'NotebookLM 대본 생성 실패');
+      throw new Error(data?.detail || data?.error || 'Codex 대본 생성 실패');
     }
     const result = data.result || {};
     const scenes = Array.isArray(result.scenes) ? result.scenes : [];
@@ -7478,16 +7471,16 @@ async function submitNotebookLM() {
           <div class="result-viewer" style="max-height:320px">${escapeHtml(JSON.stringify(scenes.slice(0, 60), null, 2))}</div>
         </div>`;
     }
-    showToast(`NotebookLM 대본 생성 완료: ${data.id}`);
+    showToast(`Codex 대본 생성 완료: ${data.id}`);
   } catch (e) {
     if (resultEl) {
       resultEl.innerHTML = `<div class="prompt-box prompt-box-error">${escapeHtml(e.message || String(e))}</div>`;
     }
-    showToast(`NotebookLM 대본 생성 실패: ${e.message || e}`, 'error');
+    showToast(`Codex 대본 생성 실패: ${e.message || e}`, 'error');
   } finally {
     if (submitEl) {
       submitEl.disabled = false;
-      submitEl.textContent = 'NotebookLM 대본 생성';
+      submitEl.textContent = 'Codex 대본 생성';
     }
   }
 }

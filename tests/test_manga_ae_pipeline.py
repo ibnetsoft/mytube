@@ -87,6 +87,23 @@ def test_review_rejection_keeps_scene_out_of_final_output(tmp_path, monkeypatch)
     assert premiere.find_project_jobs([row]) == []
 
 
+def test_user_uploaded_clip_is_blocked_from_final_render_until_ae_ready(monkeypatch):
+    import premiere_final_worker as premiere
+
+    scene = {
+        "scene_number": 1,
+        "video_generation_mode": "user_upload",
+        "video_url": "/api/std/assets/gcs-file?bucket=b&path=source.mp4",
+        "ae_motion_plan": {"enabled": True},
+    }
+    row = {"id": "project", "submitted_at": "2026-09-26T00:00:00Z",
+           "project_payload": {"structure": {"scenes": [scene]}}}
+    assert premiere.find_project_jobs([row]) == []
+
+    scene["ae_motion_video_url"] = "/api/std/assets/gcs-file?bucket=b&path=ae.mp4"
+    assert premiere.find_project_jobs([row])
+
+
 def test_manga_jsx_uses_structured_impact_time_and_text(tmp_path):
     from manga_ae_templates import write_manga_jsx
 
@@ -104,4 +121,7 @@ def test_manga_jsx_uses_structured_impact_time_and_text(tmp_path):
     assert 'firstBeat("ink_splat", moment + 0.06)' in script
     assert 'firstBeat("onomatopoeia", moment + 0.12)' in script
     assert 'layer.inPoint = at(when)' in script
+    assert 'success.write("success|" + CFG.project' in script
+    assert 'app.scheduleTask("app.quit()"' in script
+    assert 'throw error;' in script
     assert "__MANGA_CONFIG__" not in script

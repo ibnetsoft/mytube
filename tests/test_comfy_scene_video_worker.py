@@ -38,3 +38,18 @@ def test_scene_list_reads_project_structure_before_flat_compatibility_payload():
     project = {"project_payload": {"structure": {"scenes": [{"scene_number": 13}]}, "scenes": [{"scene_number": 2}]}}
 
     assert worker._scene_list(project) == [{"scene_number": 13}]
+
+
+def test_comfyui_video_registration_preserves_ae_postprocess_plan():
+    scene = {
+        "scene_number": 13,
+        "video_generation_mode": "comfyui",
+        "ae_motion_plan": {"enabled": True, "preset": "ambient_lantern_motion",
+                           "input_source": "comfyui_video_asset", "postprocess_after": "comfyui_video_ready"},
+        "metadata": {"video_generation_mode": "comfyui"},
+    }
+    updated = worker._patch_scene_payload(scene, 13, "asset-13", "air-test", "std-projects/p/scene_013_comfyui.mp4")
+
+    assert updated["ae_motion_plan"] == scene["ae_motion_plan"]
+    assert updated["metadata"]["comfyui_video_asset"]["gcs_path"].endswith("scene_013_comfyui.mp4")
+    assert updated["video_url"].endswith("scene_013_comfyui.mp4")

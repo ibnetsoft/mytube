@@ -23,6 +23,7 @@ except ImportError:
 
 
 TEMPLATES = {
+    "directed_performance": ("background",),
     "dialogue_closeup": ("background", "character"),
     "angled_triple_reaction": ("background", "character_left", "character_center", "character_right"),
     "body_following_qi": ("background", "character", "talisman"),
@@ -33,6 +34,9 @@ TEMPLATES = {
     "backlit_hand_reveal": ("background", "hand_foreground"),
 }
 REVIEW_POINTS = {
+    "directed_performance": ["Check each pose or prop reveal against the corresponding narration beat and supplied layer role.",
+                             "Check that attention cues point to the intended story subject and remain subtle.",
+                             "Check that alternate poses align without seams, identity drift, or unintended repeated movement."],
     "dialogue_closeup": ["Listen to the final dialogue while checking mouth changes frame by frame at the first word, pauses, and last word.",
                          "Check that all three mouth patches cover the original lips without seams, face drift, identity changes, or a visible mouth during silence."],
     "angled_triple_reaction": ["Check that all three faces remain visible and the panel seams do not cut through eyes or captions.",
@@ -608,6 +612,21 @@ def validate_render(scene: dict[str, Any], mp4_path: Path | str, fps: float | No
     event_name = None
     event_times: tuple[float, float] | None = None
     event_description = None
+    directed_events: list[tuple[int, float, float, str]] = []
+    if template == "directed_performance" and isinstance(beats, list):
+        for index, beat in enumerate(beats, 1):
+            entry = _mapping(beat)
+            action = str(entry.get("action") or "")
+            if action not in {"pose_reveal", "prop_reveal", "mask_reveal"}:
+                continue
+            moment = _number(entry.get("at_seconds"))
+            _check(checks, errors, f"directorial_beat_{index}_in_video",
+                   moment is not None and 0 <= moment <= duration - .07,
+                   f"directorial action {action} must occur within the rendered clip")
+            if moment is not None:
+                pair = (max(0.0, moment - 0.12), min(duration - .03, moment + 0.18))
+                directed_events.append((index, pair[0], pair[1], str(entry.get("target") or "")))
+                times.extend(pair)
     if template in event_specs:
         event_name, raw_time, event_description = event_specs[template]
         event_at = _number(raw_time)
@@ -684,6 +703,14 @@ def validate_render(scene: dict[str, Any], mp4_path: Path | str, fps: float | No
             _check(checks, errors, f"{event_name}_frame_change", event_difference >= .7,
                    f"frames around the {event_description} must show a visible change")
         warnings.append(f"Frame change cannot prove the {event_description} is visually correct; inspect the event frame")
+    if directed_events:
+        by_time = {item["at_seconds"]: item for item in samples}
+        for index, before_at, after_at, target in directed_events:
+            before, after = by_time.get(round(before_at, 3)), by_time.get(round(after_at, 3))
+            change = difference(before, after) if before is not None and after is not None else 0.0
+            _check(checks, errors, f"directorial_beat_{index}_frame_change", change >= .35,
+                   f"render must visibly change around directed beat {index} ({target})")
+        warnings.append("Frame-change checks do not prove pose identity or clean compositing; inspect each directed beat at playback speed")
     if caption_pairs:
         by_time = {item["at_seconds"]: item for item in samples}
         for index, (before_at, after_at, position) in enumerate(caption_pairs, 1):

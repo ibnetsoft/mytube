@@ -81,6 +81,39 @@ def test_quality_split_crop_resume_and_tamper_guard(tmp_path,monkeypatch):
     monkeypatch.setattr(helper,'_topic',lambda *a:pytest.fail('No DB calls permitted before verification'))
     with pytest.raises(ValueError,match='Crop changed'):helper.publish(p,out,False)
 
+@pytest.mark.parametrize('failure_kind',['quality','safety'])
+def test_user_supplied_image_resolves_blocked_scene_without_retry(tmp_path,failure_kind):
+    m=manifest()
+    if failure_kind=='safety':
+        # Use a persisted single-scene safety failure; the explicit user
+        # selection is the approval evidence for this separate image source.
+        s={'schema':r.POLICY,'source_hash':'test','jobs':[{
+            'id':'single-safety','kind':'scene','layout':'single','scene_numbers':[1],
+            'prompt':'original prompt','references':[],'scene_specs':[],
+            'status':'safety_review','attempts':2,'alternative_depth':0,'next_after':0,'history':[],
+        }]}
+        job_id='single-safety'
+    else:
+        # A single-scene quality failure at the attempt limit must remain
+        # blocked from more generation while accepting the user's own image.
+        s={'schema':r.POLICY,'source_hash':'test','jobs':[{
+            'id':'single-quality','kind':'scene','layout':'single','scene_numbers':[1],
+            'prompt':'original prompt','references':[],'scene_specs':[],
+            'status':'quality_failed','attempts':3,'alternative_depth':1,'next_after':0,'history':[],
+        }]}
+        job_id='single-quality'
+    image=tmp_path/'provided.png';Image.new('RGB',(640,360),'tan').save(image)
+    with pytest.raises(ValueError,match='evidence'):
+        event(s,'provided_image',job_id,image_file=str(image),source_file='user.png',visual_review='checked')
+    before=r.get_job(s,job_id)['attempts']
+    s=event(s,'provided_image',job_id,image_file=str(image),source_file='user.png',
+            visual_review='Scene match checked',user_approval='User requested this replacement')
+    assert r.get_job(s,job_id)['status']=='quality_review'
+    assert r.get_job(s,job_id)['image_source']=='user_supplied'
+    assert r.get_job(s,job_id)['attempts']==before
+    s=event(s,'accept',job_id,visual_review='Reviewed supplied image and scene mapping')
+    assert r.get_job(s,job_id)['status']=='ready'
+
 def test_partial_state_cannot_publish(tmp_path,monkeypatch):
     p=tmp_path/'manifest.json';p.write_text(json.dumps(manifest()));r.ensure_state(p)
     monkeypatch.setattr(helper,'_topic',lambda *a:pytest.fail('No network call'))

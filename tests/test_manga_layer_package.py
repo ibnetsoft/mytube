@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import json
 import io
 import pathlib
@@ -140,6 +142,40 @@ def test_approved_real_psd_publishes_layer_metadata_and_detects_tamper(tmp_path,
     with pytest.raises(ValueError, match="changed after preparation"):
         publisher.publish(manifest, images, False)
     assert calls == []
+
+
+def test_defer_layers_publishes_still_without_running_ae_asset_preparation(tmp_path, monkeypatch):
+    manifest = tmp_path / "manifest.json"
+    _manifest(manifest)
+    images = tmp_path / "images"
+    images.mkdir()
+    _layer(images / "scene-001.png", background=True)
+
+    scene = {**_scene(), "local_layer_plan": {"enabled": True}}
+    manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+    manifest_data["scene_specs"] = [scene]
+    manifest.write_text(json.dumps(manifest_data), encoding="utf-8")
+    structure = {"scenes": [scene]}
+    monkeypatch.setattr(publisher, "_topic", lambda *_: (
+        {"id": "topic-1", "status": "pending"}, structure, "https://db.test", {}))
+    object_path = f"topics/topic-1/images/scene-001-{publisher._file_sha256(images / 'scene-001.png')}.png"
+    expected_md5 = base64.b64encode(hashlib.md5((images / "scene-001.png").read_bytes()).digest()).decode("ascii")
+    monkeypatch.setattr(publisher, "_list_gcs_object_metadata", lambda *_: {
+        object_path: {"name": object_path, "size": str((images / "scene-001.png").stat().st_size),
+                      "md5Hash": expected_md5}})
+    monkeypatch.setattr(publisher, "_upload_gcs_file", lambda *args: pytest.fail(
+        "verified immutable GCS image must not be uploaded again"))
+    patched = []
+    monkeypatch.setattr(publisher, "_request", lambda *args, **kwargs: (
+        patched.append(kwargs["json"]) or SimpleNamespace(json=lambda: {"applied": True})))
+    monkeypatch.setattr(publisher, "_write_depth_proxy_layers", lambda *args: pytest.fail(
+        "deferred publishing must not prepare AE depth layers"))
+
+    assert len(publisher.publish(manifest, images, False, defer_layers=True,
+                                 reuse_existing=True)) == 1
+    assert patched[0]["p_scene_updates"][0]["asset_patch"]["image_url"].startswith(
+        "/api/std/assets/gcs-file?")
+    assert "psd_layer_asset" not in patched[0]["p_scene_updates"][0]["asset_patch"]["metadata"]
 
 
 def test_manifest_keeps_scene_bucket_distinct_from_portrait_bucket(tmp_path, monkeypatch):

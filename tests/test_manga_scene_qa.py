@@ -307,20 +307,32 @@ def new_template_clips(tmp_path_factory):
     ("glasses_reflection", ["background", "character", "reflection_scene"]),
     ("kinetic_title_reveal", ["background", "character"]),
     ("backlit_hand_reveal", ["background", "hand_foreground"]),
+    ("directed_performance", ["background", "pose_sleeping", "pose_waking"]),
 ])
 def test_new_templates_render_event_and_stay_under_visual_review(template, layers, new_template_clips):
     moving, static = new_template_clips
     scene = _scene(template)
+    if template == "directed_performance":
+        scene["ae_effect_plan"]["asset_requirements"] = {"required_layers": layers}
+        scene["ae_effect_plan"]["beats"] = [
+            {"at_seconds": 0.0, "action": "pose_reveal", "target": "pose_sleeping"},
+            {"at_seconds": 1.8, "action": "pose_reveal", "target": "pose_waking"},
+        ]
     plan_report = qa.validate_scene_plan(scene, _asset(layers), 4)
     assert plan_report["passed"] is True, plan_report
     render_report = qa.validate_render(scene, moving, fps=24)
     assert render_report["passed"] is True, render_report
     assert render_report["status"] == "needs_review"
     assert render_report["review_required"] is True
-    assert render_report["event_frame_difference"] >= .7
+    if template == "directed_performance":
+        assert any(check["code"] == "directorial_beat_2_frame_change" and check["passed"] for check in render_report["checks"])
+    else:
+        assert render_report["event_frame_difference"] >= .7
     static_report = qa.validate_render(scene, static, fps=24)
     assert static_report["passed"] is False
-    assert any("planned" in error and "visible change" in error for error in static_report["errors"])
+    assert any(("directorial action" in error or "planned" in error or "directed beat" in error)
+               and ("visible change" in error or "visibly change" in error)
+               for error in static_report["errors"])
 
     digest = hashlib.sha256(moving.read_bytes()).hexdigest()
     scene["metadata"] = {"ae_effect_asset": {
