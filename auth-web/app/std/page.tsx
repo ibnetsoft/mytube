@@ -1809,7 +1809,7 @@ export default function StdPortalPage() {
         targetLanguage: SubtitleTranslationLanguage,
         force = false,
         sourceSubtitles?: any[],
-        options?: { preferGemini?: boolean; targetIndex?: number },
+        options?: { targetIndex?: number },
     ) => {
         const projectId = String(selectedProject?.project?.id || '')
         const subtitlesForTranslation = Array.isArray(sourceSubtitles) ? sourceSubtitles : localSubtitles
@@ -1829,21 +1829,29 @@ export default function StdPortalPage() {
         setTranslatingSubtitleLanguage(targetLanguage)
         setSubtitleTranslationError('')
         try {
-            const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/subtitle-translations`, {
-                method: 'POST',
-                headers: authedJsonHeaders,
-                signal: controller.signal,
-                body: JSON.stringify({
-                    target_language: targetLanguage,
-                    translate_indexes: translateIndexes,
-                    blocks,
-                    ...(options?.preferGemini || persistedSubtitleTranslations?.[targetLanguage]?.blocks?.length
-                        ? { prefer_gemini: true } : {}),
-                }),
-            })
             const languageName = SUBTITLE_REVIEW_COPY[targetLanguage].name
-            const payload = await safeParseJson(response, `${languageName} 자막 번역에 실패했습니다.`)
-            if (!response.ok || !payload?.success) throw new Error(payload?.error || `${languageName} 자막 번역에 실패했습니다.`)
+            let payload: any
+            let jobId: string | undefined
+            const startedAt = Date.now()
+            do {
+                if (controller.signal.aborted) return
+                const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/subtitle-translations`, {
+                    method: 'POST', headers: authedJsonHeaders, signal: controller.signal,
+                    body: JSON.stringify({ target_language: targetLanguage, translate_indexes: translateIndexes, blocks, job_id: jobId }),
+                })
+                payload = await safeParseJson(response, `${languageName} 자막 번역에 실패했습니다.`)
+                if (!response.ok || !payload?.success) throw new Error(payload?.error || `${languageName} 자막 번역에 실패했습니다.`)
+                if (payload.pending) {
+                    jobId = payload.job_id
+                    setMessage('로컬 Codex 대본워커에서 자막 번역 대기·처리 중입니다.')
+                    if (Date.now() - startedAt > 30 * 60 * 1000) throw new Error('로컬 대본워커 실행 상태를 확인해 주세요. 번역 요청은 저장되어 있습니다.')
+                    await new Promise<void>(resolve => {
+                        const done = () => { window.clearTimeout(timer); controller.signal.removeEventListener('abort', done); resolve() }
+                        const timer = window.setTimeout(done, 3000)
+                        controller.signal.addEventListener('abort', done, { once: true })
+                    })
+                }
+            } while (payload.pending)
             const translatedMap = translationMapFromBlocks(payload.blocks)
             if (blocks.some(block => translateIndexes.includes(block.index) && !translatedMap[subtitleTranslationKey(block.index, block.source_text)])) {
                 throw new Error('일부 자막 블록의 번역이 누락되었습니다.')
@@ -6787,7 +6795,7 @@ export default function StdPortalPage() {
         subtitleTextSelectionRef.current = null
         await persistVrewVoiceSubtitles(updatedSubtitles)
         if (subtitleReviewLocale) {
-            void translateSubtitleBlocks(subtitleReviewLocale, true, updatedSubtitles, { preferGemini: true })
+            void translateSubtitleBlocks(subtitleReviewLocale, true, updatedSubtitles)
         }
         setMessage(`씬 ${Number(subtitle.scene_number)}의 자막을 2개로 분리했습니다.`)
     }
@@ -9688,13 +9696,13 @@ export default function StdPortalPage() {
                                                                                                         className="rounded p-1 hover:bg-sky-400/10 disabled:opacity-50"
                                                                                                         onClick={(event) => {
                                                                                                             event.stopPropagation()
-                                                                                                            void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { preferGemini: true, targetIndex: item.subtitleIndex })
+                                                                                                            void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { targetIndex: item.subtitleIndex })
                                                                                                         }}><RefreshCw size={13} /></button>
                                                                                                 </span>
                                                                                             ) : subtitleTranslationError
                                                                                                 ? <button type="button" className="text-red-300 underline" onClick={(event) => {
                                                                                                     event.stopPropagation()
-                                                                                                    void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { preferGemini: true, targetIndex: item.subtitleIndex })
+                                                                                                    void translateSubtitleBlocks(subtitleReviewLocale, true, undefined, { targetIndex: item.subtitleIndex })
                                                                                                 }}>{subtitleReviewCopy.retry}</button>
                                                                                                 : translatingSubtitleLanguage === subtitleReviewLocale
                                                                                                     ? subtitleReviewCopy.translating

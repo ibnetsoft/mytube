@@ -523,6 +523,17 @@ store = ScriptStore()
 jobs = Jobs(OUT, store)
 
 
+@app.on_event('startup')
+def start_subtitle_translations():
+    from worker.codex_subtitle_translation import start_translation_loop
+    app.state.subtitle_translation_stop = start_translation_loop(jobs)
+
+
+@app.on_event('shutdown')
+def stop_subtitle_translations():
+    app.state.subtitle_translation_stop.set()
+
+
 @app.middleware('http')
 async def local_boundary(request: Request, call_next):
     if request.headers.get('host') != f'127.0.0.1:{PORT}':

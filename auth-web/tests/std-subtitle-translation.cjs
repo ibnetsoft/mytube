@@ -50,7 +50,7 @@ console.log('subtitle merge/split preserves every unchanged translation before a
 
 // Execute the route's cache selection so the regression also covers API input.
 const route = fs.readFileSync(require.resolve('../app/api/std/projects/[projectId]/subtitle-translations/route.ts'), 'utf8')
-const selection = route.slice(route.indexOf('    const cachedBlocks ='), route.indexOf('    try {', route.indexOf('    const cachedBlocks =')))
+const selection = route.slice(route.indexOf('    const cachedBlocks ='), route.indexOf('    if (body.job_id)', route.indexOf('    const cachedBlocks =')))
 const selectMissing = new Function('targets', 'project', 'targetLanguage', 'blocks', 'translationMapFromBlocks', 'remapSubtitleTranslations', 'subtitleTranslationKey',
     ts.transpile(selection + '\nreturn missing', { target: ts.ScriptTarget.ES2020 }))
 const missing = selectMissing(null, { project_payload: { subtitle_translations: { th: { blocks: saved } } } }, 'th',
@@ -58,20 +58,7 @@ const missing = selectMissing(null, { project_payload: { subtitle_translations: 
 assert.deepEqual(missing, [{ index: 1, source_text: merged[1] }])
 console.log('API translates only the merged sentence in a 316-block project')
 
-async function verifyTranslationKey() {
-    const keySource = route.slice(route.indexOf('async function geminiApiKey'), route.indexOf('async function subtitleTranslationScope'))
-    const env = { SUBTITLE_TRANSLATION_GEMINI_API_KEY: 'translation-key', GEMINI_API_KEY: 'general-key' }
-    const lookup = () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { value: 'stored-key' } }) }) }) })
-    const getKey = new Function('process', 'supabaseAdmin', ts.transpile(keySource + '\nreturn geminiApiKey', { target: ts.ScriptTarget.ES2020 }))({ env }, { from: lookup })
-    assert.equal(await getKey(), 'translation-key')
-    delete env.SUBTITLE_TRANSLATION_GEMINI_API_KEY
-    assert.equal(await getKey(), 'general-key')
-    delete env.GEMINI_API_KEY
-    assert.equal(await getKey(), 'stored-key')
-    console.log('translation-specific credential takes priority without changing other AI calls')
-}
-verifyTranslationKey().catch(error => { console.error(error); process.exitCode = 1 })
-
+assert.doesNotMatch(route, /generateJsonWithModelSetting|geminiApiKey|OPENAI_API_KEY|GEMINI_API_KEY/)
 const { subtitleTranslationIndexes } = moduleBox.exports
 const manualRows = [{ text: 'normal' }, { text: 'merged one', translation_manual: true }, { text: 'merged two', translation_manual: true }]
 assert.deepEqual(Array.from(subtitleTranslationIndexes(manualRows)), [0])
@@ -80,3 +67,50 @@ const targetedMissing = selectMissing(new Set([2]), { project_payload: {} }, 'th
     manualRows.map((s, index) => ({ index, source_text: s.text })), translationMapFromBlocks, remapSubtitleTranslations, subtitleTranslationKey)
 assert.deepEqual(targetedMissing.map(b => b.index), [2])
 console.log('manual merged blocks stay out of automatic requests; clicking targets only one row')
+
+async function verifyLocalQueueRoute() {
+    const tables = {
+        std_projects: [{ id: 'project-test', employee_email: 'tester@example.test', project_payload: {} }],
+        global_settings: [{ key: 'sys_api_subtitle_translation_scope', value: 'all' }],
+        std_subtitle_translation_jobs: [],
+    }
+    const database = { from(table) {
+        const filters = []
+        return {
+            select() { return this },
+            eq(key, value) { filters.push([key, value]); return this },
+            async maybeSingle() { return { data: tables[table].find(row => filters.every(([k, v]) => row[k] === v)) || null } },
+            async single() { return this.maybeSingle() },
+            async upsert(row) { tables[table].push({ ...row, id: 'job-test', status: 'queued' }); return { error: null } },
+        }
+    } }
+    const compiled = ts.transpileModule(route, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText
+    const routeModule = { exports: {} }
+    const localRequire = name => {
+        if (name === 'next/server') return { NextResponse: { json: (data, options = {}) => ({ data, status: options.status || 200 }) } }
+        if (name === '@/lib/stdWeb') return { requireStdUser: async () => ({ ok: true, requester: { email: 'tester@example.test' } }) }
+        if (name === '@/lib/supabaseAdmin') return { supabaseAdmin: database }
+        if (name === '@/lib/stdSubtitleTranslation') return moduleBox.exports
+        return require(name)
+    }
+    vm.runInNewContext(compiled, { exports: routeModule.exports, require: localRequire, console, URL, Set, Map })
+    const input = { target_language: 'ko', blocks: [{ index: 0, source_text: 'お鈴は笑った。' }] }
+    const request = data => new Request('http://localhost/api/std/projects/project-test/subtitle-translations', {
+        method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' },
+    })
+    const queued = await routeModule.exports.POST(request(input), { params: { projectId: 'project-test' } })
+    assert.equal(queued.status, 202)
+    assert.equal(queued.data.provider, 'local-codex')
+    assert.equal(tables.std_subtitle_translation_jobs.length, 1)
+    const pending = await routeModule.exports.POST(request({ ...input, job_id: 'job-test' }), { params: { projectId: 'project-test' } })
+    assert.equal(pending.status, 202)
+    tables.std_subtitle_translation_jobs[0].status = 'completed'
+    tables.std_subtitle_translation_jobs[0].result_blocks = [{ ...input.blocks[0], translated_text: '오스즈는 웃었다.' }]
+    const done = await routeModule.exports.POST(request({ ...input, job_id: 'job-test' }), { params: { projectId: 'project-test' } })
+    assert.equal(done.status, 200)
+    assert.equal(done.data.blocks[0].translated_text, '오스즈는 웃었다.')
+    const changed = await routeModule.exports.POST(request({ ...input, job_id: 'job-test', blocks: [{ index: 0, source_text: 'changed' }] }), { params: { projectId: 'project-test' } })
+    assert.equal(changed.status, 409, 'An old job cannot supply a translation for edited source text')
+    console.log('Web route queues local jobs, polls completion, and rejects stale source without any model API')
+}
+verifyLocalQueueRoute().catch(error => { console.error(error); process.exitCode = 1 })

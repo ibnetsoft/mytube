@@ -220,13 +220,15 @@ export function splitTextToSingleLineChunks(
     const hasJapanese = /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}/u.test(cleaned)
     // A confirmed speaker turn is a single unit when it fits comfortably.
     if (options.dialogue && cleaned.length <= (hasJapanese ? target : Math.max(40, target * 2))) return [cleaned]
-    // Japanese has no whitespace between words. Honor the configured reading
-    // limit exactly and split at sentence punctuation or Japanese commas before
-    // falling back to a character-count split. The 1.5x allowance below is for
-    // languages where keeping a short phrase together improves readability.
+    // Japanese has no whitespace between words. Split at punctuation and clause
+    // boundaries, but allow a two-character tolerance so punctuation or a short
+    // grammatical ending is not stranded in its own subtitle block.
     if (hasJapanese) {
-        const japanese = splitJapaneseNarration(cleaned, target, target)
-        if (japanese.length > 1) return repairSubtitleQuoteBoundaries(japanese)
+        const japaneseLimit = target + 2
+        const japanese = splitJapaneseNarration(cleaned, target, japaneseLimit)
+        if (japanese.length > 1) {
+            return repairSubtitleQuoteBoundaries(attachLeadingJapanesePunctuation(mergeShortJapaneseTail(japanese, japaneseLimit)))
+        }
     }
     // Keep sentence punctuation and closing quotes with the preceding sentence.
     // A decimal point is not a sentence boundary.
@@ -363,12 +365,50 @@ function splitLongJapaneseClause(text: string, target: number, limit: number): s
             const connective = /^(?:ので|けれども|けれど|けど|ながら|ため|そして|しかし|それから|ところが|から|のに|ても|ては|て、|、)$/.test(match[0])
             candidates.push({index, end, score: Math.abs(end - target) - (connective ? 3 : 0)})
         }
-        const best = candidates.sort((a,b)=>a.score-b.score)[0]
-        const cut = best?.end || Math.min(limit, Math.max(1,target))
+        const safeCandidates = candidates.filter(candidate => {
+            const remainderLength = rest.length - candidate.end
+            return remainderLength === 0 || remainderLength >= min
+        })
+        const best = safeCandidates.sort((a,b)=>a.score-b.score)[0]
+        const hardCut = Math.min(limit, Math.max(1,target))
+        const hardRemainderLength = rest.length - hardCut
+        // Avoid a final one-character subtitle when a slightly earlier cut can
+        // leave two readable chunks within the same configured limit.
+        const balancedCut = hardRemainderLength > 0 && hardRemainderLength < min
+            ? Math.max(1, rest.length - min)
+            : hardCut
+        const cut = best?.end || balancedCut
         result.push(rest.slice(0,cut))
         rest = rest.slice(cut)
     }
     if (rest) result.push(rest)
+    return mergeShortJapaneseTail(attachLeadingJapanesePunctuation(result), limit)
+}
+
+function attachLeadingJapanesePunctuation(chunks: string[]): string[] {
+    const result: string[] = []
+    for (const raw of chunks) {
+        let chunk = String(raw || '').trim()
+        if (!chunk) continue
+        const leadingPunctuation = chunk.match(/^[。！？!?…]+/u)?.[0] || ''
+        if (leadingPunctuation && result.length > 0) {
+            result[result.length - 1] += leadingPunctuation
+            chunk = chunk.slice(leadingPunctuation.length).trimStart()
+        }
+        if (chunk) result.push(chunk)
+    }
+    return result
+}
+
+function mergeShortJapaneseTail(chunks: string[], limit: number): string[] {
+    const result = [...chunks]
+    if (result.length < 2) return result
+    const tail = result[result.length - 1]
+    const previous = result[result.length - 2]
+    if (Array.from(tail).length <= 2 && previous.length + tail.length <= limit) {
+        result[result.length - 2] = previous + tail
+        result.pop()
+    }
     return result
 }
 

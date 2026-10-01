@@ -180,11 +180,18 @@ const japaneseNarration = '江戸から離れた下総の、静かな村での�
 const japaneseChunks = splitTextToSingleLineChunks(japaneseNarration)
 assert.ok(japaneseChunks.length > 1, 'Japanese narration should split into readable subtitle units')
 assert.equal(japaneseChunks.join(''), japaneseNarration, 'Japanese splitting must preserve the original script')
-assert.ok(japaneseChunks.every(chunk => chunk.length <= 20), 'Japanese subtitle chunks must not exceed the configured 20-character limit')
+assert.ok(japaneseChunks.every(chunk => chunk.length <= 22), 'Japanese subtitle chunks may use the configured 20-character limit plus a two-character tolerance')
+const shortTailJapanese = 'それまでの眠そうな顔をぱっと明るくしました。'
+assert.deepEqual(splitTextToSingleLineChunks(shortTailJapanese, 20), [shortTailJapanese], 'Do not strand the final 1-2 Japanese characters in a new subtitle')
+const punctuationJapanese = '稽古が済んだら、町へ寄るとよい。お鈴は、それまでの眠そうな顔をぱっと明るくしました。'
+const punctuationChunks = splitTextToSingleLineChunks(punctuationJapanese, 20)
+assert.equal(punctuationChunks.join(''), punctuationJapanese, 'Sentence splitting must preserve Japanese punctuation')
+assert.ok(punctuationChunks.every(chunk => !/^[。！？!?…]/u.test(chunk)), 'Sentence punctuation must not begin a new Japanese subtitle')
+assert.ok(punctuationChunks.every(chunk => chunk.length <= 22), 'Japanese sentence chunks must fit the configured limit plus tolerance')
 const longCommaJapanese = '商いの駆け引きでは誰にも引けを取らず、ひとたび帳面を開けば、誰にも負けない見事な帳簿を作りました。'
 const longCommaJapaneseChunks = splitTextToSingleLineChunks(longCommaJapanese, 20)
 assert.ok(longCommaJapaneseChunks.length > 1, 'Long Japanese captions should split into separate subtitle blocks')
-assert.ok(longCommaJapaneseChunks.every(chunk => chunk.length <= 20), 'Japanese captions must fit the configured limit')
+assert.ok(longCommaJapaneseChunks.every(chunk => chunk.length <= 22), 'Japanese captions must fit the configured limit plus tolerance')
 assert.ok(longCommaJapaneseChunks[0].endsWith('、'), 'Prefer the Japanese comma as a natural subtitle boundary')
 assert.equal(longCommaJapaneseChunks.join(''), longCommaJapanese, 'Japanese comma splitting must preserve all source text')
 assert.deepEqual(splitTextToSingleLineChunks('「まずは、お入り」と声をかけました。', 20, {dialogue:true}), ['「まずは、お入り」と声をかけました。'])

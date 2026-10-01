@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
-import { generateJsonWithModelSetting } from '@/lib/aiRouter'
+import { createHash } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import {
-    buildSubtitleTranslationPrompt,
     isSubtitleTranslationLanguage,
-    parseStrictTranslationResponse,
     SubtitleTranslationBlock,
     subtitleTranslationKey,
     translationMapFromBlocks,
@@ -13,28 +11,13 @@ import {
 import { requireStdUser } from '@/lib/stdWeb'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+export const maxDuration = 30
 
 const MAX_BLOCKS = 500
 const MAX_BLOCK_TEXT = 1200
 const MAX_TOTAL_TEXT = 120_000
-const BATCH_SIZE = 30
-const SUBTITLE_TRANSLATION_MODEL_SETTING_KEY = 'sys_api_subtitle_translation_model'
-const DEFAULT_SUBTITLE_TRANSLATION_MODEL = 'gpt-5.3-codex-spark'
-const SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY = 'sys_api_subtitle_edit_translation_model'
-const DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL = 'gemini-3.6-flash'
 const SUBTITLE_TRANSLATION_SCOPE_KEY = 'sys_api_subtitle_translation_scope'
-
-async function geminiApiKey(): Promise<string> {
-    if (process.env.SUBTITLE_TRANSLATION_GEMINI_API_KEY) return process.env.SUBTITLE_TRANSLATION_GEMINI_API_KEY
-    if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY
-    const { data } = await supabaseAdmin
-        .from('global_settings')
-        .select('value')
-        .eq('key', 'sys_api_gemini')
-        .maybeSingle()
-    return String(data?.value || '')
-}
+const JOB_TABLE = 'std_subtitle_translation_jobs'
 
 async function subtitleTranslationScope(): Promise<'thai_only' | 'all'> {
     const { data } = await supabaseAdmin
@@ -59,7 +42,6 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Korean, English, Vietnamese, or Thai subtitle blocks are required' }, { status: 400 })
     }
     const targetLanguage = body.target_language
-    const preferGeminiForSubtitleEdit = body?.prefer_gemini === true
     const translationScope = await subtitleTranslationScope()
     if (translationScope !== 'all' && targetLanguage !== 'th' && targetLanguage !== 'ko') {
         return NextResponse.json({
@@ -78,6 +60,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         blocks.length === 0
         || blocks.length > MAX_BLOCKS
         || totalText > MAX_TOTAL_TEXT
+        || new Set(blocks.map((block: any) => block.index)).size !== blocks.length
         || blocks.some((block: any) => !Number.isInteger(block.index) || block.index < 0 || !block.source_text || block.source_text.length > MAX_BLOCK_TEXT)
     ) {
         return NextResponse.json({ success: false, error: 'Invalid subtitle block payload' }, { status: 400 })
@@ -120,70 +103,57 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return !cachedText && (targets === null || targets.has(block.index))
     })
 
-    try {
-        if (missing.length > 0) {
-            const apiKey = await geminiApiKey()
-
-            for (let offset = 0; offset < missing.length; offset += BATCH_SIZE) {
-                const batch = missing.slice(offset, offset + BATCH_SIZE)
-                const source = batch.map((block: any) => ({ id: `b${block.index}`, text: block.source_text }))
-                const raw = await generateJsonWithModelSetting(
-                    supabaseAdmin,
-                    buildSubtitleTranslationPrompt(source, targetLanguage),
-                    preferGeminiForSubtitleEdit ? SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY : SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
-                    apiKey,
-                    0.1,
-                    {
-                        defaultModel: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,
-                        // Translation must continue with the configured Gemini fallback when
-                        // a selected provider/model returns a transient service error.
-                        disableFallback: false,
-                    },
-                )
-                const result = parseStrictTranslationResponse(raw, source)
-                for (const item of result) translated.set(item.id.slice(1), item.translation)
-            }
+    if (body.job_id) {
+        const { data: job, error: jobError } = await supabaseAdmin.from(JOB_TABLE)
+            .select('id,status,result_blocks,source_blocks,error')
+            .eq('id', body.job_id).eq('project_id', project.id).eq('target_language', targetLanguage).maybeSingle()
+        if (jobError) return NextResponse.json({ success: false, error: '번역 작업 조회 실패' }, { status: 500 })
+        if (!job || job.source_blocks.some((source: any) => !blocks.some((block: any) => block.index === source.index && block.source_text === source.source_text))) {
+            return NextResponse.json({ success: false, error: '번역 원문이 변경되었습니다. 다시 요청해 주세요.' }, { status: 409 })
         }
-    } catch (error: any) {
-        const blocked = String(error?.message || '').includes('API_KEY_SERVICE_BLOCKED')
-        console.error('[subtitle-translations] generation failed', { status: error?.status, blocked })
-        return NextResponse.json({
-            success: false,
-            error: blocked
-                ? 'Gemini 자막 번역 키의 API 사용 권한이 차단되어 있습니다. 관리자 키 설정을 확인해 주세요.'
-                : '자막 번역 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.',
-        }, { status: 502 })
+        if (job.status === 'failed') return NextResponse.json({ success: false, error: job.error }, { status: 502 })
+        if (job.status !== 'completed') return NextResponse.json({ success: true, pending: true, job_id: job.id, provider: 'local-codex' }, { status: 202 })
+        for (const item of job.result_blocks || []) translated.set(String(item.index), item.translated_text)
+    } else if (missing.length > 0) {
+        const requestHash = createHash('sha256').update(JSON.stringify(missing)).digest('hex')
+        const existing = await supabaseAdmin.from(JOB_TABLE).select('id,status,result_blocks')
+            .eq('project_id', project.id).eq('target_language', targetLanguage).eq('request_hash', requestHash).maybeSingle()
+        let job = existing.data
+        if (existing.error) return NextResponse.json({ success: false, error: '로컬 번역 작업 조회 실패' }, { status: 500 })
+        if (!job) {
+            const created = await supabaseAdmin.from(JOB_TABLE).upsert({
+                project_id: project.id, target_language: targetLanguage, request_hash: requestHash, source_blocks: missing,
+                cached_blocks: blocks.flatMap((block: any) => {
+                    const text = translated.get(String(block.index))
+                    return text ? [{ ...block, translated_text: text }] : []
+                }),
+            }, { onConflict: 'project_id,target_language,request_hash', ignoreDuplicates: true })
+            if (created.error) return NextResponse.json({ success: false, error: '로컬 번역 작업 저장 실패' }, { status: 500 })
+            const fetched = await supabaseAdmin.from(JOB_TABLE).select('id,status,result_blocks')
+                .eq('project_id', project.id).eq('target_language', targetLanguage).eq('request_hash', requestHash).single()
+            job = fetched.data
+        } else if (job.status === 'failed') {
+            const retried = await supabaseAdmin.from(JOB_TABLE).update({ status: 'queued', error: null, started_at: null,
+                created_at: new Date().toISOString(),
+                cached_blocks: blocks.flatMap((block: any) => {
+                    const text = translated.get(String(block.index))
+                    return text ? [{ ...block, translated_text: text }] : []
+                }),
+            })
+                .eq('id', job.id).eq('status', 'failed')
+            if (retried.error) return NextResponse.json({ success: false, error: '로컬 번역 재시도 저장 실패' }, { status: 500 })
+            job.status = 'queued'
+        }
+        if (!job) return NextResponse.json({ success: false, error: '로컬 번역 작업을 찾지 못했습니다.' }, { status: 500 })
+        if (job.status !== 'completed') return NextResponse.json({ success: true, pending: true, job_id: job.id, provider: 'local-codex' }, { status: 202 })
+        for (const item of job.result_blocks || []) translated.set(String(item.index), item.translated_text)
     }
-
     const result: SubtitleTranslationBlock[] = blocks.map((block: any) => ({
-        index: block.index,
-        source_text: block.source_text,
-        translated_text: translated.get(String(block.index)) || '',
+        ...block, translated_text: translated.get(String(block.index)) || '',
     }))
     if (result.some(block => !block.translated_text && (targets === null || targets.has(block.index)))) {
         return NextResponse.json({ success: false, error: 'Some subtitle blocks were not translated' }, { status: 502 })
     }
-
-    const latest = await supabaseAdmin.from('std_projects').select('project_payload').eq('id', project.id).single()
-    const latestPayload = latest.data?.project_payload || project.project_payload || {}
-    const nextTranslations = {
-        ...(latestPayload.subtitle_translations || {}),
-        [targetLanguage]: { version: 1, updated_at: new Date().toISOString(), blocks: result },
-    }
-    const persisted = await supabaseAdmin
-        .from('std_projects')
-        .update({ project_payload: { ...latestPayload, subtitle_translations: nextTranslations } })
-        .eq('id', project.id)
-
-    return NextResponse.json({
-        success: true,
-        target_language: targetLanguage,
-        blocks: result,
-        cached_count: result.filter(block => block.translated_text).length - missing.length,
-        translated_count: missing.length,
-        model_setting_key: preferGeminiForSubtitleEdit ? SUBTITLE_EDIT_TRANSLATION_MODEL_SETTING_KEY : SUBTITLE_TRANSLATION_MODEL_SETTING_KEY,
-        default_model: preferGeminiForSubtitleEdit ? DEFAULT_SUBTITLE_EDIT_TRANSLATION_MODEL : DEFAULT_SUBTITLE_TRANSLATION_MODEL,
-        scope: translationScope,
-        persisted: !persisted.error,
-    })
+    return NextResponse.json({ success: true, blocks: result, target_language: targetLanguage,
+        translated_count: missing.length, provider: 'local-codex', scope: translationScope, persisted: true })
 }

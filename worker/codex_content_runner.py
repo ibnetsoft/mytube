@@ -2084,6 +2084,12 @@ class CodexStagedContentRunner:
                        "Apply legacy_stage_directives and legacy_quality_contract when actually supplied in the context; absent legacy fields impose no additional requirements. "
                        + reference_rule + task + retry + " Return JSON only. Do not create or save media files or modify repository files.")
             command = [self.config.executable, "exec", "--ephemeral", "--sandbox", "read-only", "--color", "never", "-C", str(PROJECT_ROOT), "--output-last-message", str(response_path)]
+            if name.startswith('02_subtitle_translation'):
+                # Translation only needs the local input file. Do not start
+                # unrelated cloud connectors or plugin processes for this task.
+                command.extend(['--disable', 'apps', '--disable', 'plugins',
+                                '-c', 'mcp_servers.supabase.enabled=false',
+                                '-c', 'mcp_servers.node_repl.enabled=false'])
             if model:
                 command.extend(["--model", model])
             if reasoning:
@@ -2096,14 +2102,22 @@ class CodexStagedContentRunner:
                     raise CodexContentError('Invalid local character reference path')
                 command.extend(['--image', str(resolved)])
             command.append(prompt)
-            completed = subprocess.run(command, cwd=str(PROJECT_ROOT), text=True, encoding="utf-8", errors="replace", capture_output=True, timeout=self.config.timeout_seconds, check=False)
+            # Some CLI plugins keep inherited pipes open after Codex exits.
+            # Files let us wait for the CLI itself without waiting for pipe EOF.
+            stdout_path = response_path.with_suffix('.stdout.log')
+            stderr_path = response_path.with_suffix('.stderr.log')
+            with stdout_path.open('w', encoding='utf-8') as stdout, stderr_path.open('w', encoding='utf-8') as stderr:
+                completed = subprocess.run(command, cwd=str(PROJECT_ROOT), stdin=subprocess.DEVNULL,
+                    stdout=stdout, stderr=stderr, timeout=self.config.timeout_seconds, check=False,
+                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if os.name == 'nt' else 0)
             if completed.returncode == 0 and response_path.exists():
                 try:
                     return _parse_json(response_path.read_text(encoding="utf-8"))
                 except CodexContentError as exc:
                     last_error = str(exc)
                     continue
-            last_error = (completed.stderr or completed.stdout or "no response file").strip()[-1200:]
+            last_error = (stderr_path.read_text(encoding='utf-8', errors='replace')
+                          or stdout_path.read_text(encoding='utf-8', errors='replace') or 'no response file').strip()[-1200:]
         raise CodexContentError(f"Codex {name} stage failed after bounded retry: {last_error or 'no response file'}")
 
     def generate(self, job_id: str, payload: dict[str, Any], *, script_only: bool = False) -> dict[str, Any]:
