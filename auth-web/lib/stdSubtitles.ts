@@ -329,7 +329,14 @@ function splitJapaneseNarration(text: string, target: number, limit: number): st
             && /[。！？!?…]$/u.test(clauses[start]) && clauses[start].length < target
             && clauses[start].length + clauses[end].length <= limit) end += 1
         if (end === start + 1 && clauses[start].length > limit) {
-            chunks.push(...splitLongJapaneseClause(clauses[start], target, limit))
+            const longClauseChunks = splitLongJapaneseClause(clauses[start], target, limit)
+            // A sentence terminator belongs to the preceding subtitle. If the
+            // long-clause splitter cut immediately before it, keep it attached.
+            if (clauses[end] && /^[。！？!?…]/u.test(clauses[end])) {
+                longClauseChunks[longClauseChunks.length - 1] += clauses[end]
+                end += 1
+            }
+            chunks.push(...longClauseChunks)
         } else {
             chunks.push(clauses.slice(start,end).join(''))
         }
