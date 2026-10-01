@@ -180,7 +180,13 @@ const japaneseNarration = '江戸から離れた下総の、静かな村での�
 const japaneseChunks = splitTextToSingleLineChunks(japaneseNarration)
 assert.ok(japaneseChunks.length > 1, 'Japanese narration should split into readable subtitle units')
 assert.equal(japaneseChunks.join(''), japaneseNarration, 'Japanese splitting must preserve the original script')
-assert.ok(japaneseChunks.every(chunk => chunk.length <= 30), 'Japanese subtitle chunks should respect the configured reading length')
+assert.ok(japaneseChunks.every(chunk => chunk.length <= 20), 'Japanese subtitle chunks must not exceed the configured 20-character limit')
+const longCommaJapanese = '商いの駆け引きでは誰にも引けを取らず、ひとたび帳面を開けば、誰にも負けない見事な帳簿を作りました。'
+const longCommaJapaneseChunks = splitTextToSingleLineChunks(longCommaJapanese, 20)
+assert.ok(longCommaJapaneseChunks.length > 1, 'Long Japanese captions should split into separate subtitle blocks')
+assert.ok(longCommaJapaneseChunks.every(chunk => chunk.length <= 20), 'Japanese captions must fit the configured limit')
+assert.ok(longCommaJapaneseChunks[0].endsWith('、'), 'Prefer the Japanese comma as a natural subtitle boundary')
+assert.equal(longCommaJapaneseChunks.join(''), longCommaJapanese, 'Japanese comma splitting must preserve all source text')
 assert.deepEqual(splitTextToSingleLineChunks('「まずは、お入り」と声をかけました。', 20, {dialogue:true}), ['「まずは、お入り」と声をかけました。'])
 const longJapaneseDialogue = '「お母さんと、また大げんかをしたの。今夜は、ここに泊めてください」'
 const longJapaneseDialogueChunks = splitTextToSingleLineChunks(longJapaneseDialogue, 20, {dialogue:true})

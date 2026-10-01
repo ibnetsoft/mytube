@@ -220,11 +220,12 @@ export function splitTextToSingleLineChunks(
     const hasJapanese = /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}/u.test(cleaned)
     // A confirmed speaker turn is a single unit when it fits comfortably.
     if (options.dialogue && cleaned.length <= (hasJapanese ? target : Math.max(40, target * 2))) return [cleaned]
-    // Japanese has no whitespace between words. Split narration on real clause
-    // boundaries (sentence punctuation, Japanese commas, and safe connectives)
-    // before falling back to a character-count split.
+    // Japanese has no whitespace between words. Honor the configured reading
+    // limit exactly and split at sentence punctuation or Japanese commas before
+    // falling back to a character-count split. The 1.5x allowance below is for
+    // languages where keeping a short phrase together improves readability.
     if (hasJapanese) {
-        const japanese = splitJapaneseNarration(cleaned, target, limit)
+        const japanese = splitJapaneseNarration(cleaned, target, target)
         if (japanese.length > 1) return repairSubtitleQuoteBoundaries(japanese)
     }
     // Keep sentence punctuation and closing quotes with the preceding sentence.
