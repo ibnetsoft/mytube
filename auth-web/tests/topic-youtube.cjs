@@ -6,7 +6,7 @@ const compile = file => ts.transpileModule(fs.readFileSync(path.join(__dirname, 
 const lib = {}
 new Function('exports', compile('../lib/topicYoutube.ts'))(lib)
 const options = lib.parseTopicYoutubeOptions(new URLSearchParams('q=昔話&language=ja&order=viewCount&period=week'))
-for (const invalid of ['q=' + 'a'.repeat(121), 'language=xx', 'order=rating', 'period=year']) assert.throws(() => lib.parseTopicYoutubeOptions(new URLSearchParams(invalid)))
+for (const invalid of ['q=' + 'a'.repeat(121), 'language=xx', 'order=rating', 'period=year', 'age=70s']) assert.throws(() => lib.parseTopicYoutubeOptions(new URLSearchParams(invalid)))
 const rows = [
     { id: 'abcdefghijk', snippet: { title: '옛날이야기 가족 비밀', channelTitle: '채널', publishedAt: '2026-09-25T00:00:00Z', tags: ['가족', '가족', '옛날이야기'] }, statistics: { viewCount: '12500' } },
     { id: 'lmnopqrstuv', snippet: { title: '가족의 약속', channelTitle: '다른 채널', tags: ['가족'] } },
@@ -28,6 +28,22 @@ const rows = [
     assert.equal(result.videos[1].url, 'https://www.youtube.com/watch?v=abcdefghijk')
     assert.equal(result.keywords.find(keyword => keyword.text === '가족').count, 2)
     assert(!JSON.stringify(result).includes('secret'))
+    for (const [language, region, ageTerm] of [['vi', 'VN', 'người cao tuổi'], ['th', 'TH', 'ผู้สูงอายุ']]) {
+        const parsed = lib.parseTopicYoutubeOptions(new URLSearchParams({ q: 'story', language, age: '60plus' }))
+        const localizedCalls = []
+        await lib.fetchTopicYoutube(parsed, ['key'], async url => { localizedCalls.push(new URL(url)); return Response.json({ items: [] }) })
+        assert.equal(localizedCalls[0].searchParams.get('regionCode'), region)
+        assert.equal(localizedCalls[0].searchParams.get('relevanceLanguage'), language)
+        assert.equal(localizedCalls[0].searchParams.get('q'), `story ${ageTerm}`)
+        const cloudCalls = []
+        const discovery = await lib.fetchTopicYoutube({ ...parsed, query: '' }, ['key'], async url => { cloudCalls.push(new URL(url)); return Response.json({ items: [] }) })
+        assert.equal(discovery.source, 'search')
+        assert.equal(cloudCalls[0].searchParams.get('q'), ageTerm)
+        const popularCalls = []
+        await lib.fetchTopicYoutube({ ...parsed, query: '', age: 'all' }, ['key'], async url => { popularCalls.push(new URL(url)); return Response.json({ items: [] }) })
+        assert.equal(popularCalls[0].searchParams.get('regionCode'), region)
+        assert.equal(popularCalls[0].searchParams.get('chart'), 'mostPopular')
+    }
     const empty = await lib.fetchTopicYoutube(options, ['key'], async () => Response.json({ items: [] }))
     assert.deepEqual(empty.videos, [])
     const popularCalls = []

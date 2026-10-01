@@ -9,6 +9,8 @@ export default function TopicYoutubeExplorer({ headers, disabled, onSelect }: {
     const [language, setLanguage] = useState('ko')
     const [order, setOrder] = useState('relevance')
     const [period, setPeriod] = useState('all')
+    const [age, setAge] = useState('all')
+    const ageLabels: Record<string, string> = { all: '전체 연령', '10s': '10대', '20s': '20대', '30s': '30대', '40s': '40대', '50s': '50대', '60plus': '60대 이상' }
     const [videos, setVideos] = useState<TopicYoutubeVideo[]>([])
     const [keywords, setKeywords] = useState<{ text: string; count: number }[]>([])
     const [busy, setBusy] = useState(false)
@@ -22,14 +24,15 @@ export default function TopicYoutubeExplorer({ headers, disabled, onSelect }: {
         controller.current?.abort()
         const active = new AbortController(); controller.current = active
         setBusy(true); setError('')
-        const params = new URLSearchParams({ q: term, language, order, period })
+        const params = new URLSearchParams({ q: term, language, order, period, age })
         try {
             const res = await fetch(`/api/std/topic-youtube?${params}`, { headers, signal: active.signal })
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || '검색 실패')
             setVideos(data.videos); setKeywords(data.keywords)
-            const region = { ko: '한국', ja: '일본', en: '미국', es: '스페인' }[language]
-            setResultLabel(term ? `“${term}” 검색 결과` : `${region} 인기 영상`)
+            const region = { ko: '한국', ja: '일본', en: '미국', es: '스페인', vi: '베트남', th: '태국' }[language]
+            const label = term ? `“${term}” 검색 결과` : age === 'all' ? `${region} 인기 영상` : `${region} 연령 관련 영상`
+            setResultLabel(age === 'all' ? label : `${label} · ${ageLabels[age]}`)
         } catch (e) {
             if (!active.signal.aborted) setError(e instanceof Error ? e.message : '검색 실패')
         } finally { if (controller.current === active) setBusy(false) }
@@ -40,12 +43,13 @@ export default function TopicYoutubeExplorer({ headers, disabled, onSelect }: {
             <fieldset disabled={disabled || busy} className="space-y-3">
                 <div className="flex gap-2"><input aria-label="YouTube 검색 키워드" maxLength={120} value={query} onChange={event => setQuery(event.target.value)} placeholder="검색할 키워드 입력" className={`${input} min-w-0 flex-1`} /><button disabled={!query.trim()} className="rounded-lg bg-indigo-500 px-4 text-sm font-semibold disabled:opacity-40">검색</button></div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <select aria-label="검색 언어" value={language} onChange={event => setLanguage(event.target.value)} className={input}><option value="ko">한국어 · 한국</option><option value="ja">일본어 · 일본</option><option value="en">영어 · 미국</option><option value="es">스페인어 · 스페인</option></select>
+                    <select aria-label="검색 언어" value={language} onChange={event => setLanguage(event.target.value)} className={input}><option value="ko">한국어 · 한국</option><option value="ja">일본어 · 일본</option><option value="en">영어 · 미국</option><option value="es">스페인어 · 스페인</option><option value="vi">베트남어 · 베트남</option><option value="th">태국어 · 태국</option></select>
                     <select aria-label="검색 정렬" value={order} onChange={event => setOrder(event.target.value)} className={input}><option value="relevance">관련도순</option><option value="date">최신순</option><option value="viewCount">조회수순</option></select>
                     <select aria-label="검색 기간" value={period} onChange={event => setPeriod(event.target.value)} className={input}><option value="all">전체 기간</option><option value="day">최근 하루</option><option value="week">최근 일주일</option><option value="month">최근 30일</option></select>
-                    <button type="button" onClick={() => void search('')} className="rounded-lg border border-indigo-400/40 px-3 py-2.5 text-sm text-indigo-300">인기 영상·키워드 불러오기</button>
+                    <select aria-label="검색 연령대" value={age} onChange={event => setAge(event.target.value)} className={input}>{Object.entries(ageLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+                    <button type="button" onClick={() => void search('')} className="rounded-lg border border-indigo-400/40 px-3 py-2.5 text-sm text-indigo-300">{age === 'all' ? '인기 영상·키워드 불러오기' : '연령 관련 영상·키워드 불러오기'}</button>
                 </div>
-                <p className="text-xs text-gray-500">기간과 정렬은 키워드 검색에 적용됩니다. 인기 영상은 선택한 국가 기준입니다.</p>
+                <p className="text-xs text-gray-500">기간과 정렬은 키워드 검색에 적용됩니다. 인기 영상은 선택한 국가 기준입니다. 연령대 선택은 연령 관련 키워드를 검색어에 추가하며, 실제 시청자 연령 통계로 필터링하지는 않습니다.</p>
             </fieldset>
         </form>
         {busy && <p role="status" className="text-sm text-indigo-300">YouTube 영상을 불러오는 중…</p>}
