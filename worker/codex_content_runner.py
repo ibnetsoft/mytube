@@ -1449,6 +1449,19 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
 
     setting = resolve_setting(payload)
     language = setting['language']
+    from services.japanese_period_guideline import applies_to_japanese_context, japanese_period_guideline
+    is_folktale = category_id in {"2", "12", "13"} or any(
+        key in blob for key in ("옛날이야기", "日本昔話", "folktale", "folk tale", "old_story")
+    )
+    if language == "ja" and is_folktale:
+        voice = (
+            "[Category narration voice: Japanese folktale]\n"
+            "Write natural, vivid Japanese oral storytelling with a calm sense of wonder and clear cause and consequence. "
+            "Use idiomatic Japanese narration; do not leave Korean phrasing or Korean transition examples. "
+            "Avoid both modern slang and unsupported theatrical archaic speech. Let the source and confirmed setting determine the period voice."
+        )
+    if applies_to_japanese_context(payload):
+        voice += "\n\n" + japanese_period_guideline()
     if language != 'ko':
         # Preserve the genre while removing instructions tied to Korean grammar.
         voice = voice.replace('English or Japanese language, not Korean', 'selected output language')
@@ -1569,6 +1582,27 @@ _STORY_REVIEW_MINIMUMS = {
 }
 
 
+def _japanese_fidelity_review_issues(report: Any, payload: dict[str, Any] | None) -> list[str]:
+    from services.japanese_period_guideline import applies_to_japanese_context
+    if not applies_to_japanese_context(payload):
+        return []
+    if not isinstance(report, dict):
+        return ["missing Japanese period-fidelity review"]
+    issues = []
+    score = report.get("historical_fidelity_score")
+    if type(score) not in (int, float) or not 90 <= score <= 100:
+        issues.append("historical_fidelity_score must be 90-100")
+    if report.get("historical_fidelity_verdict") != "pass":
+        issues.append("historical_fidelity_verdict must be pass")
+    for key in ("unresolved_anachronisms", "unsupported_specific_period_claims"):
+        value = report.get(key)
+        if not isinstance(value, list) or value:
+            issues.append(f"{key} must be an empty list")
+    if not isinstance(report.get("period_setting_summary"), str) or not report["period_setting_summary"].strip():
+        issues.append("missing period_setting_summary")
+    return issues
+
+
 def _story_review_contract() -> str:
     return (
         " Independently apply the supplied story_spine_contract to the exact final script. "
@@ -1578,7 +1612,14 @@ def _story_review_contract() -> str:
         "from the script. Compare these with the fixed source-topic notes when supplied; flag any drift. "
         "Evaluate moral summaries and dialogue in context with script evidence. A character crying, "
         "realizing something, mentioning a lesson, or speaking in quotes is not by itself a defect. "
-        "Do not reject dialogue just because of its frequency; check whether surrounding actions motivate it."
+        "Do not reject dialogue just because of its frequency; check whether surrounding actions motivate it. "
+        "When the setting is Japan, also return historical_fidelity_verdict (pass|revise), historical_fidelity_score (0-100), "
+        "period_setting_summary, unresolved_anachronisms (array with exact script evidence and correction), and "
+        "unsupported_specific_period_claims (array with exact script evidence). Require score >=90, verdict=pass, "
+        "and both arrays empty to pass. Check every specific era, region, office/title, social rank, custom, clothing, "
+        "food, object, building, and transport detail against the supplied source excerpts or explicit user setting. "
+        "Do not assume Japanese folktales are from the Edo period. Treat genre conventions as fiction, not historical evidence. "
+        "For uncertain details, require omission or neutral wording instead of confident invention."
     )
 
 
@@ -2170,6 +2211,7 @@ class CodexStagedContentRunner:
                    "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in category_narration_voice's senior listening contract." + _story_review_contract())
                 qa["script_quality_report"] = review.get("script_quality_report")
                 rhythm_warnings += review_issues(qa["script_quality_report"]) + _story_review_issues(qa["script_quality_report"])
+                rhythm_warnings += _japanese_fidelity_review_issues(qa["script_quality_report"], payload)
                 if rhythm_warnings:
                     qa_context["independent_review_feedback"] = review
             if not rhythm_warnings:
@@ -2199,7 +2241,7 @@ class CodexStagedContentRunner:
             }, 'Independently recheck the exact revised script against the complete senior listening contract. '
                'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.' + _story_review_contract())
             qa['script_quality_report'] = final_review.get('script_quality_report')
-            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report']) + _story_review_issues(qa['script_quality_report'])
+            final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report']) + _story_review_issues(qa['script_quality_report']) + _japanese_fidelity_review_issues(qa['script_quality_report'], payload)
             if final_issues:
                 raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
         structure['listener_quality_report'] = listener_audit

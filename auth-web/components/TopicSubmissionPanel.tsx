@@ -84,7 +84,14 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
                 <div className="grid gap-4 sm:grid-cols-3">
                     <label>카테고리 *<input name="category" required defaultValue="옛날이야기" maxLength={80} className={input} /></label>
                     <label>분량 (분)<input name="duration_minutes" type="number" required min={1} max={60} defaultValue={15} className={input} /></label>
-                    <label>대본 언어<select name="language" className={input}><option value="ko">한국어</option><option value="en">영어</option><option value="ja">일본어</option><option value="es">스페인어</option></select></label>
+                    <label>대본 언어<select name="language" className={input} onChange={event => {
+                        if (event.currentTarget.value !== 'ja') return
+                        const form = event.currentTarget.form
+                        const country = form?.elements.namedItem('setting_country') as HTMLInputElement | null
+                        const era = form?.elements.namedItem('era_region') as HTMLInputElement | null
+                        if (country?.value === '한국') country.value = '일본'
+                        if (era?.value === '현대 지방 소도시') era.value = '시대 미상 · 자막·원전 근거 우선'
+                    }}><option value="ko">한국어</option><option value="en">영어</option><option value="ja">일본어</option><option value="es">스페인어</option></select></label>
                     <label>배경 국가 *<input name="setting_country" required defaultValue="한국" maxLength={80} className={input} /></label>
                     <label>시대·지역 *<input name="era_region" required defaultValue="현대 지방 소도시" maxLength={120} className={input} /></label>
                     <label>제작 모드<select name="production_mode" className={input}><option value="standard">기존 영상</option><option value="moving_comic">무빙툰</option></select></label>
