@@ -40,7 +40,7 @@ def test_web_request_preserves_brief():
     assert request.mode == 'new'
     assert request.web_brief['story'] == '결말을 바꾼다'
     assert request.web_topic_id == store.row['id']
-    assert request.ae_scene_delivery == 'local'
+    assert request.ae_scene_delivery == 'gcs'
 
 
 def test_ae_scene_delivery_reaches_local_candidate(monkeypatch, tmp_path):

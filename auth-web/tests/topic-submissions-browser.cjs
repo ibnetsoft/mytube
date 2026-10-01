@@ -21,14 +21,14 @@ const path = require('node:path')
                     assert(route.request().headers()['idempotency-key'])
                     items = [{ id: 'test', title: submitted.title, status: 'pending', created_at: new Date().toISOString() }]
                     body = { id: 'test' }
-                } else body = { items }
+                } else body = { items, categories: [{ id: 2, name: '옛날이야기' }, { id: 13, name: '日本昔話' }] }
             }
             await route.fulfill({ json: body })
         })
         await page.goto('http://localhost:3000/std?tab=topic_submissions')
         await page.getByRole('heading', { name: '토픽 등록', exact: true }).waitFor()
-        await page.getByRole('radio', { name: /로컬 전달/ }).isChecked().then(checked => assert.equal(checked, true))
-        await page.getByText('씬별 웹 미리보기나 다른 PC의 워커로 인계할 때 사용합니다.').waitFor()
+        assert.equal(await page.getByText('AE 씬 영상 전달 방식', { exact: true }).count(), 0)
+        await page.locator('select[name=category]').selectOption('옛날이야기')
         await page.locator('[name=title]').fill('편지에 담긴 약속')
         await page.locator('[name=story]').fill('오래된 편지를 발견한 주인공이 가족과 화해하는 이야기')
         await page.locator('[name=character_notes]').fill('주인공: 조용하지만 의지가 강한 인물')
@@ -36,7 +36,7 @@ const path = require('node:path')
         await page.getByRole('button', { name: '토픽 등록 · 승인 요청' }).click()
         await page.getByRole('status').filter({ hasText: '토픽을 등록했습니다' }).waitFor()
         assert.equal(submitted.character_images.length, 1)
-        assert.equal(submitted.ae_scene_delivery, 'local')
+        assert.equal(submitted.ae_scene_delivery, 'gcs')
         assert.equal(submitted.story, '오래된 편지를 발견한 주인공이 가족과 화해하는 이야기')
         await page.getByText('승인 대기', { exact: true }).waitFor()
         await page.screenshot({ path: path.resolve('../output/topic-submission-desktop.png'), fullPage: true })

@@ -33,7 +33,7 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     if (!['ko', 'en', 'ja', 'es'].includes(language)) throw new Error('대본 언어를 선택하세요.')
     const production_mode = text('production_mode', 20, true)
     if (!['standard', 'moving_comic'].includes(production_mode)) throw new Error('제작 모드를 선택하세요.')
-    const ae_scene_delivery = input.ae_scene_delivery == null ? 'local' : text('ae_scene_delivery', 5, true)
+    const ae_scene_delivery = input.ae_scene_delivery == null ? 'gcs' : text('ae_scene_delivery', 5, true)
     if (ae_scene_delivery !== 'local' && ae_scene_delivery !== 'gcs') throw new Error('AE 씬 영상 전달 방식을 선택하세요.')
     const images = input.character_images || []
     if (!Array.isArray(images) || images.length > 3) throw new Error('이미지는 최대 3장입니다.')

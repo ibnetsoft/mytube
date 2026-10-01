@@ -13,9 +13,11 @@ export async function GET(req: Request) {
         .select('id,title,status,job_id,review_note,created_at,reviewed_at,request_data')
         .eq('owner_email', auth.requester.email.toLowerCase()).order('created_at', { ascending: false }).limit(100)
     if (error) return NextResponse.json({ error: '토픽 목록을 불러오지 못했습니다.' }, { status: 502 })
+    const categories = await supabaseAdmin.from('categories').select('id,name').order('name', { ascending: true })
+    if (categories.error) return NextResponse.json({ error: '카테고리 목록을 불러오지 못했습니다.' }, { status: 502 })
     const ids = (data || []).map(row => row.job_id).filter(Boolean)
     const jobs = ids.length ? await supabaseAdmin.from('script_worker_jobs').select('id,status').in('id', ids) : { data: [], error: null }
-    return NextResponse.json({ items: (data || []).map(row => ({
+    return NextResponse.json({ categories: categories.data || [], items: (data || []).map(row => ({
         id: row.id,
         title: row.title,
         status: row.status,

@@ -48,7 +48,7 @@ def review_submission(store, identity, action, note):
 
 def generation_request(row):
     data = row['request_data']
-    ae_scene_delivery = data.get('ae_scene_delivery') or 'local'
+    ae_scene_delivery = data.get('ae_scene_delivery') or 'gcs'
     if ae_scene_delivery not in ('local', 'gcs'):
         raise ValueError('잘못된 AE 씬 영상 전달 방식입니다.')
     return {key: data[key] for key in ('title', 'category', 'duration_minutes', 'language',

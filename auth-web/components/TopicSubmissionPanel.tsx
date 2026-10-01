@@ -18,6 +18,7 @@ type Item = { id: string; title: string; status: string; review_note: string; cr
 const statuses: Record<string, string> = { pending: '승인 대기', approved: '승인됨', rejected: '반려', queued: '실행 대기', running: '대본 작성 중', failed: '작성 실패', interrupted: '작업 중단', awaiting_approval: '대본 검토 대기', approved_pending_repair: '대본 승인됨', completed: '완료' }
 export default function TopicSubmissionPanel({ headers }: { headers: Record<string, string> }) {
     const [items, setItems] = useState<Item[]>([])
+    const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
     const [images, setImages] = useState<{ name: string; data: string }[]>([])
     const [busy, setBusy] = useState(false)
     const [reading, setReading] = useState(false)
@@ -32,6 +33,7 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
             const data = await res.json()
             if (!res.ok) throw new Error(data.error)
             setItems(data.items)
+            setCategories(data.categories || [])
         } catch (e) { setError(e instanceof Error ? e.message : '목록 조회 실패') }
         finally { setLoading(false) }
     }, [headers])
@@ -61,7 +63,7 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
             event.preventDefault(); if (inFlight.current || reading) return
             const form = event.currentTarget
             const data = Object.fromEntries(new FormData(form).entries()); delete data.images
-            const body = JSON.stringify({ ...data, duration_minutes: Number(data.duration_minutes), character_images: images })
+            const body = JSON.stringify({ ...data, ae_scene_delivery: 'gcs', duration_minutes: Number(data.duration_minutes), character_images: images })
             if (submission.current.body !== body) submission.current = { key: crypto.randomUUID(), body }
             inFlight.current = true; setBusy(true); setError(''); setNotice('')
             try {
@@ -82,7 +84,7 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
                 </div>
                 {images.length > 0 && <div className="flex gap-3 flex-wrap">{images.map((image, i) => <figure key={i}><img src={image.data} alt={image.name} className="h-28 w-28 rounded-lg object-contain bg-black/20" /><figcaption className="max-w-28 truncate mt-1">{image.name}</figcaption></figure>)}</div>}
                 <div className="grid gap-4 sm:grid-cols-3">
-                    <label>카테고리 *<input name="category" required defaultValue="옛날이야기" maxLength={80} className={input} /></label>
+                    <label>카테고리 *<select name="category" required defaultValue="" className={input}><option value="" disabled>{categories.length ? '카테고리를 선택하세요' : '카테고리 불러오는 중…'}</option>{categories.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}</select></label>
                     <label>분량 (분)<input name="duration_minutes" type="number" required min={1} max={60} defaultValue={15} className={input} /></label>
                     <label>대본 언어<select name="language" className={input} onChange={event => {
                         if (event.currentTarget.value !== 'ja') return
@@ -99,30 +101,17 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
                 <fieldset>
                     <legend className="font-semibold">이미지 스타일 *</legend>
                     <p className="mt-1 text-sm text-gray-400">원하는 분위기의 썸네일을 선택하세요.</p>
-                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
                         {imageStyles.map(style => <label key={style.key} className="relative cursor-pointer">
                             <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} required aria-label={style.name} className="peer sr-only" />
                             <span className="block overflow-hidden rounded-xl border-2 border-white/10 bg-[#11141a] transition peer-checked:border-indigo-400 peer-checked:bg-indigo-500/15 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-indigo-300 peer-disabled:opacity-50 hover:border-white/40">
                                 <span className="relative block aspect-[4/3]">
-                                    <Image src={`/img/styles/style_${style.key}.png`} alt={`${style.name} 스타일 예시`} fill sizes="(max-width: 639px) 45vw, (max-width: 1023px) 30vw, 180px" className="object-cover" />
+                                    <Image src={`/img/styles/style_${style.key}.png`} alt={`${style.name} 스타일 예시`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className="object-cover" />
                                 </span>
-                                <span className="block px-3 py-2.5 text-sm font-medium">{style.name}</span>
+                                <span className="block px-1 py-1.5 text-center text-xs font-medium">{style.name}</span>
                             </span>
-                            <span aria-hidden="true" className="absolute right-2 top-2 hidden rounded-full bg-indigo-500 px-2 py-1 text-xs font-semibold text-white peer-checked:block">✓ 선택됨</span>
+                            <span aria-hidden="true" className="absolute right-1 top-1 hidden rounded-full bg-indigo-500 px-1.5 py-0.5 text-xs font-semibold text-white peer-checked:block">✓</span>
                         </label>)}
-                    </div>
-                </fieldset>
-                <fieldset className="rounded-lg border border-white/15 p-4">
-                    <legend className="px-1 font-semibold">AE 씬 영상 전달 방식</legend>
-                    <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                        <label className="flex cursor-pointer gap-3 rounded-lg border border-white/10 p-3">
-                            <input type="radio" name="ae_scene_delivery" value="local" defaultChecked className="mt-1 accent-indigo-500" />
-                            <span><strong className="block">로컬 전달 (기본)</strong><span className="mt-1 block text-sm text-gray-400">AE 영상 파일을 같은 PC의 프리미어 워커가 직접 사용합니다.</span></span>
-                        </label>
-                        <label className="flex cursor-pointer gap-3 rounded-lg border border-white/10 p-3">
-                            <input type="radio" name="ae_scene_delivery" value="gcs" className="mt-1 accent-indigo-500" />
-                            <span><strong className="block">GCS 업로드</strong><span className="mt-1 block text-sm text-gray-400">씬별 웹 미리보기나 다른 PC의 워커로 인계할 때 사용합니다. 업로드 시간이 추가됩니다.</span></span>
-                        </label>
                     </div>
                 </fieldset>
                 <label className="block">필수·금지 사항<textarea name="requirements" maxLength={1000} rows={3} className={input} placeholder="꼭 넣을 장면, 타깃 시청자, 원하는 분위기, 피할 표현" /></label>
