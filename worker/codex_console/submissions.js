@@ -39,12 +39,21 @@
     try {
       const row = await api('web-topics/' + id); if (current !== revision) return;
       const brief = row.request_data; detail.replaceChildren(element('h2', row.title), element('p', row.owner_email));
+      const translatedNodes = {title: detail.querySelector('h2')};
+      const translationStatus = element('p', '한국어 번역 중… (로컬 Codex)', 'muted');
+      detail.append(translationStatus);
+      const original = element('details'); original.append(element('summary', '원문 보기'), element('h3', row.title));
       for (const [key, name] of [['youtube_url', '유튜브 URL'], ['story', '스토리 개요'], ['character_notes', '캐릭터 설명'], ['requirements', '필수·금지 사항'], ['transcript', '직접 입력한 참고 자료']]) {
         if (!brief[key]) continue;
         const content = element('p', brief[key]); content.style.whiteSpace = 'pre-wrap';
         detail.append(element('h3', name), content);
+        if (key !== 'youtube_url') translatedNodes[key] = content;
+        const source = element('p', brief[key]); source.style.whiteSpace = 'pre-wrap';
+        original.append(element('h3', name), source);
       }
-      detail.append(element('p', [brief.category, brief.duration_minutes + '분', brief.language, brief.setting_country, brief.era_region, brief.image_style, brief.production_mode].join(' · ')));
+      const setting = element('p');
+      const renderSetting = text => { setting.textContent = [brief.category, brief.duration_minutes + '분', '대본: ' + ({ko:'한국어',ja:'일본어',en:'영어',es:'스페인어'}[brief.language] || brief.language), text.setting_country, text.era_region, brief.image_style, brief.production_mode].join(' · '); };
+      renderSetting(brief); detail.append(setting, original);
       const images = element('div'); images.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap';
       for (const image of brief.character_images || []) {
         const figure = element('figure'), img = element('img'); img.src = image.data; img.alt = image.name;
@@ -70,6 +79,21 @@
         detail.append(label, approve, reject);
       } else { detail.append(element('p', '검토 의견: ' + (row.review_note || '없음'))); }
       detail.hidden = false;
+      async function translate() {
+        try {
+          const result = await api('web-topics/' + id + '/korean-review', {});
+          if (current !== revision || detail.hidden) return;
+          if (result.status === 'running') { setTimeout(translate, 2000); return; }
+          if (result.status !== 'completed') throw new Error(result.error || '한국어 번역 실패');
+          for (const [key, node] of Object.entries(translatedNodes)) node.textContent = result.translation[key];
+          renderSetting(result.translation); translationStatus.textContent = '한국어 번역 · 원문은 변경하지 않았습니다.';
+        } catch (e) {
+          if (current !== revision) return;
+          translationStatus.textContent = e.message;
+          const retry = element('button', '번역 다시 시도'); retry.onclick = () => { retry.remove(); translate(); }; translationStatus.append(retry);
+        }
+      }
+      translate();
     } catch (e) { error(e.message); }
   }
   button.onclick = () => { view('submissions'); load(); };

@@ -750,6 +750,18 @@ def web_topic(identity: str):
         raise HTTPException(502, str(exc))
 
 
+@app.post('/api/web-topics/{identity}/korean-review')
+def web_topic_korean_review(identity: str):
+    from worker.web_topic_submissions import get_submission
+    from worker.topic_review_translation import request_review
+    try:
+        return request_review(get_submission(store, identity), jobs)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+
+
 @app.post('/api/web-topics/{identity}/review')
 def review_web_topic(identity: str, request: SubmissionReview):
     from worker.web_topic_submissions import get_submission, generation_request, review_submission
