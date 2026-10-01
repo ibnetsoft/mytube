@@ -16,6 +16,30 @@ import codex_content_runner as runner_module
 from senior_script_guard import PROFILE, CHECKS
 
 
+def test_final_review_receives_only_current_script_version():
+    old = {'language': 'ja', 'story_spine_contract': 'fixed story',
+           'structure': {'scenes': [{'narration': 'old draft', 'duration_seconds': 5}]},
+           'narrative_blueprint': {'continuity_ledger': {'objects': 'old draft'}},
+           'scene_budgets': [{'min_chars': 1}]}
+    sections = [{'scene_order': 1, 'text': '改稿後の本文です。'}]
+    context = runner_module._final_script_review_context(old, sections)
+    assert context['script'] == '改稿後の本文です。'
+    assert context['sections'] == sections
+    assert context['story_spine_contract'] == 'fixed story'
+    assert context['structure']['scenes'] == [
+        {'scene_order': 1, 'duration_seconds': 5,
+         'scene_text': '改稿後の本文です。', 'narration': '改稿後の本文です。'}]
+    assert 'narrative_blueprint' not in context
+    assert context['scene_budgets'] == [{'min_chars': 1}]
+
+
+def test_period_review_does_not_require_citations_for_fictional_props():
+    contract = runner_module._story_review_contract()
+    assert 'ordinary fictional staging' in contract
+    assert 'a missing citation alone is not an error' in contract
+    assert 'consequential historical claims' in contract
+
+
 def _review_report():
     return {"profile": PROFILE, "verdict": "pass", "score": 90, "critical_issues": [],
             "story_spine_score": 90, "dialogue_context_score": 90, "anti_sermon_score": 95,

@@ -287,6 +287,7 @@ class StartRequest(BaseModel):
     category: str = Field(default='', max_length=80)
     category_id: str = Field(default='', max_length=16)
     duration_minutes: int = Field(default=15, ge=1, le=60)
+    duration_seconds: int | None = Field(default=None, ge=60, le=3600)
     language: Literal['ko', 'en', 'ja', 'es'] = 'ko'
     setting_country: str = Field(default='', max_length=80)
     era_region: str = Field(default='현대 지방 소도시', max_length=120)
@@ -477,7 +478,7 @@ class Jobs:
 
     def run(self, identity, request, snapshot):
         try:
-            self.update(identity, status='running', stage='AI 준비')
+            self.update(identity, status='running', stage='AI 준비', error='')
             from worker.codex_local_workflow import produce
             candidate = produce(identity, request.model_dump(), snapshot, self.root / identity,
                                 lambda stage: self.update(identity, stage=stage),

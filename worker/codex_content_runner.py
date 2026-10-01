@@ -1616,11 +1616,36 @@ def _story_review_contract() -> str:
         "When the setting is Japan, also return historical_fidelity_verdict (pass|revise), historical_fidelity_score (0-100), "
         "period_setting_summary, unresolved_anachronisms (array with exact script evidence and correction), and "
         "unsupported_specific_period_claims (array with exact script evidence). Require score >=90, verdict=pass, "
-        "and both arrays empty to pass. Check every specific era, region, office/title, social rank, custom, clothing, "
-        "food, object, building, and transport detail against the supplied source excerpts or explicit user setting. "
-        "Do not assume Japanese folktales are from the Edo period. Treat genre conventions as fiction, not historical evidence. "
-        "For uncertain details, require omission or neutral wording instead of confident invention."
+        "and both arrays empty to pass. Check consequential historical claims about offices, social ranks, "
+        "legal procedures, named customs, transport systems, and building practices against supplied evidence "
+        "or the explicit user setting. For ordinary fictional staging such as clothing, vessels, furniture, "
+        "and a room's floor, judge whether the detail is plausible for the selected place and era; a missing "
+        "citation alone is not an error. Flag a detail only when it is an anachronism, contradicts the setting, "
+        "or asserts a specific historical fact without support. Do not assume Japanese folktales are from the Edo period. "
+        "Treat genre conventions as fiction, not historical evidence. For genuinely uncertain consequential details, "
+        "require omission or neutral wording instead of confident invention."
     )
+
+
+def _final_script_review_context(script_context: dict[str, Any], sections: list[dict[str, Any]]) -> dict[str, Any]:
+    """Give reviewers current narration and timings without stale planning prose."""
+    planned_scenes = (script_context.get("structure") or {}).get("scenes") or []
+    current_scenes = [
+        {"scene_order": index, "duration_seconds": planned_scenes[index - 1].get("duration_seconds"),
+         "scene_text": str(section["text"]).strip(), "narration": str(section["text"]).strip()}
+        for index, section in enumerate(sections, 1)
+    ]
+    return {
+        **{key: value for key, value in script_context.items()
+           if key not in ("structure", "narrative_blueprint")},
+        "structure": {"scene_count": len(current_scenes), "scenes": current_scenes},
+        "review_provenance_note": ("This structure contains the current final narration and original scene timings. "
+                                   "Older planning prose and continuity ledgers were excluded because a rewrite "
+                                   "can supersede them. Derive object custody from the final script; do not require "
+                                   "an older ledger to match revised wording."),
+        "sections": sections,
+        "script": "\n\n".join(str(section["text"]).strip() for section in sections),
+    }
 
 
 def _story_review_issues(report: Any) -> list[str]:
@@ -2216,11 +2241,8 @@ class CodexStagedContentRunner:
             rhythm_warnings += _story_flow_warnings(qa_sections)
             rhythm_warnings += text_issues(qa_sections, payload)
             if not rhythm_warnings:
-                review = self._stage(job_id, "02c_senior_review", {
-                    **script_context,
-                    "sections": qa_sections,
-                    "script": "\n\n".join(s["text"].strip() for s in qa_sections),
-                }, "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
+                review = self._stage(job_id, "02c_senior_review", _final_script_review_context(
+                    script_context, qa_sections), "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
                    "Compare the cast, timeline, object custody, character knowledge and title promise across the entire script. Check factual claims against supplied evidence. "
                    "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in category_narration_voice's senior listening contract." + _story_review_contract())
                 qa["script_quality_report"] = review.get("script_quality_report")
@@ -2249,10 +2271,8 @@ class CodexStagedContentRunner:
         except ValueError as exc:
             raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
         if listener_audit['selected'] == 'revision':
-            final_review = self._stage(job_id, '02i_post_listener_review', {
-                **script_context, 'sections': qa_sections,
-                'script': '\n\n'.join(s['text'] for s in qa_sections),
-            }, 'Independently recheck the exact revised script against the complete senior listening contract. '
+            final_review = self._stage(job_id, '02i_post_listener_review', _final_script_review_context(
+                script_context, qa_sections), 'Independently recheck the exact revised script against the complete senior listening contract. '
                'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.' + _story_review_contract())
             qa['script_quality_report'] = final_review.get('script_quality_report')
             final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report']) + _story_review_issues(qa['script_quality_report']) + _japanese_fidelity_review_issues(qa['script_quality_report'], payload)

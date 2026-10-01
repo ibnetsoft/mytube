@@ -58,6 +58,15 @@ def test_analysis_topics_and_generation_handoff():
         assert len(draft.notes) <= 4000
 
 
+def test_exact_video_duration_survives_topic_handoff():
+    result, _ = run_with([analysis(), candidates()], language='ja', duration_minutes=22,
+                         duration_seconds=1304)
+    for topic in result['topics']:
+        draft = console.StartRequest(**topic['generation_request'])
+        assert draft.duration_minutes == 22
+        assert draft.duration_seconds == 1304
+
+
 def test_invalid_evidence_retried_then_rejected():
     invalid = analysis(); invalid['evidence'][0]['quote'] = '원문에 없는 내용'
     with pytest.raises(ValueError, match='검증 실패'):
@@ -105,7 +114,7 @@ def test_api_job_persistence_and_restart(tmp_path, monkeypatch):
     assert detail['job']['status'] == 'completed'
     assert len(detail['topics']) == 3
     assert calls == ['02_topic_source_analysis', '02_topic_candidates']
-    assert json.loads((tmp_path / identity / 'references.json').read_text())[0]['text'] == source()['text']
+    assert json.loads((tmp_path / identity / 'references.json').read_text(encoding='utf-8'))[0]['text'] == source()['text']
     assert (tmp_path / identity / 'candidate.md').is_file()
     assert client.post('/api/jobs/' + identity + '/approve', json={'candidate_hash': detail['job']['candidate_hash']}).status_code == 409
     restarted = console.Jobs(tmp_path)

@@ -81,9 +81,9 @@ def produce(identity, request, snapshot, output, notify, sources=None):
                    'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
                    'ae_scene_delivery': request.get('ae_scene_delivery') or 'local',
                    'script_style': 'story',
-                   'target_duration_seconds': request['duration_minutes'] * 60,
-                   'legacy_stage_directives': 'Use the current category narration and senior listening contracts. ' +
-                                              ('Use the selected comic illustration style.' if moving else 'Use photorealistic images matching the category and era.'),
+                   'target_duration_seconds': request.get('duration_seconds') or request['duration_minutes'] * 60,
+                   'legacy_stage_directives': 'Use the current category narration and senior listening contracts. '
+                                              f"Use the selected image style ({setting['image_style']}) for the category and era.",
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
                    'user_direction': request['notes']}
         package = runner.generate('local-' + identity, payload, script_only=True)
