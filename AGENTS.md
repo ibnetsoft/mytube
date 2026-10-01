@@ -11,3 +11,4 @@
 
 - Subtitle review translations (including the `KO` text beside Japanese subtitles) must run through the local Codex CLI script worker on this computer. Do not call Gemini or OpenAI model APIs for these translations.
 - The web app queues translation requests in the database and reads their results. The local script worker claims requests and publishes validated translations. Preserve existing translations for unchanged subtitle text.
+- Normalize punctuation-only subtitle fragments after quote and AI dialogue splitting, and when reopening saved subtitles. Fixing initial text-length splitting alone is insufficient. Preserve the preceding speaker and recorded narration timing when attaching punctuation.

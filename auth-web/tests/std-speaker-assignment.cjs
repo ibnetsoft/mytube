@@ -1,5 +1,5 @@
 const fs=require('fs'),ts=require('typescript'),assert=require('node:assert/strict');
-function load(file){const exports={};new Function('exports',ts.transpile(fs.readFileSync(file,'utf8'),{module:1,target:7}))(exports);return exports}
+function load(file){const exports={};new Function('exports','require',ts.transpile(fs.readFileSync(file,'utf8'),{module:1,target:7}))(exports, name=>load(require('path').resolve(require('path').dirname(file),name+'.ts')));return exports}
 const {subtitleSpeaker,assignSpeakerVoice}=load('auth-web/lib/stdSpeakerAssignment.ts');
 const {mapDialogueAnnotations}=load('auth-web/lib/stdDialogueAnnotations.ts');
 const text='옥례 아이는 죽었다면서. 그런데 이 아이는 누구냐.';

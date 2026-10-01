@@ -1,4 +1,5 @@
 import { splitSubtitleDialogueBlocks } from './stdDialogueAnnotations'
+import { normalizeSubtitleFragments } from './stdSubtitleFragments'
 
 export interface StdSubtitleItem {
     id: string
@@ -635,7 +636,7 @@ export function repairSubtitleItemQuoteBoundaries<T extends QuoteRepairItem>(ite
 
     const repairedByScene = repairUnclosedQuoteGroups(repaired)
     const nonEmptyItems = repairedByScene.filter(item => String(item?.text || '').trim().length > 0)
-    return splitMixedNarrationAndDialogue(nonEmptyItems)
+    return normalizeSubtitleFragments(splitMixedNarrationAndDialogue(nonEmptyItems))
 }
 
 function repairUnclosedQuoteGroups<T extends { text?: string; scene_number?: number }>(items: T[]): T[] {
@@ -833,7 +834,7 @@ export function generateSynchronizedSubtitles(
         // dialogue cannot be fragmented or mixed with intervening narration.
         const parts = splitSubtitleDialogueBlocks([{
             scene_number: sNum, text: pureText, start_num: 0, end_num: 1,
-        }], dialogueAnnotations, true)
+        }], dialogueAnnotations, true, maxCharsPerSub)
         const chunks = parts.flatMap(part => splitTextToSingleLineChunks(part.text, maxCharsPerSub,
             { dialogue: part.dialogue_kind === 'dialogue' }))
         const chunkCount = Math.max(1, chunks.length)

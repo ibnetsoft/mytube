@@ -1,20 +1,31 @@
+import { isSubtitleClosingPunctuation } from './stdSubtitleFragments'
+
 // Loading a file is not playback: auxiliary tracks follow the narration media clock.
 export function alignedNarrationSubtitles(subtitles: any[], timeline: any[], defaultVoice = ''): any[] | null {
-    if (!Array.isArray(timeline) || timeline.length !== subtitles.length || !timeline.length) return null
-    const normalized = (text: unknown) => String(text || '').replace(/\s+/g, ' ').trim()
+    if (!Array.isArray(timeline) || !timeline.length || !subtitles.length) return null
+    const normalized = (text: unknown) => String(text || '').replace(/\s+/g, '')
     let previousEnd = 0
-    for (let i = 0; i < timeline.length; i++) {
-        const entry = timeline[i]
-        if (normalized(entry.text) !== normalized(subtitles[i].text)
-            || String(entry.voice_id) !== String(subtitles[i].voice_id || defaultVoice)
-            || !Number.isFinite(entry.start) || !Number.isFinite(entry.end)
-            || Math.abs(entry.start - previousEnd) > 0.05 || entry.end <= entry.start) return null
-        previousEnd = entry.end
+    let cursor = 0
+    const aligned = []
+    for (const subtitle of subtitles) {
+        const target = normalized(subtitle.text)
+        const start = timeline[cursor]?.start
+        let text = ''
+        if (!target) return null
+        do {
+            const entry = timeline[cursor++]
+            if (!entry || (!isSubtitleClosingPunctuation(String(entry.text || ''))
+                && String(entry.voice_id) !== String(subtitle.voice_id || defaultVoice))
+                || !Number.isFinite(entry.start) || !Number.isFinite(entry.end)
+                || Math.abs(entry.start - previousEnd) > 0.05 || entry.end <= entry.start) return null
+            text += normalized(entry.text)
+            if (!target.startsWith(text)) return null
+            previousEnd = entry.end
+        } while (text !== target)
+        aligned.push({ ...subtitle, start_num: start, end_num: previousEnd,
+            start_time: start.toFixed(3), end_time: previousEnd.toFixed(3) })
     }
-    return subtitles.map((subtitle, i) => ({ ...subtitle,
-        start_num: timeline[i].start, end_num: timeline[i].end,
-        start_time: timeline[i].start.toFixed(3), end_time: timeline[i].end.toFixed(3),
-    }))
+    return cursor === timeline.length ? aligned : null
 }
 
 export function bindNarrationPlayback(audio: HTMLAudioElement, onPlaying: () => void, onStopped: () => void) {

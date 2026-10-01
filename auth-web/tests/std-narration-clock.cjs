@@ -1,5 +1,5 @@
 const fs=require('fs'),ts=require('typescript'),assert=require('node:assert/strict'),test=require('node:test');
-function load(path){const e={};new Function('exports',ts.transpile(fs.readFileSync(path,'utf8'),{module:1,target:7}))(e);return e}
+function load(path){const e={};new Function('exports','require',ts.transpile(fs.readFileSync(path,'utf8'),{module:1,target:7}))(e,name=>load(require('path').resolve(require('path').dirname(path),name+'.ts')));return e}
 const mp3=load('auth-web/lib/stdJoinMp3.ts');
 const preview=load('auth-web/lib/stdPreviewAudio.ts');
 function frame(){const b=Buffer.alloc(417);b.set([255,251,144,0]);return b}

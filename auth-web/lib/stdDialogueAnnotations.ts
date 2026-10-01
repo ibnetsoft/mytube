@@ -1,3 +1,5 @@
+import { isSubtitleClosingPunctuation, normalizeSubtitleFragments } from './stdSubtitleFragments'
+
 export type DialoguePart = { text: string; dialogue: boolean; speaker?: string }
 // Whitespace/quote removal is subtitle alignment only, never speech classification.
 const ignored = (char: string) => /[\s"'“”‘’「」『』]/u.test(char)
@@ -35,12 +37,12 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
             const confirmedSpans = scene.spans.filter((s: any) => s.status === 'confirmed' && s.speaker && typeof s.text === 'string' && s.text.trim())
             if (!confirmedSpans.length) continue
 
-            const cleanPunct = (t: string) => t.replace(/[\s"'“”‘’「」『』.,?!~…;:·\-–—]/gu, '')
+            const cleanPunct = (t: string) => t.replace(/[\s\p{P}~]/gu, '')
 
             for (const { s, i } of rows) {
                 const subText = String(s.text || '')
                 const cleanSub = cleanPunct(subText)
-                if (!cleanSub) {
+                if (!cleanSub || isSubtitleClosingPunctuation(subText)) {
                     result.set(i, [{ text: subText, dialogue: false }])
                     continue
                 }
@@ -104,16 +106,17 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
 }
 
 /** Split only at AI-confirmed semantic boundaries; keep scene, media and total time. */
-export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any, annotateSinglePart = false): any[] {
+export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any, annotateSinglePart = false, maxChars = 20): any[] {
+    subtitles = normalizeSubtitleFragments(subtitles, maxChars)
     const mapped = mapDialogueAnnotations(subtitles, annotations)
-    return subtitles.flatMap((subtitle, index) => {
+    return normalizeSubtitleFragments(subtitles.flatMap((subtitle, index) => {
         const parts = mapped.get(index)
         if (!parts) return [subtitle]
         const groups: DialoguePart[] = []
         let prefix = ''
         for (const part of parts) {
             const last = groups[groups.length - 1]
-            if (Array.from(part.text).every(ignored)) {
+            if (Array.from(part.text).every(ignored) || isSubtitleClosingPunctuation(part.text)) {
                 if (last) last.text += part.text
                 else prefix += part.text
             } else if (last && last.dialogue === part.dialogue && last.speaker === part.speaker) {
@@ -150,5 +153,5 @@ export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any, 
             for (const key of ['audio_url', 'tts_url', 'audio_asset_id', 'tts_asset_id', 'audio_duration', 'dialogue_override']) delete item[key]
             return item
         })
-    })
+    }), maxChars)
 }

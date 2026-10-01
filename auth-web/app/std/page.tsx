@@ -2434,7 +2434,7 @@ export default function StdPortalPage() {
             }
         })
         return splitSubtitleDialogueBlocks(normalizedSceneSubtitles,
-            selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
+            selectedProject?.project?.project_payload?.structure?.dialogue_annotations, false, Number(subMaxChars) || 20)
     }
 
     const subtitleHasValidTiming = (subtitle: any) => {
