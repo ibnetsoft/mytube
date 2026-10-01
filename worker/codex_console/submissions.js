@@ -43,22 +43,51 @@
       const translationStatus = element('p', '한국어 번역 중… (로컬 Codex)', 'muted');
       detail.append(translationStatus);
       const original = element('details'); original.append(element('summary', '원문 보기'), element('h3', row.title));
+      const languages = {ko:'한국어',ja:'일본어',en:'영어',es:'스페인어',vi:'베트남어',th:'태국어'};
+      const styles = {realistic:'실사',cinematic:'시네마틱',anime:'애니메이션',ghibli:'지브리',webtoon:'웹툰',korean_webtoon:'한국 웹툰','3d':'3D',minimal:'미니멀',wimpy:'윔피'};
+      const settings = element('dl', undefined, 'topic-review-settings');
+      const field = (name, value) => {
+        const cell = element('div'), content = element('dd', value == null || value === '' ? '미입력' : String(value));
+        cell.append(element('dt', name), content); settings.append(cell); return content;
+      };
+      field('등록자', row.owner_email);
+      field('등록 일시', row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '미입력');
+      field('승인 상태', {pending:'승인 대기',approved:'승인됨',rejected:'반려'}[row.status] || row.status);
+      field('카테고리', brief.category);
+      field('분량', brief.duration_minutes == null ? '' : brief.duration_minutes + '분');
+      field('입력 언어', languages[brief.input_language] || brief.input_language);
+      field('대본 언어', languages[brief.language] || brief.language);
+      translatedNodes.setting_country = field('배경 국가', brief.setting_country);
+      translatedNodes.era_region = field('시대·지역', brief.era_region);
+      field('이미지 스타일', styles[brief.image_style] || brief.image_style);
+      field('제작 모드', {standard:'기존 영상',moving_comic:'무빙툰'}[brief.production_mode] || brief.production_mode);
+      field('AE 씬 영상 전달 방식', {gcs:'GCS 업로드',local:'로컬 전달'}[brief.ae_scene_delivery] || brief.ae_scene_delivery);
+      if (row.reviewed_at) field('검토 일시', new Date(row.reviewed_at).toLocaleString('ko-KR'));
+      if (row.job_id) field('대본 작업 ID', row.job_id);
+      detail.append(element('h3', '등록 설정'), settings);
+      for (const key of ['category','duration_minutes','input_language','language','setting_country','era_region','image_style','production_mode','ae_scene_delivery']) {
+        original.append(element('p', key + ': ' + (brief[key] ?? '미입력')));
+      }
       for (const [key, name] of [['youtube_url', '유튜브 URL'], ['story', '스토리 개요'], ['character_notes', '캐릭터 설명'], ['requirements', '필수·금지 사항'], ['transcript', '직접 입력한 참고 자료']]) {
-        if (!brief[key]) continue;
-        const content = element('p', brief[key]); content.style.whiteSpace = 'pre-wrap';
+        const content = element('p', brief[key] || '미입력'); content.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere';
         detail.append(element('h3', name), content);
         if (key !== 'youtube_url') translatedNodes[key] = content;
-        const source = element('p', brief[key]); source.style.whiteSpace = 'pre-wrap';
+        const source = element('p', brief[key] || '미입력'); source.style.whiteSpace = 'pre-wrap';
         original.append(element('h3', name), source);
       }
-      const setting = element('p');
-      const renderSetting = text => { setting.textContent = [brief.category, brief.duration_minutes + '분', '대본: ' + ({ko:'한국어',ja:'일본어',en:'영어',es:'스페인어'}[brief.language] || brief.language), text.setting_country, text.era_region, brief.image_style, brief.production_mode].join(' · '); };
-      renderSetting(brief); detail.append(setting, original);
+      detail.append(original);
+      detail.append(element('h3', '첨부한 캐릭터 이미지 (' + (brief.character_images || []).length + '장)'));
       const images = element('div'); images.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap';
       for (const image of brief.character_images || []) {
         const figure = element('figure'), img = element('img'); img.src = image.data; img.alt = image.name;
-        img.style.cssText = 'width:180px;height:180px;object-fit:contain'; figure.append(img, element('figcaption', image.name)); images.append(figure);
+        figure.style.cssText = 'margin:0 0 20px;max-width:100%;overflow-wrap:anywhere';
+        img.style.cssText = 'width:180px;height:180px;object-fit:contain';
+        const expanded = element('details'), full = element('img'); full.src = image.data; full.alt = image.name;
+        full.style.cssText = 'display:block;max-width:100%;height:auto;margin-top:12px';
+        expanded.append(element('summary', '원본 크기로 보기'), full);
+        figure.append(img, element('figcaption', image.name), expanded); images.append(figure);
       }
+      if (!(brief.character_images || []).length) images.append(element('p', '첨부 없음', 'muted'));
       detail.append(images);
       if (row.status === 'pending') {
         const label = element('label', '검토 의견 (반려 시 필수)'), note = element('textarea'); note.maxLength = 1000; label.append(note);
@@ -85,8 +114,8 @@
           if (current !== revision || detail.hidden) return;
           if (result.status === 'running') { setTimeout(translate, 2000); return; }
           if (result.status !== 'completed') throw new Error(result.error || '한국어 번역 실패');
-          for (const [key, node] of Object.entries(translatedNodes)) node.textContent = result.translation[key];
-          renderSetting(result.translation); translationStatus.textContent = '한국어 번역 · 원문은 변경하지 않았습니다.';
+          for (const [key, node] of Object.entries(translatedNodes)) node.textContent = result.translation[key] || (key === 'title' ? row.title : brief[key]) || '미입력';
+          translationStatus.textContent = '한국어 번역 · 원문은 변경하지 않았습니다.';
         } catch (e) {
           if (current !== revision) return;
           translationStatus.textContent = e.message;

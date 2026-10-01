@@ -1,5 +1,9 @@
 :root{font-family:"Segoe UI","Malgun Gothic",sans-serif;color:#243247;background:#f4f6f9;font-size:14px;line-height:1.65;--line:#dfe5ed;--muted:#64748b;--accent:#176b61}
 *{box-sizing:border-box}
+.topic-review-settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px;margin:0 0 24px}
+.topic-review-settings>div{padding:12px;background:#f4f7fa;border-radius:8px;min-width:0}
+.topic-review-settings dt{font-size:12px;color:var(--muted)}
+.topic-review-settings dd{margin:4px 0 0;font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere}
 body{margin:0}
 [hidden]{display:none!important}
 button,input,select,textarea{font:inherit}
