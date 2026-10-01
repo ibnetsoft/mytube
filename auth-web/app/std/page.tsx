@@ -10836,7 +10836,7 @@ export default function StdPortalPage() {
                     )}
 
                     {/* [주제 탐색 탭 (유저앱 topic.html 100% 동일 구현 + 상세 모달 + 프로젝트 자동 연동)] */}
-                    {currentNav === 'topic_submissions' && <TopicSubmissionPanel headers={authedJsonHeaders} />}
+                    {currentNav === 'topic_submissions' && <TopicSubmissionPanel headers={authedJsonHeaders} locale={currentLocale} />}
                     {currentNav === 'topics' && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full pb-10">
                             {SHOW_TOPIC_TREND_PANEL && (

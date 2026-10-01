@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { topicUiText } from '@/lib/topicUiText'
 import Image from 'next/image'
 import TopicYoutubeExplorer from './TopicYoutubeExplorer'
 
@@ -17,7 +18,8 @@ const imageStyles = [
 
 type Item = { id: string; title: string; status: string; review_note: string; created_at: string; job_status: string | null; ae_scene_delivery: 'local' | 'gcs' }
 const statuses: Record<string, string> = { pending: '승인 대기', approved: '승인됨', rejected: '반려', queued: '실행 대기', running: '대본 작성 중', failed: '작성 실패', interrupted: '작업 중단', awaiting_approval: '대본 검토 대기', approved_pending_repair: '대본 승인됨', completed: '완료' }
-export default function TopicSubmissionPanel({ headers }: { headers: Record<string, string> }) {
+export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { headers: Record<string, string>; locale?: string }) {
+    const ui = (text: string) => topicUiText(locale, text)
     const [items, setItems] = useState<Item[]>([])
     const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
     const [images, setImages] = useState<{ name: string; data: string }[]>([])
@@ -57,82 +59,83 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
         } catch (e) { setImages([]); setError(e instanceof Error ? e.message : '이미지 읽기 실패') }
         finally { setReading(false) }
     }
-    return <section className="mx-auto w-full max-w-5xl space-y-6 select-text">
-        <div><h1 className="text-2xl font-semibold">토픽 등록</h1><p className="mt-2 text-gray-400">이야기와 참고 자료를 등록하세요. 로컬 대본워커에서 검토·승인 후 대본 작성을 시작합니다.</p></div>
-        {error && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-red-300">{error}</p>}
+    return <section lang={locale} className="mx-auto w-full max-w-5xl space-y-6 select-text">
+        <div><h1 className="text-2xl font-semibold">{ui('토픽 등록')}</h1><p className="mt-2 text-gray-400">{ui('이야기와 참고 자료를 등록하세요. 로컬 대본워커에서 검토·승인 후 대본 작성을 시작합니다.')}</p></div>
+        {error && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-red-300">{ui(error)}</p>}
         {notice && <p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-emerald-300">{notice}</p>}
-        <TopicYoutubeExplorer headers={headers} disabled={busy} onSelect={video => {
+        <TopicYoutubeExplorer locale={locale} headers={headers} disabled={busy} onSelect={video => {
             const form = topicForm.current
             const url = form?.elements.namedItem('youtube_url') as HTMLInputElement | null
             const title = form?.elements.namedItem('title') as HTMLInputElement | null
             if (url) url.value = video.url
             if (title && !title.value.trim()) title.value = video.title.slice(0, 200)
-            setNotice(`참고 영상을 선택했습니다: ${video.title}`)
+            setNotice(`${ui('참고 영상을 선택했습니다')}: ${video.title}`)
             url?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }} />
         <form ref={topicForm} className="rounded-xl border border-white/10 bg-[#191e27] p-5 space-y-5" onSubmit={async event => {
             event.preventDefault(); if (inFlight.current || reading) return
             const form = event.currentTarget
             const data = Object.fromEntries(new FormData(form).entries()); delete data.images
-            const body = JSON.stringify({ ...data, ae_scene_delivery: 'gcs', duration_minutes: Number(data.duration_minutes), character_images: images })
+            const body = JSON.stringify({ ...data, ae_scene_delivery: 'gcs', input_language: locale, duration_minutes: Number(data.duration_minutes), character_images: images })
             if (submission.current.body !== body) submission.current = { key: crypto.randomUUID(), body }
             inFlight.current = true; setBusy(true); setError(''); setNotice('')
             try {
                 const res = await fetch('/api/std/topic-submissions', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Idempotency-Key': submission.current.key }, body })
                 const result = await res.json(); if (!res.ok) throw new Error(result.error)
                 form.reset(); setImages([]); submission.current = { key: '', body: '' }
-                setNotice('토픽을 등록했습니다. 로컬 대본워커의 승인 대기열에 표시됩니다.'); await load()
+                setNotice(ui('토픽을 등록했습니다. 로컬 대본워커의 승인 대기열에 표시됩니다.')); await load()
             } catch (e) { setError(e instanceof Error ? e.message : '등록 실패') }
             finally { inFlight.current = false; setBusy(false) }
         }}>
             <fieldset disabled={busy} className="space-y-5">
-                <label className="block">토픽 제목 *<input name="title" required maxLength={200} className={input} placeholder="이야기의 제목" /></label>
-                <label className="block">유튜브 URL<input name="youtube_url" type="url" maxLength={2048} className={input} placeholder="https://www.youtube.com/watch?v=..." /></label>
-                <label className="block">스토리 개략적인 내용 *<textarea name="story" required maxLength={2500} rows={5} className={input} placeholder="주요 사건, 갈등, 반전과 원하는 결말을 적어주세요." /></label>
+                <p className="text-sm text-gray-400">{ui('입력 내용은 태국어·베트남어로 작성할 수 있습니다. 최종 대본은 선택한 대본 언어로 각색합니다.')}</p>
+                <label className="block">{ui('토픽 제목 *')}<input name="title" required maxLength={200} className={input} placeholder={ui('이야기의 제목')} /></label>
+                <label className="block">{ui('유튜브 URL')}<input name="youtube_url" type="url" maxLength={2048} className={input} placeholder="https://www.youtube.com/watch?v=..." /></label>
+                <label className="block">{ui('스토리 개략적인 내용 *')}<textarea name="story" required maxLength={2500} rows={5} className={input} placeholder={ui('주요 사건, 갈등, 반전과 원하는 결말을 적어주세요.')} /></label>
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <label>캐릭터 설명<textarea name="character_notes" maxLength={1500} rows={4} className={input} placeholder="이름, 성격, 관계, 말투와 이미지별 캐릭터 이름" /></label>
-                    <label>캐릭터 이미지<input name="images" type="file" multiple accept="image/png,image/jpeg,image/webp" className={input} disabled={reading} onChange={e => void selectImages(e.target.files)} /><span className="block mt-2 text-gray-400">최대 3장 · 장당 500KB · PNG/JPEG/WebP</span></label>
+                    <label>{ui('캐릭터 설명')}<textarea name="character_notes" maxLength={1500} rows={4} className={input} placeholder={ui('이름, 성격, 관계, 말투와 이미지별 캐릭터 이름')} /></label>
+                    <label>{ui('캐릭터 이미지')}<input name="images" type="file" multiple accept="image/png,image/jpeg,image/webp" className={input} disabled={reading} onChange={e => void selectImages(e.target.files)} /><span className="block mt-2 text-gray-400">{ui('최대 3장 · 장당 500KB · PNG/JPEG/WebP')}</span></label>
                 </div>
                 {images.length > 0 && <div className="flex gap-3 flex-wrap">{images.map((image, i) => <figure key={i}><img src={image.data} alt={image.name} className="h-28 w-28 rounded-lg object-contain bg-black/20" /><figcaption className="max-w-28 truncate mt-1">{image.name}</figcaption></figure>)}</div>}
                 <div className="grid gap-4 sm:grid-cols-3">
-                    <label>카테고리 *<select name="category" required defaultValue="" className={input}><option value="" disabled>{categories.length ? '카테고리를 선택하세요' : '카테고리 불러오는 중…'}</option>{categories.map(category => <option key={category.id} value={category.name}>{category.name}</option>)}</select></label>
-                    <label>분량 (분)<input name="duration_minutes" type="number" required min={1} max={60} defaultValue={15} className={input} /></label>
-                    <label>대본 언어<select name="language" className={input} onChange={event => {
+                    <label>{ui('카테고리 *')}<select name="category" required defaultValue="" className={input}><option value="" disabled>{categories.length ? ui('카테고리를 선택하세요') : ui('카테고리 불러오는 중…')}</option>{categories.map(category => <option key={category.id} value={category.name}>{ui(category.name)}</option>)}</select></label>
+                    <label>{ui('분량 (분)')}<input name="duration_minutes" type="number" required min={1} max={60} defaultValue={15} className={input} /></label>
+                    <label>{ui('대본 언어')}<select name="language" className={input} onChange={event => {
                         if (event.currentTarget.value !== 'ja') return
                         const form = event.currentTarget.form
                         const country = form?.elements.namedItem('setting_country') as HTMLInputElement | null
                         const era = form?.elements.namedItem('era_region') as HTMLInputElement | null
-                        if (country?.value === '한국') country.value = '일본'
-                        if (era?.value === '현대 지방 소도시') era.value = '시대 미상 · 자막·원전 근거 우선'
-                    }}><option value="ko">한국어</option><option value="en">영어</option><option value="ja">일본어</option><option value="es">스페인어</option></select></label>
-                    <label>배경 국가 *<input name="setting_country" required defaultValue="한국" maxLength={80} className={input} /></label>
-                    <label>시대·지역 *<input name="era_region" required defaultValue="현대 지방 소도시" maxLength={120} className={input} /></label>
-                    <label>제작 모드<select name="production_mode" className={input}><option value="standard">기존 영상</option><option value="moving_comic">무빙툰</option></select></label>
+                        if (country?.value === ui('한국')) country.value = ui('일본')
+                        if (era?.value === ui('현대 지방 소도시')) era.value = ui('시대 미상 · 자막·원전 근거 우선')
+                    }}><option value="ko">{ui('한국어')}</option><option value="en">{ui('영어')}</option><option value="ja">{ui('일본어')}</option><option value="es">{ui('스페인어')}</option></select></label>
+                    <label>{ui('배경 국가 *')}<input name="setting_country" required defaultValue={ui('한국')} maxLength={80} className={input} /></label>
+                    <label>{ui('시대·지역 *')}<input name="era_region" required defaultValue={ui('현대 지방 소도시')} maxLength={120} className={input} /></label>
+                    <label>{ui('제작 모드')}<select name="production_mode" className={input}><option value="standard">{ui('기존 영상')}</option><option value="moving_comic">{ui('무빙툰')}</option></select></label>
                 </div>
                 <fieldset>
-                    <legend className="font-semibold">이미지 스타일 *</legend>
-                    <p className="mt-1 text-sm text-gray-400">원하는 분위기의 썸네일을 선택하세요.</p>
+                    <legend className="font-semibold">{ui('이미지 스타일 *')}</legend>
+                    <p className="mt-1 text-sm text-gray-400">{ui('원하는 분위기의 썸네일을 선택하세요.')}</p>
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
                         {imageStyles.map(style => <label key={style.key} className="relative cursor-pointer">
-                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} required aria-label={style.name} className="peer sr-only" />
+                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} required aria-label={ui(style.name)} className="peer sr-only" />
                             <span className="block overflow-hidden rounded-xl border-2 border-white/10 bg-[#11141a] transition peer-checked:border-indigo-400 peer-checked:bg-indigo-500/15 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-indigo-300 peer-disabled:opacity-50 hover:border-white/40">
                                 <span className="relative block aspect-[4/3]">
-                                    <Image src={`/img/styles/style_${style.key}.png`} alt={`${style.name} 스타일 예시`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className="object-cover" />
+                                    <Image src={`/img/styles/style_${style.key}.png`} alt={`${ui(style.name)} ${ui('스타일 예시')}`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className="object-cover" />
                                 </span>
-                                <span className="block px-1 py-1.5 text-center text-xs font-medium">{style.name}</span>
+                                <span className="block px-1 py-1.5 text-center text-xs font-medium">{ui(style.name)}</span>
                             </span>
                             <span aria-hidden="true" className="absolute right-1 top-1 hidden rounded-full bg-indigo-500 px-1.5 py-0.5 text-xs font-semibold text-white peer-checked:block">✓</span>
                         </label>)}
                     </div>
                 </fieldset>
-                <label className="block">필수·금지 사항<textarea name="requirements" maxLength={1000} rows={3} className={input} placeholder="꼭 넣을 장면, 타깃 시청자, 원하는 분위기, 피할 표현" /></label>
-                <details><summary className="cursor-pointer text-gray-300">참고 자막·영상 요약 직접 입력 (선택)</summary><textarea name="transcript" maxLength={40000} rows={6} className={input} placeholder="유튜브 자막을 가져오지 못하는 경우 사용할 자료를 입력하세요." /><p className="mt-2 text-gray-400">URL을 입력하면 승인 후 자막을 수집합니다. 직접 입력한 자료가 있으면 이를 우선 사용합니다.</p></details>
-                <button disabled={busy || reading} className="rounded-lg bg-indigo-500 px-5 py-3 font-semibold text-white disabled:opacity-40">{busy ? '등록 중…' : reading ? '이미지 읽는 중…' : '토픽 등록 · 승인 요청'}</button>
+                <label className="block">{ui('필수·금지 사항')}<textarea name="requirements" maxLength={1000} rows={3} className={input} placeholder={ui('꼭 넣을 장면, 타깃 시청자, 원하는 분위기, 피할 표현')} /></label>
+                <details><summary className="cursor-pointer text-gray-300">{ui('참고 자막·영상 요약 직접 입력 (선택)')}</summary><textarea name="transcript" maxLength={40000} rows={6} className={input} placeholder={ui('유튜브 자막을 가져오지 못하는 경우 사용할 자료를 입력하세요.')} /><p className="mt-2 text-gray-400">{ui('URL을 입력하면 승인 후 자막을 수집합니다. 직접 입력한 자료가 있으면 이를 우선 사용합니다.')}</p></details>
+                <button disabled={busy || reading} className="rounded-lg bg-indigo-500 px-5 py-3 font-semibold text-white disabled:opacity-40">{busy ? ui('등록 중…') : reading ? ui('이미지 읽는 중…') : ui('토픽 등록 · 승인 요청')}</button>
             </fieldset>
         </form>
-        <div className="rounded-xl border border-white/10 p-5"><div className="flex justify-between items-center"><h2 className="text-lg font-semibold">내 등록 토픽</h2><button type="button" onClick={() => void load()} className="text-indigo-300">새로고침</button></div>
-            {!items.length && <p className="py-6 text-gray-400">{loading ? '불러오는 중…' : '등록한 토픽이 없습니다.'}</p>}
-            {items.map(item => <article key={item.id} className="border-t border-white/10 py-4 mt-3"><div className="flex justify-between gap-3"><strong>{item.title}</strong><span className="text-indigo-300">{statuses[item.job_status || item.status] || item.status}</span></div><p className="mt-1 text-gray-500">{new Date(item.created_at).toLocaleString()} · AE 씬 전달: {item.ae_scene_delivery === 'gcs' ? 'GCS 업로드' : '로컬 전달'}</p>{item.review_note && <p className="mt-2 whitespace-pre-wrap">검토 의견: {item.review_note}</p>}</article>)}
+        <div className="rounded-xl border border-white/10 p-5"><div className="flex justify-between items-center"><h2 className="text-lg font-semibold">{ui('내 등록 토픽')}</h2><button type="button" onClick={() => void load()} className="text-indigo-300">{ui('새로고침')}</button></div>
+            {!items.length && <p className="py-6 text-gray-400">{loading ? ui('불러오는 중…') : ui('등록한 토픽이 없습니다.')}</p>}
+            {items.map(item => <article key={item.id} className="border-t border-white/10 py-4 mt-3"><div className="flex justify-between gap-3"><strong>{item.title}</strong><span className="text-indigo-300">{ui(statuses[item.job_status || item.status] || item.status)}</span></div><p className="mt-1 text-gray-500">{new Date(item.created_at).toLocaleString(locale)} · {ui('AE 씬 전달')}: {item.ae_scene_delivery === 'gcs' ? ui('GCS 업로드') : ui('로컬 전달')}</p>{item.review_note && <p className="mt-2 whitespace-pre-wrap">{ui('검토 의견')}: {item.review_note}</p>}</article>)}
         </div>
     </section>
 }

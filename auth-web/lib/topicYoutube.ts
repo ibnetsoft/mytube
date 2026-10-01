@@ -83,16 +83,16 @@ export async function fetchTopicYoutube(options: TopicYoutubeOptions, keys: stri
         const search = await get('search', params)
         const ids = (search.items || []).map((item: any) => item.id?.videoId).filter((id: unknown) => typeof id === 'string' && /^[\w-]{11}$/.test(id))
         if (ids.length) {
-            const details = await get('videos', { part: 'snippet,statistics', id: ids.join(',') })
+            const details = await get('videos', { part: 'snippet,statistics', hl: options.language, id: ids.join(',') })
             const byId = new Map((details.items || []).map((row: any) => [row.id, row]))
             rows = ids.map((id: string) => byId.get(id)).filter(Boolean)
         }
     } else {
-        const popular = await get('videos', { part: 'snippet,statistics', chart: 'mostPopular', regionCode: regions[options.language], maxResults: '20' })
+        const popular = await get('videos', { part: 'snippet,statistics', chart: 'mostPopular', hl: options.language, regionCode: regions[options.language], maxResults: '20' })
         rows = popular.items || []
     }
     const videos: TopicYoutubeVideo[] = rows.filter(row => /^[\w-]{11}$/.test(row.id)).map(row => ({
-        id: row.id, title: String(row.snippet?.title || ''), channel: String(row.snippet?.channelTitle || ''),
+        id: row.id, title: String(row.snippet?.localized?.title || row.snippet?.title || ''), channel: String(row.snippet?.channelTitle || ''),
         publishedAt: String(row.snippet?.publishedAt || ''), thumbnail: `https://i.ytimg.com/vi/${row.id}/mqdefault.jpg`,
         url: `https://www.youtube.com/watch?v=${row.id}`, views: row.statistics?.viewCount ?? null,
         tags: Array.isArray(row.snippet?.tags) ? row.snippet.tags.filter((tag: unknown) => typeof tag === 'string') : [],

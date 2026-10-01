@@ -1,7 +1,7 @@
 export type TopicSubmission = {
     title: string; youtube_url: string; story: string; character_notes: string;
     requirements: string; category: string; duration_minutes: number;
-    language: string; setting_country: string; era_region: string; image_style: string;
+    language: string; input_language: string; setting_country: string; era_region: string; image_style: string;
     production_mode: string; ae_scene_delivery: 'local' | 'gcs'; transcript: string;
     character_images: { name: string; data: string }[];
 }
@@ -29,6 +29,8 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     }
     const duration_minutes = Number(input.duration_minutes)
     if (!Number.isInteger(duration_minutes) || duration_minutes < 1 || duration_minutes > 60) throw new Error('분량은 1~60분입니다.')
+    const input_language = input.input_language == null ? 'ko' : text('input_language', 2, true)
+    if (!['ko', 'en', 'vi', 'th'].includes(input_language)) throw new Error('입력 언어를 확인하세요.')
     const language = text('language', 2, true)
     if (!['ko', 'en', 'ja', 'es'].includes(language)) throw new Error('대본 언어를 선택하세요.')
     const production_mode = text('production_mode', 20, true)
@@ -50,7 +52,7 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     })
     return { title: text('title', 200, true), youtube_url, story: text('story', 2500, true),
         character_notes: text('character_notes', 1500), requirements: text('requirements', 1000),
-        category: text('category', 80, true), duration_minutes, language, production_mode, ae_scene_delivery,
+        category: text('category', 80, true), duration_minutes, language, input_language, production_mode, ae_scene_delivery,
         setting_country: text('setting_country', 80, true), era_region: text('era_region', 120, true),
         image_style: text('image_style', 80, true), transcript: text('transcript', 40000), character_images }
 }

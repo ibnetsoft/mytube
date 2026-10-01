@@ -8,6 +8,13 @@ new Function('exports', compile(path.join(__dirname, '../lib/topicSubmission.ts'
 const valid = { title: '토픽', story: '줄거리', category: '이야기', duration_minutes: 15, language: 'ko', production_mode: 'standard', setting_country: '한국', era_region: '현대', image_style: '실사' }
 assert.equal(lib.validateTopicSubmission(valid).title, '토픽')
 assert.equal(lib.validateTopicSubmission(valid).ae_scene_delivery, 'gcs')
+for (const language of ['ko', 'ja', 'en']) {
+    const thai = lib.validateTopicSubmission({ ...valid, input_language: 'th', language, story: 'หญิงสาวพบจดหมายเก่าและกลับไปพบครอบครัว', character_notes: 'สุภาพและกล้าหาญ', requirements: 'อย่าเปลี่ยนชื่อของตัวละคร' })
+    assert.equal(thai.input_language, 'th')
+    assert.equal(thai.language, language)
+    assert.equal(thai.story, 'หญิงสาวพบจดหมายเก่าและกลับไปพบครอบครัว')
+}
+assert.throws(() => lib.validateTopicSubmission({ ...valid, input_language: 'xx' }))
 assert.equal(lib.validateTopicSubmission({ ...valid, ae_scene_delivery: 'gcs' }).ae_scene_delivery, 'gcs')
 for (const change of [{ title: ' ' }, { duration_minutes: 0 }, { language: 'xx' }, { ae_scene_delivery: '' }, { ae_scene_delivery: 'other' }, { youtube_url: 'https://evil.example/watch?v=abcdefghijk' }, { character_images: [{ name: 'x', data: 'data:image/png;base64,YQ==' }] }]) {
     assert.throws(() => lib.validateTopicSubmission({ ...valid, ...change }))

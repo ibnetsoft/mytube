@@ -43,6 +43,20 @@ def test_web_request_preserves_brief():
     assert request.ae_scene_delivery == 'gcs'
 
 
+@pytest.mark.parametrize('language,name', [('ko', 'Korean'), ('ja', 'Japanese'), ('en', 'English')])
+@pytest.mark.parametrize('input_language,story', [('th', 'หญิงสาวพบจดหมายเก่า'), ('vi', 'Cô gái tìm thấy một bức thư cũ')])
+def test_multilingual_brief_keeps_selected_output_language(tmp_path, language, name, input_language, story):
+    row = QueueStore().row
+    row['request_data'].update(language=language, input_language=input_language, story=story)
+    request = console.StartRequest.model_validate(generation_request(row)).model_dump()
+    notes = prepare_brief(request, tmp_path, None, lambda message: None)
+    assert request['language'] == language
+    assert request['web_brief']['story'] == story
+    assert story in notes
+    assert f'OUTPUT LANGUAGE: {name} ({language})' in notes
+    assert f'Input language hint: {input_language}' in notes
+
+
 def test_ae_scene_delivery_reaches_local_candidate(monkeypatch, tmp_path):
     from worker import codex_local_workflow as workflow
     from worker import codex_bgm

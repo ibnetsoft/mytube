@@ -22,6 +22,7 @@ const rows = [
     assert.equal(calls[0].searchParams.get('regionCode'), 'JP')
     assert.equal(calls[0].searchParams.get('publishedAfter'), '2026-09-24T00:00:00.000Z')
     assert.equal(calls[0].searchParams.get('type'), 'video')
+    assert.equal(calls[1].searchParams.get('hl'), 'ja')
     assert.deepEqual(result.videos.map(video => video.id), ['lmnopqrstuv', 'abcdefghijk'])
     assert.equal(result.videos[1].views, '12500')
     assert.equal(result.videos[0].views, null)
@@ -43,7 +44,10 @@ const rows = [
         await lib.fetchTopicYoutube({ ...parsed, query: '', age: 'all' }, ['key'], async url => { popularCalls.push(new URL(url)); return Response.json({ items: [] }) })
         assert.equal(popularCalls[0].searchParams.get('regionCode'), region)
         assert.equal(popularCalls[0].searchParams.get('chart'), 'mostPopular')
+        assert.equal(popularCalls[0].searchParams.get('hl'), language)
     }
+    const localized = await lib.fetchTopicYoutube({ ...options, language: 'th', query: '' }, ['key'], async () => Response.json({ items: [{ ...rows[0], snippet: { ...rows[0].snippet, localized: { title: 'นิทานครอบครัว' } } }] }))
+    assert.equal(localized.videos[0].title, 'นิทานครอบครัว')
     const empty = await lib.fetchTopicYoutube(options, ['key'], async () => Response.json({ items: [] }))
     assert.deepEqual(empty.videos, [])
     const popularCalls = []
