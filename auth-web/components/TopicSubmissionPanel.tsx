@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import TopicYoutubeExplorer from './TopicYoutubeExplorer'
 
 const imageStyles = [
     { key: 'realistic', name: '실사' },
@@ -27,6 +28,7 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
     const [loading, setLoading] = useState(true)
     const submission = useRef({ key: '', body: '' })
     const inFlight = useRef(false)
+    const topicForm = useRef<HTMLFormElement>(null)
     const load = useCallback(async () => {
         try {
             const res = await fetch('/api/std/topic-submissions', { headers })
@@ -59,7 +61,16 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
         <div><h1 className="text-2xl font-semibold">토픽 등록</h1><p className="mt-2 text-gray-400">이야기와 참고 자료를 등록하세요. 로컬 대본워커에서 검토·승인 후 대본 작성을 시작합니다.</p></div>
         {error && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-red-300">{error}</p>}
         {notice && <p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-emerald-300">{notice}</p>}
-        <form className="rounded-xl border border-white/10 bg-[#191e27] p-5 space-y-5" onSubmit={async event => {
+        <TopicYoutubeExplorer headers={headers} disabled={busy} onSelect={video => {
+            const form = topicForm.current
+            const url = form?.elements.namedItem('youtube_url') as HTMLInputElement | null
+            const title = form?.elements.namedItem('title') as HTMLInputElement | null
+            if (url) url.value = video.url
+            if (title && !title.value.trim()) title.value = video.title.slice(0, 200)
+            setNotice(`참고 영상을 선택했습니다: ${video.title}`)
+            url?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }} />
+        <form ref={topicForm} className="rounded-xl border border-white/10 bg-[#191e27] p-5 space-y-5" onSubmit={async event => {
             event.preventDefault(); if (inFlight.current || reading) return
             const form = event.currentTarget
             const data = Object.fromEntries(new FormData(form).entries()); delete data.images
