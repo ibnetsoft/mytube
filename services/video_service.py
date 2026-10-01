@@ -3342,6 +3342,49 @@ class VideoService:
         vtt_path = base_path + ".vtt"
         json_path = base_path + "_alignment.json"
 
+        def split_long_caption(text, limit):
+            """Split oversized captions at natural punctuation, then at the limit."""
+            text = (text or "").strip()
+            if not text:
+                return []
+
+            chunks = []
+            remaining = text
+            # Commas are preferred so Japanese clauses remain readable. Sentence
+            # punctuation is also a valid boundary; otherwise split at the limit.
+            break_chars = "、，,；;：:。.!?！？…"
+            while len(remaining) > limit:
+                window = remaining[:limit + 1]
+                split_at = max((i + 1 for i, char in enumerate(window[:limit]) if char in break_chars), default=0)
+                if split_at < max(1, limit // 2):
+                    whitespace = [i for i, char in enumerate(window[:limit + 1]) if char.isspace()]
+                    if whitespace:
+                        split_at = whitespace[-1]
+                if split_at <= 0:
+                    split_at = limit
+
+                chunk = remaining[:split_at].strip()
+                if chunk:
+                    chunks.append(chunk)
+                remaining = remaining[split_at:].strip()
+
+            if remaining:
+                chunks.append(remaining)
+            return chunks
+
+        def append_caption_parts(target, start, end, text):
+            parts = split_long_caption(text, max_chars)
+            if not parts:
+                return
+            weights = [max(1, len(part.replace(" ", ""))) for part in parts]
+            total_weight = sum(weights)
+            span = max(0.0, float(end) - float(start))
+            cursor = float(start)
+            for index, (part, weight) in enumerate(zip(parts, weights)):
+                part_end = float(end) if index == len(parts) - 1 else cursor + span * weight / total_weight
+                target.append({"start": cursor, "end": part_end, "text": part})
+                cursor = part_end
+
         # 1. Edge TTS (.vtt) - Sentence/Word boundaries
         if os.path.exists(vtt_path):
             print(f"DEBUG: Found VTT metadata: {vtt_path}")
@@ -3388,7 +3431,7 @@ class VideoService:
                         text = " ".join(text_lines).strip()
                         text = self.clean_subtitle_text(text)
                         if text:
-                            subtitles.append({"start": start, "end": end, "text": text})
+                            append_caption_parts(subtitles, start, end, text)
                 
                 if subtitles:
                     print(f"DEBUG: Loaded {len(subtitles)} subtitles from VTT.")
@@ -3426,8 +3469,8 @@ class VideoService:
                     current_chars += len(word)
 
                     # Grouping Logic — 문장부호(. ? !)와 쉼표(,) 및 글자수 초과 기준으로 정교하게 분리
-                    is_end_char = word.strip().endswith(('.', '?', '!', '…'))
-                    is_comma = word.strip().endswith(',') and current_chars > max(12, MAX_CHARS // 2)
+                    is_end_char = word.strip().endswith(('.', '?', '!', '…', '。', '！', '？'))
+                    is_comma = word.strip().endswith((',', '，', '、', ';', '；', ':', '：')) and current_chars > max(8, MAX_CHARS // 2)
                     is_long = current_chars > MAX_CHARS
                     is_last = (i == len(data) - 1)
 
@@ -3440,11 +3483,7 @@ class VideoService:
                         
                         text = self.clean_subtitle_text(text)
                         if text:
-                            subtitles.append({
-                                "start": current_start,
-                                "end": end,
-                                "text": text
-                            })
+                            append_caption_parts(subtitles, current_start, end, text)
                         current_block = []
                         current_chars = 0
                 
@@ -3511,26 +3550,12 @@ class VideoService:
 
             chunks = []
             remaining = sentence.strip()
-            while len(remaining) > max_chars:
-                split_at = -1
-                for idx in range(max_chars, max(0, max_chars - 10), -1):
-                    if idx < len(remaining) and remaining[idx].isspace():
-                        split_at = idx
-                        break
-                if split_at <= 0:
-                    split_at = max_chars
-                chunk = remaining[:split_at].strip()
-                if chunk:
-                    chunks.append(chunk)
-                remaining = remaining[split_at:].strip()
-            if remaining:
-                chunks.append(remaining)
-            return chunks
+            return split_long_caption(sentence, max_chars)
 
         lines = [L.strip() for L in script_text.splitlines() if L.strip()]
         for line in lines:
-            # 문장 부호 뒤 공백 기준 분리
-            parts = re.split(r'(?<=[.?!])\s+', line)
+            # Latin/Japanese sentence punctuation, with or without following spaces.
+            parts = re.split(r'(?<=[.?!。！？…])\s*', line)
             for p in parts:
                 if p.strip():
                     raw_sentences.extend(split_long_sentence(p.strip()))
