@@ -144,6 +144,14 @@ export async function POST(req: Request, { params }: { params: { topicId: string
     const imageGridPrompts = buildStdImageGridPrompts(topic)
     const aeSceneDelivery = resolveClaimAeSceneDelivery(topic.pregenerated_structure, requestedDelivery)
     const projectStructure = { ...(topic.pregenerated_structure || {}), ae_scene_delivery: aeSceneDelivery }
+    const preparedSubtitles = Array.isArray(topic.progress_payload?.subtitles)
+        ? topic.progress_payload.subtitles
+        : []
+    const preparedSubtitleTranslations = topic.progress_payload?.subtitle_translations
+        && typeof topic.progress_payload.subtitle_translations === 'object'
+        && !Array.isArray(topic.progress_payload.subtitle_translations)
+        ? topic.progress_payload.subtitle_translations
+        : {}
     const { data: patchedRows, error: patchError } = await supabaseAdmin
         .from('topics_queue')
         .update({
@@ -181,6 +189,9 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 script: firstText(topic.pregenerated_script),
                 original_worker_script: firstText(topic.pregenerated_script),
                 structure: projectStructure,
+                subtitles: preparedSubtitles,
+                subtitles_saved: preparedSubtitles.length > 0,
+                subtitle_translations: preparedSubtitleTranslations,
                 ae_scene_delivery: aeSceneDelivery,
                 character_anchors: topic.pregenerated_structure?.character_anchors || topic.progress_payload?.character_anchors || {},
                 supporting_characters: topic.pregenerated_structure?.supporting_characters || topic.progress_payload?.supporting_characters || [],
