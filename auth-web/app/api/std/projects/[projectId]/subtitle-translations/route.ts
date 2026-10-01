@@ -13,7 +13,7 @@ import { requireStdUser } from '@/lib/stdWeb'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-const MAX_BLOCKS = 500
+const MAX_BLOCKS = 1000
 const MAX_BLOCK_TEXT = 1200
 const MAX_TOTAL_TEXT = 120_000
 const SUBTITLE_TRANSLATION_SCOPE_KEY = 'sys_api_subtitle_translation_scope'
