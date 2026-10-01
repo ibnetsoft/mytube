@@ -1,5 +1,18 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
+
+const imageStyles = [
+    { key: 'realistic', name: '실사' },
+    { key: 'cinematic', name: '시네마틱' },
+    { key: 'anime', name: '애니메이션' },
+    { key: 'ghibli', name: '지브리' },
+    { key: 'webtoon', name: '웹툰' },
+    { key: 'korean_webtoon', name: '한국 웹툰' },
+    { key: '3d', name: '3D' },
+    { key: 'minimal', name: '미니멀' },
+    { key: 'wimpy', name: '윔피' },
+]
 
 type Item = { id: string; title: string; status: string; review_note: string; created_at: string; job_status: string | null; ae_scene_delivery: 'local' | 'gcs' }
 const statuses: Record<string, string> = { pending: '승인 대기', approved: '승인됨', rejected: '반려', queued: '실행 대기', running: '대본 작성 중', failed: '작성 실패', interrupted: '작업 중단', awaiting_approval: '대본 검토 대기', approved_pending_repair: '대본 승인됨', completed: '완료' }
@@ -74,9 +87,24 @@ export default function TopicSubmissionPanel({ headers }: { headers: Record<stri
                     <label>대본 언어<select name="language" className={input}><option value="ko">한국어</option><option value="en">영어</option><option value="ja">일본어</option><option value="es">스페인어</option></select></label>
                     <label>배경 국가 *<input name="setting_country" required defaultValue="한국" maxLength={80} className={input} /></label>
                     <label>시대·지역 *<input name="era_region" required defaultValue="현대 지방 소도시" maxLength={120} className={input} /></label>
-                    <label>이미지 스타일 *<input name="image_style" required defaultValue="실사" maxLength={80} className={input} /></label>
                     <label>제작 모드<select name="production_mode" className={input}><option value="standard">기존 영상</option><option value="moving_comic">무빙툰</option></select></label>
                 </div>
+                <fieldset>
+                    <legend className="font-semibold">이미지 스타일 *</legend>
+                    <p className="mt-1 text-sm text-gray-400">원하는 분위기의 썸네일을 선택하세요.</p>
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                        {imageStyles.map(style => <label key={style.key} className="relative cursor-pointer">
+                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} required aria-label={style.name} className="peer sr-only" />
+                            <span className="block overflow-hidden rounded-xl border-2 border-white/10 bg-[#11141a] transition peer-checked:border-indigo-400 peer-checked:bg-indigo-500/15 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-indigo-300 peer-disabled:opacity-50 hover:border-white/40">
+                                <span className="relative block aspect-[4/3]">
+                                    <Image src={`/img/styles/style_${style.key}.png`} alt={`${style.name} 스타일 예시`} fill sizes="(max-width: 639px) 45vw, (max-width: 1023px) 30vw, 180px" className="object-cover" />
+                                </span>
+                                <span className="block px-3 py-2.5 text-sm font-medium">{style.name}</span>
+                            </span>
+                            <span aria-hidden="true" className="absolute right-2 top-2 hidden rounded-full bg-indigo-500 px-2 py-1 text-xs font-semibold text-white peer-checked:block">✓ 선택됨</span>
+                        </label>)}
+                    </div>
+                </fieldset>
                 <fieldset className="rounded-lg border border-white/15 p-4">
                     <legend className="px-1 font-semibold">AE 씬 영상 전달 방식</legend>
                     <div className="mt-2 grid gap-3 sm:grid-cols-2">
