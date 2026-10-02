@@ -2778,11 +2778,11 @@ export default function StdPortalPage() {
             .filter((item: any) => item.text && item.voice_id)
     }
 
-    const vrewSegmentCacheKey = (subtitle: any, index: number) => {
+    const vrewSegmentCacheKey = (subtitle: any, index: number, projectId = selectedProject?.project?.id) => {
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
         const text = String(subtitle?.text || '').trim()
         return [
-            selectedProject?.project?.id || 'project',
+            projectId || 'project',
             index,
             voiceId,
             String(subtitle?.voice_direction || ''),
@@ -4050,7 +4050,7 @@ export default function StdPortalPage() {
                 .filter(({ subtitle }: any) => audioScenes.includes(Number(subtitle.scene_number)))
             for (const { subtitle, index } of sceneSubtitles) {
                 if (!isCurrent()) return
-                const cacheKey = vrewSegmentCacheKey(subtitle, index)
+                const cacheKey = vrewSegmentCacheKey(subtitle, index, projectId)
                 if (vrewAudioCacheRef.current[cacheKey]) continue
                 const stored = scopedAssets.find((asset: any) => {
                     const m = asset.metadata || {}
