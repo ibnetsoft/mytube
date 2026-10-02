@@ -561,7 +561,7 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
 
@@ -569,6 +569,56 @@ def asset(name: str):
 @app.get('/health')
 def health():
     return {'service': 'codex-local-console', 'port': PORT, 'legacy_dashboard': False}
+
+
+class GuidelineProposal(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    issue: str = Field(min_length=1, max_length=4000)
+    instruction: str = Field(min_length=1, max_length=4000)
+    category: str = Field(default='', max_length=80)
+    language: str = Field(default='', max_length=8)
+    source_job_id: str = Field(default='', max_length=32)
+
+
+class GuidelineReview(BaseModel):
+    action: Literal['approve','reject','retire']
+    note: str = Field(default='', max_length=1000)
+
+
+@app.get('/api/script-guidelines')
+def guidelines_list():
+    from worker.script_guidelines import list_guidelines
+    try:
+        return list_guidelines(store)
+    except StoreUnavailable as exc:
+        raise HTTPException(503, str(exc))
+
+
+@app.post('/api/script-guidelines')
+def guideline_propose(request: GuidelineProposal):
+    from worker.script_guidelines import propose
+    try:
+        return propose(store, request.model_dump())
+    except (ValueError, StoreUnavailable) as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post('/api/script-guidelines/{identity}/review')
+def guideline_review(identity: str, request: GuidelineReview):
+    from worker.script_guidelines import review
+    try:
+        return review(store, identity, request.action, request.note)
+    except (ValueError, StoreUnavailable) as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post('/api/script-guidelines/{identity}/notion-sync')
+def guideline_notion_sync(identity: str):
+    from worker.script_guidelines import sync_notion
+    try:
+        return sync_notion(store, identity)
+    except Exception:
+        raise HTTPException(502, 'Notion 동기화 실패. Database 지침은 유지됩니다. Notion 연결 설정을 확인하세요.')
 
 
 @app.get('/api/status')

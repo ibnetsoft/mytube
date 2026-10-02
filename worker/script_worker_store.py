@@ -60,6 +60,9 @@ class ScriptStore:
                'candidate': bundle.get('candidate', {}), 'reference_sources': bundle.get('references', [])}
         self.request('POST', TABLE, params={'on_conflict': 'id'}, body=row,
                      prefer='resolution=merge-duplicates,return=minimal')
+        if row['candidate'] and job['mode'] != 'topics':
+            from worker.script_guidelines import record_outcome
+            record_outcome(self, job, row['request_data'], row['candidate'])
         web_topic_id = bundle.get('request', {}).get('web_topic_id')
         if web_topic_id:
             import uuid

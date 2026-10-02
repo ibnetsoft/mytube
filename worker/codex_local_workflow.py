@@ -33,6 +33,20 @@ def finalize_sfx(runner, identity, package, notify, snapshot=None):
 
 
 def produce(identity, request, snapshot, output, notify, sources=None):
+    from worker.script_guidelines import approved_guidelines
+    from worker.script_worker_store import ScriptStore
+    scope = dict(request)
+    if request.get('mode') == 'repair' and snapshot:
+        row = snapshot.get('row') or {}
+        scope['language'] = row.get('language') or 'ko'
+        scope['category'] = request.get('category') or row.get('category') or ''
+    rows, instruction = approved_guidelines(ScriptStore(), scope)
+    package = _produce(identity, {**request, '_approved_guidance': instruction}, snapshot, output, notify, sources)
+    package['applied_guidelines'] = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]
+    return package
+
+
+def _produce(identity, request, snapshot, output, notify, sources=None):
     from codex_content_runner import (CodexStagedContentRunner, CodexContentConfig,
         _category_narration_voice, _script_rhythm_contract, _resolve_script_style_directive,
         _script_rhythm_warnings)
@@ -52,6 +66,9 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     if request.get('web_brief'):
         from worker.web_topic_submissions import prepare_brief
         request = {**request, 'notes': prepare_brief(request, output, runner, notify)}
+    if request.get('_approved_guidance'):
+        request = {**request, 'notes': request.get('notes', '') + '\n\n' + request['_approved_guidance']}
+        notify('승인된 개선 지침 적용 · 작성 및 검수')
     moving = request.get('production_mode') == 'moving_comic'
     if moving:
         from worker.comic_plan import DIRECTIVE, plan_comic
@@ -123,7 +140,8 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     payload = {'category_name': category, 'category_id': row.get('category_id'),
                'language': row.get('language') or 'ko', 'topic': snapshot['summary']['title'],
                'upload_title': snapshot['summary']['title'],
-               'target_duration_seconds': _duration_seconds(row, scenes)}
+               'target_duration_seconds': _duration_seconds(row, scenes),
+               'user_direction': request['notes']}
     budgets = _repair_scene_budgets(scenes, payload, [
         {**section, 'current_text': section['text']} for section in sections])
     stage = lambda name, context, task: runner._stage('local-' + identity, name, context, task)
