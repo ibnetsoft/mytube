@@ -21,30 +21,8 @@ export async function persistSegmentAudio(db: any, args: {
     projectId: string; cacheKey: string; identity: Record<string, any>;
     audioBuffer: Buffer; fileName: string; segmentIndex: number; generatedBy: string;
 }) {
-    const bucket = 'content-assets'
     const path = `std/${args.projectId}/tts/${args.cacheKey}.mp3`
-    const { error: uploadError } = await db.storage.from(bucket).upload(path, args.audioBuffer, {
-        contentType: 'audio/mpeg', upsert: true,
-    })
-    if (uploadError) throw new Error(`음성 파일 저장 실패: ${uploadError.message}`)
-
-    let gcsMeta: any = {}
-    if (await isGcsConfiguredAsync()) {
-        try {
-            const gcsRes = await uploadGcsBuffer({
-                objectPath: path,
-                buffer: args.audioBuffer,
-                contentType: 'audio/mpeg',
-            })
-            gcsMeta = {
-                secondary_storage_provider: 'gcs',
-                gcs_bucket: gcsRes.bucket,
-                gcs_path: gcsRes.path,
-            }
-        } catch (gcsErr: any) {
-            console.warn('[persistSegmentAudio] GCS secondary archive failed:', gcsErr?.message || gcsErr)
-        }
-    }
+    const gcsMeta = await persistTtsAudio(path, args.audioBuffer)
 
     const identity = args.identity
     const { data, error } = await db.from('std_project_assets').insert({
@@ -59,10 +37,17 @@ export async function persistSegmentAudio(db: any, args: {
             tts_speed: identity.speed, stability: identity.stability, style: identity.style,
             direction: identity.direction, language: identity.language, text: identity.text,
             text_hash: createHash('sha1').update(identity.text).digest('hex'),
-            generated_by: args.generatedBy, storage_bucket: bucket, storage_path: path,
+            generated_by: args.generatedBy,
             ...gcsMeta,
         },
     }).select('*').single()
     if (error) throw new Error(`음성 저장 정보 기록 실패: ${error.message}`)
     return data
+}
+
+export async function persistTtsAudio(path: string, buffer: Buffer) {
+    if (!(await isGcsConfiguredAsync())) throw new Error('GCS 음성 저장 설정이 필요합니다.')
+    const ref = await uploadGcsBuffer({objectPath: path, buffer, contentType: 'audio/mpeg'})
+    return {storage_provider: 'gcs', storage_bucket: ref.bucket, storage_path: ref.path,
+        gcs_bucket: ref.bucket, gcs_path: ref.path}
 }

@@ -3,7 +3,7 @@ import { assembleStoredNarration } from '@/lib/stdStoredNarration'
 import { NARRATION_BATCH_SIZE } from '@/lib/stdNarrationBatch'
 import { completedScriptTtsProgress } from '@/lib/stdTtsCompletion'
 import { createHash } from 'crypto'
-import { segmentAudioKey, legacySegmentMatches, persistSegmentAudio } from '@/lib/stdSegmentAudioCache'
+import { segmentAudioKey, legacySegmentMatches, persistSegmentAudio, persistTtsAudio } from '@/lib/stdSegmentAudioCache'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import {
@@ -14,7 +14,7 @@ import { parseScriptToVoiceSegments, ScriptVoiceSegment } from '@/lib/stdMultiVo
 import { getConfiguredElevenLabsKeys } from '@/lib/elevenLabsKeys'
 import { generateVoiceStudioMp3 } from '@/lib/stdVoiceStudio'
 import { isVoiceStudioVoice, mergeVoiceStudioSegments } from '@/lib/voiceStudioCatalog'
-import { isGcsConfiguredAsync, uploadGcsBuffer } from '@/lib/gcsStorage'
+import { downloadGcsObject } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -848,6 +848,14 @@ async function runTts(body: any, auth: any, project: any) {
                     return { asset: payload.asset, cached: Boolean(payload.cached) }
                 },
                 read: async (asset) => {
+                    const m = asset.metadata || {}
+                    if (m.gcs_path || m.storage_provider === 'gcs') {
+                        try {
+                            return await downloadGcsObject({bucket: m.gcs_bucket || m.storage_bucket, objectPath: m.gcs_path || m.storage_path})
+                        } catch (error) {
+                            if (m.storage_provider === 'gcs' && !m.supabase_path) throw error
+                        }
+                    }
                     if (asset.metadata?.storage_path) {
                         const { data, error } = await supabaseAdmin.storage.from(asset.metadata.storage_bucket || 'content-assets').download(asset.metadata.storage_path)
                         if (!error && data) {
@@ -964,34 +972,13 @@ async function runTts(body: any, auth: any, project: any) {
         }
         stage = 'persist_narration_storage'
         const storagePath = `std/${project.id}/tts/${fileName}`
-        const { error: uploadError } = await supabaseAdmin.storage.from('content-assets')
-            .upload(storagePath, audioBuffer, { contentType: 'audio/mpeg', upsert: false })
-        if (uploadError) throw new Error(`음성 파일 저장 실패: ${uploadError.message}`)
-
-        let gcsMetadata: any = {}
-        if (await isGcsConfiguredAsync()) {
-            try {
-                const gcsRes = await uploadGcsBuffer({
-                    objectPath: storagePath,
-                    buffer: audioBuffer,
-                    contentType: 'audio/mpeg',
-                })
-                gcsMetadata = {
-                    secondary_storage_provider: 'gcs',
-                    gcs_bucket: gcsRes.bucket,
-                    gcs_path: gcsRes.path,
-                }
-            } catch (gcsErr: any) {
-                console.warn('[TTS Generate] GCS secondary archive failed:', gcsErr?.message || gcsErr)
-            }
-        }
+        const gcsMetadata = await persistTtsAudio(storagePath, audioBuffer)
 
         const { data: asset, error: assetError } = await supabaseAdmin.from('std_project_assets').insert({
             project_id: project.id, scene_id: null, scene_number: null, asset_type: 'audio',
             file_name: fileName, mime_type: 'audio/mpeg', file_size: audioBuffer.length,
             status: 'uploaded', uploaded_by: auth.requester.user.id,
             metadata: {
-                storage_bucket: 'content-assets', storage_path: storagePath,
                 ...gcsMetadata,
                 provider, voice_id: voiceId, model_id: modelId, tts_speed: projectTtsSpeed,
                 multi_voice: multiVoice, voice_map: voiceMap, voice_segments: voiceSegments,

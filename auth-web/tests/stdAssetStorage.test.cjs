@@ -16,9 +16,9 @@ test('legacy storage and secondary GCS copies retain primary backend',()=>{
  assert.equal(assetStorageRef({storage_provider:'gcs',storage_bucket:'bucket',storage_path:'a'}).provider,'supabase');
  assert.equal(assetStorageRef({gcs_bucket:'bucket',gcs_path:'a'}).provider,'supabase');
 });
-function harness({authorized=true,project=true,asset=true,missing=false,storageError=false,gcsMissing=false}={}) {
+function harness({authorized=true,project=true,asset=true,missing=false,storageError=false,gcsMissing=false,metadata}={}) {
  let signed=0, ranged='', gcs=0;
- const row={id:'asset',asset_type:'other',mime_type:'audio/mpeg',metadata:{storage_bucket:'content-assets',storage_path:'a'}};
+ const row={id:'asset',asset_type:'other',mime_type:'audio/mpeg',metadata:metadata || {storage_bucket:'content-assets',storage_path:'a'}};
  const db={from(table){const q={select(){return q},eq(){return q},in(){return q},limit(){return q},async maybeSingle(){return {data:table==='std_projects'?(project?{id:'p'}:null):(asset?row:null)}}};return q},storage:{from(){return {async createSignedUrl(){signed++;if(missing)return {error:{statusCode:404,message:'Object not found'}};if(storageError)return {error:{statusCode:403,message:'Forbidden'}};return {data:{signedUrl:'https://storage.test/a'}}}}}}};
  const route=load(root+'app/api/std/projects/[projectId]/assets/file/route.ts',{
   'next/server':{NextResponse:Response},'@/lib/supabaseAdmin':{supabaseAdmin:db},
@@ -39,4 +39,27 @@ test('permission failure is not a missing file',async()=>{const h=harness({stora
 test('browser stored asset URL uses the priority reader instead of GCS direct URL',()=>{
  const {resolveFastAssetUrl}=load(root+'lib/stdMediaLoading.ts',{});
  assert.equal(resolveFastAssetUrl('p',{id:'a',metadata:{gcs_path:'file',gcs_public_url:'https://gcs.test/file'}}),'/api/std/projects/p/assets/file?assetId=a');
+});
+
+test('GCS primary audio skips Supabase and preserves byte range',async()=>{
+ const h=harness({metadata:{storage_provider:'gcs',storage_bucket:'gcs-bucket',storage_path:'a',gcs_bucket:'gcs-bucket',gcs_path:'a'}});
+ const r=await h.get();assert.equal(r.status,206);assert.equal(r.headers.get('X-STD-Media-Source'),'gcs');assert.equal(h.stats().signed,0);assert.equal(h.stats().gcs,1);
+});
+test('legacy GCS archive is played before Supabase',async()=>{
+ const h=harness({metadata:{storage_bucket:'content-assets',storage_path:'a',gcs_bucket:'gcs-bucket',gcs_path:'a'}});
+ assert.equal((await h.get()).headers.get('X-STD-Media-Source'),'gcs');assert.equal(h.stats().signed,0);
+});
+test('legacy archive failure can reuse Supabase without generation',async()=>{
+ const h=harness({gcsMissing:true,metadata:{storage_bucket:'content-assets',storage_path:'a',gcs_bucket:'gcs-bucket',gcs_path:'a'}});
+ assert.equal((await h.get()).headers.get('X-STD-Media-Source'),'supabase');assert.equal(h.stats().signed,1);
+});
+test('new audio persistence stores GCS metadata without a Supabase upload',async()=>{
+ const calls=[];
+ const {persistSegmentAudio}=load(root+'lib/stdSegmentAudioCache.ts',{
+  crypto:require('node:crypto'), '@/lib/gcsStorage':{isGcsConfiguredAsync:async()=>true,uploadGcsBuffer:async(args)=>{calls.push('gcs');assert.equal(args.buffer.toString(),'audio');return {bucket:'gcs-bucket',path:args.objectPath}}}
+ });
+ let inserted;
+ const db={from:()=>({insert(row){calls.push('db');inserted=row;return {select:()=>({single:async()=>({data:row})})}}}),storage:{from(){throw Error('Unexpected Supabase upload')}}};
+ await persistSegmentAudio(db,{projectId:'p',cacheKey:'k',identity:{text:'same'},audioBuffer:Buffer.from('audio'),fileName:'a.mp3',segmentIndex:0,generatedBy:'owner'});
+ assert.deepEqual(calls,['gcs','db']);assert.equal(inserted.metadata.storage_provider,'gcs');assert.equal(inserted.metadata.storage_bucket,'gcs-bucket');
 });

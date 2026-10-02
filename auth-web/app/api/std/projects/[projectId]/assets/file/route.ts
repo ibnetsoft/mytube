@@ -98,7 +98,26 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         return NextResponse.json({ success: false, error: 'Asset does not have a storage path' }, { status: 404 })
     }
     try {
-        if (asset.metadata?.storage_provider !== 'gcs') {
+        // Prefer GCS for new primary recordings and older archived recordings.
+        if ((asset.metadata?.gcs_path || asset.metadata?.storage_provider === 'gcs') && await isGcsConfiguredAsync()) {
+            try {
+                const chunk = await downloadGcsObjectViaSignedUrl({bucket: gcsBucket, objectPath: gcsPath, range: requestedRange})
+                return new NextResponse(new Uint8Array(chunk.buffer), {
+                    status: chunk.status === 206 ? 206 : 200,
+                    headers: {
+                        'Content-Type': chunk.contentType || asset.mime_type || 'application/octet-stream',
+                        'Content-Length': chunk.contentLength || String(chunk.buffer.length),
+                        'Cache-Control': 'private, max-age=86400', ETag: etag, 'Accept-Ranges': 'bytes',
+                        'Vary': 'Authorization, Cookie, x-impersonate-email', 'X-STD-Media-Source': 'gcs',
+                        ...(chunk.contentRange ? {'Content-Range': chunk.contentRange} : {}),
+                    },
+                })
+            } catch (error) {
+                if (asset.metadata?.storage_provider === 'gcs' && !asset.metadata?.supabase_path) throw error
+                console.warn('[STD Asset File] GCS unavailable; reading legacy Supabase copy')
+            }
+        }
+        if (asset.metadata?.storage_provider !== 'gcs' || asset.metadata?.supabase_path) {
             // Server-authenticated stream avoids expiring intermediate signed URLs.
             // Project/asset ownership has already been checked above.
             const objectPath = [storage.bucket, ...storage.path.split('/')].map(encodeURIComponent).join('/')
