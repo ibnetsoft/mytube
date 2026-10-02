@@ -249,7 +249,7 @@ function LazySceneMedia({
 
     return (
         <div ref={containerRef} className="w-full h-full bg-[#0b0e14]">
-            {shouldLoad && videoUrl && !videoFailed ? (
+            {shouldLoad && videoUrl && !videoFailed && (shouldPlay || !imageUrl) ? (
                 <video
                     src={videoUrl}
                     poster={imageUrl || undefined}
@@ -1076,6 +1076,7 @@ export default function StdPortalPage() {
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
     const [isBodyImageSectionOpen, setIsBodyImageSectionOpen] = useState(false)
     const projectMediaObjectUrlsRef = useRef<Record<string, string>>({})
+    const projectMediaLoadsRef = useRef(new Set<string>())
 
     useEffect(() => {
         setAudioDurationSeconds(0)
@@ -3980,16 +3981,25 @@ export default function StdPortalPage() {
         if (!projectId) return
         const requestScope = { ...mediaScopeRef.current, projectId: String(projectId) }
         const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
-
+        if (!headers.Authorization) return
+        const loadingKey = `${requestScope.session}:${projectId}:${requestScope.generation}`
+        if (projectMediaLoadsRef.current.has(loadingKey)) return
+        projectMediaLoadsRef.current.add(loadingKey)
+        try {
         const scopedAssets = assets.filter((asset: any) => assetBelongsToProject(asset, projectId))
         const sceneImages = sceneGcsImageAssets(projectPayload.scenes || [], projectId)
             .filter(image => !scopedAssets.some(asset => asset.asset_type === 'image' && Number(asset.scene_number) === image.scene_number))
-        const wantedScenes = options.sceneNumbers || STD_INITIAL_MEDIA_SCENES
-        const mediaAssets = [...sceneImages.filter(image => wantedScenes.includes(image.scene_number)), ...selectFallbackAssetsForScenes(
-            scopedAssets,
-            options.sceneNumbers || STD_INITIAL_MEDIA_SCENES,
-            options.includeProjectAssets !== false,
-        ), ...sceneImages.filter(image => !wantedScenes.includes(image.scene_number))]
+        const allSceneNumbers = (projectPayload.scenes || []).map((scene: any) => Number(scene.scene_number)).sort((a: number, b: number) => a - b)
+        const sceneOrder = allSceneNumbers
+        const mediaAssets = [...sceneImages, ...selectFallbackAssetsForScenes(scopedAssets, allSceneNumbers, options.includeProjectAssets !== false)]
+            .sort((a, b) => {
+                const rank = (asset: any) => {
+                    const index = sceneOrder.indexOf(Number(asset.scene_number))
+                    if (asset.asset_type === 'image' && STD_INITIAL_MEDIA_SCENES.includes(Number(asset.scene_number))) return index
+                    return 4 + (index < 0 ? sceneOrder.length : index) * 3 + (asset.asset_type === 'image' ? 0 : 1)
+                }
+                return rank(a) - rank(b)
+            })
 
         const restoreAsset = async (asset: any) => {
             const cacheKey = projectAssetCacheKey(projectId, asset)
@@ -4016,7 +4026,7 @@ export default function StdPortalPage() {
             }
         }
         const driveEntries: Array<{ asset: any; objectUrl: string } | null> = []
-        const concurrency = 2
+        const concurrency = 1
         for (let offset = 0; offset < mediaAssets.length; offset += concurrency) {
             const batch = await Promise.all(mediaAssets.slice(offset, offset + concurrency).map(restoreAsset))
             driveEntries.push(...batch)
@@ -4029,6 +4039,37 @@ export default function StdPortalPage() {
                     video_url: ready.get(`${scene.scene_number}:video`) || scene.video_url,
                 })) }
             })
+            const loadedAsset = batch[0]?.asset
+            const sceneNumber = Number(loadedAsset?.scene_number)
+            const topImage = loadedAsset?.asset_type === 'image' && STD_INITIAL_MEDIA_SCENES.includes(sceneNumber)
+            const lastTopImage = mediaAssets.filter(asset => asset.asset_type === 'image' && STD_INITIAL_MEDIA_SCENES.includes(Number(asset.scene_number))).at(-1)
+            const audioScenes = topImage ? (loadedAsset === lastTopImage ? STD_INITIAL_MEDIA_SCENES : []) : [sceneNumber]
+            // Read existing recordings only. Never synthesize during background loading.
+            const sceneSubtitles = (localSubtitles.length ? localSubtitles : projectPayload.project.project_payload?.subtitles || [])
+                .map((subtitle: any, index: number) => ({ subtitle, index }))
+                .filter(({ subtitle }: any) => audioScenes.includes(Number(subtitle.scene_number)))
+            for (const { subtitle, index } of sceneSubtitles) {
+                if (!isCurrent()) return
+                const cacheKey = vrewSegmentCacheKey(subtitle, index)
+                if (vrewAudioCacheRef.current[cacheKey]) continue
+                const stored = scopedAssets.find((asset: any) => {
+                    const m = asset.metadata || {}
+                    return ['uploaded','assigned'].includes(asset.status) && m.kind === 'vrew_segment_tts'
+                        && m.text === String(subtitle.text || '').trim()
+                        && m.voice_id === String(subtitle.voice_id || selectedVoice)
+                        && m.model_id === 'eleven_multilingual_v2' && Number(m.tts_speed) === Number(ttsSpeed)
+                        && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
+                        && String(m.direction || '') === String(subtitle.voice_direction || '')
+                })
+                if (!stored) continue
+                try {
+                    const url = await fetchVrewAudioBlobUrl(projectAssetFileUrl(projectId, stored)!)
+                    if (!isCurrent()) { URL.revokeObjectURL(url); return }
+                    if (vrewAudioCacheRef.current[cacheKey]) URL.revokeObjectURL(url)
+                    else vrewAudioCacheRef.current[cacheKey] = url
+                    setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
+                } catch { /* Missing recordings remain available for explicit playback retry. */ }
+            }
         }
 
         const restoredEntries = driveEntries
@@ -4110,7 +4151,9 @@ export default function StdPortalPage() {
                 },
             },
         })
-
+        } finally {
+            projectMediaLoadsRef.current.delete(loadingKey)
+        }
     }
 
     // 워커 및 Supabase 실데이터로부터 풍부한 씬 및 그리드 프롬프트를 빌드하는 유틸리티
@@ -7122,7 +7165,7 @@ export default function StdPortalPage() {
         }
     // Asset URL updates are the result of this loader; restarting on those updates would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentNav, currentPreviewSceneNumber, selectedProject?.project?.id])
+    }, [currentNav, currentPreviewSceneNumber, selectedProject?.project?.id, authedJsonHeaders])
 
     const previewMotionScene = selectedProject?.scenes?.find((scene: any) => Number(scene.scene_number) === currentPreviewSceneNumber)
     const previewMotionGroup = subtitleSceneGroups.find(group => Number(group.scene_number) === currentPreviewSceneNumber)
