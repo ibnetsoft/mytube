@@ -11181,7 +11181,11 @@ export default function StdPortalPage() {
                                                 </div>
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5 col-span-2 sm:col-span-1">
                                                     <span className="text-gray-400 block">🎨 추천 화풍</span>
-                                                    <span className="font-bold text-purple-400">Cinematic / Ghibli</span>
+                                                    <span className="font-bold text-purple-400">
+                                                        {selectedTopicForModal.assigned_image_style === 'jidaigeki_cel'
+                                                            ? '정통 시대극 셀화'
+                                                            : 'Cinematic / Ghibli'}
+                                                    </span>
                                                 </div>
                                             </div>
 
