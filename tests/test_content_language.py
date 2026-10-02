@@ -86,13 +86,14 @@ def test_language_specific_budgets_and_category_override():
 @pytest.mark.parametrize('language', LANGUAGE_NAMES)
 def test_local_workflow_passes_language(monkeypatch, tmp_path, language):
     from worker import codex_local_workflow as workflow, codex_bgm
+    monkeypatch.setattr('worker.script_guidelines.approved_guidelines', lambda *args: ([], ''))
     captured = {}
     def generate(self, identity, payload, **kwargs):
         captured.update(payload)
         return {'script': SAMPLES[language], 'structure': {'scenes': []}}
     monkeypatch.setattr(runner.CodexStagedContentRunner, 'generate', generate)
     monkeypatch.setattr(codex_bgm, 'plan_package_bgm', lambda *a, **k: None)
-    monkeypatch.setattr(workflow, 'finalize_sfx', lambda r, i, p, n: p)
+    monkeypatch.setattr(workflow, 'finalize_sfx', lambda r, i, p, n, source=None: p)
     result = workflow.produce('test', console.StartRequest(mode='new', title='제목', category='가족 사연', language=language).model_dump(),
                               None, tmp_path, lambda _: None)
     assert captured['language'] == language and result['language'] == language

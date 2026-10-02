@@ -58,6 +58,7 @@ def test_multilingual_brief_keeps_selected_output_language(tmp_path, language, n
 
 
 def test_ae_scene_delivery_reaches_local_candidate(monkeypatch, tmp_path):
+    monkeypatch.setattr('worker.script_guidelines.approved_guidelines', lambda *args: ([], ''))
     from worker import codex_local_workflow as workflow
     from worker import codex_bgm
     import codex_content_runner
