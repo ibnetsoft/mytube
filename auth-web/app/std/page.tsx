@@ -29,6 +29,7 @@ import StdThumbnailPreview from '@/components/StdThumbnailPreview'
 import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalog'
 import {
     directStorageUrl,
+    sceneGcsImageAssets,
     prioritizedSceneNumbers,
     selectFallbackAssetsForScenes,
     STD_INITIAL_MEDIA_SCENES,
@@ -3981,11 +3982,14 @@ export default function StdPortalPage() {
         const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
 
         const scopedAssets = assets.filter((asset: any) => assetBelongsToProject(asset, projectId))
-        const mediaAssets = selectFallbackAssetsForScenes(
+        const sceneImages = sceneGcsImageAssets(projectPayload.scenes || [], projectId)
+            .filter(image => !scopedAssets.some(asset => asset.asset_type === 'image' && Number(asset.scene_number) === image.scene_number))
+        const wantedScenes = options.sceneNumbers || STD_INITIAL_MEDIA_SCENES
+        const mediaAssets = [...sceneImages.filter(image => wantedScenes.includes(image.scene_number)), ...selectFallbackAssetsForScenes(
             scopedAssets,
             options.sceneNumbers || STD_INITIAL_MEDIA_SCENES,
             options.includeProjectAssets !== false,
-        )
+        ), ...sceneImages.filter(image => !wantedScenes.includes(image.scene_number))]
 
         const restoreAsset = async (asset: any) => {
             const cacheKey = projectAssetCacheKey(projectId, asset)
@@ -4000,7 +4004,7 @@ export default function StdPortalPage() {
                 const query = assetId
                     ? `assetId=${encodeURIComponent(assetId)}`
                     : `driveFileId=${encodeURIComponent(driveFileId)}`
-                const res = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers })
+                const res = await fetch(asset.scene_media_url || `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers })
                 if (!res.ok) return null
                 const blob = await res.blob()
                 if (!isCurrent()) return null
@@ -4017,6 +4021,14 @@ export default function StdPortalPage() {
             const batch = await Promise.all(mediaAssets.slice(offset, offset + concurrency).map(restoreAsset))
             driveEntries.push(...batch)
             if (!isCurrent()) return
+            const ready = new Map(batch.filter(Boolean).map(entry => [`${entry!.asset.scene_number}:${entry!.asset.asset_type}`, entry!.objectUrl]))
+            setSelectedProject(prev => {
+                if (!isCurrent() || !prev || String(prev.project.id) !== projectId) return prev
+                return { ...prev, scenes: prev.scenes.map((scene: any) => ({ ...scene,
+                    image_url: ready.get(`${scene.scene_number}:image`) || scene.image_url,
+                    video_url: ready.get(`${scene.scene_number}:video`) || scene.video_url,
+                })) }
+            })
         }
 
         const restoredEntries = driveEntries

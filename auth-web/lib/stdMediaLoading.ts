@@ -74,3 +74,16 @@ export function selectFallbackAssetsForScenes(
         return leftPriority - rightPriority
     })
 }
+
+// Worker-generated images may live in scene metadata without an asset row.
+export function sceneGcsImageAssets(scenes: any[], projectId: string) {
+    return (scenes || []).flatMap((scene: any) => {
+        const url = String(scene.image_url || scene.image || '').trim()
+        if (!url.startsWith('/api/std/assets/gcs-file?')) return []
+        const parsed = new URL(url, 'https://local.invalid')
+        if (!parsed.searchParams.get('path')) return []
+        return [{ id: `scene-gcs-image:${url}`, project_id: projectId,
+            scene_number: Number(scene.scene_number || scene.scene_order), asset_type: 'image',
+            status: 'uploaded', scene_media_url: url }]
+    })
+}
