@@ -249,7 +249,7 @@ function LazySceneMedia({
 
     return (
         <div ref={containerRef} className="w-full h-full bg-[#0b0e14]">
-            {shouldLoad && videoUrl && !videoFailed && (shouldPlay || !imageUrl) ? (
+            {shouldLoad && videoUrl && !videoUrl.includes('/api/std/projects/') && !videoFailed && (shouldPlay || !imageUrl) ? (
                 <video
                     src={videoUrl}
                     poster={imageUrl || undefined}
@@ -2170,6 +2170,7 @@ export default function StdPortalPage() {
         if (!value) return false
         try {
             const parsed = new URL(value, window.location.origin)
+            if (/^\/api\/std\/projects\/[^/]+\/assets\/file$/.test(parsed.pathname)) return false
             return !(parsed.hostname.toLowerCase() === legacyDriveHost && /^\/file\/d\//.test(parsed.pathname))
         } catch {
             return false
@@ -3995,8 +3996,7 @@ export default function StdPortalPage() {
             .sort((a, b) => {
                 const rank = (asset: any) => {
                     const index = sceneOrder.indexOf(Number(asset.scene_number))
-                    if (asset.asset_type === 'image' && STD_INITIAL_MEDIA_SCENES.includes(Number(asset.scene_number))) return index
-                    return 4 + (index < 0 ? sceneOrder.length : index) * 3 + (asset.asset_type === 'image' ? 0 : 1)
+                    return (asset.asset_type === 'image' ? 0 : sceneOrder.length + 1) + (index < 0 ? sceneOrder.length : index)
                 }
                 return rank(a) - rank(b)
             })
@@ -4014,19 +4014,29 @@ export default function StdPortalPage() {
                 const query = assetId
                     ? `assetId=${encodeURIComponent(assetId)}`
                     : `driveFileId=${encodeURIComponent(driveFileId)}`
-                const res = await fetch(asset.scene_media_url || `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}`, { headers })
-                if (!res.ok) return null
+                const videoDelivery = asset.asset_type === 'video' ? '&delivery=url' : ''
+                const sceneImageUrl = asset.scene_media_url ? `${asset.scene_media_url}&preview=960` : ''
+                const res = await fetch(sceneImageUrl || `/api/std/projects/${encodeURIComponent(projectId)}/assets/file?${query}${videoDelivery}`, { headers })
+                if (!res.ok) throw new Error(`씬 ${asset.scene_number} ${asset.asset_type} 로딩 실패 (${res.status})`)
+                if (asset.asset_type === 'video' && res.headers.get('content-type')?.includes('application/json')) {
+                    const result = await res.json()
+                    if (!isCurrent() || !result.url) return null
+                    projectMediaObjectUrlsRef.current[cacheKey] = result.url
+                    return { asset, objectUrl: result.url }
+                }
                 const blob = await res.blob()
                 if (!isCurrent()) return null
                 const objectUrl = URL.createObjectURL(blob)
                 projectMediaObjectUrlsRef.current[cacheKey] = objectUrl
                 return { asset, objectUrl }
-            } catch {
+            } catch (error) {
+                if (isCurrent()) setMessage(error instanceof Error ? error.message : '미디어 로딩 실패')
                 return null
             }
         }
         const driveEntries: Array<{ asset: any; objectUrl: string } | null> = []
-        const concurrency = 1
+        let audioQueue = Promise.resolve()
+        const concurrency = 3
         for (let offset = 0; offset < mediaAssets.length; offset += concurrency) {
             const batch = await Promise.all(mediaAssets.slice(offset, offset + concurrency).map(restoreAsset))
             driveEntries.push(...batch)
@@ -4039,11 +4049,8 @@ export default function StdPortalPage() {
                     video_url: ready.get(`${scene.scene_number}:video`) || scene.video_url,
                 })) }
             })
-            const loadedAsset = batch[0]?.asset
-            const sceneNumber = Number(loadedAsset?.scene_number)
-            const topImage = loadedAsset?.asset_type === 'image' && STD_INITIAL_MEDIA_SCENES.includes(sceneNumber)
-            const lastTopImage = mediaAssets.filter(asset => asset.asset_type === 'image' && STD_INITIAL_MEDIA_SCENES.includes(Number(asset.scene_number))).at(-1)
-            const audioScenes = topImage ? (loadedAsset === lastTopImage ? STD_INITIAL_MEDIA_SCENES : []) : [sceneNumber]
+            const audioScenes = batch.filter(Boolean).map(entry => Number(entry!.asset.scene_number))
+            audioQueue = audioQueue.then(async () => {
             // Read existing recordings only. Never synthesize during background loading.
             const sceneSubtitles = (localSubtitles.length ? localSubtitles : projectPayload.project.project_payload?.subtitles || [])
                 .map((subtitle: any, index: number) => ({ subtitle, index }))
@@ -4070,7 +4077,9 @@ export default function StdPortalPage() {
                     setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
                 } catch { /* Missing recordings remain available for explicit playback retry. */ }
             }
+            })
         }
+        await audioQueue
 
         const restoredEntries = driveEntries
         if (!isCurrent()) return
@@ -9895,6 +9904,7 @@ export default function StdPortalPage() {
                                                     }}
                                                     poster={currentSubImageUrl || undefined}
                                                     preload="auto"
+                                                    style={{ opacity: !isPlayingPreview && currentSubImageUrl ? 0 : 1 }}
                                                     className="w-full h-full object-cover"
                                                     muted
                                                     playsInline

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { downloadGcsObject, downloadGcsObjectViaSignedUrl, isGcsConfiguredAsync } from '@/lib/gcsStorage'
+import { readGcsImagePreview } from '@/lib/gcsImagePreview'
 import { requireStdUser } from '@/lib/stdWeb'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +38,10 @@ export async function GET(req: Request) {
         let contentRange: string | null = null
         let contentLength: string | null = null
         let upstreamType: string | null = null
-        if (range) {
+        if (url.searchParams.get('preview') === '960' && /^image\//.test(contentTypeForPath(objectPath))) {
+            buffer = await readGcsImagePreview(bucket, objectPath)
+            upstreamType = 'image/webp'
+        } else if (range) {
             const chunk = await downloadGcsObjectViaSignedUrl({ bucket, objectPath, range })
             buffer = chunk.buffer
             status = chunk.status === 206 ? 206 : 200

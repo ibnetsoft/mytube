@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { assetStorageRef } from '@/lib/stdAssetStorage'
-import { downloadGcsObject, downloadGcsObjectViaSignedUrl, isGcsConfiguredAsync } from '@/lib/gcsStorage'
+import { createGcsSignedReadUrl, downloadGcsObject, downloadGcsObjectViaSignedUrl, isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -98,6 +98,14 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         return NextResponse.json({ success: false, error: 'Asset does not have a storage path' }, { status: 404 })
     }
     try {
+        // Resolve a private playback URL after project and asset ownership checks.
+        // Video elements can then request byte ranges directly instead of downloading a full blob.
+        if (url.searchParams.get('delivery') === 'url' && asset.asset_type === 'video'
+            && (asset.metadata?.gcs_path || asset.metadata?.storage_provider === 'gcs')
+            && await isGcsConfiguredAsync()) {
+            const playbackUrl = await createGcsSignedReadUrl({ bucket: gcsBucket, objectPath: gcsPath, expiresInMinutes: 1440 })
+            return NextResponse.json({ url: playbackUrl }, { headers: { 'Cache-Control': 'private, no-store' } })
+        }
         // Prefer GCS for new primary recordings and older archived recordings.
         if ((asset.metadata?.gcs_path || asset.metadata?.storage_provider === 'gcs') && await isGcsConfiguredAsync()) {
             try {
