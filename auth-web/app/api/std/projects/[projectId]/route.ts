@@ -87,7 +87,8 @@ function sceneSupabaseImageUrl(scene: any): string {
     const canonicalUrl = sceneImageUrl(scene)
     const directUrl = cleanUrl(scene?.image_url || scene?.image)
         || cleanUrl(metadata?.image_url || metadata?.image || nestedMetadata?.image_url || nestedMetadata?.image)
-    return (canonicalUrl !== directUrl ? canonicalUrl : '')
+    // An already-canonical GCS proxy must not become a Supabase URL for the same bucket/path.
+    return (canonicalUrl.startsWith('/api/std/assets/gcs-file?') || canonicalUrl !== directUrl ? canonicalUrl : '')
         || (isSupabaseStorageUrl(directUrl) ? directUrl : '')
         || storagePublicUrl(coworkAsset?.bucket || metadata?.bucket || nestedMetadata?.bucket, coworkAsset?.object_path || metadata?.object_path || nestedMetadata?.object_path)
         || storagePublicUrl(
