@@ -1,0 +1,13 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),ts=require('typescript');
+function load(path,{authorized=true,data=[]}={}){const calls=[];const query=new Proxy({}, {get:(_,key)=>{if(key==='then')return resolve=>resolve({data,error:null});return (...args)=>{calls.push([key,...args]);return query}}});const response={json:(body,init)=>({body,status:init?.status||200})};const db={from:table=>{calls.push(['from',table]);return query}};const exports={};const js=ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;vm.runInNewContext(js,{exports,require:name=>name==='next/server'?{NextResponse:response}:name.includes('supabaseAdmin')?{supabaseAdmin:db}:{requireAdmin:async()=>authorized?{}:{denied:true,status:403},requireSuperAdmin:async()=>authorized?{}:{denied:true,status:403},isAuthResponse:v=>!!v.denied},Request,Date,Map});return{api:exports,calls}}
+(async()=>{
+ const w='app/api/admin/codex-worker/route.ts',g='app/api/admin/script-guidelines/route.ts';
+ for(const p of [w,g]){const t=load(p,{authorized:false});assert.equal((await t.api.GET(new Request('http://localhost'))).status,403);assert.equal((await t.api.POST(new Request('http://localhost'))).status,403);assert.equal(t.calls.length,0)}
+ const t=load(w,{data:[{id:'same',status:'running'}]});const r=await t.api.GET(new Request('http://localhost'));assert.equal(r.body.jobs.length,1);assert.equal(r.body.active_count,1);assert(t.calls.filter(c=>c[0]==='from').every(c=>c[1]==='script_worker_jobs'));assert.equal((await t.api.POST(new Request('http://localhost'))).status,410);
+ const post=body=>new Request('http://localhost',{method:'POST',body:JSON.stringify(body)});
+ const invalid=load(g);assert.equal((await invalid.api.POST(post({action:'propose',title:'test'}))).status,400);assert.equal(invalid.calls.length,0);
+ const valid=load(g);await valid.api.POST(post({action:'propose',title:'test',issue:'issue',instruction:'instruction',language:'th'}));assert(valid.calls.some(c=>c[0]==='insert'&&c[1].status==='pending'));
+ const reject=load(g);assert.equal((await reject.api.POST(post({action:'reject',id:'12345678-1234-1234-1234-123456789012'}))).status,400);
+ const approve=load(g,{data:null});assert.equal((await approve.api.POST(post({action:'approve',id:'12345678-1234-1234-1234-123456789012'}))).status,409);assert(approve.calls.some(c=>c[0]==='eq'&&c[1]==='status'&&c[2]==='pending'));
+ console.log('Admin routes: unauthorized access, current queue, deduplication, retired execution, validation, pending proposal and concurrent review guards passed.');
+})().catch(e=>{console.error(e);process.exitCode=1});

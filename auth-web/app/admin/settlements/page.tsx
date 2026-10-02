@@ -1,22 +1,25 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import {authedFetch,useAuthToken} from '../referrals/_hooks'
 
 export default function SettlementsPage() {
+    const {token,ready}=useAuthToken()
     const [settlements, setSettlements] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [processingId, setProcessingId] = useState<string | null>(null)
 
     useEffect(() => {
-        fetchSettlements()
-    }, [])
+        if(ready && token)fetchSettlements()
+        if(ready && !token){setLoading(false);setError('관리자 로그인이 필요합니다.')}
+    }, [ready,token])
 
     const fetchSettlements = async () => {
         setLoading(true)
         setError('')
         try {
-            const res = await fetch('/api/admin/settlements')
+            const res = await authedFetch(token,'/api/admin/settlements')
             const data = await res.json()
             if (data.success) {
                 setSettlements(data.data)
@@ -38,7 +41,7 @@ export default function SettlementsPage() {
         setProcessingId(id)
         setError('')
         try {
-            const res = await fetch('/api/admin/settlements/payout', {
+            const res = await authedFetch(token,'/api/admin/settlements/payout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ commission_id: id })

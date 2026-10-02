@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { isAuthResponse, requireSuperAdmin } from '../../../_auth'
+import { isAuthResponse, requireSuperAdmin } from '../../_auth'
 
 export async function POST(req: Request) {
     const requester = await requireSuperAdmin(req)

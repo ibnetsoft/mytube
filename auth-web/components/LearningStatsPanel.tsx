@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-const LOCAL_APP_ORIGINS = ['http://127.0.0.1:8001', 'http://localhost:8001']
+
 
 type AdminFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
@@ -44,28 +44,7 @@ export default function LearningStatsPanel({ adminFetch, refreshLabel }: Learnin
                 return
             }
 
-            let loaded: any = null
-            let lastError = `Remote HTTP ${remoteRes.status}`
-            for (const origin of LOCAL_APP_ORIGINS) {
-                try {
-                    const res = await fetch(`${origin}/api/admin/learning/stats?limit=100`, { method: 'GET' })
-                    if (!res.ok) {
-                        lastError = `HTTP ${res.status}`
-                        continue
-                    }
-                    const data = await res.json()
-                    loaded = data.stats || data
-                    break
-                } catch (err: any) {
-                    lastError = err?.message || String(err)
-                }
-            }
-            if (!loaded) {
-                setLearningError(lastError || 'Learning API is not available.')
-                setLearningStats(null)
-                return
-            }
-            setLearningStats(loaded)
+            setLearningError(`이전 학습 기록 조회 실패 (HTTP ${remoteRes.status})`); setLearningStats(null)
         } finally {
             setLearningLoading(false)
         }
@@ -80,8 +59,8 @@ export default function LearningStatsPanel({ adminFetch, refreshLabel }: Learnin
             <div className="bg-[#0f172a]/60 rounded-[2.5rem] border border-white/10 p-8 shadow-2xl">
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h2 className="font-black text-2xl tracking-tight flex items-center gap-2">🧠 학습 데이터 통계</h2>
-                        <p className="text-xs text-gray-500 mt-1">Supabase에 동기화된 제작/검수/업로드 학습 로그를 집계합니다. 원격 데이터가 없으면 로컬 앱(8001)을 보조 조회합니다.</p>
+                        <h2 className="font-black text-2xl tracking-tight flex items-center gap-2">이전 학습 기록</h2>
+                        <p className="text-xs text-gray-500 mt-1">이전 제작·검수·업로드 기록입니다. 현재 대본 지침과 적용 결과는 지침 개선 메뉴에서 확인하세요.</p>
                     </div>
                     <button onClick={fetchLearningStats} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-widest">
                         {learningLoading ? 'Loading...' : refreshLabel}
@@ -90,7 +69,7 @@ export default function LearningStatsPanel({ adminFetch, refreshLabel }: Learnin
 
                 {learningError && (
                     <div className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-sm text-amber-200">
-                        학습 통계를 불러올 수 없습니다. Supabase 스키마 적용 여부와 로컬 앱(127.0.0.1:8001) 실행 상태를 확인하세요. ({learningError})
+                        학습 통계를 불러올 수 없습니다. Database 연결을 확인하세요. ({learningError})
                     </div>
                 )}
 

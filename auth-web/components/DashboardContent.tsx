@@ -16,6 +16,7 @@ const LazyPanelFallback = () => (
 )
 
 const AuthForm = dynamic(() => import('./AuthForm'), { loading: LazyPanelFallback })
+const ScriptOperationsPanel = dynamic(() => import('./ScriptOperationsPanel'), { loading: LazyPanelFallback })
 const LearningStatsPanel = dynamic(() => import('./LearningStatsPanel'), { loading: LazyPanelFallback })
 const TenantManagement = dynamic(() => import('./TenantManagement'), { loading: LazyPanelFallback })
 const ReferralAdminPanel = dynamic(() => import('./ReferralAdminPanel'), { loading: LazyPanelFallback })
@@ -129,7 +130,7 @@ interface LocalUploadChannel {
 }
 
 const SUPER_ADMIN_EMAIL = 'ejsh0519@naver.com'
-const LOCAL_APP_ORIGINS = ['http://127.0.0.1:8001', 'http://localhost:8001']
+
 const CONTENT_LANGUAGE_OPTIONS = [
     { value: 'ko', label: '한국어' },
     { value: 'en', label: 'English' },
@@ -259,7 +260,7 @@ export default function DashboardContent() {
     const [publishingRequests, setPublishingRequests] = useState<PublishingRequest[]>([])
     const [withdrawals, setWithdrawals] = useState<WithdrawalReq[]>([])
     const [publishingFilter, setPublishingFilter] = useState<'all' | 'pending' | 'processing' | 'published' | 'failed' | 'invalid'>('all')
-    const [activeTab, setActiveTab] = useState<'topics' | 'topics-queue' | 'overview' | 'music' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements' | 'error-logs'>('topics')
+    const [activeTab, setActiveTab] = useState<'topics' | 'topics-queue' | 'overview' | 'music' | 'users' | 'api' | 'render-queue' | 'styles' | 'withdrawals' | 'learning' | 'tenants' | 'referral-admin' | 'subscription-verifications' | 'support' | 'announcements' | 'error-logs' | 'script-worker' | 'guidelines'>('topics')
     const [authToken, setAuthToken] = useState('')
     const [renderQueue, setRenderQueue] = useState<any[]>([])
     const [renderQueueFilter, setRenderQueueFilter] = useState<'all' | 'intro_ready'>('all')
@@ -692,39 +693,7 @@ export default function DashboardContent() {
         }
     };
 
-    const fetchLocalUploadChannels = useCallback(async () => {
-        setLocalChannelsLoading(true)
-        try {
-            let loaded: LocalUploadChannel[] = []
-            let lastError = ''
-
-            for (const origin of LOCAL_APP_ORIGINS) {
-                try {
-                    const res = await fetch(`${origin}/api/channels`, { method: 'GET' })
-                    if (!res.ok) {
-                        lastError = `HTTP ${res.status}`
-                        continue
-                    }
-                    loaded = await res.json()
-                    if (Array.isArray(loaded)) break
-                } catch (err: any) {
-                    lastError = err?.message || String(err)
-                }
-            }
-
-            if (!Array.isArray(loaded) || loaded.length === 0) {
-                setLocalChannels(Array.isArray(loaded) ? loaded : [])
-                if (lastError) {
-                    console.warn('Failed to load local channels:', lastError)
-                }
-                return
-            }
-
-            setLocalChannels(loaded)
-        } finally {
-            setLocalChannelsLoading(false)
-        }
-    }, [])
+    const fetchLocalUploadChannels = useCallback(async () => { setLocalChannels([]) }, [])
 
     const applySelectedChannelToCreateForm = (channelId: number | null) => {
         if (!channelId) {
@@ -765,72 +734,9 @@ export default function DashboardContent() {
         }))
     }
 
-    const handleCreateOrUpdateLocalChannel = async () => {
-        if (!channelConfigForm.name.trim() || !channelConfigForm.handle.trim()) {
-            alert(isKor ? '채널 이름과 채널 ID(또는 핸들)를 입력해주세요.' : 'Please enter channel name and channel ID/handle.')
-            return
-        }
+    const handleCreateOrUpdateLocalChannel = async () => { alert('이전 로컬 채널 연동은 종료되었습니다.') }
 
-        const payload = {
-            name: channelConfigForm.name.trim(),
-            handle: channelConfigForm.handle.trim(),
-            description: `Managed by Admin (${channelConfigForm.name.trim()})`,
-            proxy: channelConfigForm.proxy.trim() || null,
-        }
-
-        let saved = false
-        let lastError = ''
-        for (const origin of LOCAL_APP_ORIGINS) {
-            try {
-                const res = await fetch(`${origin}/api/channels`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                })
-                if (!res.ok) {
-                    lastError = `HTTP ${res.status}`
-                    continue
-                }
-                const newId = await res.json()
-                const resolved = typeof newId === 'number' ? newId : null
-                setChannelConfigForm(prev => ({
-                    ...prev,
-                    local_channel_id: resolved,
-                    name: payload.name,
-                    handle: payload.handle,
-                    proxy: payload.proxy || '',
-                }))
-                await fetchLocalUploadChannels()
-                saved = true
-                break
-            } catch (err: any) {
-                lastError = err?.message || String(err)
-            }
-        }
-
-        if (!saved) {
-            alert((isKor ? '로컬 채널 저장 실패: ' : 'Failed to save local channel: ') + (lastError || 'Unknown error'))
-            return
-        }
-
-        alert(isKor ? '로컬 채널이 저장되었습니다.' : 'Local channel saved.')
-    }
-
-    const handleStartCategoryChannelOAuth = () => {
-        if (!channelConfigForm.name.trim() || !channelConfigForm.handle.trim()) {
-            alert(isKor ? '먼저 채널 이름과 채널 ID(또는 핸들)를 입력해주세요.' : 'Enter channel name and ID/handle first.')
-            return
-        }
-        const params = new URLSearchParams({
-            name: channelConfigForm.name.trim(),
-            id: channelConfigForm.handle.trim(),
-        })
-        if (channelConfigForm.proxy.trim()) {
-            params.set('proxy', channelConfigForm.proxy.trim())
-        }
-        const url = `${LOCAL_APP_ORIGINS[0]}/api/channels/login-by-info?${params.toString()}`
-        window.open(url, '_blank', 'noopener,noreferrer,width=560,height=720')
-    }
+    const handleStartCategoryChannelOAuth = () => { alert('이전 로컬 채널 인증은 종료되었습니다.') }
 
     const handleSaveCategoryChannelBinding = async () => {
         if (!channelConfigCategory) return
@@ -2355,31 +2261,7 @@ export default function DashboardContent() {
         }
     }
 
-    const handleTriggerAiTopics = async (catId: number) => {
-        if (!canManageTopics) return
-        setGeneratingCatId(catId)
-        try {
-            const res = await adminFetch('/api/admin/topics-queue', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ categoryId: catId })
-            })
-            const data = await res.json()
-            if (data.success) {
-                const generatedTopics = Array.isArray(data.topics) ? data.topics.map((topic: any) => typeof topic === 'string' ? topic : (topic?.topic || '')).slice(0, 10) : []
-                setGeneratedTopicsByCat(prev => ({ ...prev, [catId]: generatedTopics }))
-                fetchTopics()
-                alert(`AI가 새로운 영상 주제 ${data.count}개를 성공적으로 생성하여 큐에 추가했습니다!`)
-            } else {
-                alert('AI 생성 실패: ' + data.error)
-            }
-        } catch (err) {
-            console.error(err)
-            alert('AI 생성 요청 오류')
-        } finally {
-            setGeneratingCatId(null)
-        }
-    }
+    const handleTriggerAiTopics = async (catId: number) => { alert('토픽 생성은 현재 로컬 대본워커에서 실행하세요.') }
 
     // [AIR-0230 §2b] 수동 트리거: 이 카테고리에 대해 topic_benchmark_analyze job을 큐잉.
     // 워커(렌더링 PC의 Hermes Worker)가 실제 유튜브 검색/분석을 수행하고 결과를
@@ -2388,31 +2270,7 @@ export default function DashboardContent() {
     // 워커 인프라(migrations/air_0230_*.sql, worker/hermes_worker.py)가 아직 프로덕션에
     // 배포되지 않았으므로, 지금 눌러도 job은 'pending' 상태로 남아있는다 - 배포 전 UI
     // 준비 차원.
-    const handleTriggerBenchmarkAnalyze = async (catId: number, force: boolean = false) => {
-        if (!canManageTopics) return
-        setBenchmarkTriggeringCatId(catId)
-        try {
-            const res = await adminFetch('/api/admin/topics-queue/benchmark-analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ categoryId: catId, force })
-            })
-            const data = await res.json()
-            if (data.success) {
-                setBenchmarkJobByCat(prev => ({ ...prev, [catId]: data.job }))
-                alert(data.reused
-                    ? '최근에 이미 분석된 결과가 있어 그대로 재사용합니다.'
-                    : '고성과 영상 분석 작업을 큐에 등록했습니다. 워커가 처리하면 다음 주제 생성부터 반영됩니다.')
-            } else {
-                alert('분석 요청 실패: ' + data.error)
-            }
-        } catch (err) {
-            console.error(err)
-            alert('분석 요청 오류')
-        } finally {
-            setBenchmarkTriggeringCatId(null)
-        }
-    }
+    const handleTriggerBenchmarkAnalyze = async (catId: number, force: boolean = false) => { alert('참고 영상 분석은 현재 로컬 대본워커에서 실행하세요.') }
 
     const fetchBenchmarkJobStatus = async (catId: number) => {
         try {
@@ -2467,50 +2325,7 @@ export default function DashboardContent() {
         trend_analysis: musicHermesJobs.trend_job?.result_payload || undefined,
     })
 
-    const handleMusicHermesSubmit = async (action: 'trend' | 'prompt' | 'pipeline') => {
-        if (!canManageTopics) return
-        setMusicHermesSubmittingAction(action)
-        try {
-            const payload = buildMusicHermesPayload(action)
-            const res = await adminFetch('/api/admin/music-hermes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            })
-            const data = await res.json()
-            if (!res.ok || !data.success) {
-                alert('음악 Hermes 큐 등록 실패: ' + (data.error || `HTTP ${res.status}`))
-                return
-            }
-            if (action === 'trend') {
-                setMusicHermesJobs(prev => ({
-                    ...prev,
-                    trend_job: data.job || null,
-                }))
-                alert(data.reused ? '최근 음악 트렌드 결과를 재사용합니다.' : '음악 트렌드 분석 작업을 큐에 등록했습니다.')
-            } else if (action === 'prompt') {
-                setMusicHermesJobs(prev => ({
-                    ...prev,
-                    prompt_pack_job: data.job || null,
-                }))
-                alert(data.reused ? '최근 프롬프트 팩 결과를 재사용합니다.' : '음악 프롬프트 팩 작업을 큐에 등록했습니다.')
-            } else {
-                setMusicHermesJobs({
-                    trend_job: data.trend?.job || null,
-                    prompt_pack_job: data.prompt_pack?.job || null,
-                })
-                alert(
-                    data.prompt_pack?.deferred
-                        ? '음악 트렌드 분석 작업을 큐에 등록했습니다. 완료되면 프롬프트 팩이 자동으로 이어집니다.'
-                        : '음악 Hermes 파이프라인을 큐에 등록했습니다.'
-                )
-            }
-        } catch (err: any) {
-            alert('음악 Hermes 요청 오류: ' + (err?.message || String(err)))
-        } finally {
-            setMusicHermesSubmittingAction(null)
-        }
-    }
+    const handleMusicHermesSubmit = async (action: 'trend' | 'prompt' | 'pipeline') => { alert('이전 음악 워커 실행은 종료되었습니다.') }
 
     const renderMusicHermesJobBadge = (job: any, fallbackLabel: string) => {
         if (!job) {
@@ -2613,39 +2428,7 @@ export default function DashboardContent() {
         URL.revokeObjectURL(url)
     }
 
-    const dispatchMusicPromptPackToThaiQueue = async () => {
-        const promptJob = musicHermesJobs.prompt_pack_job
-        if (!promptJob?.id || promptJob?.status !== 'completed') {
-            alert('완료된 prompt pack 결과가 있을 때만 태국 유저 큐로 보낼 수 있습니다.')
-            return
-        }
-        setMusicHermesDispatching(true)
-        try {
-            const res = await adminFetch('/api/admin/music-hermes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'dispatch_prompt_pack',
-                    prompt_pack_job_id: promptJob.id,
-                    target_user_email: musicHermesTargetEmail || undefined,
-                }),
-            })
-            const data = await res.json()
-            if (!res.ok || !data.success) {
-                alert('태국 유저 큐 전달 실패: ' + (data.error || `HTTP ${res.status}`))
-                return
-            }
-            const targetEmail = data.dispatch?.target_user_email || musicHermesTargetEmail
-            const reused = Boolean(data.dispatch?.reused)
-            alert(reused
-                ? `기존 Music Hermes 작업이 이미 ${targetEmail} 큐에 있습니다.`
-                : `prompt pack을 ${targetEmail} 작업 큐로 보냈습니다.`)
-        } catch (err: any) {
-            alert('태국 유저 큐 전달 오류: ' + (err?.message || String(err)))
-        } finally {
-            setMusicHermesDispatching(false)
-        }
-    }
+    const dispatchMusicPromptPackToThaiQueue = async () => { alert('이전 음악 작업 전달은 종료되었습니다.') }
 
     const startEditingTopic = (topicItem: any) => {
         if (!canManageTopics) return
@@ -2791,49 +2574,7 @@ export default function DashboardContent() {
         }
     }
 
-    const handleRepairTopic = async (topicItem: any) => {
-        if (!canManageTopics) return
-        if (!topicItem?.id) return
-        const topicId = String(topicItem.id)
-        const draft = topicRepairInputs[topicId] || {
-            minutes: String(topicItem.assigned_duration_minutes || topicItem.recommended_duration_minutes || 15),
-            scenes: String(topicItem.total_scenes || 53),
-        }
-        const targetMinutes = Number.parseInt(String(draft.minutes || ''), 10)
-        const targetSceneCount = Number.parseInt(String(draft.scenes || ''), 10)
-        if (!Number.isFinite(targetMinutes) || targetMinutes < 1 || targetMinutes > 180) {
-            alert('Repair 분량은 1~180분 사이로 입력해주세요.')
-            return
-        }
-        if (!Number.isFinite(targetSceneCount) || targetSceneCount < 1 || targetSceneCount > 400) {
-            alert('Repair 씬 수는 1~400 사이로 입력해주세요.')
-            return
-        }
-        if (topicRepairConfirmId !== topicId) {
-            setTopicRepairConfirmId(topicId)
-            return
-        }
-
-        setTopicRepairConfirmId(null)
-        setTopicActionLoadingId(`repair-${topicId}`)
-        try {
-            const res = await adminFetch('/api/admin/topics-queue/repair', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ topicId, targetMinutes, targetSceneCount })
-            })
-            const data = await res.json()
-            if (!res.ok || !data.success) {
-                alert('Repair 큐 등록 실패: ' + (data.error || `HTTP ${res.status}`))
-                return
-            }
-            await fetchTopics()
-        } catch (err: any) {
-            alert('Repair 큐 등록 오류: ' + (err?.message || String(err)))
-        } finally {
-            setTopicActionLoadingId(null)
-        }
-    }
+    const handleRepairTopic = async (topicItem: any) => { alert('대본 리페어는 현재 로컬 대본워커에서 실행하세요.') }
 
     const handleDeleteTopicsByYears = async (categoryId: number, years: string[] = ['2024', '2025']) => {
         if (!canManageTopics) return
@@ -3597,22 +3338,31 @@ export default function DashboardContent() {
                 <div className="flex w-full items-center justify-between">
                     <div className="flex w-full flex-wrap justify-between gap-1.5 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
                         {[
-                            { id: 'topics', label: ui.topics, superOnly: false },
-                            { id: 'topics-queue', label: ui.topicsQueue, superOnly: false },
-                            { id: 'render-queue', label: ui.renderQueue, superOnly: true },
-                            { id: 'overview', label: ui.overview, superOnly: false },
-                            { id: 'music', label: ui.music, superOnly: false },
-                            { id: 'users', label: ui.users, superOnly: false },
-                            { id: 'withdrawals', label: ui.withdrawals, superOnly: false },
-                            { id: 'api', label: ui.api, superOnly: true },
-                            { id: 'learning', label: ui.learning, superOnly: true },
-                                                        { id: 'tenants', label: '테넌트', superOnly: true },
-                            { id: 'referral-admin', label: '추천인 관리', superOnly: true },
-                            { id: 'subscription-verifications', label: '구독 인증', superOnly: false },
-                            { id: 'support', label: '문의 Inbox', superOnly: false },
-                            { id: 'announcements', label: '공지사항', superOnly: false },
-                            { id: 'error-logs', label: '에러 로그', superOnly: false },
-                        ].map(tab => {
+                            {title:'제작 운영',tabs:[
+                                {id:'topics',label:'토픽·카테고리',superOnly:false},
+                                {id:'topics-queue',label:ui.topicsQueue,superOnly:false},
+                                {id:'render-queue',label:ui.renderQueue,superOnly:true},
+                                {id:'script-worker',label:'대본워커 상태',superOnly:false},
+                                {id:'guidelines',label:'지침 개선',superOnly:true}]},
+                            {title:'사용자 운영',tabs:[
+                                {id:'users',label:ui.users,superOnly:false},
+                                {id:'subscription-verifications',label:'구독 인증',superOnly:false},
+                                {id:'support',label:'문의 Inbox',superOnly:false},
+                                {id:'announcements',label:'공지사항',superOnly:false}]},
+                            {title:'설정·모니터링',tabs:[
+                                {id:'api',label:ui.api,superOnly:true},
+                                {id:'error-logs',label:'에러 로그',superOnly:false},
+                                {id:'overview',label:ui.overview,superOnly:false}]},
+                            {title:'사업 운영',tabs:[
+                                {id:'withdrawals',label:ui.withdrawals,superOnly:false},
+                                {id:'referral-admin',label:'추천인 관리',superOnly:true},
+                                {id:'tenants',label:'테넌트',superOnly:true}]},
+                            {title:'이전 기록',tabs:[
+                                {id:'learning',label:'이전 학습 기록',superOnly:true},
+                                {id:'music',label:'이전 음악 작업',superOnly:false}]},
+                        ].flatMap(group=>[{id:group.title,label:group.title,superOnly:false,group:true},...group.tabs.map(tab=>({...tab,group:false}))]).map(tab => {
+                            if(tab.group)return <p key={tab.id} className="w-full px-3 pt-3 pb-1 text-xs font-bold text-gray-400">{tab.label}</p>
+
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
                                 <button
@@ -3636,6 +3386,9 @@ export default function DashboardContent() {
                     </div>
                 </div>
 
+                {activeTab === 'script-worker' && <ScriptOperationsPanel adminFetch={adminFetch} mode="worker" key="worker"/>}
+                {activeTab === 'guidelines' && isSuperAdmin && <ScriptOperationsPanel adminFetch={adminFetch} mode="guidelines" key="guidelines"/>}
+                {['topics','topics-queue','music'].includes(activeTab) && <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">카테고리·목록 관리는 유지합니다. 이전 자동 생성·리페어·음악 실행은 종료했습니다. 대본 생성은 <a href="http://127.0.0.1:3003/" target="_blank" rel="noopener noreferrer" className="underline">이 컴퓨터의 대본워커</a>에서 실행하세요.</div>}
                 {activeTab === 'music' && (
                     <div className="rounded-[2rem] border border-emerald-500/20 bg-emerald-500/5 p-6">
                         {(() => {
@@ -3739,7 +3492,7 @@ export default function DashboardContent() {
                                 </button>
                                 <button
                                     type="button"
-                                    disabled={!canManageTopics || musicHermesSubmittingAction !== null}
+                                    disabled={true}
                                     onClick={() => handleMusicHermesSubmit('trend')}
                                     className="px-4 py-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -3747,7 +3500,7 @@ export default function DashboardContent() {
                                 </button>
                                 <button
                                     type="button"
-                                    disabled={!canManageTopics || musicHermesSubmittingAction !== null}
+                                    disabled={true}
                                     onClick={() => handleMusicHermesSubmit('prompt')}
                                     className="px-4 py-2.5 rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -3755,7 +3508,7 @@ export default function DashboardContent() {
                                 </button>
                                 <button
                                     type="button"
-                                    disabled={!canManageTopics || musicHermesSubmittingAction !== null}
+                                    disabled={true}
                                     onClick={() => handleMusicHermesSubmit('pipeline')}
                                     className="px-5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -3823,7 +3576,7 @@ export default function DashboardContent() {
                                                 <div className="flex items-end">
                                                     <button
                                                         type="button"
-                                                        disabled={musicHermesDispatching || !canManageTopics || musicHermesTargetCandidates.length === 0}
+                                                        disabled={true}
                                                         onClick={dispatchMusicPromptPackToThaiQueue}
                                                         className="w-full lg:w-auto px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500 hover:text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
@@ -4224,7 +3977,7 @@ export default function DashboardContent() {
 
                                                 {false && false && canManageTopics && (
                                                 <button
-                                                    disabled={generatingCatId === cat.id}
+                                                    disabled={true}
                                                     onClick={() => handleTriggerAiTopics(cat.id)}
                                                     className="w-full py-2.5 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/20 hover:border-transparent text-blue-400 hover:text-white rounded-xl text-xs font-black tracking-wider transition-all disabled:bg-gray-800 disabled:text-gray-500 disabled:cursor-not-allowed uppercase"
                                                 >
@@ -4242,7 +3995,7 @@ export default function DashboardContent() {
                                                     return (
                                                         <div className="mt-2">
                                                             <button
-                                                                disabled={benchmarkTriggeringCatId === cat.id}
+                                                                disabled={true}
                                                                 onClick={() => handleTriggerBenchmarkAnalyze(cat.id)}
                                                                 title="구독자 대비 조회수가 높은 실제 유튜브 영상을 찾아 분석 - 다음 주제 생성부터 근거로 반영됩니다 (워커 인프라 배포 전에는 대기 상태로 남습니다)"
                                                                 className="w-full py-2 bg-purple-600/10 hover:bg-purple-600/30 border border-purple-500/20 text-purple-300 hover:text-white rounded-xl text-[11px] font-black tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase"
@@ -4871,7 +4624,7 @@ export default function DashboardContent() {
                                                                 <span className="text-[10px] text-gray-500">씬</span>
                                                                 <button
                                                                     type="button"
-                                                                    disabled={isEditingOrDeletingTopic || isRepairingTopic}
+                                                                    disabled={true}
                                                                     onClick={() => handleRepairTopic(item)}
                                                                     className={`h-7 rounded-md border px-2.5 text-[10px] font-black disabled:opacity-50 ${isConfirmingRepair
                                                                         ? 'border-amber-300/60 bg-amber-500/20 text-amber-100 hover:border-amber-200'
@@ -5577,7 +5330,7 @@ export default function DashboardContent() {
                                                 { key: 'topic_generation_model', label: '주제 추천 모델', hint: '주제 추천/후속 확장용' },
                                                 { key: 'title_generation_model', label: '제목 생성 모델', hint: '제목 추천 생성에 사용' },
                                                 { key: 'script_planning_model', label: '대본 기획 모델', hint: 'Auto-Pilot 기획 생성에 사용' },
-                                                { key: 'script_generation_model', label: '대본 생성 모델', hint: 'Auto-Pilot 대본 생성에 사용' },
+                                                { key: 'script_generation_model', label: '대본 생성 모델', hint: '이전 Auto-Pilot 설정. 현재 Codex 대본워커에는 적용되지 않음' },
                                                 { key: 'image_prompt_model', label: '이미지 프롬프트 모델', hint: '씬 프롬프트 생성에 사용' },
                                                 { key: 'translation_model', label: '번역 모델', hint: '프로젝트/토픽 번역에 사용' },
                                             ].map(({ key, label, hint }) => (
@@ -5675,7 +5428,7 @@ export default function DashboardContent() {
                                         <div className="flex items-center justify-between gap-4">
                                             <div>
                                                 <div className="flex items-center gap-2.5">
-                                                    <h4 className="text-sm font-black text-blue-200">Google Cloud Storage (GCS 2차 아카이브 &amp; 렌더 에셋 스토리지)</h4>
+                                                    <h4 className="text-sm font-black text-blue-200">Google Cloud Storage (음성 기본 저장소 · 렌더 에셋)</h4>
                                                     {sysKeys.gcs_bucket_name && sysKeys.gcs_client_email && sysKeys.gcs_private_key ? (
                                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/30">
                                                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -5689,7 +5442,7 @@ export default function DashboardContent() {
                                                     )}
                                                 </div>
                                                 <p className="mt-1 text-xs text-blue-100/70">
-                                                    1차는 Supabase Storage에 즉시 저장되며, GCS는 대용량 에셋의 2차 영구 아카이빙 및 원격 렌더 워커용 대용량 고속 공급처로 동작합니다.
+                                                    자막 구간·최종 음성은 GCS에 1차 저장하고 재생 시 우선 사용합니다. 기존 Supabase 음성은 재사용하며, 다른 에셋은 각 저장 경로를 따릅니다.
                                                 </p>
                                             </div>
                                         </div>
@@ -6660,12 +6413,12 @@ export default function DashboardContent() {
                         </div>
                         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                             <a
-                                href="http://127.0.0.1:3002"
+                                href="http://127.0.0.1:3003/"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="px-6 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs transition-all shadow-lg shadow-cyan-600/30 flex items-center gap-2"
                             >
-                                <span>AIR Worker 스타일 관리 바로가기 (포트 3002)</span>
+                                <span>현재 대본워커 열기 (스타일 관리 화면 아님)</span>
                                 <span>→</span>
                             </a>
                             <button
@@ -6849,7 +6602,7 @@ export default function DashboardContent() {
                                         }
                                         
                                         // window.open을 사용하여 CORS 우회 및 즉각적인 피드백 제공
-                                        const url = `http://127.0.0.1:8001/api/channels/login-by-info?name=${encodeURIComponent(tempChannelInfo.name)}&id=${encodeURIComponent(tempChannelInfo.id)}&proxy=${encodeURIComponent(tempChannelInfo.proxy || '')}`;
+                                        const url = "http://127.0.0.1:3003/";
                                         window.open(url, '_blank', 'width=600,height=700');
                                         
                                         // 메타데이터 정보 저장은 별도로 수행
@@ -6863,7 +6616,7 @@ export default function DashboardContent() {
                                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
                                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                                     </svg>
-                                    {isKor ? '구글 연동하기' : 'Connect Google'}
+                                    {isKor ? '현재 워커 열기' : 'Open current worker'}
                                 </button>
                             </div>
                         </div>
