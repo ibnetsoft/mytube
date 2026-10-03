@@ -87,7 +87,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
     }
     const radioStyle = (selected: boolean, value = '') => selected
         ? value === 'female' ? 'border-pink-400/50 bg-pink-500/15 text-pink-200'
-            : value === 'male' ? 'border-sky-400/50 bg-sky-500/15 text-sky-200'
+            : value === 'male' ? 'border-sky-200 bg-sky-300/90 text-sky-950'
                 : 'border-cyan-400/50 bg-cyan-500/10 text-cyan-100'
         : 'border-white/10 bg-black/15 text-gray-200 hover:border-white/30'
 
@@ -122,7 +122,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
                     {([['', copy.unknown], ['male', copy.male], ['female', copy.female]] as const).map(([value, label]) => <label key={value}
                         className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${radioStyle(gender === value, value)}`}>
                         <input type="radio" name="subtitle-speaker-gender" value={value} checked={gender === value}
-                            onChange={() => setGender(value)} className={`h-4 w-4 ${value === 'female' ? 'accent-pink-400' : 'accent-sky-400'}`} />
+                            onChange={() => setGender(value)} className={`h-4 w-4 ${value === 'female' ? 'accent-pink-400' : value === 'male' ? 'accent-sky-800' : 'accent-sky-400'}`} />
                         {label}
                     </label>)}
                 </div>
