@@ -106,7 +106,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (body.job_id) {
         const { data: job, error: jobError } = await supabaseAdmin.from(JOB_TABLE)
             .select('id,status,result_blocks,source_blocks,error')
-            .eq('id', body.job_id).eq('project_id', project.id).eq('target_language', targetLanguage).maybeSingle()
+            .eq('id', body.job_id).eq('project_id', project.id).eq('target_language', targetLanguage).eq('translation_kind', 'subtitles').maybeSingle()
         if (jobError) return NextResponse.json({ success: false, error: '번역 작업 조회 실패' }, { status: 500 })
         if (!job || job.source_blocks.some((source: any) => !blocks.some((block: any) => block.index === source.index && block.source_text === source.source_text))) {
             return NextResponse.json({ success: false, error: '번역 원문이 변경되었습니다. 다시 요청해 주세요.' }, { status: 409 })
@@ -117,7 +117,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     } else if (missing.length > 0) {
         const requestHash = createHash('sha256').update(JSON.stringify(missing)).digest('hex')
         const existing = await supabaseAdmin.from(JOB_TABLE).select('id,status,result_blocks')
-            .eq('project_id', project.id).eq('target_language', targetLanguage).eq('request_hash', requestHash).maybeSingle()
+            .eq('project_id', project.id).eq('target_language', targetLanguage).eq('translation_kind', 'subtitles').eq('request_hash', requestHash).maybeSingle()
         let job = existing.data
         if (existing.error) return NextResponse.json({ success: false, error: '로컬 번역 작업 조회 실패' }, { status: 500 })
         if (!job) {
@@ -130,7 +130,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             }, { onConflict: 'project_id,target_language,request_hash', ignoreDuplicates: true })
             if (created.error) return NextResponse.json({ success: false, error: '로컬 번역 작업 저장 실패' }, { status: 500 })
             const fetched = await supabaseAdmin.from(JOB_TABLE).select('id,status,result_blocks')
-                .eq('project_id', project.id).eq('target_language', targetLanguage).eq('request_hash', requestHash).single()
+                .eq('project_id', project.id).eq('target_language', targetLanguage).eq('translation_kind', 'subtitles').eq('request_hash', requestHash).single()
             job = fetched.data
         } else if (job.status === 'failed') {
             const retried = await supabaseAdmin.from(JOB_TABLE).update({ status: 'queued', error: null, started_at: null,

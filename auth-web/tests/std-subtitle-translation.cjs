@@ -81,7 +81,7 @@ async function verifyLocalQueueRoute() {
             eq(key, value) { filters.push([key, value]); return this },
             async maybeSingle() { return { data: tables[table].find(row => filters.every(([k, v]) => row[k] === v)) || null } },
             async single() { return this.maybeSingle() },
-            async upsert(row) { tables[table].push({ ...row, id: 'job-test', status: 'queued' }); return { error: null } },
+            async upsert(row) { tables[table].push({ translation_kind: 'subtitles', ...row, id: 'job-test', status: 'queued' }); return { error: null } },
         }
     } }
     const compiled = ts.transpileModule(route, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText

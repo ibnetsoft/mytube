@@ -2821,8 +2821,26 @@ export default function StdPortalPage() {
         selectedProject?.project?.project_payload?.structure?.dialogue_annotations), [localSubtitles, selectedProject])
 
     const speakerCharacters = charactersFromPayload(selectedProject?.project?.project_payload)
-    const subtitleSpeakers = localSubtitles.map((subtitle: any, index: number) => subtitle.dialogue_override === false ? null : subtitleSpeaker(subtitle, aiDialogueParts.get(index), speakerCharacters))
-    const speakerNames = [...new Set([...speakerCharacters.map(c => String(c.name || '').trim()), ...subtitleSpeakers.map(s => s?.name || '')].filter(Boolean))]
+    const speakerNameTranslations = selectedProject?.project?.project_payload?.speaker_name_translations || {}
+    const subtitleSpeakers = localSubtitles.map((subtitle: any, index: number) => subtitle.dialogue_override === false ? null : subtitleSpeaker(subtitle, aiDialogueParts.get(index), speakerCharacters, currentLocale, speakerNameTranslations))
+    const speakerNames = [...new Set([
+        ...speakerCharacters.map(c => String(c.name || '').trim()),
+        ...subtitleSpeakers.map(s => s?.name || ''),
+        ...localSubtitles.map(subtitle => String(subtitle.dialogue_speaker || '').trim()),
+    ].filter(Boolean))]
+    const rememberSpeakerNameTranslations = (locale: 'ko' | 'th', translations: Record<string, string>) => {
+        const projectId = selectedProject?.project?.id
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== projectId) return prev
+            const payload = prev.project.project_payload || {}
+            const updated = { ...prev, project: { ...prev.project, project_payload: { ...payload,
+                speaker_name_translations: { ...payload.speaker_name_translations,
+                    [locale]: { ...payload.speaker_name_translations?.[locale], ...translations } },
+            } } }
+            rememberProjectState(updated)
+            return updated
+        })
+    }
     const applySubtitleSpeakerVoice = async (index: number, voiceId: string, allSpeaker = false) => {
         if (isPlayingPreview) stopVrewPlayback()
         const updated = assignSpeakerVoice(localSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, subtitleSpeakers)
@@ -3130,7 +3148,10 @@ export default function StdPortalPage() {
                     {options.buttonLabel && <span>{options.buttonLabel}</span>}
                 </button>
                 {speakerEditorIndex !== null && pickerKey === `block-${speakerEditorIndex}` && <SubtitleSpeakerEditor
-                    speaker={subtitleSpeakers[speakerEditorIndex]} names={speakerNames} thai={currentLocale === 'th'}
+                    key={`${selectedProject?.project?.id}:${speakerEditorIndex}:${currentLocale}`}
+                    speaker={subtitleSpeakers[speakerEditorIndex]} names={speakerNames} characters={speakerCharacters}
+                    locale={currentLocale} translations={speakerNameTranslations} projectId={selectedProject?.project?.id}
+                    headers={authedJsonHeaders} onTranslations={rememberSpeakerNameTranslations}
                     onSave={(name, gender) => saveSubtitleSpeaker(speakerEditorIndex, name, gender)} onClose={() => setSpeakerEditorIndex(null)} />}
                 {isOpen && <UnifiedVoiceDialog historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email} value={voiceId} voices={allVoices}
                     initialTab={options.elevenLabsOnly || tone === 'dialogue' ? 'elevenlabs' : 'google'}
