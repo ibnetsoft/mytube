@@ -3,16 +3,30 @@ function load(file,deps={}){const exports={};new Function('require','exports',ts
 const gcs={isGcsConfiguredAsync:async()=>true,uploadGcsBuffer:async({objectPath,buffer})=>{if(failUpload)throw Error('GCS upload failed');stored.set(objectPath,buffer);uploads++;return {bucket:'air-studio-prod',path:objectPath}},downloadGcsObject:async({objectPath})=>{if(failDownload)throw Error('offline');return stored.get(objectPath)}};
 const helper=load('auth-web/lib/stdSegmentAudioCache.ts',{'@/lib/gcsStorage':gcs});
 const batches=load('auth-web/lib/stdNarrationBatch.ts');
-const stored=new Map(); let failDownload=false; const claims=new Set();const assets=[];let generated=0,uploads=0,failUpload=false;
+const stored=new Map(); let failDownload=false; const claims=new Set();const assets=[];let generated=0,uploads=0,failUpload=false,providerHook=null;const removedClaims=[];
 const project={id:'10b3d223-1457-415a-ba40-7b947c6c1b3d',language:'ko'};
-const db={storage:{from:()=>({remove:async(paths)=>{for(const path of paths)claims.delete(path);return {error:null}},download:async(path)=>({data:failDownload?null:{arrayBuffer:async()=>stored.get(path)},error:failDownload?{message:"offline"}:null}),upload:async(path,buffer)=>{if(path.includes('/claims/')){if(claims.has(path))return {error:{message:'exists'}};claims.add(path);return {error:null}}stored.set(path,buffer);uploads++;return {error:failUpload?{message:'offline'}:null}}})},from(table){let filters=[],inserted;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(k,v){if(k==='metadata->>cache_key')filters.push([k,v]);return q},neq(){return q},update(){return q},then(resolve){return Promise.resolve({data:table==='std_project_assets'?assets.filter(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v))):[],error:null}).then(resolve)},order(){return q},limit(){return q},insert(v){inserted=v;return q},async single(){const a={...inserted,id:String(assets.length+1)};assets.push(a);return {data:a}},async maybeSingle(){return {data:table==='std_projects'?project:assets.find(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v)))||null}}};return q}};
+const db={storage:{from:()=>({
+    remove:async(paths)=>{for(const path of paths){removedClaims.push(path);claims.delete(path);stored.delete(path)}return {error:null}},
+    download:async(path)=>{
+        const buffer=stored.get(path);
+        return {data:failDownload||!buffer?null:{arrayBuffer:async()=>buffer,text:async()=>buffer.toString('utf8')},
+            error:failDownload?{message:'offline'}:!buffer?{message:'not found',statusCode:'404'}:null};
+    },
+    upload:async(path,buffer,options)=>{
+        if(path.includes('/claims/')){
+            if(claims.has(path)&&!options?.upsert)return {error:{message:'exists',statusCode:'409'}};
+            claims.add(path);stored.set(path,Buffer.from(buffer));return {error:null};
+        }
+        stored.set(path,buffer);uploads++;return {error:failUpload?{message:'offline'}:null};
+    }
+})},from(table){let filters=[],inserted;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(k,v){if(k==='metadata->>cache_key')filters.push([k,v]);return q},neq(){return q},update(){return q},then(resolve){return Promise.resolve({data:table==='std_project_assets'?assets.filter(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v))):[],error:null}).then(resolve)},order(){return q},limit(){return q},insert(v){inserted=v;return q},async single(){const a={...inserted,id:String(assets.length+1)};assets.push(a);return {data:a}},async maybeSingle(){return {data:table==='std_projects'?project:assets.find(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v)))||null}}};return q}};
 function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts',{
     '@/lib/gcsStorage':gcs,'@/lib/stdNarrationBatch':batches,
     'next/server':{NextResponse:{json:(data,options)=>({data,status:options?.status||200,ok:!options?.status||options.status<400,json:async()=>data})}},
     '@/lib/stdStoredNarration':load('auth-web/lib/stdStoredNarration.ts',{'./stdJoinMp3':load('auth-web/lib/stdJoinMp3.ts')}),'@/lib/stdSegmentAudioCache':helper,'@/lib/supabaseAdmin':{supabaseAdmin:db},
     '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'test@example.com',user:{id:'test'}}})},
     '@/lib/stdGoogleDrive':{driveFileLink:()=>'',ensureStdProjectDriveFolders:()=>{throw Error('Must not use Drive')}},
-    '@/lib/stdVoiceStudio':{generateVoiceStudioMp3:async()=>{generated++;const frame=Buffer.alloc(417);frame.set([0xff,0xfb,0x90,0x00]);return frame}},
+    '@/lib/stdVoiceStudio':{generateVoiceStudioMp3:async(input)=>{generated++;if(providerHook)await providerHook(input);const frame=Buffer.alloc(417);frame.set([0xff,0xfb,0x90,0x00]);return frame}},
     '@/lib/voiceStudioCatalog':{isVoiceStudioVoice:()=>true,mergeVoiceStudioSegments:s=>s},
     '@/lib/stdTtsCompletion':{completedScriptTtsProgress:p=>p},'@/lib/stdLegacySync':{},'@/lib/stdMultiVoice':{},'@/lib/elevenLabsKeys':{}
 })}
@@ -49,6 +63,64 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  const missingFinal=await call(route(),{...batchedBody,mode:'assemble_narration_segments',voice_segments:[{text:'not prepared',voice_id:body.voice_id}]});
  assert.equal(missingFinal.status,500);assert.equal(generated,genBefore+9,'Final join cannot synthesize missing audio');
  const oversized=await call(route(),{...batchedBody,mode:'prepare_narration_segments'});assert.equal(oversized.status,400);
+
+ // A returned Google error proves no audio was delivered; only that provider's
+ // owned claim may be released. Unknown outcomes keep the duplicate-spend guard.
+ const cloudRejection=()=>Object.assign(new Error('Google Cloud TTS HTTP 500: INTERNAL'),{name:'VoiceStudioCloudError',noAudioProduced:true});
+ const captureNewClaim=previous=>{
+   const claimPath=[...claims].find(path=>!previous.has(path));
+   assert(claimPath,'Provider must run after an audio generation claim is acquired');
+   const claim=JSON.parse(stored.get(claimPath).toString('utf8'));
+   assert.equal(typeof claim.request_id,'string');assert(claim.request_id.length>0);assert(Number.isFinite(Date.parse(claim.requested_at)));
+   return {claimPath,claim};
+ };
+ const definiteBody={...body,text:'Google definite rejection can be retried'};
+ const definiteClaims=new Set(claims);const definiteStart=generated;let definiteClaim;
+ providerHook=async()=>{definiteClaim=captureNewClaim(definiteClaims);throw cloudRejection()};
+ const definiteFailure=await call(route(),definiteBody);providerHook=null;
+ assert.equal(definiteFailure.status,500);assert.equal(generated,definiteStart+1);
+ assert(!claims.has(definiteClaim.claimPath),'A definite provider rejection must release its own claim');
+ assert(!stored.has(definiteClaim.claimPath),'The claim JSON must be removed from storage');
+ const definiteRetry=await call(route(),definiteBody);
+ assert.equal(definiteRetry.status,200,'Immediate manual retry must not wait for claim expiration');assert.equal(generated,definiteStart+2);
+ assert.equal((await call(route(),definiteBody)).data.cached,true);assert.equal(generated,definiteStart+2,'A successful manual retry is persistently reusable');
+
+ const uncertainBody={...body,text:'Unknown provider timeout must remain claimed'};
+ const uncertainClaims=new Set(claims);const uncertainStart=generated;let uncertainClaim;
+ providerHook=async()=>{uncertainClaim=captureNewClaim(uncertainClaims);throw Object.assign(new Error('Provider request timed out'),{name:'AbortError'})};
+ assert.equal((await call(route(),uncertainBody)).status,500);providerHook=null;
+ assert(claims.has(uncertainClaim.claimPath));assert(stored.has(uncertainClaim.claimPath));
+ assert.equal((await call(route(),uncertainBody)).status,409);assert.equal(generated,uncertainStart+1,'Unknown provider outcomes must not trigger a second paid request');
+
+ const foreignBody={...body,text:'A replaced worker claim must survive rejection'};
+ const foreignClaims=new Set(claims);const foreignStart=generated;let foreignClaim;
+ providerHook=async()=>{
+   foreignClaim=captureNewClaim(foreignClaims);
+   stored.set(foreignClaim.claimPath,Buffer.from(JSON.stringify({...foreignClaim.claim,request_id:'other-worker-request'})));
+   throw cloudRejection();
+ };
+ assert.equal((await call(route(),foreignBody)).status,500);providerHook=null;
+ assert(claims.has(foreignClaim.claimPath),'A rejected older request must preserve a newer worker claim');
+ assert.equal(JSON.parse(stored.get(foreignClaim.claimPath).toString()).request_id,'other-worker-request');
+ assert(!removedClaims.includes(foreignClaim.claimPath),'Ownership mismatch must never issue a storage delete');
+ assert.equal((await call(route(),foreignBody)).status,409);assert.equal(generated,foreignStart+1);
+
+ const rejectionBatch={...body,mode:'prepare_narration_segments',segment_offset:40,
+   voice_segments:['Successful before rejection','Failed subtitle in batch','Successful after rejection'].map(text=>({text,voice_id:body.voice_id}))};
+ const rejectionStart=generated;const rejectionAudioBefore=assets.filter(a=>a.asset_type==='audio').length;
+ providerHook=async input=>{if(input.text==='Failed subtitle in batch')throw cloudRejection()};
+ const failedBatch=await call(route(),rejectionBatch);providerHook=null;
+ assert.equal(failedBatch.status,500);assert.match(failedBatch.data.error,/42/,'Batch error must identify the global 1-based subtitle: offset 40 + index 1 + 1');
+ const readyPeers=assets.filter(a=>['Successful before rejection','Successful after rejection'].includes(a.metadata?.text));
+ assert.equal(readyPeers.length,2,'Successful concurrent clips remain saved when another subtitle fails');
+ assert.equal(assets.filter(a=>a.asset_type==='audio').length,rejectionAudioBefore,'A failed prepare batch must not publish a final narration');
+ const afterRejectedBatch=generated;assert.equal(afterRejectedBatch,rejectionStart+3);
+ const recoveredBatch=await call(route(),rejectionBatch);
+ assert.equal(recoveredBatch.status,200);assert.equal(generated,afterRejectedBatch+1,'Manual retry generates only the rejected subtitle');
+ assert.deepEqual(recoveredBatch.data.segment_reuse,{reused:2,generated:1});
+ const successfulBatchAgain=await call(route(),rejectionBatch);
+ assert.equal(successfulBatchAgain.status,200);assert.equal(generated,afterRejectedBatch+1);assert.deepEqual(successfulBatchAgain.data.segment_reuse,{reused:3,generated:0});
+ console.log('PASS: definite Google rejection releases only its owned claim; timeout/failed storage retain duplicate-spend protection; batch errors identify the global subtitle and preserve successful clips');
  console.log('PASS: full narration reuses preview clips; unchanged repeat makes zero provider calls; text/voice change generates only one; unreadable cache fails before spending');
  console.log('PASS: cache bypass ignored; uncertain failure cannot spend credits again; persistent reuse across reload, Drive-only legacy regeneration, Korean/voice invalidation, save failure, no selection auto-generation');
 })().catch(e=>{console.error(e);process.exit(1)});

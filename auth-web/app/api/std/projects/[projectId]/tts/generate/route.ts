@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { assembleStoredNarration } from '@/lib/stdStoredNarration'
 import { NARRATION_BATCH_SIZE } from '@/lib/stdNarrationBatch'
 import { completedScriptTtsProgress } from '@/lib/stdTtsCompletion'
-import { createHash } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { segmentAudioKey, legacySegmentMatches, persistSegmentAudio, persistTtsAudio } from '@/lib/stdSegmentAudioCache'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -658,6 +658,22 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     return runTts(body, auth, project)
 }
 
+type OwnedTtsClaim = { path: string; requestId: string }
+
+async function releaseOwnedTtsClaim(claim: OwnedTtsClaim | null) {
+    if (!claim) return
+    try {
+        const storage = supabaseAdmin.storage.from('content-assets')
+        const { data, error } = await storage.download(claim.path)
+        if (error || !data) return
+        const stored = JSON.parse(await data.text())
+        if (stored.request_id !== claim.requestId) return
+        await storage.remove([claim.path])
+    } catch {
+        // A claim we cannot verify stays in place; persisted audio is still reusable.
+    }
+}
+
 async function runTts(body: any, auth: any, project: any) {
     let scenes: any[] = []
     if (!cleanTtsText(body?.text)) {
@@ -674,6 +690,7 @@ async function runTts(body: any, auth: any, project: any) {
     }
 
     let stage = 'prepare'
+    let ownedSegmentClaim: OwnedTtsClaim | null = null
     const ttsDebug: {
         textLength: number
         chunkCount: number
@@ -767,13 +784,19 @@ async function runTts(body: any, auth: any, project: any) {
             if (body?.cache_only) return NextResponse.json({ success: false, code: 'audio_not_cached', error: '저장된 구간 음성이 없습니다.' }, { status: 404 })
             const claimPath = `std/${project.id}/tts/claims/${segmentCacheKey}.json`
             const forceClaim = Boolean(body?.force_claim || body?.force_regenerate)
+            const requestId = randomUUID()
+            const writeClaim = async (upsert: boolean) => {
+                const result = await supabaseAdmin.storage.from('content-assets').upload(
+                    claimPath,
+                    Buffer.from(JSON.stringify({ request_id: requestId, requested_at: new Date().toISOString() })),
+                    { contentType: 'application/json', upsert },
+                )
+                if (!result.error) ownedSegmentClaim = { path: claimPath, requestId }
+                return result
+            }
 
             if (!forceClaim) {
-                const claim = await supabaseAdmin.storage.from('content-assets').upload(
-                    claimPath,
-                    Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
-                    { contentType: 'application/json', upsert: false },
-                )
+                const claim = await writeClaim(false)
                 if (claim.error && !/duplicate|already exists|exists/i.test(claim.error.message || '') && String(claim.error.statusCode) !== '409') {
                     throw new Error('중복 생성 방지 상태를 확인할 수 없어 음성을 생성하지 않았습니다.')
                 }
@@ -791,11 +814,8 @@ async function runTts(body: any, auth: any, project: any) {
                     } catch {}
 
                     if (isStale) {
-                        await supabaseAdmin.storage.from('content-assets').upload(
-                            claimPath,
-                            Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
-                            { contentType: 'application/json', upsert: true },
-                        )
+                        const replacement = await writeClaim(true)
+                        if (replacement.error) throw new Error('음성 생성 상태를 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요.')
                     } else {
                         return NextResponse.json({
                             success: false,
@@ -805,11 +825,8 @@ async function runTts(body: any, auth: any, project: any) {
                     }
                 }
             } else {
-                await supabaseAdmin.storage.from('content-assets').upload(
-                    claimPath,
-                    Buffer.from(JSON.stringify({ requested_at: new Date().toISOString() })),
-                    { contentType: 'application/json', upsert: true },
-                )
+                const replacement = await writeClaim(true)
+                if (replacement.error) throw new Error('음성 생성 상태를 갱신하지 못했습니다. 잠시 후 다시 시도해 주세요.')
             }
         }
         const voiceSegments = Array.isArray(body?.voice_segments)
@@ -878,7 +895,10 @@ async function runTts(body: any, auth: any, project: any) {
                     }, auth, project)
                     const payload = await result.json()
                     if (cacheOnly && result.status === 404 && payload.code === 'audio_not_cached') return null
-                    if (!result.ok || !payload.success || !payload.asset) throw new Error(payload.error || '저장된 구간 음성을 준비하지 못했습니다.')
+                    if (!result.ok || !payload.success || !payload.asset) {
+                        const subtitleNumber = index + (prepareOnly ? Math.max(0, Number(body.segment_offset) || 0) : 0) + 1
+                        throw new Error(`자막 ${subtitleNumber}번: ${payload.error || '저장된 구간 음성을 준비하지 못했습니다.'}`)
+                    }
                     return { asset: payload.asset, cached: Boolean(payload.cached) }
                 },
                 read: async (asset) => {
@@ -993,9 +1013,7 @@ async function runTts(body: any, auth: any, project: any) {
                 projectId: project.id, cacheKey: segmentCacheKey, identity: segmentIdentity,
                 audioBuffer, fileName, segmentIndex, generatedBy: auth.requester.email,
             })
-            if (segmentCacheKey) {
-                supabaseAdmin.storage.from('content-assets').remove([`std/${project.id}/tts/claims/${segmentCacheKey}.json`]).catch(() => {})
-            }
+            await releaseOwnedTtsClaim(ownedSegmentClaim)
             const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
             return NextResponse.json({
                 success: true, segment_preview: true, cached: false,
@@ -1064,6 +1082,11 @@ async function runTts(body: any, auth: any, project: any) {
             message: multiVoice ? '등장인물 멀티 보이스 TTS 음성이 성공적으로 생성되었습니다!' : 'TTS 음성이 성공적으로 생성되었습니다!',
         })
     } catch (error: any) {
+        // Explicit Google rejection returned no audio. Let the user retry this
+        // segment immediately; timeouts and persistence failures keep their claim.
+        if (error?.name === 'VoiceStudioCloudError' && error.noAudioProduced === true) {
+            await releaseOwnedTtsClaim(ownedSegmentClaim)
+        }
         console.error('[STD TTS] generation failed', {
             projectId: project.id,
             stage,
