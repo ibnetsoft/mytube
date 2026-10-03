@@ -148,7 +148,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     import codex_character_assets
     def fake_characters(context, payload, config, output_dir):
         calls.append(("02e_character_images", context))
-        return {"main_character": {"name": "연화", "character_key": "yeonhwa", "image_url": "https://assets.example/portrait.png"},
+        return {"main_character": {**context["main_character"], "character_key": "yeonhwa", "image_url": "https://assets.example/portrait.png"},
                 "supporting_characters": [], "character_image_generation": {"status": "ready"}}
     monkeypatch.setattr(codex_character_assets, "generate_character_references", fake_characters)
     scene_count = len(runner_module._pacing_schedule(300))
@@ -200,6 +200,14 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
             assert set(context) == {'title', 'sections'}
             return {'verdict': 'pass', 'issues': [], 'strengths': [{'scene_order': 1,
                 'quote': context['sections'][0]['text'], 'reason': 'The protagonist and action are understandable.'}]}
+        if name == '02d_character_identity':
+            assert len(context['scenes']) == scene_count
+            assert 'TWO DISTINCT scenes' in task and 'without any cast-size cap' in task
+            return {'main_character': {'name': '연화', 'aliases': [], 'scene_numbers': list(range(1, scene_count + 1)),
+                'visual_dna_en': 'A distinctive oval face with narrow eyebrows.', 'wardrobe_en': 'Ivory hanbok with blue skirt.',
+                'hair_design_en': 'Center-parted hair, no shaved scalp, one long black braid down the back; no topknot.',
+                'continuity_instruction': 'Keep her face and braid fixed.'}, 'supporting_characters': [],
+                'scene_cast': [{'scene_number': i, 'characters': ['연화']} for i in range(1, scene_count + 1)]}
         if name == "03_media":
             assert context["character_anchors"]["character_image_generation"]["status"] == "ready"
             from services.image_grid_prompts import grid_windows
@@ -247,6 +255,10 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert package["structure"]["character_reference_status"] == "ready"
     assert package["character_anchors"]["character_image_generation"]["status"] == "ready"
     assert package["structure"]["image_grid_prompts"][0]["character_references"][0]["image_url"]
+    hair = package['main_character']['hair_design_en']
+    assert all(hair in scene['image_prompt'] for scene in scenes)
+    assert all(hair in scene['video_prompt'] for scene in scenes[:18])
+    assert all(hair in grid['prompt'] for grid in package['structure']['image_grid_prompts'])
     assert len(scenes) == scene_count
     assert package["structure"]["image_layer_mode"] == "hybrid"
     assert package["structure"]["image_generation_policy"]["mode"] == "hybrid_ae_postprocess"
@@ -290,7 +302,11 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert draft["script_model"] == "gpt-6-astra"
     assert draft["structure"]["dialogue_annotations"]["model"] == "gpt-6-astra"
     assert len(draft["structure"]["scenes"]) == scene_count
-    assert not any(name in ("02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy") for name, _ in calls)
+    assert any(name == '02d_character_identity' for name, _ in calls)
+    assert not any(name in ("02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy") for name, _ in calls)
+    assert draft['character_anchors']['character_image_generation']['status'] == 'pending'
+    assert draft['structure']['main_character']['hair_design_en'] == hair
+    assert len(draft['structure']['scene_cast']) == scene_count
     assert "02f_listener_engagement" in [name for name, _ in calls]
 
 

@@ -36,6 +36,7 @@ from worker.content_language import (
     visual_setting_prompt,
 )
 from scene_visual_director import PERSONA as SCENE_VISUAL_DIRECTOR_PERSONA, validate_directorial_plans
+from character_continuity import validate_character_identity, scene_continuity_prompt, character_design_anchors
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -2145,6 +2146,38 @@ class CodexStagedContentRunner:
                           or stdout_path.read_text(encoding='utf-8', errors='replace') or 'no response file').strip()[-1200:]
         raise CodexContentError(f"Codex {name} stage failed after bounded retry: {last_error or 'no response file'}")
 
+    def finalize_character_identity(self, job_id: str, context: dict, setting: dict) -> dict:
+        """Persist a validated visual design census without generating media."""
+        identity_task = (
+            "From every FINAL reviewed scene, make a complete visual cast census before defining character designs. "
+            "Return {main_character:{...}, supporting_characters:[...], scene_cast:[{scene_number:1,characters:['canonical name']}...]}. "
+            "scene_cast must cover every supplied scene exactly once, including empty casts and people appearing in only one scene. "
+            "Count a person's actual visible participation, including pronouns, role labels and aliases resolved to one canonical identity; "
+            "do not count mere mentions, quotations about absent people or multiple dialogue lines as separate scene appearances. "
+            "Keep the lead and EVERY person appearing in at least TWO DISTINCT scenes, without any cast-size cap; "
+            "retain existing approved reference characters too. Never omit secondary sons, siblings or unnamed recurring role characters. "
+            "Every retained character must have name, aliases, role, gender, age_group, scene_numbers (unique scene IDs agreeing with scene_cast), "
+            "detailed English visual_dna_en, wardrobe_en, hair_design_en, continuity_instruction. "
+            "hair_design_en must precisely fix the visible hairline, shaved-scalp area and boundary (or explicitly none), "
+            "remaining hair length, texture and color, and topknot/braid shape, size, position and direction (or explicitly absent). "
+            "Use a distinct design for each sibling; never interchange their haircuts or infer a different haircut from camera angle. "
+            "Preserve existing approved faces, hair designs, wardrobes, character keys and reference assets exactly. "
+            "Only a story-explicit separately identified age/costume variant may differ; do not invent appearance changes. "
+            f"Story setting is {setting['setting_country_en']} ({setting['era_region']}); selected image style is {setting['image_style_en']}. "
+            "Respect the exact historical region and era rather than imposing a generic national costume or hairstyle. "
+            "These persistent definitions will control reference portraits and every applicable scene image."
+        )
+        for identity_attempt in range(2):
+            identity = self._stage(job_id, "02d_character_identity", context, identity_task)
+            try:
+                identity = validate_character_identity(identity, context["scenes"], context.get("existing_character_anchors") or {})
+                break
+            except ValueError as exc:
+                if identity_attempt:
+                    raise CodexContentError(f"character identity rejected: {exc}") from exc
+                context["character_identity_validation_feedback"] = str(exc)
+        return identity
+
     def generate(self, job_id: str, payload: dict[str, Any], *, script_only: bool = False) -> dict[str, Any]:
         schedule = _pacing_schedule(payload.get("target_duration_seconds"))
         if not schedule:
@@ -2357,6 +2390,16 @@ class CodexStagedContentRunner:
                     "continuity_rules": direction["continuity_rules"],
                     "required_keyframes": direction["additional_keyframes"],
                 }
+        character_context.update(scenes=scenes, dialogue_annotations=structure.get("dialogue_annotations"),
+            existing_character_anchors=payload.get("character_anchors")
+                or (payload.get("structure") or {}).get("character_anchors") or {})
+        identity = self.finalize_character_identity(job_id, character_context, setting)
+        pending_anchors = character_design_anchors(identity)
+        script_context.update(main_character=identity["main_character"], supporting_characters=identity["supporting_characters"])
+        structure.update(main_character=identity["main_character"], supporting_characters=identity["supporting_characters"],
+                         character_anchors=pending_anchors, scene_cast=identity["scene_cast"],
+                         character_reference_status="ready" if pending_anchors["character_image_generation"]["status"] == "ready"
+                            else "descriptions_ready_images_pending")
         if script_only:
             # Local approval console: use the exact production script gates,
             # but stop before character uploads or any media/publication work.
@@ -2382,17 +2425,11 @@ class CodexStagedContentRunner:
                     "image_style": setting["image_style"],
                     "content_setting": setting,
                     "script": script, "structure": structure,
+                    "main_character": identity["main_character"], "supporting_characters": identity["supporting_characters"],
+                    "character_anchors": pending_anchors, "scene_cast": identity["scene_cast"],
                     "narrative_blueprint": script_context["narrative_blueprint"],
                     "script_quality_report": qa.get("script_quality_report") or {},
                     "script_model": ASTRA_MODEL, "production_ready": False}
-        identity = self._stage(job_id, "02d_character_identity", character_context,
-            "From the FINAL reviewed script, finalize the main character and up to two recurring supporting characters. "
-            f"Preserve established identities; story setting is {setting['setting_country_en']} ({setting['era_region']}). "
-            "Return {main_character:{...}, supporting_characters:[...]}. "
-            "Every character must have name, role, gender, age_group, detailed English visual_dna_en, wardrobe_en, continuity_instruction. "
-            f"Use the selected image style ({setting['image_style_en']}) and authentic {setting['setting_country_en']} ({setting['era_region']}) living environment. "
-            "Avoid uniform racial or cultural caricature; reflect individual personalities, occupations, and authentic everyday clothing. "
-            "These definitions will be rendered as actual reference portraits before scene prompts.")
         from codex_character_assets import generate_character_references
         anchors = generate_character_references(
             {**character_context, **identity}, {**payload, **setting, "content_setting": setting}, self.config, OUTPUT_DIR / "codex_character_images")
@@ -2404,10 +2441,12 @@ class CodexStagedContentRunner:
                          "character_anchors": anchors, "child_image_guidance": CHILD_IMAGE_GUIDANCE,
                          "image_layer_mode": image_layer_mode,
                          "scene_visual_director_persona": SCENE_VISUAL_DIRECTOR_PERSONA,
-                         "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Never substitute a different character."}
+                         "scene_cast": identity["scene_cast"],
+                         "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Copy the exact hair_design_en, including shaved-scalp boundary, hairline, hair length and topknot/braid shape/position/direction. Never substitute a different character or swap siblings' hairstyles."}
         media_task = (
             f"Create prompts only from each final scene_text. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
             f"Visual style: {setting['image_style_en']}. Maintain authentic local architecture, interior spaces, streetscape, vehicles, and props without caricature. "
+            "Use scene_cast to include only the actual scene participants. Repeat each visible person's locked hair_design_en verbatim in their image/video prompt and applicable grid panel; do not improvise haircuts or redraw shaved areas. "
             f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
             f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
             "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including an inpainted clean background and aligned alternate pose/prop layers. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
@@ -2441,11 +2480,12 @@ class CodexStagedContentRunner:
             image = str((item or {}).get("image_prompt") or "").strip() if isinstance(item, dict) else ""
             if len(image) < 120:
                 raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
-            scenes[index - 1].update({"image_prompt": image, "media_prompt_status": "ready"})
+            lock = scene_continuity_prompt(anchors, [index])
+            scenes[index - 1].update({"image_prompt": image + ("\n" + lock if lock else ""), "media_prompt_status": "ready"})
             if index <= 18:
                 video = str(item.get("video_prompt") or "").strip()
                 _validate_video_prompt(video, index)
-                scenes[index - 1]["video_prompt"] = video
+                scenes[index - 1]["video_prompt"] = video + ("\n" + lock if lock else "")
                 scenes[index - 1]["video_prompt_required"] = True
                 scenes[index - 1]["visual_type"] = "video"
                 scenes[index - 1]["video_generation_mode"] = "user_upload"
@@ -2470,7 +2510,16 @@ class CodexStagedContentRunner:
             validate_image_grid_prompt_readiness,
             validate_scene_image_prompt_readiness,
         )
-        grids = build_compact_image_grid_prompts(media.get("image_grid_prompts") or [])
+        grid_inputs = media.get("image_grid_prompts") or []
+        for grid in grid_inputs:
+            if not isinstance(grid, dict):
+                continue
+            lock = scene_continuity_prompt(anchors, grid.get("scene_numbers") or [])
+            if lock:
+                grid["shared_style"] = str(grid.get("shared_style") or "") + "\n" + lock
+                if grid.get("prompt"):
+                    grid["prompt"] = str(grid["prompt"]) + "\n" + lock
+        grids = build_compact_image_grid_prompts(grid_inputs)
         validate_scene_image_prompt_readiness(scenes)
         try:
             validate_image_grid_prompt_readiness(
@@ -2593,7 +2642,8 @@ class CodexStagedContentRunner:
         for grid in structure.get("image_grid_prompts") or []:
             grid["character_references"] = [
                 {"character_key": c["character_key"], "name": c["name"], "image_url": c["image_url"]}
-                for c in [anchors["main_character"], *anchors["supporting_characters"]]]
+                for c in [anchors["main_character"], *anchors["supporting_characters"]]
+                if "scene_numbers" not in c or set(c["scene_numbers"]).intersection(grid.get("scene_numbers") or [])]
         main = script_context["main_character"]
         supporting = script_context["supporting_characters"]
         from worker.thumbnail_contract import thumbnail_draft

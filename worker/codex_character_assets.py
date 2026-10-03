@@ -24,7 +24,20 @@ except ImportError:
     import image_recovery
     from child_image_guidance import CHILD_IMAGE_GUIDANCE
 
-VERSION = "codex-character-images-v1"
+VERSION = "codex-character-images-v2"
+
+# Scene membership is saved with the design, but must not change its identity or
+# cause a new portrait when a character appears in another scene.
+DESIGN_FIELDS = ("name", "gender", "age_group", "visual_dna_en", "wardrobe_en", "hair_design_en")
+
+
+def same_visual_design(first: dict, second: dict) -> bool:
+    from worker.character_continuity import LEGACY_REFERENCE_HAIR_LOCK
+    def value(character, key):
+        if key == "hair_design_en" and not character.get(key) and character.get("image_url"):
+            return LEGACY_REFERENCE_HAIR_LOCK
+        return str(character.get(key) or "").strip()
+    return all(value(first, key) == value(second, key) for key in DESIGN_FIELDS)
 
 
 def digest(value: Any) -> str:
@@ -184,20 +197,40 @@ class CharacterAssetStore:
                   "gcs_bucket": bucket, "gcs_path": gcs_path, "image_generation_status": "ready",
                   "generation_model": "codex_builtin_image_gen", "source": VERSION,
                   "reference_fingerprint": fingerprint}
+        self.save_design(topic_id, result, fingerprint, payload, sha=sha)
+        return result
+
+    def load_references(self, topic_id: int) -> list[dict]:
+        rows = self.request("GET", "/rest/v1/topic_character_assets", params={
+            "topic_queue_id": f"eq.{topic_id}", "select": "*"}).json()
+        references = []
+        for row in rows:
+            usage = row.get("usage_context") or {}
+            references.append({**row, **(usage.get("character_design") or {}),
+                "reference_fingerprint": usage.get("reference_fingerprint"),
+                "image_generation_status": "ready" if row.get("image_url") else "pending",
+                "storage_provider": "gcs", "gcs_bucket": row.get("storage_bucket"),
+                "gcs_path": row.get("storage_object_path"), "image_sha256": usage.get("sha256"),
+                "cast_census": usage.get("cast_census")})
+        return references
+
+    def save_design(self, topic_id: int, result: dict, fingerprint: str, payload: dict, *, sha: str = "") -> None:
         record = {k: result.get(k) for k in ("character_key", "name", "role", "gender", "age_group",
                   "visual_dna_en", "wardrobe_en", "continuity_instruction", "image_prompt", "image_url",
                   "storage_bucket", "storage_object_path", "generation_model", "source")}
         record.update(topic_queue_id=topic_id, category=str(payload.get("category") or ""),
                       image_style=str(payload.get("image_style") or "realistic"),
-                      usage_context={"reference_fingerprint": fingerprint, "sha256": sha,
+                      usage_context={"reference_fingerprint": fingerprint, "sha256": sha or result.get("image_sha256"),
+                                     "character_design": {key: result[key] for key in (
+                                         *DESIGN_FIELDS, "id", "aliases", "scene_numbers", "continuity_instruction") if key in result},
+                                     "cast_census": payload.get("_character_census") or result.get("cast_census"),
                                      "stage": "after_script_before_media_prompts"})
         self.request("POST", "/rest/v1/topic_character_assets", params={"on_conflict": "topic_queue_id,character_key"},
                      headers={"Prefer": "resolution=merge-duplicates,return=representation"}, json=record)
         rows = self.request("GET", "/rest/v1/topic_character_assets",
-                            params={"topic_queue_id": f"eq.{topic_id}", "character_key": f"eq.{key}", "select": "image_url,usage_context"}).json()
-        if len(rows) != 1 or rows[0]["image_url"] != media_url or rows[0]["usage_context"] != record["usage_context"]:
+                            params={"topic_queue_id": f"eq.{topic_id}", "character_key": f"eq.{result['character_key']}", "select": "image_url,usage_context"}).json()
+        if len(rows) != 1 or rows[0]["image_url"] != result["image_url"] or rows[0]["usage_context"] != record["usage_context"]:
             raise RuntimeError("Character registry read-back verification failed")
-        return result
 
     def sync_matching_projects(self, topic_id: int, script: str, anchors: dict, output_dir: Path) -> int:
         """Only link active projects still using this exact script; preserve user edits."""
@@ -240,8 +273,9 @@ def generate_character_references(context: dict, payload: dict, config, output_d
     topic_id = int(payload.get("topic_queue_id") or 0)
     if topic_id <= 0 or not str(context.get("script") or "").strip():
         raise RuntimeError("Final script and topic_queue_id are required before character image generation")
-    characters = [context.get("main_character")] + list(context.get("supporting_characters") or [])[:2]
-    if not characters[0]:
+    from worker.character_continuity import select_reference_characters, character_continuity_prompt
+    characters = select_reference_characters(context)
+    if not characters or not context.get("main_character") and not (context.get("character_anchors") or {}).get("main_character"):
         raise RuntimeError("Main character definition is missing")
     if any(not isinstance(c, dict) or not c.get("name") or not c.get("visual_dna_en") or not c.get("wardrobe_en") for c in characters):
         raise RuntimeError("Every principal character needs a name, visual DNA and wardrobe before generation")
@@ -249,10 +283,26 @@ def generate_character_references(context: dict, payload: dict, config, output_d
     store = store or CharacterAssetStore()
     from worker.content_language import resolve_setting
     setting = resolve_setting(payload)
+    saved_references = store.load_references(topic_id) if hasattr(store, "load_references") else []
     enriched = []
-    for index, original in enumerate(characters):
+    for original in characters:
         character = dict(original)
-        character["character_key"] = "codex-" + digest([character["name"], character.get("role"), index])[:16]
+        matches = [saved for saved in saved_references if character.get("character_key")
+                   and saved.get("character_key") == character["character_key"]]
+        if not matches:
+            matches = [saved for saved in saved_references if saved.get("name") == character["name"]]
+        if len(matches) > 1:
+            raise RuntimeError(f"Multiple saved designs for character {character['name']}; select the canonical design first")
+        saved = matches[0] if matches else None
+        if saved and saved.get("image_url"):
+            # A fresh model census may reword a face/hair description. The saved
+            # approved design remains authoritative even after a worker restart.
+            from worker.character_continuity import LEGACY_REFERENCE_HAIR_LOCK
+            character.update({field: saved[field] for field in (*DESIGN_FIELDS, "continuity_instruction")
+                              if saved.get(field)})
+            character["hair_design_en"] = saved.get("hair_design_en") or LEGACY_REFERENCE_HAIR_LOCK
+        character["character_key"] = (saved or {}).get("character_key") or character.get("character_key") or (
+            "codex-" + digest([character.get("id") or character["name"]])[:16])
         character["image_prompt"] = (
             f"{CHILD_IMAGE_GUIDANCE} "
             f"Approved character age: {character.get('age_group') or 'use the approved script age; do not invent an age'}. "
@@ -261,14 +311,27 @@ def generate_character_references(context: dict, payload: dict, config, output_d
             f"Style detail: {payload.get('image_style_selection') or ''}. "
             f"Character: {character['name']}; {character['visual_dna_en']}. "
             f"Wardrobe: {character['wardrobe_en']}. {character.get('continuity_instruction') or ''}. "
+            f"{character_continuity_prompt(character)} "
             f"Authentic everyday living environment in {setting['setting_country_en']} ({setting['era_region']}) without cultural caricature or uniform stereotype. "
             "One person only, clearly readable face and upper body, neutral background, period-appropriate clothing. "
             "No letters, captions, watermark or logo. This portrait defines the face and clothes for later scene images."
         )
-        fingerprint = digest([VERSION, character, setting['image_style_en'], setting['setting_country'], setting['era_region']])
+        fingerprint = digest([VERSION, {key: character.get(key) for key in DESIGN_FIELDS},
+                              setting['image_style_en'], setting['setting_country'], setting['era_region']])
+        if saved and saved.get("image_url") and same_visual_design(character, saved) and (
+                not saved.get("image_style") or saved["image_style"] == str(payload.get("image_style") or "realistic")):
+            reused = {**saved, **character, **{key: saved[key] for key in (
+                "image_url", "storage_bucket", "storage_object_path", "storage_provider", "gcs_bucket", "gcs_path",
+                "generation_model", "source", "image_sha256") if key in saved},
+                "reference_fingerprint": fingerprint, "image_generation_status": "ready"}
+            store.save_design(topic_id, reused, fingerprint, payload)
+            enriched.append(reused)
+            continue
         portrait = generator.generate(character["image_prompt"])
         enriched.append(store.publish(topic_id, character, portrait, fingerprint, payload))
-    return {"main_character": enriched[0], "supporting_characters": enriched[1:], "max_character_anchors": 3,
+    return {"main_character": enriched[0], "supporting_characters": enriched[1:],
+            "scene_cast": context.get("scene_cast") or [], "recurring_scene_threshold": 2,
+            "reference_policy": context.get("reference_policy") or "legacy_saved_cast",
             "character_image_generation": {"enabled": True, "status": "ready", "count": len(enriched),
                 "stage": "after_script_before_media_prompts", "generator": "codex_builtin_image_gen",
                 "registry_table": "topic_character_assets",

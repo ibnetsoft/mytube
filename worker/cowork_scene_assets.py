@@ -28,10 +28,12 @@ from PIL import ImageDraw
 from PIL import ImageFilter
 from PIL import ImageOps
 try:
+    from .character_continuity import character_continuity_prompt
     from . import image_recovery
     from . import manga_layer_generation
     from . import manga_layer_package
 except ImportError:
+    from character_continuity import character_continuity_prompt
     import image_recovery
     import manga_layer_generation
     import manga_layer_package
@@ -184,7 +186,7 @@ def _topic(topic_id: str) -> tuple[dict[str, Any], dict[str, Any], str, dict[str
     safe_id = quote(topic_id, safe="")
     response = _request(
         "GET",
-        f"{base_url}/rest/v1/topics_queue?id=eq.{safe_id}&select=id,topic,generated_title,status,pregenerated_structure,pregenerated_structure_status",
+        f"{base_url}/rest/v1/topics_queue?id=eq.{safe_id}&select=id,topic,generated_title,status,pregenerated_script,pregenerated_structure,pregenerated_structure_status,language,category_id,assigned_image_style",
         headers,
     )
     rows = response.json()
@@ -269,10 +271,63 @@ def _patch_topic_scene_assets(topic_id: str, updates: list[dict[str, Any]],
     return result
 
 
+_CHARACTER_IDENTITY_FIELDS = (
+    "role", "gender", "age_group", "visual_dna_en", "hair_design_en",
+    "wardrobe_en", "continuity_instruction", "scene_numbers", "aliases",
+)
+
+
+def _grid_character_references(references: list[dict[str, Any]], scene_cast: Any,
+                               scene_numbers: list[int]) -> list[dict[str, Any]]:
+    """Filter only from a complete cast census; legacy packages keep all refs."""
+    if not isinstance(scene_cast, list):
+        return references
+    by_scene: dict[int, list[str]] = {}
+    for entry in scene_cast:
+        if not isinstance(entry, dict) or not isinstance(entry.get("characters"), list):
+            return references
+        try:
+            number = int(entry["scene_number"])
+        except (KeyError, ValueError, TypeError):
+            return references
+        if number in by_scene or any(not isinstance(name, str) for name in entry["characters"]):
+            return references
+        by_scene[number] = entry["characters"]
+    if any(number not in by_scene for number in scene_numbers):
+        return references
+    names = {name.strip().casefold() for number in scene_numbers for name in by_scene[number]}
+    result = []
+    for reference in references:
+        aliases = reference.get("aliases") if isinstance(reference.get("aliases"), list) else []
+        identities = {str(value or "").strip().casefold() for value in
+                      [reference.get("name"), reference.get("character_key"), *aliases]}
+        occurrences = reference.get("scene_numbers") if isinstance(reference.get("scene_numbers"), list) else []
+        if names.intersection(identities) or set(scene_numbers).intersection(occurrences):
+            result.append(reference)
+    return result
+
+
+def _with_character_locks(prompt: Any, references: list[dict[str, Any]]) -> Any:
+    if not isinstance(prompt, str) or not prompt.strip():
+        return prompt
+    missing_locks = [lock for reference in references
+                     if (lock := character_continuity_prompt(reference)) not in prompt]
+    if missing_locks:
+        prompt += ("\nLocked character designs for the named people ONLY in their applicable scenes; "
+                   "do not add absent people: " + " | ".join(missing_locks))
+    return prompt
+
+
 def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
     if destination.exists():
         raise FileExistsError('Preserve existing manifest/recovery state; use a new revision path')
     row, structure, _base_url, _ = _topic(topic_id)
+    if "pregenerated_script" in row:
+        try:
+            from .character_reference_preflight import ensure_character_references
+        except ImportError:
+            from character_reference_preflight import ensure_character_references
+        structure = ensure_character_references(row, structure, destination.parent / "character-preflight")
     scenes = structure.get("scenes")
     grids = structure.get("image_grid_prompts")
     if not isinstance(scenes, list) or not scenes:
@@ -281,26 +336,35 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         raise RuntimeError("topic has no image_grid_prompts")
 
     anchors = structure.get("character_anchors") or {}
+    scene_cast = structure.get("scene_cast") or anchors.get("scene_cast")
     characters = [anchors.get("main_character") or structure.get("main_character")] + list(
         anchors.get("supporting_characters") or structure.get("supporting_characters") or [])
     if not characters[0] or any(not isinstance(c, dict) or not c.get("image_url") for c in characters):
-        raise RuntimeError("Generate and publish principal character reference images before scene images")
+        raise RuntimeError("Generate and publish every recurring character reference image before scene images")
+    keys = [str(character.get("character_key") or "").strip() for character in characters]
+    if any(not key for key in keys) or len(set(keys)) != len(keys):
+        raise RuntimeError("Character references require unique saved character_key identities")
     destination.parent.mkdir(parents=True, exist_ok=True)
     references = []
-    for index, character in enumerate(characters, 1):
+    for key, character in zip(keys, characters):
         url = str(character["image_url"] or "")
         metadata = character.get("metadata") if isinstance(character.get("metadata"), dict) else {}
         character_bucket = str(character.get("gcs_bucket") or character.get("storage_bucket") or metadata.get("gcs_bucket") or "").strip()
         object_path = str(character.get("gcs_path") or character.get("storage_object_path") or metadata.get("gcs_path") or "").strip()
         if not object_path:
             raise RuntimeError("Character reference must include a GCS object path")
-        reference_path = destination.parent / f"character-reference-{index}.png"
-        reference_path.write_bytes(_download_gcs_bytes(character_bucket, object_path))
+        portrait_bytes = _download_gcs_bytes(character_bucket, object_path)
+        portrait_sha = hashlib.sha256(portrait_bytes).hexdigest()
+        reference_id = hashlib.sha256(key.encode("utf-8")).hexdigest()[:20]
+        reference_path = destination.parent / f"character-reference-{reference_id}-{portrait_sha[:12]}.png"
+        reference_path.write_bytes(portrait_bytes)
         from codex_character_assets import validate_portrait
         validate_portrait(reference_path)
-        references.append({"name": character.get("name"), "character_key": character.get("character_key"),
+        references.append({"name": character.get("name"), "character_key": key,
                            "image_url": url, "local_file": str(reference_path.resolve()),
-                           "sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest()})
+                           "sha256": portrait_sha,
+                           **{field: copy.deepcopy(character[field]) for field in _CHARACTER_IDENTITY_FIELDS
+                              if field in character}})
 
     known_scenes = {_scene_number(scene, index) for index, scene in enumerate(scenes, start=1) if isinstance(scene, dict)}
     manifest_grids: list[dict[str, Any]] = []
@@ -317,13 +381,15 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
             raise ValueError(f"grid {index} references an unknown scene")
         covered.update(scene_numbers)
         grid_number = int(grid.get("grid_number") or index)
+        grid_references = _grid_character_references(
+            references, scene_cast, scene_numbers)
         manifest_grids.append(
             {
                 "grid_number": grid_number,
                 "scene_numbers": scene_numbers,
-                "prompt": prompt,
+                "prompt": _with_character_locks(prompt, grid_references),
                 "raw_file": f"grid-{grid_number:03d}.png",
-                "character_references": references,
+                "character_references": grid_references,
             }
         )
     missing = sorted(known_scenes - covered)
@@ -339,9 +405,13 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "scene_count": len(known_scenes),
         "character_references": references,
+        "scene_cast": scene_cast if isinstance(scene_cast, list) else [],
         "scene_specs": [{"scene_number": _scene_number(s, i), "scene_id": s.get("scene_id"),
                          "scene_text": s.get("scene_text") or s.get("narration"),
-                         "image_prompt": s.get("image_prompt"), "image_style": s.get("image_style"),
+                         "image_prompt": s.get("image_prompt"),
+                         "generation_image_prompt": _with_character_locks(s.get("image_prompt"),
+                             _grid_character_references(references, scene_cast, [_scene_number(s, i)])),
+                         "image_style": s.get("image_style"),
                          "ae_directorial_plan": s.get("ae_directorial_plan") if isinstance(s.get("ae_directorial_plan"), dict) else {},
                          "ae_effect_plan": s.get("ae_effect_plan") if isinstance(s.get("ae_effect_plan"), dict) else {},
                          "image_generation_policy": s.get("image_generation_policy") if isinstance(s.get("image_generation_policy"), dict) else {},
@@ -355,7 +425,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "layer_package_instruction": "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. For directed_performance, make a genuinely clean inpainted background and separately aligned alternate poses/props; never use duplicate flattened-scene copies as fake layers. A soft depth proxy is not a separate action layer. Run generate-layers or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish.",
         "recovery_policy": image_recovery.POLICY,
         "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
-        "generation_instruction": "Attach the character_references local PNGs as reference images to EVERY grid generation. Preserve each named character's face, age and wardrobe. Generate still images only, never video clips.",
+        "generation_instruction": "Attach each grid's character_references local PNGs as actual reference images to EVERY grid generation. Match people by character_key and name, never by reference-list position. Preserve every applicable character's saved visual_dna_en, hair_design_en, age and wardrobe: keep the exact hairline, shaved-scalp area, hair length, braid/topknot shape, position and direction. Never exchange the designs of siblings or substitute a generic period hairstyle. Include only people specified in that scene; a reference attachment does not add that character to every panel. Generate still images only, never video clips.",
         "grids": manifest_grids,
     }
     destination.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

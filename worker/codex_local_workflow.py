@@ -167,7 +167,27 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     annotations = validate_dialogue(dialogue, scenes)
     structure = copy.deepcopy(snapshot['structure'])
     structure['scenes'] = scenes
+    # Repairs use the same final-scene census as new drafts. Save new recurring
+    # designs now while retaining every previously approved reference image.
+    from worker.content_language import resolve_setting
+    from worker.character_continuity import character_design_anchors
+    source = snapshot.get('row') or {}
+    source_payload = source.get('project_payload') or source.get('progress_payload') or {}
+    setting = resolve_setting({**source, **source_payload, **(source_payload.get('content_setting') or {}),
+                               **(structure.get('content_setting') or {}), 'language': payload['language']})
+    existing = (structure.get('character_anchors') or source_payload.get('character_anchors')
+                or {'main_character': structure.get('main_character') or source_payload.get('main_character'),
+                    'supporting_characters': structure.get('supporting_characters') or source_payload.get('supporting_characters') or []})
+    identity_design = runner.finalize_character_identity('local-' + identity,
+        {**context, 'scenes': scenes, 'dialogue_annotations': annotations, 'existing_character_anchors': existing}, setting)
+    anchors = character_design_anchors(identity_design)
+    structure.update(main_character=anchors['main_character'], supporting_characters=anchors['supporting_characters'],
+                     character_anchors=anchors, scene_cast=anchors['scene_cast'],
+                     character_reference_status='ready' if anchors['character_image_generation']['status'] == 'ready'
+                        else 'descriptions_ready_images_pending')
     package = {'script': context['script'], 'sections': sections, 'structure': structure, 'script_model': ASTRA_MODEL,
+            'main_character': anchors['main_character'], 'supporting_characters': anchors['supporting_characters'],
+            'character_anchors': anchors, 'scene_cast': anchors['scene_cast'],
             'script_quality_report': review['script_quality_report'], 'listener_quality_report': listener,
             'dialogue_annotations': annotations, 'repair_report': report,
             'source_fingerprint': snapshot['fingerprint'],

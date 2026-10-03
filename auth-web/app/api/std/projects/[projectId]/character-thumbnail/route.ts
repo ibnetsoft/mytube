@@ -23,8 +23,9 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!auth.ok) return auth.response
 
     const requestUrl = new URL(req.url)
-    const slot = Number(requestUrl.searchParams.get('slot'))
-    if (!Number.isInteger(slot) || slot < 0 || slot > 20) {
+    const requestedSlot = requestUrl.searchParams.get('slot')
+    const slot = Number(requestedSlot)
+    if (!requestedSlot?.trim() || !Number.isSafeInteger(slot) || slot < 0) {
         return NextResponse.json({ success: false, error: 'Invalid character slot' }, { status: 400 })
     }
 
@@ -36,7 +37,11 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
-    const character = charactersFromPayload(project.project_payload)[slot]
+    const characters = charactersFromPayload(project.project_payload)
+    if (slot >= characters.length) {
+        return NextResponse.json({ success: false, error: 'Invalid character slot' }, { status: 400 })
+    }
+    const character = characters[slot]
     const imageUrl = character?.image_url
     const gcsObject = gcsCharacterObjectFromUrl(imageUrl, requestUrl.origin)
     const headers = {

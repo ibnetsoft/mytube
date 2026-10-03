@@ -20,8 +20,10 @@ from typing import Any, Protocol
 from PIL import Image, ImageOps
 
 try:
+    from .character_continuity import character_continuity_prompt
     from . import manga_layer_package
 except ImportError:
+    from character_continuity import character_continuity_prompt
     import manga_layer_package
 
 
@@ -78,11 +80,11 @@ def _validate_reference(path: Path, manifest_path: Path) -> str:
     return _sha(path)
 
 
-def _references(manifest: dict[str, Any], manifest_path: Path) -> dict[str, dict[str, str]]:
+def _references(manifest: dict[str, Any], manifest_path: Path) -> dict[str, dict[str, Any]]:
     entries = manifest.get("character_references")
     if not isinstance(entries, list):
         raise ValueError("exported character references are required")
-    result: dict[str, dict[str, str]] = {}
+    result: dict[str, dict[str, Any]] = {}
     for entry in entries:
         if not isinstance(entry, dict):
             raise ValueError("invalid character reference entry")
@@ -95,7 +97,10 @@ def _references(manifest: dict[str, Any], manifest_path: Path) -> dict[str, dict
         if entry.get("sha256") and entry["sha256"] != checksum:
             raise ValueError(f"character reference {key} changed after export")
         result[key] = {"name": str(entry.get("name") or key), "path": str(path.resolve()),
-                       "sha256": checksum}
+                       "sha256": checksum,
+                       **{field: entry[field] for field in (
+                           "visual_dna_en", "hair_design_en", "wardrobe_en", "age_group", "continuity_instruction"
+                       ) if field in entry}}
     return result
 
 
@@ -134,7 +139,7 @@ def _preflight(manifest_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]
 
 
 def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
-            reference: dict[str, str] | None) -> str:
+            reference: dict[str, Any] | None) -> str:
     source = {
         "scene_number": spec["scene_number"], "template": spec["template"], "role": role,
         "scene_direction": str(scene.get("scene_text") or "")[:1800],
@@ -175,8 +180,12 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         raise ValueError(f"unsupported required layer role: {role}")
     direction = directions[role]
     if role in IDENTITY_ROLES:
-        source["verified_character"] = {"key": reference["character_key"], "name": reference["name"]}
-        direction += " The attached verified character portrait is the identity reference."
+        source["verified_character"] = {"key": reference["character_key"], "name": reference["name"],
+            **{field: reference[field] for field in (
+                "visual_dna_en", "hair_design_en", "wardrobe_en", "age_group", "continuity_instruction"
+            ) if field in reference}}
+        direction += (" The attached verified character portrait is the identity reference. "
+                      + character_continuity_prompt(reference))
     elif role == "wall_broken" and reference:
         source["source_layer_sha256"] = reference["sha256"]
     elif role in manga_layer_package.MOUTH_ROLES and reference:

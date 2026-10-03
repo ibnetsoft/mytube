@@ -26,7 +26,7 @@ def initialize(manifest):
         for g in manifest['grids']:
             jobs.append({'id':f"grid-{g['grid_number']:03d}", 'kind':'scene', 'layout':'grid',
                 'scene_numbers':g['scene_numbers'], 'prompt':g['prompt'],
-                'references':manifest.get('character_references',[]),
+                'references':g.get('character_references',manifest.get('character_references',[])),
                 'scene_specs':[s for s in manifest.get('scene_specs',[]) if s['scene_number'] in g['scene_numbers']]})
     elif manifest.get('schema') == 'cowork_thumbnail_asset/v1':
         jobs = [{'id':'thumbnail','kind':'thumbnail','layout':'single','scene_numbers':[],
@@ -124,7 +124,7 @@ def transition(state, event, now=None):
         return transition(state,{'action':'review','job_id':j['id'],'decision':'alternative',
             'review':{'reviewer':'original-scene-spec','reason':'grid layout quality failure',
                 'source_fidelity':'original per-scene prompt unchanged','character_age_style_preserved':'original references retained'},
-            'proposals':[{'scene_numbers':[n],'prompt':'One single 16:9 scene image, not a grid.\n'+specs[n]['image_prompt']}
+            'proposals':[{'scene_numbers':[n],'prompt':'One single 16:9 scene image, not a grid.\n'+(specs[n].get('generation_image_prompt') or specs[n]['image_prompt'])}
                          for n in j['scene_numbers']]},now)
     elif action=='review':
         if j['status'] not in ('safety_review','needs_review','quality_failed','quota_wait','unavailable','exhausted'):
