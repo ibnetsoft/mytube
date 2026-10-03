@@ -54,7 +54,7 @@ function harness(overrides = {}) {
         characters: [{ name: '仙太郎', gender: 'male' }, { name: '花代', gender: 'female' }],
         locale: 'ko',
         translations: { ko: { '仙太郎': '센타로', '花代': '하나요', '見知らぬ人': '낯선 사람' }, th: { '仙太郎': 'เซ็นทาโร', '花代': 'ฮานาโย', '見知らぬ人': 'คนแปลกหน้า' } },
-        onSave: async (...values) => saved.push(values),
+        onSave: (...values) => { saved.push(values); },
         onClose: () => closed++,
         ...overrides,
     };
@@ -129,35 +129,39 @@ function harness(overrides = {}) {
     const annotated = { text: '本文', editor_speaker: { name: '仙太郎', gender: 'male', text: '本文' } };
     assert.deepEqual(subtitleSpeaker(annotated, undefined, localizedCast, 'th'), { name: '仙太郎', gender: 'male', label: '仙太郎 (เซ็นทาโร)' });
 
-    const failure = harness({ onSave: async () => { throw new Error('save failed'); } });
+    const failure = harness({ onSave: () => { throw new Error('Cannot enqueue draft'); } });
     tree = failure.render();
     await button(tree, '저장').props.onClick();
     tree = failure.render();
-    assert(tree.some(node => node.props?.role === 'alert'), 'Failed saves show an error');
-    assert.equal(failure.closed, 0, 'Failed saves keep the editor open');
-    assert.equal(button(tree, '저장').props.disabled, false, 'A failed save can be retried');
+    assert(tree.some(node => node.props?.role === 'alert'), 'A synchronous submission failure shows an error');
+    assert.equal(failure.closed, 0, 'Failure to enqueue keeps the editor open');
+    assert.equal(button(tree, '저장').props.disabled, false, 'The user can retry a failed submission');
     button(tree, '취소').props.onClick();
     assert.equal(failure.closed, 1);
 
-    const thaiFailure = harness({ locale: 'th', onSave: async () => { throw new Error('save failed'); } });
+    const thaiFailure = harness({ locale: 'th', onSave: () => { throw new Error('Cannot enqueue draft'); } });
     tree = thaiFailure.render();
     await button(tree, 'บันทึก').props.onClick();
     tree = thaiFailure.render();
     assert.equal(text(tree.find(node => node.props?.role === 'alert')), 'บันทึกไม่สำเร็จ');
     assert.equal(thaiFailure.closed, 0);
 
-    let finishSaving;
-    const pending = harness({ locale: 'th', onSave: () => new Promise(resolve => { finishSaving = resolve; }) });
+    let finishSaving, serverFinished = false;
+    const savingOnServer = new Promise(resolve => { finishSaving = () => { serverFinished = true; resolve(); }; });
+    const events = [];
+    const pending = harness({ locale: 'th', onSave: () => { events.push('enqueued'); return savingOnServer; },
+        onClose: () => { events.push('closed'); } });
     tree = pending.render();
-    const saving = button(tree, 'บันทึก').props.onClick();
+    const submitted = button(tree, 'บันทึก').props.onClick();
+    assert.equal(submitted, undefined, 'Submitting the modal is synchronous');
+    assert.deepEqual(events, ['enqueued', 'closed'], 'Close immediately after enqueueing, in the same click');
+    assert.equal(serverFinished, false, 'The server response is still pending when the modal closes');
     tree = pending.render();
-    assert.equal(button(tree, 'กำลังบันทึก…').props.disabled, true);
-    assert.equal(button(tree, 'ยกเลิก').props.disabled, true);
-    assert(tree.filter(node => node.type === 'fieldset').every(node => node.props.disabled));
+    assert(!button(tree, 'กำลังบันทึก…'), 'The modal does not wait in a saving state');
     finishSaving();
-    await saving;
-    assert.equal(pending.closed, 1);
+    await savingOnServer;
+    assert.deepEqual(events, ['enqueued', 'closed'], 'Server completion does not close another editor');
 
     assert.equal(networkCalls, 0);
-    console.log('PASS: Korean/Thai speaker editor labels, original/localized names, native radio choices, canonical/custom save values, character gender transitions, save locking and failed-save recovery');
+    console.log('PASS: Korean/Thai speaker editor labels, original/localized names, native radio choices, canonical/custom save values, character gender transitions, immediate close and synchronous submission failure recovery');
 })().catch(error => { console.error(error); process.exitCode = 1; });

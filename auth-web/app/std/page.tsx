@@ -2817,19 +2817,24 @@ export default function StdPortalPage() {
         updated.forEach((item, i) => { if (item !== localSubtitles[i]) markVrewSegmentStale(item, i) })
         await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
     }
-    const saveSubtitleSpeaker = async (index: number, name: string, gender: string) => {
+    const saveSubtitleSpeaker = (index: number, name: string, gender: string) => {
         const project = selectedProject?.project
-        const result = confirmSubtitleSpeaker(localSubtitles, index, name, gender, subtitleSpeakers, voiceNameById, [
+        const currentSubtitles = speechSubtitlesRef.current
+        const currentDialogueParts = mapDialogueAnnotations(currentSubtitles, project?.project_payload?.structure?.dialogue_annotations)
+        const currentSpeakers = currentSubtitles.map((subtitle: any, i: number) => subtitle.dialogue_override === false ? null
+            : subtitleSpeaker(subtitle, currentDialogueParts.get(i), speakerCharacters, currentLocale, speakerNameTranslations))
+        const result = confirmSubtitleSpeaker(currentSubtitles, index, name, gender, currentSpeakers, voiceNameById, [
             { voice_map: characterVoices, explicit: true },
             project?.project_payload || {},
             project?.progress_payload || {},
         ])
         const changedVoiceIndexes = result.subtitles.flatMap((item, i) => (
-            String(item.voice_id || selectedVoice) !== String(localSubtitles[i]?.voice_id || selectedVoice) ? [i] : []
+            String(item.voice_id || selectedVoice) !== String(currentSubtitles[i]?.voice_id || selectedVoice) ? [i] : []
         ))
         if (changedVoiceIndexes.length && isPlayingPreview) stopVrewPlayback()
         changedVoiceIndexes.forEach(i => markVrewSegmentStale(result.subtitles[i], i))
-        await persistVrewVoiceSubtitles(result.subtitles, { signal: new AbortController().signal, strict: true })
+        // Queue ownership stays with the page so closing the dialog never cancels the save.
+        void persistVrewVoiceSubtitles(result.subtitles)
         if (result.conflict) setMessage(currentLocale === 'th'
             ? 'ยืนยันผู้พูดแล้ว แต่มีหลายเสียงสำหรับตัวละครนี้ กรุณาเลือกเสียงที่ต้องการ'
             : '화자는 확정했습니다. 같은 화자에 서로 다른 성우가 지정되어 있어 성우를 직접 선택해 주세요.')
@@ -2981,12 +2986,10 @@ export default function StdPortalPage() {
             }
             return true
         } catch (error: any) {
-            if (isCurrentProject()) {
-                if (revision === subtitleSaveRevisionRef.current) {
-                    setIsSubtitleSaved(false)
-                    setSubtitleSaveState('error')
-                }
-                setMessage(currentLocale === 'th' ? 'บันทึกไม่สำเร็จ กรุณากดบันทึกคำบรรยายเพื่อลองอีกครั้ง' : '저장하지 못했습니다. 변경 내용은 화면에 유지됩니다. [자막 저장]을 눌러 다시 시도해 주세요.')
+            if (isCurrentProject() && revision === subtitleSaveRevisionRef.current) {
+                setIsSubtitleSaved(false)
+                setSubtitleSaveState('error')
+                setMessage(currentLocale === 'th' ? 'บันทึกไม่สำเร็จ กรุณากดบันทึกคำบรรยายเพื่อลองอีกครั้ง' : '저장하지 못했습니다. 변경 내용은 화면에 유지됩니다. 상단 디스크 저장 버튼을 눌러 다시 시도해 주세요.')
             }
             if (options?.strict) throw error
             return false
@@ -9361,7 +9364,7 @@ export default function StdPortalPage() {
                                             )}
                                             {subtitleSyncProgress && <span role="status" aria-live="polite" className="min-w-0 max-w-full break-words text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
                                             <span role="status" aria-live="polite" className={`min-w-0 max-w-full break-words text-[10px] ${subtitleSaveState === 'error' ? 'text-red-300' : 'text-gray-400'}`}>
-                                                {subtitleSaveState === 'saving' ? (currentLocale === 'th' ? 'กำลังบันทึก…' : '저장 중…')
+                                                {subtitleSaveState === 'saving' ? (currentLocale === 'th' ? 'กำลังบันทึกเบื้องหลัง…' : '백그라운드 저장 중…')
                                                     : subtitleSaveState === 'error' ? (currentLocale === 'th' ? 'บันทึกไม่สำเร็จ' : '저장 실패 · 다시 시도')
                                                     : subtitleSaveState === 'dirty' ? (currentLocale === 'th' ? 'ยังไม่บันทึก' : '저장할 변경 있음')
                                                     : subtitleSaveState === 'saved' ? (currentLocale === 'th' ? 'บันทึกแล้ว' : '저장 완료') : ''}

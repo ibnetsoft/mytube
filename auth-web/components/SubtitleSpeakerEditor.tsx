@@ -9,14 +9,14 @@ const COPY = {
         title: '화자 확인', note: '편집용 정보입니다. TTS와 영상 자막에는 포함되지 않습니다.',
         name: '화자 이름 (같은 인물은 같은 이름 사용)', gender: '인물 성별',
         unknown: '확인 필요', male: '남성', female: '여성', custom: '이름 직접 입력',
-        placeholder: '원어 이름 입력', cancel: '취소', save: '저장', saving: '저장 중…', error: '저장에 실패했습니다.',
+        placeholder: '원어 이름 입력', cancel: '취소', save: '저장', error: '저장에 실패했습니다.',
         translating: '이름을 한국어로 번역하고 있습니다…', translationError: '이름 번역을 불러오지 못했습니다.', retry: '다시 시도',
     },
     th: {
         title: 'ยืนยันผู้พูด', note: 'ข้อมูลสำหรับผู้ตัดต่อเท่านั้น ไม่อ่านออกเสียงและไม่แสดงในคำบรรยายวิดีโอ',
         name: 'ชื่อผู้พูด (ใช้ชื่อเดียวกันสำหรับตัวละครเดียวกัน)', gender: 'เพศของตัวละคร',
         unknown: 'ต้องยืนยัน', male: 'ชาย', female: 'หญิง', custom: 'กรอกชื่อเอง',
-        placeholder: 'กรอกชื่อในภาษาต้นฉบับ', cancel: 'ยกเลิก', save: 'บันทึก', saving: 'กำลังบันทึก…', error: 'บันทึกไม่สำเร็จ',
+        placeholder: 'กรอกชื่อในภาษาต้นฉบับ', cancel: 'ยกเลิก', save: 'บันทึก', error: 'บันทึกไม่สำเร็จ',
         translating: 'กำลังแปลชื่อเป็นภาษาไทย…', translationError: 'โหลดคำแปลชื่อไม่สำเร็จ', retry: 'ลองอีกครั้ง',
     },
 }
@@ -26,13 +26,13 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
     speaker: SpeakerInfo | null; names: string[]; characters?: any[]; locale?: SupportedLocale;
     translations?: SpeakerNameTranslations; projectId?: string; headers?: Record<string, string>;
     onTranslations?: (locale: 'ko' | 'th', translations: Record<string, string>) => void;
-    onSave: (name: string, gender: string) => Promise<void>; onClose: () => void;
+    onSave: (name: string, gender: string) => void; onClose: () => void;
 }) {
     const copy = locale === 'th' ? COPY.th : COPY.ko
     const [name, setName] = useState(speaker?.name || '')
     const [custom, setCustom] = useState(false)
     const [gender, setGender] = useState(speaker?.gender || '')
-    const [saving, setSaving] = useState(false), [error, setError] = useState(false)
+    const [error, setError] = useState(false)
     const [translated, setTranslated] = useState<SpeakerNameTranslations>({})
     const [translating, setTranslating] = useState(false), [translationError, setTranslationError] = useState(false)
     const [retry, setRetry] = useState(0)
@@ -96,7 +96,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
             className="flex max-h-[85dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-white/20 bg-[#1c2027] p-5 text-gray-100">
             <h2 className="font-bold">{copy.title}</h2>
             <p className="text-xs text-gray-400">{copy.note}</p>
-            <fieldset disabled={saving} className="min-w-0 space-y-2">
+            <fieldset className="min-w-0 space-y-2">
                 <legend className="mb-2 text-sm font-semibold">{copy.name}</legend>
                 <div className="max-h-64 space-y-2 overflow-y-auto">
                     {optionNames.map(value => <label key={value} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${radioStyle(!custom && name === value)}`}>
@@ -116,7 +116,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
             {translating && <p role="status" className="text-xs text-gray-400">{copy.translating}</p>}
             {translationError && <p role="alert" className="text-xs text-amber-200">{copy.translationError} <button type="button"
                 onClick={() => setRetry(value => value + 1)} className="underline">{copy.retry}</button></p>}
-            <fieldset disabled={saving}>
+            <fieldset>
                 <legend className="mb-2 text-sm font-semibold">{copy.gender}</legend>
                 <div className="flex flex-wrap gap-2">
                     {([['', copy.unknown], ['male', copy.male], ['female', copy.female]] as const).map(([value, label]) => <label key={value}
@@ -129,10 +129,10 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
             </fieldset>
             {error && <p role="alert" className="text-red-300">{copy.error}</p>}
             <div className="flex justify-end gap-2">
-                <button type="button" disabled={saving} onClick={onClose} className="rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40">{copy.cancel}</button>
-                <button type="button" disabled={saving || !name.trim()} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold disabled:opacity-40"
-                    onClick={async () => { setSaving(true); setError(false); try { await onSave(name.trim(), gender); onClose() } catch { setError(true) } finally { setSaving(false) } }}>
-                    {saving ? copy.saving : copy.save}
+                <button type="button" onClick={onClose} className="rounded-lg border border-white/10 px-4 py-2 text-sm disabled:opacity-40">{copy.cancel}</button>
+                <button type="button" disabled={!name.trim()} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold disabled:opacity-40"
+                    onClick={() => { setError(false); try { onSave(name.trim(), gender); onClose() } catch { setError(true) } }}>
+                    {copy.save}
                 </button>
             </div>
         </div>
