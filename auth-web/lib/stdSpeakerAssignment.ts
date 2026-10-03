@@ -34,3 +34,37 @@ export function assignSpeakerVoice(subtitles: any[], target: number, voiceId: st
     return subtitles.map((item, index) => index === target || (all && name && speakers[index]?.name === name)
         ? { ...item, voice_id: voiceId, voice_name: voiceName } : item)
 }
+
+type SpeakerVoiceSource = { voice_map?: Record<string, unknown>; voice_id?: unknown; explicit?: boolean }
+
+// Resolve identity across the project, never from a translated label or the row's fallback narrator.
+export function confirmSubtitleSpeaker(subtitles: any[], target: number, name: string, gender: string,
+    speakers: (SpeakerInfo | null)[], voiceNameById: ReadonlyMap<string, string>, voiceSources: SpeakerVoiceSource[] = []) {
+    name = name.trim()
+    if (!name || !subtitles[target]) return { subtitles, voiceId: null, conflict: false }
+    const text = (value: unknown) => typeof value === 'string' ? value.trim() : ''
+    const mappedVoice = (source: SpeakerVoiceSource) => {
+        const id = text(source.voice_map?.[name])
+        // Legacy TTS maps contain the narrator for every character without a selection.
+        return id && (source.explicit || id !== text(source.voice_id)) ? id : ''
+    }
+    const donors = subtitles.filter((row, index) => index !== target && row.dialogue_override !== false
+        && speakers[index]?.name === name && text(row.voice_id)
+        && (!row.editor_speaker || row.editor_speaker.text === row.text))
+    const ids = [...new Set(donors.map(row => text(row.voice_id)))]
+    const explicitVoice = voiceSources.filter(source => source.explicit).map(mappedVoice).find(Boolean)
+    const conflict = !explicitVoice && ids.length > 1
+    const voiceId = explicitVoice || (ids.length === 1 ? ids[0] : '')
+        || (!conflict ? voiceSources.filter(source => !source.explicit).map(mappedVoice).find(Boolean) : '') || null
+    const donor = donors.find(row => text(row.voice_id) === voiceId)
+    const voiceName = voiceId ? voiceNameById.get(voiceId) || text(donor?.voice_name) || voiceId : ''
+    const updated = subtitles.map((row, index) => {
+        if (index !== target && (row.dialogue_override === false || speakers[index]?.name !== name)) return row
+        return {
+            ...row,
+            editor_speaker: { name, gender, text: row.text },
+            ...(voiceId && (index === target || !text(row.voice_id)) ? { voice_id: voiceId, voice_name: voiceName } : {}),
+        }
+    })
+    return { subtitles: updated, voiceId, conflict }
+}

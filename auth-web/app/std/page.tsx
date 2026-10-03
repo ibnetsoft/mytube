@@ -21,7 +21,7 @@ import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
-import { subtitleSpeaker, assignSpeakerVoice, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
+import { subtitleSpeaker, assignSpeakerVoice, confirmSubtitleSpeaker, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
@@ -1067,7 +1067,18 @@ export default function StdPortalPage() {
     const [elStability, setElStability] = useState('0.7')
     const [elStyle, setElStyle] = useState('0.45')
     const [multiVoice, setMultiVoice] = useState(false)
-    const [characterVoices, setCharacterVoices] = useState<Record<string, string>>({})
+    const [characterVoiceState, setCharacterVoiceState] = useState<{ projectId?: string; voices: Record<string, string> }>({ voices: {} })
+    const characterVoiceProjectRef = useRef(selectedProject?.project?.id)
+    characterVoiceProjectRef.current = selectedProject?.project?.id
+    const characterVoices = characterVoiceState.projectId === selectedProject?.project?.id ? characterVoiceState.voices : {}
+    const setCharacterVoices = (update: Record<string, string> | ((previous: Record<string, string>) => Record<string, string>)) => {
+        const projectId = selectedProject?.project?.id
+        setCharacterVoiceState(previous => {
+            if (characterVoiceProjectRef.current !== projectId) return previous
+            const voices = previous.projectId === projectId ? previous.voices : {}
+            return { projectId, voices: typeof update === 'function' ? update(voices) : update }
+        })
+    }
     const [newCharInput, setNewCharInput] = useState('')
     const [customAddedCharacters, setCustomAddedCharacters] = useState<string[]>([])
     const [customScriptText, setCustomScriptText] = useState('')
@@ -2807,12 +2818,21 @@ export default function StdPortalPage() {
         await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
     }
     const saveSubtitleSpeaker = async (index: number, name: string, gender: string) => {
-        // Persist editorial attribution separately; never rewrite text, translations or audio.
-        const updated = localSubtitles.map((item: any, i: number) => {
-            if (i !== index && subtitleSpeakers[i]?.name !== name) return item
-            return { ...item, editor_speaker: { name, gender, text: item.text } }
-        })
-        await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+        const project = selectedProject?.project
+        const result = confirmSubtitleSpeaker(localSubtitles, index, name, gender, subtitleSpeakers, voiceNameById, [
+            { voice_map: characterVoices, explicit: true },
+            project?.project_payload || {},
+            project?.progress_payload || {},
+        ])
+        const changedVoiceIndexes = result.subtitles.flatMap((item, i) => (
+            String(item.voice_id || selectedVoice) !== String(localSubtitles[i]?.voice_id || selectedVoice) ? [i] : []
+        ))
+        if (changedVoiceIndexes.length && isPlayingPreview) stopVrewPlayback()
+        changedVoiceIndexes.forEach(i => markVrewSegmentStale(result.subtitles[i], i))
+        await persistVrewVoiceSubtitles(result.subtitles, { signal: new AbortController().signal, strict: true })
+        if (result.conflict) setMessage(currentLocale === 'th'
+            ? 'ยืนยันผู้พูดแล้ว แต่มีหลายเสียงสำหรับตัวละครนี้ กรุณาเลือกเสียงที่ต้องการ'
+            : '화자는 확정했습니다. 같은 화자에 서로 다른 성우가 지정되어 있어 성우를 직접 선택해 주세요.')
     }
     const applySubtitleVolume = async (index: number, volume: number, allSpeaker = false) => {
         const targetSpeaker = subtitleSpeakers[index]?.name
