@@ -27,8 +27,8 @@ function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/gene
     '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'test@example.com',user:{id:'test'}}})},
     '@/lib/stdGoogleDrive':{driveFileLink:()=>'',ensureStdProjectDriveFolders:()=>{throw Error('Must not use Drive')}},
     '@/lib/stdVoiceStudio':{generateVoiceStudioMp3:async(input)=>{generated++;if(providerHook)await providerHook(input);const frame=Buffer.alloc(417);frame.set([0xff,0xfb,0x90,0x00]);return frame}},
-    '@/lib/voiceStudioCatalog':{isVoiceStudioVoice:()=>true,mergeVoiceStudioSegments:s=>s},
-    '@/lib/stdTtsCompletion':{completedScriptTtsProgress:p=>p},'@/lib/stdLegacySync':{},'@/lib/stdMultiVoice':{},'@/lib/elevenLabsKeys':{}
+    '@/lib/voiceStudioCatalog':{isVoiceStudioVoice:v=>v!=='eleven-test-voice',mergeVoiceStudioSegments:s=>s},
+    '@/lib/stdTtsCompletion':{completedScriptTtsProgress:p=>p},'@/lib/stdLegacySync':{},'@/lib/stdMultiVoice':{},'@/lib/elevenLabsKeys':{getConfiguredElevenLabsKeys:async()=>[]}
 })}
 const body={text:'남았네.',voice_id:'Charon',provider:'voice_studio',mode:'vrew_segment_preview_fast',cache_key:'legacy-key',speed:1,stability:0.35,style:0.45,segment_index:2};
 const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}});
@@ -111,6 +111,7 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  providerHook=async input=>{if(input.text==='Failed subtitle in batch')throw cloudRejection()};
  const failedBatch=await call(route(),rejectionBatch);providerHook=null;
  assert.equal(failedBatch.status,500);assert.match(failedBatch.data.error,/42/,'Batch error must identify the global 1-based subtitle: offset 40 + index 1 + 1');
+ assert.equal(failedBatch.data.provider,'voice_studio');assert.equal(failedBatch.data.model_id,'gemini-2.5-flash-tts');
  const readyPeers=assets.filter(a=>['Successful before rejection','Successful after rejection'].includes(a.metadata?.text));
  assert.equal(readyPeers.length,2,'Successful concurrent clips remain saved when another subtitle fails');
  assert.equal(assets.filter(a=>a.asset_type==='audio').length,rejectionAudioBefore,'A failed prepare batch must not publish a final narration');
@@ -120,8 +121,11 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  assert.deepEqual(recoveredBatch.data.segment_reuse,{reused:2,generated:1});
  const successfulBatchAgain=await call(route(),rejectionBatch);
  assert.equal(successfulBatchAgain.status,200);assert.equal(generated,afterRejectedBatch+1);assert.deepEqual(successfulBatchAgain.data.segment_reuse,{reused:3,generated:0});
+ const mixedFailure=await call(route(),{...rejectionBatch,voice_segments:[{text:'Missing ElevenLabs key in a Google-led batch',voice_id:'eleven-test-voice'}]});
+ assert.equal(mixedFailure.status,500);assert.match(mixedFailure.data.error,/ElevenLabs API key/);
+ assert.equal(mixedFailure.data.provider,'elevenlabs','Early failures without provider metadata inherit the failed subtitle provider, not the overall Google batch');
+ assert.equal(mixedFailure.data.model_id,'eleven_multilingual_v2');
  console.log('PASS: definite Google rejection releases only its owned claim; timeout/failed storage retain duplicate-spend protection; batch errors identify the global subtitle and preserve successful clips');
  console.log('PASS: full narration reuses preview clips; unchanged repeat makes zero provider calls; text/voice change generates only one; unreadable cache fails before spending');
  console.log('PASS: cache bypass ignored; uncertain failure cannot spend credits again; persistent reuse across reload, Drive-only legacy regeneration, Korean/voice invalidation, save failure, no selection auto-generation');
 })().catch(e=>{console.error(e);process.exit(1)});
-

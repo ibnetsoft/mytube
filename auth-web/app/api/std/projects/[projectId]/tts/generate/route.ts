@@ -237,6 +237,8 @@ async function recordStdTtsFailure(input: {
     project: any
     stage: string
     error: any
+    provider: string
+    modelId: string
     textLength?: number
     chunkCount?: number
     keyInspections?: any[]
@@ -247,8 +249,8 @@ async function recordStdTtsFailure(input: {
         await supabaseAdmin.from('ai_logs').insert({
             user_id: userId,
             task_type: 'std_tts_generate',
-            model_id: DEFAULT_ELEVENLABS_MODEL_ID,
-            provider: 'elevenlabs',
+            model_id: input.modelId,
+            provider: input.provider,
             status: 'failed',
             prompt_summary: `project=${input.project?.id || '-'} text=${input.textLength || 0} chunks=${input.chunkCount || 0} stage=${input.stage}`,
             error_msg: String(input.error?.message || input.error || 'TTS generation failed').slice(0, 500),
@@ -897,7 +899,12 @@ async function runTts(body: any, auth: any, project: any) {
                     if (cacheOnly && result.status === 404 && payload.code === 'audio_not_cached') return null
                     if (!result.ok || !payload.success || !payload.asset) {
                         const subtitleNumber = index + (prepareOnly ? Math.max(0, Number(body.segment_offset) || 0) : 0) + 1
-                        throw new Error(`자막 ${subtitleNumber}번: ${payload.error || '저장된 구간 음성을 준비하지 못했습니다.'}`)
+                        const failure = new Error(`자막 ${subtitleNumber}번: ${payload.error || '저장된 구간 음성을 준비하지 못했습니다.'}`)
+                        Object.assign(failure, {
+                            ttsProvider: payload.provider || (isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs'),
+                            ttsModelId: payload.model_id,
+                        })
+                        throw failure
                     }
                     return { asset: payload.asset, cached: Boolean(payload.cached) }
                 },
@@ -965,7 +972,7 @@ async function runTts(body: any, auth: any, project: any) {
                 )
             }
 
-            stage = 'generate_elevenlabs'
+            stage = needsElevenLabs ? 'generate_elevenlabs' : 'generate_voice_studio'
             const generationResult = await generateElevenLabsMp3({
                 apiKeys: keySelection.usableKeys.map((apiKey, index) => ({
                     apiKey,
@@ -1087,8 +1094,14 @@ async function runTts(body: any, auth: any, project: any) {
         if (error?.name === 'VoiceStudioCloudError' && error.noAudioProduced === true) {
             await releaseOwnedTtsClaim(ownedSegmentClaim)
         }
+        const failedProvider = String(error?.ttsProvider
+            || (error?.name === 'VoiceStudioCloudError' ? 'voice_studio' : body?.provider || 'elevenlabs'))
+        const failedModel = String(error?.ttsModelId
+            || (failedProvider === 'voice_studio' ? 'gemini-2.5-flash-tts' : body?.model_id || DEFAULT_ELEVENLABS_MODEL_ID))
         console.error('[STD TTS] generation failed', {
             projectId: project.id,
+            provider: failedProvider,
+            modelId: failedModel,
             stage,
             textLength: ttsDebug.textLength,
             chunkCount: ttsDebug.chunkCount,
@@ -1100,6 +1113,8 @@ async function runTts(body: any, auth: any, project: any) {
             project,
             stage,
             error,
+            provider: failedProvider,
+            modelId: failedModel,
             textLength: ttsDebug.textLength,
             chunkCount: ttsDebug.chunkCount,
             keyInspections: ttsDebug.keyInspections,
@@ -1108,6 +1123,8 @@ async function runTts(body: any, auth: any, project: any) {
             {
                 success: false,
                 error: error?.message || 'TTS generation failed',
+                provider: failedProvider,
+                model_id: failedModel,
                 stage,
                 text_length: ttsDebug.textLength,
                 chunk_count: ttsDebug.chunkCount,

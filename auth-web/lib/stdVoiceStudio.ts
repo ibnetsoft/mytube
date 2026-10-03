@@ -9,7 +9,59 @@ import { voiceStudioName } from './voiceStudioCatalog'
 const pending = new Map<string, Promise<Buffer>>()
 const SYNTHESIS_URL = 'https://texttospeech.googleapis.com/v1/text:synthesize'
 const REQUEST_BUDGET_MS = 180000
+const REQUEST_SPACING_MS = 2000
+const MAX_RETRY_DELAY_MS = 120000
+// Pace starts within this server process; synthesis itself can still overlap.
+// Other server instances may share the same Google project quota.
+const dispatchStates = new Map<string, { nextStartAt: number; cooldownUntil: number }>()
 const GOOGLE_STATUSES = new Set(['INVALID_ARGUMENT', 'FAILED_PRECONDITION', 'OUT_OF_RANGE', 'UNAUTHENTICATED', 'PERMISSION_DENIED', 'NOT_FOUND', 'ABORTED', 'ALREADY_EXISTS', 'RESOURCE_EXHAUSTED', 'CANCELLED', 'DATA_LOSS', 'UNKNOWN', 'INTERNAL', 'UNIMPLEMENTED', 'UNAVAILABLE', 'DEADLINE_EXCEEDED'])
+
+function dispatchState(scope: string) {
+    let state = dispatchStates.get(scope)
+    if (!state) {
+        state = { nextStartAt: 0, cooldownUntil: 0 }
+        dispatchStates.set(scope, state)
+    }
+    return state
+}
+
+async function waitForDispatch(scope: string, deadline: number, notBefore: number): Promise<boolean> {
+    const state = dispatchState(scope)
+    while (true) {
+        const now = Date.now()
+        const startAt = Math.max(state.nextStartAt, state.cooldownUntil, notBefore, now)
+        if (startAt >= deadline) return false
+        if (startAt > now) {
+            await new Promise(resolve => setTimeout(resolve, startAt - now))
+            // A different in-flight request may have extended the cooldown.
+            continue
+        }
+        // No await between checking and reserving a start, so concurrent callers
+        // cannot take the same slot. Each waiter keeps its own deadline.
+        state.nextStartAt = now + REQUEST_SPACING_MS
+        return true
+    }
+}
+
+function providerRetryDelay(error: any): number | undefined {
+    const details = error?.response?.data?.error?.details
+    const retryInfo = Array.isArray(details)
+        ? details.find((item: any) => item?.['@type'] === 'type.googleapis.com/google.rpc.RetryInfo') : undefined
+    const duration = retryInfo?.retryDelay
+    let infoMs = typeof duration === 'string' && /^\d+(?:\.\d+)?s$/.test(duration)
+        ? Number(duration.slice(0, -1)) * 1000 : NaN
+    if (duration && typeof duration === 'object') {
+        infoMs = (Number(duration.seconds || 0) + Number(duration.nanos || 0) / 1e9) * 1000
+    }
+    const headers = error?.response?.headers
+    const header = typeof headers?.get === 'function' ? headers.get('retry-after')
+        : headers?.['retry-after'] ?? headers?.['Retry-After']
+    const headerValue = typeof header === 'string' || typeof header === 'number' ? String(header).trim() : ''
+    const headerMs = /^\d+(?:\.\d+)?$/.test(headerValue) ? Number(headerValue) * 1000
+        : /^[A-Za-z]{3},\s/.test(headerValue) ? Date.parse(headerValue) - Date.now() : NaN
+    const delays = [infoMs, headerMs].filter(value => Number.isFinite(value) && value >= 0)
+    return delays.length ? Math.min(MAX_RETRY_DELAY_MS, Math.max(...delays)) : undefined
+}
 
 export class VoiceStudioCloudError extends Error {
     readonly name = 'VoiceStudioCloudError'
@@ -104,11 +156,16 @@ export async function generateVoiceStudioMp3(input: {text: string; voiceId: stri
         try {const cached = await readFile(path); if (cached.length > 256) return cached} catch {}
         const deadline = Date.now() + REQUEST_BUDGET_MS
         const client = await voiceStudioAuth(project)
+        const scope = JSON.stringify([project, body.voice.modelName])
         let result: { data: { audioContent: string } } | undefined
         let lastFailure: VoiceStudioCloudError | undefined
+        let notBefore = 0
         for (let attempt = 0; attempt < 3; attempt++) {
+            if (!await waitForDispatch(scope, deadline, notBefore)) {
+                throw lastFailure || new VoiceStudioCloudError('Google 음성 요청 대기 시간이 초과됐습니다. 잠시 후 다시 시도해 주세요.', true)
+            }
             const remaining = deadline - Date.now()
-            if (remaining <= 0) throw lastFailure || new VoiceStudioCloudError('Google 음성 요청 시간이 초과됐습니다. 잠시 후 다시 시도해 주세요.', false)
+            if (remaining <= 0) throw lastFailure || new VoiceStudioCloudError('Google 음성 요청 시간이 초과됐습니다. 잠시 후 다시 시도해 주세요.', true)
             try {
                 result = await client.request<{audioContent: string}>({
                     url: SYNTHESIS_URL, method:'POST',
@@ -118,9 +175,16 @@ export async function generateVoiceStudioMp3(input: {text: string; voiceId: stri
             } catch (error) {
                 const failure = cloudFailure(error)
                 lastFailure = failure.error
-                const delay = 1000 * (2 ** attempt)
+                const rateLimited = failure.retryable && failure.error.httpStatus === 429
+                const delay = rateLimited
+                    ? providerRetryDelay(error) ?? Math.min(MAX_RETRY_DELAY_MS, 30000 * (2 ** attempt))
+                    : 1000 * (2 ** attempt)
+                if (rateLimited) {
+                    const state = dispatchState(scope)
+                    state.cooldownUntil = Math.max(state.cooldownUntil, Date.now() + delay)
+                }
                 if (!failure.retryable || attempt === 2 || deadline - Date.now() <= delay) throw lastFailure
-                await new Promise(resolve => setTimeout(resolve, delay))
+                notBefore = Date.now() + delay
             }
         }
         if (!result) throw lastFailure || new VoiceStudioCloudError('Google 음성 응답을 확인하지 못했습니다.', false)
