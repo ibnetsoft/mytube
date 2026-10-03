@@ -2597,9 +2597,8 @@ export default function StdPortalPage() {
             ? selectedSceneSet
             : new Set([groupSceneNumber])
         const changedIndexes: number[] = []
-        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
         const updatedSubtitles = localSubtitles.map((item: any, index: number) => {
-            if (!targetSceneNumbers.has(Number(item?.scene_number))) return item
+            if (!targetSceneNumbers.has(Number(item?.scene_number)) || !isSubtitleNarration(item, index)) return item
             changedIndexes.push(index)
             return {
                 ...item,
@@ -2608,6 +2607,11 @@ export default function StdPortalPage() {
                 voice_name: voiceNameById.get(nextVoiceId) || nextVoiceId,
             }
         })
+        if (changedIndexes.length === 0) {
+            setMessage('선택한 씬에 변경할 나레이션 자막이 없습니다.')
+            return
+        }
+        if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
         if (currentNav === 'subtitle_vrew') {
             changedIndexes.forEach((index) => {
                 markVrewSegmentStale(updatedSubtitles[index], index)
@@ -2887,6 +2891,11 @@ export default function StdPortalPage() {
             ? [index] : []
     )))
 
+    // Use the same classification as the subtitle rows; unresolved candidates are never narration targets.
+    const isSubtitleNarration = (subtitle: any, index: number) => (
+        !isSubtitleDialogue(subtitle, index) && !pendingDialogueCandidateIndexes.has(index)
+    )
+
     const hasDistinctDialogueVoiceAssignment = () => {
         const narrationVoiceIds = new Set(
             localSubtitles
@@ -2991,7 +3000,7 @@ export default function StdPortalPage() {
             const isDialogue = isSubtitleDialogue(item, index)
             const shouldUpdate = target === 'all'
                 || (target === 'dialogue' && isDialogue)
-                || (target === 'narration' && !isDialogue)
+                || (target === 'narration' && isSubtitleNarration(item, index))
             if (!shouldUpdate) return item
             const updated = {
                 ...item,
@@ -3078,7 +3087,7 @@ export default function StdPortalPage() {
         tone: 'default' | 'dialogue' = 'default',
         _openDirection: 'left' | 'right' = 'right',
         disabled = false,
-        options: { buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
+        options: { description?: string; buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
     ) => {
         const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
         const isOpen = !disabled && openVoicePickerKey === pickerKey
@@ -3127,7 +3136,7 @@ export default function StdPortalPage() {
                     initialTab={options.elevenLabsOnly || tone === 'dialogue' ? 'elevenlabs' : 'google'}
                     title={title.replace(/^ElevenLabs · /, '')} headers={authedJsonHeaders}
                     speakerContext={options.speakerContext}
-                    description={options.speakerContext?.name ? (options.speakerContext.thai ? 'เลือกเสียงให้ตัวละคร หรือยกเลิกการเลือกใช้กับทุกประโยคเพื่อเปลี่ยนเฉพาะบรรทัดนี้' : '인물별 성우를 선택합니다. 전체 적용을 해제하면 이 자막만 변경합니다.') : pickerKey.startsWith('block-') ? '이 자막 한 줄에만 적용합니다. 다른 자막의 성우는 유지됩니다.' : '선택한 대상의 성우를 변경합니다.'}
+                    description={options.description || (options.speakerContext?.name ? (options.speakerContext.thai ? 'เลือกเสียงให้ตัวละคร หรือยกเลิกการเลือกใช้กับทุกประโยคเพื่อเปลี่ยนเฉพาะบรรทัดนี้' : '인물별 성우를 선택합니다. 전체 적용을 해제하면 이 자막만 변경합니다.') : pickerKey.startsWith('block-') ? '이 자막 한 줄에만 적용합니다. 다른 자막의 성우는 유지됩니다.' : '선택한 대상의 성우를 변경합니다.')}
                     onApply={(id, _direction, allSpeaker) => onSelect(id, allSpeaker)} onClose={closePicker} />}
 
             </div>
@@ -8901,16 +8910,16 @@ export default function StdPortalPage() {
                             video_url: selectedProject?.scenes?.[0]?.video_url || null,
                             is_hook_zone: true,
                         }
-                        const narrationSubtitleCount = localSubtitles.filter((sub, index) => !isSubtitleDialogue(sub, index)).length
+                        const narrationSubtitleCount = localSubtitles.filter(isSubtitleNarration).length
                         const dialogueSubtitleCount = localSubtitles.filter((sub, index) => isSubtitleDialogue(sub, index)).length
                         const canFinalizeSubtitlesAndTts = localSubtitles.length > 0 && hasDistinctDialogueVoiceAssignment()
                         const selectedSubtitleSceneGroup = subtitleSceneGroups.find(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
-                        const selectedSubtitleSceneVoiceId = String(
-                            selectedSubtitleSceneGroup?.subtitles.find((subtitle: any) => subtitle?.voice_id)?.voice_id
-                            || selectedVoice
-                        )
+                        const selectedNarrationSubtitle = localSubtitles.find((subtitle, index) => (
+                            selectedSubtitleSceneNumbers.includes(Number(subtitle.scene_number)) && isSubtitleNarration(subtitle, index)
+                        ))
+                        const selectedSubtitleSceneVoiceId = String(selectedNarrationSubtitle?.voice_id || selectedVoice)
                         const selectedSubtitleBlockVoiceId = String(
                             localSubtitles[selectedSubtitleBlockIndexes[0]]?.voice_id
                             || selectedVoice
@@ -9348,10 +9357,11 @@ export default function StdPortalPage() {
                                                             void setSubtitleGroupVoice(selectedSubtitleSceneGroup, nextVoiceId)
                                                         }
                                                     },
-                                                    `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 전체 성우`,
+                                                    `선택한 씬 ${selectedSubtitleSceneNumbers.length}개 나레이션 성우`,
                                                     'default',
                                                     'left',
-                                                    !hasSelectedSubtitleSections
+                                                    !hasSelectedSubtitleSections,
+                                                    { description: '선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다.' }
                                                 )}
                                                 {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
                                                 <div className="ml-0.5">
@@ -9492,6 +9502,8 @@ export default function StdPortalPage() {
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
                                                 const groupVoiceId = String(group.subtitles.find((item: any) => item.voice_id)?.voice_id || selectedVoice)
+                                                const groupNarrationSubtitle = group.subtitles.find((item: any) => isSubtitleNarration(item, item.subtitleIndex))
+                                                const groupNarrationVoiceId = String(groupNarrationSubtitle?.voice_id || selectedVoice)
                                                 const groupVoiceNames = subtitleGroupVoiceNamesInOrder(group.subtitles)
                                                 const hasSingleGroupVoice = groupVoiceNames.length === 1
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
@@ -9645,9 +9657,9 @@ export default function StdPortalPage() {
                                                                             microphone
                                                                             buttonText={ui("내레이션")}
                                                                             label={`씬 ${sNum} Google 내레이션 성우 선택`}
-                                                                            description="이 섹션에 적용합니다. 여러 씬을 선택했다면 선택한 씬에 함께 적용합니다."
-                                                                            value={groupVoiceId}
-                                                                            direction={group.subtitles.find((item: any) => isVoiceStudioVoice(item.voice_id))?.voice_direction || ''}
+                                                                            description="선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다."
+                                                                            value={groupNarrationVoiceId}
+                                                                            direction={groupNarrationSubtitle?.voice_direction || ''}
                                                                             headers={authedJsonHeaders}
                                                                             onChange={(id, direction) => void setSubtitleGroupVoice(group, id, direction)}
                                                                         />
@@ -9849,13 +9861,15 @@ export default function StdPortalPage() {
                                                             onClick={(event) => event.stopPropagation()}
                                                         >
                                                             <label className="block text-[9px] text-gray-500 mb-1 whitespace-nowrap">
-                                                                {isVrewSubtitleMode ? '씬 전체 성우' : '성우'}
+                                                                {isVrewSubtitleMode ? '씬 나레이션 성우' : '나레이션 성우'}
                                                             </label>
                                                             {renderVoicePicker(
                                                                 `scene-${sNum}`,
-                                                                groupVoiceId,
+                                                                groupNarrationVoiceId,
                                                                 (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
-                                                                `씬 ${sNum} 전체 성우`
+                                                                `씬 ${sNum} 나레이션 성우`,
+                                                                'default', 'right', false,
+                                                                { description: '선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다.' }
                                                             )}
                                                         </div>
                                                     </div>
