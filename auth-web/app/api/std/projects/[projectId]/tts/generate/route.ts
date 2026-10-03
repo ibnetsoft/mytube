@@ -518,39 +518,59 @@ function topicIdFromProjectParam(projectId: string): number | null {
     return null
 }
 
+function isRetryableProjectRead(result: any): boolean {
+    if (!result?.error) return false
+    const status = Number(result.status || result.error.status || 0)
+    if ([408, 429, 500, 502, 503, 504].includes(status)) return true
+    const detail = `${result.error.message || ''} ${result.error.details || ''} ${result.error.code || ''}`
+    return /fetch failed|failed to fetch|network error|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|connection (?:terminated|closed)/i.test(detail)
+}
+
+async function readProjectWithRetry(read: () => PromiseLike<any>) {
+    for (let attempt = 0; ; attempt++) {
+        let result: any
+        try {
+            result = await read()
+        } catch (error: any) {
+            result = { data: null, error: { message: String(error?.message || error), code: error?.code } }
+        }
+        if (!isRetryableProjectRead(result) || attempt >= 2) return result
+        // Only repeat a read, before any provider call or project creation can run.
+        await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 250 : 750))
+    }
+}
+
 async function loadStdProject(projectId: string, employeeEmail: string) {
     const topicQueueId = topicIdFromProjectParam(projectId)
 
-    // 1. Try finding in std_projects for this employee
-    let query = supabaseAdmin.from('std_projects').select('*')
-    if (UUID_RE.test(projectId)) {
-        query = query.eq('id', projectId)
-    } else if (topicQueueId != null && Number.isFinite(topicQueueId)) {
-        query = query.eq('topic_queue_id', topicQueueId)
-    } else {
+    const projectQuery = () => {
+        const query = supabaseAdmin.from('std_projects').select('*')
+        return UUID_RE.test(projectId)
+            ? query.eq('id', projectId)
+            : query.eq('topic_queue_id', topicQueueId)
+    }
+    if (!UUID_RE.test(projectId) && (topicQueueId == null || !Number.isFinite(topicQueueId))) {
         return { data: null, error: null }
     }
 
-    const userRes = await query.eq('employee_email', employeeEmail).maybeSingle()
-    if (userRes.data) return userRes
+    // A failed lookup is not evidence that a project is missing. Never continue
+    // to a broader lookup or provisioning after a database error.
+    const userRes = await readProjectWithRetry(() => projectQuery().eq('employee_email', employeeEmail).maybeSingle())
+    if (userRes.error || userRes.data) return userRes
 
-    // 2. Try finding in std_projects for any employee (e.g. admin testing)
-    let anyQuery = supabaseAdmin.from('std_projects').select('*')
-    if (UUID_RE.test(projectId)) {
-        anyQuery = anyQuery.eq('id', projectId)
-    } else if (topicQueueId != null && Number.isFinite(topicQueueId)) {
-        anyQuery = anyQuery.eq('topic_queue_id', topicQueueId)
-    }
-    const anyRes = await anyQuery.maybeSingle()
-    if (anyRes.data) return anyRes
+    // Preserve the existing lookup for projects opened through admin testing.
+    const anyRes = await readProjectWithRetry(() => projectQuery().maybeSingle())
+    if (anyRes.error || anyRes.data) return anyRes
 
-    // 3. Auto-provision project from topics_queue if not yet in std_projects table
+    // Auto-provision a legacy numeric topic only after successful empty reads.
     if (topicQueueId != null && Number.isFinite(topicQueueId)) {
-        const { data: topicRow } = await supabaseAdmin
+        const topicRes = await readProjectWithRetry(() => supabaseAdmin
             .from('topics_queue')
             .select('*')
             .eq('id', topicQueueId)
-            .maybeSingle()
+            .maybeSingle())
+        if (topicRes.error) return topicRes
+        const topicRow = topicRes.data
 
         if (topicRow) {
             const title = topicRow.generated_title || topicRow.topic || '새로운 영상 프로젝트'
@@ -591,6 +611,7 @@ async function loadStdProject(projectId: string, employeeEmail: string) {
                 .insert(insertPayload)
                 .select()
                 .single()
+            if (createErr) return { data: null, error: createErr }
 
             if (createdProject) {
                 await supabaseAdmin
@@ -616,9 +637,22 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     const body = await req.json().catch(() => ({}))
 
-    const { data: project, error: projectError } = await loadStdProject(params.projectId, auth.requester.email)
+    const projectResult = await loadStdProject(params.projectId, auth.requester.email)
+    const { data: project, error: projectError } = projectResult
 
-    if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
+    if (projectError) {
+        console.error('[STD TTS] project lookup failed', {
+            projectId: params.projectId,
+            code: projectError.code,
+            message: projectError.message,
+        })
+        return NextResponse.json({
+            success: false,
+            code: 'project_lookup_failed',
+            stage: 'load_project',
+            error: `프로젝트 정보를 불러오지 못했습니다. 다시 시도해 주세요. (${projectError.message})`,
+        }, { status: isRetryableProjectRead(projectResult) ? 503 : 500 })
+    }
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
 
     return runTts(body, auth, project)
