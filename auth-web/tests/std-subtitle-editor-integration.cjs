@@ -92,7 +92,7 @@ const saveButton = find(ast, node => ts.isJsxElement(node) && node.openingElemen
 assert(saveButton, 'A standalone subtitle save control exists');
 let saves = 0;
 for (const state of ['idle', 'dirty', 'error', 'saved']) {
-    const button = evaluate(saveButton, { require: () => jsx, currentLocale: 'ko', subtitleSaveState: state,
+    const button = evaluate(saveButton, { require: () => jsx, Save: () => null, RefreshCw: () => null, currentLocale: 'ko', subtitleSaveState: state,
         localSubtitles: saved, canFinalizeSubtitlesAndTts: false, handleSaveSubtitles: async () => { saves++; } });
     assert.equal(button.type, 'button');
     assert.equal(button.props.type, 'button');

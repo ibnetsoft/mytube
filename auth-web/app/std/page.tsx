@@ -9195,8 +9195,8 @@ export default function StdPortalPage() {
                             <div className="std-subtitle-body grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_430px] xl:grid-cols-[minmax(0,1fr)_450px] gap-3 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
                                 {/* 좌측 자막 레이어 목록 (Col 7~8) */}
                                 <div className="order-2 bg-[#181d26] border border-white/10 rounded-lg sm:rounded-xl flex flex-col overflow-hidden shadow min-w-0 min-h-[360px] lg:order-none lg:min-h-0">
-                                    <div className="flex min-h-[46px] sm:min-h-[50px] items-center justify-between gap-1.5 sm:gap-2 p-2 sm:p-2.5 border-b border-white/5 bg-[#14181f] overflow-x-auto subtitle-navy-scrollbar flex-nowrap">
-                                        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2 overflow-visible shrink-0 flex-nowrap">
+                                    <div className="flex min-w-0 shrink-0 flex-wrap min-h-[46px] sm:min-h-[50px] items-center justify-between gap-1.5 sm:gap-2 p-2 sm:p-2.5 border-b border-white/5 bg-[#14181f]">
+                                        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 sm:gap-2">
                                             <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-300 cursor-pointer whitespace-nowrap shrink-0">
                                                 <input
                                                     type="checkbox"
@@ -9222,7 +9222,7 @@ export default function StdPortalPage() {
                                                     <span>{t('sub_all')}</span>
                                                 )}
                                             </label>
-                                            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 flex-nowrap">
+                                            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 sm:gap-1.5">
                                                 {renderVoicePicker(
                                                     'selected-scenes-bulk',
                                                     selectedSubtitleSceneVoiceId,
@@ -9262,7 +9262,6 @@ export default function StdPortalPage() {
                                                         </button>
                                                     </>
                                                 )}
-                                                <button onClick={() => alert('새 자막 레이어를 추가합니다.')} className="h-7 text-[11px] font-bold px-2.5 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white rounded shrink-0">{t('sub_add_action')}</button>
                                                 <button
                                                     type="button"
                                                     onClick={() => alert('선택한 자막 레이어를 삭제합니다.')}
@@ -9288,7 +9287,7 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {/* 자막 동기화 및 저장 버튼 */}
-                                        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto flex-nowrap">
+                                        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1 sm:gap-1.5 ml-auto">
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -9324,7 +9323,7 @@ export default function StdPortalPage() {
                                                 {ui("대본동기화")}
                                             </button>
                                             {subtitleReviewLocale && subtitleTranslationError && (
-                                                <span className="max-w-52 truncate text-[10px] text-red-300" title={subtitleTranslationError}>
+                                                <span className="min-w-0 max-w-full break-words text-[10px] text-red-300" title={subtitleTranslationError}>
                                                     {subtitleReviewCopy?.retry}
                                                 </span>
                                             )}
@@ -9340,8 +9339,8 @@ export default function StdPortalPage() {
                                             {isSubtitleSyncing && (
                                                 <button type="button" className="px-2 py-1 text-[11px] text-red-300" onClick={() => subtitleSyncControllerRef.current?.abort(new Error('사용자가 보정을 취소했습니다.'))}>{ui("취소")}</button>
                                             )}
-                                            {subtitleSyncProgress && <span role="status" aria-live="polite" className="max-w-full text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
-                                            <span role="status" aria-live="polite" className={`text-[10px] whitespace-nowrap ${subtitleSaveState === 'error' ? 'text-red-300' : 'text-gray-400'}`}>
+                                            {subtitleSyncProgress && <span role="status" aria-live="polite" className="min-w-0 max-w-full break-words text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
+                                            <span role="status" aria-live="polite" className={`min-w-0 max-w-full break-words text-[10px] ${subtitleSaveState === 'error' ? 'text-red-300' : 'text-gray-400'}`}>
                                                 {subtitleSaveState === 'saving' ? (currentLocale === 'th' ? 'กำลังบันทึก…' : '저장 중…')
                                                     : subtitleSaveState === 'error' ? (currentLocale === 'th' ? 'บันทึกไม่สำเร็จ' : '저장 실패 · 다시 시도')
                                                     : subtitleSaveState === 'dirty' ? (currentLocale === 'th' ? 'ยังไม่บันทึก' : '저장할 변경 있음')
@@ -9350,26 +9349,28 @@ export default function StdPortalPage() {
                                             <button type="button" onClick={() => void handleSaveSubtitles().catch(() => {})}
                                                 disabled={subtitleSaveState === 'saving' || !localSubtitles.length}
                                                 title={currentLocale === 'th' ? 'บันทึกการแก้ไขโดยไม่สร้างเสียง TTS' : 'TTS를 생성하지 않고 수정 내용을 저장합니다'}
-                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
-                                                {currentLocale === 'th' ? 'บันทึกคำบรรยาย' : '자막 저장'}
+                                                aria-label={currentLocale === 'th' ? 'บันทึกคำบรรยาย' : '자막 저장'}
+                                                className="inline-flex h-7 w-8 shrink-0 items-center justify-center rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
+                                                {subtitleSaveState === 'saving' ? <RefreshCw size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => void handleFinalizeSubtitlesAndTts()}
                                                 disabled={generatingTts || !canFinalizeSubtitlesAndTts}
-                                                className={`text-[10px] font-bold px-3 py-1.5 rounded-md text-white transition-all duration-300 ${
+                                                aria-label={generatingTts ? t('sub_final_saving') : (currentLocale === 'th' ? 'บันทึกและสร้างเสียง TTS' : '저장 및 TTS 생성')}
+                                                className={`inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap text-[10px] font-bold px-2 rounded-md text-white transition-colors duration-300 ${
                                                     generatingTts || !canFinalizeSubtitlesAndTts
                                                         ? 'bg-gray-700 cursor-not-allowed opacity-60'
                                                         : highlightSaveTts
-                                                        ? 'bg-gradient-to-r from-violet-600 via-pink-500 via-amber-400 to-violet-600 animate-gradient-shift ring-2 ring-pink-400/90 shadow-[0_0_16px_rgba(236,72,153,0.9)] scale-105 hover:scale-110 active:scale-95'
+                                                        ? 'bg-gradient-to-r from-violet-600 via-pink-500 via-amber-400 to-violet-600 animate-gradient-shift ring-2 ring-pink-400/90'
                                                         : 'bg-violet-600 hover:bg-violet-500'
                                                 }`}
                                                 title={canFinalizeSubtitlesAndTts
                                                     ? (highlightSaveTts ? '음성 생성이 필요합니다! 클릭하여 최종 자막 및 TTS를 생성하세요' : '최종 자막 저장 및 TTS 생성')
                                                     : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
                                             >
-                                                {highlightSaveTts && !generatingTts && <span className="mr-1 inline-block animate-bounce">✨</span>}
-                                                {generatingTts ? t('sub_final_saving') : ui('저장+TTS')}
+                                                {generatingTts ? <RefreshCw size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
+                                                <span>+TTS</span>
                                             </button>
                                         </div>
                                     </div>
