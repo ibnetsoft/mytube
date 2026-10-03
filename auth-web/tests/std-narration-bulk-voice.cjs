@@ -16,6 +16,19 @@ function extract(start, end, name, context = {}) {
     return new Function(...Object.keys(context), compiled)(...Object.values(context))
 }
 
+function loadLibrary(file) {
+    const filename = path.resolve(__dirname, '../lib', file)
+    const exports = {}
+    const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText
+    new Function('exports', 'require', compiled)(exports, dependency =>
+        loadLibrary(path.relative(path.resolve(__dirname, '../lib'), path.resolve(path.dirname(filename), dependency + '.ts'))))
+    return exports
+}
+const { createSubtitleSaveQueue } = loadLibrary('stdSubtitlePersistence.ts')
+const { restoreSavedSubtitleSnapshot } = loadLibrary('stdSubtitleSnapshot.ts')
+
 const scanQuotes = extract('const DIALOGUE_QUOTE_OPEN_TO_CLOSE:', 'export default function StdPortalPage', 'scanDialogueQuoteState')
 const fixture = () => [
     { scene_number: 1, text: '첫 번째 설명입니다.' },
@@ -59,7 +72,40 @@ function harness(selectedScenes, rows = fixture()) {
         pendingDialogueCandidateIndexes: new Set(rows.flatMap((row, index) => row.pending ? [index] : [])),
     })
     const initialProject = { project: { id: 'project-id', project_payload: { subtitles: rows }, progress_payload: {} } }
-    const result = { local: rows, project: initialProject, remembered: [], requests: [], stale: [], savedFlags: [], stops: 0, messages: [] }
+    const result = { local: rows, project: initialProject, remembered: [], requests: [], stale: [], savedFlags: [], saveStates: [], stops: 0, messages: [] }
+    const setters = {
+        setLocalSubtitles: next => { result.local = next },
+        setIsSubtitleSaved: value => result.savedFlags.push(value),
+        setSubtitleSaveState: value => result.saveStates.push(value),
+        setSelectedProject: update => { result.project = update(result.project) },
+        rememberProjectState: next => result.remembered.push(next),
+        setMessage: value => result.messages.push(value),
+    }
+    const refs = {
+        speechSubtitlesRef: { current: rows },
+        subtitleSaveRevisionRef: { current: 0 },
+        subtitleTextSaveTimerRef: { current: null },
+        subtitleStyleSaveTimerRef: { current: null },
+        subtitleActiveProjectRef: { current: 'project-id' },
+    }
+    const updateSubtitleDraft = extract('    const updateSubtitleDraft =', '    const persistVrewVoiceSubtitles =', 'updateSubtitleDraft', {
+        ...setters, ...refs,
+    })
+    const persistVrewVoiceSubtitles = extract('    const persistVrewVoiceSubtitles =', '    const scheduleSubtitleTextSave =', 'persistVrewVoiceSubtitles', {
+        ...setters, ...refs, updateSubtitleDraft, restoreSavedSubtitleSnapshot,
+        selectedProject: initialProject,
+        currentLocale: 'ko',
+        authedJsonHeaders: { Authorization: 'Bearer fixture' },
+        saveSubtitleProject: createSubtitleSaveQueue(async (url, options) => {
+            const body = JSON.parse(options.body)
+            result.requests.push({ url, ...options, body })
+            return Response.json({ success: true, project: {
+                ...result.project.project,
+                project_payload: { ...result.project.project.project_payload, ...body.project_payload },
+                progress_payload: { ...result.project.project.progress_payload, ...body.progress_payload },
+            } })
+        }),
+    })
     const setVoice = extract('    const setSubtitleGroupVoice =', '    const sceneEffectSavingRef', 'setSubtitleGroupVoice', {
         selectedVoice: 'gemini:Charon',
         selectedSubtitleSceneNumbers: selectedScenes,
@@ -70,16 +116,7 @@ function harness(selectedScenes, rows = fixture()) {
         isSubtitleNarration,
         voiceNameById: new Map([['gemini:Aoede', 'Aoede'], ['new-eleven-voice', 'New ElevenLabs voice']]),
         markVrewSegmentStale: (item, index) => result.stale.push({ item, index }),
-        setLocalSubtitles: next => { result.local = next },
-        setIsSubtitleSaved: value => result.savedFlags.push(value),
-        setSelectedProject: update => { result.project = update(result.project) },
-        rememberProjectState: next => result.remembered.push(next),
-        selectedProject: initialProject,
-        authedJsonHeaders: { Authorization: 'Bearer fixture' },
-        fetch: async (url, options) => {
-            result.requests.push({ url, ...options, body: JSON.parse(options.body) })
-            return { ok: true }
-        },
+        persistVrewVoiceSubtitles,
         setMessage: value => result.messages.push(value),
     })
     return { rows, result, setVoice, isSubtitleNarration }
@@ -94,8 +131,10 @@ function assertScope(h, changedIndexes, voiceId, direction) {
     assert.equal(result.requests[0].url, '/api/std/projects/project-id')
     const persisted = result.requests[0].body.project_payload.subtitles
     assert.deepEqual(persisted, result.local)
-    assert.equal(result.project.project.project_payload.subtitles, result.local)
-    assert.equal(result.remembered[0].project.project_payload.subtitles, result.local)
+    assert.deepEqual(result.project.project.project_payload.subtitles, result.local)
+    assert.deepEqual(result.remembered[0].project.project_payload.subtitles, result.local)
+    assert.deepEqual(result.savedFlags, [false, true])
+    assert.deepEqual(result.saveStates, ['dirty', 'saving', 'saved'])
     rows.forEach((original, index) => {
         if (changed.has(index)) {
             assert.notEqual(result.local[index], original)
@@ -106,7 +145,7 @@ function assertScope(h, changedIndexes, voiceId, direction) {
                 ...(direction !== undefined ? { voice_direction: direction } : {}),
             })
         } else {
-            assert.equal(result.local[index], original, `Protected row ${index} retains its identity`)
+            assert.deepEqual(result.local[index], original, `Protected row ${index} retains its metadata after snapshot normalization`)
             assert.deepEqual(persisted[index], original, `Protected row ${index} retains saved voice, audio, timing and attribution`)
         }
     })

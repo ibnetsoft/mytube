@@ -4,8 +4,14 @@ export const isSubtitleClosingPunctuation = (text: string) => /^[\s。．.!！?�
 export function normalizeSubtitleFragments<T extends { text?: string; scene_number?: number;
     start_num?: number; end_num?: number; start_time?: string; end_time?: string;
     audio_regeneration_required?: boolean; [key: string]: any }>(
-    subtitles: T[], maxChars = 20,
+    subtitles: T[], maxChars = 20, options: { punctuationOnly?: boolean } = {},
 ): T[] {
+    const withText = (item: T, text: string): T => ({
+        ...item, text,
+        ...(item.editor_speaker?.text === item.text ? {
+            editor_speaker: { ...item.editor_speaker, text },
+        } : {}),
+    })
     const result: T[] = []
     for (const source of subtitles) {
         let item = { ...source }
@@ -14,7 +20,7 @@ export function normalizeSubtitleFragments<T extends { text?: string; scene_numb
         const sameScene = previous && Number(previous.scene_number) === Number(item.scene_number)
         if (sameScene && text) {
             const prefix = text.match(/^[。．.!！?？…，,、;；:：」』”’）)\]】]+/u)?.[0] || ''
-            const shortEnding = Array.from(text).length <= 2 && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)
+            const shortEnding = !options.punctuationOnly && Array.from(text).length <= 2 && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)
                 && !/[。．.!！?？…」』”’]$/u.test(String(previous.text || ''))
                 && Array.from(String(previous.text || '') + text).length <= maxChars + 2
                 && (previous.dialogue_speaker || null) === (item.dialogue_speaker || null)
@@ -25,7 +31,7 @@ export function normalizeSubtitleFragments<T extends { text?: string; scene_numb
                 const start = Number(item.start_num ?? item.start_time)
                 const end = Number(item.end_num ?? item.end_time)
                 const boundary = remaining ? start + (end - start) * take.length / text.length : end
-                const merged = { ...previous, text: String(previous.text || '').trimEnd() + take }
+                const merged = withText(previous, String(previous.text || '').trimEnd() + take)
                 if (Number.isFinite(boundary)) {
                     merged.end_num = boundary
                     merged.end_time = String(boundary)
@@ -36,7 +42,7 @@ export function normalizeSubtitleFragments<T extends { text?: string; scene_numb
                 }
                 result[result.length - 1] = merged
                 if (!remaining) continue
-                item = { ...item, text: remaining }
+                item = withText(item, remaining)
                 if (Number.isFinite(boundary)) {
                     item.start_num = boundary
                     item.start_time = String(boundary)

@@ -190,7 +190,9 @@ import {
     Wand2
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
-import { findExactSubtitleScene, subtitlesMatchSceneManifest } from '@/lib/stdSubtitleSceneIntegrity'
+import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
+import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
+import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
@@ -201,7 +203,6 @@ import {
     estimateRequiredSceneCount,
     partitionScriptByExistingSceneBoundaries,
     partitionScriptToScenes,
-    repairSubtitleItemQuoteBoundaries,
     stripGeneratedPlanningText,
     StdSubtitleItem,
 } from '@/lib/stdSubtitles'
@@ -912,7 +913,7 @@ export default function StdPortalPage() {
 
         const storedSubtitles = projectPayload.project?.project_payload?.subtitles
         const repairedSubtitles = Array.isArray(storedSubtitles)
-            ? repairSubtitleItemQuoteBoundaries(storedSubtitles)
+            ? restoreSavedSubtitleSnapshot(storedSubtitles, () => [])
             : storedSubtitles
         const latestBySceneType = new Map<string, any>()
         ;(projectPayload.assets || [])
@@ -1180,6 +1181,22 @@ export default function StdPortalPage() {
         setVoiceStudioDirection(savedStudioNarrator?.voice_direction || '')
     }, [selectedProject?.project?.id, savedStudioNarrator?.voice_id, savedStudioNarrator?.voice_direction])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
+    const [subtitleSaveState, setSubtitleSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
+    const subtitleSaveRevisionRef = useRef(0)
+    const subtitleTextSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const subtitleActiveProjectRef = useRef(selectedProject?.project?.id)
+    subtitleActiveProjectRef.current = selectedProject?.project?.id
+    const saveSubtitleProject = useMemo(() => createSubtitleSaveQueue(), [])
+    useEffect(() => {
+        subtitleSaveRevisionRef.current += 1
+        setSubtitleSaveState('idle')
+    }, [selectedProject?.project?.id])
+    useEffect(() => {
+        if (!['dirty', 'saving', 'error'].includes(subtitleSaveState)) return
+        const protectUnsavedEdits = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+        window.addEventListener('beforeunload', protectUnsavedEdits)
+        return () => window.removeEventListener('beforeunload', protectUnsavedEdits)
+    }, [subtitleSaveState])
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
     const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
     const [newSubPresetName, setNewSubPresetName] = useState('')
@@ -2137,18 +2154,6 @@ export default function StdPortalPage() {
         return cleaned.trim() || String(text).trim()
     }
 
-    const subtitleSnapshotMatchesScript = (script: string | null | undefined, subtitles: any[] | null | undefined): boolean => {
-        const normalizedScript = cleanScriptContextText(script).replace(/\s+/g, ' ').trim()
-        if (!normalizedScript || !Array.isArray(subtitles) || subtitles.length === 0) return true
-        const leadingSubtitleTexts = subtitles
-            .map((subtitle: any) => cleanScriptContextText(subtitle?.text || subtitle?.subtitle || subtitle?.content || '').replace(/\s+/g, ' ').trim())
-            .filter(Boolean)
-            .slice(0, 8)
-        if (leadingSubtitleTexts.length === 0) return true
-        const matchedCount = leadingSubtitleTexts.filter(text => normalizedScript.includes(text)).length
-        return matchedCount >= Math.ceil(leadingSubtitleTexts.length * 0.6)
-    }
-
     const sanitizeAssetUrl = (url: string | null | undefined): string | null => {
         if (!url) return null
         const str = String(url).trim()
@@ -2436,8 +2441,7 @@ export default function StdPortalPage() {
                 video_url: visual.video_url,
             }
         })
-        return splitSubtitleDialogueBlocks(normalizedSceneSubtitles,
-            selectedProject?.project?.project_payload?.structure?.dialogue_annotations, false, Number(subMaxChars) || 20)
+        return restoreSavedSubtitleSnapshot(normalizedSceneSubtitles, () => [])
     }
 
     const subtitleHasValidTiming = (subtitle: any) => {
@@ -2485,6 +2489,7 @@ export default function StdPortalPage() {
                 const subtitleEnd = groupIndex === group.length - 1
                     ? start + duration
                     : start + (duration * elapsedWeight / totalWeight)
+                if (subtitleHasValidTiming(next[index])) return
                 const roundedStart = Math.round(subtitleStart * 10) / 10
                 const roundedEnd = Math.round(Math.max(subtitleEnd, roundedStart + 0.1) * 10) / 10
                 next[index] = {
@@ -2617,53 +2622,7 @@ export default function StdPortalPage() {
                 markVrewSegmentStale(updatedSubtitles[index], index)
             })
         }
-        setLocalSubtitles(updatedSubtitles)
-        setIsSubtitleSaved(true)
-        setSelectedProject((prev: any) => {
-            if (!prev) return prev
-            const updated = {
-                ...prev,
-                project: {
-                    ...prev.project,
-                    progress_payload: {
-                        ...(prev.project.progress_payload || {}),
-                        subtitles_saved: true,
-                        subtitles_completed: true,
-                    },
-                    project_payload: {
-                        ...(prev.project.project_payload || {}),
-                        subtitles: updatedSubtitles,
-                        subtitles_saved: true,
-                    },
-                },
-            }
-            rememberProjectState(updated)
-            return updated
-        })
-
-        if (selectedProject?.project?.id) {
-            try {
-                const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
-                    method: 'PATCH',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        progress_payload: {
-                            subtitles_saved: true,
-                            subtitles_completed: true,
-                        },
-                        project_payload: {
-                            subtitles: updatedSubtitles,
-                            subtitles_saved: true,
-                        },
-                    }),
-                })
-                if (!response.ok) throw new Error('Voice selection save failed')
-            } catch (error) {
-                console.warn('[STD subtitles] failed to persist subtitle voice override:', error)
-                setMessage('성우 설정을 서버에 저장하지 못했습니다. 다시 적용해 주세요.')
-                setIsSubtitleSaved(false)
-            }
-        }
+        await persistVrewVoiceSubtitles(updatedSubtitles)
     }
 
     const sceneEffectSavingRef = useRef(false)
@@ -2956,57 +2915,83 @@ export default function StdPortalPage() {
         setPlaybackTime(subtitle?.start_num ?? Number(subtitle?.start_time) ?? 0)
     }
 
-    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal: AbortSignal; strict: boolean }) => {
-        updatedSubtitles = splitSubtitleDialogueBlocks(updatedSubtitles,
-            selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
-        setLocalSubtitles(updatedSubtitles)
-        setIsSubtitleSaved(true)
-        setSelectedProject((prev: any) => {
-            if (!prev) return prev
-            const updated = {
-                ...prev,
-                project: {
-                    ...prev.project,
-                    progress_payload: {
-                        ...(prev.project.progress_payload || {}),
-                        subtitles_saved: true,
-                        subtitles_completed: true,
-                    },
-                    project_payload: {
-                        ...(prev.project.project_payload || {}),
-                        subtitles: updatedSubtitles,
-                        subtitles_saved: true,
-                    },
-                },
-            }
-            rememberProjectState(updated)
-            return updated
-        })
+    const updateSubtitleDraft = (subtitles: any[]) => {
+        speechSubtitlesRef.current = subtitles
+        setLocalSubtitles(subtitles)
+        subtitleSaveRevisionRef.current += 1
+        setIsSubtitleSaved(false)
+        setSubtitleSaveState('dirty')
+    }
 
-        if (!selectedProject?.project?.id) return
-        try {
-            const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
-                method: 'PATCH',
-                signal: options?.signal,
-                headers: authedJsonHeaders,
-                body: JSON.stringify({
-                    progress_payload: {
-                        subtitles_saved: true,
-                        subtitles_completed: true,
-                    },
-                    project_payload: {
-                        subtitles: updatedSubtitles,
-                        subtitles_saved: true,
-                    },
-                }),
-            })
-            if (!response.ok) throw new Error(`성우 설정 저장 실패 (${response.status})`)
-        } catch (error) {
-            console.warn('[STD subtitles] failed to persist subtitle voice state:', error)
-            setIsSubtitleSaved(false)
-            setMessage('성우 설정을 서버에 저장하지 못했습니다. 다시 적용해 주세요.')
+    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal?: AbortSignal; strict?: boolean; renderSettings?: Record<string, any> }) => {
+        const projectId = selectedProject?.project?.id
+        if (!projectId) {
+            const error = new Error('저장할 프로젝트를 먼저 선택해 주세요.')
+            setMessage(error.message)
             if (options?.strict) throw error
+            return false
         }
+        if (subtitleTextSaveTimerRef.current) clearTimeout(subtitleTextSaveTimerRef.current)
+        subtitleTextSaveTimerRef.current = null
+        updatedSubtitles = restoreSavedSubtitleSnapshot(updatedSubtitles, () => [])
+        const isCurrentProject = () => subtitleActiveProjectRef.current === projectId
+        if (isCurrentProject()) {
+            updateSubtitleDraft(updatedSubtitles)
+            setSubtitleSaveState('saving')
+        }
+        const revision = subtitleSaveRevisionRef.current
+        try {
+            const project = await saveSubtitleProject(projectId, {
+                progress_payload: { subtitles_saved: true, subtitles_completed: true },
+                project_payload: {
+                    subtitles: updatedSubtitles, subtitles_saved: true,
+                    ...(options?.renderSettings ? { render_settings: options.renderSettings } : {}),
+                },
+            }, authedJsonHeaders, options?.signal)
+            setSelectedProject(prev => {
+                if (!prev || prev.project.id !== projectId) return prev
+                const updated = { ...prev, project }
+                rememberProjectState(updated)
+                return updated
+            })
+            if (isCurrentProject() && revision === subtitleSaveRevisionRef.current) {
+                const pendingDraft = Boolean(subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current)
+                setIsSubtitleSaved(!pendingDraft)
+                setSubtitleSaveState(pendingDraft ? 'dirty' : 'saved')
+            }
+            return true
+        } catch (error: any) {
+            if (isCurrentProject()) {
+                if (revision === subtitleSaveRevisionRef.current) {
+                    setIsSubtitleSaved(false)
+                    setSubtitleSaveState('error')
+                }
+                setMessage(currentLocale === 'th' ? 'บันทึกไม่สำเร็จ กรุณากดบันทึกคำบรรยายเพื่อลองอีกครั้ง' : '저장하지 못했습니다. 변경 내용은 화면에 유지됩니다. [자막 저장]을 눌러 다시 시도해 주세요.')
+            }
+            if (options?.strict) throw error
+            return false
+        }
+    }
+
+    const scheduleSubtitleTextSave = (subtitles: any[]) => {
+        updateSubtitleDraft(subtitles)
+        if (subtitleTextSaveTimerRef.current) clearTimeout(subtitleTextSaveTimerRef.current)
+        subtitleTextSaveTimerRef.current = setTimeout(() => void persistVrewVoiceSubtitles(subtitles), 600)
+    }
+
+    const adjustSubtitleTiming = (index: number, field: 'start' | 'end' | 'both', delta: number) => {
+        const subtitle = speechSubtitlesRef.current[index]
+        if (!subtitle) return
+        const start = Number(subtitle.start_num ?? subtitle.start_time) || 0
+        const end = Number(subtitle.end_num ?? subtitle.end_time) || start + 0.1
+        const shift = field === 'both' ? Math.max(-start, delta) : delta
+        const nextStart = field === 'both' ? start + shift : field === 'end' ? start : Math.max(0, Math.min(end - 0.1, start + shift))
+        const nextEnd = field === 'start' ? end : Math.max(nextStart + 0.1, end + shift)
+        const updated = speechSubtitlesRef.current.map((row, i) => i === index ? { ...row,
+            start_num: Number(nextStart.toFixed(3)), end_num: Number(nextEnd.toFixed(3)),
+            start_time: nextStart.toFixed(3), end_time: nextEnd.toFixed(3),
+        } : row)
+        void persistVrewVoiceSubtitles(updated)
     }
 
     const applyVrewVoiceBulk = (target: 'narration' | 'dialogue' | 'all', voiceId: string, directionOverride?: string) => {
@@ -3655,7 +3640,6 @@ export default function StdPortalPage() {
             const asset = (selectedProject?.assets || []).find((item: any) => item.id === vrewFinalNarrationAudioRef.current?.assetId)
             const playbackSubtitles = alignedNarrationSubtitles(localSubtitles, asset?.metadata?.subtitle_timeline, selectedVoice)
             if (!playbackSubtitles) throw new Error('음성과 일치하는 자막 시간표를 찾지 못했습니다.')
-            setLocalSubtitles(playbackSubtitles)
             const startSubtitle = playbackSubtitles[Math.max(0, startIndex)]
             const startTime = Number(startSubtitle?.start_num ?? startSubtitle?.start_time ?? 0) || 0
             setMessage('저장된 최종 TTS로 자막 미리듣기 재생 중...')
@@ -4616,17 +4600,8 @@ export default function StdPortalPage() {
         const scenes = selectedProject?.scenes || []
         const savedSubtitles = selectedProject?.project?.project_payload?.subtitles
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
-        const canReuseSavedSubtitles = Array.isArray(savedSubtitles)
-            && savedSubtitles.length > 0
-            && subtitlesMatchSceneManifest(savedSubtitles, scenes)
-            && subtitleSnapshotMatchesScript(currentScript, savedSubtitles)
-        const subs = canReuseSavedSubtitles
-            ? savedSubtitles
-            : generateSynchronizedSubtitles(
-                currentScript,
-                scenes,
-                Number(subMaxChars) || 20
-            )
+        const subs = restoreSavedSubtitleSnapshot(savedSubtitles,
+            () => generateSynchronizedSubtitles(currentScript, scenes, Number(subMaxChars) || 20))
         const normalizedSubtitles = matchSubtitlesToSceneVisuals(ensureSubtitlesHaveTiming(subs, scenes), scenes)
         setLocalSubtitles(normalizedSubtitles)
         if (Array.isArray(savedSubtitles)) {
@@ -5348,26 +5323,16 @@ export default function StdPortalPage() {
         setSelectedProject(nextSelectedProject)
         rememberProjectState(nextSelectedProject)
 
+        subtitleSaveRevisionRef.current += 1
+        setIsSubtitleSaved(false)
+        setSubtitleSaveState('dirty')
         if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
         const projectId = selectedProject.project.id
-        subtitleStyleSaveTimerRef.current = setTimeout(async () => {
-            try {
-                const res = await fetch('/api/std/projects/' + projectId, {
-                    method: 'PATCH',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        project_payload: {
-                            render_settings: nextRenderSettings,
-                        },
-                    }),
-                })
-                const payload = await safeParseJson(res, 'Subtitle style save failed')
-                if (!res.ok || payload.success === false) {
-                    throw new Error(payload.error || 'Subtitle style save failed')
-                }
-            } catch (error: any) {
-                setMessage(error?.message || 'Subtitle style save failed')
-            }
+        const capturedSubtitles = speechSubtitlesRef.current
+        subtitleStyleSaveTimerRef.current = setTimeout(() => {
+            subtitleStyleSaveTimerRef.current = null
+            void persistVrewVoiceSubtitles(subtitleActiveProjectRef.current === projectId ? speechSubtitlesRef.current : capturedSubtitles,
+                { renderSettings: nextRenderSettings })
         }, 500)
     }
 
@@ -5393,155 +5358,34 @@ export default function StdPortalPage() {
             return
         }
 
-        const baseSubtitles = subtitlesMatchSceneManifest(localSubtitles, scenes)
-            ? localSubtitles
-            : generateSynchronizedSubtitles(
-                selectedProject.project?.project_payload?.script || customScriptText || '',
-                scenes,
-                Number(subMaxChars) || 20
-            )
+        const baseSubtitles = restoreSavedSubtitleSnapshot(localSubtitles, () => generateSynchronizedSubtitles(
+            selectedProject.project?.project_payload?.script || customScriptText || '', scenes, Number(subMaxChars) || 20))
         const syncedSubtitles = matchSubtitlesToSceneVisuals(ensureSubtitlesHaveTiming(baseSubtitles, scenes), scenes)
-        setLocalSubtitles(syncedSubtitles)
         setSelectedSubIndex(0)
         setPlaybackTime(0)
-        setIsSubtitleSaved(false)
-
-        const updatedProject = {
-            ...selectedProject,
-            project: {
-                ...selectedProject.project,
-                project_payload: {
-                    ...(selectedProject.project?.project_payload || {}),
-                    subtitles: syncedSubtitles,
-                },
-            },
+        if (await persistVrewVoiceSubtitles(syncedSubtitles)) {
+            setMessage(currentLocale === 'th' ? 'บันทึกภาพที่ตรงกับคำบรรยายแล้ว' : '자막 블록의 이미지/영상 연결을 저장했습니다.')
         }
-        setSelectedProject(updatedProject)
-        rememberProjectState(updatedProject)
-
-        if (selectedProject.project?.id) {
-            try {
-                const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
-                    method: 'PATCH',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        project_payload: {
-                            subtitles: syncedSubtitles,
-                        },
-                    }),
-                })
-                const payload = await safeParseJson(res, 'Subtitle image sync failed')
-                if (!res.ok || payload.success === false) {
-                    throw new Error(payload.error || 'Subtitle image sync failed')
-                }
-                if (payload.project) {
-                    const persistedProject = {
-                        ...updatedProject,
-                        project: payload.project,
-                        scenes: Array.isArray(payload.scenes)
-                            ? mergeServerScenesPreservingMedia(payload.scenes, updatedProject.scenes, updatedProject.assets || [], payload.project?.id)
-                            : updatedProject.scenes,
-                    }
-                    setSelectedProject(persistedProject)
-                    rememberProjectState(persistedProject)
-                }
-                setIsSubtitleSaved(true)
-            } catch (error: any) {
-                setMessage(error?.message || 'Subtitle image sync failed')
-                alert(error?.message || 'Subtitle image sync failed')
-                return
-            }
-        }
-
-        alert('각 자막 블록이 현재 씬의 이미지/영상과 자동 매칭되어 저장되었습니다.')
     }
 
     const handleSaveSubtitles = async (showSuccessAlert: boolean = true) => {
-        setIsSubtitleSaved(true)
-        const subtitlesForStorage = matchSubtitlesToSceneVisuals(localSubtitles, selectedProject?.scenes || [])
-        setLocalSubtitles(subtitlesForStorage)
-        let updatedFullForStorage: any = null
-        setSelectedProject((prev: any) => {
-            if (!prev) return prev
-            const updatedProject = {
-                ...prev.project,
-                progress_payload: {
-                    ...(prev.project.project_payload || {}),
-                    ...(prev.project.progress_payload || {}),
-                    subtitles_saved: true,
-                    subtitles_completed: true,
-                },
-                project_payload: {
-                    ...(prev.project.project_payload || {}),
-                    script: cleanScriptContextText(customScriptText || prev.project.project_payload?.script || ''),
-                    subtitles: subtitlesForStorage,
-                    render_settings: {
-                        ...(prev.project.project_payload?.render_settings || {}),
-                        ...subtitleRenderSettings(),
-                    },
-                    subtitles_saved: true,
-                }
-            }
-            const updatedFull = {
-                ...prev,
-                project: updatedProject,
-            }
-            updatedFullForStorage = updatedFull
-            rememberProjectState(updatedFull)
-            return updatedFull
+        if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
+        subtitleStyleSaveTimerRef.current = null
+        const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || [])
+        await persistVrewVoiceSubtitles(subtitlesForStorage, {
+            strict: true,
+            renderSettings: { ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() },
         })
-        if (selectedProject?.project?.id) {
-            try {
-                const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
-                    method: 'PATCH',
-                    headers: authedJsonHeaders,
-                    body: JSON.stringify({
-                        progress_payload: {
-                            subtitles_saved: true,
-                            subtitles_completed: true,
-                        },
-                        project_payload: {
-                            script: cleanScriptContextText(customScriptText || selectedProject.project.project_payload?.script || ''),
-                            subtitles: subtitlesForStorage,
-                            render_settings: {
-                                ...(selectedProject.project.project_payload?.render_settings || {}),
-                                ...subtitleRenderSettings(),
-                            },
-                            subtitles_saved: true,
-                        },
-                    }),
-                })
-                const payload = await safeParseJson(res, 'Subtitle save failed')
-                if (!res.ok || payload.success === false) {
-                    throw new Error(payload.error || 'Subtitle save failed')
-                }
-                if (payload.project && updatedFullForStorage) {
-                    const updatedFull = {
-                        ...updatedFullForStorage,
-                        project: payload.project,
-                        scenes: Array.isArray(payload.scenes)
-                            ? mergeServerScenesPreservingMedia(payload.scenes, updatedFullForStorage.scenes, updatedFullForStorage.assets || [], payload.project?.id)
-                            : updatedFullForStorage.scenes,
-                    }
-                    setSelectedProject(updatedFull)
-                    rememberProjectState(updatedFull)
-                }
-            } catch (error: any) {
-                setIsSubtitleSaved(false)
-                setMessage(error.message || 'Subtitle save failed')
-                throw error
-            }
-        }
-        if (showSuccessAlert) {
-            alert('자막 설정 및 3중 싱크가 성공적으로 저장되었습니다! (상단 헤더 자막 단계 완료)')
-        }
-        setScriptSyncDirty(false)
+        if (showSuccessAlert) setMessage(currentLocale === 'th' ? 'บันทึกคำบรรยายแล้ว' : '자막 변경 내용을 저장했습니다.')
         return true
     }
 
     const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string): Promise<SelectedProjectPayload | null> => {
         const requestedProjectId = String(projectId || '').trim()
         if (!requestedProjectId) return null
+        if (subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current || ['dirty', 'saving', 'error'].includes(subtitleSaveState)) {
+            try { await handleSaveSubtitles(false) } catch { return null }
+        }
         setProjectLoading(true)
         setMessage('')
         const targetToken = overrideToken || token
@@ -5603,10 +5447,9 @@ export default function StdPortalPage() {
                 const storedServerSubtitles = Array.isArray(payload.project?.project_payload?.subtitles)
                     ? payload.project.project_payload.subtitles
                     : []
-                const projectSubtitles = subtitlesMatchSceneManifest(storedServerSubtitles, normalizedScenes)
-                    && subtitleSnapshotMatchesScript(fullScript, storedServerSubtitles)
-                    ? storedServerSubtitles
-                    : generateSynchronizedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20)
+                const projectSubtitles = restoreSavedSubtitleSnapshot(storedServerSubtitles,
+                    () => generateAnnotatedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20,
+                        payload.project.project_payload?.structure?.dialogue_annotations))
 
                 const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
@@ -6762,7 +6605,7 @@ export default function StdPortalPage() {
             markVrewSegmentStale(updated, index)
             return updated
         })
-        await persistVrewVoiceSubtitles(updatedSubtitles)
+        if (!await persistVrewVoiceSubtitles(updatedSubtitles)) return
         setMessage(`선택한 자막 ${selectedSubtitleBlockIndexes.length}개의 성우를 ${nextVoiceName}(으)로 변경했습니다.`)
     }
 
@@ -6784,8 +6627,8 @@ export default function StdPortalPage() {
         const firstIsDialogue = isSubtitleDialogue(selectedItems[0], firstIndex)
         const isSameVoiceType = selectedItems.every((item, position) => (
             isSubtitleDialogue(item, indexes[position]) === firstIsDialogue
-            && (!firstIsDialogue || aiDialogueParts.get(indexes[position])?.find(p => p.dialogue)?.speaker
-                === aiDialogueParts.get(firstIndex)?.find(p => p.dialogue)?.speaker)
+            && (!firstIsDialogue || (subtitleSpeakers[indexes[position]]?.name || aiDialogueParts.get(indexes[position])?.find(p => p.dialogue)?.speaker)
+                === (subtitleSpeakers[firstIndex]?.name || aiDialogueParts.get(firstIndex)?.find(p => p.dialogue)?.speaker))
         ))
 
         if (!isContiguous || !isSameScene || !isSameVoiceType) {
@@ -6796,10 +6639,14 @@ export default function StdPortalPage() {
         if (currentNav === 'subtitle_vrew' && isPlayingPreview) stopVrewPlayback()
         const firstItem = selectedItems[0]
         const lastItem = selectedItems[selectedItems.length - 1]
+        const mergedText = selectedItems.map(item => String(item?.text || '').trim()).filter(Boolean).join(' ')
         const mergedItem = {
             ...firstItem,
+            ...(firstItem.editor_speaker?.text === firstItem.text ? {
+                editor_speaker: { ...firstItem.editor_speaker, text: mergedText },
+            } : {}),
             translation_manual: true,
-            text: selectedItems.map(item => String(item?.text || '').trim()).filter(Boolean).join(' '),
+            text: mergedText,
             end_time: lastItem.end_time,
             end_num: lastItem.end_num,
         }
@@ -6816,7 +6663,7 @@ export default function StdPortalPage() {
         subtitleTranslationControllerRef.current?.abort()
         subtitleTranslationRequestRef.current = ''
         setTranslatingSubtitleLanguage(null)
-        await persistVrewVoiceSubtitles(updatedSubtitles)
+        if (!await persistVrewVoiceSubtitles(updatedSubtitles)) return
         setMessage(`씬 ${sceneNumber}의 자막 ${selectedItems.length}개를 하나로 합쳤습니다.`)
     }
 
@@ -6863,12 +6710,18 @@ export default function StdPortalPage() {
         const roundedBoundary = Math.round(boundary * 1000) / 1000
         const firstItem = {
             ...subtitle,
+            ...(subtitle.editor_speaker?.text === subtitle.text ? {
+                editor_speaker: { ...subtitle.editor_speaker, text: firstText },
+            } : {}),
             text: firstText,
             end_time: roundedBoundary.toFixed(3),
             end_num: roundedBoundary,
         }
         const secondItem = {
             ...subtitle,
+            ...(subtitle.editor_speaker?.text === subtitle.text ? {
+                editor_speaker: { ...subtitle.editor_speaker, text: secondText },
+            } : {}),
             id: `${subtitle.id || `sub-${subtitleIndex}`}-split-${Date.now()}`,
             text: secondText,
             start_time: roundedBoundary.toFixed(3),
@@ -6887,7 +6740,7 @@ export default function StdPortalPage() {
         setSelectedSubtitleBlockIndexes([subtitleIndex])
         subtitleBlockSelectionAnchorRef.current = subtitleIndex
         subtitleTextSelectionRef.current = null
-        await persistVrewVoiceSubtitles(updatedSubtitles)
+        if (!await persistVrewVoiceSubtitles(updatedSubtitles)) return
         if (subtitleReviewLocale) {
             void translateSubtitleBlocks(subtitleReviewLocale, true, updatedSubtitles)
         }
@@ -9445,7 +9298,7 @@ export default function StdPortalPage() {
                                                         scenes,
                                                         Number(subMaxChars) || 20
                                                     )
-                                                    setLocalSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
+                                                    void persistVrewVoiceSubtitles(matchSubtitlesToSceneVisuals(subs, scenes))
                                                     setSelectedSubIndex(0)
                                                     alert('씬 페이싱(1~18: 5초, 19~24: 7초, 25~30: 10초, 31~45: 12초, 46~60: 15초, 61씬 이후: 18초) 기준으로 자막 싱크를 초기화했습니다. 자막은 문장과 구문 경계를 우선해 나누었습니다.')
                                                 }}
@@ -9488,6 +9341,18 @@ export default function StdPortalPage() {
                                                 <button type="button" className="px-2 py-1 text-[11px] text-red-300" onClick={() => subtitleSyncControllerRef.current?.abort(new Error('사용자가 보정을 취소했습니다.'))}>{ui("취소")}</button>
                                             )}
                                             {subtitleSyncProgress && <span role="status" aria-live="polite" className="max-w-full text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
+                                            <span role="status" aria-live="polite" className={`text-[10px] whitespace-nowrap ${subtitleSaveState === 'error' ? 'text-red-300' : 'text-gray-400'}`}>
+                                                {subtitleSaveState === 'saving' ? (currentLocale === 'th' ? 'กำลังบันทึก…' : '저장 중…')
+                                                    : subtitleSaveState === 'error' ? (currentLocale === 'th' ? 'บันทึกไม่สำเร็จ' : '저장 실패 · 다시 시도')
+                                                    : subtitleSaveState === 'dirty' ? (currentLocale === 'th' ? 'ยังไม่บันทึก' : '저장할 변경 있음')
+                                                    : subtitleSaveState === 'saved' ? (currentLocale === 'th' ? 'บันทึกแล้ว' : '저장 완료') : ''}
+                                            </span>
+                                            <button type="button" onClick={() => void handleSaveSubtitles().catch(() => {})}
+                                                disabled={subtitleSaveState === 'saving' || !localSubtitles.length}
+                                                title={currentLocale === 'th' ? 'บันทึกการแก้ไขโดยไม่สร้างเสียง TTS' : 'TTS를 생성하지 않고 수정 내용을 저장합니다'}
+                                                className="text-[10px] font-bold px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
+                                                {currentLocale === 'th' ? 'บันทึกคำบรรยาย' : '자막 저장'}
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => void handleFinalizeSubtitlesAndTts()}
@@ -10147,11 +10012,12 @@ export default function StdPortalPage() {
                                                 <div className="flex flex-col gap-1.5 text-xs font-bold text-white min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
                                                     <span>{t('sub_selected_range_edit')}</span>
                                                     <div className="grid grid-cols-3 gap-1 min-[420px]:flex min-[420px]:items-center">
-                                                        <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
-                                                        <button className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                        <button type="button" onClick={() => adjustSubtitleTiming(selectedSubIndex, 'both', -0.1)} className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                        <button type="button" onClick={() => adjustSubtitleTiming(selectedSubIndex, 'both', 0.1)} className="text-[10px] px-2 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => alert('선택된 구간의 자막 및 싱크 수정사항이 반영되었습니다. 상단 파란색 [저장] 버튼을 누르면 프로젝트에 최종 완료 저장됩니다.')}
+                                                            onClick={() => void handleSaveSubtitles().catch(() => {})}
+                                                            disabled={subtitleSaveState === 'saving'}
                                                             className="text-[10px] px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold transition-all active:scale-95"
                                                         >
                                                             {t('btn_save')}
@@ -10169,8 +10035,8 @@ export default function StdPortalPage() {
                                                         <span className="shrink-0 text-gray-300 font-bold">{t('sub_start_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{Number(currentSub.start_time).toFixed(1)}s</span>
-                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
-                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                            <button type="button" onClick={() => adjustSubtitleTiming(selectedSubIndex, 'start', -0.1)} className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                            <button type="button" onClick={() => adjustSubtitleTiming(selectedSubIndex, 'start', 0.1)} className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
                                                         </div>
                                                     </div>
 
@@ -10178,8 +10044,8 @@ export default function StdPortalPage() {
                                                         <span className="shrink-0 text-red-400 font-bold">{t('sub_end_time')}</span>
                                                         <div className="flex min-w-0 items-center gap-1">
                                                             <span className="font-mono text-white">{Number(currentSub.end_time).toFixed(1)}s</span>
-                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
-                                                            <button className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
+                                                            <button type="button" onClick={() => adjustSubtitleTiming(selectedSubIndex, 'end', -0.1)} className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">-0.1s</button>
+                                                            <button type="button" onClick={() => adjustSubtitleTiming(selectedSubIndex, 'end', 0.1)} className="text-[9px] px-1.5 py-0.5 bg-[#202632] border border-white/10 rounded">+0.1s</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -10198,18 +10064,24 @@ export default function StdPortalPage() {
                                                                     cursor: event.currentTarget.selectionStart ?? 0,
                                                                 }
                                                             }}
-                                                            onBlur={() => setIsSubtitleTextEditing(false)}
+                                                            onBlur={() => {
+                                                                setIsSubtitleTextEditing(false)
+                                                                if (subtitleTextSaveTimerRef.current) void persistVrewVoiceSubtitles(speechSubtitlesRef.current)
+                                                            }}
                                                             onChange={e => {
                                                                 const newText = e.target.value
                                                                 const wasDialogue = isSubtitleDialogue(currentSub, selectedSubIndex)
                                                                 const updatedSub = {
                                                                     ...currentSub,
                                                                     text: newText,
+                                                                    ...(currentSub.editor_speaker?.text === currentSub.text ? {
+                                                                        editor_speaker: { ...currentSub.editor_speaker, text: newText },
+                                                                    } : {}),
                                                                     ...(wasDialogue ? { dialogue_override: true } : {}),
                                                                 }
                                                                 if (isVrewSubtitleMode && isPlayingPreview) stopVrewPlayback()
                                                                 if (isVrewSubtitleMode) markVrewSegmentStale(updatedSub, selectedSubIndex)
-                                                                setLocalSubtitles(prev => prev.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
+                                                                scheduleSubtitleTextSave(speechSubtitlesRef.current.map((s, idx) => idx === selectedSubIndex ? updatedSub : s))
                                                             }}
                                                             className="w-full min-h-12 resize-none overflow-hidden rounded-md border border-blue-500 bg-[#10151d] px-2 py-1.5 text-xs leading-5 text-white focus:outline-none"
                                                         />
