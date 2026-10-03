@@ -6,6 +6,8 @@ import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/st
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
+import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotice'
+import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -1052,6 +1054,7 @@ export default function StdPortalPage() {
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
+    const [ttsNotice, setTtsNotice] = useState<TtsNotice | null>(null)
     const [musicMissions, setMusicMissions] = useState<MusicMission[]>([])
     const [musicMissionLoading, setMusicMissionLoading] = useState(false)
     const [musicSubmissionDrafts, setMusicSubmissionDrafts] = useState<Record<string, MusicSubmissionDraft>>({})
@@ -1204,11 +1207,11 @@ export default function StdPortalPage() {
         setSubtitleSaveState('idle')
     }, [selectedProject?.project?.id])
     useEffect(() => {
-        if (!['dirty', 'saving', 'error'].includes(subtitleSaveState)) return
+        if (!generatingTts && !['dirty', 'saving', 'error'].includes(subtitleSaveState)) return
         const protectUnsavedEdits = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
         window.addEventListener('beforeunload', protectUnsavedEdits)
         return () => window.removeEventListener('beforeunload', protectUnsavedEdits)
-    }, [subtitleSaveState])
+    }, [subtitleSaveState, generatingTts])
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
     const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
     const [newSubPresetName, setNewSubPresetName] = useState('')
@@ -6240,11 +6243,30 @@ export default function StdPortalPage() {
         }
     }
 
-    const generateTts = async (skipScriptSync: boolean = false) => {
+    const generateTts = async (skipScriptSync: boolean = false, originScope = { ...mediaScopeRef.current }) => {
         if (!selectedProject) return
+        const requestScope = { ...originScope, projectId: selectedProject.project.id }
+        const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
+        const copy = ttsNoticeCopy(currentLocale)
+        const noticeProject = { projectId: selectedProject.project.id, projectTitle: getProjectSyncedTitle(selectedProject) || selectedProject.project.title || '' }
+        const reportTts = (phase: TtsNotice['phase'], detail: string) => {
+            if (requestScope.session === mediaScopeRef.current.session) setTtsNotice({ ...noticeProject, phase, detail })
+        }
+        const setTtsAudio = (url: string) => {
+            if (isCurrent()) setAudioResultUrl(url)
+            else if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+        }
+        const reportSavedTts = (asset: any, reuse?: { reused?: number; generated?: number }) => {
+            const saved = asset?.id && assetBelongsToProject(asset, noticeProject.projectId)
+            reportTts(saved ? 'success' : 'warning', saved
+                ? `${copy.saved}${reuse ? ` ${copy.counts(reuse.reused || 0, reuse.generated || 0)}` : ''}`
+                : copy.unsaved)
+        }
+        reportTts('running', copy.preparing)
         setGeneratingTts(true)
         setMessage('')
         if (!skipScriptSync && !(await ensureScriptSyncedBeforeAction())) {
+            reportTts('error', copy.sync)
             setGeneratingTts(false)
             return
         }
@@ -6253,6 +6275,7 @@ export default function StdPortalPage() {
         const ttsText = customScriptText || selectedProject.project.project_payload?.script || ''
         if (!ttsText.trim()) {
             setMessage('❗ 대본이 없습니다. 먼저 대본을 생성해주세요.')
+            reportTts('error', copy.empty)
             setGeneratingTts(false)
             return
         }
@@ -6262,9 +6285,9 @@ export default function StdPortalPage() {
             let persistedAudioAsset: any = null
             let ttsWarning = ''
             const rememberPersistedAudioAsset = (asset: any) => {
-                if (!asset) return
+                if (!assetBelongsToProject(asset, noticeProject.projectId) || !isCurrent()) return
                 setSelectedProject(prev => {
-                    if (!prev) return prev
+                    if (!prev || prev.project.id !== noticeProject.projectId || !isCurrent()) return prev
                     const updated = {
                         ...prev,
                         assets: [
@@ -6414,6 +6437,7 @@ export default function StdPortalPage() {
                     })
                     return { res: response, payload: await safeParseJson(response, 'TTS generation failed') }
                 }, (ready, total) => {
+                    reportTts('running', ready === total ? copy.assembling : copy.progress(ready, total))
                     setMessage(ready === total
                         ? `음성 ${total}개 준비 완료. 저장된 조각을 합치는 중입니다...`
                         : `음성 준비 중: ${ready}/${total}개 완료. 저장된 조각은 재사용합니다.`)
@@ -6429,7 +6453,8 @@ export default function StdPortalPage() {
                     console.warn('[STD TTS] server generation failed; trying browser ElevenLabs fallback:', payload)
                     const fallbackBlob = await generateElevenLabsAudioInBrowser(ttsText, selectedVoice, finalVoiceMap, multiVoice, useSubtitleVoiceSegments ? voiceSegments : [])
                     audioUrl = URL.createObjectURL(fallbackBlob)
-                    setAudioResultUrl(audioUrl)
+                    setTtsAudio(audioUrl)
+                    reportTts('warning', copy.unsaved)
                     setMessage(`ElevenLabs TTS 생성 완료. 서버 저장은 실패했습니다: ${String(detail).slice(0, 160)}`)
                     return
                 }
@@ -6459,8 +6484,9 @@ export default function StdPortalPage() {
                     }
                 }
 
-                setAudioResultUrl(audioUrl)
+                setTtsAudio(audioUrl)
                 rememberPersistedAudioAsset(persistedAudioAsset)
+                reportSavedTts(persistedAudioAsset, payload.segment_reuse)
                 const usedKeySlots = Array.isArray(payload.elevenlabs_key_slots)
                     ? payload.elevenlabs_key_slots.filter((slot: unknown) => Number.isInteger(Number(slot)))
                     : []
@@ -6564,12 +6590,14 @@ export default function StdPortalPage() {
                 */
             }
 
-            setAudioResultUrl(audioUrl)
+            setTtsAudio(audioUrl)
             rememberPersistedAudioAsset(persistedAudioAsset)
+            reportSavedTts(persistedAudioAsset)
             setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!${ttsWarning}`)
         } catch (error: any) {
-            setAudioResultUrl('')
+            setTtsAudio('')
             const errorMessage = formatTtsErrorMessage(error?.message || 'TTS generation failed')
+            reportTts('error', errorMessage)
             setMessage(`❌ ${errorMessage}`)
             alert(`음성 생성 실패: ${errorMessage}`)
         } finally {
@@ -6743,15 +6771,18 @@ export default function StdPortalPage() {
             alert(msg)
             return
         }
+        const requestScope = { ...mediaScopeRef.current }
         setGeneratingTts(true)
         setHighlightSaveTts(false)
         setMessage('자막 설정 저장 중...')
+        setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'running', detail: ttsNoticeCopy(currentLocale).saving })
         try {
             await handleSaveSubtitles(false)
-            await generateTts(true)
+            await generateTts(true, requestScope)
         } catch (error: any) {
             setGeneratingTts(false)
             const errorMessage = error?.message || '최종 저장 실패'
+            setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'error', detail: errorMessage })
             setMessage(`❌ ${errorMessage}`)
             alert(`최종 저장 실패: ${errorMessage}`)
         }
@@ -8120,6 +8151,7 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
+            <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
             {renderSuccessNotice && (
                 <div className="fixed right-4 top-4 z-[80] w-[min(360px,calc(100vw-32px))] animate-in slide-in-from-top-3 fade-in zoom-in-95 duration-200">
                     <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-[#09251d]/95 p-4 shadow-2xl shadow-emerald-950/60 backdrop-blur">
@@ -8655,7 +8687,7 @@ export default function StdPortalPage() {
                 )}
 
                 {/* 데스크톱 좌측 고정 사이드바 (md 이상에서만 표시) */}
-                <aside className="hidden md:flex w-56 bg-[#161a22] border-r border-white/10 flex-col shrink-0">
+                <StdCollapsibleSidebar locale={currentLocale}>
                     <div className="p-3 border-b border-white/10">{sidebarAccount}</div>
                     <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
                         <div className="flex items-center justify-between text-gray-400">
@@ -8750,7 +8782,7 @@ export default function StdPortalPage() {
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         <span>{ui("연결됨")} {STD_BUILD_LABEL}</span>
                     </div>
-                </aside>
+                </StdCollapsibleSidebar>
 
                 {/* 우측 메인 작업 화면 (모바일 패딩 및 너비 최적화) */}
                 <main className={`min-w-0 flex-1 flex flex-col bg-[#14181f] space-y-3 sm:space-y-6 ${
