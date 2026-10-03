@@ -1,13 +1,15 @@
 'use client'
 import { stdUiText } from '@/lib/stdUiText'
 import type { SupportedLocale } from '@/lib/i18n'
+import type { SpeakerInfo } from '@/lib/stdSpeakerAssignment'
+import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { Fragment, useState, useEffect } from 'react'
 import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import { subtitleWords, sfxSubtitleIndex, wordBoundaryTime, resolveSfxCues, sfxNeedsReview } from '@/lib/stdSfxCues'
 
-export default function SubtitleSfxEditor({ locale = 'ko', subtitle, subtitleIndex, subtitles, assets, cues, selectedAssetId,
+export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters = [], subtitle, subtitleIndex, subtitles, assets, cues, selectedAssetId,
     onSelect, onSave, onEdit, activeTokenIndex, onError, projectId, headers, onPreviewOpen }: {
-    locale?: SupportedLocale;
+    locale?: SupportedLocale; speaker?: SpeakerInfo | null; characters?: any[];
     projectId: string; headers: Record<string, string>; onPreviewOpen: () => void;
     subtitle: any; subtitleIndex: number; subtitles: any[]; assets: any[]; cues: any[]; selectedAssetId: string;
     onSelect: (id: string) => void; onSave: (cues: any[]) => Promise<void>; onEdit: () => void;
@@ -17,6 +19,16 @@ export default function SubtitleSfxEditor({ locale = 'ko', subtitle, subtitleInd
     const [saving, setSaving] = useState(false)
     const [editing, setEditing] = useState<any>(null)
     const [sample, setSample] = useState('')
+    const [failedSpeakerImage, setFailedSpeakerImage] = useState('')
+    const character = speaker && characters.find(item => String(item?.name || '').trim() === speaker.name)
+    let speakerImageSrc = persistentThumbnailUrl(character?.image_url)
+    const impersonateEmail = headers?.['x-impersonate-email']
+    if (speakerImageSrc && impersonateEmail && /^\/api\/std\/projects\/[^/?#]+\/character-thumbnail(?:\?|$)/.test(speakerImageSrc)) {
+        // Image requests use the session cookie; preserve authorized admin viewing too.
+        const url = new URL(speakerImageSrc, 'http://localhost')
+        url.searchParams.set('impersonate', impersonateEmail)
+        speakerImageSrc = `${url.pathname}${url.search}`
+    }
     useEffect(() => () => { if (sample) URL.revokeObjectURL(sample) }, [sample])
     useEffect(() => { setEditing(null); setSample('') }, [subtitleIndex])
     const words = subtitleWords(subtitle.text)
@@ -42,22 +54,31 @@ export default function SubtitleSfxEditor({ locale = 'ko', subtitle, subtitleInd
     return <div className="min-w-0 flex-1 space-y-2">
         <SubtitleSfxPicker locale={locale} assets={assets} value={selectedAssetId} projectId={projectId} headers={headers}
             disabled={saving} onChange={onSelect} onOpen={onPreviewOpen} />
-        <div className="flex flex-wrap items-center gap-1" aria-label={ui("단어 사이 효과음 삽입")}>
-            {Array.from({ length: words.length + 1 }, (_, boundary) => <Fragment key={boundary}>
-                {current.filter(c => Number(c.word_boundary ?? 0) === boundary).map(c => <button key={c.id}
-                    type="button" disabled={saving} onClick={() => setEditing({ ...c })}
-                    title={`${c.file_name} · ${ui("클릭하여 효과음 편집")}`} aria-label={`${c.file_name} ${ui("효과음 편집")}`}
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-purple-400/60 bg-purple-500/15 text-sm text-purple-200 hover:bg-purple-500/30">
-                    <span aria-hidden="true">★</span>
-                </button>)}
-                {selectedAssetId && <button type="button" disabled={saving} onClick={() => insert(boundary)}
-                    aria-label={`${boundary}번째 단어 뒤 효과음 삽입`} title={`${wordBoundaryTime(subtitle, boundary).toFixed(2)}초에 효과음 삽입`}
-                    className="rounded px-1 text-purple-300 hover:bg-purple-500/25 disabled:opacity-40">+</button>}
-                {boundary < words.length && <button type="button" onClick={onEdit}
-                    className={`h-6 rounded border px-2 text-[11px] ${boundary === activeTokenIndex ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-100' : 'border-white/10 bg-[#10151d] text-gray-200'}`}>
-                    {words[boundary]}
-                </button>}
-            </Fragment>)}
+        <div className="flex items-start gap-2">
+            {speakerImageSrc && speakerImageSrc !== failedSpeakerImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={speakerImageSrc} alt={speaker?.label || speaker?.name || ''}
+                    title={speaker?.label || speaker?.name || ''} width={32} height={32} draggable={false}
+                    className="h-8 w-8 shrink-0 rounded-md border border-white/15 object-cover object-top"
+                    onError={() => setFailedSpeakerImage(speakerImageSrc)} />
+            )}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1" aria-label={ui("단어 사이 효과음 삽입")}>
+                {Array.from({ length: words.length + 1 }, (_, boundary) => <Fragment key={boundary}>
+                    {current.filter(c => Number(c.word_boundary ?? 0) === boundary).map(c => <button key={c.id}
+                        type="button" disabled={saving} onClick={() => setEditing({ ...c })}
+                        title={`${c.file_name} · ${ui("클릭하여 효과음 편집")}`} aria-label={`${c.file_name} ${ui("효과음 편집")}`}
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-purple-400/60 bg-purple-500/15 text-sm text-purple-200 hover:bg-purple-500/30">
+                        <span aria-hidden="true">★</span>
+                    </button>)}
+                    {selectedAssetId && <button type="button" disabled={saving} onClick={() => insert(boundary)}
+                        aria-label={`${boundary}번째 단어 뒤 효과음 삽입`} title={`${wordBoundaryTime(subtitle, boundary).toFixed(2)}초에 효과음 삽입`}
+                        className="rounded px-1 text-purple-300 hover:bg-purple-500/25 disabled:opacity-40">+</button>}
+                    {boundary < words.length && <button type="button" onClick={onEdit}
+                        className={`min-h-6 min-w-0 max-w-full whitespace-normal break-words rounded border px-2 py-0.5 text-left text-[11px] ${boundary === activeTokenIndex ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-100' : 'border-white/10 bg-[#10151d] text-gray-200'}`}>
+                        {words[boundary]}
+                    </button>}
+                </Fragment>)}
+            </div>
         </div>
         {editing && <div className="space-y-2 rounded border border-purple-400/30 p-2 text-xs text-gray-200">
             <p>{editing.file_name}</p>
