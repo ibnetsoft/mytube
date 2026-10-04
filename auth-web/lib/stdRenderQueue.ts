@@ -7,10 +7,11 @@ import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredClipScene, isStdRequiredVideoScene } from './stdPolicy'
 import { nextStdRenderVersion, normalizeStdRenderHistory } from './stdRenderVersion'
+import { resolveGeneratedSceneStorage, type GeneratedSceneStorage } from './stdGeneratedSceneStorage'
 import {
     createGcsSignedReadUrl,
     downloadGcsObject,
-    isGcsStorageConfigured,
+    getGcsObjectMetadata,
     isGcsConfiguredAsync,
     gcsBucketName,
     uploadGcsBuffer,
@@ -55,73 +56,11 @@ function activeAsset(asset: any) {
 }
 
 function generatedImageStorageSource(scene: any) {
-    const metadata = scene?.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}
-    const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
-    const coworkAsset = metadata?.cowork_image_asset || nestedMetadata?.cowork_image_asset || {}
-    const bucket = String(coworkAsset?.bucket || metadata?.storage_bucket || nestedMetadata?.storage_bucket || '').trim()
-    const path = String(
-        coworkAsset?.object_path
-        || metadata?.storage_path
-        || metadata?.storage_object_path
-        || nestedMetadata?.storage_path
-        || nestedMetadata?.storage_object_path
-        || ''
-    ).trim().replace(/^\/+/, '')
-    return bucket && path ? { bucket, path } : null
-}
-
-function cleanMediaUrl(value: any): string {
-    const str = String(value || '').trim()
-    if (!str || str.startsWith('blob:')) return ''
-    return str
-}
-
-function storageSourceFromSupabaseUrl(value: any) {
-    const rawUrl = cleanMediaUrl(value)
-    if (!rawUrl) return null
-    try {
-        const url = new URL(rawUrl)
-        const match = url.pathname.match(/\/storage\/v1\/(?:object|render)\/(?:public|authenticated|sign)\/([^/]+)\/(.+)$/)
-        if (!match) return null
-        return {
-            bucket: decodeURIComponent(match[1]),
-            path: decodeURIComponent(match[2]).replace(/^\/+/, ''),
-        }
-    } catch {
-        return null
-    }
+    return resolveGeneratedSceneStorage(scene, 'image', gcsBucketName())
 }
 
 function generatedVideoStorageSource(scene: any) {
-    const metadata = scene?.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}
-    const nestedMetadata = metadata?.metadata && typeof metadata.metadata === 'object' ? metadata.metadata : {}
-    const coworkAsset = metadata?.cowork_video_asset || nestedMetadata?.cowork_video_asset || {}
-    const bucket = String(
-        coworkAsset?.bucket
-        || metadata?.video_storage_bucket
-        || nestedMetadata?.video_storage_bucket
-        || metadata?.storage_bucket
-        || nestedMetadata?.storage_bucket
-        || ''
-    ).trim()
-    const path = String(
-        coworkAsset?.object_path
-        || metadata?.video_storage_path
-        || metadata?.video_storage_object_path
-        || nestedMetadata?.video_storage_path
-        || nestedMetadata?.video_storage_object_path
-        || ''
-    ).trim().replace(/^\/+/, '')
-    if (bucket && path) return { bucket, path }
-
-    return storageSourceFromSupabaseUrl(
-        scene?.video_url
-        || scene?.video
-        || metadata?.video_url
-        || metadata?.video
-        || nestedMetadata?.video_url
-        || nestedMetadata?.video
-    )
+    return resolveGeneratedSceneStorage(scene, 'video', gcsBucketName())
 }
 
 function storageSourceForAsset(asset: any) {
@@ -171,7 +110,7 @@ async function storageManifestFields(storage: { bucket: string; path: string; pr
 async function downloadStorageSource(storage: { bucket: string; path: string; provider?: string; gcsBucket?: string; gcsPath?: string }) {
     const targetGcsPath = storage.gcsPath || storage.path
     const targetGcsBucket = storage.gcsBucket || storage.bucket
-    if (targetGcsPath && isGcsStorageConfigured()) {
+    if (targetGcsPath && await isGcsConfiguredAsync()) {
         try {
             return await downloadGcsObject({ bucket: targetGcsBucket, objectPath: targetGcsPath })
         } catch (gcsError: any) {
@@ -182,173 +121,94 @@ async function downloadStorageSource(storage: { bucket: string; path: string; pr
     throw new Error('스토리지 파일을 GCS에서 불러오지 못했습니다.')
 }
 
+async function prepareGeneratedSceneStorage(source: GeneratedSceneStorage, kind: 'image' | 'video', sceneNumber: number) {
+    const label = kind === 'image' ? '생성 이미지' : '생성 영상'
+    const fallbackMime = kind === 'image' ? 'image/png' : 'video/mp4'
+    if (source.provider === 'gcs') {
+        try {
+            // Check the object without downloading/re-uploading every generated image.
+            const file = await getGcsObjectMetadata({ bucket: source.bucket, objectPath: source.path })
+            if (!file.size) throw new Error('파일이 비어 있습니다.')
+            return { bucket: source.bucket, path: source.path, size: file.size, contentType: file.contentType || fallbackMime }
+        } catch (error: any) {
+            throw new Error(`${label} ${sceneNumber}번을 GCS에서 읽을 수 없습니다: ${error?.message || 'missing file'}`)
+        }
+    }
+
+    // Only genuine legacy Supabase files need migration into render storage.
+    const { data: file, error } = await supabaseAdmin.storage.from(source.bucket).download(source.path)
+    if (error || !file) {
+        throw new Error(`${label} ${sceneNumber}번의 이전 저장 파일을 읽을 수 없습니다: ${error?.message || 'missing file'}`)
+    }
+    const data = Buffer.from(await file.arrayBuffer())
+    const contentType = file.type || fallbackMime
+    const stored = await uploadGcsBuffer({ objectPath: source.path, data, contentType })
+    return { ...stored, size: data.length, contentType }
+}
+
 export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes: any[], assets: any[]) {
     const activeAssets = Array.isArray(assets) ? [...assets] : []
-    const missingGeneratedVideos = (scenes || []).filter((scene: any) => {
-        const sceneNumber = Number(scene?.scene_number)
-        if (
-            !Number.isFinite(sceneNumber)
-            || sceneNumber <= 0
-            || (!isComicProject(project) && !isStdRequiredClipScene(sceneNumber, project))
-            || !generatedVideoStorageSource(scene)
-        ) return false
-        return !activeAssets.some((asset: any) => (
-            activeAsset(asset)
-            && String(asset?.asset_type || '').toLowerCase() === 'video'
-            && Number(asset?.scene_number) === sceneNumber
-            && storageSourceForAsset(asset)
-        ))
-    })
-
-    for (const scene of missingGeneratedVideos) {
-        const sceneNumber = Number(scene.scene_number)
-        const source = generatedVideoStorageSource(scene)
-        if (!source) continue
-        const existingAsset = activeAssets.find((asset: any) => (
-            String(asset?.asset_type || '').toLowerCase() === 'video'
-            && Number(asset?.scene_number) === sceneNumber
-        ))
-        // Video recovery must archive the bytes too: the remote manifest uses GCS.
-        const { data: videoFile, error: videoError } = await supabaseAdmin.storage.from(source.bucket).download(source.path)
-        if (videoError || !videoFile) throw new Error(`Scene ${sceneNumber} video could not be read from Storage`)
-        const gcsVideo = await uploadGcsBuffer({
-            objectPath: source.path, data: Buffer.from(await videoFile.arrayBuffer()), contentType: 'video/mp4',
-        })
-        const metadata = {
-            ...(existingAsset?.metadata || {}),
-            secondary_storage_provider: 'gcs', gcs_bucket: gcsVideo.bucket, gcs_path: gcsVideo.path,
-            storage_bucket: source.bucket,
-            storage_path: source.path,
-            storage_public_url: supabaseAdmin.storage.from(source.bucket).getPublicUrl(source.path).data.publicUrl,
-            upload_mode: 'worker_generated_scene_video_recovered_for_render',
-        }
-        const assetPayload = {
-            scene_id: scene?.id || existingAsset?.scene_id || null,
-            scene_number: sceneNumber,
-            asset_type: 'video',
-            drive_file_id: null,
-            drive_folder_id: null,
-            file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}.mp4`,
-            mime_type: existingAsset?.mime_type || 'video/mp4',
-            file_size: existingAsset?.file_size || null,
-            status: 'assigned',
-            metadata,
-            updated_at: new Date().toISOString(),
-        }
-        let recoveredAsset: any = null
-        if (existingAsset?.id) {
-            const { data, error } = await supabaseAdmin
-                .from('std_project_assets')
-                .update(assetPayload)
-                .eq('id', existingAsset.id)
-                .select('*')
-                .single()
+    let checkedGcsConfig = false
+    for (const kind of ['video', 'image'] as const) {
+        for (const scene of scenes || []) {
+            const sceneNumber = Number(scene?.scene_number)
+            if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) continue
+            if (kind === 'video' && !isComicProject(project) && !isStdRequiredClipScene(sceneNumber, project)) continue
+            if (kind === 'image' && isStdRequiredVideoScene(sceneNumber, project)) continue
+            const matchingAssets = activeAssets.filter((asset: any) => (
+                activeAsset(asset)
+                && String(asset?.asset_type || '').toLowerCase() === kind
+                && Number(asset?.scene_number) === sceneNumber
+            ))
+            if (matchingAssets.some(storageSourceForAsset)) continue
+            const existingAsset = matchingAssets[0]
+            let source = kind === 'image' ? generatedImageStorageSource(scene) : generatedVideoStorageSource(scene)
+            if (!source) continue
+            if (!checkedGcsConfig) {
+                if (!(await isGcsConfiguredAsync())) throw new Error('GCS is not configured for generated scene asset archiving.')
+                checkedGcsConfig = true
+                // Bucket configuration may have just been loaded from the database.
+                source = kind === 'image' ? generatedImageStorageSource(scene) : generatedVideoStorageSource(scene)
+            }
+            if (!source) continue
+            const stored = await prepareGeneratedSceneStorage(source, kind, sceneNumber)
+            const metadata = { ...(existingAsset?.metadata || {}) }
+            // A recovered reference must not retain stale URLs to another provider.
+            delete metadata.storage_public_url
+            delete metadata.gcs_public_url
+            delete metadata.gcs_signed_url
+            delete metadata.secondary_storage_provider
+            Object.assign(metadata, {
+                storage_provider: 'gcs',
+                storage_bucket: stored.bucket,
+                storage_path: stored.path,
+                gcs_bucket: stored.bucket,
+                gcs_path: stored.path,
+                upload_mode: source.provider === 'gcs' ? 'worker_generated_gcs_reference' : 'worker_generated_gcs_archive',
+            })
+            const extension = mediaExtension(stored.path, stored.contentType, kind === 'image' ? '.png' : '.mp4')
+            const assetPayload = {
+                scene_id: scene?.id || existingAsset?.scene_id || null,
+                scene_number: sceneNumber,
+                asset_type: kind,
+                drive_file_id: null,
+                drive_folder_id: null,
+                file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}${extension}`,
+                mime_type: stored.contentType,
+                file_size: stored.size,
+                status: 'assigned',
+                metadata,
+                updated_at: new Date().toISOString(),
+            }
+            const query = existingAsset?.id
+                ? supabaseAdmin.from('std_project_assets').update(assetPayload).eq('id', existingAsset.id).eq('project_id', project.id)
+                : supabaseAdmin.from('std_project_assets').insert({ project_id: project.id, ...assetPayload })
+            const { data: recovered, error } = await query.select('*').single()
             if (error) throw new Error(error.message)
-            recoveredAsset = data
-            const index = activeAssets.findIndex((asset: any) => asset.id === existingAsset.id)
-            if (index >= 0 && recoveredAsset) activeAssets[index] = recoveredAsset
-        } else {
-            const { data, error } = await supabaseAdmin
-                .from('std_project_assets')
-                .insert({ project_id: project.id, ...assetPayload })
-                .select('*')
-                .single()
-            if (error) throw new Error(error.message)
-            recoveredAsset = data
-            if (recoveredAsset) activeAssets.push(recoveredAsset)
-        }
-    }
-
-    const missingGeneratedImages = (scenes || []).filter((scene: any) => {
-        const sceneNumber = Number(scene?.scene_number)
-        if (
-            !Number.isFinite(sceneNumber)
-            || sceneNumber <= 0
-            || isStdRequiredVideoScene(sceneNumber, project)
-            || !generatedImageStorageSource(scene)
-        ) return false
-        return !activeAssets.some((asset: any) => (
-            activeAsset(asset)
-            && String(asset?.asset_type || '').toLowerCase() === 'image'
-            && Number(asset?.scene_number) === sceneNumber
-            && storageSourceForAsset(asset)
-        ))
-    })
-    if (missingGeneratedImages.length === 0) return activeAssets
-
-    const gcsConfigured = await isGcsConfiguredAsync()
-    if (!gcsConfigured) {
-        throw new Error('GCS is not configured for generated scene asset archiving.')
-    }
-
-    for (const scene of missingGeneratedImages) {
-        const sceneNumber = Number(scene.scene_number)
-        const source = generatedImageStorageSource(scene)
-        if (!source) continue
-        const { data: storageFile, error: storageError } = await supabaseAdmin.storage
-            .from(source.bucket)
-            .download(source.path)
-        if (storageError || !storageFile) {
-            throw new Error(`생성 이미지 ${sceneNumber}번을 Supabase Storage에서 읽을 수 없습니다: ${storageError?.message || 'missing file'}`)
-        }
-
-        const imageBuffer = Buffer.from(await storageFile.arrayBuffer())
-
-        const gcsRes = await uploadGcsBuffer({
-            objectPath: source.path,
-            buffer: imageBuffer,
-            contentType: 'image/png',
-        })
-
-        const existingAsset = activeAssets.find((asset: any) => (
-            activeAsset(asset)
-            && String(asset?.asset_type || '').toLowerCase() === 'image'
-            && Number(asset?.scene_number) === sceneNumber
-        ))
-        const metadata = {
-            ...(existingAsset?.metadata || {}),
-            storage_bucket: source.bucket,
-            storage_path: source.path,
-            storage_public_url: supabaseAdmin.storage.from(source.bucket).getPublicUrl(source.path).data.publicUrl,
-            storage_provider: 'gcs',
-            gcs_bucket: gcsRes.bucket,
-            gcs_path: gcsRes.path,
-            upload_mode: 'worker_generated_gcs_archive',
-        }
-        const assetPayload = {
-            scene_id: scene?.id || existingAsset?.scene_id || null,
-            scene_number: sceneNumber,
-            asset_type: 'image',
-            drive_file_id: null,
-            drive_folder_id: null,
-            file_name: existingAsset?.file_name || `scene_${String(sceneNumber).padStart(3, '0')}.png`,
-            mime_type: existingAsset?.mime_type || 'image/png',
-            file_size: imageBuffer.length,
-            status: 'assigned',
-            metadata,
-            updated_at: new Date().toISOString(),
-        }
-        let archivedAsset: any = null
-        if (existingAsset?.id) {
-            const { data, error } = await supabaseAdmin
-                .from('std_project_assets')
-                .update(assetPayload)
-                .eq('id', existingAsset.id)
-                .select('*')
-                .single()
-            if (error) throw new Error(error.message)
-            archivedAsset = data
-            const index = activeAssets.findIndex((asset: any) => asset.id === existingAsset.id)
-            if (index >= 0 && archivedAsset) activeAssets[index] = archivedAsset
-        } else {
-            const { data, error } = await supabaseAdmin
-                .from('std_project_assets')
-                .insert({ project_id: project.id, ...assetPayload })
-                .select('*')
-                .single()
-            if (error) throw new Error(error.message)
-            archivedAsset = data
-            if (archivedAsset) activeAssets.push(archivedAsset)
+            if (!recovered) throw new Error(`Scene ${sceneNumber} ${kind} asset could not be registered`)
+            const index = activeAssets.findIndex((asset: any) => asset.id === recovered.id)
+            if (index >= 0) activeAssets[index] = recovered
+            else activeAssets.push(recovered)
         }
     }
     return activeAssets

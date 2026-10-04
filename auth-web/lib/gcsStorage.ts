@@ -226,6 +226,12 @@ export async function downloadGcsObject(input: {
     return data
 }
 
+export async function getGcsObjectMetadata(input: { bucket?: string; objectPath: string }) {
+    await getGcsConfig()
+    const [metadata] = await getBucket(input.bucket).file(input.objectPath).getMetadata()
+    return { size: Number(metadata.size || 0), contentType: String(metadata.contentType || '') }
+}
+
 export async function downloadGcsObjectViaSignedUrl(input: {
     bucket?: string
     objectPath: string
