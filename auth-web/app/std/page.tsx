@@ -7,6 +7,7 @@ import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import { localizeStdActionError } from '@/lib/stdActionFeedback'
+import { isTemplateBackgroundTransparent } from '@/lib/stdTemplateBackground'
 import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotice'
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
@@ -1282,6 +1283,8 @@ export default function StdPortalPage() {
     // 7. 템플릿(Template) 전용 디자인 스튜디오 상태 (유저앱 template.html 100% 동일 구현)
     const [templateBgUrl, setTemplateBgUrl] = useState('')
     const [templateBgColor, setTemplateBgColor] = useState('#000000')
+    const [templateBgTransparent, setTemplateBgTransparent] = useState(true)
+    const templateCanvasBgColor = templateBgTransparent ? 'transparent' : templateBgColor
     const [templatePresetName, setTemplatePresetName] = useState('')
     const [selectedTemplatePreset, setSelectedTemplatePreset] = useState('')
     const [templatePresets, setTemplatePresets] = useState<any[]>([])
@@ -1327,16 +1330,7 @@ export default function StdPortalPage() {
         opacity: number
         y: number
         height: number
-    }>>([
-        {
-            id: 'shape-1',
-            type: 'banner',
-            color: '#000000',
-            opacity: 0.6,
-            y: 60,
-            height: 25,
-        }
-    ])
+    }>>([])
 
     const loadTemplatePresetsFromStorage = () => {
         try {
@@ -1363,7 +1357,8 @@ export default function StdPortalPage() {
         const preset = templatePresets.find(p => p.id === presetId)
         if (!preset?.settings) return
         setTemplateBgUrl(preset.settings.bgUrl || '')
-        setTemplateBgColor(preset.settings.bgColor || '#000000')
+        setTemplateBgColor(preset.settings.bgColor === 'transparent' ? '#000000' : preset.settings.bgColor || '#000000')
+        setTemplateBgTransparent(isTemplateBackgroundTransparent(preset.settings))
         setTextLayers((preset.settings.textLayers || []).map((layer: any, index: number) => ({
             ...layer,
             id: layer.id || `layer-${Date.now()}-${index}`,
@@ -1387,6 +1382,7 @@ export default function StdPortalPage() {
             settings: {
                 bgUrl: templateBgUrl,
                 bgColor: templateBgColor,
+                bgTransparent: templateBgTransparent,
                 textLayers,
                 shapeLayers,
             },
@@ -4687,22 +4683,26 @@ export default function StdPortalPage() {
         if (renderSettings.std_image_template_enabled || savedTemplateTextLayers.length > 0 || savedTemplateShapeLayers.length > 0) {
             setSelectedImageTemplatePreset(String(renderSettings.std_image_template_preset_id || 'saved-template'))
             setTemplateBgUrl(String(renderSettings.std_image_template_bg_url || ''))
-            setTemplateBgColor(String(renderSettings.std_image_template_bg_color || '#000000'))
+            setTemplateBgColor(renderSettings.std_image_template_bg_color === 'transparent' ? '#000000' : String(renderSettings.std_image_template_bg_color || '#000000'))
+            setTemplateBgTransparent(isTemplateBackgroundTransparent({
+                bgUrl: renderSettings.std_image_template_bg_url,
+                bgColor: renderSettings.std_image_template_bg_color,
+                bgTransparent: renderSettings.std_image_template_bg_transparent,
+            }))
             if (savedTemplateTextLayers.length > 0) {
                 setTextLayers(savedTemplateTextLayers.map((layer: any, index: number) => ({
                     ...layer,
                     id: layer.id || `saved-template-layer-${index}`,
                 })))
             }
-            if (savedTemplateShapeLayers.length > 0) {
-                setShapeLayers(savedTemplateShapeLayers.map((shape: any, index: number) => ({
-                    ...shape,
-                    id: shape.id || `saved-template-shape-${index}`,
-                })))
-            }
+            setShapeLayers(savedTemplateShapeLayers.map((shape: any, index: number) => ({
+                ...shape,
+                id: shape.id || `saved-template-shape-${index}`,
+            })))
         } else {
             setSelectedImageTemplatePreset('')
             setTemplateBgUrl('')
+            setTemplateBgTransparent(true)
         }
 
         const isSaved = Boolean(
@@ -5277,7 +5277,8 @@ export default function StdPortalPage() {
         const preset = templatePresets.find(p => p.id === presetId)
         if (!preset?.settings) return
         setTemplateBgUrl(preset.settings.bgUrl || '')
-        setTemplateBgColor(preset.settings.bgColor || '#000000')
+        setTemplateBgColor(preset.settings.bgColor === 'transparent' ? '#000000' : preset.settings.bgColor || '#000000')
+        setTemplateBgTransparent(isTemplateBackgroundTransparent(preset.settings))
         setTextLayers((preset.settings.textLayers || []).map((layer: any, index: number) => ({
             ...layer,
             id: layer.id || `subtitle-template-layer-${Date.now()}-${index}`,
@@ -5322,7 +5323,8 @@ export default function StdPortalPage() {
             std_image_template_enabled: Boolean(selectedImageTemplatePreset),
             std_image_template_preset_id: selectedImageTemplatePreset || null,
             std_image_template_bg_url: templateBgUrl || null,
-            std_image_template_bg_color: templateBgColor || '#000000',
+            std_image_template_bg_color: templateCanvasBgColor,
+            std_image_template_bg_transparent: templateBgTransparent,
             std_template_text_layers: selectedImageTemplatePreset ? textLayers : [],
             std_template_shape_layers: selectedImageTemplatePreset ? shapeLayers : [],
         }
@@ -9798,7 +9800,7 @@ export default function StdPortalPage() {
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden [container-type:inline-size]"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
-                                                ? { backgroundColor: templateBgColor || '#000000' }
+                                                ? { backgroundColor: templateCanvasBgColor }
                                                 : undefined}
                                         >
                                             {currentSubVideoUrl ? (
@@ -12048,7 +12050,7 @@ export default function StdPortalPage() {
                                                 <span>🎨 실시간 16:9 템플릿 캔버스</span>
                                                 {!templateBgUrl && (
                                                     <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold border border-red-500/30">
-                                                        배경 없음 (단색/투명)
+                                                        {templateBgTransparent ? '투명 배경' : '단색 배경'}
                                                     </span>
                                                 )}
                                             </div>
@@ -12056,7 +12058,7 @@ export default function StdPortalPage() {
                                                 {templateBgUrl && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setTemplateBgUrl('')}
+                                                        onClick={() => { setTemplateBgUrl(''); setTemplateBgTransparent(true) }}
                                                         className="text-[10px] px-2 py-0.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded border border-red-500/30 font-bold transition"
                                                     >
                                                         ✕ 배경 지우기
@@ -12067,20 +12069,16 @@ export default function StdPortalPage() {
                                         </div>
                                         <div
                                             className="relative aspect-video overflow-hidden select-none transition-colors"
-                                            style={{ backgroundColor: templateBgColor }}
+                                            data-template-canvas
+                                            style={{ backgroundColor: templateCanvasBgColor }}
                                         >
                                             {/* 배경 이미지 (있을 때만 렌더링) */}
-                                            {templateBgUrl ? (
+                                            {templateBgUrl && (
                                                 <img
                                                     src={templateBgUrl}
                                                     alt="Template BG"
                                                     className="w-full h-full object-cover"
                                                 />
-                                            ) : (
-                                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 select-none pointer-events-none gap-1 opacity-40">
-                                                    <span className="text-2xl">🖼️</span>
-                                                    <span className="text-[10px] font-mono tracking-wider">배경 없음 (단색 캔버스)</span>
-                                                </div>
                                             )}
 
                                             {/* 도형 배너 오버레이 */}
@@ -12136,7 +12134,7 @@ export default function StdPortalPage() {
                                         {templateBgUrl ? (
                                             <span className="text-[10px] text-emerald-400 font-mono">이미지 활성</span>
                                         ) : (
-                                            <span className="text-[10px] text-gray-400 font-mono">배경 없음</span>
+                                            <span className="text-[10px] text-gray-400 font-mono">{templateBgTransparent ? '투명 배경' : '단색 배경'}</span>
                                         )}
                                     </h4>
                                     <div className="space-y-2">
@@ -12145,10 +12143,11 @@ export default function StdPortalPage() {
                                             type="button"
                                             onClick={() => {
                                                 setTemplateBgUrl('')
+                                                setTemplateBgTransparent(true)
                                             }}
                                             className="w-full py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
                                         >
-                                            <span>🗑️</span> 배경 이미지 완전히 지우기 (단색/투명)
+                                            <span>🗑️</span> 배경 지우고 투명하게
                                         </button>
 
                                         <input
@@ -12168,6 +12167,15 @@ export default function StdPortalPage() {
                                             </button>
                                         </div>
 
+                                        <label className="flex items-center gap-2 text-xs text-gray-200 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={templateBgTransparent}
+                                                onChange={e => setTemplateBgTransparent(e.target.checked)}
+                                                className="accent-cyan-500"
+                                            />
+                                            배경색 투명하게
+                                        </label>
                                         {/* 단색 배경 색상 선택 */}
                                         <div className="flex items-center justify-between p-2 bg-[#14181f] rounded-lg border border-white/5 text-[11px]">
                                             <span className="text-gray-400 font-bold">단색 캔버스 배경색</span>
@@ -12175,10 +12183,11 @@ export default function StdPortalPage() {
                                                 <input
                                                     type="color"
                                                     value={templateBgColor}
+                                                    disabled={templateBgTransparent}
                                                     onChange={e => setTemplateBgColor(e.target.value)}
                                                     className="w-6 h-6 rounded border border-white/10 bg-transparent cursor-pointer"
                                                 />
-                                                <span className="font-mono text-gray-300 text-[10px]">{templateBgColor}</span>
+                                                <span className="font-mono text-gray-300 text-[10px]">{templateBgTransparent ? '투명' : templateBgColor}</span>
                                             </div>
                                         </div>
                                     </div>
