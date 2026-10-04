@@ -19,6 +19,11 @@ new Function('exports', ts.transpileModule(fs.readFileSync(path.resolve(__dirnam
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText)(scopeExports)
 const { isCurrentMediaScope } = scopeExports
+const feedbackExports = {}
+new Function('exports', ts.transpileModule(fs.readFileSync(path.resolve(__dirname, '../lib/stdActionFeedback.ts'), 'utf8'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+}).outputText)(feedbackExports)
+const { localizeStdActionError } = feedbackExports
 
 const page = fs.readFileSync(path.resolve(__dirname, '../app/std/page.tsx'), 'utf8')
 const start = page.indexOf('    const submitProject =')
@@ -52,9 +57,12 @@ function harness(options = {}) {
     }
     const submittingProjectRef = { current: '' }
     const mediaScopeRef = { current: { session: 'session-a', projectId: 'project-a', generation: 1 } }
-    const reportAccepted = new Function('setRenderSubmissionNotice', acceptedSource)(notice => state.notices.push(notice))
+    state.notifications = []
+    class BrowserNotification { static permission = 'granted'; constructor(title, options) { state.notifications.push({ title, ...options }) } }
+    const reportAccepted = new Function('setRenderSubmissionNotice', 'submissionNoticeCopy', 'currentLocale', 'window', 'Notification', acceptedSource)(
+        notice => state.notices.push(notice), submissionNoticeCopy, options.locale || 'ko', { Notification: BrowserNotification }, BrowserNotification)
     const context = {
-        selectedProject, projects: initialProjects, token: 'fixture-token', currentLocale: 'ko', submissionNoticeCopy,
+        selectedProject, projects: initialProjects, token: 'fixture-token', currentLocale: options.locale || 'ko', submissionNoticeCopy, localizeStdActionError, console: { warn() {} },
         submittingProjectId: '', submittingProjectRef, mediaScopeRef, isCurrentMediaScope,
         subtitleSaveState: options.saveState || 'saved',
         subtitleTextSaveTimerRef: { current: options.pendingText ? 123 : null },
@@ -330,3 +338,21 @@ test('submission notices are accessible, localized, and keep failures visible un
         }
     }
 })
+
+for (const locale of ['th', 'vi']) {
+    test(`${locale}: submit confirmation, queue acceptance and server failure details are localized`, async () => {
+        const success = harness({ locale })
+        await success.submitProject('project-b')
+        const copy = submissionNoticeCopy(locale)
+        assert.equal(success.state.confirmations[0], copy.submitConfirm)
+        assert.equal(success.state.notifications[0].title, copy.success)
+        for (const notice of success.state.notices) assert.doesNotMatch(notice.detail, /[가-힣]/)
+        const failure = harness({ locale, status: 500, payload: { success: false, error: '생성 이미지 24번을 GCS에서 읽을 수 없습니다', missing_scene_numbers: [24] } })
+        await failure.submitProject('project-b')
+        const detail = failure.state.notices.at(-1).detail
+        assert.equal(failure.state.notices.at(-1).phase, 'error')
+        assert.doesNotMatch(detail, /[가-힣]/)
+        assert.ok(detail.includes(copy.missingScenes([24])))
+        assert.ok(detail.includes(localizeStdActionError('생성 이미지 24번을 GCS에서 읽을 수 없습니다', locale, 'submit')))
+    })
+}

@@ -18,6 +18,7 @@ function load(file) {
     return exports
 }
 const { isCurrentMediaScope, assetBelongsToProject } = load('../lib/stdMediaScope.ts')
+const { localizeStdActionError } = load('../lib/stdActionFeedback.ts')
 const { default: StdTtsNotice, ttsNoticeCopy } = load('../components/StdTtsNotice.tsx')
 function extract(start, end, result, context) {
     const from = page.indexOf(start), to = page.indexOf(end, from)
@@ -42,7 +43,7 @@ function harness(options = {}) {
     const state = { project: selectedProject, audio: 'initial-audio', notices: [], spinning: [], alerts: [], messages: [], remembered: [], requests: [], revoked: [], fallbackCalls: 0, saves: 0 }
     const mediaScopeRef = { current: { session: 'session-a', projectId: 'project-a', generation: 1 } }
     const context = {
-        selectedProject, mediaScopeRef, isCurrentMediaScope, assetBelongsToProject, currentLocale: 'ko', ttsNoticeCopy,
+        selectedProject, mediaScopeRef, isCurrentMediaScope, assetBelongsToProject, currentLocale: options.locale || 'ko', ttsNoticeCopy, localizeStdActionError,
         currentNav: options.nav || 'subtitle_vrew',
         getProjectSyncedTitle: p => p?.project?.title || '',
         setTtsNotice: notice => state.notices.push(notice), setGeneratingTts: value => state.spinning.push(value),
@@ -130,6 +131,7 @@ test('missing or foreign persisted assets show a warning instead of save success
         const h = harness({ payload: { ...successfulPayload(), asset: saved } })
         await h.generateTts(true)
         assert.deepEqual(terminal(h).map(notice => notice.phase), ['warning'])
+        assert.equal(h.state.messages.at(-1), ttsNoticeCopy('ko').unsaved)
         assert.equal(h.state.remembered.length, 0)
         assert.equal(h.state.project.assets.length, 1)
         assert.equal(h.state.spinning.at(-1), false)
@@ -144,6 +146,7 @@ test('browser fallback audio and failed Google persistence never claim server sa
         const h = harness(options)
         await h.generateTts(true)
         assert.deepEqual(terminal(h).map(notice => notice.phase), ['warning'])
+        assert.equal(h.state.messages.at(-1), ttsNoticeCopy('ko').unsaved)
         assert.equal(h.state.audio, 'blob:fixture-audio')
         assert.equal(h.state.remembered.length, 0)
         assert.equal(h.state.spinning.at(-1), false)
@@ -268,3 +271,23 @@ test('notice is localized, accessible, persistent until dismissal, and clear abo
         }
     }
 })
+
+for (const locale of ['th', 'vi']) {
+    test(`${locale}: Save + TTS progress, completion and native failure alerts use the selected language`, async () => {
+        const success = harness({ locale })
+        await success.handleFinalizeSubtitlesAndTts()
+        const copy = ttsNoticeCopy(locale)
+        assert.equal(terminal(success)[0].phase, 'success')
+        for (const notice of success.state.notices) assert.doesNotMatch(notice.detail, /[가-힣]/)
+        const failure = harness({ locale, batchError: 'Google 음성 API 요청 한도 429: quota exceeded' })
+        await failure.handleFinalizeSubtitlesAndTts()
+        assert.equal(terminal(failure)[0].phase, 'error')
+        assert.match(failure.state.alerts[0], new RegExp(copy.ttsFailedTitle))
+        assert.doesNotMatch(failure.state.alerts[0], /[가-힣]/)
+        const save = harness({ locale, saveError: '네트워크 연결 실패' })
+        await save.handleFinalizeSubtitlesAndTts()
+        assert.doesNotMatch(terminal(save)[0].detail, /[가-힣]/)
+        assert.ok(save.state.alerts[0].startsWith(copy.finalSaveFailedTitle))
+        assert.equal(save.state.requests.length, 0)
+    })
+}

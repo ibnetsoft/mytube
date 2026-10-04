@@ -6,6 +6,7 @@ import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/st
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
+import { localizeStdActionError } from '@/lib/stdActionFeedback'
 import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotice'
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
@@ -780,7 +781,7 @@ export default function StdPortalPage() {
         if (typeof window !== 'undefined' && 'Notification' in window) {
             const showNotification = () => {
                 try {
-                    new Notification('렌더 큐 등록 성공', { body: detail })
+                    new Notification(submissionNoticeCopy(currentLocale).success, { body: detail })
                 } catch {
                     // Browser notification is optional; the in-app toast is the primary feedback.
                 }
@@ -1689,8 +1690,10 @@ export default function StdPortalPage() {
                     rememberProjectState(persistedProject)
                 }
             } catch (error: any) {
-                setMessage(error?.message || 'Script sync save failed')
-                if (showSuccessAlert) alert(error?.message || 'Script sync save failed')
+                console.warn('[script sync save]', error?.message)
+                const detail = localizeStdActionError(error, currentLocale, 'subtitle_save')
+                setMessage(detail)
+                if (showSuccessAlert) alert(detail)
                 return false
             }
         }
@@ -1721,7 +1724,7 @@ export default function StdPortalPage() {
         const savedScript = cleanScriptContextText(selectedProject.project?.project_payload?.script || '')
         if (!currentScript.trim()) return true
         if (!scriptSyncDirty && currentScript === savedScript) return true
-        setMessage('Script changed. Syncing scenes and subtitles...')
+        setMessage(submissionNoticeCopy(currentLocale).saving)
         return await handleSyncScriptToScenesAndSubtitles(false)
     }
 
@@ -2988,7 +2991,7 @@ export default function StdPortalPage() {
             if (isCurrentProject() && revision === subtitleSaveRevisionRef.current) {
                 setIsSubtitleSaved(false)
                 setSubtitleSaveState('error')
-                setMessage(currentLocale === 'th' ? 'บันทึกไม่สำเร็จ กรุณากดบันทึกคำบรรยายเพื่อลองอีกครั้ง' : '저장하지 못했습니다. 변경 내용은 화면에 유지됩니다. 상단 디스크 저장 버튼을 눌러 다시 시도해 주세요.')
+                setMessage(currentLocale === 'ko' ? '저장하지 못했습니다. 변경 내용은 화면에 유지됩니다. 상단 디스크 저장 버튼을 눌러 다시 시도해 주세요.' : localizeStdActionError(error, currentLocale, 'subtitle_save'))
             }
             if (options?.strict) throw error
             return false
@@ -5222,7 +5225,7 @@ export default function StdPortalPage() {
     const handleSaveSubtitlePreset = () => {
         const name = newSubPresetName.trim()
         if (!name) {
-            alert('새 프리셋명을 입력해주세요.')
+            alert(ttsNoticeCopy(currentLocale).presetNameRequired)
             return
         }
         const newPreset = {
@@ -5249,7 +5252,7 @@ export default function StdPortalPage() {
         try {
             localStorage.setItem('std_subtitle_presets', JSON.stringify(updated))
         } catch (e) {}
-        alert(`'${name}' 자막 프리셋이 저장되었습니다.`)
+        alert(ttsNoticeCopy(currentLocale).presetSaved(name))
     }
 
     const handleDeleteSubtitlePreset = () => {
@@ -5391,15 +5394,29 @@ export default function StdPortalPage() {
     }
 
     const handleSaveSubtitles = async (showSuccessAlert: boolean = true) => {
-        if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
-        subtitleStyleSaveTimerRef.current = null
-        const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || [])
-        await persistVrewVoiceSubtitles(subtitlesForStorage, {
-            strict: true,
-            renderSettings: { ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() },
-        })
-        if (showSuccessAlert) setMessage(currentLocale === 'th' ? 'บันทึกคำบรรยายแล้ว' : '자막 변경 내용을 저장했습니다.')
-        return true
+        const copy = ttsNoticeCopy(currentLocale)
+        const requestScope = { ...mediaScopeRef.current }
+        const noticeProject = { projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || copy.project, kind: 'subtitles' as const }
+        const reportSave = (phase: TtsNotice['phase'], detail: string) => {
+            if (showSuccessAlert && requestScope.session === mediaScopeRef.current.session) setTtsNotice({ ...noticeProject, phase, detail })
+        }
+        reportSave('running', copy.subtitleSaving)
+        try {
+            if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
+            subtitleStyleSaveTimerRef.current = null
+            const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || [])
+            await persistVrewVoiceSubtitles(subtitlesForStorage, {
+                strict: true,
+                renderSettings: { ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() },
+            })
+            if (showSuccessAlert) setMessage(copy.subtitleSaved)
+            reportSave('success', copy.subtitleSaved)
+            return true
+        } catch (error: any) {
+            console.warn('[subtitle save]', error?.message)
+            reportSave('error', localizeStdActionError(error, currentLocale, 'subtitle_save'))
+            throw error
+        }
     }
 
     const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string): Promise<SelectedProjectPayload | null> => {
@@ -6179,10 +6196,9 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, copy.error)
             if (!res.ok || payload.success !== true) {
-                const missing = payload.missing_scene_numbers?.length
-                    ? ` (${payload.missing_scene_numbers.join(', ')})`
-                    : ''
-                throw new Error((payload.error || copy.error) + missing)
+                throw Object.assign(new Error(payload.error || copy.error), {
+                    missingScenes: Array.isArray(payload.missing_scene_numbers) ? payload.missing_scene_numbers.map(Number).filter(Number.isFinite) : [],
+                })
             }
             if (!isSameSession()) return
             const accepted = payload.already_submitted ? copy.alreadySubmitted
@@ -6206,7 +6222,11 @@ export default function StdPortalPage() {
             }
         } catch (error: any) {
             const timedOut = ['TimeoutError', 'AbortError'].includes(String(error?.name || ''))
-            report(postStarted && timedOut ? 'warning' : 'error', timedOut ? (postStarted ? copy.timeout : copy.subtitleSaveFailed) : error?.message || copy.error)
+            console.warn('[project submit]', error?.message)
+            const knownLocalMessage = [copy.error, copy.subtitleSaveFailed, copy.scriptSaveFailed, copy.projectChanged].includes(error?.message)
+            const detail = knownLocalMessage ? error.message : localizeStdActionError(error, currentLocale, 'submit')
+            const missing = error?.missingScenes?.length ? ` ${copy.missingScenes(error.missingScenes)}` : ''
+            report(postStarted && timedOut ? 'warning' : 'error', timedOut ? (postStarted ? copy.timeout : copy.subtitleSaveFailed) : detail + missing)
         } finally {
             if (submittingProjectRef.current === targetId) {
                 submittingProjectRef.current = ''
@@ -6222,26 +6242,28 @@ export default function StdPortalPage() {
 
     const reopenProjectForRerender = async (projectId: string) => {
         if (!projectId || loading || submittingProjectRef.current) return
-        if (!confirm('완료 상태를 유지한 채 새 렌더 버전을 큐에 등록하시겠습니까?')) return
+        const copy = submissionNoticeCopy(currentLocale)
+        if (!confirm(copy.rerenderConfirm)) return
         setLoading(true)
         submittingProjectRef.current = projectId
         setSubmittingProjectId(projectId)
         setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || '', phase: 'running', detail: submissionNoticeCopy(currentLocale).preparing })
-        setMessage('완료 목록 위치를 유지한 채 새 렌더 버전을 큐에 등록하고 있습니다...')
+        setMessage(copy.preparing)
         try {
             const res = await fetch(`/api/std/projects/${projectId}/reopen`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
             })
-            const payload = await safeParseJson(res, '재렌더링 준비 실패')
-            if (!res.ok || payload.success === false) throw new Error(payload.error || '재렌더링 준비 실패')
+            const payload = await safeParseJson(res, copy.error)
+            if (!res.ok || payload.success === false) throw new Error(payload.error || copy.error)
             await loadStdData(token, { showLoading: false })
-            const rerenderMessage = `렌더링 v${payload.next_render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`
+            const rerenderMessage = copy.accepted(payload.next_render_version || 1)
             setMessage(rerenderMessage)
-            const projectTitle = projects.find((p: any) => String(p.id) === projectId)?.title || selectedProject?.project?.title || '프로젝트'
+            const projectTitle = projects.find((p: any) => String(p.id) === projectId)?.title || selectedProject?.project?.title || copy.project
             notifyRenderAccepted(projectId, projectTitle, rerenderMessage)
         } catch (error: any) {
-            const errorMessage = error?.message || '재렌더링 준비 실패'
+            console.warn('[project resubmit]', error?.message)
+            const errorMessage = error?.message === copy.error ? copy.error : localizeStdActionError(error, currentLocale, 'submit')
             setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || '', phase: 'error', detail: errorMessage })
             setMessage(`❌ ${errorMessage}`)
             alert(errorMessage)
@@ -6267,9 +6289,11 @@ export default function StdPortalPage() {
         }
         const reportSavedTts = (asset: any, reuse?: { reused?: number; generated?: number }) => {
             const saved = asset?.id && assetBelongsToProject(asset, noticeProject.projectId)
-            reportTts(saved ? 'success' : 'warning', saved
+            const detail = saved
                 ? `${copy.saved}${reuse ? ` ${copy.counts(reuse.reused || 0, reuse.generated || 0)}` : ''}`
-                : copy.unsaved)
+                : copy.unsaved
+            reportTts(saved ? 'success' : 'warning', detail)
+            if (requestScope.session === mediaScopeRef.current.session) setMessage(detail)
         }
         reportTts('running', copy.preparing)
         setGeneratingTts(true)
@@ -6283,7 +6307,7 @@ export default function StdPortalPage() {
         const ttsProvider = subtitleVoiceSegments().some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
         const ttsText = customScriptText || selectedProject.project.project_payload?.script || ''
         if (!ttsText.trim()) {
-            setMessage('❗ 대본이 없습니다. 먼저 대본을 생성해주세요.')
+            setMessage(copy.empty)
             reportTts('error', copy.empty)
             setGeneratingTts(false)
             return
@@ -6325,7 +6349,7 @@ export default function StdPortalPage() {
                 : hasSubtitleVoiceOverrides
 
             if (ttsProvider === 'google_free' && !useSubtitleVoiceSegments) {
-                setMessage('🎙️ Google 무료 한국어 TTS 준비 중...')
+                setMessage(copy.preparing)
                 // 180자 단위로 문장 분할
                 const cleanText = ttsText.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
                 const rawSentences = cleanText.split(/(?<=[.!?。！？\n])\s+/).filter(Boolean)
@@ -6360,7 +6384,7 @@ export default function StdPortalPage() {
                 for (let bIdx = 0; bIdx < batches.length; bIdx++) {
                     const batch = batches[bIdx]
                     const currentPercent = Math.round(((bIdx + 1) / batches.length) * 100)
-                    setMessage(`🎙️ Google 무료 TTS 생성 중... (${bIdx + 1}/${batches.length} 구간, ${currentPercent}%)`)
+                    setMessage(copy.progress(bIdx + 1, batches.length))
 
                     const res = await fetch('/api/std/tts-proxy', {
                         method: 'POST',
@@ -6418,13 +6442,7 @@ export default function StdPortalPage() {
                     }
                 }
 
-                setMessage(
-                    useSubtitleVoiceSegments
-                        ? `저장된 음성 ${voiceSegments.length}개를 확인하고, 없는 구간만 생성합니다...`
-                        : multiVoice
-                        ? `TTS generating with narrator and ${detectedCharacters.length} character voice(s)...`
-                        : 'TTS generating...'
-                )
+                setMessage(copy.preparing)
 
                 const requestBody = {
                     provider: voiceSegments.some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : 'elevenlabs',
@@ -6447,9 +6465,7 @@ export default function StdPortalPage() {
                     return { res: response, payload: await safeParseJson(response, 'TTS generation failed') }
                 }, (ready, total) => {
                     reportTts('running', ready === total ? copy.assembling : copy.progress(ready, total))
-                    setMessage(ready === total
-                        ? `음성 ${total}개 준비 완료. 저장된 조각을 합치는 중입니다...`
-                        : `음성 준비 중: ${ready}/${total}개 완료. 저장된 조각은 재사용합니다.`)
+                    setMessage(ready === total ? copy.assembling : copy.progress(ready, total))
                 })
                 if (!res.ok || payload?.success === false) {
                     const detail = payload?.error || payload?.detail || payload?.raw || `${res.status} ${res.statusText}`
@@ -6464,7 +6480,7 @@ export default function StdPortalPage() {
                     audioUrl = URL.createObjectURL(fallbackBlob)
                     setTtsAudio(audioUrl)
                     reportTts('warning', copy.unsaved)
-                    setMessage(`ElevenLabs TTS 생성 완료. 서버 저장은 실패했습니다: ${String(detail).slice(0, 160)}`)
+                    setMessage(copy.unsaved)
                     return
                 }
                 persistedAudioAsset = payload.asset || null
@@ -6496,20 +6512,7 @@ export default function StdPortalPage() {
                 setTtsAudio(audioUrl)
                 rememberPersistedAudioAsset(persistedAudioAsset)
                 reportSavedTts(persistedAudioAsset, payload.segment_reuse)
-                const usedKeySlots = Array.isArray(payload.elevenlabs_key_slots)
-                    ? payload.elevenlabs_key_slots.filter((slot: unknown) => Number.isInteger(Number(slot)))
-                    : []
-                const keyUsageLabel = usedKeySlots.length
-                    ? ` (ElevenLabs 키 ${usedKeySlots.join(', ')}번 사용)`
-                    : ''
-                const serverWarning = payload.warning ? ` ${String(payload.warning).slice(0, 160)}` : ''
-                setMessage(
-                    useSubtitleVoiceSegments
-                        ? `음성 준비 완료: 기존 ${payload.segment_reuse?.reused ?? 0}개 재사용 · 새로 ${payload.segment_reuse?.generated ?? 0}개 생성.${serverWarning}`
-                        : multiVoice
-                        ? `TTS generated with narrator and ${detectedCharacters.length} character voice(s).${keyUsageLabel}${serverWarning}`
-                        : `${voiceObj.name} TTS audio generated.${keyUsageLabel}${serverWarning}`
-                )
+                if (payload.warning) console.warn('[STD TTS] generation warning:', payload.warning)
                 return
                 /*
                 // ElevenLabs TTS: 클라이언트에서 직접 API 호출 (Vercel 타임아웃 우회)
@@ -6602,13 +6605,13 @@ export default function StdPortalPage() {
             setTtsAudio(audioUrl)
             rememberPersistedAudioAsset(persistedAudioAsset)
             reportSavedTts(persistedAudioAsset)
-            setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!${ttsWarning}`)
         } catch (error: any) {
             setTtsAudio('')
-            const errorMessage = formatTtsErrorMessage(error?.message || 'TTS generation failed')
+            console.warn('[TTS generation]', error?.message)
+            const errorMessage = localizeStdActionError(formatTtsErrorMessage(error?.message || 'TTS generation failed'), currentLocale, 'tts')
             reportTts('error', errorMessage)
             setMessage(`❌ ${errorMessage}`)
-            alert(`음성 생성 실패: ${errorMessage}`)
+            alert(`${copy.ttsFailedTitle}: ${errorMessage}`)
         } finally {
             setGeneratingTts(false)
         }
@@ -6774,8 +6777,9 @@ export default function StdPortalPage() {
     }
 
     const handleFinalizeSubtitlesAndTts = async () => {
+        const copy = ttsNoticeCopy(currentLocale)
         if (!hasDistinctDialogueVoiceAssignment()) {
-            const msg = '대사 성우를 내레이션 성우와 다르게 일괄 적용한 뒤 최종 TTS를 생성해주세요. (상단 툴바의 [대사 성우] 버튼을 눌러 선택할 수 있습니다)'
+            const msg = copy.dialogueVoiceRequired
             setMessage(msg)
             alert(msg)
             return
@@ -6783,17 +6787,18 @@ export default function StdPortalPage() {
         const requestScope = { ...mediaScopeRef.current }
         setGeneratingTts(true)
         setHighlightSaveTts(false)
-        setMessage('자막 설정 저장 중...')
+        setMessage(copy.saving)
         setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'running', detail: ttsNoticeCopy(currentLocale).saving })
         try {
             await handleSaveSubtitles(false)
             await generateTts(true, requestScope)
         } catch (error: any) {
             setGeneratingTts(false)
-            const errorMessage = error?.message || '최종 저장 실패'
+            console.warn('[subtitle final save]', error?.message)
+            const errorMessage = localizeStdActionError(error, currentLocale, 'subtitle_save')
             setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'error', detail: errorMessage })
             setMessage(`❌ ${errorMessage}`)
-            alert(`최종 저장 실패: ${errorMessage}`)
+            alert(`${copy.finalSaveFailedTitle}: ${errorMessage}`)
         }
     }
 
@@ -9345,15 +9350,12 @@ export default function StdPortalPage() {
                                             )}
                                             {subtitleSyncProgress && <span role="status" aria-live="polite" className="min-w-0 max-w-full break-words text-[11px] text-cyan-200">{subtitleSyncProgress}</span>}
                                             <span role="status" aria-live="polite" className={`min-w-0 max-w-full break-words text-[10px] ${subtitleSaveState === 'error' ? 'text-red-300' : 'text-gray-400'}`}>
-                                                {subtitleSaveState === 'saving' ? (currentLocale === 'th' ? 'กำลังบันทึกเบื้องหลัง…' : '백그라운드 저장 중…')
-                                                    : subtitleSaveState === 'error' ? (currentLocale === 'th' ? 'บันทึกไม่สำเร็จ' : '저장 실패 · 다시 시도')
-                                                    : subtitleSaveState === 'dirty' ? (currentLocale === 'th' ? 'ยังไม่บันทึก' : '저장할 변경 있음')
-                                                    : subtitleSaveState === 'saved' ? (currentLocale === 'th' ? 'บันทึกแล้ว' : '저장 완료') : ''}
+                                                {subtitleSaveState === 'idle' ? '' : ttsNoticeCopy(currentLocale).saveStatus[subtitleSaveState]}
                                             </span>
                                             <button type="button" onClick={() => void handleSaveSubtitles().catch(() => {})}
                                                 disabled={subtitleSaveState === 'saving' || !localSubtitles.length}
-                                                title={currentLocale === 'th' ? 'บันทึกการแก้ไขโดยไม่สร้างเสียง TTS' : 'TTS를 생성하지 않고 수정 내용을 저장합니다'}
-                                                aria-label={currentLocale === 'th' ? 'บันทึกคำบรรยาย' : '자막 저장'}
+                                                title={ttsNoticeCopy(currentLocale).subtitleSaveHint}
+                                                aria-label={ttsNoticeCopy(currentLocale).subtitleSaveLabel}
                                                 className="inline-flex h-7 w-8 shrink-0 items-center justify-center rounded-md bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
                                                 {subtitleSaveState === 'saving' ? <RefreshCw size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
                                             </button>
@@ -9361,7 +9363,7 @@ export default function StdPortalPage() {
                                                 type="button"
                                                 onClick={() => void handleFinalizeSubtitlesAndTts()}
                                                 disabled={generatingTts || !canFinalizeSubtitlesAndTts}
-                                                aria-label={generatingTts ? t('sub_final_saving') : (currentLocale === 'th' ? 'บันทึกและสร้างเสียง TTS' : '저장 및 TTS 생성')}
+                                                aria-label={generatingTts ? ttsNoticeCopy(currentLocale).running : ttsNoticeCopy(currentLocale).saveTtsLabel}
                                                 className={`inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap text-[10px] font-bold px-2 rounded-md text-white transition-colors duration-300 ${
                                                     generatingTts || !canFinalizeSubtitlesAndTts
                                                         ? 'bg-gray-700 cursor-not-allowed opacity-60'
@@ -9370,8 +9372,8 @@ export default function StdPortalPage() {
                                                         : 'bg-violet-600 hover:bg-violet-500'
                                                 }`}
                                                 title={canFinalizeSubtitlesAndTts
-                                                    ? (highlightSaveTts ? '음성 생성이 필요합니다! 클릭하여 최종 자막 및 TTS를 생성하세요' : '최종 자막 저장 및 TTS 생성')
-                                                    : '대사 성우를 내레이션 성우와 다르게 일괄 적용해야 합니다'}
+                                                    ? ttsNoticeCopy(currentLocale).saveTtsLabel
+                                                    : ttsNoticeCopy(currentLocale).dialogueVoiceRequired}
                                             >
                                                 {generatingTts ? <RefreshCw size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
                                                 <span>+TTS</span>
@@ -10239,7 +10241,7 @@ export default function StdPortalPage() {
                                     </label>
 
                                     <button
-                                        onClick={() => alert('TTS 보이스 및 음향 설정이 저장되었습니다!')}
+                                        onClick={() => alert(ttsNoticeCopy(currentLocale).voiceSettingsSaved)}
                                         className="px-3 py-1.5 text-xs font-bold bg-[#202632] hover:bg-[#28303e] border border-white/10 text-gray-300 rounded-lg transition-all"
                                     >
                                         설정만 저장

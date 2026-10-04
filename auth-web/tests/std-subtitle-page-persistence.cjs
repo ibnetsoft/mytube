@@ -12,13 +12,19 @@ function load(filename) {
     const exports = {}
     modules.set(filename, exports)
     const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText
-    new Function('exports', 'require', compiled)(exports, name => load(path.resolve(path.dirname(filename), `${name}.ts`)))
+    new Function('exports', 'require', compiled)(exports, name => {
+        if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) }
+        if (name === 'lucide-react') return {}
+        return load(path.resolve(path.dirname(filename), `${name}.ts`))
+    })
     return exports
 }
 const { createSubtitleSaveQueue } = load(path.resolve(__dirname, '../lib/stdSubtitlePersistence.ts'))
 const { restoreSavedSubtitleSnapshot } = load(path.resolve(__dirname, '../lib/stdSubtitleSnapshot.ts'))
+const { ttsNoticeCopy } = load(path.resolve(__dirname, '../components/StdTtsNotice.tsx'))
+const { localizeStdActionError } = load(path.resolve(__dirname, '../lib/stdActionFeedback.ts'))
 
 function extract(start, end, result, context) {
     const from = page.indexOf(start)
@@ -37,13 +43,13 @@ const rows = text => [{
     audio_asset_id: 'recording-4', audio_url: '/audio/recording-4', audio_duration: 3.25,
 }]
 
-function harness() {
+function harness(locale = 'ko') {
     const initialRows = rows('元の字幕')
     const selectedProject = {
         project: { id: 'project-a', project_payload: { subtitles: initialRows, render_settings: { existing_setting: 'keep' } } },
         scenes: [{ scene_number: 4, image_url: '/scene-4.png', video_url: '/scene-4.mp4' }],
     }
-    const state = { local: initialRows, project: selectedProject, saved: true, saveState: 'saved', flags: [], messages: [], remembered: [], requests: [], ttsCalls: 0 }
+    const state = { notices: [], local: initialRows, project: selectedProject, saved: true, saveState: 'saved', flags: [], messages: [], remembered: [], requests: [], ttsCalls: 0 }
     const speechSubtitlesRef = { current: initialRows }
     const subtitleSaveRevisionRef = { current: 0 }
     const subtitleActiveProjectRef = { current: 'project-a' }
@@ -55,7 +61,9 @@ function harness() {
     const context = {
         selectedProject, speechSubtitlesRef, subtitleSaveRevisionRef, subtitleActiveProjectRef, subtitleTextSaveTimerRef,
         subtitleStyleSaveTimerRef,
-        restoreSavedSubtitleSnapshot, saveSubtitleProject, authedJsonHeaders: { Authorization: 'Bearer fixture' }, currentLocale: 'ko',
+        restoreSavedSubtitleSnapshot, saveSubtitleProject, authedJsonHeaders: { Authorization: 'Bearer fixture' }, currentLocale: locale, ttsNoticeCopy, localizeStdActionError,
+        mediaScopeRef: { current: { session: 'session-a', projectId: 'project-a', generation: 1 } },
+        getProjectSyncedTitle: () => 'Project A', setTtsNotice: value => state.notices.push(value), console: { warn() {} },
         setLocalSubtitles: value => { state.local = value },
         setIsSubtitleSaved: value => { state.saved = value; state.flags.push(value) },
         setSubtitleSaveState: value => { state.saveState = value },
@@ -188,7 +196,7 @@ test('strict save propagates failure without a success message or losing the loc
     assert.equal(h.state.saveState, 'error')
     assert.equal(h.state.saved, false)
     assert.equal(h.state.local[0].text, edited[0].text)
-    assert.ok(!h.state.messages.some(message => message === '자막 변경 내용을 저장했습니다.'))
+    assert.ok(!h.state.messages.some(message => message === ttsNoticeCopy('ko').subtitleSaved))
     assert.equal(h.state.ttsCalls, 0)
 })
 
@@ -208,9 +216,31 @@ test('manual save persists current edited rows, metadata and render settings wit
     })
     assert.deepEqual(request.body.progress_payload, { subtitles_saved: true, subtitles_completed: true })
     assert.equal(h.state.ttsCalls, 0)
-    assert.ok(!h.state.messages.includes('자막 변경 내용을 저장했습니다.'))
+    assert.ok(!h.state.messages.includes(ttsNoticeCopy('ko').subtitleSaved))
     h.confirm(0)
     assert.equal(await pending, true)
-    assert.equal(h.state.messages.at(-1), '자막 변경 내용을 저장했습니다.')
+    assert.equal(h.state.messages.at(-1), ttsNoticeCopy('ko').subtitleSaved)
     assert.equal(h.state.ttsCalls, 0)
 })
+
+for (const locale of ['th', 'vi']) {
+    test(`${locale}: manual subtitle save has localized progress and completion without generating TTS`, async () => {
+        const h = harness(locale)
+        const pending = h.handleSaveSubtitles()
+        assert.equal(h.state.notices[0].kind, 'subtitles')
+        assert.equal(h.state.notices[0].detail, ttsNoticeCopy(locale).subtitleSaving)
+        await tick()
+        h.confirm(0)
+        await pending
+        assert.equal(h.state.notices.at(-1).detail, ttsNoticeCopy(locale).subtitleSaved)
+        assert.equal(h.state.requests.length, 1)
+        assert.equal(h.state.ttsCalls, 0)
+        const failed = harness(locale)
+        const rejection = assert.rejects(failed.handleSaveSubtitles(), /네트워크/)
+        await tick()
+        failed.fail(0, '네트워크 연결 실패')
+        await rejection
+        assert.equal(failed.state.notices.at(-1).phase, 'error')
+        assert.doesNotMatch(failed.state.notices.at(-1).detail, /[가-힣]/)
+    })
+}
