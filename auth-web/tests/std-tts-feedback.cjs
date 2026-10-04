@@ -220,17 +220,17 @@ test('project changes during the initial subtitle save keep the original TTS sco
     }
 })
 
-test('refresh/close protection stays active during TTS after subtitles are saved, then cleans up', () => {
+test('refresh/close protection stays active during TTS or submission after subtitles are saved, then cleans up', () => {
     const start = page.lastIndexOf('    useEffect(() => {', page.indexOf('const protectUnsavedEdits'))
     const end = page.indexOf('    const [subPresetList', start)
     const compiled = ts.transpileModule(page.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText
-    for (const [generatingTts, subtitleSaveState, protectedState] of [[true, 'saved', true], [false, 'saved', false], [false, 'dirty', true], [false, 'saving', true], [false, 'error', true]]) {
+    for (const [generatingTts, subtitleSaveState, protectedState, submittingProjectId = ''] of [[true, 'saved', true], [false, 'saved', false], [false, 'dirty', true], [false, 'saving', true], [false, 'error', true], [false, 'saved', true, 'project-a']]) {
         const listeners = new Map()
         let cleanup
-        new Function('useEffect', 'window', 'generatingTts', 'subtitleSaveState', compiled)(effect => { cleanup = effect() }, {
+        new Function('useEffect', 'window', 'generatingTts', 'subtitleSaveState', 'submittingProjectId', compiled)(effect => { cleanup = effect() }, {
             addEventListener: (type, callback) => listeners.set(type, callback),
             removeEventListener: (type, callback) => { assert.equal(listeners.get(type), callback); listeners.delete(type) },
-        }, generatingTts, subtitleSaveState)
+        }, generatingTts, subtitleSaveState, submittingProjectId)
         assert.equal(listeners.has('beforeunload'), protectedState)
         if (protectedState) {
             let prevented = false

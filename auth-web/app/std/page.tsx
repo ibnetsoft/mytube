@@ -7,6 +7,7 @@ import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotice'
+import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
 import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
@@ -759,8 +760,8 @@ export default function StdPortalPage() {
     const [loading, setLoading] = useState(false)
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
-    const [renderSuccessNotice, setRenderSuccessNotice] = useState<{ projectId: string; title: string; detail: string } | null>(null)
-    const renderSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const submittingProjectRef = useRef('')
+    const [renderSubmissionNotice, setRenderSubmissionNotice] = useState<SubmissionNotice | null>(null)
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
     const [message, setMessageRaw] = useState('')
     const setMessage = (msg: string | ((prev: string) => string)) => {
@@ -774,9 +775,7 @@ export default function StdPortalPage() {
     const [subtitleTranslationScope, setSubtitleTranslationScope] = useState<'thai_only' | 'all'>('thai_only')
 
     const notifyRenderAccepted = (projectId: string, title: string, detail: string) => {
-        if (renderSuccessTimerRef.current) clearTimeout(renderSuccessTimerRef.current)
-        setRenderSuccessNotice({ projectId, title, detail })
-        renderSuccessTimerRef.current = setTimeout(() => setRenderSuccessNotice(null), 4500)
+        setRenderSubmissionNotice({ projectId, title, detail, phase: 'success' })
 
         if (typeof window !== 'undefined' && 'Notification' in window) {
             const showNotification = () => {
@@ -795,10 +794,6 @@ export default function StdPortalPage() {
             }
         }
     }
-
-    useEffect(() => () => {
-        if (renderSuccessTimerRef.current) clearTimeout(renderSuccessTimerRef.current)
-    }, [])
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
     const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('ko')
@@ -1207,11 +1202,11 @@ export default function StdPortalPage() {
         setSubtitleSaveState('idle')
     }, [selectedProject?.project?.id])
     useEffect(() => {
-        if (!generatingTts && !['dirty', 'saving', 'error'].includes(subtitleSaveState)) return
+        if (!generatingTts && !submittingProjectId && !['dirty', 'saving', 'error'].includes(subtitleSaveState)) return
         const protectUnsavedEdits = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
         window.addEventListener('beforeunload', protectUnsavedEdits)
         return () => window.removeEventListener('beforeunload', protectUnsavedEdits)
-    }, [subtitleSaveState, generatingTts])
+    }, [subtitleSaveState, generatingTts, submittingProjectId])
     const [subPresetList, setSubPresetList] = useState<any[]>(DEFAULT_SUBTITLE_PRESETS)
     const [selectedSubPreset, setSelectedSubPreset] = useState('Gmarket_Default')
     const [newSubPresetName, setNewSubPresetName] = useState('')
@@ -6143,71 +6138,81 @@ export default function StdPortalPage() {
         }
     }
 
-    const submitProject = async (projectOverride?: SelectedProjectPayload) => {
-        const targetProject = projectOverride || selectedProject
-        if (!targetProject) return
-        if (submittingProjectId) return
-        if (!projectOverride && !(await ensureScriptSyncedBeforeAction())) return
-        const targetPayload = targetProject.project?.project_payload || {}
-        const pStatus = getProjectStepStatus(
-            targetProject,
-            targetProject?.scenes || [],
-            projectOverride ? targetPayload.audio_url || targetPayload.tts_url || '' : audioResultUrl,
-            projectOverride ? targetPayload.script || '' : customScriptText,
-            projectOverride ? targetPayload.subtitles || [] : localSubtitles,
-            projectOverride ? targetPayload.thumbnail_url || targetProject.project?.progress_payload?.thumbnail_url || '' : thumbBgUrl
-        )
-        if (!pStatus.allDone) {
-            const missingList = []
-            if (!pStatus.isPlanningDone) missingList.push('기획')
-            if (!pStatus.isScriptDone) missingList.push('대본')
-            if (!pStatus.isImageDone) missingList.push(`이미지/에셋 (${pStatus.uploadedAssetsCount}/${pStatus.totalScenesCount} 완료)`)
-            if (!pStatus.isTtsDone) missingList.push('TTS')
-            if (!pStatus.isSubtitlesDone) missingList.push('자막')
-            if (!pStatus.isThumbnailDone) missingList.push('썸네일')
-            alert(`모든 단계가 초록불(완료)이어야 제출할 수 있습니다.\n미완료 항목: ${missingList.join(', ')}`)
-            return
+    const submitProject = async (projectId?: string) => {
+        const targetId = String(projectId || selectedProject?.project?.id || '')
+        if (!targetId || submittingProjectRef.current || submittingProjectId) return
+        const copy = submissionNoticeCopy(currentLocale)
+        // Keep confirmation in the click event, before any asynchronous work.
+        if (!confirm(copy.submitConfirm)) return
+        const requestScope = { ...mediaScopeRef.current }
+        const isSameSession = () => requestScope.session === mediaScopeRef.current.session
+        const isSelected = targetId === String(selectedProject?.project?.id || '')
+        const title = (isSelected ? selectedProject?.project?.title : projects.find((p: any) => String(p.id) === targetId)?.title) || copy.project
+        const report = (phase: SubmissionNotice['phase'], detail: string) => {
+            if (isSameSession()) setRenderSubmissionNotice({ projectId: targetId, title, phase, detail })
         }
-        if (!confirm('모든 단계가 정상 완료되었습니다. 에셋 검증 및 원격 렌더 큐 제출을 진행하시겠습니까?')) return
+        // A ref blocks rapid repeated clicks before React has rendered the busy state.
+        submittingProjectRef.current = targetId
+        setSubmittingProjectId(targetId)
         setLoading(true)
-        setSubmittingProjectId(String(targetProject.project.id))
-        setMessage('제출 준비 중입니다. 생성 이미지를 GCS API 저장소 기준으로 확인하고 렌더 큐에 등록합니다...')
+        report('running', isSelected ? copy.saving : copy.preparing)
+        let postStarted = false
         try {
-            const res = await fetch(`/api/std/projects/${targetProject.project.id}/submit`, {
+            if (isSelected) {
+                if (subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current || ['dirty', 'saving', 'error'].includes(subtitleSaveState)) {
+                    if (await handleSaveSubtitles(false) === false) throw new Error(copy.subtitleSaveFailed)
+                }
+                if (!isSameSession()) return
+                if (!isCurrentMediaScope(requestScope, mediaScopeRef.current)) throw new Error(copy.projectChanged)
+                if (!(await ensureScriptSyncedBeforeAction())) throw new Error(copy.scriptSaveFailed)
+                if (!isSameSession()) return
+                if (!isCurrentMediaScope(requestScope, mediaScopeRef.current)) throw new Error(copy.projectChanged)
+            }
+            report('running', copy.preparing)
+            postStarted = true
+            // The server validates the persisted project. Opening the full editor first
+            // adds a slow, fallible request and can discard the submit click entirely.
+            const res = await fetch(`/api/std/projects/${targetId}/submit`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
+                signal: AbortSignal.timeout(180000),
             })
-            const payload = await safeParseJson(res, '제출 실패')
-            if (!res.ok) {
+            const payload = await safeParseJson(res, copy.error)
+            if (!res.ok || payload.success !== true) {
                 const missing = payload.missing_scene_numbers?.length
-                    ? ` (누락 씬: ${payload.missing_scene_numbers.join(', ')}번)`
+                    ? ` (${payload.missing_scene_numbers.join(', ')})`
                     : ''
-                throw new Error((payload.error || '제출 실패') + missing)
+                throw new Error((payload.error || copy.error) + missing)
             }
-            const submitMessage = payload.already_submitted
-                ? '✅ 이 프로젝트는 이미 원격 렌더 큐에 등록되어 있습니다.'
-                : payload.shared_submission
-                    ? '✅ 공동 작업 프로젝트가 이미 원격 렌더 큐에 등록되어 있습니다.'
-                    : '✅ 원격 렌더 큐에 성공적으로 등록되었습니다!'
-            setMessage(submitMessage)
-            notifyRenderAccepted(
-                String(targetProject.project.id),
-                targetProject.project.title || '프로젝트',
-                payload.already_submitted
-                    ? '이미 렌더 큐에 등록된 프로젝트입니다.'
-                    : payload.shared_submission
-                        ? '공동 작업 프로젝트가 렌더 큐에 등록되어 있습니다.'
-                        : `렌더링 v${payload.render_version || 1}이(가) 큐에 등록되었습니다.`
-            )
-            await loadStdData(token, { showLoading: false })
-            await openProject(String(targetProject.project.id))
+            if (!isSameSession()) return
+            const accepted = payload.already_submitted ? copy.alreadySubmitted
+                : payload.shared_submission ? copy.sharedSubmitted
+                : copy.accepted(payload.render_version || 1)
+            notifyRenderAccepted(targetId, title, accepted)
+            const submittedAt = payload.submitted_at || new Date().toISOString()
+            const markSubmitted = (project: any) => ({ ...project, submitted_at: submittedAt, status: 'review_requested',
+                progress_payload: { ...project.progress_payload, latest_render_version: payload.render_version || project.progress_payload?.latest_render_version,
+                    remote_render_queue_id: payload.render_queue?.id || project.progress_payload?.remote_render_queue_id } })
+            setProjects(prev => prev.map(p => String(p.id) === targetId ? markSubmitted(p) : p))
+            setSelectedProject(prev => prev?.project?.id === targetId ? { ...prev, project: markSubmitted(prev.project) } : prev)
+            // Refresh only the list; reopening the editor here can overwrite ongoing edits.
+            try {
+                const listRes = await fetch('/api/std/projects', { headers: authedJsonHeaders, signal: AbortSignal.timeout(15000) })
+                const list = await safeParseJson(listRes, copy.refreshFailed)
+                if (!listRes.ok || !Array.isArray(list.projects)) throw new Error(copy.refreshFailed)
+                if (isSameSession()) setProjects(list.projects)
+            } catch {
+                report('warning', `${accepted} ${copy.refreshFailed}`)
+            }
         } catch (error: any) {
-            const errorMessage = error?.message || '제출 실패'
-            setMessage(`❌ ${errorMessage}`)
-            alert(`프로젝트 제출 실패: ${errorMessage}`)
+            const timedOut = ['TimeoutError', 'AbortError'].includes(String(error?.name || ''))
+            report(postStarted && timedOut ? 'warning' : 'error', timedOut ? (postStarted ? copy.timeout : copy.subtitleSaveFailed) : error?.message || copy.error)
         } finally {
-            setLoading(false)
-            setSubmittingProjectId('')
+            if (submittingProjectRef.current === targetId) {
+                submittingProjectRef.current = ''
+                setSubmittingProjectId('')
+                setLoading(false)
+            }
         }
     }
 
@@ -6216,10 +6221,12 @@ export default function StdPortalPage() {
     }
 
     const reopenProjectForRerender = async (projectId: string) => {
-        if (!projectId || loading) return
+        if (!projectId || loading || submittingProjectRef.current) return
         if (!confirm('완료 상태를 유지한 채 새 렌더 버전을 큐에 등록하시겠습니까?')) return
         setLoading(true)
+        submittingProjectRef.current = projectId
         setSubmittingProjectId(projectId)
+        setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || '', phase: 'running', detail: submissionNoticeCopy(currentLocale).preparing })
         setMessage('완료 목록 위치를 유지한 채 새 렌더 버전을 큐에 등록하고 있습니다...')
         try {
             const res = await fetch(`/api/std/projects/${projectId}/reopen`, {
@@ -6235,9 +6242,11 @@ export default function StdPortalPage() {
             notifyRenderAccepted(projectId, projectTitle, rerenderMessage)
         } catch (error: any) {
             const errorMessage = error?.message || '재렌더링 준비 실패'
+            setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || '', phase: 'error', detail: errorMessage })
             setMessage(`❌ ${errorMessage}`)
             alert(errorMessage)
         } finally {
+            submittingProjectRef.current = ''
             setLoading(false)
             setSubmittingProjectId('')
         }
@@ -8152,31 +8161,7 @@ export default function StdPortalPage() {
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
-            {renderSuccessNotice && (
-                <div className="fixed right-4 top-4 z-[80] w-[min(360px,calc(100vw-32px))] animate-in slide-in-from-top-3 fade-in zoom-in-95 duration-200">
-                    <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-[#09251d]/95 p-4 shadow-2xl shadow-emerald-950/60 backdrop-blur">
-                        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-300 via-cyan-300 to-emerald-400" />
-                        <div className="flex items-start gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-500/30 animate-bounce">
-                                <CheckCircle2 className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="text-sm font-black text-white">렌더 큐 등록 성공</div>
-                                <div className="mt-1 truncate text-[11px] font-bold text-emerald-100">{renderSuccessNotice.title}</div>
-                                <div className="mt-1 text-[11px] leading-relaxed text-emerald-200/90">{renderSuccessNotice.detail}</div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setRenderSuccessNotice(null)}
-                                className="rounded-lg px-2 py-1 text-sm font-bold text-emerald-100/70 hover:bg-white/10 hover:text-white"
-                                aria-label="알림 닫기"
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
             {topicProjectOpen && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6"
@@ -8293,7 +8278,7 @@ export default function StdPortalPage() {
                                                 Number(p.progress_payload?.latest_render_version) || 0,
                                                 submittedAt ? 1 : 0,
                                             )
-                                            const isRenderSuccessHighlighted = renderSuccessNotice?.projectId === String(p.id)
+                                            const isRenderSuccessHighlighted = renderSubmissionNotice?.phase === 'success' && renderSubmissionNotice.projectId === String(p.id)
                                             return (
                                                 <tr
                                                     key={p.id || idx}
@@ -8421,10 +8406,8 @@ export default function StdPortalPage() {
                                                                         </button>
                                                                     ) : (pStatus.allDone || hasSharedSubmission) ? (
                                                                         <button
-                                                                            onClick={async () => {
-                                                                                const openedProject = await openProject(p.id)
-                                                                                if (openedProject) await submitProject(openedProject)
-                                                                            }}
+                                                                            type="button"
+                                                                            onClick={() => submitProject(String(p.id))}
                                                                             disabled={Boolean(submittingProjectId)}
                                                                             className={`w-7 h-7 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-wait text-white font-black border shadow-lg ring-2 cursor-pointer mx-auto active:scale-95 transition-all ${
                                                                                 isRenderSuccessHighlighted
@@ -12481,7 +12464,7 @@ export default function StdPortalPage() {
 
                                 {/* 렌더링 시작 버튼 */}
                                 {(() => {
-                                    const isRenderSuccessHighlighted = renderSuccessNotice?.projectId === String(selectedProject.project.id)
+                                    const isRenderSuccessHighlighted = renderSubmissionNotice?.phase === 'success' && renderSubmissionNotice.projectId === String(selectedProject.project.id)
                                     return (
                                         <button
                                             type="button"
