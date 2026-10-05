@@ -107,6 +107,11 @@ const feedback = {
         th: 'ถึงขีดจำกัดการใช้งาน ElevenLabs API แล้ว โปรดตรวจสอบบัญชีและขีดจำกัดของคีย์ API ที่ลงทะเบียนใน AIR Studio',
         vi: 'Đã đạt giới hạn sử dụng API ElevenLabs. Vui lòng kiểm tra tài khoản và giới hạn riêng của khóa API đã đăng ký trong AIR Studio.',
     },
+    eleven_payment: {
+        en: 'ElevenLabs blocked audio generation because the subscription payment failed or is incomplete. Check the latest invoice and payment status of the account whose API key is registered in AIR Studio. Remaining credits do not remove this payment restriction.',
+        th: 'ElevenLabs ระงับการสร้างเสียงเนื่องจากการชำระเงินค่าสมัครสมาชิกล้มเหลวหรือยังไม่เสร็จสมบูรณ์ โปรดตรวจสอบใบแจ้งหนี้ล่าสุดและสถานะการชำระเงินของบัญชีที่ใช้คีย์ API ซึ่งลงทะเบียนใน AIR Studio แม้มีเครดิตเหลืออยู่ ก็ต้องแก้ไขปัญหาการชำระเงินก่อน',
+        vi: 'ElevenLabs đã chặn việc tạo âm thanh vì thanh toán gói đăng ký thất bại hoặc chưa hoàn tất. Vui lòng kiểm tra hóa đơn mới nhất và trạng thái thanh toán của tài khoản có khóa API đã đăng ký trong AIR Studio. Tín dụng còn lại không khắc phục được hạn chế do thanh toán này.',
+    },
     quota: {
         en: 'The voice provider usage limit was reached. Please check the provider account and API limits.',
         th: 'ถึงขีดจำกัดการใช้งานของผู้ให้บริการเสียงแล้ว โปรดตรวจสอบบัญชีและขีดจำกัด API ของผู้ให้บริการ',
@@ -186,6 +191,7 @@ export function localizeStdActionError(error: unknown, locale: string, action: S
     else if (/읽을 수 없|불러오지 못|missing from render storage|could not be read|failed to prepare stored assets/.test(lower) && /파일|이미지|영상|오디오|음성|gcs|storage|assets|media/.test(lower)) key = 'storage'
     else if (/진행 중이거나 저장 확인|중복 생성 방지|already.*(generat|progress)/.test(lower)) key = 'tts_pending'
     else if (/프로젝트 정보.*불러오지 못|failed to load project/.test(lower)) key = 'project_load'
+    else if (eleven && /payment_required|payment_issue|failed or incomplete payment|complete the latest invoice/.test(lower)) key = 'eleven_payment'
     else if (google && /billing|payment|결제 설정|결제 상태/.test(lower)) key = 'google_billing'
     else if (/quota|resource_exhausted|429|요청 한도|사용 한도|insufficient credits|credits remaining|크레딧이 부족/.test(lower)) key = google ? 'google_quota' : eleven ? 'eleven_quota' : 'quota'
     else if ((google || eleven) && /not configured|먼저 설정|401|unauthorized|unauthenticated|permission|forbidden|403|api.?key|인증|사용 권한|설정.*확인|사용 가능한 키가 없|현재 elevenlabs 키로 사용할 수 없/.test(lower)) key = google ? 'google_setup' : 'eleven_setup'

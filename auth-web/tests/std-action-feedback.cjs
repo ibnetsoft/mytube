@@ -43,6 +43,17 @@ for (const locale of ['en', 'th', 'vi']) {
     assert.match(quota, /21/, 'Reported credit requirement is retained')
     assert.match(quota, /ElevenLabs/, 'Correct provider is retained')
     assert.equal(localize('ElevenLabs TTS API error (401): quota_exceeded', locale, 'tts'), localize('ElevenLabs quota_exceeded', locale, 'tts'), 'Provider quota codes take precedence over its 401 HTTP status')
+    const paymentError = '자막 72번: ElevenLabs TTS API error (401): {"detail":{"type":"payment_required","code":"payment_issue","message":"Your subscription has a failed or incomplete payment. Complete the latest invoice to continue usage.","request_id":"private-payment-request"}}'
+    const paymentMessage = localize(paymentError, locale, 'tts')
+    const paymentGuidance = localize('ElevenLabs payment_issue', locale, 'tts')
+    assert.equal(paymentMessage, `${({ en: 'Subtitle', th: 'คำบรรยาย', vi: 'Phụ đề' }[locale])} 72: ${paymentGuidance}`, 'A payment failure keeps the failed subtitle and overrides HTTP 401')
+    for (const variant of ['ElevenLabs payment_required', 'ElevenLabs failed or incomplete payment', 'ElevenLabs complete the latest invoice', 'ElevenLabs payment_issue; credits remaining: 88127']) {
+        assert.equal(localize(variant, locale, 'tts'), paymentGuidance, 'Payment codes and messages take precedence over quota wording')
+    }
+    assert.notEqual(paymentGuidance, localize('ElevenLabs quota_exceeded', locale, 'tts'), 'Payment restrictions are distinct from credit quotas')
+    assert.notEqual(paymentGuidance, localize('ElevenLabs API key invalid (401)', locale, 'tts'), 'Payment restrictions are distinct from API key errors')
+    assert(!/[가-힣]/.test(paymentMessage) && !paymentMessage.includes('private-payment-request'), 'Localized payment notices do not leak raw diagnostics')
+    assert.match(paymentGuidance, ({ en: /latest invoice/, th: /ใบแจ้งหนี้ล่าสุด/, vi: /hóa đơn mới nhất/ }[locale]), 'Each language directs the user to the latest invoice')
     assert.match(localize('생성 이미지 24번을 GCS에서 읽을 수 없습니다: {}', locale, 'submit'), /24:/)
     assert.equal(localize({ error: 'Project not found' }, locale, 'submit'), localize('Project not found', locale, 'submit'))
     assert.notEqual(localize('', locale, 'subtitle_save'), localize('', locale, 'tts'), 'Unknown failures use the action-specific fallback')

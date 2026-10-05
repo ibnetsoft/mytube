@@ -33,7 +33,22 @@ function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/gene
 const body={text:'남았네.',voice_id:'Charon',provider:'voice_studio',mode:'vrew_segment_preview_fast',cache_key:'legacy-key',speed:1,stability:0.35,style:0.45,segment_index:2};
 const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}});
 (async()=>{
+ const missingPreview=await call(route(),{...body,cache_only:true,volume:80,volume_ratio:0.8});
+ assert.equal(missingPreview.status,404);assert.equal(missingPreview.data.code,'audio_not_cached');
+ assert.equal(generated,0,'Previewing an uncached subtitle must never call a TTS provider');
+ assert.equal(claims.size,0,'A read-only preview miss must not claim audio generation');
+ assert.equal(uploads,0);assert.equal(stored.size,0);assert.equal(assets.length,0,'A read-only preview miss must not persist audio or asset metadata');
  let first=await call(route());assert.equal(first.status,200);assert.equal(first.data.persistence_pending,false);assert.equal(generated,1);assert.equal(uploads,1);assert.match(first.data.audio_url,/assets\/file\?assetId=/);
+ assert.equal(first.data.cached,false,'An explicit generation request after a preview miss must still generate and save the missing clip');
+ const existingClaims=[...claims],existingStored=[...stored.keys()],existingUploads=uploads,existingAssets=assets.length;
+ for(const volume of [80,0,200]){
+   const adjusted=await call(route(),{...body,cache_only:true,volume,volume_ratio:volume/100});
+   assert.equal(adjusted.status,200);assert.equal(adjusted.data.cached,true);
+   assert.equal(adjusted.data.asset.id,first.data.asset.id,'Volume is a playback gain and must reuse the same recording');
+ }
+ assert.equal(generated,1,'Reducing, muting, or amplifying volume must not synthesize another recording');
+ assert.equal(uploads,existingUploads);assert.equal(assets.length,existingAssets);assert.deepEqual([...claims],existingClaims);assert.deepEqual([...stored.keys()],existingStored);
+ console.log('PASS: uncached read-only preview spends no credits or storage writes; explicit generation remains available; volume-only previews reuse the saved clip');
  let second=await call(route());assert.equal(second.data.cached,true);assert.equal(generated,1,'A fresh server instance must reuse persisted audio');
  let moved=await call(route(),{...body,segment_index:9,cache_key:'changed-index'});assert.equal(moved.data.cached,true);assert.equal(generated,1);
  await call(route(),{...body,text:'남았습니다.'});assert.equal(generated,2,'Changed Korean text must generate a different cache entry');

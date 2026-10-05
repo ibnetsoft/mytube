@@ -18,7 +18,7 @@ import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
-import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } from '@/lib/stdPreviewAudio'
+import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio, isSavedAudioRequiredError, savedAudioRequiredMessage } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
@@ -2839,7 +2839,7 @@ export default function StdPortalPage() {
     }
     const applySubtitleVolume = async (index: number, volume: number, allSpeaker = false) => {
         const targetSpeaker = subtitleSpeakers[index]?.name
-        const updated = localSubtitles.map((item: any, i: number) => {
+        const updated = speechSubtitlesRef.current.map((item: any, i: number) => {
             const matchesSpeaker = allSpeaker && targetSpeaker && subtitleSpeakers[i]?.name === targetSpeaker
             if (i === index || matchesSpeaker) {
                 return {
@@ -2850,7 +2850,8 @@ export default function StdPortalPage() {
             }
             return item
         })
-        await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+        // Metadata-only save: keep the existing recording and update live playback gain.
+        await persistVrewVoiceSubtitles(updated)
     }
 
 
@@ -3533,7 +3534,7 @@ export default function StdPortalPage() {
             && String(m.direction || '') === String(subtitle?.voice_direction || '')
     })
 
-    const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number, signal?: AbortSignal) => {
+    const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number, signal?: AbortSignal, cacheOnly = true) => {
         if (signal?.aborted) throw signal.reason
         const text = String(subtitle?.text || '').trim()
         const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
@@ -3546,7 +3547,8 @@ export default function StdPortalPage() {
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
             return vrewAudioCacheRef.current[cacheKey]
         }
-        const inFlightRequest = vrewAudioPromiseRef.current.get(cacheKey)
+        const requestKey = `${cacheKey}|${cacheOnly ? 'read' : 'generate'}`
+        const inFlightRequest = vrewAudioPromiseRef.current.get(requestKey)
         if (inFlightRequest) {
             return await inFlightRequest
         }
@@ -3560,6 +3562,8 @@ export default function StdPortalPage() {
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
                     mode: 'vrew_segment_preview_fast',
+                    // Playback and prefetch must never synthesize a missing recording.
+                    cache_only: cacheOnly,
                     bypass_cache: false,
                     provider: isVoiceStudioVoice(voiceId) ? 'voice_studio' : voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                     direction: String(subtitle?.voice_direction || ''),
@@ -3608,15 +3612,15 @@ export default function StdPortalPage() {
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'ready' }))
             return audioUrl
         })()
-        vrewAudioPromiseRef.current.set(cacheKey, generationPromise)
+        vrewAudioPromiseRef.current.set(requestKey, generationPromise)
         try {
             return await generationPromise
         } catch (error) {
             setVrewSegmentStatus(prev => ({ ...prev, [cacheKey]: 'error' }))
             throw error
         } finally {
-            if (vrewAudioPromiseRef.current.get(cacheKey) === generationPromise) {
-                vrewAudioPromiseRef.current.delete(cacheKey)
+            if (vrewAudioPromiseRef.current.get(requestKey) === generationPromise) {
+                vrewAudioPromiseRef.current.delete(requestKey)
             }
         }
     }
@@ -3632,10 +3636,7 @@ export default function StdPortalPage() {
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
         if (vrewAudioCacheRef.current[cacheKey] || vrewSegmentStatus[cacheKey] === 'generating' || vrewSegmentStatus[cacheKey] === 'loading') return
         void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch((error: any) => {
-            const isClaimedOrSaveNeeded = error?.code === 'audio_generation_claimed'
-                || error?.status === 409
-                || String(error?.message || '').includes('중복 과금')
-                || String(error?.message || '').includes('저장 확인이 필요')
+            const isClaimedOrSaveNeeded = isSavedAudioRequiredError(error)
             if (isClaimedOrSaveNeeded) {
                 setHighlightSaveTts(true)
             }
@@ -3755,18 +3756,14 @@ export default function StdPortalPage() {
             } catch (err: any) {
                 const isDriveError = err?.code === 'legacy_drive_auth_failed'
                     || legacyStorageErrorPattern.test(String(err?.message || ''))
-                const isClaimedOrSaveNeeded = err?.code === 'audio_generation_claimed'
-                    || err?.status === 409
-                    || String(err?.message || '').includes('중복 과금')
-                    || String(err?.message || '').includes('저장 확인이 필요')
-                    || String(err?.message || '').includes('audio_generation_claimed')
+                const isClaimedOrSaveNeeded = isSavedAudioRequiredError(err)
                 if (isClaimedOrSaveNeeded) {
                     stopPreviewBgm()
                     setIsPlayingPreview(false)
                     setIsNarrationPlaying(false)
                     setHighlightSaveTts(true)
                     setPreviewAudioError('')
-                    setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+                    setMessage(savedAudioRequiredMessage(currentLocale))
                     return
                 }
                 if (isDriveError) {
@@ -3853,22 +3850,19 @@ export default function StdPortalPage() {
         }
         void playVrewSegmentsFrom(selectedSubIndex).catch((error: any) => {
             stopVrewPlayback()
-            const isClaimedOrSaveNeeded = error?.code === 'audio_generation_claimed'
-                || error?.status === 409
-                || String(error?.message || '').includes('중복 과금')
-                || String(error?.message || '').includes('저장 확인이 필요')
-                || String(error?.message || '').includes('audio_generation_claimed')
+            const isClaimedOrSaveNeeded = isSavedAudioRequiredError(error)
 
             const isDriveError = error?.code === 'legacy_drive_auth_failed'
                 || legacyStorageErrorPattern.test(String(error?.message || ''))
             if (isClaimedOrSaveNeeded) {
                 setHighlightSaveTts(true)
                 setPreviewAudioError('')
-                setMessage('💡 음성 생성이 필요합니다. [저장+TTS] 버튼을 눌러주세요.')
+                setMessage(savedAudioRequiredMessage(currentLocale))
             } else if (isDriveError || !error?.message) {
                 setPreviewAudioError('')
             } else {
-                const messageText = error?.message || '자막 미리듣기에 실패했습니다.'
+                console.warn('[STD subtitle playback]', error)
+                const messageText = localizeStdActionError(formatTtsErrorMessage(error?.message || '자막 미리듣기에 실패했습니다.'), currentLocale, 'tts')
                 setMessage(`❌ ${messageText}`)
                 setPreviewAudioError(messageText)
             }
@@ -3887,7 +3881,8 @@ export default function StdPortalPage() {
         const timer = window.setTimeout(() => controller.abort(new Error('전체 보정 시간이 5분을 초과했습니다. 다시 시도해 주세요.')), 300_000)
         try {
             const durations = await measureSubtitleDurations(snapshot, async (subtitle, index, signal) => {
-                const url = await getOrCreateVrewSegmentAudioUrl(subtitle, index, signal)
+                // This explicit timing correction action may prepare missing clips.
+                const url = await getOrCreateVrewSegmentAudioUrl(subtitle, index, signal, false)
                 return readAudioDuration(url, signal)
             }, controller.signal, completed => {
                 setSubtitleSyncProgress(`음성 길이 측정 ${completed}/${snapshot.length}`)

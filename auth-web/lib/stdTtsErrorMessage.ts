@@ -12,6 +12,10 @@ export function formatTtsErrorMessage(errorMessage: string): string {
         return raw
     }
 
+    if (elevenLabs && /payment_required|payment_issue|failed or incomplete payment|complete the latest invoice/.test(lower)) {
+        return `${raw}\nElevenLabs 구독 결제가 실패했거나 완료되지 않아 음성 생성이 차단되었습니다. AIR Studio에 등록된 API 키 계정의 최신 청구서와 결제 상태를 확인해 주세요. 잔여 크레딧이 있어도 결제 문제가 해결되어야 음성을 생성할 수 있습니다.`
+    }
+
     if (elevenLabs && /quota_exceeded|exceeds your quota|credits remaining|insufficient credits|크레딧|quota/.test(lower)) {
         const creditMatch = raw.match(/you have\s+([\d,]+)\s+credits?\s+remaining,\s+while\s+([\d,]+)\s+credits?\s+are required/i)
         const creditDetail = creditMatch
