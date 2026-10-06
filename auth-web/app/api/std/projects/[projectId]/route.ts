@@ -11,6 +11,7 @@ import { isGcsConfiguredAsync, createGcsSignedReadUrl } from '@/lib/gcsStorage'
 import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300
 
 const CONTENT_ASSETS_BUCKET = 'content-assets'
 
