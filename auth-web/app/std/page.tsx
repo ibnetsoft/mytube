@@ -9813,9 +9813,7 @@ export default function StdPortalPage() {
                                             />
                                         )}
                                         {previewAudioError && !legacyStorageErrorPattern.test(previewAudioError) && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
-                                        <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
-                                            cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
-                                            headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
+
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden [container-type:inline-size]"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
@@ -10009,6 +10007,9 @@ export default function StdPortalPage() {
                                                     </span>
                                                 </div>
                                             </div>
+                                        <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
+                                            cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
+                                            audioContextRef={speechContextRef} headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
                                             {bgmAsset && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={playbackTime}
                                                 timelineDuration={totalDuration} muted={bgmVolume === 0} loop={bgmLoop} />}
                                         </div>
