@@ -193,6 +193,7 @@ import {
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
+import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
@@ -6457,7 +6458,13 @@ export default function StdPortalPage() {
                 }
 
                 setAudioResultUrl(audioUrl)
-                rememberPersistedAudioAsset(persistedAudioAsset)
+                if (persistedAudioAsset?.metadata?.subtitle_timeline?.length) {
+                const synced = applyRecordedSubtitleTiming(speechSubtitlesRef.current, persistedAudioAsset.metadata.subtitle_timeline)
+                speechSubtitlesRef.current = synced
+                setLocalSubtitles(synced)
+                await persistVrewVoiceSubtitles(synced, { strict: true })
+            }
+            rememberPersistedAudioAsset(persistedAudioAsset)
                 const usedKeySlots = Array.isArray(payload.elevenlabs_key_slots)
                     ? payload.elevenlabs_key_slots.filter((slot: unknown) => Number.isInteger(Number(slot)))
                     : []
