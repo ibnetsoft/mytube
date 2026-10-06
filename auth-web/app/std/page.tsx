@@ -5097,7 +5097,7 @@ export default function StdPortalPage() {
         if (!initRes.ok || !init.storage_upload_url) throw new Error(init.error || '오디오 업로드 준비 실패')
         // Send binary data directly to storage, avoiding the server request-size limit.
         const uploadRes = await fetch(init.storage_upload_url, {
-            method: 'PUT', headers: { 'Content-Type': details.mime_type }, body: file,
+            method: 'PUT', headers: { 'Content-Type': details.mime_type }, body: file, signal: AbortSignal.timeout(120000),
         })
         if (!uploadRes.ok) throw new Error(`오디오 파일 업로드 실패 (${uploadRes.status})`)
         const completeRes = await fetch(`/api/std/projects/${projectId}/assets/complete`, {
@@ -5133,29 +5133,33 @@ export default function StdPortalPage() {
         }
     }
 
+    const uploadSelectableSfx = async (file: File) => {
+        const projectId = selectedProject?.project?.id
+        if (!projectId) throw new Error('프로젝트를 먼저 선택하세요.')
+        const asset = await uploadDriveAudioAsset(file, 'sfx')
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== projectId) return prev
+            const next = { ...prev, assets: [asset, ...prev.assets.filter(a => a.id !== asset.id)] }
+            rememberProjectState(next)
+            return next
+        })
+        return asset
+    }
+
     const handleUploadCurrentSfxFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (!file || !selectedProject?.project?.id) return
+        e.target.value = ''
+        if (!file) return
         setUploadingKey('sfx-upload')
         try {
-            const asset = await uploadDriveAudioAsset(file, 'sfx')
-            const projectId = selectedProject.project.id
-            setSelectedProject(prev => {
-                if (!prev || prev.project.id !== projectId) return prev
-                const next = { ...prev, assets: [asset, ...prev.assets.filter(a => a.id !== asset.id)] }
-                rememberProjectState(next)
-                return next
-            })
+            const asset = await uploadSelectableSfx(file)
             setSelectedSfxAssetId(asset.id)
             setSubEditTab('bgm')
             setSfxPickerOpenRequest(Date.now())
             setMessage(`효과음 '${file.name}'을 저장했습니다. 팝업에서 미리듣기 후 선택 완료를 누르세요.`)
         } catch (error: any) {
-            setMessage(error?.message || 'SFX upload failed')
-        } finally {
-            setUploadingKey('')
-            e.target.value = ''
-        }
+            setMessage(error?.message || '효과음 업로드에 실패했습니다.')
+        } finally { setUploadingKey('') }
     }
 
     const clearBgmSetting = async () => {
@@ -10071,7 +10075,7 @@ export default function StdPortalPage() {
                                                                 key={selectedProject?.project?.id}
                                                                 subtitle={currentSub} subtitleIndex={selectedSubIndex} subtitles={localSubtitles}
                                                                 assets={(selectedProject?.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
-                                                                cues={sfxCues} selectedAssetId={selectedSfxAssetId} onSelect={setSelectedSfxAssetId}
+                                                                onUpload={uploadSelectableSfx} cues={sfxCues} selectedAssetId={selectedSfxAssetId} onSelect={setSelectedSfxAssetId}
                                                                 onEdit={() => setIsSubtitleTextEditing(true)} onError={setMessage}
                                                                 activeTokenIndex={isPlayingPreview ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime) : -1}
                                                                 onSave={async cues => {
@@ -10132,7 +10136,7 @@ export default function StdPortalPage() {
                                                 {selectedProject && <SubtitleSfxPicker locale={currentLocale}
                                                     key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
                                                     assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
-                                                    value={selectedSfxAssetId} openRequest={sfxPickerOpenRequest} disabled={uploadingKey !== ''}
+                                                    onUpload={uploadSelectableSfx} value={selectedSfxAssetId} openRequest={sfxPickerOpenRequest} disabled={uploadingKey !== ''}
                                                     onOpen={() => setSfxPickerOpenRequest(0)} onChange={id => {
                                                         setSelectedSfxAssetId(id)
                                                         if (id) setSubEditTab('subtitle')

@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const ts = require('typescript')
 const test = require('node:test')
 const page = fs.readFileSync('auth-web/app/std/page.tsx', 'utf8')
-const start = page.indexOf('    const handleUploadCurrentSfxFile =')
+const start = page.indexOf('    const uploadSelectableSfx =')
 const end = page.indexOf('    const clearBgmSetting', start)
 test('completed upload adds selectable SFX to latest assets before opening its picker', async () => {
     const selectedProject = {project:{id:'p'},assets:[{id:'old'}]}

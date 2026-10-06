@@ -5,12 +5,15 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { sfxDescriptionKo } from '@/lib/stdSfxDescriptions'
 
-export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projectId, headers, disabled, onChange, onOpen, openRequest = 0 }: {
+export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projectId, headers, disabled, onChange, onOpen, openRequest = 0, onUpload }: {
     locale?: SupportedLocale;
     assets: any[]; value: string; projectId: string; headers: Record<string, string>; disabled?: boolean;
-    onChange: (id: string) => void; onOpen: () => void; openRequest?: number;
+    onChange: (id: string) => void; onOpen: () => void; openRequest?: number; onUpload?: (file: File) => Promise<any>;
 }) {
     const ui = (text: string) => stdUiText(locale, text)
+    const [uploadedAssets, setUploadedAssets] = useState<any[]>([])
+    const [uploading, setUploading] = useState(false)
+    assets = [...uploadedAssets.filter(a => !assets.some(existing => existing.id === a.id)), ...assets]
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
     const [draft, setDraft] = useState(value)
@@ -95,6 +98,21 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
                     <h2 id="sfx-picker-title" className="text-base font-bold">{ui("효과음 선택")} <span className="text-xs text-purple-300">{assets.length} {ui("개")}</span></h2>
                     <button type="button" aria-label={ui("효과음 팝업 닫기")} onClick={() => setOpen(false)} className="rounded px-2 py-1 text-gray-400 hover:bg-white/10">✕</button>
                 </div>
+                {onUpload && <label className="cursor-pointer rounded border border-purple-400/40 bg-purple-500/10 p-3 text-xs text-purple-200">
+                    {uploading ? '효과음 파일 업로드·저장 중…' : '+ 새 효과음 업로드'}
+                    <input type="file" accept="audio/*" className="hidden" disabled={uploading} onChange={async event => {
+                        const file = event.target.files?.[0]
+                        event.target.value = ''
+                        if (!file) return
+                        setUploading(true); setError('')
+                        try {
+                            const asset = await onUpload(file)
+                            setUploadedAssets(previous => [asset, ...previous.filter(a => a.id !== asset.id)])
+                            setDraft(asset.id); setSearch(''); setSample(`${asset.file_name} · 저장 완료`)
+                        } catch (error: any) { setError(error.message || '효과음 업로드에 실패했습니다.') }
+                        finally { setUploading(false) }
+                    }} />
+                </label>}
                 <p className="text-[11px] text-gray-400">{ui("파일명을 바탕으로 작성한 설명입니다. 정확한 소리는 미리듣기로 확인해 주세요.")}</p>
                 <input aria-label={ui("효과음 검색")} placeholder={ui("파일명 또는 한국어 설명 검색")} value={search} onChange={event => setSearch(event.target.value)} className="w-full rounded-lg border border-white/10 bg-black/25 p-2.5 text-sm outline-none focus:border-purple-400" />
                 <div className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
@@ -118,7 +136,7 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
                 <div className="flex shrink-0 justify-end gap-2 text-xs">
                     <button type="button" onClick={() => { onChange(''); setOpen(false) }} className="mr-auto rounded px-3 py-2 text-gray-400 hover:bg-white/5">{ui("선택 해제")}</button>
                     <button type="button" onClick={() => setOpen(false)} className="rounded border border-white/10 px-4 py-2">{ui("취소")}</button>
-                    <button type="button" disabled={!assets.some(asset => asset.id === draft)} onClick={() => { onChange(draft); setOpen(false) }} className="rounded bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-500 disabled:opacity-40">{ui("선택 완료")}</button>
+                    <button type="button" disabled={uploading || !assets.some(asset => asset.id === draft)} onClick={() => { onChange(draft); setOpen(false) }} className="rounded bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-500 disabled:opacity-40">{ui("선택 완료")}</button>
                 </div>
             </div>
         </div>, document.body)}
