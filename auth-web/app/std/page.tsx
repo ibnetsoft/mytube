@@ -21,6 +21,7 @@ import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
 import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
+import StdTemplateOverlay from '@/components/StdTemplateOverlay'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, confirmSubtitleSpeaker, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -563,7 +564,8 @@ const ELEVENLABS_VOICES = [
     },
 ]
 
-const SUBTITLE_FONTS = Object.keys(subtitleFontCatalog).map(value => ({ value, label: value }))
+const SUBTITLE_FONTS = [...Object.keys(subtitleFontCatalog).map(value => ({ value, label: value })),
+    { value: 'Malgun Gothic', label: '맑은 고딕 (Malgun Gothic · 렌더 폰트)' }]
 
 const DEFAULT_SUBTITLE_PRESETS = [
     {
@@ -9887,36 +9889,9 @@ export default function StdPortalPage() {
                                                     )}
                                                 </div>
                                             )}
-                                            {selectedImageTemplatePreset && shapeLayers.map(shape => (
-                                                <div
-                                                    key={shape.id}
-                                                    className="absolute inset-x-0 pointer-events-none"
-                                                    style={{
-                                                        top: `${shape.y}%`,
-                                                        height: `${shape.height}%`,
-                                                        backgroundColor: hexToRgba(shape.color, shape.opacity),
-                                                    }}
-                                                />
-                                            ))}
-                                            {selectedImageTemplatePreset && textLayers.map(layer => (
-                                                <div
-                                                    key={layer.id}
-                                                    className="absolute select-none pointer-events-none transition-all whitespace-nowrap"
-                                                    style={{
-                                                        left: `${layer.x}%`,
-                                                        top: `${layer.y}%`,
-                                                        transform: 'translate(-50%, -50%)',
-                                                        fontFamily: layer.fontFamily,
-                                                        color: layer.color,
-                                                        fontSize: `${layer.fontSize}px`,
-                                                        fontWeight: 'bold',
-                                                        WebkitTextStroke: `${Math.max(0, Number(layer.strokeWidth) || 0)}px ${layer.strokeColor}`,
-                                                        paintOrder: 'stroke fill',
-                                                    }}
-                                                >
-                                                    {layer.text}
-                                                </div>
-                                            ))}
+                                            {selectedImageTemplatePreset && <StdTemplateOverlay layers={textLayers}
+                                                savedImage={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_png_data_url}
+                                                savedLayers={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_layers} />}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
                                                 return (
@@ -9935,7 +9910,7 @@ export default function StdPortalPage() {
                                                         fontSize: `${Math.min(22, Math.max(13, Number(subFontSize) * 2.8)) / 4.4}cqw`,
                                                         padding: '0.3em 0.6em',
                                                         borderRadius: '0.25em',
-                                                        fontWeight: 'bold',
+                                                        fontWeight: 400,
                                                         whiteSpace: 'nowrap',
                                                         lineHeight: '1',
                                                         WebkitTextStroke: `${Math.max(0, Number(subStrokeWidth) || 0) / 19.2}cqw ${subStrokeColor}`,
