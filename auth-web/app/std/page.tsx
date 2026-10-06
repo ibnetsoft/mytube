@@ -7,7 +7,7 @@ import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import { stdUiText } from '@/lib/stdUiText'
-import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
+import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
@@ -1155,6 +1155,11 @@ export default function StdPortalPage() {
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const previousBgmVolumeRef = useRef(0.08)
     const [bgmLoop, setBgmLoop] = useState(true)
+    const [bgmStartScene, setBgmStartScene] = useState(0)
+    const [bgmEndScene, setBgmEndScene] = useState(0)
+    const [bgmFadeIn, setBgmFadeIn] = useState(2)
+    const [bgmFadeOut, setBgmFadeOut] = useState(2)
+    const bgmRangeRef = useRef({ start: 0, end: Infinity, valid: true, fadeIn: 2, fadeOut: 2 })
     const [bgmVolume, setBgmVolume] = useState(0.08)
     const [savingBgmVolume, setSavingBgmVolume] = useState(false)
     const [selectedSfxAssetId, setSelectedSfxAssetId] = useState('')
@@ -3432,7 +3437,10 @@ export default function StdPortalPage() {
     const playPreviewBgm = (timelineTime: number) => {
         const audio = previewBgmAudioRef.current
         if (!audio) return
-        audio.volume = backgroundVolume(bgmVolume)
+        const range = bgmRangeRef.current
+        if (!range.valid || timelineTime < range.start || timelineTime >= range.end) { audio.pause(); return }
+        audio.volume = backgroundVolume(bgmVolume) * backgroundEnvelope(timelineTime, range)
+        timelineTime = Math.max(0, timelineTime - range.start)
         audio.loop = bgmLoop
 
         const seekAndPlay = () => {
@@ -7186,28 +7194,34 @@ export default function StdPortalPage() {
     useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
+        setBgmStartScene(Number(bgmSfxSettings.bgm_start_scene) || 0)
+        setBgmEndScene(Number(bgmSfxSettings.bgm_end_scene) || 0)
+        setBgmFadeIn(Number(bgmSfxSettings.bgm_fade_in ?? 2))
+        setBgmFadeOut(Number(bgmSfxSettings.bgm_fade_out ?? 2))
         setBgmLoop(bgmSfxSettings.bgm_loop !== false)
         const volume = backgroundVolume(bgmSfxSettings.bgm_volume)
         previousBgmVolumeRef.current = volume > 0 ? volume : 0.08
         setBgmVolume(volume)
-    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume, bgmSfxSettings.bgm_loop])
+    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume, bgmSfxSettings.bgm_loop, bgmSfxSettings.bgm_start_scene, bgmSfxSettings.bgm_end_scene, bgmSfxSettings.bgm_fade_in, bgmSfxSettings.bgm_fade_out])
 
+    const bgmTimelineEnd = Math.max(0, ...localSubtitles.map(row => Number(row.end_num ?? row.end_time ?? 0) || 0))
+    const bgmRange = backgroundWindow({ bgm_start_scene: bgmStartScene, bgm_end_scene: bgmEndScene,
+        bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut }, localSubtitles, bgmTimelineEnd)
+    bgmRangeRef.current = bgmRange
     useEffect(() => {
         if (bgmVolume > 0) previousBgmVolumeRef.current = bgmVolume
-        if (previewBgmAudioRef.current) previewBgmAudioRef.current.volume = backgroundVolume(bgmVolume)
-    }, [bgmVolume])
-
-    useEffect(() => {
         const audio = previewBgmAudioRef.current
         if (!audio) return
         audio.loop = bgmLoop
-        if (isPlayingPreview) {
-            if (!bgmLoop && Number.isFinite(audio.duration) && playbackTime >= audio.duration) {
-                audio.pause()
-                audio.currentTime = audio.duration
-            } else playPreviewBgm(playbackTime)
-        }
-    }, [bgmLoop])
+        audio.volume = backgroundVolume(bgmVolume) * backgroundEnvelope(playbackTime, bgmRangeRef.current)
+        if (isNarrationPlaying) {
+            if (audio.paused) playPreviewBgm(playbackTime)
+        } else audio.pause()
+    }, [playbackTime, isNarrationPlaying, bgmVolume, bgmLoop, bgmStartScene, bgmEndScene, bgmFadeIn, bgmFadeOut])
+
+    useEffect(() => {
+        if (isNarrationPlaying) playPreviewBgm(playbackTime)
+    }, [bgmLoop, bgmStartScene, bgmEndScene])
 
     const toggleBgmMute = () => {
         if (bgmVolume > 0) {
@@ -7219,10 +7233,11 @@ export default function StdPortalPage() {
     }
 
     const saveBgmVolume = async () => {
+        if (!bgmRange.valid) { setMessage('배경음 시작·종료 씬과 녹음 시간을 확인해 주세요.'); return }
         setSavingBgmVolume(true)
         try {
-            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop })
-            setMessage(`배경음 ${Math.round(bgmVolume * 100)}% · ${bgmLoop ? '반복 켜짐' : '한 번 재생'} 설정을 저장했습니다.`)
+            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_end_scene: bgmEndScene, bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut })
+            setMessage('배경음 구간·볼륨·페이드 설정을 저장했습니다.')
         } catch (error: any) {
             setMessage(error?.message || '배경음 볼륨 저장 실패')
         } finally { setSavingBgmVolume(false) }
@@ -9985,8 +10000,8 @@ export default function StdPortalPage() {
                                         <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
                                             cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
                                             audioContextRef={speechContextRef} headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
-                                            {bgmAsset && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={playbackTime}
-                                                timelineDuration={totalDuration} muted={bgmVolume === 0} loop={bgmLoop} />}
+                                            {bgmAsset && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={Math.max(0, playbackTime - bgmRange.start)}
+                                                timelineDuration={Math.max(0, bgmRange.end - bgmRange.start)} muted={bgmVolume === 0 || playbackTime < bgmRange.start || playbackTime >= bgmRange.end} loop={bgmLoop} />}
                                         </div>
                                     </div>
 
@@ -10149,7 +10164,7 @@ export default function StdPortalPage() {
                                                     className="w-full rounded border border-purple-400/40 bg-purple-500/10 px-3 py-2 text-xs text-purple-200 disabled:opacity-50">
                                                     {uploadingKey === 'sfx-upload' ? '효과음 업로드·저장 중…' : '효과음 업로드 · 자막에 삽입'}
                                                 </button>
-                                                <p className="text-[11px] text-gray-400">BGM은 전체 배경음입니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.</p>
+                                                <p className="text-[11px] text-gray-400">BGM은 지정한 씬 구간에서 재생됩니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.</p>
                                                 {message && <p role="status" className="break-words text-xs text-cyan-200">{message}</p>}
                                                 {selectedProject && <SubtitleSfxPicker locale={currentLocale}
                                                     key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
@@ -10169,6 +10184,17 @@ export default function StdPortalPage() {
                                                         SFX · {currentSfxAsset?.file_name || currentSfxCue?.file_name}
                                                     </div>
                                                 )}
+                                                <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
+                                                    <label>시작 씬<select aria-label="배경음 시작 씬" value={bgmStartScene} disabled={savingBgmVolume} onChange={event => setBgmStartScene(Number(event.target.value))} className="ml-2 rounded bg-[#10151c] p-1">
+                                                        <option value={0}>처음부터</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
+                                                    </select></label>
+                                                    <label>종료 씬<select aria-label="배경음 종료 씬" value={bgmEndScene} disabled={savingBgmVolume} onChange={event => setBgmEndScene(Number(event.target.value))} className="ml-2 rounded bg-[#10151c] p-1">
+                                                        <option value={0}>끝까지</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
+                                                    </select></label>
+                                                    <label>점점 크게 (초)<input aria-label="배경음 페이드 인" type="number" min="0" max="30" step="0.5" value={bgmFadeIn} disabled={savingBgmVolume} onChange={event => setBgmFadeIn(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
+                                                    <label>점점 작게 (초)<input aria-label="배경음 페이드 아웃" type="number" min="0" max="30" step="0.5" value={bgmFadeOut} disabled={savingBgmVolume} onChange={event => setBgmFadeOut(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
+                                                </div>
+                                                {!bgmRange.valid && <p className="text-xs text-red-300">시작·종료 씬을 확인해 주세요.</p>}
                                                 <label className="flex items-center gap-1.5 text-[11px] text-cyan-200">
                                                     <input type="checkbox" checked={bgmLoop} disabled={savingBgmVolume}
                                                         onChange={event => setBgmLoop(event.target.checked)} className="accent-cyan-400" />

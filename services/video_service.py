@@ -1212,13 +1212,26 @@ class VideoService:
                     except ValueError:
                         bgm_volume = 0.3
                     
+                    from services.bgm_timeline import bgm_window
+                    bgm_start, bgm_end, fade_in, fade_out = bgm_window(subtitle_settings, audio.duration)
+                    bgm_length = bgm_end - bgm_start
                     bgm_clip = AudioFileClip(bgm_path)
                     if subtitle_settings.get("bgm_loop", True):
                         from moviepy.audio.fx.AudioLoop import AudioLoop
-                        bgm_clip = bgm_clip.with_effects([AudioLoop(duration=audio.duration)])
+                        bgm_clip = bgm_clip.with_effects([AudioLoop(duration=bgm_length)])
                     else:
-                        bgm_clip = bgm_clip.with_duration(min(bgm_clip.duration, audio.duration))
-                    bgm_clip = bgm_clip.with_volume(bgm_volume)
+                        bgm_clip = bgm_clip.subclipped(0, min(bgm_clip.duration, bgm_length))
+                    # Preserve the timeline fade-out even when a non-looping file ends early.
+                    import numpy as np
+                    def apply_bgm_envelope(get_frame, t):
+                        time = np.asarray(t)
+                        gain = np.ones_like(time, dtype=float)
+                        if fade_in > 0: gain = np.minimum(gain, np.maximum(0, time / fade_in))
+                        if fade_out > 0: gain = np.minimum(gain, np.maximum(0, (bgm_length - time) / fade_out))
+                        frame = get_frame(t)
+                        return frame * (gain[:, None] if gain.ndim and np.asarray(frame).ndim > 1 else gain) * bgm_volume
+                    bgm_clip = bgm_clip.transform(apply_bgm_envelope)
+                    bgm_clip = bgm_clip.with_start(bgm_start)
                     from moviepy.audio.AudioClip import CompositeAudioClip
                     audio = CompositeAudioClip([audio, bgm_clip])
                     print(f"🎵 [BGM QA Mixer] Mixed into final: {os.path.basename(bgm_path)} at volume {bgm_volume}")
