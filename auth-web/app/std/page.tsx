@@ -197,7 +197,6 @@ import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
-import StdAeProgress from '@/components/StdAeProgress'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
@@ -8168,7 +8167,9 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
-            {selectedProject && <StdAeProgress key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} />}
+            {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
+                key={selectedProject.project.id} projectId={selectedProject.project.id}
+                revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders} />}
             {renderSuccessNotice && (
                 <div className={`fixed right-4 ${renderSuccessNotice.heading ? 'bottom-4' : 'top-4'} z-[80] w-[min(360px,calc(100vw-32px))] animate-in fade-in zoom-in-95 duration-200`} role="status" aria-live="polite">
                     <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-[#09251d]/95 p-4 shadow-2xl shadow-emerald-950/60 backdrop-blur">
@@ -9817,7 +9818,7 @@ export default function StdPortalPage() {
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
                                 <div className="std-subtitle-preview contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
-                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto lg:pb-28 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-b-lg sm:rounded-b-xl overflow-hidden shadow flex flex-col lg:order-none">
                                         {bgmAsset && (
@@ -10247,9 +10248,6 @@ export default function StdPortalPage() {
                         </div>
                         )
                     })()}
-
-                    {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
-                        projectId={selectedProject.project.id} revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders} />}
 
                     {/* [TTS 음성 생성 탭] */}
                     {currentNav === 'tts' && selectedProject && (
