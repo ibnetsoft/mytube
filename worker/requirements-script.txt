@@ -1,0 +1,10 @@
+fastapi>=0.115.6,<1
+uvicorn>=0.34,<1
+pydantic>=2,<3
+requests>=2.32,<3
+python-dotenv>=1,<2
+Pillow>=11,<13
+google-auth>=2,<3
+google-cloud-storage>=2,<4
+youtube-transcript-api>=1.2,<2
+beautifulsoup4>=4.12,<5

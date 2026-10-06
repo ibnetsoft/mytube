@@ -224,18 +224,24 @@ def ae_review_target(source_type: str, identity: str, scene_number: int):
 
 
 def start_ae_worker_process():
-    state = read_ae_state()
-    if state.get('fresh') and state.get('status') not in ('stopped', 'failed'):
-        return {'success': True, 'already_running': True, 'pid': state.get('pid')}
-    log_path = OUT / 'ae_highlight_worker.log'
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_handle = log_path.open('a', encoding='utf-8', errors='replace')
-    cmd = [sys.executable, str(ROOT / 'worker/ae_highlight_worker.py'), '--loop']
-    kwargs = {'cwd': str(ROOT), 'stdin': subprocess.DEVNULL, 'stdout': log_handle, 'stderr': log_handle}
-    if sys.platform == 'win32':
-        kwargs['creationflags'] = getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000)
-    process = subprocess.Popen(cmd, **kwargs)
-    return {'success': True, 'pid': process.pid, 'log_path': str(log_path)}
+    if os.getenv('AIR_WORKER_ROLE') == 'script':
+        return {'success':False,'error':'AE는 리소스가 설치된 컴퓨터의 로컬 미디어 워커에서 실행해 주세요.'}
+    import worker_config
+    state_path=worker_config.STATE_DIR/'local-media/status.json'
+    try: state=json.loads(state_path.read_text(encoding='utf-8'))
+    except (OSError,ValueError):state={}
+    home=worker_config.STATE_DIR/'local-media';home.mkdir(parents=True,exist_ok=True)
+    (home/'highlight-enabled').touch()
+    if state.get('status')!='stopped' and state.get('updated_at'):
+        from datetime import datetime,timezone
+        if (datetime.now(timezone.utc)-datetime.fromisoformat(state['updated_at'])).total_seconds()<45:
+            return {'success':True,'already_running':True,'pid':state.get('pid'),'url':'http://127.0.0.1:3004'}
+    log_path=OUT/'local_media_supervisor.log';log_path.parent.mkdir(parents=True,exist_ok=True)
+    with log_path.open('a',encoding='utf-8') as log:
+        kwargs={'cwd':str(ROOT),'stdin':subprocess.DEVNULL,'stdout':log,'stderr':log}
+        if sys.platform=='win32':kwargs['creationflags']=subprocess.CREATE_NO_WINDOW
+        process=subprocess.Popen([sys.executable,'-u','-m','worker.local_media_supervisor'],**kwargs)
+    return {'success':True,'pid':process.pid,'log_path':str(log_path),'url':'http://127.0.0.1:3004'}
 
 
 def summary(row, kind):
@@ -561,7 +567,7 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js', 'modern_japan_watercolor.json'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
 

@@ -16,7 +16,7 @@ try {
 $taskPython = (Get-Command python -ErrorAction Stop).Source
 $taskOutput = Join-Path $taskRoot 'output/codex-local-console'
 New-Item -ItemType Directory -Path $taskOutput -Force | Out-Null
-$taskProcess = Start-Process -FilePath $taskPython -ArgumentList '-m','worker.codex_local_console' -WorkingDirectory $taskRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $taskOutput 'server.stdout.log') -RedirectStandardError (Join-Path $taskOutput 'server.stderr.log')
+$taskProcess = Start-Process -FilePath $taskPython -ArgumentList '-m','worker.launch','--role','script' -WorkingDirectory $taskRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $taskOutput 'server.stdout.log') -RedirectStandardError (Join-Path $taskOutput 'server.stderr.log')
 for ($taskTry = 0; $taskTry -lt 20; $taskTry++) {
     Start-Sleep -Milliseconds 500
     if ($taskProcess.HasExited) { throw 'Codex console exited. Check output/codex-local-console/server.stderr.log.' }
