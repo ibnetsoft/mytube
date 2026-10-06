@@ -757,7 +757,7 @@ export default function StdPortalPage() {
     const [loading, setLoading] = useState(false)
     const [projectLoading, setProjectLoading] = useState(false)
     const [submittingProjectId, setSubmittingProjectId] = useState('')
-    const [renderSuccessNotice, setRenderSuccessNotice] = useState<{ projectId: string; title: string; detail: string } | null>(null)
+    const [renderSuccessNotice, setRenderSuccessNotice] = useState<{ projectId: string; title: string; detail: string; heading?: string } | null>(null)
     const renderSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
     const [message, setMessageRaw] = useState('')
@@ -6564,6 +6564,7 @@ export default function StdPortalPage() {
             setAudioResultUrl(audioUrl)
             rememberPersistedAudioAsset(persistedAudioAsset)
             setMessage(`🔊 ${voiceObj.name} TTS 음성이 성공적으로 생성되었습니다!${ttsWarning}`)
+            return Boolean(persistedAudioAsset?.id) && !ttsWarning
         } catch (error: any) {
             setAudioResultUrl('')
             const errorMessage = formatTtsErrorMessage(error?.message || 'TTS generation failed')
@@ -6745,7 +6746,14 @@ export default function StdPortalPage() {
         setMessage('자막 설정 저장 중...')
         try {
             await handleSaveSubtitles(false)
-            await generateTts(true)
+            const saved = await generateTts(true)
+            if (saved) {
+                if (renderSuccessTimerRef.current) clearTimeout(renderSuccessTimerRef.current)
+                setRenderSuccessNotice({ projectId: String(selectedProject?.project.id || ''),
+                    title: selectedProject?.project.title || '프로젝트', heading: '저장+TTS 완료',
+                    detail: '자막 설정과 TTS 음성이 저장되었습니다.' })
+                renderSuccessTimerRef.current = setTimeout(() => setRenderSuccessNotice(null), 6000)
+            }
         } catch (error: any) {
             setGeneratingTts(false)
             const errorMessage = error?.message || '최종 저장 실패'
@@ -8118,7 +8126,7 @@ export default function StdPortalPage() {
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             {renderSuccessNotice && (
-                <div className="fixed right-4 top-4 z-[80] w-[min(360px,calc(100vw-32px))] animate-in slide-in-from-top-3 fade-in zoom-in-95 duration-200">
+                <div className={`fixed right-4 ${renderSuccessNotice.heading ? 'bottom-4' : 'top-4'} z-[80] w-[min(360px,calc(100vw-32px))] animate-in fade-in zoom-in-95 duration-200`} role="status" aria-live="polite">
                     <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-[#09251d]/95 p-4 shadow-2xl shadow-emerald-950/60 backdrop-blur">
                         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-300 via-cyan-300 to-emerald-400" />
                         <div className="flex items-start gap-3">
@@ -8126,7 +8134,7 @@ export default function StdPortalPage() {
                                 <CheckCircle2 className="h-5 w-5" />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <div className="text-sm font-black text-white">렌더 큐 등록 성공</div>
+                                <div className="text-sm font-black text-white">{renderSuccessNotice.heading || '렌더 큐 등록 성공'}</div>
                                 <div className="mt-1 truncate text-[11px] font-bold text-emerald-100">{renderSuccessNotice.title}</div>
                                 <div className="mt-1 text-[11px] leading-relaxed text-emerald-200/90">{renderSuccessNotice.detail}</div>
                             </div>
