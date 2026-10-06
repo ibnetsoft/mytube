@@ -8,9 +8,9 @@ import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import { subtitleWords, sfxSubtitleIndex, wordBoundaryTime, resolveSfxCues, sfxNeedsReview } from '@/lib/stdSfxCues'
 
 export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters = [], subtitle, subtitleIndex, subtitles, assets, cues, selectedAssetId,
-    onSelect, onSave, onEdit, activeTokenIndex, onError, projectId, headers, onPreviewOpen, onUpload }: {
+    onSelect, onSave, onEdit, activeTokenIndex, onError, projectId, headers, onPreviewOpen, onUpload, onRegistered }: {
     locale?: SupportedLocale; speaker?: SpeakerInfo | null; characters?: any[];
-    projectId: string; headers: Record<string, string>; onPreviewOpen: () => void; onUpload?: (file: File) => Promise<any>;
+    projectId: string; headers: Record<string, string>; onPreviewOpen: () => void; onUpload?: (file: File) => Promise<any>; onRegistered?: (asset: any) => void;
     subtitle: any; subtitleIndex: number; subtitles: any[]; assets: any[]; cues: any[]; selectedAssetId: string;
     onSelect: (id: string) => void; onSave: (cues: any[]) => Promise<void>; onEdit: () => void;
     activeTokenIndex: number; onError: (message: string) => void;
@@ -54,7 +54,7 @@ export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters =
     }
     return <div className="min-w-0 flex-1 space-y-2">
         <SubtitleSfxPicker locale={locale} assets={assets} value={selectedAssetId} projectId={projectId} headers={headers}
-            onUpload={onUpload} disabled={saving} onChange={onSelect} onOpen={onPreviewOpen} />
+            onRegistered={onRegistered} onUpload={onUpload} disabled={saving} onChange={onSelect} onOpen={onPreviewOpen} />
         <div className="flex items-start gap-2">
             {speakerImageSrc && speakerImageSrc !== failedSpeakerImage && (
                 // eslint-disable-next-line @next/next/no-img-element

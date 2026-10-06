@@ -5132,6 +5132,15 @@ export default function StdPortalPage() {
         }
     }
 
+    const registerSelectedSfx = (asset: any) => {
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== asset.project_id) return prev
+            const next = { ...prev, assets: [asset, ...prev.assets.filter(a => a.id !== asset.id)] }
+            rememberProjectState(next)
+            return next
+        })
+    }
+
     const uploadSelectableSfx = async (file: File) => {
         const projectId = selectedProject?.project?.id
         if (!projectId) throw new Error('프로젝트를 먼저 선택하세요.')
@@ -10074,7 +10083,7 @@ export default function StdPortalPage() {
                                                                 key={selectedProject?.project?.id}
                                                                 subtitle={currentSub} subtitleIndex={selectedSubIndex} subtitles={localSubtitles}
                                                                 assets={(selectedProject?.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
-                                                                onUpload={uploadSelectableSfx} cues={sfxCues} selectedAssetId={selectedSfxAssetId} onSelect={setSelectedSfxAssetId}
+                                                                onRegistered={registerSelectedSfx} onUpload={uploadSelectableSfx} cues={sfxCues} selectedAssetId={selectedSfxAssetId} onSelect={setSelectedSfxAssetId}
                                                                 onEdit={() => setIsSubtitleTextEditing(true)} onError={setMessage}
                                                                 activeTokenIndex={isPlayingPreview ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime) : -1}
                                                                 onSave={async cues => {
@@ -10130,7 +10139,7 @@ export default function StdPortalPage() {
                                                 {selectedProject && <SubtitleSfxPicker locale={currentLocale}
                                                     key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
                                                     assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
-                                                    onUpload={uploadSelectableSfx} value={selectedSfxAssetId} openRequest={sfxPickerOpenRequest} disabled={uploadingKey !== ''}
+                                                    onRegistered={registerSelectedSfx} onUpload={uploadSelectableSfx} value={selectedSfxAssetId} openRequest={sfxPickerOpenRequest} disabled={uploadingKey !== ''}
                                                     onOpen={() => setSfxPickerOpenRequest(0)} onChange={id => {
                                                         setSelectedSfxAssetId(id)
                                                         if (id) setSubEditTab('subtitle')

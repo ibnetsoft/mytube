@@ -135,7 +135,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
-    if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
+    if (['review_requested', 'approved', 'canceled'].includes(project.status) && !(assetType === 'sfx' && sceneNumber == null && project.status !== 'canceled')) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
@@ -268,6 +268,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
             if (assetError) return NextResponse.json({ success: false, error: assetError.message }, { status: 500 })
             asset = insertedAsset
+        }
+
+        // Saving a reusable sound does not alter a submitted project's payload or review status.
+        if (assetType === 'sfx' && sceneNumber == null) {
+            return NextResponse.json({ success: true, asset })
         }
 
         if (sceneNumber != null) {

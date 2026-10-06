@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { sfxDescriptionKo } from '@/lib/stdSfxDescriptions'
 
-export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projectId, headers, disabled, onChange, onOpen, openRequest = 0, onUpload }: {
+export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projectId, headers, disabled, onChange, onOpen, openRequest = 0, onUpload, onRegistered }: {
     locale?: SupportedLocale;
     assets: any[]; value: string; projectId: string; headers: Record<string, string>; disabled?: boolean;
-    onChange: (id: string) => void; onOpen: () => void; openRequest?: number; onUpload?: (file: File) => Promise<any>;
+    onChange: (id: string) => void; onOpen: () => void; openRequest?: number; onUpload?: (file: File) => Promise<any>; onRegistered?: (asset: any) => void;
 }) {
     const ui = (text: string) => stdUiText(locale, text)
     const [uploadedAssets, setUploadedAssets] = useState<any[]>([])
@@ -25,6 +25,18 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
     const request = useRef<AbortController | null>(null)
     const urls = useRef<Record<string, string>>({})
     const selected = assets.find(asset => asset.id === value)
+    const libraryEndpoint = `/api/std/projects/${encodeURIComponent(projectId)}/assets/sfx-library`
+    useEffect(() => {
+        if (!open) return
+        const controller = new AbortController()
+        void fetch(libraryEndpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal })
+            .then(async response => {
+                const result = await response.json()
+                if (!response.ok) throw new Error(result.error || '효과음 목록을 불러오지 못했습니다.')
+                if (!controller.signal.aborted) setUploadedAssets(previous => [...previous.filter(a => !result.assets.some((b: any) => b.id === a.id)), ...result.assets])
+            }).catch(error => { if (!controller.signal.aborted) setError(error.message) })
+        return () => controller.abort()
+    }, [open, libraryEndpoint])
     const lastOpenRequest = useRef(0)
     useEffect(() => {
         if (!openRequest || lastOpenRequest.current === openRequest) return
@@ -64,7 +76,7 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
         try {
             let url = urls.current[asset.id]
             if (!url) {
-                const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?assetId=${encodeURIComponent(asset.id)}`, {
+                const response = await fetch(`/api/std/projects/${encodeURIComponent(asset.project_id || projectId)}/assets/file?assetId=${encodeURIComponent(asset.id)}`, {
                     headers, signal: controller.signal,
                 })
                 if (!response.ok) throw new Error(ui("효과음 파일을 불러오지 못했습니다. 다시 시도해 주세요."))
@@ -136,7 +148,16 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
                 <div className="flex shrink-0 justify-end gap-2 text-xs">
                     <button type="button" onClick={() => { onChange(''); setOpen(false) }} className="mr-auto rounded px-3 py-2 text-gray-400 hover:bg-white/5">{ui("선택 해제")}</button>
                     <button type="button" onClick={() => setOpen(false)} className="rounded border border-white/10 px-4 py-2">{ui("취소")}</button>
-                    <button type="button" disabled={uploading || !assets.some(asset => asset.id === draft)} onClick={() => { onChange(draft); setOpen(false) }} className="rounded bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-500 disabled:opacity-40">{ui("선택 완료")}</button>
+                    <button type="button" disabled={uploading || !assets.some(asset => asset.id === draft)} onClick={async () => {
+                        setUploading(true); setError('')
+                        try {
+                            const response = await fetch(libraryEndpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: draft }) })
+                            const result = await response.json()
+                            if (!response.ok || !result.asset) throw new Error(result.error || '효과음 선택에 실패했습니다.')
+                            onRegistered?.(result.asset); onChange(result.asset.id); setOpen(false)
+                        } catch (error: any) { setError(error.message) }
+                        finally { setUploading(false) }
+                    }} className="rounded bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-500 disabled:opacity-40">{ui("선택 완료")}</button>
                 </div>
             </div>
         </div>, document.body)}
