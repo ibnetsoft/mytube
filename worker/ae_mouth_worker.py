@@ -17,7 +17,7 @@ import ae_highlight_worker as ae
 from ae_mouth import assess_dialogue, locate_speakers, mouth_layers, amplitude_cues, decode_scene_audio, review_layers, digest, direction_text, visible_speakers
 from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
-from lipsync_video_worker import ffmpeg, run, ref
+from ae_media_utils import ffmpeg, run, ref
 
 
 class Obsolete(RuntimeError):

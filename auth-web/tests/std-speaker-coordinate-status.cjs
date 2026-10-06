@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),fs=require('fs'),ts=require('typescript');
+const moduleExports={};
+new Function('exports',ts.transpileModule(fs.readFileSync(require.resolve('../lib/stdSpeakerCoordinateStatus.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(moduleExports);
+const status=moduleExports.coordinateStatus, now=Date.now();
+assert.match(status({state:'queued',count:56}),/작업기 연결 대기 \(0\/56\)/);
+assert.match(status({state:'processing',count:56,results:[{}],currentScene:20,heartbeatAt:new Date(now).toISOString()},now),/분석 중 \(1\/56\).*20번 씬/);
+assert.match(status({state:'processing',count:56,heartbeatAt:new Date(now-121000).toISOString()},now),/응답 지연/);
+assert.match(status({state:'needs_review',count:56,error:'face missing',results:[{}]}),/추가 확인 필요 \(1\/56\).*face missing/);
+assert.match(status({state:'ready',count:56}),/확인 완료/);
+console.log('PASS coordinate waiting, progress, stalled, review and ready states');

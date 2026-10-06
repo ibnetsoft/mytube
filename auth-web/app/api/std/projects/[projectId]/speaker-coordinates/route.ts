@@ -32,7 +32,7 @@ export async function POST(req: Request, {params}: {params:{projectId:string}}) 
             if (retry.error) throw retry.error
             return NextResponse.json({state:'queued',count:scenes.length,results:existing.metadata.results || []})
         }
-        if (existing) return NextResponse.json({state:existing.metadata.state,count:scenes.length,error:existing.metadata.error,results:existing.metadata.results || []})
+        if (existing) return NextResponse.json({updatedAt:existing.updated_at,currentScene:existing.metadata.current_scene,heartbeatAt:existing.metadata.heartbeat_at,state:existing.metadata.state,count:scenes.length,error:existing.metadata.error,results:existing.metadata.results || []})
         if (!scenes.length) return NextResponse.json({state:'ready',count:0,results:[]})
         const jobId = `${fingerprint.slice(0,8)}-${fingerprint.slice(8,12)}-4${fingerprint.slice(13,16)}-a${fingerprint.slice(17,20)}-${fingerprint.slice(20,32)}`
         const result = await db.from('std_project_assets').insert({id:jobId,project_id:params.projectId,asset_type:'other',status:'uploaded',file_name:'speaker-coordinates.json',mime_type:'application/json',

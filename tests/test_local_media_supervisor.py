@@ -78,3 +78,9 @@ def test_dashboard_preserves_last_snapshot_on_connection_failure(monkeypatch):
     assert failed['jobs'] == first['jobs']
     assert failed['updated_at'] == first['updated_at']
     assert failed['error'] == 'TimeoutError'
+
+
+def test_coordinate_role_does_not_import_ae_render_worker():
+    command = media.role_command('coordinates')
+    assert command[-2].endswith('ae_speaker_coordinates.py')
+    assert command[-1] == '--once'

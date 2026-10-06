@@ -38,12 +38,13 @@ def pending_roles():
         response=requests.get(base+'/rest/v1/'+table,headers=headers,params={'select':'id','limit':'1',**params},timeout=(5,15))
         response.raise_for_status();return bool(response.json())
     roles=[]
-    for kind,states in [('ae_speaker_coordinates','queued,processing'),('ae_mouth_job','queued,processing,direction_approved')]:
-        if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.('+states+')'}): roles.append('ae');break
+    for kind,states,role in [('ae_speaker_coordinates','queued,processing','coordinates'),('ae_mouth_job','queued,processing,direction_approved','ae')]:
+        if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.('+states+')'}): roles.append(role)
     if exists('remote_render_queue',{'status':'eq.pending','render_mode':'eq.gcs_api'}):roles.append('render')
     return roles
 
 def role_command(role):
+    if role=='coordinates': return [sys.executable,'-u',str(ROOT/'worker/ae_speaker_coordinates.py'),'--once']
     if role=='ae': return [sys.executable,'-u',str(ROOT/'worker/ae_mouth_worker.py'),'--once']
     if role=='render': return [sys.executable,'-u',str(ROOT/'worker/remote_render_source.py'),'--once']
     if role=='highlight': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--max-scenes','1']

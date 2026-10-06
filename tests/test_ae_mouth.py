@@ -78,7 +78,7 @@ def test_snapshot_invalidates_new_sources_but_ignores_generated_output():
 def test_submitted_job_discovers_then_waits_for_direction_approval_before_generating(monkeypatch, tmp_path):
     import json
     from PIL import Image, ImageDraw
-    from lipsync_video_worker import ffmpeg, run
+    from ae_media_utils import ffmpeg, run
     master, original = tmp_path / 'voice.wav', tmp_path / 'original.png'
     run([ffmpeg(), '-y', '-f', 'lavfi', '-i', 'sine=frequency=220:duration=19', '-ac', '1', str(master)])
     Image.new('RGB', (1280, 720), '#d6b8a1').save(original)
