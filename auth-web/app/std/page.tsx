@@ -5135,7 +5135,7 @@ export default function StdPortalPage() {
         try {
             const asset = await uploadDriveAudioAsset(file, 'bgm')
             const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-            const nextAssets = [asset, ...selectedProject.assets.filter(a => audioAssetRole(a) !== 'bgm')]
+            const nextAssets = [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)]
             await updateBgmSfxSettings({
                 ...currentSettings,
                 bgm_asset_id: asset.id,
@@ -10000,7 +10000,7 @@ export default function StdPortalPage() {
                                         <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
                                             cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
                                             audioContextRef={speechContextRef} headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
-                                            {bgmAsset && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={Math.max(0, playbackTime - bgmRange.start)}
+                                            {bgmAsset && bgmRange.valid && playbackTime >= bgmRange.start && playbackTime < bgmRange.end && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={Math.max(0, playbackTime - bgmRange.start)}
                                                 timelineDuration={Math.max(0, bgmRange.end - bgmRange.start)} muted={bgmVolume === 0 || playbackTime < bgmRange.start || playbackTime >= bgmRange.end} loop={bgmLoop} />}
                                         </div>
                                     </div>
@@ -10173,6 +10173,23 @@ export default function StdPortalPage() {
                                                     onOpen={() => setSfxPickerOpenRequest(0)} onChange={id => {
                                                         setSelectedSfxAssetId(id)
                                                         if (id) setSubEditTab('subtitle')
+                                                    }} />}
+                                                {selectedProject && <SubtitleSfxPicker locale={currentLocale} role="bgm"
+                                                    projectId={selectedProject.project.id} headers={authedJsonHeaders}
+                                                    assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'bgm' && ['uploaded', 'assigned'].includes(a.status))}
+                                                    value={bgmSfxSettings.bgm_asset_id || ''} disabled={savingBgmVolume || uploadingKey !== ''}
+                                                    onOpen={() => stopVrewPlayback()} onUpload={file => uploadDriveAudioAsset(file, 'bgm')}
+                                                    onChange={async (id, asset) => {
+                                                        setSavingBgmVolume(true)
+                                                        try {
+                                                            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_asset_id: id || null,
+                                                                bgm_file_name: asset?.file_name || null, bgm_volume: backgroundVolume(bgmVolume),
+                                                                bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_end_scene: bgmEndScene,
+                                                                bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut },
+                                                                asset ? [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)] : undefined)
+                                                            setMessage(id ? '배경음 선택과 씬 구간을 저장했습니다.' : '배경음 적용을 해제했습니다.')
+                                                        } catch (error: any) { setMessage(error.message || '배경음 저장 실패'); throw error }
+                                                        finally { setSavingBgmVolume(false) }
                                                     }} />}
                                                 {(bgmAsset?.file_name || bgmSfxSettings.bgm_file_name) && (
                                                     <div className="truncate text-[11px] text-cyan-200" title={bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}>
