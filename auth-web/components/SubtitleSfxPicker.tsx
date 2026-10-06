@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { sfxDescriptionKo } from '@/lib/stdSfxDescriptions'
 
-export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projectId, headers, disabled, onChange, onOpen }: {
+export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projectId, headers, disabled, onChange, onOpen, openRequest = 0 }: {
     locale?: SupportedLocale;
     assets: any[]; value: string; projectId: string; headers: Record<string, string>; disabled?: boolean;
-    onChange: (id: string) => void; onOpen: () => void;
+    onChange: (id: string) => void; onOpen: () => void; openRequest?: number;
 }) {
     const ui = (text: string) => stdUiText(locale, text)
     const [open, setOpen] = useState(false)
@@ -22,6 +22,12 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
     const request = useRef<AbortController | null>(null)
     const urls = useRef<Record<string, string>>({})
     const selected = assets.find(asset => asset.id === value)
+    const lastOpenRequest = useRef(0)
+    useEffect(() => {
+        if (!openRequest || lastOpenRequest.current === openRequest) return
+        lastOpenRequest.current = openRequest
+        onOpen(); setDraft(value); setSearch(''); setError(''); setSample(''); setBusy(''); setOpen(true)
+    }, [openRequest, value, onOpen])
     const matchesSearch = (asset: any) => `${asset.file_name} ${sfxDescriptionKo(asset)}`.toLowerCase().includes(search.trim().toLowerCase())
     useEffect(() => {
         if (!open) return

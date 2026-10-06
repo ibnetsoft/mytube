@@ -12,6 +12,7 @@ import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
+import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
 import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
@@ -1153,6 +1154,7 @@ export default function StdPortalPage() {
     const [bgmVolume, setBgmVolume] = useState(0.08)
     const [savingBgmVolume, setSavingBgmVolume] = useState(false)
     const [selectedSfxAssetId, setSelectedSfxAssetId] = useState('')
+    const [sfxPickerOpenRequest, setSfxPickerOpenRequest] = useState(0)
     const [previewBgmUrl, setPreviewBgmUrl] = useState('')
     const previewBgmAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -5137,12 +5139,17 @@ export default function StdPortalPage() {
         setUploadingKey('sfx-upload')
         try {
             const asset = await uploadDriveAudioAsset(file, 'sfx')
-            const nextProject = { ...selectedProject, assets: [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)] }
-            setSelectedProject(nextProject)
-            rememberProjectState(nextProject)
+            const projectId = selectedProject.project.id
+            setSelectedProject(prev => {
+                if (!prev || prev.project.id !== projectId) return prev
+                const next = { ...prev, assets: [asset, ...prev.assets.filter(a => a.id !== asset.id)] }
+                rememberProjectState(next)
+                return next
+            })
             setSelectedSfxAssetId(asset.id)
-            setSubEditTab('subtitle')
-            setMessage(`효과음 '${file.name}'을 저장했습니다. 우측 단어 사이의 + 버튼으로 삽입하세요.`)
+            setSubEditTab('bgm')
+            setSfxPickerOpenRequest(Date.now())
+            setMessage(`효과음 '${file.name}'을 저장했습니다. 팝업에서 미리듣기 후 선택 완료를 누르세요.`)
         } catch (error: any) {
             setMessage(error?.message || 'SFX upload failed')
         } finally {
@@ -10122,12 +10129,14 @@ export default function StdPortalPage() {
                                                     appliedJobId={bgmSfxSettings.sfx_plan?.job_id} subtitles={localSubtitles}
                                                     beforeSave={() => handleSaveSubtitles(false)}
                                                     onApplied={() => openProject(selectedProject.project.id)} />}
-                                                {(selectedProject?.assets || []).some(a => audioAssetRole(a) === 'sfx') && (
-                                                    <button type="button" onClick={() => setSubEditTab('subtitle')}
-                                                        className="text-left text-[11px] text-purple-200 underline underline-offset-2">
-                                                        {ui("저장된 효과음 선택 · 단어 사이에 배치 →")}
-                                                    </button>
-                                                )}
+                                                {selectedProject && <SubtitleSfxPicker locale={currentLocale}
+                                                    key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
+                                                    assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
+                                                    value={selectedSfxAssetId} openRequest={sfxPickerOpenRequest} disabled={uploadingKey !== ''}
+                                                    onOpen={() => setSfxPickerOpenRequest(0)} onChange={id => {
+                                                        setSelectedSfxAssetId(id)
+                                                        if (id) setSubEditTab('subtitle')
+                                                    }} />}
                                                 {(bgmAsset?.file_name || bgmSfxSettings.bgm_file_name) && (
                                                     <div className="truncate text-[11px] text-cyan-200" title={bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}>
                                                         BGM · {bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}
