@@ -1,3 +1,4 @@
+import { normalizeSubtitleFragments } from '@/lib/stdSubtitleFragments'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { normalizeComicSettings, isComicProject } from '@/lib/stdComic'
 import { canEditStdProject } from '@/lib/stdProjectEditPolicy'
@@ -351,10 +352,11 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     const subtitlePayload = project.project_payload || {}
     if (Array.isArray(subtitlePayload.subtitles)) {
-        const repaired = preserveSubtitleScenes(subtitlePayload.subtitles, subtitlePayload.subtitles,
+        const normalizedRows = normalizeSubtitleFragments(subtitlePayload.subtitles, 20, { punctuationOnly: true })
+        const repaired = preserveSubtitleScenes(normalizedRows, normalizedRows,
             [...(subtitlePayload.structure?.scenes || subtitlePayload.scenes || []), ...(scenes || [])],
             subtitlePayload.deleted_subtitle_scene_numbers || [])
-        if (repaired.recovered.length) {
+        if (JSON.stringify(repaired.subtitles) !== JSON.stringify(subtitlePayload.subtitles)) {
             const repairedPayload = { ...subtitlePayload, subtitles: repaired.subtitles }
             const { data: repairedProject, error: repairError } = await supabaseAdmin.from('std_projects')
                 .update({ project_payload: repairedPayload, updated_at: new Date().toISOString() })
@@ -433,8 +435,9 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             .select('scene_number,scene_text').eq('project_id', project.id)
         if (canonicalScenesError) return NextResponse.json({ success: false, error: canonicalScenesError.message }, { status: 503 })
         sceneManifest = [...sceneManifest, ...(canonicalScenes || [])]
-        const repaired = preserveSubtitleScenes(incomingProjectPayload.subtitles,
-            currentSubtitlePayload.subtitles || [], sceneManifest, deletedSubtitleScenes)
+        const repaired = preserveSubtitleScenes(
+            normalizeSubtitleFragments(incomingProjectPayload.subtitles, 20, { punctuationOnly: true }),
+            normalizeSubtitleFragments(currentSubtitlePayload.subtitles || [], 20, { punctuationOnly: true }), sceneManifest, deletedSubtitleScenes)
         incomingProjectPayload.subtitles = repaired.subtitles
         incomingProjectPayload.deleted_subtitle_scene_numbers = deletedSubtitleScenes
         incomingProjectPayload.deleted_subtitle_scene_archive = {
