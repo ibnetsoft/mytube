@@ -44,7 +44,7 @@ function SfxTrack({ cue, asset, projectId, headers, time, playing, onError, audi
         const context = audioContextRef?.current || fallbackContext.current || new AudioContext()
         if (!audioContextRef?.current) fallbackContext.current = context
         const current = running.current
-        const gainValue = Math.min(1, Math.pow(10, Number(cue.volume_db ?? -18) / 20))
+        const gainValue = Math.pow(10, Math.max(-60, Math.min(12, Number(cue.volume_db ?? -18))) / 20)
         if (current && current.context === context && Math.abs(current.offset + context.currentTime - current.clock - offset) < 0.3) {
             current.gain.gain.value = gainValue
             return
@@ -73,6 +73,7 @@ function SfxTrack({ cue, asset, projectId, headers, time, playing, onError, audi
         : offset >= -0.1 && offset < duration
     if (!visible) return null
     const active = playing && offset >= 0 && offset < duration && !!decoded && !error
+    const peakScale = Math.max(...displayedPeaks, 0.00001)
     const progress = duration > 0 ? Math.max(0, Math.min(1, offset / duration)) * 640 : 0
     return <div className="mt-2 border-t border-purple-400/20 pt-2" aria-label="효과음 파형">
         <div className="flex items-center justify-between gap-2 text-[10px] text-purple-200">
@@ -81,8 +82,8 @@ function SfxTrack({ cue, asset, projectId, headers, time, playing, onError, audi
         </div>
         {error ? <p role="alert" className="text-xs text-red-300">{error}</p> : decoded ?
             <svg viewBox="0 0 640 48" preserveAspectRatio="none" className="h-10 w-full rounded bg-black/20" role="img" aria-label="효과음 실제 음파와 재생 위치">
-                {displayedPeaks.map((peak, i) => <rect key={i} x={i * 640 / displayedPeaks.length} y={(48 - Math.max(1, peak * 42)) / 2}
-                    width={Math.max(1, 640 / displayedPeaks.length - 1.5)} height={Math.max(1, peak * 42)} rx="0.75" fill={active ? '#c084fc' : '#6b21a8'} />)}
+                {displayedPeaks.map((peak, i) => <rect key={i} x={i * 640 / displayedPeaks.length} y={(48 - Math.max(1, peak / peakScale * 42)) / 2}
+                    width={Math.max(1, 640 / displayedPeaks.length - 1.5)} height={Math.max(1, peak / peakScale * 42)} rx="0.75" fill={active ? '#c084fc' : '#6b21a8'} />)}
                 <line x1={progress} x2={progress} y1="0" y2="48" stroke="#e2e8f0" strokeWidth="1.5" />
             </svg> : <div role="status" className="h-10 text-[10px] text-gray-400">효과음 파형 불러오는 중…</div>}
     </div>

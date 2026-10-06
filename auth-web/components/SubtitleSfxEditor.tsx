@@ -89,7 +89,8 @@ export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters =
             <label className="block">{ui("위치")} <select value={editing.word_boundary} onChange={e => setEditing({...editing, word_boundary:Number(e.target.value)})} className="bg-[#10151d]">
                 {Array.from({length:words.length+1},(_,i)=><option key={i} value={i}>{i === 0 ? ui("자막 시작") : locale === "th" ? `หลัง ${words[i-1]}` : `${words[i-1]} 뒤`}</option>)}
             </select></label>
-            <label className="block">{ui("볼륨(dB)")} <input type="number" min="-60" max="0" value={editing.volume_db} onChange={e=>setEditing({...editing, volume_db:Number(e.target.value)})} className="w-16 bg-[#10151d]" /></label>
+            <label className="block">{ui("볼륨(dB)")} <input type="number" min="-60" max="12" value={editing.volume_db} onChange={e=>setEditing({...editing, volume_db:Number(e.target.value)})} className="w-16 bg-[#10151d]" /></label>
+            <p className="text-[10px] text-gray-400">0dB 원본 음량 · +12dB 최대 증폭 · -60dB 거의 음소거</p>
             <label className="block">{ui("길이(초)")} <input type="number" min="0.2" max="30" step="0.1" value={editing.duration || 2} onChange={e=>setEditing({...editing, duration:Number(e.target.value)})} className="w-16 bg-[#10151d]" /></label>
             <button type="button" disabled={saving} onClick={async () => {
                 try {
@@ -106,7 +107,7 @@ export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters =
             <button type="button" disabled={saving} onClick={async () => {
                 const next = {...editing, source:'manual', user_override:true, anchor_scope:'subtitle', subtitle_id:subtitle.id ?? null,
                     subtitle_text:subtitle.text, subtitle_index:subtitleIndex, scene_number:subtitle.scene_number,
-                    volume_db:Math.max(-60,Math.min(0,editing.volume_db)), duration:Math.max(.2,Math.min(30,editing.duration || 2))}
+                    volume_db:Math.max(-60,Math.min(12,editing.volume_db)), duration:Math.max(.2,Math.min(30,editing.duration || 2))}
                 if (await save(cues.map(c=>c.id === editing.id ? next : c))) { setEditing(null); setSample('') }
             }} className="mr-2 rounded bg-purple-700 px-2 py-1">{ui("변경 저장")}</button>
             <button type="button" disabled={saving} onClick={async () => {
