@@ -5421,7 +5421,6 @@ export default function StdPortalPage() {
         if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
         try {
             stopVrewPlayback()
-            revokeProjectMediaObjectUrls(selectedProject?.project?.id)
 
             const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
                 headers: fetchHeaders,
