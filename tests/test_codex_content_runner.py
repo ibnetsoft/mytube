@@ -377,7 +377,9 @@ def test_image_analysis_prompt_is_not_consumed_as_an_image_argument(monkeypatch,
         return subprocess.CompletedProcess(command,0)
     monkeypatch.setattr(runner_module.subprocess, 'run', fake_run)
     runner = runner_module.CodexStagedContentRunner(runner_module.CodexContentConfig('codex','',60))
-    assert runner._stage('scene','03_ae_mouth_visibility',{'_local_image_paths':[str(image)]},'顔を確認してください') == {'speakers':[]}
+    assert runner._stage('scene','03_ae_mouth_visibility',{'_local_image_paths':[str(image)],'speakers':['大五郎']},'顔を確認してください') == {'speakers':[]}
     assert captured['command'].index('-') < captured['command'].index('--image')
     assert captured['command'][-1] == str(image)
     assert '顔を確認してください' in captured['prompt']
+    assert '大五郎' in captured['prompt'], 'Japanese speaker names must reach Codex without a Windows console decoding step'
+    assert 'Use this JSON as source data' in captured['prompt']
