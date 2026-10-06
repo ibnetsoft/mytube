@@ -405,10 +405,13 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     const incomingProgress = body?.progress_payload || {}
     const incomingProjectPayload = body?.project_payload || {}
-    const protectedScenes = project.project_payload?.subtitle_recovery?.protected_scene_numbers || []
+    const sceneManifest = project.project_payload?.structure?.scenes || project.project_payload?.scenes || []
+    const requiredSubtitleScenes = sceneManifest.filter((scene: any) => String(scene.scene_text || scene.narration || scene.script_excerpt || '').trim())
+        .map((scene: any) => Number(scene.scene_number ?? scene.scene_order))
+    const protectedScenes = [...new Set([...(project.project_payload?.subtitle_recovery?.protected_scene_numbers || []), ...requiredSubtitleScenes])]
     if (Array.isArray(incomingProjectPayload.subtitles) && protectedScenes.some((scene: number) =>
         !incomingProjectPayload.subtitles.some((subtitle: any) => Number(subtitle.scene_number) === Number(scene)))) {
-        return NextResponse.json({ success: false, error: '복구된 씬이 빠진 이전 자막입니다. 새로고침 후 저장해 주세요.' }, { status: 409 })
+        return NextResponse.json({ success: false, error: '원본 대본의 씬이 빠진 자막은 저장할 수 없습니다. 새로고침 후 누락된 씬을 확인해 주세요.' }, { status: 409 })
     }
     if (incomingProjectPayload.thumbnail_design || incomingProgress.thumbnail_completed === true) {
         const thumbnailError = editableThumbnailError(
