@@ -494,7 +494,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
     if (projectPayloadPatch.render_settings && ['audio', 'subtitle'].includes(body.render_settings_scope)) {
-        const audioKeys = ['bgm_asset_id', 'bgm_file_name', 'bgm_volume', 'bgm_loop', 'bgm_start_scene', 'bgm_end_scene', 'bgm_fade_in', 'bgm_fade_out', 'sfx_cues', 'sfx_plan']
+        const audioKeys = ['bgm_asset_id', 'bgm_file_name', 'bgm_volume', 'bgm_loop', 'bgm_start_scene', 'bgm_start_subtitle', 'bgm_end_scene', 'bgm_fade_in', 'bgm_fade_out', 'sfx_cues', 'sfx_plan']
         const incoming = projectPayloadPatch.render_settings
         const current = project.project_payload?.render_settings || {}
         if (body.render_settings_scope === 'subtitle') {

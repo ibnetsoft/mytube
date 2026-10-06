@@ -1159,6 +1159,7 @@ export default function StdPortalPage() {
     const previousBgmVolumeRef = useRef(0.08)
     const [bgmLoop, setBgmLoop] = useState(true)
     const [bgmStartScene, setBgmStartScene] = useState(0)
+    const [bgmStartSubtitle, setBgmStartSubtitle] = useState(1)
     const [bgmEndScene, setBgmEndScene] = useState(0)
     const [bgmFadeIn, setBgmFadeIn] = useState(2)
     const [bgmFadeOut, setBgmFadeOut] = useState(2)
@@ -7249,6 +7250,7 @@ export default function StdPortalPage() {
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
         setBgmStartScene(Number(bgmSfxSettings.bgm_start_scene) || 0)
+        setBgmStartSubtitle(Number(bgmSfxSettings.bgm_start_subtitle ?? 1))
         setBgmEndScene(Number(bgmSfxSettings.bgm_end_scene) || 0)
         setBgmFadeIn(Number(bgmSfxSettings.bgm_fade_in ?? 2))
         setBgmFadeOut(Number(bgmSfxSettings.bgm_fade_out ?? 2))
@@ -7256,10 +7258,11 @@ export default function StdPortalPage() {
         const volume = backgroundVolume(bgmSfxSettings.bgm_volume)
         previousBgmVolumeRef.current = volume > 0 ? volume : 0.08
         setBgmVolume(volume)
-    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume, bgmSfxSettings.bgm_loop, bgmSfxSettings.bgm_start_scene, bgmSfxSettings.bgm_end_scene, bgmSfxSettings.bgm_fade_in, bgmSfxSettings.bgm_fade_out])
+    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume, bgmSfxSettings.bgm_loop, bgmSfxSettings.bgm_start_scene, bgmSfxSettings.bgm_start_subtitle, bgmSfxSettings.bgm_end_scene, bgmSfxSettings.bgm_fade_in, bgmSfxSettings.bgm_fade_out])
 
+    const bgmStartSubtitles = localSubtitles.filter(row => Number(row.scene_number) === bgmStartScene)
     const bgmTimelineEnd = Math.max(0, ...localSubtitles.map(row => Number(row.end_num ?? row.end_time ?? 0) || 0))
-    const bgmRange = backgroundWindow({ bgm_start_scene: bgmStartScene, bgm_end_scene: bgmEndScene,
+    const bgmRange = backgroundWindow({ bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene,
         bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut }, localSubtitles, bgmTimelineEnd)
     bgmRangeRef.current = bgmRange
     useEffect(() => {
@@ -7271,11 +7274,11 @@ export default function StdPortalPage() {
         if (isNarrationPlaying) {
             if (audio.paused) playPreviewBgm(playbackTime)
         } else audio.pause()
-    }, [playbackTime, isNarrationPlaying, bgmVolume, bgmLoop, bgmStartScene, bgmEndScene, bgmFadeIn, bgmFadeOut])
+    }, [playbackTime, isNarrationPlaying, bgmVolume, bgmLoop, bgmStartScene, bgmStartSubtitle, bgmEndScene, bgmFadeIn, bgmFadeOut])
 
     useEffect(() => {
         if (isNarrationPlaying) playPreviewBgm(playbackTime)
-    }, [bgmLoop, bgmStartScene, bgmEndScene])
+    }, [bgmLoop, bgmStartScene, bgmStartSubtitle, bgmEndScene])
 
     const toggleBgmMute = () => {
         if (bgmVolume > 0) {
@@ -7287,10 +7290,10 @@ export default function StdPortalPage() {
     }
 
     const saveBgmVolume = async () => {
-        if (!bgmRange.valid) { setMessage('배경음 시작·종료 씬과 녹음 시간을 확인해 주세요.'); return }
+        if (!bgmRange.valid) { setMessage(ui('배경음 시작 자막·종료 씬과 녹음 시간을 확인해 주세요.')); return }
         setSavingBgmVolume(true)
         try {
-            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_end_scene: bgmEndScene, bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut })
+            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene, bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut })
             setMessage('배경음 구간·볼륨·페이드 설정을 저장했습니다.')
         } catch (error: any) {
             setMessage(error?.message || '배경음 볼륨 저장 실패')
@@ -10242,7 +10245,7 @@ export default function StdPortalPage() {
                                                         try {
                                                             await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_asset_id: id || null,
                                                                 bgm_file_name: asset?.file_name || null, bgm_volume: backgroundVolume(bgmVolume),
-                                                                bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_end_scene: bgmEndScene,
+                                                                bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene,
                                                                 bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut },
                                                                 asset ? [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)] : undefined)
                                                             setMessage(id ? '배경음 선택과 씬 구간을 저장했습니다.' : '배경음 적용을 해제했습니다.')
@@ -10260,16 +10263,26 @@ export default function StdPortalPage() {
                                                     </div>
                                                 )}
                                                 <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
-                                                    <label>시작 씬<select aria-label="배경음 시작 씬" value={bgmStartScene} disabled={savingBgmVolume} onChange={event => setBgmStartScene(Number(event.target.value))} className="ml-2 rounded bg-[#10151c] p-1">
+                                                    <label>시작 씬<select aria-label="배경음 시작 씬" value={bgmStartScene} disabled={savingBgmVolume} onChange={event => { setBgmStartScene(Number(event.target.value)); setBgmStartSubtitle(1) }} className="ml-2 rounded bg-[#10151c] p-1">
                                                         <option value={0}>처음부터</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
                                                     </select></label>
                                                     <label>종료 씬<select aria-label="배경음 종료 씬" value={bgmEndScene} disabled={savingBgmVolume} onChange={event => setBgmEndScene(Number(event.target.value))} className="ml-2 rounded bg-[#10151c] p-1">
                                                         <option value={0}>끝까지</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
                                                     </select></label>
+                                                    <label className="col-span-2 flex min-w-0 items-center gap-2">{ui('시작 자막')}
+                                                        <select aria-label={ui('배경음 시작 자막')} value={bgmStartSubtitle} disabled={savingBgmVolume || !bgmStartScene}
+                                                            onChange={event => setBgmStartSubtitle(Number(event.target.value))} className="min-w-0 flex-1 rounded bg-[#10151c] p-1">
+                                                            {!bgmStartScene ? <option value={1}>{ui('처음부터')}</option> : bgmStartSubtitles.map((row, index) => (
+                                                                <option key={index + 1} value={index + 1}>{index + 1} · {String(row.text || '').slice(0, 80)}</option>
+                                                            ))}
+                                                            {bgmStartScene > 0 && !bgmStartSubtitles[bgmStartSubtitle - 1] && <option value={bgmStartSubtitle} disabled>{ui('시작 자막을 다시 선택해 주세요.')}</option>}
+                                                        </select>
+                                                    </label>
                                                     <label>점점 크게 (초)<input aria-label="배경음 페이드 인" type="number" min="0" max="30" step="0.5" value={bgmFadeIn} disabled={savingBgmVolume} onChange={event => setBgmFadeIn(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
                                                     <label>점점 작게 (초)<input aria-label="배경음 페이드 아웃" type="number" min="0" max="30" step="0.5" value={bgmFadeOut} disabled={savingBgmVolume} onChange={event => setBgmFadeOut(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
                                                 </div>
-                                                {!bgmRange.valid && <p className="text-xs text-red-300">시작·종료 씬을 확인해 주세요.</p>}
+                                                <p className="text-[11px] text-gray-400">{ui('선택한 자막에서 시작해 종료 씬까지 이어집니다. 음악이 먼저 끝나면 멈추며, 배경음 반복을 켜면 구간 끝까지 반복됩니다.')}</p>
+                                                {!bgmRange.valid && <p className="text-xs text-red-300">{ui('시작 자막·종료 씬을 확인해 주세요.')}</p>}
                                                 <label className="flex items-center gap-1.5 text-[11px] text-cyan-200">
                                                     <input type="checkbox" checked={bgmLoop} disabled={savingBgmVolume}
                                                         onChange={event => setBgmLoop(event.target.checked)} className="accent-cyan-400" />

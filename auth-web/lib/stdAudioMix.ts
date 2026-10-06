@@ -21,10 +21,14 @@ export function backgroundWindow(settings: any, subtitles: any[], duration: numb
     const from = Number(settings.bgm_start_scene) || 0
     const to = Number(settings.bgm_end_scene) || 0
     const time = (row: any, end: boolean) => Number(end ? (row.end_num ?? row.end_time ?? row.end) : (row.start_num ?? row.start_time ?? row.start))
-    const starts = subtitles.filter(row => Number(row.scene_number) === from).map(row => time(row, false)).filter(Number.isFinite)
+    // Subtitle numbers are one-based within the chosen scene, matching the editor.
+    const sceneSubtitles = subtitles.filter(row => Number(row.scene_number) === from)
+    const subtitleNumber = Number(settings.bgm_start_subtitle ?? 1)
+    const selectedSubtitle = Number.isInteger(subtitleNumber) && subtitleNumber > 0 ? sceneSubtitles[subtitleNumber - 1] : undefined
+    const subtitleStart = selectedSubtitle ? time(selectedSubtitle, false) : NaN
     const ends = subtitles.filter(row => Number(row.scene_number) === to).map(row => time(row, true)).filter(Number.isFinite)
-    const valid = (!from || starts.length > 0) && (!to || ends.length > 0) && (!from || !to || from <= to)
-    const start = from ? (starts.length ? Math.min(...starts) : 0) : 0
+    const valid = (!from || Number.isFinite(subtitleStart)) && (!to || ends.length > 0) && (!from || !to || from <= to)
+    const start = from ? (Number.isFinite(subtitleStart) ? subtitleStart : 0) : 0
     const end = to ? (ends.length ? Math.max(...ends) : 0) : duration
     const length = Math.max(0, end - start)
     const fade = (value: unknown) => Math.min(length / 2, Math.max(0, Math.min(30, Number(value ?? 2) || 0)))

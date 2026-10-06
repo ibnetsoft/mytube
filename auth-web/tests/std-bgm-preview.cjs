@@ -44,3 +44,18 @@ bgm.duration = 30;
 metadataCallback();
 assert.equal(bgm.volume, .02, 'late metadata must update the fade before starting playback');
 console.log('PASS: preview gain follows source duration for loops, one-shot playback and delayed metadata');
+bgm.readyState = 1;
+bgmRangeRef.current = mix.backgroundWindow({bgm_start_scene:100,bgm_start_subtitle:2,bgm_end_scene:101,bgm_fade_in:0,bgm_fade_out:0},[
+    {scene_number:100,start_num:0,end_num:2},
+    {scene_number:100,start_num:2,end_num:5},
+    {scene_number:101,start_num:5,end_num:10},
+],10);
+played = false;
+playOnce(1);
+assert.equal(played,false,'do not start before the chosen subtitle');
+playOnce(2);
+assert.equal(bgm.currentTime,0);
+playOnce(6);
+assert.equal(bgm.currentTime,4,'next scene continues four seconds into the same track');
+assert.equal(bgm.volume,.08);
+console.log('PASS: BGM starts at selected subtitle and keeps its offset in later scenes');

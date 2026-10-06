@@ -969,7 +969,9 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
             bgm_volume: clampNumber(projectRenderSettings.bgm_volume, 0.08, 0, 1),
             bgm_loop: projectRenderSettings.bgm_loop !== false,
             ...(() => {
-                const window = backgroundWindow(projectRenderSettings, subtitles, Number(audioAsset.metadata?.duration_seconds || Math.max(0, ...subtitles.map((row: any) => Number(row.end) || 0))))
+                // Preserve editor numbering, including blank rows omitted from rendered captions.
+                const bgmSubtitles = project.project_payload?.subtitles?.length ? project.project_payload.subtitles : subtitles
+                const window = backgroundWindow(projectRenderSettings, bgmSubtitles, Number(audioAsset.metadata?.duration_seconds || Math.max(0, ...subtitles.map((row: any) => Number(row.end) || 0))))
                 if (!window.valid) throw new Error('BGM scene range is invalid or missing recorded timing')
                 return { bgm_start: window.start, bgm_end: window.end, bgm_fade_in: window.fadeIn, bgm_fade_out: window.fadeOut }
             })(),

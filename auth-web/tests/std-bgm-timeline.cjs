@@ -40,3 +40,27 @@ const noFade = api.backgroundPlaybackWindow({...selected,fadeIn:0,fadeOut:0},30,
 assert.equal(api.backgroundEnvelope(823.79,noFade),1)
 assert.equal(api.backgroundEnvelope(823.8,noFade),0)
 console.log('PASS: one-shot fades at source end; loops, longer tracks, unknown metadata, short tracks and zero fades')
+
+const cueSettings = {bgm_start_scene:2,bgm_start_subtitle:2,bgm_end_scene:3,bgm_fade_in:0,bgm_fade_out:0}
+const cue = api.backgroundWindow(cueSettings,rows,100)
+assert.equal(cue.start,10,'second subtitle is numbered within the start scene')
+assert.equal(cue.end,25.6,'music continues through the next scene')
+assert.equal(api.backgroundEnvelope(9.9,cue),0)
+assert.equal(api.backgroundEnvelope(10,cue),1)
+assert.equal(api.backgroundEnvelope(20,cue),1,'scene transition must not end background playback')
+assert.equal(api.backgroundWindow({...cueSettings,bgm_end_scene:0},rows,100).end,100)
+for (const ordinal of [0,-1,1.5,3,NaN]) assert.equal(api.backgroundWindow({...cueSettings,bgm_start_subtitle:ordinal},rows,100).valid,false)
+assert.equal(api.backgroundWindow({...cueSettings,bgm_start_scene:0},rows,100).start,0,'from beginning preserves the full timeline')
+const savedCue = save({render_settings:cueSettings},{render_settings_scope:'audio'},{project_payload:{render_settings:{subtitle_font_family:'Malgun Gothic'}}})
+assert.equal(savedCue.bgm_start_subtitle,2)
+const keptCue = save({render_settings:{bgm_start_subtitle:1}},{render_settings_scope:'subtitle'},{project_payload:{render_settings:savedCue}})
+assert.equal(keptCue.bgm_start_subtitle,2,'subtitle saves must not reset music start')
+// Execute the actual web render configuration block, not a second implementation.
+const queue = fs.readFileSync(require.resolve('../lib/stdRenderQueue.ts'),'utf8')
+const configStart = queue.indexOf('                const bgmSubtitles =')
+const configEnd = queue.indexOf('\n            })()',configStart)
+const renderTiming = new Function('project','projectRenderSettings','subtitles','audioAsset','backgroundWindow',
+    ts.transpile(queue.slice(configStart,configEnd),{module:ts.ModuleKind.CommonJS}))
+const render = renderTiming({project_payload:{subtitles:rows}},cueSettings,rows.map(r=>({...r,start:r.start_num,end:r.end_num})),{metadata:{duration_seconds:100}},api.backgroundWindow)
+assert.deepEqual(render,{bgm_start:10,bgm_end:25.6,bgm_fade_in:0,bgm_fade_out:0})
+console.log('PASS: scene-local subtitle cue, next-scene continuation, persistence, invalid cue and web render timing')
