@@ -1,3 +1,4 @@
+import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { normalizeComicSettings, isComicProject } from '@/lib/stdComic'
 import { canEditStdProject } from '@/lib/stdProjectEditPolicy'
 import { editableThumbnailError } from '@/lib/stdThumbnailRender'
@@ -348,6 +349,22 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         }
     }))
 
+    const subtitlePayload = project.project_payload || {}
+    if (Array.isArray(subtitlePayload.subtitles)) {
+        const repaired = preserveSubtitleScenes(subtitlePayload.subtitles, subtitlePayload.subtitles,
+            [...(subtitlePayload.structure?.scenes || subtitlePayload.scenes || []), ...(scenes || [])],
+            subtitlePayload.deleted_subtitle_scene_numbers || [])
+        if (repaired.recovered.length) {
+            const repairedPayload = { ...subtitlePayload, subtitles: repaired.subtitles }
+            const { data: repairedProject, error: repairError } = await supabaseAdmin.from('std_projects')
+                .update({ project_payload: repairedPayload, updated_at: new Date().toISOString() })
+                .eq('id', project.id).eq('updated_at', project.updated_at).select('*').maybeSingle()
+            if (repairError) return NextResponse.json({ success: false, error: repairError.message }, { status: 503 })
+            if (!repairedProject) return NextResponse.json({ success: false, error: '프로젝트가 변경됐습니다. 다시 열어 주세요.' }, { status: 409 })
+            project = repairedProject
+        }
+    }
+
     const protectedProject = {
         ...project,
         project_payload: protectCharacterReferenceUrls(project.project_payload, project.id),
@@ -405,14 +422,29 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     const incomingProgress = body?.progress_payload || {}
     const incomingProjectPayload = body?.project_payload || {}
-    const sceneManifest = project.project_payload?.structure?.scenes || project.project_payload?.scenes || []
-    const requiredSubtitleScenes = sceneManifest.filter((scene: any) => String(scene.scene_text || scene.narration || scene.script_excerpt || '').trim())
-        .map((scene: any) => Number(scene.scene_number ?? scene.scene_order))
-    const protectedScenes = [...new Set([...(project.project_payload?.subtitle_recovery?.protected_scene_numbers || []), ...requiredSubtitleScenes])]
-    if (Array.isArray(incomingProjectPayload.subtitles) && protectedScenes.some((scene: number) =>
-        !incomingProjectPayload.subtitles.some((subtitle: any) => Number(subtitle.scene_number) === Number(scene)))) {
-        return NextResponse.json({ success: false, error: '원본 대본의 씬이 빠진 자막은 저장할 수 없습니다. 새로고침 후 누락된 씬을 확인해 주세요.' }, { status: 409 })
+    const currentSubtitlePayload = project.project_payload || {}
+    const deletedSubtitleScenes = [...new Set([
+        ...(currentSubtitlePayload.deleted_subtitle_scene_numbers || []),
+        ...(Array.isArray(body.deleted_subtitle_scene_numbers) ? body.deleted_subtitle_scene_numbers : []),
+    ].map(Number).filter((number: number) => Number.isInteger(number) && number > 0))]
+    let sceneManifest = currentSubtitlePayload.structure?.scenes || currentSubtitlePayload.scenes || []
+    if (Array.isArray(incomingProjectPayload.subtitles)) {
+        const { data: canonicalScenes, error: canonicalScenesError } = await supabaseAdmin.from('std_project_scenes')
+            .select('scene_number,scene_text').eq('project_id', project.id)
+        if (canonicalScenesError) return NextResponse.json({ success: false, error: canonicalScenesError.message }, { status: 503 })
+        sceneManifest = [...sceneManifest, ...(canonicalScenes || [])]
+        const repaired = preserveSubtitleScenes(incomingProjectPayload.subtitles,
+            currentSubtitlePayload.subtitles || [], sceneManifest, deletedSubtitleScenes)
+        incomingProjectPayload.subtitles = repaired.subtitles
+        incomingProjectPayload.deleted_subtitle_scene_numbers = deletedSubtitleScenes
+        incomingProjectPayload.deleted_subtitle_scene_archive = {
+            ...(currentSubtitlePayload.deleted_subtitle_scene_archive || {}),
+            ...Object.fromEntries(deletedSubtitleScenes.map(number => [number,
+                (currentSubtitlePayload.subtitles || []).filter((row: any) => Number(row.scene_number) === number)
+                    .concat(currentSubtitlePayload.deleted_subtitle_scene_archive?.[number] || [])])),
+        }
     }
+
     if (incomingProjectPayload.thumbnail_design || incomingProgress.thumbnail_completed === true) {
         const thumbnailError = editableThumbnailError(
             incomingProjectPayload.thumbnail_design || project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
@@ -438,6 +470,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'original_worker_script',
         'subtitles',
         'subtitles_saved',
+        'deleted_subtitle_scene_numbers',
+        'deleted_subtitle_scene_archive',
         'title',
         'video_title',
         'scenes',

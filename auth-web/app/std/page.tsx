@@ -192,6 +192,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
+import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import StdAeProgress from '@/components/StdAeProgress'
@@ -2952,7 +2953,7 @@ export default function StdPortalPage() {
         setSubtitleSaveState('dirty')
     }
 
-    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal?: AbortSignal; strict?: boolean; renderSettings?: Record<string, any> }) => {
+    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal?: AbortSignal; strict?: boolean; renderSettings?: Record<string, any>; deletedScenes?: number[] }) => {
         const projectId = selectedProject?.project?.id
         if (!projectId) {
             const error = new Error('저장할 프로젝트를 먼저 선택해 주세요.')
@@ -2972,6 +2973,7 @@ export default function StdPortalPage() {
         try {
             const project = await saveSubtitleProject(projectId, {
                 render_settings_scope: 'subtitle',
+                ...(options?.deletedScenes ? { deleted_subtitle_scene_numbers: options.deletedScenes } : {}),
                 progress_payload: { subtitles_saved: true, subtitles_completed: true },
                 project_payload: {
                     subtitles: updatedSubtitles, subtitles_saved: true,
@@ -2986,6 +2988,10 @@ export default function StdPortalPage() {
             })
             if (isCurrentProject() && revision === subtitleSaveRevisionRef.current) {
                 const pendingDraft = Boolean(subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current)
+                if (!pendingDraft && Array.isArray(project.project_payload?.subtitles)) {
+                    speechSubtitlesRef.current = project.project_payload.subtitles
+                    setLocalSubtitles(project.project_payload.subtitles)
+                }
                 setIsSubtitleSaved(!pendingDraft)
                 setSubtitleSaveState(pendingDraft ? 'dirty' : 'saved')
             }
@@ -4628,8 +4634,10 @@ export default function StdPortalPage() {
         const scenes = selectedProject?.scenes || []
         const savedSubtitles = selectedProject?.project?.project_payload?.subtitles
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
-        const subs = restoreSavedSubtitleSnapshot(savedSubtitles,
+        const loadedRows = restoreSavedSubtitleSnapshot(savedSubtitles,
             () => generateSynchronizedSubtitles(currentScript, scenes, Number(subMaxChars) || 20))
+        const subs = preserveSubtitleScenes(loadedRows, savedSubtitles || [], scenes,
+            selectedProject?.project?.project_payload?.deleted_subtitle_scene_numbers || []).subtitles
         const normalizedSubtitles = matchSubtitlesToSceneVisuals(ensureSubtitlesHaveTiming(subs, scenes), scenes)
         setLocalSubtitles(normalizedSubtitles)
         if (Array.isArray(savedSubtitles)) {
@@ -5470,9 +5478,11 @@ export default function StdPortalPage() {
                 const storedServerSubtitles = Array.isArray(payload.project?.project_payload?.subtitles)
                     ? payload.project.project_payload.subtitles
                     : []
-                const projectSubtitles = restoreSavedSubtitleSnapshot(storedServerSubtitles,
+                const loadedProjectSubtitles = restoreSavedSubtitleSnapshot(storedServerSubtitles,
                     () => generateAnnotatedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20,
                         payload.project.project_payload?.structure?.dialogue_annotations))
+                const projectSubtitles = preserveSubtitleScenes(loadedProjectSubtitles, storedServerSubtitles, normalizedScenes,
+                    payload.project?.project_payload?.deleted_subtitle_scene_numbers || []).subtitles
 
                 const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
@@ -9274,7 +9284,13 @@ export default function StdPortalPage() {
                                                 )}
                                                 <button
                                                     type="button"
-                                                    onClick={() => alert('선택한 자막 레이어를 삭제합니다.')}
+                                                    onClick={async () => {
+                                                        const sceneNumbers = selectedSubtitleSceneNumbers.length ? selectedSubtitleSceneNumbers : selectedSubtitleBlockIndexes.map(index => Number(localSubtitles[index]?.scene_number)).filter(Number.isFinite)
+                                                        if (!sceneNumbers.length || !confirm(`${[...new Set(sceneNumbers)].join(', ')}번 씬의 자막 섹션을 삭제하시겠습니까?`)) return
+                                                        const removed = new Set(sceneNumbers)
+                                                        const remaining = localSubtitles.filter(row => !removed.has(Number(row.scene_number)))
+                                                        if (await persistVrewVoiceSubtitles(remaining, { deletedScenes: [...removed] })) { setSelectedSubtitleBlockIndexes([]); setSelectedSubtitleSceneNumbers([]) }
+                                                    }}
                                                     className="h-7 w-7 inline-flex items-center justify-center bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white/80 hover:text-white rounded transition shrink-0"
                                                     title={t('sub_delete_selected')}
                                                     aria-label={t('sub_delete_selected')}
