@@ -20,7 +20,12 @@ export function normalizeSubtitleFragments<T extends { text?: string; scene_numb
         const sameScene = previous && Number(previous.scene_number) === Number(item.scene_number)
         if (sameScene && text) {
             const prefix = text.match(/^[。．.!！?？…，,、;；:：」』”’）)\]】]+/u)?.[0] || ''
-            const shortEnding = !options.punctuationOnly && Array.from(text).length <= 2 && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)
+            const orphanCharacter = /^[\p{Script=Hiragana}\p{Script=Katakana}][。．.!！?？…，,、;；:：」』”’）)\]】]*$/u.test(text)
+                && !/[。．.!！?？…」』”’]$/u.test(String(previous.text || ''))
+                && (previous.dialogue_speaker || null) === (item.dialogue_speaker || null)
+                && (previous.editor_speaker?.name || null) === (item.editor_speaker?.name || null)
+                && (previous.voice_id || null) === (item.voice_id || null)
+            const shortEnding = orphanCharacter || !options.punctuationOnly && Array.from(text).length <= 2 && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)
                 && !/[。．.!！?？…」』”’]$/u.test(String(previous.text || ''))
                 && Array.from(String(previous.text || '') + text).length <= maxChars + 2
                 && (previous.dialogue_speaker || null) === (item.dialogue_speaker || null)
