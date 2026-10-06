@@ -1,1 +1,45 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><title>AIR 로컬 미디어 워커</title><style>body{background:#121820;color:#ddd;font:16px sans-serif;max-width:900px;margin:40px auto}pre{white-space:pre-wrap;background:#1c2632;padding:20px;border-radius:12px}</style><h1>AE · 렌더 통합 워커</h1><p>AE와 렌더는 순서대로 실행됩니다. 대본 워커는 독립적으로 실행됩니다.</p><pre id="status">확인 중…</pre><p>로그: 작업 상태의 log 경로 또는 AIRWorker/logs/local-media</p><script>async function refresh(){try{const response=await fetch('/status');if(!response.ok)throw Error('조회 실패');const state=await response.json();document.querySelector('#status').textContent=JSON.stringify(state,null,2)}catch(error){document.querySelector('#status').textContent='워커 연결이 끊겼습니다.'}}refresh();setInterval(refresh,3000)</script></html>
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AIR · 미디어 워커</title>
+<style>
+:root{color-scheme:dark;font-family:Segoe UI,Malgun Gothic,sans-serif;background:#0b101b;color:#e6edf9}*{box-sizing:border-box}body{margin:0}main{max-width:1180px;margin:auto;padding:42px 32px}header,.row,.toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px}.brand{color:#65decf;letter-spacing:3px;font-size:12px;font-weight:700}h1{font-size:30px;letter-spacing:-1px;margin:12px 0}p{color:#8e9bb2;font-size:13px;line-height:1.7}.pill{border:1px solid #2b384c;border-radius:30px;padding:8px 13px;font-size:12px;color:#70e2c5}button,input{font:inherit;border:1px solid #2b384c;background:#151e2e;color:#e6edf9;border-radius:9px;padding:10px 14px}button{cursor:pointer}button:hover{border-color:#65decf}button.selected{background:#243f48;color:#85eedb;border-color:#45998e}.banner{background:linear-gradient(110deg,#172b36,#151e30);border:1px solid #28434c;border-radius:16px;padding:24px;margin:26px 0}.banner h2{margin:0 0 9px;font-size:19px}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:22px 0}.stat{border:1px solid #263148;border-radius:13px;padding:18px;background:#111a29}.stat span{font-size:12px;color:#94a4bc}.stat strong{display:block;font-size:29px;margin-top:10px}.toolbar{margin:30px 0 18px;flex-wrap:wrap}.filters{display:flex;gap:6px;flex-wrap:wrap}.filters button{font-size:12px;padding:8px 12px}input{width:230px}article{border:1px solid #27344a;background:#121c2c;border-radius:13px;padding:20px;margin-bottom:12px}.title{font-size:15px;font-weight:600;margin:7px 0 14px;overflow-wrap:anywhere}.tag{font-size:11px;letter-spacing:.5px;color:#87a1c4}.badge{font-size:12px;padding:6px 10px;border-radius:7px;background:#243249;color:#b7c7de}.working{background:#123b46;color:#72e3ee}.completed{background:#163a30;color:#73dcb1}.failed{background:#432733;color:#ff9ba9}.review{background:#403522;color:#f2cf85}.bar{height:6px;border-radius:5px;background:#27354b;overflow:hidden;margin:12px 0}.bar i{display:block;height:100%;background:#66dcca;border-radius:5px}.meta{font-size:12px;color:#92a3ba;display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap}.empty{text-align:center;padding:60px 20px;border:1px dashed #2b394d;border-radius:15px;color:#96a7bf}.error{color:#ffb4a3;background:#30252b;padding:13px;border-radius:9px;margin:15px 0}footer{font-size:11px;color:#7889a4;margin-top:28px}.subtle{font-size:12px;color:#91a4bd}details{margin-top:15px;font-size:12px;color:#9eafc6}pre{white-space:pre-wrap;overflow-wrap:anywhere}button:focus-visible,input:focus-visible{outline:2px solid #74edda;outline-offset:3px}@media(max-width:680px){main{padding:25px 16px}.cards{grid-template-columns:repeat(3,1fr)}header{align-items:flex-start}h1{font-size:24px}.toolbar input{width:100%}.row{align-items:flex-start}}
+</style>
+<main><header><div><div class="brand">AIR STUDIO / LOCAL MEDIA</div><h1>미디어 워커</h1><p>AE 입모양 작업부터 최종 렌더까지, 하나의 작업 공간에서 확인하세요.</p></div><span id="connection" class="pill">연결 확인 중</span></header>
+<section class="banner"><div class="row"><div><h2 id="manager">워커 상태 확인 중…</h2><div class="subtle" id="activity">작업 정보를 불러오고 있습니다.</div></div><button id="refresh">새로고침 ↻</button></div></section>
+<div id="error" class="error" hidden role="alert"></div><div id="cards" class="cards"></div>
+<div class="toolbar"><div id="filters" class="filters"></div><input id="search" placeholder="프로젝트 이름 검색" aria-label="프로젝트 검색"></div>
+<div class="subtle" id="scope"></div><section id="jobs" aria-label="작업 목록"></section>
+<details><summary>워커 실행 정보</summary><pre id="diagnostic"></pre></details>
+<footer>최근 작업 최대 200건 · 큐 정보 15초 간격 갱신 · AE와 렌더는 로컬 리소스를 순서대로 사용합니다.<br>검수 필요 상태는 완료로 집계하지 않습니다. 최종 렌더는 승인된 AE 결과를 사용합니다.</footer></main>
+<script>
+const labels={all:'전체',waiting:'큐 대기',working:'진행 중',review:'검수 필요',completed:'완료',failed:'실패 / 종료'};
+const states={queued:'큐 대기',pending:'큐 대기',processing:'작업 진행 중',rendering:'렌더링 중',direction_approved:'실행 대기',direction_pending:'지침 승인 대기',review_pending:'결과 검수 대기',needs_review:'확인 필요',ready:'좌표 준비 완료',reviewed:'AE 검수 완료',completed:'렌더 완료',failed:'작업 실패',obsolete:'이전 버전',cancelled:'취소됨'};
+const kinds={ae_speaker_coordinates:'얼굴 · 입 좌표 준비',ae_mouth_job:'AE 입모양',render:'최종 렌더'};
+let jobs=[],filter='all',running=false;
+const el=id=>document.getElementById(id);
+function node(tag,text,cls){const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n}
+function stamp(value){return value?new Date(value).toLocaleString('ko-KR'):'—'}
+function draw(){
+ el('cards').replaceChildren(...Object.keys(labels).filter(k=>k!=='all').map(k=>{const n=node('div',null,'stat');n.append(node('span',labels[k]),node('strong',jobs.filter(j=>j.group===k).length));return n}));
+ el('filters').replaceChildren(...Object.keys(labels).map(k=>{const b=node('button',labels[k],k===filter?'selected':'');b.setAttribute('aria-pressed',String(k===filter));b.onclick=()=>{filter=k;draw()};return b}));
+ const term=el('search').value.toLowerCase(), visible=jobs.filter(j=>(filter==='all'||j.group===filter)&&j.title.toLowerCase().includes(term));
+ el('scope').textContent=`표시 ${visible.length}건 / 조회 ${jobs.length}건`;el('jobs').replaceChildren();
+ if(!visible.length){el('jobs').append(node('div',jobs.length?'이 조건에 해당하는 작업이 없습니다.':'등록된 미디어 작업이 없습니다. 새 제출이 들어오면 여기에 표시됩니다.','empty'));return}
+ for(const j of visible){const a=node('article'),head=node('div',null,'row');head.append(node('span',kinds[j.kind]||j.kind,'tag'),node('span',states[j.state]||j.state,'badge '+j.group));a.append(head,node('div',j.title,'title'));
+ if(j.kind==='render'){const bar=node('div',null,'bar'),fill=node('i');fill.style.width=j.progress+'%';bar.append(fill);a.append(bar,node('div',`실제 렌더 진행률 ${j.progress}%`,'subtle'))}
+ else a.append(node('div',`대상 ${j.total}씬 · 분석 ${j.analyzed}씬 · ${j.kind==='ae_speaker_coordinates'?'좌표 처리':'검수 완료·효과 제외'} ${j.done}씬`,'subtle'));
+ const meta=node('div',null,'meta');meta.append(node('span','최근 변경 '+stamp(j.updated_at)),node('span',j.phase==='discovery'?'대사·지침 확인 단계':j.phase==='render'?'입모양 생성 단계':''));a.append(meta);
+ if(j.scene_numbers?.length)a.append(node('p','확인 필요한 씬: '+j.scene_numbers.join(', ')));
+ const d=node('details'),s=node('summary','작업 ID 확인');d.append(s,node('pre',`작업 ${j.id}\n프로젝트 ${j.project_id||'—'}`));a.append(d);el('jobs').append(a)}
+}
+async function refresh(){if(running)return;running=true;el('refresh').disabled=true;
+ try{const statusResponse=await fetch('/status');if(!statusResponse.ok)throw Error();const s=await statusResponse.json();const stale=s.updated_at&&Date.now()-Date.parse(s.updated_at)>45000;
+ el('connection').textContent=stale?'워커 응답 지연':s.status==='stopped'?'워커 중지':'로컬 연결됨';
+ el('manager').textContent=({working:'작업을 처리하고 있습니다',idle:'다음 작업을 기다리고 있습니다',starting:'워커를 시작하고 있습니다',resources_busy:'다른 미디어 작업이 끝나기를 기다립니다',connection_error:'작업 큐 연결을 확인해 주세요',stopped:'워커가 중지되었습니다'})[s.status]||'워커 준비 중';
+ el('activity').textContent=(s.active?`${s.active.role==='render'?'최종 렌더':'AE 작업'} 실행 · 시작 ${stamp(s.active.started_at)}`:'AE · 렌더를 순서대로 실행합니다.')+(s.render_paused?' · 렌더 실행 일시중지':'');
+ el('diagnostic').textContent=`PID: ${s.pid||'—'}\n최근 확인: ${stamp(s.updated_at)}\n`+Object.entries(s.roles||{}).map(([k,v])=>`${k}: ${v.status} / 연속 실패 ${v.failures}`).join('\n')+(s.active?.log?'\n로그: '+s.active.log:'');
+ const response=await fetch('/jobs');if(!response.ok)throw Error();const data=await response.json();jobs=data.jobs||[];draw();
+ el('error').hidden=!data.error&&!stale;el('error').textContent=data.error?`큐 조회에 실패했습니다 (${data.error}). 마지막 정상 조회 결과를 표시합니다. 최근 조회: ${stamp(data.updated_at)}`:'워커 상태 갱신이 지연되고 있습니다. 실행 정보를 확인해 주세요.';
+ }catch{el('connection').textContent='연결 끊김';el('error').hidden=false;el('error').textContent='로컬 워커에 연결할 수 없습니다. 워커 실행 여부를 확인해 주세요. 기존 목록은 마지막 조회 결과입니다.'}
+ finally{running=false;el('refresh').disabled=false}}
+ el('refresh').onclick=refresh;el('search').oninput=draw;refresh();setInterval(refresh,5000);
+</script></html>

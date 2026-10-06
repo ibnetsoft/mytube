@@ -55,3 +55,26 @@ def test_archive_excludes_credentials_and_assets(tmp_path):
     build(archive,root)
     with zipfile.ZipFile(archive) as bundle:
         assert set(bundle.namelist()) == {'worker/launch.py','bundle-manifest.json'}
+
+def test_dashboard_does_not_count_discovery_as_completed():
+    from worker.local_media_dashboard import summarize
+    job = summarize({'id':'job', 'metadata':{'kind':'ae_mouth_job','state':'review_pending',
+        'input':{'scenes':[{}, {}, {}]}, 'results':[
+            {'status':'direction_pending'}, {'status':'review_pending'}, {'status':'skipped'}],
+        'secret':'private-key'}})
+    assert job['group'] == 'review'
+    assert job['done'] == 1 and job['analyzed'] == 3
+    assert 'metadata' not in job and 'secret' not in job
+
+def test_dashboard_preserves_last_snapshot_on_connection_failure(monkeypatch):
+    from worker import local_media_dashboard as dashboard
+    snapshot = dashboard.Snapshot()
+    monkeypatch.setattr(dashboard, 'fetch_jobs', lambda: [{'id':'existing'}])
+    first = snapshot.read()
+    snapshot.next_poll = 0
+    def fail(): raise TimeoutError('secret connection string')
+    monkeypatch.setattr(dashboard, 'fetch_jobs', fail)
+    failed = snapshot.read()
+    assert failed['jobs'] == first['jobs']
+    assert failed['updated_at'] == first['updated_at']
+    assert failed['error'] == 'TimeoutError'

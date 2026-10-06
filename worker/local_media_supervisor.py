@@ -59,6 +59,8 @@ def busy_processes():
 
 def serve_status(port=3004):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from worker.local_media_dashboard import Snapshot
+    snapshot = Snapshot()
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
         def do_GET(self):
@@ -70,6 +72,8 @@ def serve_status(port=3004):
                 content='application/json'
             elif self.path=='/':
                 payload=(ROOT/'worker/local_media_status.html').read_bytes();content='text/html; charset=utf-8'
+            elif self.path=='/jobs':
+                payload=json.dumps(snapshot.read(),ensure_ascii=False).encode('utf-8');content='application/json; charset=utf-8'
             else:self.send_error(404);return
             self.send_response(200);self.send_header('Content-Type',content);self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(payload)
     server=ThreadingHTTPServer(('127.0.0.1',port),Handler)
