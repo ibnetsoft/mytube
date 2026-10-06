@@ -1,3 +1,4 @@
+import { dialogueSceneIndex } from '@/lib/stdDialogueSceneIndex'
 import { normalizeSubtitleFragments } from '@/lib/stdSubtitleFragments'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { normalizeComicSettings, isComicProject } from '@/lib/stdComic'
@@ -643,6 +644,9 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             ...(persistableScenes.length > 0 ? { scenes: persistableScenes } : {}),
             ...(Object.keys(nextStructure).length > 0 ? { structure: nextStructure } : {}),
         }
+    }
+    if (updatePayload.project_payload) {
+        updatePayload.project_payload.dialogue_scene_index = dialogueSceneIndex(updatePayload.project_payload.subtitles || [])
     }
     if (titlePatch) updatePayload.title = titlePatch
 

@@ -1,0 +1,263 @@
+"""Post-submission AE mouth jobs; no external lip-sync service or new voice call."""
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / 'worker'))
+import worker_config
+import ae_highlight_worker as ae
+from ae_mouth import assess_dialogue, locate_speakers, mouth_layers, amplitude_cues, decode_scene_audio, review_layers, digest, direction_text, visible_speakers
+from codex_content_runner import CodexStagedContentRunner
+from manga_layer_generation import NativeCodexLayerGenerator
+from lipsync_video_worker import ffmpeg, run, ref
+
+
+class Obsolete(RuntimeError):
+    pass
+
+
+def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: list[dict]) -> bool:
+    """Recheck original inputs, never treat our new video as a replacement source image."""
+    payload = project.get('project_payload') or {}
+    structure = payload.get('structure') or {}
+    if (payload.get('tts_speed', (project.get('progress_payload') or {}).get('tts_speed')) != snapshot.get('tts_speed')):
+        return False
+    audio = next((a for a in assets if a.get('asset_type') == 'audio' and a.get('status') in ('uploaded', 'assigned')), None)
+    if not audio or snapshot['audio'] != {'id': audio['id'], 'metadata': audio.get('metadata')}:
+        return False
+    saved = payload.get('subtitles') or []
+    if len(saved) != len(snapshot['subtitles']):
+        return False
+    for row, original in zip(saved, snapshot['subtitles']):
+        if (row.get('text') != original['text'] or int(row.get('scene_number', row.get('scene', row.get('sceneNumber', 0)))) != original['scene_number']
+                or (row.get('dialogue_kind') or '') != original['kind'] or (row.get('dialogue_speaker') or '') != original['speaker']
+                or str(row.get('direction') or '') != original.get('direction', '')
+                or str(row.get('voice_id') or row.get('voiceId') or '') != str(original['voice_id'])
+                or abs(float(row.get('start', row.get('start_num', row.get('start_time', -1)))) - original['start']) > .12
+                or abs(float(row.get('end', row.get('end_num', row.get('end_time', -1)))) - original['end']) > .12):
+            return False
+    cast = {'main': structure.get('main_character') or payload.get('main_character') or {},
+            'supporting': structure.get('supporting_characters') or payload.get('supporting_characters') or [],
+            'scene_cast': structure.get('scene_cast') or []}
+    if cast != snapshot['cast'] or (structure.get('dialogue_annotations') or {}) != snapshot['annotations']:
+        return False
+    current_numbers = [int(s['scene_number']) for s in scenes if int(s['scene_number']) >= 19]
+    if current_numbers != [s['number'] for s in snapshot['scenes']]:
+        return False
+    for original in snapshot['scenes']:
+        number = original['number']
+        s = next(s for s in scenes if int(s['scene_number']) == number)
+        source = next((r for r in structure.get('scenes', []) if int(r.get('scene_number') or r.get('scene_order') or 0) == number), s)
+        image = next((a for a in assets if a.get('asset_type') == 'image' and int(a.get('scene_number') or 0) == number and a.get('status') in ('uploaded', 'assigned')), None)
+        if original['image'] != ({'id': image['id'], 'metadata': image.get('metadata')} if image else None):
+            return False
+        video = next((a for a in assets if a.get('asset_type') == 'video' and int(a.get('scene_number') or 0) == number
+                      and a.get('status') in ('uploaded', 'assigned') and not (a.get('metadata') or {}).get('ae_mouth_fingerprint')
+                      and not (a.get('metadata') or {}).get('lipsync_fingerprint') and (a.get('metadata') or {}).get('postprocess_mode') != 'after_effects'), None)
+        if original.get('original_video') != ({'id': video['id'], 'metadata': video.get('metadata')} if video else None):
+            return False
+        direction = {k: source.get(k) for k in ('ae_motion_plan', 'ae_effect_plan', 'ae_directorial_plan')}
+        direction['image_prompt'] = source.get('image_prompt') or s.get('image_prompt') or ''
+        if direction != original['direction'] or str(s.get('scene_text') or source.get('scene_text') or source.get('narration') or '') != original['text']:
+            return False
+    return True
+
+
+def process_one() -> bool:
+    base, headers = ae._supabase()
+    jobs = ae._request('GET', base + '/rest/v1/std_project_assets', headers, params={
+        'select': '*', 'metadata->>kind': 'eq.ae_mouth_job', 'metadata->>state': 'in.(queued,processing,direction_approved)',
+        'order': 'created_at.asc', 'limit': '1',
+    }).json()
+    if not jobs:
+        return False
+    job = jobs[0]
+    meta = copy.deepcopy(job['metadata'])
+    render_phase = meta.get('phase') == 'render' or meta.get('state') == 'direction_approved'
+    snapshot, identity = meta['input'], meta['fingerprint']
+    directory = ROOT / 'output' / 'codex-local-console' / 'ae-mouth' / identity
+    directory.mkdir(parents=True, exist_ok=True)
+    project_url = base + '/rest/v1/std_projects'
+    assets_url = base + '/rest/v1/std_project_assets'
+    scenes_url = base + '/rest/v1/std_project_scenes'
+
+    def fresh():
+        projects = ae._request('GET', project_url, headers, params={'select': '*', 'id': 'eq.' + job['project_id']}).json()
+        assets = ae._request('GET', assets_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'], 'order': 'created_at.desc'}).json()
+        scenes = ae._request('GET', scenes_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'], 'order': 'scene_number.asc'}).json()
+        if not projects or not input_matches(snapshot, projects[0], assets, scenes):
+            raise Obsolete('대본·음성·원본 이미지가 변경되었습니다. 다시 제출해 주세요.')
+        return projects[0]
+
+    # The worker's single-instance OS lock complements this compare-and-swap claim.
+    claimed = ae._request('PATCH', assets_url, {**headers, 'Prefer': 'return=representation'},
+        params={'id': 'eq.' + job['id'], 'updated_at': 'eq.' + job['updated_at']},
+        json={'metadata': {**meta, 'state': 'processing', 'phase': 'render' if render_phase else 'discovery'}, 'updated_at': ae._now()}).json()
+    if not claimed:
+        return False
+    meta = claimed[0]['metadata']
+
+    def save(**changes):
+        meta.update(changes)
+        ae._request('PATCH', assets_url, headers, params={'id': 'eq.' + job['id']},
+                    json={'metadata': meta, 'updated_at': ae._now()})
+
+    try:
+        fresh()
+        runner = CodexStagedContentRunner()
+        generator = NativeCodexLayerGenerator()
+        # Recheck before each image generation, not just after publishing a long job.
+        class CurrentGenerator:
+            def generate(self, **kwargs):
+                fresh()
+                kwargs['work_dir'] = kwargs['work_dir'].with_name(kwargs['work_dir'].name + '-' + job['id'])
+                return generator.generate(**kwargs)
+        rows = assess_dialogue(runner, identity, snapshot)
+        audio_path = directory / 'final-narration.mp3'
+        if not audio_path.exists():
+            bucket, path = ref(snapshot['audio'])
+            ae._download_gcs_file(ae.GcsRef(bucket, path), audio_path)
+        outcomes = {r['number']: r for r in meta.get('results', [])}
+        candidates = {r['scene_number'] for r in rows if r['kind'] != 'narration'}
+        for scene in snapshot['scenes']:
+            if scene['number'] not in candidates:
+                outcomes[scene['number']] = {'number':scene['number'],'duration':scene['end']-scene['start'],'speakers':[], 'status':'skipped','reason':'저장된 자막에 실제 대사가 없는 씬입니다.'}
+        save(results=list(outcomes.values()))
+        for scene in sorted((s for s in snapshot['scenes'] if s['number'] in candidates), key=lambda s:s['number']):
+            number, duration = scene['number'], scene['end'] - scene['start']
+            if number in outcomes and (not render_phase or outcomes[number]['status'] != 'direction_approved'):
+                continue
+            fresh()
+            scene_rows = [r for r in rows if r['scene_number'] == number]
+            dialogue = [r for r in scene_rows if r['kind'] == 'dialogue']
+            result = {'number': number, 'duration': duration, 'speakers': list(dict.fromkeys(r['speaker'] for r in dialogue))}
+            if any(r['kind'] == 'uncertain' for r in scene_rows):
+                outcomes[number] = {**result, 'status': 'needs_review', 'reason': '대사·화자를 확실히 판별하지 못했습니다. 자막에서 대사와 화자를 확인한 뒤 다시 제출해 주세요.'}
+            elif not dialogue:
+                outcomes[number] = {**result, 'status': 'skipped', 'reason': '실제 캐릭터 대사가 없는 내레이션·반응 장면입니다.'}
+            elif scene.get('original_video'):
+                outcomes[number] = {**result, 'status': 'needs_review', 'reason': '원본이 동영상인 씬은 얼굴·입 추적이 필요합니다. 정지 이미지로 대체하지 않으므로 별도 영상 립싱크 작업을 검토해 주세요.'}
+            else:
+                scene_dir = directory / f'scene-{number}'
+                scene_dir.mkdir(parents=True, exist_ok=True)
+                image = scene_dir / 'original.png'
+                if not image.exists():
+                    bucket, path = ref(scene['image'])
+                    ae._download_gcs_file(ae.GcsRef(bucket, path), image)
+                try:
+                    regions = scene.get('speaker_regions')
+                    if not regions or regions.get('image_id') != scene['image']['id'] or regions.get('source_sha256') != digest(image):
+                        raise ValueError('제출 전 얼굴·입 좌표 준비를 완료해 주세요. 원본 이미지가 변경됐거나 저장된 좌표가 없습니다.')
+                    names = list(dict.fromkeys(r['speaker'] for r in dialogue))
+                    by_name = {r['speaker']:r for r in regions['speakers']}
+                    visibility = visible_speakers({'speakers':[by_name.get(name,{}) for name in names]}, names)
+                    speakers = [r for r in visibility if r['status'] == 'visible']
+                    if not speakers:
+                        outcomes[number] = {**result, 'status': 'skipped', 'reason': '화자가 화면 밖에 있습니다. 화면 속 듣는 인물의 입은 움직이지 않습니다.'}
+                    else:
+                        direction = direction_text(speakers, dialogue, scene['start'])
+                        if not render_phase:
+                            outcomes[number] = {**result, 'status': 'direction_pending', 'direction': direction, 'visibility': visibility}
+                            save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
+                            continue
+                        samples = decode_scene_audio(ffmpeg(), audio_path, scene['start'], duration)
+                        for index, speaker in enumerate(speakers):
+                            speaker['layers'] = mouth_layers(CurrentGenerator(), image, speaker, scene_dir / f'speaker-{index}')
+                            speaker['layer_sha256'] = {pose: digest(Path(path)) for pose, path in speaker['layers'].items()}
+                            speaker['cues'] = amplitude_cues(samples, [r for r in dialogue if r['speaker'] == speaker['speaker']], start=scene['start'], duration=duration)
+                        review_layers(runner, f'{identity}-{number}', image, speakers, scene_dir)
+                        fresh()
+                        source_scene = {'scene_number': number, 'scene_text': scene['text'], **copy.deepcopy(scene['direction']),
+                                        'ae_mouth_runtime': {'enabled': True, 'speakers': speakers, 'audio_sha256': digest(audio_path)}}
+                        selected = ae._render_plan_from_scene(source_scene)
+                        if not selected:
+                            source_scene['ae_motion_plan'] = {'enabled': True, 'preset': 'subtle_dialogue', 'vfx': [], 'intensity': .15,
+                                                            'motion': {'push': .01, 'drift_x': 0, 'drift_y': 0, 'shake': 0}}
+                            selected = ('motion', source_scene['ae_motion_plan'])
+                        kind, plan = selected
+                        if ae.template_for_scene(source_scene):
+                            raise ValueError('별도 레이어 템플릿이 지정된 씬입니다. 해당 템플릿의 입모양 계획을 검토해 주세요.')
+                        source_scene['duration_seconds'] = duration
+                        job_spec = ae.SceneJob(topic_id=job['project_id'], topic_title='AE mouth postprocessing', structure={'scenes': [source_scene]}, scene_index=0,
+                            scene=source_scene, scene_number=number, plan_kind=kind, preset=str(plan.get('preset') or 'subtle_dialogue'),
+                            duration_seconds=duration, source=ae.GcsRef('__local__', str(image.resolve())), source_type='project',
+                            project_payload={'ae_scene_delivery': 'local'})
+                        # Existing AE effects consume the animated-mouth source precomp, preserving registration.
+                        rendered = ae._render_job(job_spec, keep_workdir=True)
+                        silent = Path(rendered['local_path'])
+                        preview = scene_dir / 'ae-mouth-preview.mp4'
+                        run([ffmpeg(), '-y', '-i', str(silent), '-ss', str(scene['start']), '-i', str(audio_path), '-t', str(duration),
+                             '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-ar', '48000', str(preview)])
+                        # Probe actual duration before accepting a timing-locked asset.
+                        probe = subprocess_probe(preview)
+                        if abs(probe - duration) > .12:
+                            raise ValueError('AE 영상 길이가 확정된 TTS와 다릅니다. 속도 변경 없이 재검토가 필요합니다.')
+                        fresh()
+                        object_path = f'std-projects/{job["project_id"]}/ae-mouth/{identity}/scene-{number}-{digest(preview)[:16]}.mp4'
+                        bucket, path, _ = ae._upload_gcs_file(preview, object_path, 'video/mp4')
+                        # Idempotent recovery: a restarted worker reuses this fingerprint/scene output.
+                        assets = ae._request('GET', assets_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'],
+                            'scene_number': 'eq.' + str(number), 'asset_type': 'eq.video', 'metadata->>ae_mouth_fingerprint': 'eq.' + identity}).json()
+                        asset = next((a for a in assets if a['metadata'].get('render_sha256') == digest(preview)), None)
+                        if not asset:
+                            asset = ae._request('POST', assets_url, {**headers, 'Prefer': 'return=representation'}, json={
+                                'project_id': job['project_id'], 'scene_number': number, 'asset_type': 'video', 'status': 'uploaded',
+                                'file_name': f'scene_{number}_ae_mouth.mp4', 'mime_type': 'video/mp4', 'file_size': preview.stat().st_size,
+                                'metadata': {'storage_provider': 'gcs', 'gcs_bucket': bucket, 'gcs_path': path, 'storage_bucket': bucket,
+                                    'storage_path': path, 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'ae_reviewed': False,
+                                    'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction,
+                                    'source_image_id': scene['image']['id'], 'source_audio_id': snapshot['audio']['id']},
+                            }).json()[0]
+                        outcomes[number] = {**result, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction}
+                except ValueError as exc:
+                    outcomes[number] = {**result, 'status': 'needs_review', 'reason': str(exc)[:500]}
+            save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
+        fresh()
+        save(state='reviewed' if all(r['status'] == 'skipped' for r in outcomes.values()) else 'review_pending' if render_phase else 'direction_pending', error='')
+    except Obsolete as exc:
+        save(state='obsolete', error=str(exc))
+    except Exception as exc:
+        save(state='failed', error=str(exc)[:500])
+    return True
+
+
+def subprocess_probe(path: Path) -> float:
+    from media_checkpoint import _mp4_duration_with_first_frame
+    stat = path.stat()
+    duration = _mp4_duration_with_first_frame(str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    if duration is None:
+        raise ValueError('AE 출력 영상의 처음과 끝 프레임을 확인하지 못했습니다.')
+    return duration
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--once', action='store_true')
+    parser.add_argument('--coordinates-only', action='store_true')
+    args = parser.parse_args()
+    lock_path = worker_config.STATE_DIR / 'ae_mouth_worker.lock'
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open('a+b') as lock:
+        import msvcrt
+        lock.seek(0)
+        try:
+            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError:
+            sys.exit('AE mouth worker is already running')
+        while True:
+            try:
+                from ae_speaker_coordinates import process_one as prepare_coordinates
+                if not prepare_coordinates() and not args.coordinates_only: process_one()
+            except Exception as exc:
+                print('AE mouth poll:', type(exc).__name__, flush=True)
+            if args.once:
+                break
+            time.sleep(20)

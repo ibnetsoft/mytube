@@ -1,4 +1,5 @@
 'use client'
+import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
 import { isComicProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
@@ -10246,6 +10247,9 @@ export default function StdPortalPage() {
                         </div>
                         )
                     })()}
+
+                    {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
+                        projectId={selectedProject.project.id} revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders} />}
 
                     {/* [TTS 음성 생성 탭] */}
                     {currentNav === 'tts' && selectedProject && (
