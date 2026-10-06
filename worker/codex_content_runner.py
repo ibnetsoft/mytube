@@ -2120,6 +2120,9 @@ class CodexStagedContentRunner:
                 command.extend(["--model", model])
             if reasoning:
                 command.extend(['-c', 'model_reasoning_effort="low"'])
+            # --image accepts multiple arguments. Reserve the positional prompt before
+            # attachments and send Unicode instructions over stdin instead of argv.
+            command.append('-')
             # Only internally prepared local attachments are passed to the CLI.
             for image_path in context.get('_local_image_paths', []):
                 resolved = Path(image_path).resolve()
@@ -2127,13 +2130,14 @@ class CodexStagedContentRunner:
                 if not resolved.is_relative_to(allowed) or not resolved.is_file():
                     raise CodexContentError('Invalid local character reference path')
                 command.extend(['--image', str(resolved)])
-            command.append(prompt)
+            prompt_path = response_path.with_suffix('.prompt.txt')
+            prompt_path.write_text(prompt, encoding='utf-8')
             # Some CLI plugins keep inherited pipes open after Codex exits.
             # Files let us wait for the CLI itself without waiting for pipe EOF.
             stdout_path = response_path.with_suffix('.stdout.log')
             stderr_path = response_path.with_suffix('.stderr.log')
-            with stdout_path.open('w', encoding='utf-8') as stdout, stderr_path.open('w', encoding='utf-8') as stderr:
-                completed = subprocess.run(command, cwd=str(PROJECT_ROOT), stdin=subprocess.DEVNULL,
+            with prompt_path.open('rb') as prompt_input, stdout_path.open('w', encoding='utf-8') as stdout, stderr_path.open('w', encoding='utf-8') as stderr:
+                completed = subprocess.run(command, cwd=str(PROJECT_ROOT), stdin=prompt_input,
                     stdout=stdout, stderr=stderr, timeout=self.config.timeout_seconds, check=False,
                     creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if os.name == 'nt' else 0)
             if completed.returncode == 0 and response_path.exists():

@@ -360,3 +360,24 @@ def test_final_package_rejects_missing_story_review():
     package['script_quality_report'].pop('story_spine_score')
     with pytest.raises(runner_module.CodexContentError, match='story_spine_score'):
         runner_module._validate_package(package)
+
+
+def test_image_analysis_prompt_is_not_consumed_as_an_image_argument(monkeypatch, tmp_path):
+    monkeypatch.setattr(runner_module, 'PROJECT_ROOT', tmp_path)
+    monkeypatch.setattr(runner_module, 'OUTPUT_DIR', tmp_path/'worker-output')
+    image = tmp_path/'output/codex-local-console/speaker-coordinates/scene.png'
+    image.parent.mkdir(parents=True)
+    image.write_bytes(b'fixture')
+    captured = {}
+    def fake_run(command, **kwargs):
+        captured['command'] = command
+        captured['prompt'] = kwargs['stdin'].read().decode('utf-8')
+        response = pathlib.Path(command[command.index('--output-last-message')+1])
+        response.write_text('{"speakers": []}', encoding='utf-8')
+        return subprocess.CompletedProcess(command,0)
+    monkeypatch.setattr(runner_module.subprocess, 'run', fake_run)
+    runner = runner_module.CodexStagedContentRunner(runner_module.CodexContentConfig('codex','',60))
+    assert runner._stage('scene','03_ae_mouth_visibility',{'_local_image_paths':[str(image)]},'顔を確認してください') == {'speakers':[]}
+    assert captured['command'].index('-') < captured['command'].index('--image')
+    assert captured['command'][-1] == str(image)
+    assert '顔を確認してください' in captured['prompt']
