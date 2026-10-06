@@ -12,7 +12,8 @@ export function canEditStdProject(status: string, body: any): boolean {
             && Object.keys(payload).every(key => ['render_settings', 'bgm_sfx_saved'].includes(key))
             && Object.keys(progress).every(key => key === 'bgm_sfx_saved')
     }
-    if (Object.keys(body).some(key => !['project_payload', 'progress_payload'].includes(key))) return false
+    if (body.render_settings_scope !== undefined && body.render_settings_scope !== 'subtitle') return false
+    if (Object.keys(body).some(key => !['project_payload', 'progress_payload', 'render_settings_scope'].includes(key))) return false
     const payload = body.project_payload ?? {}
     const progress = body.progress_payload ?? {}
     if (!isRecord(payload) || !isRecord(progress)) return false
