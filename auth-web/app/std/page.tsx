@@ -18,7 +18,6 @@ import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, r
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
-import AiSfxPlanButton from '@/components/AiSfxPlanButton'
 import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
@@ -10128,11 +10127,6 @@ export default function StdPortalPage() {
                                                 </button>
                                                 <p className="text-[11px] text-gray-400">BGM은 전체 배경음입니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.</p>
                                                 {message && <p role="status" className="break-words text-xs text-cyan-200">{message}</p>}
-                                                {selectedProject && <AiSfxPlanButton locale={currentLocale} key={selectedProject.project.id}
-                                                    projectId={selectedProject.project.id} headers={authedJsonHeaders}
-                                                    appliedJobId={bgmSfxSettings.sfx_plan?.job_id} subtitles={localSubtitles}
-                                                    beforeSave={() => handleSaveSubtitles(false)}
-                                                    onApplied={() => openProject(selectedProject.project.id)} />}
                                                 {selectedProject && <SubtitleSfxPicker locale={currentLocale}
                                                     key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
                                                     assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
