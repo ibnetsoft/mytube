@@ -2906,6 +2906,14 @@ export default function StdPortalPage() {
             ? [index] : []
     )))
 
+    // Count the same yellow subtitle rows shown by renderAiDialogue. A selected
+    // voice alone does not establish which character is speaking.
+    const dialogueSpeakerProgress = localSubtitles.reduce((count, subtitle, index) => {
+        const yellow = aiDialogueParts.get(index)?.some(part => part.dialogue) || isSubtitleDialogue(subtitle, index)
+        if (!yellow) return count
+        return { total: count.total + 1, confirmed: count.confirmed + (subtitleSpeakers[index]?.name ? 1 : 0) }
+    }, { total: 0, confirmed: 0 })
+
     // Use the same classification as the subtitle rows; unresolved candidates are never narration targets.
     const isSubtitleNarration = (subtitle: any, index: number) => (
         !isSubtitleDialogue(subtitle, index) && !pendingDialogueCandidateIndexes.has(index)
@@ -10250,6 +10258,16 @@ export default function StdPortalPage() {
 
                     {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
                         projectId={selectedProject.project.id} revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders} />}
+
+                    {currentNav === 'subtitle_vrew' && selectedProject && (
+                        <div className="fixed bottom-4 right-4 z-40 rounded-xl border border-yellow-300/30 bg-[#181d26]/95 px-4 py-2 shadow-lg backdrop-blur"
+                            role="status" aria-live="polite"
+                            title={`노란색 대사 ${dialogueSpeakerProgress.total}개 중 화자 확정 ${dialogueSpeakerProgress.confirmed}개 · 미확정 ${dialogueSpeakerProgress.total - dialogueSpeakerProgress.confirmed}개`}>
+                            <span className="mr-2 text-[11px] text-gray-300">화자 확정</span>
+                            <span className="text-sm font-bold tabular-nums text-yellow-300">{dialogueSpeakerProgress.confirmed}/{dialogueSpeakerProgress.total}</span>
+                            <span className="ml-2 text-[10px] text-gray-400">미확정 {dialogueSpeakerProgress.total - dialogueSpeakerProgress.confirmed}</span>
+                        </div>
+                    )}
 
                     {/* [TTS 음성 생성 탭] */}
                     {currentNav === 'tts' && selectedProject && (
