@@ -17,6 +17,7 @@ export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters =
 }) {
     const ui = (text: string) => stdUiText(locale, text)
     const [saving, setSaving] = useState(false)
+    const [saveStatus, setSaveStatus] = useState('')
     const [editing, setEditing] = useState<any>(null)
     const [sample, setSample] = useState('')
     const [failedSpeakerImage, setFailedSpeakerImage] = useState('')
@@ -36,8 +37,8 @@ export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters =
         .map(c => resolveSfxCues([c], subtitles)[0] || c)
     const review = cues.filter(c => sfxNeedsReview(c, subtitles))
     const save = async (next: any[]) => {
-        setSaving(true)
-        try { await onSave(next) } catch (e: any) { onError(e.message || ui("효과음 위치 저장에 실패했습니다.")) }
+        setSaving(true); setSaveStatus('')
+        try { await onSave(next); setSaveStatus(ui('효과음 변경이 저장되었습니다.')) } catch (e: any) { onError(e.message || ui("효과음 위치 저장에 실패했습니다.")) }
         finally { setSaving(false) }
     }
     const insert = (boundary: number) => {
@@ -115,6 +116,7 @@ export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters =
             {ui("위치 확인 필요")} {review.length} {ui("개")} · {ui("합치기/분리기 또는 문장 수정으로 기준 위치가 바뀌었습니다. 해당 자막에 다시 배치해 주세요.")}
             {review.map(c=><p key={c.id}>{c.file_name} <button type="button" onClick={()=>void save(cues.map(x=>x.id===c.id?{...x,enabled:false,source:'manual',user_override:true}:x))}>{ui("제거")}</button></p>)}
         </div>}
+        {saveStatus && !saving && <p role="status" className="text-[10px] text-emerald-200">{saveStatus}</p>}
         {saving && <p role="status" className="text-[10px] text-purple-200">{ui("효과음 위치 저장 중…")}</p>}
         {(selectedAssetId || current.length > 0) && <p className="text-[10px] text-gray-400">{ui("+ 삽입 · 단어 사이의 ★ 클릭으로 편집·삭제 · 자동 저장")}</p>}
     </div>

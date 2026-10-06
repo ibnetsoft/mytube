@@ -2968,6 +2968,7 @@ export default function StdPortalPage() {
         const revision = subtitleSaveRevisionRef.current
         try {
             const project = await saveSubtitleProject(projectId, {
+                render_settings_scope: 'subtitle',
                 progress_payload: { subtitles_saved: true, subtitles_completed: true },
                 project_payload: {
                     subtitles: updatedSubtitles, subtitles_saved: true,
@@ -5066,39 +5067,18 @@ export default function StdPortalPage() {
 
     const updateBgmSfxSettings = async (nextRenderSettings: any, nextAssets?: any[], nextSubtitles?: any[]) => {
         if (!selectedProject?.project?.id) return
-        const nextProjectPayload = {
-            ...(selectedProject.project.project_payload || {}),
-            render_settings: nextRenderSettings,
-            ...(nextSubtitles ? { subtitles: nextSubtitles } : {}),
-            bgm_sfx_saved: true,
-        }
-        const nextProject = {
-            ...selectedProject,
-            ...(nextAssets ? { assets: nextAssets } : {}),
-            project: {
-                ...selectedProject.project,
-                progress_payload: {
-                    ...(selectedProject.project.progress_payload || {}),
-                    bgm_sfx_saved: true,
-                },
-                project_payload: nextProjectPayload,
-            },
-        }
-
-        const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
-            method: 'PATCH',
-            headers: authedJsonHeaders,
-            body: JSON.stringify({
-                progress_payload: { bgm_sfx_saved: true },
-                project_payload: nextProjectPayload,
-            }),
+        const project = await saveSubtitleProject(selectedProject.project.id, {
+            render_settings_scope: 'audio',
+            progress_payload: { bgm_sfx_saved: true },
+            project_payload: { render_settings: nextRenderSettings, bgm_sfx_saved: true,
+                ...(nextSubtitles ? { subtitles: nextSubtitles } : {}) },
+        }, authedJsonHeaders)
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== project.id) return prev
+            const updated = { ...prev, ...(nextAssets ? { assets: nextAssets } : {}), project }
+            rememberProjectState(updated)
+            return updated
         })
-        const payload = await safeParseJson(res, 'BGM/SFX settings save failed')
-        if (!res.ok || payload.success === false) {
-            throw new Error(payload.error || 'BGM/SFX settings save failed')
-        }
-        setSelectedProject(nextProject)
-        rememberProjectState(nextProject)
     }
 
     const uploadDriveAudioAsset = async (file: File, assetType: 'bgm' | 'sfx', sceneNumber?: number | null) => {
@@ -7216,7 +7196,7 @@ export default function StdPortalPage() {
 
     const sfxCues = Array.isArray(bgmSfxSettings.sfx_cues) ? bgmSfxSettings.sfx_cues : []
     const sfxSubtitleIndexes = new Set(sfxCues.filter((cue: any) => cue.enabled !== false).map((cue: any) => sfxSubtitleIndex(cue, localSubtitles)).filter((index: number) => index >= 0))
-    const currentSfxCue = sfxCues.find((cue: any) => Number(cue?.subtitle_index) === selectedSubIndex)
+    const currentSfxCue = sfxCues.find((cue: any) => cue.enabled !== false && sfxSubtitleIndex(cue, localSubtitles) === selectedSubIndex)
     const currentSfxAsset = currentSfxCue?.asset_id
         ? selectedProject?.assets?.find((asset: any) => asset.id === currentSfxCue.asset_id)
         : null
@@ -10126,9 +10106,17 @@ export default function StdPortalPage() {
                                                     className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] font-black text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
                                                 >
                                                     <Upload size={13} className="shrink-0" />
-                                                    {ui("BGM배경음")}
+                                                    {uploadingKey === 'bgm-upload' ? 'BGM 업로드·저장 중…' : ui("BGM배경음")}
                                                 </button>
                                             </div>
+                                                <input id="std-sfx-upload" type="file" accept="audio/*" className="hidden" onChange={handleUploadCurrentSfxFile} disabled={uploadingKey !== ''} />
+                                                <button type="button" disabled={uploadingKey !== ''}
+                                                    onClick={() => document.getElementById('std-sfx-upload')?.click()}
+                                                    className="w-full rounded border border-purple-400/40 bg-purple-500/10 px-3 py-2 text-xs text-purple-200 disabled:opacity-50">
+                                                    {uploadingKey === 'sfx-upload' ? '효과음 업로드·저장 중…' : '효과음 업로드 · 자막에 삽입'}
+                                                </button>
+                                                <p className="text-[11px] text-gray-400">BGM은 전체 배경음입니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.</p>
+                                                {message && <p role="status" className="break-words text-xs text-cyan-200">{message}</p>}
                                                 {selectedProject && <AiSfxPlanButton locale={currentLocale} key={selectedProject.project.id}
                                                     projectId={selectedProject.project.id} headers={authedJsonHeaders}
                                                     appliedJobId={bgmSfxSettings.sfx_plan?.job_id} subtitles={localSubtitles}

@@ -446,6 +446,25 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const projectPayloadPatch: Record<string, any> = Object.fromEntries(
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
+    if (projectPayloadPatch.render_settings && ['audio', 'subtitle'].includes(body.render_settings_scope)) {
+        const audioKeys = ['bgm_asset_id', 'bgm_file_name', 'bgm_volume', 'bgm_loop', 'sfx_cues', 'sfx_plan']
+        const incoming = projectPayloadPatch.render_settings
+        const current = project.project_payload?.render_settings || {}
+        if (body.render_settings_scope === 'subtitle') {
+            projectPayloadPatch.render_settings = { ...current,
+                ...Object.fromEntries(Object.entries(incoming).filter(([key]) => !audioKeys.includes(key))) }
+        } else {
+            const settings = { ...current }
+            for (const key of audioKeys) {
+                if (Object.prototype.hasOwnProperty.call(incoming, key)) settings[key] = incoming[key]
+            }
+            // The audio form sends its complete audio snapshot; missing BGM identifiers mean clear.
+            for (const key of ['bgm_asset_id', 'bgm_file_name']) {
+                if (!Object.prototype.hasOwnProperty.call(incoming, key)) delete settings[key]
+            }
+            projectPayloadPatch.render_settings = settings
+        }
+    }
     if (projectPayloadPatch.render_settings?.comic !== undefined) {
         projectPayloadPatch.render_settings = {
             ...(project.project_payload?.render_settings || {}),
