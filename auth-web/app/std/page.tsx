@@ -8227,7 +8227,8 @@ export default function StdPortalPage() {
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
                 key={selectedProject.project.id} projectId={selectedProject.project.id}
-                revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders} />}
+                revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
+                selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />}
             {renderSuccessNotice && (
                 <div className={`fixed right-4 ${renderSuccessNotice.heading ? 'bottom-4' : 'top-4'} z-[80] w-[min(360px,calc(100vw-32px))] animate-in fade-in zoom-in-95 duration-200`} role="status" aria-live="polite">
                     <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-[#09251d]/95 p-4 shadow-2xl shadow-emerald-950/60 backdrop-blur">

@@ -99,3 +99,36 @@ def test_worker_does_not_overwrite_reclaimed_job(coordinate_job,monkeypatch):
     monkeypatch.setattr(ae,'_request',lost)
     with pytest.raises(worker.LeaseLost): worker.process_one()
     assert len(saved)==1 and saved[0]['state']=='processing'
+
+
+def test_uncertain_scene_does_not_block_following_scenes(coordinate_job,monkeypatch):
+    import copy
+    import codex_content_runner as runner
+    worker,job,saved=coordinate_job
+    second=copy.deepcopy(job['metadata']['input']['scenes'][0]);second['number']=20
+    job['metadata']['input']['scenes'].append(second)
+    original=runner.CodexStagedContentRunner._stage
+    def stage(self,identity,*args):
+        assert self.config.timeout_seconds <= 180
+        if '-19-' in identity: raise ValueError('Visible speaker confidence needs review')
+        return original(self,identity,*args)
+    monkeypatch.setattr(runner.CodexStagedContentRunner,'_stage',stage)
+    worker.process_one()
+    assert job['metadata']['state']=='needs_review'
+    assert [r['number'] for r in job['metadata']['results']]==[20]
+    assert [r['number'] for r in job['metadata']['failures']]==[19]
+    assert job['metadata']['current_scene'] is None
+
+
+def test_retry_uses_fresh_analysis_identity_not_cached_rejected_response(coordinate_job,monkeypatch):
+    import codex_content_runner as runner
+    worker,job,saved=coordinate_job
+    ids=[]
+    def stage(self,identity,*args):
+        ids.append(identity)
+        raise ValueError('confidence needs review')
+    monkeypatch.setattr(runner.CodexStagedContentRunner,'_stage',stage)
+    worker.process_one()
+    job['updated_at']='old';job['metadata']['state']='queued'
+    worker.process_one()
+    assert len(ids)==2 and ids[0]!=ids[1]

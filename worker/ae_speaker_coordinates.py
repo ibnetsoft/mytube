@@ -1,5 +1,6 @@
 """Prepare speaker geometry once before submission; do not generate new voices or mouth patches."""
 import copy
+import dataclasses
 import argparse
 import sys
 import threading
@@ -56,26 +57,38 @@ def process_one():
     ticker.start()
     try:
         runner = CodexStagedContentRunner()
+        runner.config = dataclasses.replace(runner.config, timeout_seconds=min(runner.config.timeout_seconds, 180))
         directory = Path(ae.ROOT if hasattr(ae,'ROOT') else Path(__file__).resolve().parents[1]) / 'output' / 'codex-local-console' / 'speaker-coordinates' / meta['fingerprint']
         directory.mkdir(parents=True,exist_ok=True)
         results = {r['number']:r for r in meta.get('results',[])}
         previous = ae._request('GET',url,headers,params={'select':'metadata','project_id':'eq.'+job['project_id'],
             'metadata->>kind':'eq.ae_speaker_coordinates','metadata->>state':'eq.ready','order':'created_at.desc','limit':'100'}).json()
         reusable = [r for old in previous if old['metadata'].get('input',{}).get('cast_key')==meta['input']['cast_key'] for r in old['metadata'].get('results',[])]
+        failures = {r['number']:r for r in meta.get('failures',[])}
         for scene in sorted(meta['input']['scenes'],key=lambda s:s['number']):
             if scene['number'] in results: continue
             save(current_scene=scene['number'])
-            bucket,path = image_reference(scene['image'])
-            image = directory / f"scene-{scene['number']}.png"
-            if not image.exists(): ae._download_gcs_file(ae.GcsRef(bucket,path),image)
-            names = {r['speaker'] for r in scene['rows']}
-            cached = next((r for r in reusable if r['image_id']==scene['image']['id'] and r['source_path']==path
-                and r['source_sha256']==digest(image) and names.issubset({v['speaker'] for v in r['speakers']})),None)
-            speakers = [r for r in cached['speakers'] if r['speaker'] in names] if cached else locate_speakers(runner,meta['fingerprint']+'-'+str(scene['number']),scene,image,scene['rows'],meta['input']['cast'])
-            if any(r['status']=='visible' and not r.get('face_box') for r in speakers): raise ValueError('Face bounds are missing')
-            results[scene['number']] = {'number':scene['number'],'image_id':scene['image']['id'],'source_path':path,'source_sha256':digest(image),'speakers':speakers}
-            save(results=list(results.values()))
-        save(state='ready',current_scene=None,results=list(results.values()),reviewer='local-codex-visual-analysis')
+            try:
+                bucket,path = image_reference(scene['image'])
+                image = directory / f"scene-{scene['number']}.png"
+                if not image.exists(): ae._download_gcs_file(ae.GcsRef(bucket,path),image)
+                names = {r['speaker'] for r in scene['rows']}
+                cached = next((r for r in reusable if r['image_id']==scene['image']['id'] and r['source_path']==path
+                    and r['source_sha256']==digest(image) and names.issubset({v['speaker'] for v in r['speakers']})),None)
+                speakers = [r for r in cached['speakers'] if r['speaker'] in names] if cached else locate_speakers(runner,meta['fingerprint']+'-'+str(scene['number'])+'-'+lease,scene,image,scene['rows'],meta['input']['cast'])
+                if any(r['status']=='visible' and not r.get('face_box') for r in speakers): raise ValueError('Face bounds are missing')
+                results[scene['number']] = {'number':scene['number'],'image_id':scene['image']['id'],'source_path':path,'source_sha256':digest(image),'speakers':speakers}
+                failures.pop(scene['number'], None)
+                save(results=list(results.values()),failures=list(failures.values()))
+            except LeaseLost:
+                raise
+            except Exception as exc:
+                failures[scene['number']] = {'number':scene['number'],'error':str(exc)[:500]}
+                save(failures=list(failures.values()))
+                continue
+        save(state='needs_review' if failures else 'ready', current_scene=None, results=list(results.values()),
+             failures=list(failures.values()), error='; '.join(f"Scene {n}: {v['error']}" for n,v in failures.items())[:500] or None,
+             reviewer='local-codex-visual-analysis')
     except LeaseLost:
         raise
     except Exception as exc: save(state='needs_review',error=str(exc)[:500])

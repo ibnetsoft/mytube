@@ -1,3 +1,4 @@
+import { savedSpeakerGeometry, coordinateCast } from './stdSpeakerGeometry'
 import { dialogueSceneIndex } from './stdDialogueSceneIndex'
 import { createHash } from 'crypto'
 import { isComicProject } from './stdComic'
@@ -40,11 +41,8 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
             if (!image && !originalVideo) throw new Error(`${number}번 씬의 원본 이미지가 필요합니다.`)
             const start = starts[index], end = starts[index + 1] ?? subtitles[subtitles.length - 1]?.end
             if (!Number.isFinite(start) || !Number.isFinite(end) || end < start || (end === start && subtitles.some((t: any) => t.scene_number === number))) throw new Error(`${number}번 씬의 음성 시간을 확인해 주세요.`)
-            const coordinateJob = assets.find(a => active(a) && a.metadata?.kind === 'ae_speaker_coordinates'
-                && a.metadata?.state === 'ready' && a.metadata.input?.cast_key === JSON.stringify({ main: structure.main_character || payload.main_character || {}, supporting: structure.supporting_characters || payload.supporting_characters || [], scene_cast: structure.scene_cast || [] })
-                && a.metadata.results?.some((r: any) => r.number === number && r.image_id === image?.id && r.source_path === (image?.metadata?.gcs_path || image?.metadata?.storage_path)
-                    && subtitles.filter((t: any) => t.scene_number === number && t.kind === 'dialogue').every((t: any) => r.speakers?.some((v: any) => v.speaker === t.speaker))))
-            const regions = coordinateJob?.metadata.results?.find((r: any) => r.number === number && r.image_id === image?.id)
+            const regions = savedSpeakerGeometry(assets, coordinateCast(project), {number,image,
+                rows:subtitles.filter((t:any)=>t.scene_number===number && t.kind==='dialogue').map((t:any)=>({speaker:t.speaker}))})
             return [{ number, start, end, speaker_regions: regions || null, text: String(s.scene_text || source.scene_text || source.narration || ''),
                 image: image ? { id: image.id, metadata: image.metadata } : null,
                 original_video: originalVideo ? { id: originalVideo.id, metadata: originalVideo.metadata } : null,

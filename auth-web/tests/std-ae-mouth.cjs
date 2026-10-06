@@ -41,11 +41,22 @@ test('newer retry and newer audio are selected regardless of caller ordering',()
 
 test('saved geometry is reused only for the same image, cast and assigned speaker',()=>{
  const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
- const regions={number:19,image_id:'image19',source_path:'image.png',source_sha256:'verified',speakers:[{speaker:'소녀',mouth_box:[.4,.4,.45,.43],face_box:[.2,.2,.7,.7]}]};
+ const regions={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,mouth_box:[.4,.4,.45,.43],face_box:[.2,.2,.7,.7]}]};
  const metadata={kind:'ae_speaker_coordinates',state:'ready',input:{cast_key:JSON.stringify(cast)},results:[regions]};
  f.assets.unshift({id:'coords',asset_type:'other',status:'uploaded',metadata});
- assert.deepEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,regions);
+ assert.deepEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,{...regions,origin:'ai'});
  metadata.input.cast_key='changed';assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,null);
  metadata.input.cast_key=JSON.stringify(cast);regions.image_id='other';assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,null);
  regions.image_id='image19';regions.speakers[0].speaker='other';assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,null);
+});
+
+
+test('user-confirmed coordinates reach the render snapshot without an AI job',()=>{
+ const f=fixture(),geometry=load('stdSpeakerGeometry'),scene=geometry.coordinateScenes(f.project,f.assets)[0];
+ const result={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),
+  speakers:[{speaker:'소녀',status:'visible',confidence:1,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]};
+ f.assets.push({id:'manual',asset_type:'other',status:'uploaded',metadata:{kind:'speaker_coordinate_confirmation',scene_key:scene.key,results:[result]}});
+ const snapshot=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ assert.equal(snapshot.input.scenes[0].speaker_regions.origin,'user');
+ assert.deepEqual(snapshot.input.scenes[0].speaker_regions.speakers,result.speakers);
 });
