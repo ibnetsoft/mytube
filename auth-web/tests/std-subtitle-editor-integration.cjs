@@ -31,6 +31,7 @@ function load(filename) {
     return exports;
 }
 const { restoreSavedSubtitleSnapshot } = load('auth-web/lib/stdSubtitleSnapshot.ts');
+const { preserveSubtitleScenes } = load('auth-web/lib/stdSubtitleSceneIntegrity.ts');
 const saved = [
     { id: 'manual-1', text: '「ユーザーの修正」と言った。', scene_number: 1, start_num: 2.1, end_num: 7.55, start_time: '2.1', end_time: '7.55',
         voice_id: 'manual-actor', editor_speaker: { name: '仙太郎', gender: 'male', text: '「ユーザーの修正」と言った。' }, dialogue_override: true },
@@ -41,19 +42,23 @@ const scenes = [{ scene_number: 1 }, { scene_number: 2 }, { scene_number: 3 }];
 const selectedProject = { project: { id: 'edited-project', project_payload: { script: 'Original unrelated draft', subtitles: saved } }, scenes };
 let generations = 0;
 const generate = () => { generations++; throw new Error('Saved edits must not regenerate'); };
-const common = { selectedProject, restoreSavedSubtitleSnapshot, subMaxChars: '20', generateSynchronizedSubtitles: generate,
+const common = { selectedProject, restoreSavedSubtitleSnapshot, preserveSubtitleScenes, subMaxChars: '20', generateSynchronizedSubtitles: generate,
     generateAnnotatedSubtitles: generate, cleanScriptContextText: value => value || '', customScriptText: '' };
 
 // Execute the expressions from the actual page, so all three reload/sync paths
 // must choose the saved editor rows even when script and scene coverage differ.
 const open = variable(ast, 'openProject');
-const reopened = evaluate(variable(open, 'projectSubtitles'), { ...common, storedServerSubtitles: saved,
-    fullScript: 'Original unrelated draft', normalizedScenes: scenes, payload: selectedProject });
+const reopenContext = { ...common, storedServerSubtitles: saved,
+    fullScript: 'Original unrelated draft', normalizedScenes: scenes, payload: selectedProject };
+const loadedProjectSubtitles = evaluate(variable(open, 'loadedProjectSubtitles'), reopenContext);
+const reopened = evaluate(variable(open, 'projectSubtitles'), { ...reopenContext, loadedProjectSubtitles });
 assert.deepEqual(reopened, saved);
 const hydration = find(ast, node => ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect'
     && node.arguments[0]?.getText(ast).includes('const savedSubtitles ='));
 assert(hydration, 'Project hydration effect exists');
-const hydrated = evaluate(variable(hydration, 'subs'), { ...common, savedSubtitles: saved, scenes, currentScript: 'Original unrelated draft' });
+const hydrationContext = { ...common, savedSubtitles: saved, scenes, currentScript: 'Original unrelated draft' };
+const loadedRows = evaluate(variable(hydration, 'loadedRows'), hydrationContext);
+const hydrated = evaluate(variable(hydration, 'subs'), { ...hydrationContext, loadedRows });
 assert.deepEqual(hydrated, saved);
 const sync = variable(ast, 'handleSyncSubtitleSceneVisuals');
 const synced = evaluate(variable(sync, 'baseSubtitles'), { ...common, scenes, localSubtitles: saved });

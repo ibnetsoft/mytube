@@ -1775,8 +1775,9 @@ export default function StdPortalPage() {
         }
     }, [currentNav, isPlayingPreview, totalDuration])
 
-    // playbackTime에 맞춰 현재 자막 인덱스 동기화
+    // Vrew playback owns its selected row (the recorded timeline may differ from editor timing).
     useEffect(() => {
+        if (currentNav === 'subtitle_vrew') return
         if (!localSubtitles || localSubtitles.length === 0) return
         const activeIdx = localSubtitles.findIndex(s => {
             const start = s.start_num ?? Number(s.start_time) ?? 0
@@ -1786,7 +1787,7 @@ export default function StdPortalPage() {
         if (activeIdx >= 0 && activeIdx !== selectedSubIndex) {
             setSelectedSubIndex(activeIdx)
         }
-    }, [playbackTime, localSubtitles])
+    }, [currentNav, playbackTime, localSubtitles])
 
     const authedJsonHeaders = useMemo<Record<string, string>>(() => {
         const headers: Record<string, string> = {
@@ -2926,6 +2927,16 @@ export default function StdPortalPage() {
             && dialogueVoiceIds.every(voiceId => Boolean(voiceId) && !narrationVoiceIds.has(voiceId))
     }
 
+    const selectSubtitlePreview = (subtitleIndex: number) => {
+        const subtitle = localSubtitles[subtitleIndex]
+        if (!subtitle) return
+        stopVrewPlayback()
+        setPreviewTransition(null)
+        setSelectedSubIndex(subtitleIndex)
+        const start = Number(subtitle.start_num ?? subtitle.start_time ?? 0)
+        setPlaybackTime(Number.isFinite(start) ? Math.max(0, start) : 0)
+    }
+
     const selectSubtitleBlock = (subtitleIndex: number, shiftKey: boolean) => {
         const targetIndex = Number(subtitleIndex)
         if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex >= localSubtitles.length) return
@@ -2948,9 +2959,7 @@ export default function StdPortalPage() {
             subtitleBlockSelectionAnchorRef.current = targetIndex
         }
 
-        setSelectedSubIndex(targetIndex)
-        const subtitle = localSubtitles[targetIndex]
-        setPlaybackTime(subtitle?.start_num ?? Number(subtitle?.start_time) ?? 0)
+        selectSubtitlePreview(targetIndex)
     }
 
     const updateSubtitleDraft = (subtitles: any[]) => {
@@ -3473,6 +3482,9 @@ export default function StdPortalPage() {
             vrewProgressTimerRef.current = null
         }
         if (vrewAudioRef.current) {
+            vrewAudioRef.current.onloadedmetadata = null
+            vrewAudioRef.current.onended = null
+            vrewAudioRef.current.onerror = null
             vrewAudioRef.current.pause()
             vrewAudioRef.current.removeAttribute('src')
             vrewAudioRef.current.load()
@@ -3700,7 +3712,11 @@ export default function StdPortalPage() {
                     if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
                     setIsNarrationPlaying(true)
                     playPreviewBgm(audio.currentTime)
-                }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
+                }, () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
+                    setIsNarrationPlaying(false)
+                    stopPreviewBgm()
+                })
                 audio.preload = 'auto'
                 const cleanup = () => {
                     speechGain.dispose()
@@ -3715,6 +3731,7 @@ export default function StdPortalPage() {
                     audio.onerror = null
                 }
                 const syncPlaybackProgress = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     const time = Math.max(0, audio.currentTime)
                     setPlaybackTime(Math.round(time * 10) / 10)
                     const activeIndex = playbackSubtitles.findIndex((subtitle: any) => {
@@ -3731,6 +3748,7 @@ export default function StdPortalPage() {
                     setVrewActiveTokenIndex(vrewActiveTokenAtPlaybackTime(playbackSubtitles[activeIndex], time))
                 }
                 audio.onloadedmetadata = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     if (Number.isFinite(audio.duration) && startTime >= audio.duration) {
                         cleanup()
                         reject(new Error('선택한 자막 시간이 오디오 길이를 넘었습니다. 앞쪽 자막을 선택해 재생해 주세요.'))
@@ -3740,17 +3758,20 @@ export default function StdPortalPage() {
                     syncPlaybackProgress()
                     vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
                     audio.play().catch(error => {
+                        if (vrewPlaybackCancelRef.current !== cancelToken) return
                         stopPreviewBgm()
                         cleanup()
                         reject(error)
                     })
                 }
                 audio.onended = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     setVrewActiveTokenIndex(-1)
                     resolve()
                 }
                 audio.onerror = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     reject(new Error('최종 TTS 음성 재생에 실패했습니다.'))
                 }
@@ -3777,6 +3798,7 @@ export default function StdPortalPage() {
             try {
                 audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
             } catch (err: any) {
+                if (vrewPlaybackCancelRef.current !== cancelToken) return
                 const isDriveError = err?.code === 'legacy_drive_auth_failed'
                     || legacyStorageErrorPattern.test(String(err?.message || ''))
                 const isClaimedOrSaveNeeded = err?.code === 'audio_generation_claimed'
@@ -3823,7 +3845,11 @@ export default function StdPortalPage() {
                     if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
                     setIsNarrationPlaying(true)
                     playPreviewBgm(baseStart + scheduledDuration * (audio.currentTime / (audio.duration || scheduledDuration)))
-                }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
+                }, () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
+                    setIsNarrationPlaying(false)
+                    stopPreviewBgm()
+                })
                 const cleanup = () => {
                     speechGain.dispose()
                     speechGainCleanupRef.current = null
@@ -3836,15 +3862,18 @@ export default function StdPortalPage() {
                     audio.onerror = null
                 }
                 audio.onended = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     setVrewActiveTokenIndex(-1)
                     resolve()
                 }
                 audio.onerror = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
                 }
                 const syncPlaybackProgress = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     speechGain.set(normalization * subtitleGain(speechSubtitlesRef.current[index]))
                     const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0
                         ? audio.duration
@@ -3856,6 +3885,7 @@ export default function StdPortalPage() {
                 syncPlaybackProgress()
                 vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
                 audio.play().catch(error => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     stopPreviewBgm()
                     cleanup()
                     reject(error)
@@ -3875,7 +3905,10 @@ export default function StdPortalPage() {
             stopVrewPlayback()
             return
         }
-        void playVrewSegmentsFrom(selectedSubIndex).catch((error: any) => {
+        const playback = playVrewSegmentsFrom(selectedSubIndex)
+        const cancelToken = vrewPlaybackCancelRef.current
+        void playback.catch((error: any) => {
+            if (vrewPlaybackCancelRef.current !== cancelToken) return
             stopVrewPlayback()
             const isClaimedOrSaveNeeded = error?.code === 'audio_generation_claimed'
                 || error?.status === 409
@@ -7130,6 +7163,8 @@ export default function StdPortalPage() {
             videoUrl: currentSubVideoUrl,
         }
         previewTransitionVisualRef.current = nextVisual
+        setPreviewTransition(null)
+        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview) return
         if (!previousVisual || previousVisual.sceneNumber === nextVisual.sceneNumber) return
 
         const incomingScene = selectedProject?.scenes?.find((scene: any) => (
@@ -7158,6 +7193,8 @@ export default function StdPortalPage() {
                 timeout = window.setTimeout(() => setPreviewTransition(null), 560)
             })
         }
+        // A stalled media request must not leave the preceding scene covering the preview.
+        const revealTimeout = window.setTimeout(reveal, 1500)
         const video = vrewPreviewVideoRef.current
         const image = new window.Image()
         if (currentSubVideoUrl && video) {
@@ -7177,8 +7214,9 @@ export default function StdPortalPage() {
             image.onerror = null
             window.cancelAnimationFrame(frame)
             window.clearTimeout(timeout)
+            window.clearTimeout(revealTimeout)
         }
-    }, [currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl])
+    }, [currentNav, isPlayingPreview, currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl])
 
     useEffect(() => {
         const video = vrewPreviewVideoRef.current
@@ -9466,8 +9504,7 @@ export default function StdPortalPage() {
                                                         key={`scene-group-card-${sNum}`}
                                                         onClick={() => {
                                                             setOpenVoicePickerKey('')
-                                                            setSelectedSubIndex(group.firstIndex)
-                                                            setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
+                                                            selectSubtitlePreview(group.firstIndex)
                                                         }}
                                                         onMouseEnter={() => setHoveredSubtitleSceneNumber(Number(sNum))}
                                                         onMouseLeave={() => setHoveredSubtitleSceneNumber(current => (
@@ -9781,8 +9818,7 @@ export default function StdPortalPage() {
                                                                                     type="button"
                                                                                     onClick={(event) => {
                                                                                         event.stopPropagation()
-                                                                                        setSelectedSubIndex(item.subtitleIndex)
-                                                                                        setPlaybackTime(item.start_num ?? Number(item.start_time) ?? 0)
+                                                                                        selectSubtitlePreview(item.subtitleIndex)
                                                                                     }}
                                                                                     className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${
                                                                                         selectedSubIndex === item.subtitleIndex
@@ -9844,6 +9880,7 @@ export default function StdPortalPage() {
                                         >
                                             {currentSubVideoUrl ? (
                                                 <video
+                                                    key={`${selectedProject?.project?.id}:${currentPreviewSceneNumber}:${currentSubVideoUrl}`}
                                                     ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
                                                     onEnded={(event) => {
@@ -9947,6 +9984,13 @@ export default function StdPortalPage() {
                                                     const clickX = e.clientX - rect.left
                                                     const pct = Math.max(0, Math.min(1, clickX / rect.width))
                                                     const targetTime = Math.round(pct * totalDuration * 10) / 10
+                                                    stopVrewPlayback()
+                                                    setPreviewTransition(null)
+                                                    const targetIndex = localSubtitles.findIndex(subtitle => (
+                                                        targetTime >= Number(subtitle.start_num ?? subtitle.start_time ?? 0)
+                                                        && targetTime < Number(subtitle.end_num ?? subtitle.end_time ?? 0)
+                                                    ))
+                                                    if (targetIndex >= 0) setSelectedSubIndex(targetIndex)
                                                     setPlaybackTime(targetTime)
                                                 }}
                                                 className="w-full h-1.5 bg-gray-700 hover:h-2.5 rounded-full overflow-hidden cursor-pointer transition-all relative group"
