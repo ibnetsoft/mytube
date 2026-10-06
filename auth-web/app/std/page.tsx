@@ -6223,6 +6223,13 @@ export default function StdPortalPage() {
             })
             const payload = await safeParseJson(res, '재렌더링 준비 실패')
             if (!res.ok || payload.success === false) throw new Error(payload.error || '재렌더링 준비 실패')
+            if (payload.postprocess_pending) {
+                if (renderSuccessTimerRef.current) clearTimeout(renderSuccessTimerRef.current)
+                setRenderSuccessNotice({ projectId, title: '프로젝트 제출', heading: '제출 완료', detail: payload.message })
+                renderSuccessTimerRef.current = setTimeout(() => setRenderSuccessNotice(null), 6000)
+                setMessage(payload.message)
+                return
+            }
             await loadStdData(token, { showLoading: false })
             const rerenderMessage = `렌더링 v${payload.next_render_version || 1}이(가) 원격 렌더 큐에 등록되었습니다.`
             setMessage(rerenderMessage)
