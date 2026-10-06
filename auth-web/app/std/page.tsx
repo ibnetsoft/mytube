@@ -194,6 +194,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
+import StdAeProgress from '@/components/StdAeProgress'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
@@ -8139,6 +8140,7 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
+            {selectedProject && <StdAeProgress key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} />}
             {renderSuccessNotice && (
                 <div className={`fixed right-4 ${renderSuccessNotice.heading ? 'bottom-4' : 'top-4'} z-[80] w-[min(360px,calc(100vw-32px))] animate-in fade-in zoom-in-95 duration-200`} role="status" aria-live="polite">
                     <div className="relative overflow-hidden rounded-2xl border border-emerald-400/40 bg-[#09251d]/95 p-4 shadow-2xl shadow-emerald-950/60 backdrop-blur">
