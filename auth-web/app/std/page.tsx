@@ -10062,6 +10062,7 @@ export default function StdPortalPage() {
                                             cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
                                             audioContextRef={speechContextRef} headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
                                             {bgmAsset && bgmRange.valid && playbackTime >= bgmRange.start && playbackTime < bgmRange.end && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={Math.max(0, playbackTime - bgmRange.start)}
+                                                startTime={bgmRange.start} fadeIn={bgmRange.fadeIn} fadeOut={bgmRange.fadeOut}
                                                 timelineDuration={Math.max(0, bgmRange.end - bgmRange.start)} muted={bgmVolume === 0 || playbackTime < bgmRange.start || playbackTime >= bgmRange.end} loop={bgmLoop} />}
                                         </div>
                                     </div>

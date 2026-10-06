@@ -64,3 +64,15 @@ const renderTiming = new Function('project','projectRenderSettings','subtitles',
 const render = renderTiming({project_payload:{subtitles:rows}},cueSettings,rows.map(r=>({...r,start:r.start_num,end:r.end_num})),{metadata:{duration_seconds:100}},api.backgroundWindow)
 assert.deepEqual(render,{bgm_start:10,bgm_end:25.6,bgm_fade_in:0,bgm_fade_out:0})
 console.log('PASS: scene-local subtitle cue, next-scene continuation, persistence, invalid cue and web render timing')
+
+const waveformRange={start:799.8,end:827.1,fadeIn:3,fadeOut:9.5,valid:true}
+const wave=api.backgroundWaveformPeaks(Array(301).fill(1),30,waveformRange,800,false)
+assert.equal(wave[0],0)
+assert.equal(wave[100],1)
+assert.ok(Math.abs(wave[228]-4.5/9.5)<1e-9,'waveform must shrink throughout the selected 9.5 seconds')
+assert.equal(wave[280],0,'unplayed tail after the selected scene must be silent')
+const loopWave=api.backgroundWaveformPeaks(Array(301).fill(1),30,{start:0,end:55,fadeIn:0,fadeOut:9.5,valid:true},54,true)
+assert.equal(loopWave[100],1)
+assert.ok(loopWave[200]<1 && loopWave[200]>0)
+assert.equal(loopWave[260],0)
+console.log('PASS: waveform shows fade and cutoff, including the final loop')

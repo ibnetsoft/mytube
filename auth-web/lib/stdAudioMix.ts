@@ -50,3 +50,14 @@ export function backgroundEnvelope(time: number, window: ReturnType<typeof backg
     return Math.min(1, window.fadeIn > 0 ? (time - window.start) / window.fadeIn : 1,
         window.fadeOut > 0 ? (window.end - time) / window.fadeOut : 1)
 }
+
+// Draw the audible envelope, not just the unmodified file. For loops, display
+// the current pass so the last pass shows the fade toward the selected end.
+export function backgroundWaveformPeaks(peaks: number[], duration: number, window: ReturnType<typeof backgroundWindow>, time: number, loop: boolean) {
+    if (!(duration > 0) || !Number.isFinite(duration)) return []
+    const range = backgroundPlaybackWindow(window, duration, loop)
+    const elapsed = Math.max(0, Math.min(time, range.end - 0.000001) - range.start)
+    const cycleStart = loop ? Math.floor(elapsed / duration) * duration : 0
+    return peaks.map((peak, index) => peak * backgroundEnvelope(
+        range.start + cycleStart + index / Math.max(1, peaks.length - 1) * duration, range))
+}

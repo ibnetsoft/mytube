@@ -20,11 +20,12 @@ wav.writeUInt16LE(2, 32);
 wav.writeUInt16LE(16, 34);
 wav.write('data', 36);
 wav.writeUInt32LE(wav.length - 44, 40);
-const narration = Buffer.from(wav.subarray(0, 44 + 8000 * 8 * 2));
+let narration = Buffer.from(wav.subarray(0, 44 + 8000 * 8 * 2));
 narration.writeUInt32LE(narration.length - 8, 4);
 narration.writeUInt32LE(narration.length - 44, 40);
+for(let i=0;i<8000*30;i++) wav.writeInt16LE(Math.round(16000*Math.sin(2*Math.PI*440*i/8000)),44+i*2);
 (async () => {
-    const browser = await chromium.launch({ channel: 'chrome', headless: true });
+    const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--mute-audio'] });
     const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -144,6 +145,47 @@ narration.writeUInt32LE(narration.length - 44, 40);
         await page.getByRole('combobox',{name:'배경음 시작 씬',exact:true}).selectOption('0');
         await expect(cue).toBeDisabled();
         console.log('PASS: start subtitle choices/save/reload, silence before cue, actual next-scene continuity and scene-change reset');
+        // Screenshot regression: 30-second music, a 27.3-second selected window,
+        // fade-in 3s / fade-out 9.5s, with a 3.4-second final scene.
+        subs.splice(0,subs.length,...[
+            {id:'fade-a',scene_number:100,text:'第一。',start_num:0,end_num:1},
+            {id:'fade-b',scene_number:100,text:'第二。',start_num:1,end_num:2.7},
+            {id:'fade-c',scene_number:100,text:'音楽開始。',start_num:2.7,end_num:20.5},
+            {id:'fade-d',scene_number:100,text:'静かに。',start_num:20.5,end_num:26.6},
+            {id:'fade-e',scene_number:101,text:'最後の場面。',start_num:26.6,end_num:30},
+        ].map(row=>({...row,start_time:row.start_num,end_time:row.end_num,voice_id:'fixture-voice',translation_manual:true})));
+        scenes[0]={...scenes[0],end_seconds:26.6,duration_seconds:26.6};
+        scenes[1]={...scenes[1],start_seconds:26.6,end_seconds:30,duration_seconds:3.4};
+        Object.assign(project.project_payload.render_settings,{bgm_start_scene:100,bgm_start_subtitle:3,bgm_end_scene:101,bgm_fade_in:3,bgm_fade_out:9.5,bgm_loop:false});
+        narration=Buffer.from(wav);
+        assets[assets.length-1].metadata.subtitle_timeline=subs.map(row=>({text:row.text,start:row.start_num,end:row.end_num,voice_id:row.voice_id}));
+        await page.reload();
+        await page.getByRole('button',{name:'배경음/효과음',exact:true}).click();
+        await expect(input).toHaveValue('9.5');
+        await page.waitForFunction(()=>Number.isFinite(document.querySelector('.std-subtitle-preview audio')?.duration));
+        await music.evaluate(a=>{
+            window.bgmFadeSamples=[];
+            a.addEventListener('volumechange',()=>window.bgmFadeSamples.push({
+                time:a.currentTime+2.7,
+                offset:a.currentTime,volume:a.volume,
+            }));
+        });
+        await panel.getByTitle('현재 자막부터 연속 미리듣기',{exact:true}).click();
+        await expect(page.getByLabel('페이드 아웃 구간',{exact:true})).toContainText('00:20.5 → 00:30.0 (9.5초)');
+        const heights=await page.getByRole('img',{name:/배경음 길이/}).locator('g').first().locator('rect').evaluateAll(rows=>rows.map(row=>Number(row.getAttribute('height'))));
+        assert(heights[110]<heights[80] && heights[130]<heights[110] && heights[140]<heights[130],'displayed waveform must taper throughout the fade');
+        assert.equal(heights[155],1,'unplayed tail is silent');
+        await expect.poll(()=>music.evaluate(a=>a.currentTime),{timeout:40000,intervals:[500]}).toBeGreaterThan(27.1);
+        const samples=await page.evaluate(()=>window.bgmFadeSamples);
+        for (const secondsLeft of [9,7,5,3,1,.2]) {
+            const sample=samples.find(row=>row.time>=30-secondsLeft && row.time<30-secondsLeft+.3);
+            assert(sample,`missing real playback sample with ${secondsLeft}s left`);
+            assert(Math.abs(sample.volume-.4*(30-sample.time)/9.5)<.006,JSON.stringify(sample));
+            console.log('MEASURED fade',secondsLeft,'seconds left:',sample);
+        }
+        const tail=samples.filter(row=>row.time>=20.5);
+        for(let i=1;i<tail.length;i++) assert(tail[i].volume<=tail[i-1].volume+.001,'no gain reset at subtitle or scene boundaries');
+        console.log('PASS: 9.5s fade decreases throughout playback, through the 3.4s final scene');
         assert.deepEqual(errors, []);
         console.log('PASS: edit, save, reload, one-shot fade, looping fade and live setting change');
     }
