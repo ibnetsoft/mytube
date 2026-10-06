@@ -5071,8 +5071,7 @@ export default function StdPortalPage() {
         const project = await saveSubtitleProject(selectedProject.project.id, {
             render_settings_scope: 'audio',
             progress_payload: { bgm_sfx_saved: true },
-            project_payload: { render_settings: nextRenderSettings, bgm_sfx_saved: true,
-                ...(nextSubtitles ? { subtitles: nextSubtitles } : {}) },
+            project_payload: { render_settings: nextRenderSettings, bgm_sfx_saved: true },
         }, authedJsonHeaders)
         setSelectedProject(prev => {
             if (!prev || prev.project.id !== project.id) return prev
