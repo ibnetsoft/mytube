@@ -769,6 +769,7 @@ export default function StdPortalPage() {
     const renderSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
     const [message, setMessageRaw] = useState('')
+    const [imageDownloadStatus, setImageDownloadStatus] = useState('')
     const setMessage = (msg: string | ((prev: string) => string)) => {
         if (typeof msg === 'string') {
             if (legacyStorageErrorPattern.test(msg)) {
@@ -2346,7 +2347,9 @@ export default function StdPortalPage() {
         const fileName = safeDownloadFileName(`std-${projectKey}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
         try {
             if (assetType === 'image' && sceneImageDownloadUrl) {
+                setImageDownloadStatus('이미지를 다운로드하는 중입니다…')
                 await downloadStdFile(sceneImageDownloadUrl, authedUploadHeaders, fileName, 'image')
+                setImageDownloadStatus(`${sceneNumber}번 씬 이미지 다운로드를 시작했습니다.`)
                 return true
             }
             const response = await fetch(url)
@@ -2363,7 +2366,7 @@ export default function StdPortalPage() {
             return true
         } catch (error: any) {
             if (assetType === 'image') {
-                setMessage(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+                setImageDownloadStatus(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
                 return false
             }
             const link = document.createElement('a')
@@ -2409,10 +2412,11 @@ export default function StdPortalPage() {
             const projectKey = String(selectedProject.project.id || 'project').slice(0, 8) || 'project'
             const fileName = safeDownloadFileName(`std-${projectKey}-images.zip`)
             try {
+                setImageDownloadStatus('이미지 ZIP 파일을 준비하는 중입니다…')
                 await downloadStdFile(zipUrl, authedUploadHeaders, fileName, 'zip')
-                setMessage(`이미지 ${imageScenes.length}개 ZIP 다운로드를 완료했습니다.`)
+                setImageDownloadStatus(`이미지 ${imageScenes.length}개 ZIP 다운로드를 시작했습니다.`)
             } catch (error: any) {
-                setMessage(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+                setImageDownloadStatus(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
             }
             return
         }
@@ -10576,6 +10580,11 @@ export default function StdPortalPage() {
                     )}
 
                     {/* [이미지 생성 탭] */}
+                    {currentNav === 'image_gen' && imageDownloadStatus && (
+                        <div role="status" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-xl border border-cyan-500/40 bg-[#10252d] px-4 py-3 text-sm text-cyan-100 shadow-lg">
+                            {imageDownloadStatus}
+                        </div>
+                    )}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
                             <StdCharacterReferences payload={selectedProject.project.project_payload} impersonateEmail={impersonateEmail} />
