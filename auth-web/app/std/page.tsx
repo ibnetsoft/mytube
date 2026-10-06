@@ -19,6 +19,7 @@ import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, r
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
+import { voiceDialogCopy, voiceDialogSpeakerName } from '@/lib/voiceDialogLocale'
 import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
@@ -820,6 +821,7 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const ui = (text: string) => stdUiText(currentLocale, text)
+    const voiceCopy = voiceDialogCopy(currentLocale)
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
     const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale)
         && (subtitleTranslationScope === 'all' || currentLocale === 'th' || currentLocale === 'ko') ? currentLocale : null
@@ -3143,7 +3145,11 @@ export default function StdPortalPage() {
         disabled = false,
         options: { description?: string; buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
     ) => {
-        const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
+        const currentVoiceName = voiceNameById.get(voiceId) || voiceId || voiceCopy.chooseVoice
+        const popupTitle = pickerKey === 'selected-scenes-bulk' ? voiceCopy.selectedScenesTitle(selectedSubtitleSceneNumbers.length)
+            : pickerKey === 'selected-blocks-bulk' ? voiceCopy.selectedBlocksTitle(selectedSubtitleBlockIndexes.length)
+            : pickerKey.startsWith('scene-') ? voiceCopy.sceneTitle(pickerKey.slice('scene-'.length))
+            : tone === 'dialogue' ? voiceCopy.dialogueTitle : voiceCopy.narrationTitle
         const isOpen = !disabled && openVoicePickerKey === pickerKey
         const closePicker = () => {
             setOpenVoicePickerKey('')
@@ -3189,11 +3195,11 @@ export default function StdPortalPage() {
                     locale={currentLocale} translations={speakerNameTranslations} projectId={selectedProject?.project?.id}
                     headers={authedJsonHeaders} onTranslations={rememberSpeakerNameTranslations}
                     onSave={(name, gender) => saveSubtitleSpeaker(speakerEditorIndex, name, gender)} onClose={() => setSpeakerEditorIndex(null)} />}
-                {isOpen && <UnifiedVoiceDialog historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email} value={voiceId} voices={allVoices}
+                {isOpen && <UnifiedVoiceDialog locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email} value={voiceId} voices={allVoices}
                     initialTab={options.elevenLabsOnly || tone === 'dialogue' ? 'elevenlabs' : 'google'}
-                    title={title.replace(/^ElevenLabs · /, '')} headers={authedJsonHeaders}
+                    title={popupTitle} headers={authedJsonHeaders}
                     speakerContext={options.speakerContext}
-                    description={options.description || (options.speakerContext?.name ? (options.speakerContext.thai ? 'เลือกเสียงให้ตัวละคร หรือยกเลิกการเลือกใช้กับทุกประโยคเพื่อเปลี่ยนเฉพาะบรรทัดนี้' : '인물별 성우를 선택합니다. 전체 적용을 해제하면 이 자막만 변경합니다.') : pickerKey.startsWith('block-') ? '이 자막 한 줄에만 적용합니다. 다른 자막의 성우는 유지됩니다.' : '선택한 대상의 성우를 변경합니다.')}
+                    description={options.description || (options.speakerContext?.name ? voiceCopy.characterScope : pickerKey.startsWith('block-') ? voiceCopy.lineScope : voiceCopy.targetScope)}
                     onApply={(id, _direction, allSpeaker) => onSelect(id, allSpeaker)} onClose={closePicker} />}
 
             </div>
@@ -8935,8 +8941,9 @@ export default function StdPortalPage() {
                                                 {currentLocale !== 'th' && (
                                                     <>
 
-                                                        <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
+                                                        <VoiceStudioPicker locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                             voices={allVoices}
+                                                            scope="dialogue"
                                                             value={dialogueVoiceId || (narrationVoiceId === 'gemini:Charon' ? 'gemini:Puck' : 'gemini:Charon')}
                                                             direction=""
                                                             headers={authedJsonHeaders}
@@ -9317,7 +9324,7 @@ export default function StdPortalPage() {
                                                     'default',
                                                     'left',
                                                     !hasSelectedSubtitleSections,
-                                                    { description: '선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다.' }
+                                                    { description: voiceCopy.sceneScope }
                                                 )}
                                                 {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
                                                 <div className="ml-0.5">
@@ -9630,12 +9637,12 @@ export default function StdPortalPage() {
                                                                                 {groupVoiceNames[0]}
                                                                             </span>
                                                                         )}
-                                                                        <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
+                                                                        <VoiceStudioPicker locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                                             voices={allVoices}
                                                                             microphone
                                                                             buttonText={ui("내레이션")}
                                                                             label={`씬 ${sNum} Google 내레이션 성우 선택`}
-                                                                            description="선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다."
+                                                                            description={voiceCopy.sceneScope}
                                                                             value={groupNarrationVoiceId}
                                                                             direction={groupNarrationSubtitle?.voice_direction || ''}
                                                                             headers={authedJsonHeaders}
@@ -9648,6 +9655,7 @@ export default function StdPortalPage() {
                                                                 <div className="space-y-0.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const speakerInfo = subtitleSpeakers[item.subtitleIndex]
+                                                                        const speakerDisplayName = voiceDialogSpeakerName(speakerInfo, currentLocale)
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
                                                                         const isDialogueBlock = typeof item.dialogue_override === 'boolean'
@@ -9724,7 +9732,7 @@ export default function StdPortalPage() {
                                                                                                 isDialogueBlock ? 'dialogue' : 'default',
                                                                                                 'left',
                                                                                                 false,
-                                                                                                { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerInfo?.label || '', gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
+                                                                                                { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerDisplayName, gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
                                                                                             )}
                                                                                             <SubtitleVolumePicker
                                                                                                 volume={item.volume ?? (item.volume_ratio != null ? Math.round(item.volume_ratio * 100) : 100)}
@@ -9847,7 +9855,7 @@ export default function StdPortalPage() {
                                                                 (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
                                                                 `씬 ${sNum} 나레이션 성우`,
                                                                 'default', 'right', false,
-                                                                { description: '선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다.' }
+                                                                { description: voiceCopy.sceneScope }
                                                             )}
                                                         </div>
                                                     </div>
