@@ -22,3 +22,21 @@ assert.deepEqual(saved,{subtitle_font_family:'Malgun Gothic',...settings})
 const kept = save({render_settings:{bgm_start_scene:0,subtitle_font_family:'Other'}},{render_settings_scope:'subtitle'},{project_payload:{render_settings:settings}})
 assert.equal(kept.bgm_start_scene,2)
 console.log('PASS: audio save persists range and fades; subtitle save preserves BGM range')
+
+const selected = api.backgroundWindow({bgm_start_scene:100,bgm_end_scene:101,bgm_fade_in:4,bgm_fade_out:4},
+    [{scene_number:100,start_num:793.8,end_num:823.7},{scene_number:101,start_num:823.7,end_num:827.1}],827.1)
+const once = api.backgroundPlaybackWindow(selected,30,false)
+assert.equal(once.end,823.8)
+for (const [time,gain] of [[819.8,1],[821.8,.5],[823.3,.125],[823.8,0],[827,0]]) {
+    assert.ok(Math.abs(api.backgroundEnvelope(time,once)-gain)<1e-9, `one-shot gain at ${time}`)
+}
+assert.equal(selected.end,827.1,'playback must not change the saved scene range')
+assert.deepEqual(api.backgroundPlaybackWindow(selected,30,true),selected,'looping track uses scene end')
+assert.deepEqual(api.backgroundPlaybackWindow(selected,60,false),selected,'longer track uses scene end')
+for (const unknown of [0,NaN,Infinity]) assert.deepEqual(api.backgroundPlaybackWindow(selected,unknown,false),selected)
+const tiny = api.backgroundPlaybackWindow(selected,2,false)
+assert.equal(tiny.fadeIn,1); assert.equal(tiny.fadeOut,1)
+const noFade = api.backgroundPlaybackWindow({...selected,fadeIn:0,fadeOut:0},30,false)
+assert.equal(api.backgroundEnvelope(823.79,noFade),1)
+assert.equal(api.backgroundEnvelope(823.8,noFade),0)
+console.log('PASS: one-shot fades at source end; loops, longer tracks, unknown metadata, short tracks and zero fades')

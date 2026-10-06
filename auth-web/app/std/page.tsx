@@ -8,7 +8,7 @@ import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import { stdUiText } from '@/lib/stdUiText'
-import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
+import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
@@ -3450,24 +3450,29 @@ export default function StdPortalPage() {
         if (reset) audio.currentTime = 0
     }
 
+    const updatePreviewBgmVolume = (audio: HTMLAudioElement, timelineTime: number) => {
+        const range = backgroundPlaybackWindow(bgmRangeRef.current, audio.duration, bgmLoop)
+        audio.volume = backgroundVolume(bgmVolume) * backgroundEnvelope(timelineTime, range)
+    }
+
     const playPreviewBgm = (timelineTime: number) => {
         const audio = previewBgmAudioRef.current
         if (!audio) return
         const range = bgmRangeRef.current
         if (!range.valid || timelineTime < range.start || timelineTime >= range.end) { audio.pause(); return }
-        audio.volume = backgroundVolume(bgmVolume) * backgroundEnvelope(timelineTime, range)
-        timelineTime = Math.max(0, timelineTime - range.start)
+        const offset = Math.max(0, timelineTime - range.start)
         audio.loop = bgmLoop
 
         const seekAndPlay = () => {
+            updatePreviewBgmVolume(audio, timelineTime)
             const duration = Number(audio.duration)
             if (Number.isFinite(duration) && duration > 0) {
-                if (!bgmLoop && timelineTime >= duration) {
+                if (!bgmLoop && offset >= duration) {
                     audio.pause()
                     audio.currentTime = duration
                     return
                 }
-                audio.currentTime = bgmLoop ? Math.max(0, timelineTime) % duration : Math.max(0, timelineTime)
+                audio.currentTime = bgmLoop ? offset % duration : offset
             }
             void audio.play().catch(error => {
                 console.warn('[STD preview] BGM playback failed:', error)
@@ -7262,7 +7267,7 @@ export default function StdPortalPage() {
         const audio = previewBgmAudioRef.current
         if (!audio) return
         audio.loop = bgmLoop
-        audio.volume = backgroundVolume(bgmVolume) * backgroundEnvelope(playbackTime, bgmRangeRef.current)
+        updatePreviewBgmVolume(audio, playbackTime)
         if (isNarrationPlaying) {
             if (audio.paused) playPreviewBgm(playbackTime)
         } else audio.pause()
@@ -9874,6 +9879,8 @@ export default function StdPortalPage() {
                                             <audio
                                                 ref={previewBgmAudioRef}
                                                 src={previewBgmUrl || undefined}
+                                                onLoadedMetadata={event => updatePreviewBgmVolume(event.currentTarget, playbackTime)}
+                                                onDurationChange={event => updatePreviewBgmVolume(event.currentTarget, playbackTime)}
                                                 preload="auto"
                                                 loop={bgmLoop}
                                                 className="hidden"
