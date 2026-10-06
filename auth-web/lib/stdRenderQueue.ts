@@ -867,6 +867,9 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         })
     }
 
+    if ((project.project_payload?.subtitles || []).some((subtitle: any) => subtitle.restored_audio_pending)) {
+        throw new Error('복구된 씬의 음성이 아직 없습니다. 음성 복구와 타이밍 확인 후 렌더링해 주세요.')
+    }
     const savedSfxCues = Array.isArray(projectRenderSettings.sfx_cues)
         ? projectRenderSettings.sfx_cues
         : (Array.isArray(project.project_payload?.sfx_cues) ? project.project_payload.sfx_cues : [])

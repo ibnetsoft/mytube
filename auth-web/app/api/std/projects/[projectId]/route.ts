@@ -404,6 +404,11 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     const incomingProgress = body?.progress_payload || {}
     const incomingProjectPayload = body?.project_payload || {}
+    const protectedScenes = project.project_payload?.subtitle_recovery?.protected_scene_numbers || []
+    if (Array.isArray(incomingProjectPayload.subtitles) && protectedScenes.some((scene: number) =>
+        !incomingProjectPayload.subtitles.some((subtitle: any) => Number(subtitle.scene_number) === Number(scene)))) {
+        return NextResponse.json({ success: false, error: '복구된 씬이 빠진 이전 자막입니다. 새로고침 후 저장해 주세요.' }, { status: 409 })
+    }
     if (incomingProjectPayload.thumbnail_design || incomingProgress.thumbnail_completed === true) {
         const thumbnailError = editableThumbnailError(
             incomingProjectPayload.thumbnail_design || project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,

@@ -9388,7 +9388,9 @@ export default function StdPortalPage() {
                                                 const motionEffect = sceneMotion(sceneRecord)
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : undefined)
-                                                const segmentStatusLabel = segmentStatus === 'ready'
+                                                const segmentStatusLabel = group.subtitles.some((item: any) => item.restored_audio_pending)
+                                                    ? '음성 복구 필요'
+                                                    : segmentStatus === 'ready'
                                                     ? ui("음성 준비됨")
                                                     : segmentStatus === 'generating'
                                                     ? ui("생성 중")
