@@ -9640,7 +9640,6 @@ export default function StdPortalPage() {
                                                                                             lang={subtitleReviewLocale}
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
-                                                                                            <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
                                                                                             {localizedTranslation || (item.translation_manual ? (
                                                                                                 <span className="inline-flex items-center gap-1.5">
                                                                                                     <span>{subtitleReviewLocale === 'th' ? 'แปล' : subtitleReviewLocale === 'vi' ? 'Dịch' : 'Translate'}</span>
