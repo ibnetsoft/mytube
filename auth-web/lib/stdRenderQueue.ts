@@ -1,8 +1,11 @@
+import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
+import { reviewedAeMouthAssets } from './stdAeMouth'
 import { comicSettingsForProject, isComicProject, selectComicMedia, comicSceneTimings } from './stdComic'
 import { subtitleGain } from './stdSpeechGain'
 import { resolveSfxCues } from '@/lib/stdSfxCues'
 import { audioAssetRole, backgroundWindow } from './stdAudioMix'
 import { sceneMotion, sceneMotionSpeed } from './stdSceneMotion'
+import { templateOverlayPng } from './stdTemplateOverlayPng'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredClipScene, isStdRequiredVideoScene } from './stdPolicy'
@@ -767,6 +770,8 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
 }
 
 async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
+    const lipAssets = new Map([...reviewedLipSyncAssets(project, scenes, assets), ...reviewedAeMouthAssets(project, scenes, assets)])
+    const recordedTiming = lipSyncEnabled(project) || Boolean(project.project_payload?.ae_mouth?.enabled)
     const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const audioAsset = activeAssets.find(isAudioAsset)
@@ -776,6 +781,17 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
     }
 
     const manifestFiles: any[] = []
+    const templateSettings = { ...project.project_payload?.settings, ...project.project_payload?.render_settings }
+    const overlayPng = await templateOverlayPng(templateSettings)
+    let templateOverlayFilename: string | null = null
+    if (overlayPng) {
+        templateOverlayFilename = 'std_template_overlay.png'
+        const overlayPath = `std-projects/${project.id}/template-overlays/${randomUUID()}.png`
+        await uploadGcsBuffer({ objectPath: overlayPath, data: overlayPng, contentType: 'image/png' })
+        manifestFiles.push({ asset_type: 'template_overlay', path: `overlays/${templateOverlayFilename}`,
+            file_name: templateOverlayFilename, mime_type: 'image/png', size: overlayPng.length,
+            ...(await storageManifestFields({ provider: 'gcs', bucket: gcsBucketName(), path: overlayPath })) })
+    }
     const audioExt = mediaExtension(audioAsset.file_name, audioAsset.mime_type, '.mp3')
     const audioFilename = `audio_${pseudoProjectId}${audioExt}`
     const audioStorage = storageSourceForAsset(audioAsset)
@@ -801,7 +817,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         )
         const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
         if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
-        const asset = selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
+        const asset = lipAssets.get(sceneNumber) || selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
@@ -821,10 +837,10 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
     }
 
     const subtitles = buildRenderSubtitles(project, scenes)
-    const imageTimingStarts = isComicProject(project)
+    const imageTimingStarts = recordedTiming ? lipSyncSceneStarts(project, scenes, audioAsset) : isComicProject(project)
         ? comicSceneTimings(scenes, subtitles).map(scene => scene.start)
         : buildSceneTimingStarts(scenes, subtitles)
-    const workerTts = buildWorkerTtsPlan(project, subtitles)
+    const workerTts = recordedTiming ? null : buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -969,20 +985,22 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         aspect_ratio: '16:9',
         speech_gain_version: 1,
         audio_filename: audioFilename,
-        audio_duration: project.progress_payload?.audio_duration || null,
+        audio_duration: recordedTiming
+            ? Number(audioAsset.metadata.subtitle_timeline[audioAsset.metadata.subtitle_timeline.length - 1].end)
+            : project.progress_payload?.audio_duration || null,
         images,
         subtitles,
         worker_tts: workerTts,
         subtitle_sync_mode: 'preserve_subtitle_timings',
-        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed) },
+        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed), timing_locked_indices: scenes.flatMap((s: any, i: number) => lipAssets.has(Number(s.scene_number)) ? [i] : []) },
         image_timing_starts: imageTimingStarts,
         scene_numbers: scenes.map((scene: any) => Number(scene.scene_number)),
         image_effects: scenes.map(sceneMotion),
-        transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
+        transition_effects: scenes.map((scene: any, i: number) => lipAssets.has(Number(scene.scene_number)) || (i > 0 && lipAssets.has(Number(scenes[i - 1].scene_number))) ? 'none' : String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),
         bg_video_url: null,
         intro_filename: null,
-        template_overlay_filename: null,
+        template_overlay_filename: templateOverlayFilename,
         content_aspect_ratio: null,
         ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
@@ -1020,6 +1038,8 @@ export async function enqueueStdProjectRender(projectId: string) {
     const renderVersion = nextStdRenderVersion(renderHistory)
     const previousRender = renderHistory[0] || null
 
+    reviewedLipSyncAssets(project, scenes, assets)
+    reviewedAeMouthAssets(project, scenes, assets)
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
     const taskId = randomUUID()
 

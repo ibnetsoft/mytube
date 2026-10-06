@@ -9,7 +9,7 @@ const GLOBAL_SETTINGS_CACHE_TTL_SECONDS = 300
 
 const KEYS = [
     'gemini', 'openai', 'youtube', 'youtube_keys', 'claude', 'elevenlabs', 'elevenlabs_keys', 'topview', 'topview_uid',
-    'suno', 'suno_base_url', 'music_provider',
+    'hedra', 'suno', 'suno_base_url', 'music_provider',
     'google_drive_client_id', 'google_drive_client_secret', 'google_drive_refresh_token', 'google_drive_root_folder_id',
     'gcs_bucket_name', 'gcs_project_id', 'gcs_client_email', 'gcs_private_key',
     'music_gemini_model', 'music_gemini_base_url', 'music_gemini_project_id', 'music_gemini_location',
@@ -64,6 +64,7 @@ const SECRET_KEYS = new Set([
     'elevenlabs',
     'elevenlabs_keys',
     'topview',
+    'hedra',
     'suno',
     'google_drive_client_secret',
     'google_drive_refresh_token',

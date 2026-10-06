@@ -29,7 +29,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         return NextResponse.json({ success: false, error: 'Invalid character slot' }, { status: 400 })
     }
 
-    let query = supabaseAdmin.from('std_projects').select('project_payload').eq('id', params.projectId)
+    let query = supabaseAdmin.from('std_projects').select('project_payload, topic_queue_id').eq('id', params.projectId)
     if (auth.requester.email && !auth.requester.email.startsWith('admin') && !auth.requester.email.startsWith('worker')) {
         query = query.eq('employee_email', auth.requester.email)
     }
@@ -42,8 +42,20 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         return NextResponse.json({ success: false, error: 'Invalid character slot' }, { status: 400 })
     }
     const character = characters[slot]
-    const imageUrl = character?.image_url
-    const gcsObject = gcsCharacterObjectFromUrl(imageUrl, requestUrl.origin)
+    let imageUrl = character?.image_url
+    let gcsObject = gcsCharacterObjectFromUrl(imageUrl, requestUrl.origin)
+    // A saved client payload can contain our display proxy instead of the
+    // original image. Resolve it from this authorized project's registry.
+    if (!gcsObject && !transformedSupabaseUrl(imageUrl) && project.topic_queue_id) {
+        let referenceQuery = supabaseAdmin.from('topic_character_assets')
+            .select('image_url').eq('topic_queue_id', project.topic_queue_id)
+        if (character?.character_key) referenceQuery = referenceQuery.eq('character_key', character.character_key)
+        else if (character?.name) referenceQuery = referenceQuery.eq('name', character.name)
+        else return new NextResponse(null, { status: 404 })
+        const { data: reference } = await referenceQuery.order('created_at', { ascending: false }).limit(1).maybeSingle()
+        imageUrl = reference?.image_url
+        gcsObject = gcsCharacterObjectFromUrl(imageUrl, requestUrl.origin)
+    }
     const headers = {
         'Cache-Control': 'private, max-age=86400, stale-while-revalidate=604800',
         'Content-Disposition': 'inline',

@@ -23,6 +23,7 @@ import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
 import StdTemplateOverlay from '@/components/StdTemplateOverlay'
+import { templateOverlaySettings } from '@/lib/stdTemplateOverlay'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, confirmSubtitleSpeaker, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -4707,20 +4708,13 @@ export default function StdPortalPage() {
         const savedTemplateShapeLayers = Array.isArray(renderSettings.std_template_shape_layers) ? renderSettings.std_template_shape_layers : []
         if (renderSettings.std_image_template_enabled || savedTemplateTextLayers.length > 0 || savedTemplateShapeLayers.length > 0) {
             setSelectedImageTemplatePreset(String(renderSettings.std_image_template_preset_id || 'saved-template'))
-            setTemplateBgUrl(String(renderSettings.std_image_template_bg_url || ''))
-            setTemplateBgColor(String(renderSettings.std_image_template_bg_color || '#000000'))
-            if (savedTemplateTextLayers.length > 0) {
-                setTextLayers(savedTemplateTextLayers.map((layer: any, index: number) => ({
-                    ...layer,
-                    id: layer.id || `saved-template-layer-${index}`,
-                })))
-            }
-            if (savedTemplateShapeLayers.length > 0) {
-                setShapeLayers(savedTemplateShapeLayers.map((shape: any, index: number) => ({
-                    ...shape,
-                    id: shape.id || `saved-template-shape-${index}`,
-                })))
-            }
+            setTemplateBgUrl('')
+            setTemplateBgColor('transparent')
+            setTextLayers(savedTemplateTextLayers.map((layer: any, index: number) => ({
+                ...layer,
+                id: layer.id || `saved-template-layer-${index}`,
+            })))
+            setShapeLayers([])
         } else {
             setSelectedImageTemplatePreset('')
             setTemplateBgUrl('')
@@ -5293,16 +5287,13 @@ export default function StdPortalPage() {
         if (!presetId) return
         const preset = templatePresets.find(p => p.id === presetId)
         if (!preset?.settings) return
-        setTemplateBgUrl(preset.settings.bgUrl || '')
-        setTemplateBgColor(preset.settings.bgColor || '#000000')
+        setTemplateBgUrl('')
+        setTemplateBgColor('transparent')
         setTextLayers((preset.settings.textLayers || []).map((layer: any, index: number) => ({
             ...layer,
             id: layer.id || `subtitle-template-layer-${Date.now()}-${index}`,
         })))
-        setShapeLayers((preset.settings.shapeLayers || []).map((shape: any, index: number) => ({
-            ...shape,
-            id: shape.id || `subtitle-template-shape-${Date.now()}-${index}`,
-        })))
+        setShapeLayers([])
         setMessage("'" + preset.name + "' 이미지 템플릿이 미리보기에 적용되었습니다.")
     }
 
@@ -5338,10 +5329,10 @@ export default function StdPortalPage() {
             subtitle_pos_y: nextSubPosY,
             std_image_template_enabled: Boolean(selectedImageTemplatePreset),
             std_image_template_preset_id: selectedImageTemplatePreset || null,
-            std_image_template_bg_url: templateBgUrl || null,
-            std_image_template_bg_color: templateBgColor || '#000000',
+            std_image_template_bg_url: null,
+            std_image_template_bg_color: 'transparent',
             std_template_text_layers: selectedImageTemplatePreset ? textLayers : [],
-            std_template_shape_layers: selectedImageTemplatePreset ? shapeLayers : [],
+            std_template_shape_layers: [],
         }
     }
 
@@ -5413,10 +5404,18 @@ export default function StdPortalPage() {
     const handleSaveSubtitles = async (showSuccessAlert: boolean = true) => {
         if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
         subtitleStyleSaveTimerRef.current = null
-        const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || [])
+        const renderSettings = await templateOverlaySettings({ ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() })
+        const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || []).map((subtitle: any, index: number) => (
+            typeof isSubtitleDialogue === 'function' ? {
+                ...subtitle,
+                dialogue_kind: isSubtitleDialogue(subtitle, index) ? 'dialogue' : 'narration',
+                dialogue_speaker: isSubtitleDialogue(subtitle, index)
+                    ? subtitle.dialogue_speaker || subtitle.editor_speaker?.name || subtitleSpeakers[index]?.name || subtitle.voice_id : null,
+            } : subtitle
+        ))
         await persistVrewVoiceSubtitles(subtitlesForStorage, {
             strict: true,
-            renderSettings: { ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() },
+            renderSettings,
         })
         if (showSuccessAlert) setMessage(currentLocale === 'th' ? 'บันทึกคำบรรยายแล้ว' : '자막 변경 내용을 저장했습니다.')
         return true
@@ -6184,7 +6183,7 @@ export default function StdPortalPage() {
             alert(`모든 단계가 초록불(완료)이어야 제출할 수 있습니다.\n미완료 항목: ${missingList.join(', ')}`)
             return
         }
-        if (!confirm('모든 단계가 정상 완료되었습니다. 에셋 검증 및 원격 렌더 큐 제출을 진행하시겠습니까?')) return
+        if (!confirm('제출을 진행하시겠습니까? 19씬 이후 대사 장면은 AE 입모양 지침과 결과를 검수한 뒤 최종 렌더링됩니다.')) return
         setLoading(true)
         setSubmittingProjectId(String(targetProject.project.id))
         setMessage('제출 준비 중입니다. 생성 이미지를 GCS API 저장소 기준으로 확인하고 렌더 큐에 등록합니다...')
@@ -6199,6 +6198,11 @@ export default function StdPortalPage() {
                     ? ` (누락 씬: ${payload.missing_scene_numbers.join(', ')}번)`
                     : ''
                 throw new Error((payload.error || '제출 실패') + missing)
+            }
+            if (payload.postprocess_pending) {
+                setMessage(payload.message || 'AE 입모양 후작업을 요청했습니다. 자막 페이지에서 결과를 확인해 주세요.')
+                await openProject(String(targetProject.project.id))
+                return
             }
             const submitMessage = payload.already_submitted
                 ? '✅ 이 프로젝트는 이미 원격 렌더 큐에 등록되어 있습니다.'
@@ -6238,6 +6242,7 @@ export default function StdPortalPage() {
         setSubmittingProjectId(projectId)
         setMessage('완료 목록 위치를 유지한 채 새 렌더 버전을 큐에 등록하고 있습니다...')
         try {
+            if (selectedProject?.project?.id === projectId) await handleSaveSubtitles(false)
             const res = await fetch(`/api/std/projects/${projectId}/reopen`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
@@ -9835,9 +9840,7 @@ export default function StdPortalPage() {
 
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden [container-type:inline-size]"
-                                            style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
-                                                ? { backgroundColor: templateBgColor || '#000000' }
-                                                : undefined}
+                                            style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
                                         >
                                             {currentSubVideoUrl ? (
                                                 <video
@@ -9866,12 +9869,6 @@ export default function StdPortalPage() {
                                                     decoding="async"
                                                     fetchPriority="high"
                                                     style={previewImageMotionStyle}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : selectedImageTemplatePreset && templateBgUrl ? (
-                                                <img
-                                                    src={templateBgUrl}
-                                                    alt="Template Preview"
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
@@ -10242,6 +10239,7 @@ export default function StdPortalPage() {
                                             </div>
                                         )}
                                     </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -10510,7 +10508,7 @@ export default function StdPortalPage() {
                     {/* [이미지 생성 탭] */}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
-                            <StdCharacterReferences payload={selectedProject.project.project_payload} />
+                            <StdCharacterReferences payload={selectedProject.project.project_payload} impersonateEmail={impersonateEmail} />
 
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">
