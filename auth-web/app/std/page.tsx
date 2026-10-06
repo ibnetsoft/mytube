@@ -8,6 +8,7 @@ import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import { stdUiText } from '@/lib/stdUiText'
+import { downloadStdFile } from '@/lib/stdFileDownload'
 import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
@@ -2345,13 +2346,7 @@ export default function StdPortalPage() {
         const fileName = safeDownloadFileName(`std-${projectKey}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
         try {
             if (assetType === 'image' && sceneImageDownloadUrl) {
-                const link = document.createElement('a')
-                link.href = sceneImageDownloadUrl
-                link.download = fileName
-                link.rel = 'noopener'
-                document.body.appendChild(link)
-                link.click()
-                link.remove()
+                await downloadStdFile(sceneImageDownloadUrl, authedUploadHeaders, fileName, 'image')
                 return true
             }
             const response = await fetch(url)
@@ -2366,7 +2361,11 @@ export default function StdPortalPage() {
             link.remove()
             setTimeout(() => URL.revokeObjectURL(blobUrl), 1500)
             return true
-        } catch {
+        } catch (error: any) {
+            if (assetType === 'image') {
+                setMessage(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+                return false
+            }
             const link = document.createElement('a')
             link.href = url
             link.download = fileName
@@ -2409,14 +2408,12 @@ export default function StdPortalPage() {
             const zipUrl = getSceneImagesZipDownloadUrl(imageScenes)
             const projectKey = String(selectedProject.project.id || 'project').slice(0, 8) || 'project'
             const fileName = safeDownloadFileName(`std-${projectKey}-images.zip`)
-            const link = document.createElement('a')
-            link.href = zipUrl
-            link.download = fileName
-            link.rel = 'noopener'
-            document.body.appendChild(link)
-            link.click()
-            link.remove()
-            setMessage(`이미지 ${imageScenes.length}개 ZIP 다운로드를 시작했습니다.`)
+            try {
+                await downloadStdFile(zipUrl, authedUploadHeaders, fileName, 'zip')
+                setMessage(`이미지 ${imageScenes.length}개 ZIP 다운로드를 완료했습니다.`)
+            } catch (error: any) {
+                setMessage(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+            }
             return
         }
         setMessage(`이미지 ${imageScenes.length}개 다운로드를 시작합니다...`)
@@ -10846,11 +10843,8 @@ export default function StdPortalPage() {
                                                                 href={getSceneImageDownloadUrl(scene) || scene.image_url}
                                                                 download={safeDownloadFileName(`std-${String(selectedProject?.project?.id || 'project').slice(0, 8) || 'project'}-scene-${String(sceneNum).padStart(3, '0')}.png`)}
                                                                 onClick={event => {
-                                                                    const href = getSceneImageDownloadUrl(scene) || scene.image_url
-                                                                    if (!href) {
-                                                                        event.preventDefault()
-                                                                        void downloadSceneMedia(scene, 'image')
-                                                                    }
+                                                                    event.preventDefault()
+                                                                    void downloadSceneMedia(scene, 'image')
                                                                 }}
                                                                 className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-black/70 hover:bg-black/90 text-white text-[10px] font-bold border border-white/20 transition-all"
                                                             >

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
+import { readSceneImage } from '@/lib/stdSceneImageDownload'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -19,18 +21,6 @@ function safeAsciiFilename(value: string, fallback = 'scene-images') {
 function contentDisposition(filename: string) {
     const fallback = safeAsciiFilename(filename, 'scene-images.zip')
     return `attachment; filename="${fallback}"`
-}
-
-function extractImageUrl(scene: any, payloadScene: any) {
-    return String(
-        scene?.image_url
-        || scene?.image
-        || scene?.metadata?.image_url
-        || scene?.metadata?.image
-        || payloadScene?.image_url
-        || payloadScene?.image
-        || ''
-    ).trim()
 }
 
 function crc32(data: Uint8Array) {
@@ -184,22 +174,17 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         const payloadScene = payloadScenes.find((item: any, index: number) =>
             Number(item?.scene_number || item?.scene_order || index + 1) === sceneNumber
         )
-        const imageUrl = extractImageUrl(scene, payloadScene)
-        if (!imageUrl) continue
-        let response: Response
+        if (!sceneImageUrl(scene) && !sceneImageUrl(payloadScene)) continue
         try {
-            response = await fetch(imageUrl)
-        } catch {
-            continue
+            const image = await readSceneImage(req, scene, payloadScene)
+            files.push({
+                name: `scene-${String(sceneNumber).padStart(3, '0')}.${image.extension}`,
+                data: new Uint8Array(image.buffer),
+            })
+        } catch (error: any) {
+            // Never report success with an incomplete archive.
+            return NextResponse.json({ success: false, error: `Scene ${sceneNumber}: ${error?.message || 'Image download failed'}` }, { status: 502 })
         }
-        if (!response.ok) continue
-        const bytes = new Uint8Array(await response.arrayBuffer())
-        const contentType = response.headers.get('content-type') || 'image/png'
-        const ext = contentType.includes('webp') ? 'webp' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png'
-        files.push({
-            name: `scene-${String(sceneNumber).padStart(3, '0')}.${ext}`,
-            data: bytes,
-        })
     }
 
     if (!files.length) {
@@ -214,7 +199,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         headers: {
             'Content-Type': 'application/zip',
             'Content-Length': String(zip.byteLength),
-            'Cache-Control': 'private, max-age=300',
+            'Cache-Control': 'private, no-store',
+            'X-Content-Type-Options': 'nosniff',
             'Content-Disposition': contentDisposition(filename),
         },
     })

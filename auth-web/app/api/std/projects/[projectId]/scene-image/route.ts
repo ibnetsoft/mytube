@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
+import { readSceneImage } from '@/lib/stdSceneImageDownload'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -19,18 +20,6 @@ function safeAsciiFilename(value: string) {
 function contentDisposition(filename: string) {
     const fallback = safeAsciiFilename(filename)
     return `attachment; filename="${fallback}"`
-}
-
-function extractImageUrl(scene: any, payloadScene: any) {
-    return String(
-        scene?.image_url
-        || scene?.image
-        || scene?.metadata?.image_url
-        || scene?.metadata?.image
-        || payloadScene?.image_url
-        || payloadScene?.image
-        || ''
-    ).trim()
 }
 
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
@@ -74,30 +63,22 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         Number(item?.scene_number || item?.scene_order || index + 1) === sceneNumber
     )
 
-    const imageUrl = extractImageUrl(scene, payloadScene)
-    if (!imageUrl) return NextResponse.json({ success: false, error: 'Scene image not found' }, { status: 404 })
-
-    let response: Response
+    let image: Awaited<ReturnType<typeof readSceneImage>>
     try {
-        response = await fetch(imageUrl)
+        image = await readSceneImage(req, scene, payloadScene)
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error?.message || 'Scene image fetch failed' }, { status: 502 })
     }
-    if (!response.ok) {
-        return NextResponse.json({ success: false, error: `Scene image fetch failed (${response.status})` }, { status: 502 })
-    }
-
-    const buffer = await response.arrayBuffer()
-    const contentType = response.headers.get('content-type') || 'image/png'
-    const ext = contentType.includes('webp') ? 'webp' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png'
+    const { buffer, contentType, extension: ext } = image
     const projectKey = String(project?.id || params.projectId).slice(0, 8) || 'project'
     const filename = `std-${projectKey}-scene-${String(sceneNumber).padStart(3, '0')}.${ext}`
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
         headers: {
             'Content-Type': contentType,
             'Content-Length': String(buffer.byteLength),
-            'Cache-Control': 'private, max-age=300',
+            'Cache-Control': 'private, no-store',
+            'X-Content-Type-Options': 'nosniff',
             'Content-Disposition': contentDisposition(filename),
         },
     })
