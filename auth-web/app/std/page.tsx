@@ -25,6 +25,8 @@ import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
 import StdTemplateOverlay from '@/components/StdTemplateOverlay'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, confirmSubtitleSpeaker, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
+import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
+import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
@@ -2920,18 +2922,7 @@ export default function StdPortalPage() {
     )
 
     const hasDistinctDialogueVoiceAssignment = () => {
-        const narrationVoiceIds = new Set(
-            localSubtitles
-                .filter((subtitle: any, index: number) => !isSubtitleDialogue(subtitle, index))
-                .map((subtitle: any) => String(subtitle?.voice_id || selectedVoice || '').trim())
-                .filter(Boolean)
-        )
-        const dialogueVoiceIds = localSubtitles
-            .filter((subtitle: any, index: number) => isSubtitleDialogue(subtitle, index))
-            .map((subtitle: any) => String(subtitle?.voice_id || '').trim())
-
-        return localSubtitles.length > 0
-            && dialogueVoiceIds.every(voiceId => Boolean(voiceId) && !narrationVoiceIds.has(voiceId))
+        return subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice).ready
     }
 
     const selectSubtitleBlock = (subtitleIndex: number, shiftKey: boolean) => {
@@ -9428,6 +9419,12 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 자막 카드 목록 */}
+                                    <StdTtsReadinessNotice subtitles={localSubtitles} busy={generatingTts} voices={voiceNameById}
+                                        readiness={subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice)}
+                                        onJump={index => {
+                                            selectSubtitleBlock(index, false)
+                                            requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                                        }} />
                                     <div className="flex flex-1 overflow-hidden">
                                         <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-1.5 sm:p-2 space-y-1.5 sm:space-y-2">
                                             {subtitleSceneGroups.map((group) => {
@@ -9630,6 +9627,7 @@ export default function StdPortalPage() {
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
+                                                                                data-subtitle-index={item.subtitleIndex}
                                                                                 onClick={event => {
                                                                                     if ((event.target as HTMLElement).closest('button,select,input,textarea,a,[role="dialog"]')) return
                                                                                     event.stopPropagation()
