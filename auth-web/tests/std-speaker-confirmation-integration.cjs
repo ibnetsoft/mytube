@@ -161,7 +161,7 @@ function backgroundHarness() {
     })
     const handleSaveSubtitles = extract('    const handleSaveSubtitles =', '    const openProject =', 'handleSaveSubtitles', {
         ...context, ...actions, matchSubtitlesToSceneVisuals: subtitles => subtitles,
-        subtitleRenderSettings: () => ({}),
+        subtitleRenderSettings: () => ({}), templateOverlaySettings: async settings => settings,
     })
     function respond(index, success) {
         const request = state.requests[index]

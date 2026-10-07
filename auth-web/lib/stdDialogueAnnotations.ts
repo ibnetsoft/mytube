@@ -3,6 +3,8 @@ import { isSubtitleClosingPunctuation, normalizeSubtitleFragments } from './stdS
 export type DialoguePart = { text: string; dialogue: boolean; speaker?: string }
 // Whitespace/quote removal is subtitle alignment only, never speech classification.
 const ignored = (char: string) => /[\s"'“”‘’「」『』]/u.test(char)
+const isDialogueSpan = (span: any) => span.status === 'confirmed' || span.status === 'uncertain'
+const spanSpeaker = (span: any): string | undefined => span.status === 'confirmed' && span.speaker ? String(span.speaker) : undefined
 const quotePairs: Record<string, string> = { '「': '」', '『': '』', '“': '”', '‘': '’' }
 
 function confirmedQuoteBoundaries(source: string[], spans: any[]) {
@@ -33,8 +35,8 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
         const displayed = rows.flatMap(({s}) => Array.from(String(s.text || '')).filter(c => !ignored(c))).join('')
         if (compact.map(c => c.char).join('') !== displayed) {
             // Fallback for edited or rearranged subtitles:
-            // Match against confirmed span texts and speakers to preserve dialogue highlights
-            const confirmedSpans = scene.spans.filter((s: any) => s.status === 'confirmed' && s.speaker && typeof s.text === 'string' && s.text.trim())
+            // Speaker uncertainty does not turn spoken text into narration.
+            const confirmedSpans = scene.spans.filter((s: any) => isDialogueSpan(s) && typeof s.text === 'string' && s.text.trim())
             if (!confirmedSpans.length) continue
 
             const cleanPunct = (t: string) => t.replace(/[\s\p{P}~]/gu, '')
@@ -57,7 +59,7 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
                 if (!matchedSpan) {
                     const subWords = subText.split(/\s+/).filter(w => cleanPunct(w).length >= 2)
                     if (subWords.length > 0) {
-                        for (const span of confirmedSpans) {
+                        for (const span of confirmedSpans.filter((s: any) => s.status === 'confirmed')) {
                             const spanText = String(span.text || '')
                             const matchingWords = subWords.filter(w => spanText.includes(cleanPunct(w)))
                             if (matchingWords.length >= Math.ceil(subWords.length * 0.5)) {
@@ -69,12 +71,12 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
                 }
 
                 if (matchedSpan) {
-                    result.set(i, [{ text: subText, dialogue: true, speaker: String(matchedSpan.speaker) }])
+                    result.set(i, [{ text: subText, dialogue: true, speaker: spanSpeaker(matchedSpan) }])
                 }
             }
             continue
         }
-        const spans = scene.spans.filter((s: any) => s.status === 'confirmed' && s.speaker &&
+        const spans = scene.spans.filter((s: any) => isDialogueSpan(s) &&
             Number.isInteger(s.start) && Number.isInteger(s.end) && s.start >= 0 && s.end > s.start &&
             source.slice(s.start, s.end).join('') === s.text)
         const dialogueQuotePairs = confirmedQuoteBoundaries(source, spans)
@@ -94,7 +96,7 @@ export function mapDialogueAnnotations(subtitles: any[], annotations: any): Map<
                     if (pair) span = spans.find((a: any) => a.start > pair.start && a.end <= pair.end)
                 }
                 if (!ignored(char)) cursor++
-                const part = {text: char, dialogue: Boolean(span), speaker: span ? String(span.speaker) : undefined}
+                const part = {text: char, dialogue: Boolean(span), speaker: span ? spanSpeaker(span) : undefined}
                 const last = parts[parts.length - 1]
                 if (last && last.dialogue === part.dialogue && last.speaker === part.speaker) last.text += char
                 else parts.push(part)
@@ -111,6 +113,9 @@ export function splitSubtitleDialogueBlocks(subtitles: any[], annotations: any, 
     const mapped = mapDialogueAnnotations(subtitles, annotations)
     return normalizeSubtitleFragments(subtitles.flatMap((subtitle, index) => {
         const parts = mapped.get(index)
+        // A user's whole-row attribution takes priority when reopening saved subtitles.
+        if (typeof subtitle.dialogue_override === 'boolean'
+            || (subtitle.editor_speaker?.name && subtitle.editor_speaker.text === subtitle.text)) return [subtitle]
         if (!parts) return [subtitle]
         const groups: DialoguePart[] = []
         let prefix = ''

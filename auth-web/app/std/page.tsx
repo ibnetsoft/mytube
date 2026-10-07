@@ -2833,9 +2833,18 @@ export default function StdPortalPage() {
     }
     const applySubtitleSpeakerVoice = async (index: number, voiceId: string, allSpeaker = false) => {
         if (isPlayingPreview) stopVrewPlayback()
-        const updated = assignSpeakerVoice(localSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, subtitleSpeakers)
-        updated.forEach((item, i) => { if (item !== localSubtitles[i]) markVrewSegmentStale(item, i) })
+        const currentSubtitles = speechSubtitlesRef.current
+        const project = selectedProject?.project
+        const parts = mapDialogueAnnotations(currentSubtitles, project?.project_payload?.structure?.dialogue_annotations)
+        const speakers = currentSubtitles.map((row: any, i: number) => row.dialogue_override === false ? null
+            : subtitleSpeaker(row, parts.get(i), speakerCharacters, currentLocale, speakerNameTranslations))
+        const updated = assignSpeakerVoice(currentSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, speakers, {
+            characters: speakerCharacters,
+            voiceSources: [{ voice_map: characterVoices, explicit: true }, project?.project_payload || {}, project?.progress_payload || {}],
+        })
+        updated.forEach((item, i) => { if (item !== currentSubtitles[i]) markVrewSegmentStale(item, i) })
         await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+        if (updated[index]?.dialogue_override === true && !updated[index]?.editor_speaker?.name) setSpeakerEditorIndex(index)
     }
     const saveSubtitleSpeaker = (index: number, name: string, gender: string) => {
         const project = selectedProject?.project
@@ -5452,7 +5461,7 @@ export default function StdPortalPage() {
                 ...subtitle,
                 dialogue_kind: isSubtitleDialogue(subtitle, index) ? 'dialogue' : 'narration',
                 dialogue_speaker: isSubtitleDialogue(subtitle, index)
-                    ? subtitle.dialogue_speaker || subtitle.editor_speaker?.name || subtitleSpeakers[index]?.name || subtitle.voice_id : null,
+                    ? subtitle.editor_speaker?.name || subtitleSpeakers[index]?.name || subtitle.dialogue_speaker || null : null,
             } : subtitle
         ))
         await persistVrewVoiceSubtitles(subtitlesForStorage, {
