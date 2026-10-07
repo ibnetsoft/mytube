@@ -32,7 +32,17 @@ def main():
     data = {'imageSha256': hashlib.sha256(source.read_bytes()).hexdigest(),
             'timeline': {'duration': 4, 'subtitles': [{'id': 's1', 'start': 0, 'end': 4}]},
             'regions': regions}
-    output = render(source, directory, data)
+    runtime = None
+    if '--layers' in sys.argv:
+        import shutil
+        from ae_region_layers import build_layers, load_runtime
+        layer_input = {'imageSha256': data['imageSha256'], 'geometry': [{**r, 'contour': 'exact'} for r in regions]}
+        result = build_layers(source, directory/'saved-layers', layer_input)
+        for f in result['files']:
+            f['sha256'] = hashlib.sha256(f['path'].read_bytes()).hexdigest()
+        data['layerPackage'] = {'result': result}
+        runtime = load_runtime(directory/'reused-layers', data, lambda f, p: shutil.copyfile(f['path'], p))
+    output = render(source, directory, data, runtime)
     metrics = {action: [] for action, *_ in cases}
     for name, time in [('rest', 0), ('positive', .5), ('negative', 1.5), ('end', 3.958)]:
         path = directory / (name + '.png')

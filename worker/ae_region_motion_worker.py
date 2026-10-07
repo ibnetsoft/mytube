@@ -31,10 +31,10 @@ def timeline(project, number):
 
 def process_one():
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
-    jobs=ae._request('GET',url,headers,params={'select':'*','metadata->>kind':'eq.region_motion_plan','metadata->>state':'in.(queued,processing)','order':'created_at.asc','limit':'20'}).json()
+    jobs=ae._request('GET',url,headers,params={'select':'*','metadata->>kind':'in.(region_motion_plan,region_layer_package)','metadata->>state':'in.(queued,processing)','order':'created_at.asc','limit':'20'}).json()
     job=next((j for j in jobs if j['metadata']['state']=='queued' or (datetime.now(timezone.utc)-datetime.fromisoformat(j['updated_at'].replace('Z','+00:00'))).total_seconds()>1800),None)
     if not job:return False
-    meta=copy.deepcopy(job['metadata']);lease=uuid.uuid4().hex
+    meta=copy.deepcopy(job['metadata']);is_layers=meta['kind']=='region_layer_package';lease=uuid.uuid4().hex
     meta.update(state='processing',lease=lease,error=None,progress='원본 확인')
     claimed=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':meta,'updated_at':ae._now()}).json()
     if not claimed:return False
@@ -51,15 +51,45 @@ def process_one():
         projects=ae._request('GET',base+'/rest/v1/std_projects',headers,params={'select':'*','id':'eq.'+job['project_id']}).json()
         assets=ae._request('GET',url,headers,params={'select':'*','project_id':'eq.'+job['project_id'],'status':'in.(uploaded,assigned)','order':'created_at.desc'}).json()
         image=next((a for a in assets if a.get('asset_type')=='image' and a.get('scene_number')==meta['input']['number']),None)
-        latest=next((a for a in assets if (a.get('metadata') or {}).get('kind')=='region_motion_plan' and a.get('scene_number')==meta['input']['number']),None)
-        if not projects or projects[0].get('status')=='canceled' or not image or image['id']!=meta['input']['image']['id'] or not latest or latest['id']!=job['id'] or timeline(projects[0],meta['input']['number'])!=meta['input']['timeline']:
+        latest=next((a for a in assets if (a.get('metadata') or {}).get('kind')==meta['kind'] and a.get('scene_number')==meta['input']['number']),None)
+        if not projects or projects[0].get('status')=='canceled' or not image or image['id']!=meta['input']['image']['id'] or not latest or latest['id']!=job['id'] or (not is_layers and timeline(projects[0],meta['input']['number'])!=meta['input']['timeline']):
             raise ValueError('설정·원본·자막 시간이 변경됐습니다. 다시 렌더링해 주세요.')
     try:
-        validate_input(meta['input']);current()
+        if not is_layers:validate_input(meta['input'])
+        current()
         directory=worker_config.TEMP_DIR/'region-motion'/job['id'];directory.mkdir(parents=True,exist_ok=True)
         source=directory/'source.png';bucket,path=ref(meta['input']['image']);ae._download_gcs_file(ae.GcsRef(bucket,path),source)
         save(progress='영역 분리와 배경 보정')
-        output=render(source,directory,meta['input'])
+        from ae_region_layers import build_layers, load_runtime
+        def download(asset, target):
+            a = asset.get('metadata', asset)
+            ae._download_gcs_file(ae.GcsRef(a['gcs_bucket'], a['gcs_path']), target)
+            if a.get('sha256') and hashlib.sha256(target.read_bytes()).hexdigest()!=a['sha256']:
+                raise ValueError('레이어 이미지가 변경됐습니다.')
+        if is_layers:
+            replacements={}
+            for i,asset in enumerate(meta['input'].get('replacements', [])):
+                target=directory/f'replacement-{i}.png';download(asset,target);replacements[asset['regionId']]=target
+            background=None
+            if meta['input'].get('background'):
+                background=directory/'supplied-background.png';download(meta['input']['background'],background)
+            prepared=build_layers(source,directory/'layers',meta['input'],replacements,background)
+            current()
+            files=[]
+            for f in prepared.pop('files'):
+                b,p,u=ae._upload_gcs_file(f['path'],f"std-region-layers/{job['project_id']}/{job['id']}/{f['path'].name}",'image/png')
+                files.append({'role':f['role'],'gcs_bucket':b,'gcs_path':p,'sha256':hashlib.sha256(f['path'].read_bytes()).hexdigest()})
+            current()
+            save(state='prepared',progress='외곽선과 복원 배경 확인 필요',result={**prepared,'files':files})
+            return True
+        runtime=None
+        if meta['input'].get('layerPackage'):
+            package=meta['input']['layerPackage']
+            stored=ae._request('GET',url,headers,params={'select':'metadata','id':'eq.'+package['id'],'project_id':'eq.'+job['project_id']}).json()
+            if not stored or stored[0]['metadata']['state']!='approved' or stored[0]['metadata']['key']!=package['key']:
+                raise ValueError('확정한 레이어가 없습니다. 레이어를 확인해 주세요.')
+            runtime=load_runtime(directory/'reused-layers',meta['input'],download)
+        output=render(source,directory,meta['input'],runtime)
         current()
         # Detect replacement bytes even if the storage path and asset ID stayed the same.
         check=directory/'source-current.png';ae._download_gcs_file(ae.GcsRef(bucket,path),check)

@@ -7,6 +7,7 @@ import { downloadGcsObject, createGcsSignedReadUrl } from '@/lib/gcsStorage'
 import {
     motionSceneTimeline,
     validateRegionMotions,
+    regionLayerKey,
 } from '@/lib/stdRegionMotion'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -56,8 +57,18 @@ function scenes(ctx: any) {
                 a.metadata?.kind === 'region_motion_plan' &&
                 Number(a.scene_number) === number,
         )
+        const layerDraft = ctx.assets.find(
+            (a: any) =>
+                a.metadata?.kind === 'region_layer_package' &&
+                Number(a.scene_number) === number &&
+                a.metadata?.input?.image?.id === image.id,
+        )
         return {
             number,
+            layerDraft:
+                layerDraft && (!plan || layerDraft.created_at > plan.created_at)
+                    ? layerDraft.metadata
+                    : null,
             imageId: image.id,
             ...motionSceneTimeline(
                 ctx.project.project_payload?.subtitles || [],
@@ -246,6 +257,21 @@ export async function POST(
             throw new Error(
                 '이미지나 자막 시간이 변경됐습니다. 다시 불러와 주세요.',
             )
+        const backgroundAssetId = String(body.backgroundAssetId || '')
+        const layerKey = regions.length
+            ? regionLayerKey(image.id, imageSha256, regions, backgroundAssetId)
+            : ''
+        const layer = fresh.assets!.find(
+            (a: any) =>
+                a.id === body.layerPackageId &&
+                a.metadata?.kind === 'region_layer_package' &&
+                a.metadata.state === 'approved' &&
+                a.metadata.key === layerKey,
+        )
+        if (body.action === 'render' && !layer)
+            throw new Error(
+                '외곽선과 복원 배경을 준비하고 확인한 뒤 AE 영상을 만들어 주세요.',
+            )
         const input = {
             version: 1,
             number,
@@ -253,6 +279,16 @@ export async function POST(
             imageSha256,
             timeline,
             regions,
+            backgroundAssetId,
+            ...(layer
+                ? {
+                      layerPackage: {
+                          id: layer.id,
+                          key: layer.metadata.key,
+                          result: layer.metadata.result,
+                      },
+                  }
+                : {}),
         }
         const fingerprint = createHash('sha256')
             .update(JSON.stringify(input))

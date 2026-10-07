@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import StdRegionLayers from './StdRegionLayers'
 import {
     motionPhase,
     parseRegionMotionCommand,
@@ -15,6 +16,7 @@ type Scene = {
     duration: number
     subtitles: { id: string; text: string; start: number; end: number }[]
     plan?: any
+    layerDraft?: any
 }
 export default function StdRegionMotionEditor({
     projectId,
@@ -40,13 +42,17 @@ export default function StdRegionMotionEditor({
         [size, setSize] = useState<[number, number]>([1000, 600])
     const [points, setPoints] = useState<MotionPoint[]>([]),
         [notice, setNotice] = useState(''),
-        [busy, setBusy] = useState(false),
+        [requestBusy, setBusy] = useState(false),
         [command, setCommand] = useState('')
     const [playing, setPlaying] = useState(false),
         [time, setTime] = useState(0),
         [video, setVideo] = useState(''),
         [previewId, setPreviewId] = useState(''),
         [dirty, setDirty] = useState(false)
+    const [layerPackageId, setLayerPackageId] = useState(''),
+        [backgroundAssetId, setBackgroundAssetId] = useState('')
+    const [layerBusy, setLayerBusy] = useState(false)
+    const busy = requestBusy || layerBusy
     const drag = useRef<MotionPoint | null>(null),
         scene = scenes.find((s) => s.number === number),
         region = regions[selected]
@@ -64,7 +70,16 @@ export default function StdRegionMotionEditor({
     function choose(s: Scene) {
         setNumber(s.number)
         setRegions(
-            s.plan?.input?.image?.id === s.imageId ? s.plan.input.regions : [],
+            s.layerDraft?.editorRegions ||
+                (s.plan?.input?.image?.id === s.imageId
+                    ? s.plan.input.regions
+                    : []),
+        )
+        setLayerPackageId('')
+        setBackgroundAssetId(
+            s.layerDraft?.input?.background?.id ||
+                s.plan?.input?.backgroundAssetId ||
+                '',
         )
         setSelected(0)
         setPoints([])
@@ -173,6 +188,8 @@ export default function StdRegionMotionEditor({
         setNotice('')
         setPlaying(false)
         try {
+            if (action === 'render' && !layerPackageId)
+                throw new Error('레이어를 준비하고 확정해 주세요.')
             const body =
                 action === 'apply'
                     ? { action, sceneNumber: number, planId: previewId }
@@ -180,6 +197,8 @@ export default function StdRegionMotionEditor({
                           action,
                           sceneNumber: number,
                           imageId: scene.imageId,
+                          layerPackageId,
+                          backgroundAssetId,
                           imageSha256: sha,
                           regions:
                               action === 'save' && !regions.length
@@ -598,6 +617,30 @@ export default function StdRegionMotionEditor({
                                         부분입니다. 배경 보정 상태는 실제 AE
                                         결과에서 확인하세요.
                                     </p>
+                                    {scene && (
+                                        <StdRegionLayers
+                                            projectId={projectId}
+                                            headers={headers}
+                                            number={number}
+                                            imageId={scene.imageId}
+                                            sha={sha}
+                                            image={image}
+                                            regions={regions}
+                                            selected={selected}
+                                            patch={patch}
+                                            backgroundAssetId={
+                                                backgroundAssetId
+                                            }
+                                            onBackground={(id) => {
+                                                setBackgroundAssetId(id)
+                                                setDirty(true)
+                                                setVideo('')
+                                            }}
+                                            onReady={setLayerPackageId}
+                                            locked={requestBusy}
+                                            onBusy={setLayerBusy}
+                                        />
+                                    )}
                                     {video && (
                                         <video
                                             className="mt-3 w-full"

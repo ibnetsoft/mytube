@@ -131,11 +131,11 @@ def rendered_media(requested):
     return candidates[0]
 
 
-def render(source, directory, data):
+def render(source, directory, data, prepared_runtime=None):
     import ae_highlight_worker as ae
     from ae_media_utils import ffmpeg, run
     from media_checkpoint import valid_mp4
-    runtime=prepare_layers(source,directory/'layers',data)
+    runtime=prepared_runtime or prepare_layers(source,directory/'layers',data)
     project,raw,output,jsx=[directory/name for name in ('region-motion.aep','native-'+uuid.uuid4().hex+'.avi','region-motion.mp4','region-motion.jsx')]
     afterfx=ae.find_afterfx();aerender=ae.find_aerender()
     if not afterfx or not aerender:raise RuntimeError('After Effects executable not found')

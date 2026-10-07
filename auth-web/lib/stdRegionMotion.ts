@@ -10,6 +10,9 @@ export type RegionMotion = {
     cycles: number
     subtitleId: string
     start: number
+    contour?: 'auto' | 'exact'
+    occluded?: boolean
+    replacementAssetId?: string
 }
 export const regionMotionLabels = {
     horizontal: '좌우 반복',
@@ -118,6 +121,9 @@ export function validateRegionMotions(
             cycles: r.cycles,
             subtitleId: subtitle.id,
             start: subtitle.start,
+            contour: r.contour === 'exact' ? 'exact' : 'auto',
+            occluded: r.occluded === true,
+            replacementAssetId: String(r.replacementAssetId || ''),
         }
     })
 }
@@ -165,4 +171,42 @@ export function motionPhase(region: RegionMotion, time: number) {
     return elapsed <= 0 || elapsed >= region.period * region.cycles
         ? 0
         : Math.sin((2 * Math.PI * elapsed) / region.period)
+}
+
+// Layer identity deliberately excludes animation settings and subtitle timing.
+export function regionLayerGeometry(regions: any[]) {
+    return validateRegionMotions(
+        regions.map((r) => ({
+            ...r,
+            action: 'horizontal',
+            amplitude: 1,
+            period: 1,
+            cycles: 1,
+            subtitleId: 'layer',
+        })),
+        {
+            duration: 1,
+            subtitles: [{ id: 'layer', text: '', start: 0, end: 1 }],
+        },
+    ).map((r, i) => ({
+        id: r.id,
+        polygon: r.polygon,
+        contour: regions[i].contour === 'exact' ? 'exact' : 'auto',
+        occluded: regions[i].occluded === true,
+        replacementAssetId: String(regions[i].replacementAssetId || ''),
+    }))
+}
+export function regionLayerKey(
+    imageId: string,
+    imageSha256: string,
+    regions: any[],
+    backgroundAssetId = '',
+) {
+    return JSON.stringify({
+        version: 1,
+        imageId,
+        imageSha256,
+        geometry: regionLayerGeometry(regions),
+        backgroundAssetId,
+    })
 }
