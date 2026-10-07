@@ -1,5 +1,5 @@
 import { savedSpeakerGeometry, coordinateCast } from './stdSpeakerGeometry'
-import { dialogueSceneIndex } from './stdDialogueSceneIndex'
+import { dialogueSceneIndex, subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
 import { createHash } from 'crypto'
 import { isComicProject } from './stdComic'
 import { lipSyncPlan, lipSyncSceneStarts } from './stdLipSync'
@@ -23,7 +23,7 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
         index, text: String(s.text || ''), scene_number: Number(s.scene_number ?? s.scene ?? s.sceneNumber),
         start: audio.metadata.subtitle_timeline[index].start, end: audio.metadata.subtitle_timeline[index].end,
         voice_id: audio.metadata.subtitle_timeline[index].voice_id || '',
-        kind: s.dialogue_kind || '', speaker: s.dialogue_speaker || '',
+        kind: s.dialogue_kind || '', speaker: subtitleDialogueSpeakerName(s),
         direction: String(s.direction || ''),
     }))
     const input = { version: 1, project_id: project.id, tts_speed: payload.tts_speed ?? project.progress_payload?.tts_speed ?? null,

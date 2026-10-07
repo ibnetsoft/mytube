@@ -43,3 +43,26 @@ test('stale image/key, missing authentication and other projects cannot be confi
  for(const patch of [{sceneKey:'stale'},{imageSha256:'changed'}]){const f=apiFixture();const r=await f.api.PATCH(f.request({sceneNumber:19,sceneKey:f.scene.key,imageSha256:imageHash,speakers:f.speakers,...patch},'PATCH'),f.params);assert.equal(r.status,409);assert.equal(f.writes.length,0)}
  for(const [options,status] of [[{owned:false},404],[{authorized:false},401]]){const f=apiFixture(options);assert.equal((await f.api.PATCH(f.request({},'PATCH'),f.params)).status,status);assert.equal(f.writes.length,0)}
 })
+test('scene 63 uses confirmed character names instead of stale voice IDs',()=>{
+ const f=fixture();Object.assign(f.project.project_payload.subtitles[0],{dialogue_speaker:'ozfS3gQtjFX3kQyJ12dX',editor_speaker:{name:'仙太郎',text:'はい'}})
+ assert.equal(lib.coordinateScenes(f.project,[f.image])[0].rows[0].speaker,'仙太郎')
+ assert.deepEqual(load('lib/stdDialogueSceneIndex.ts').dialogueSceneIndex(f.project.project_payload.subtitles).scenes[0].speakers,['仙太郎'])
+})
+test('one of two speakers saves and reopens without falsely making the scene AE-ready',async()=>{
+ const f=apiFixture();f.project.project_payload.subtitles.push({scene_number:19,dialogue_kind:'dialogue',dialogue_speaker:'父',text:'待て'})
+ const scene=lib.coordinateScenes(f.project,[f.image])[0]
+ const body={sceneNumber:19,sceneKey:scene.key,imageSha256:imageHash,speakers:[...f.speakers,{speaker:'父',status:'unconfirmed'}],draft:true}
+ const response=await f.api.PATCH(f.request(body,'PATCH'),f.params);assert.equal(response.status,200)
+ const data=await response.json();assert.equal(data.completed,0);assert.equal(data.confirmed,0);assert.equal(data.scenes[0].draft.speakers[0].speaker,'娘')
+ const asset={...f.writes[0],created_at:'2026-10-07T10:00:00Z'}
+ assert.equal(lib.savedSpeakerGeometry([asset],f.cast,scene),null);assert.equal(lib.savedSpeakerDraft([asset],scene).speakers.length,1)
+ const confirmed=await f.api.PATCH(f.request({...body,draft:false,speakers:[...f.speakers,{speaker:'父',status:'offscreen'}]},'PATCH'),f.params)
+ assert.equal(confirmed.status,200);assert.equal((await confirmed.json()).confirmed,1)
+ assert.equal(lib.savedSpeakerDraft([asset,{...f.writes[1],created_at:'2026-10-07T11:00:00Z'}],scene),null)
+})
+test('drafts reject empty, duplicate, unknown, invalid and stale-source submissions',async()=>{
+ for(const change of [{speakers:[]},{speakers:[{speaker:'stranger',status:'offscreen'}]},{speakers:[...fixture().speakers,...fixture().speakers]},{speakers:[{...fixture().speakers[0],mouth_box:[0,0,1,1]}]},{imageSha256:'stale'}]){
+  const f=apiFixture();const response=await f.api.PATCH(f.request({sceneNumber:19,sceneKey:f.scene.key,imageSha256:imageHash,speakers:f.speakers,draft:true,...change},'PATCH'),f.params)
+  assert.ok([400,409].includes(response.status));assert.equal(f.writes.length,0)
+ }
+})

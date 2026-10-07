@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { dialogueSceneIndex } from './stdDialogueSceneIndex'
+import { dialogueSceneIndex, subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
 
 export function coordinateCast(project: any) {
     const p = project.project_payload || {},
@@ -42,7 +42,7 @@ export function coordinateScenes(project: any, assets: any[]) {
             )
             const rows = s.subtitle_indices.map((i) => ({
                 kind: 'dialogue',
-                speaker: subtitles[i].dialogue_speaker,
+                speaker: subtitleDialogueSpeakerName(subtitles[i]),
                 text: subtitles[i].text,
             }))
             const scene = {
@@ -162,4 +162,23 @@ export function savedSpeakerGeometry(assets: any[], cast: any, scene: any) {
         }
     }
     return null
+}
+
+// Drafts preserve completed manual work but never count as AE-ready confirmation.
+export function savedSpeakerDraft(assets: any[], scene: any) {
+    const names = [...new Set<string>(scene.rows.map((row: any) => row.speaker))]
+    const key = scene.key
+    const latest = assets.filter(a => ['uploaded', 'assigned'].includes(a.status)
+        && ['speaker_coordinate_draft', 'speaker_coordinate_confirmation'].includes(a.metadata?.kind)
+        && a.metadata.scene_key === key)
+        .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0]
+    if (latest?.metadata?.kind !== 'speaker_coordinate_draft') return null
+    const result = latest.metadata.results?.find((r: any) => r.number === scene.number
+        && r.image_id === scene.image?.id && r.source_path === coordinateSource(scene.image).path)
+    if (!result || !/^[a-f0-9]{64}$/.test(result.source_sha256 || '')) return null
+    try {
+        const selected = names.filter(name => result.speakers?.some((s: any) => s.speaker === name))
+        const speakers = validateSpeakerGeometry(selected.map(name => result.speakers.find((s: any) => s.speaker === name)), selected)
+        return { ...result, speakers }
+    } catch { return null }
 }

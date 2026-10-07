@@ -9,6 +9,7 @@ import {
     coordinateScenes,
     coordinateSource,
     savedSpeakerGeometry,
+    savedSpeakerDraft,
     validateSpeakerGeometry,
 } from '@/lib/stdSpeakerGeometry'
 export const dynamic = 'force-dynamic'
@@ -53,6 +54,7 @@ function overview(project: any, assets: any[]) {
         return {
             ...scene,
             result,
+            draft: savedSpeakerDraft(assets, scene),
             error: result ? null : failure?.error || (Number(meta.current_scene) === scene.number ? meta.error : null),
             analysisState: meta.state,
             currentScene: meta.current_scene,
@@ -156,7 +158,14 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 { status: 409 },
             )
         const names = [...new Set<string>(scene.rows.map((r) => r.speaker))]
-        const speakers = validateSpeakerGeometry(body.speakers, names)
+        const isDraft = body.draft === true
+        const submitted = isDraft && Array.isArray(body.speakers)
+            ? body.speakers.filter((s: any) => s.status === 'offscreen' || (s.face_box && s.mouth_box)) : body.speakers
+        if (isDraft && (!Array.isArray(submitted) || submitted.some((s: any) => !names.includes(s.speaker))
+            || new Set(submitted.map((s: any) => s.speaker)).size !== submitted.length))
+            throw new Error('저장할 화자 정보를 확인해 주세요.')
+        const selectedNames = isDraft ? names.filter(name => submitted.some((s: any) => s.speaker === name)) : names
+        const speakers = validateSpeakerGeometry(submitted, selectedNames)
         const source = coordinateSource(scene.image)
         if (!source.path) throw new Error('원본 이미지 저장 위치가 없습니다.')
         const original = await downloadGcsObject({ bucket: source.bucket, objectPath: source.path })
@@ -189,8 +198,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 file_name: `speaker-confirmation-${scene.number}.json`,
                 mime_type: 'application/json',
                 metadata: {
-                    kind: 'speaker_coordinate_confirmation',
-                    state: 'ready',
+                    kind: isDraft ? 'speaker_coordinate_draft' : 'speaker_coordinate_confirmation',
+                    state: isDraft ? 'draft' : 'ready',
                     scene_key: scene.key,
                     confirmed_by: email,
                     confirmed_at: new Date().toISOString(),

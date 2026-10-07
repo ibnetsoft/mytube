@@ -10,6 +10,7 @@ type Scene = {
     image: any
     rows: { speaker: string; text: string }[]
     result?: { origin: string; speakers: Speaker[] }
+    draft?: { speakers: Speaker[] }
     error?: string
     analysisState?: string
     currentScene?: number
@@ -22,7 +23,8 @@ function names(scene: Scene) {
 }
 function drafts(scene: Scene): Speaker[] {
     return names(scene).map(
-        (speaker) => scene.result?.speakers.find((s) => s.speaker === speaker) || { speaker, status: 'unconfirmed' },
+        (speaker) => scene.draft?.speakers.find((s) => s.speaker === speaker)
+            || scene.result?.speakers.find((s) => s.speaker === speaker) || { speaker, status: 'unconfirmed' },
     )
 }
 function analysisLabel(scene?: Scene) {
@@ -168,6 +170,8 @@ export default function StdSpeakerCoordinates({
             Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
         ]
     }
+    const pending = rows.filter(r => r.status !== 'offscreen' && (!r.face_box || !r.mouth_box))
+    const completedCount = rows.length - pending.length
     const save = async () => {
         if (!scene || !loaded) return
         setBusy(true)
@@ -183,13 +187,16 @@ export default function StdSpeakerCoordinates({
                     sceneKey: draftKey,
                     imageSha256: imageSha,
                     speakers: rows,
+                    draft: pending.length > 0,
                 }),
             })
             const result = await r.json()
             if (!r.ok) throw new Error(result.error || '저장하지 못했습니다.')
             request.current++
             setData(result)
-            setNotice(`${number}번 씬의 화자 위치를 확정했습니다. AE 작업기를 기다릴 필요가 없습니다.`)
+            setNotice(pending.length
+                ? `${completedCount}명 위치를 저장했습니다. 남은 화자 ${pending.map(r => r.speaker).join(', ')}도 지정하면 씬을 확정할 수 있습니다.`
+                : `${number}번 씬의 화자 위치를 확정했습니다. AE 작업기를 기다릴 필요가 없습니다.`)
         } catch (e: any) {
             setNotice(e.message)
         } finally {
@@ -303,7 +310,7 @@ export default function StdSpeakerCoordinates({
                                     >
                                         {rows.map((r, i) => (
                                             <option key={r.speaker} value={i}>
-                                                {r.speaker || '이름 미지정'}
+                                                {r.speaker || '이름 미지정'} · {r.status === 'offscreen' || (r.face_box && r.mouth_box) ? '지정됨' : '미지정'}
                                             </option>
                                         ))}
                                     </select>
@@ -471,6 +478,14 @@ export default function StdSpeakerCoordinates({
                                     </div>
                                 </div>
                                 <div className="space-y-3">
+                                    <p className="text-sm font-bold">화자 위치 {completedCount}/{rows.length}명 지정</p>
+                                    <div className="flex flex-wrap gap-2" aria-label="씬 화자 지정 상태">
+                                        {rows.map((r, i) => <button key={r.speaker} type="button" disabled={busy}
+                                            className={`${button} ${i === speaker ? 'border-cyan-300 bg-cyan-900' : ''}`}
+                                            onClick={() => { setSpeaker(i); setMode('face_box'); setDrawing(null); start.current = null }}>
+                                            {r.speaker} · {r.status === 'offscreen' ? '화면 밖' : r.face_box && r.mouth_box ? '지정됨' : '미지정'}
+                                        </button>)}
+                                    </div>
                                     <p className="font-bold">{current?.speaker}</p>
                                     <button
                                         className={`${button} w-full ${current?.status === 'offscreen' ? 'bg-cyan-800' : ''}`}
@@ -523,7 +538,7 @@ export default function StdSpeakerCoordinates({
                             </div>
                             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                                 <p role="status" className="text-sm text-cyan-200">
-                                    {notice}
+                                    {notice || (pending.length ? `아직 미지정: ${pending.map(r => r.speaker).join(', ')}. 지정한 위치는 먼저 저장할 수 있습니다.` : '모든 화자의 위치를 지정했습니다. 씬을 확정해 주세요.')}
                                 </p>
                                 <button
                                     className={`${button} bg-emerald-700 font-bold`}
@@ -532,11 +547,11 @@ export default function StdSpeakerCoordinates({
                                         !loaded ||
                                         !imageSha ||
                                         scene.key !== draftKey ||
-                                        rows.some((r) => r.status !== 'offscreen' && (!r.face_box || !r.mouth_box))
+                                        completedCount === 0
                                     }
                                     onClick={() => void save()}
                                 >
-                                    이 씬 화자 위치 확정
+                                    {busy ? '저장 중…' : pending.length ? '지정한 화자 위치 저장' : '이 씬 화자 위치 확정'}
                                 </button>
                             </div>
                         </section>
