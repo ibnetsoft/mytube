@@ -8234,6 +8234,7 @@ export default function StdPortalPage() {
                 key={selectedProject.project.id} projectId={selectedProject.project.id}
                 revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
                 speakerProgress={dialogueSpeakerProgress}
+                onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev?.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
                 selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />}
             {renderSuccessNotice && (
                 <div className={`fixed right-4 ${renderSuccessNotice.heading ? 'bottom-4' : 'top-4'} z-[80] w-[min(360px,calc(100vw-32px))] animate-in fade-in zoom-in-95 duration-200`} role="status" aria-live="polite">

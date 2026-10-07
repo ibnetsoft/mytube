@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import StdRegionMotionEditor from './StdRegionMotionEditor'
 
 type Box = [number, number, number, number]
 type Speaker = { speaker: string; status: string; face_box?: Box; mouth_box?: Box }
@@ -50,12 +51,14 @@ export default function StdSpeakerCoordinates({
     headers,
     selectedSceneNumber,
     speakerProgress,
+    onMotionApplied,
 }: {
     projectId: string
     revision: string
     headers: Record<string, string>
     selectedSceneNumber?: number
     speakerProgress?: { total: number; confirmed: number }
+    onMotionApplied?: () => void
 }) {
     const [data, setData] = useState<Overview>(empty),
         [error, setError] = useState(''),
@@ -245,6 +248,7 @@ export default function StdSpeakerCoordinates({
                         새로고침
                     </button>
                 </div>
+                <StdRegionMotionEditor projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} onApplied={onMotionApplied} />
             </aside>
             {open &&
                 scene &&
