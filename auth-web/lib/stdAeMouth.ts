@@ -55,10 +55,20 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
     return { input, fingerprint }
 }
 
+function compatibleMouthInput(saved: any, current: any) {
+    if (!saved?.scenes || !current?.scenes) return false
+    const withoutRegions = (value: any) => ({ ...value, scenes: value.scenes.map(({ speaker_regions, ...scene }: any) => scene) })
+    if (JSON.stringify(canonical(withoutRegions(saved))) !== JSON.stringify(canonical(withoutRegions(current)))) return false
+    // New results for previously unresolved scenes must not discard already prepared AE work.
+    // Corrections to coordinates that this job actually used still invalidate it.
+    return saved.scenes.every((scene: any, index: number) => !scene.speaker_regions ||
+        JSON.stringify(canonical(scene.speaker_regions)) === JSON.stringify(canonical(current.scenes[index].speaker_regions)))
+}
+
 export function currentAeMouthJob(project: any, scenes: any[], assets: any[]) {
     if (!aeMouthApplicable(project, scenes)) return null
-    const { fingerprint } = aeMouthInput(project, scenes, assets)
-    return [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).find(a => active(a) && a.metadata?.kind === 'ae_mouth_job' && a.metadata.fingerprint === fingerprint) || null
+    const { input, fingerprint } = aeMouthInput(project, scenes, assets)
+    return [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).find(a => active(a) && a.metadata?.kind === 'ae_mouth_job' && (a.metadata.fingerprint === fingerprint || compatibleMouthInput(a.metadata.input, input))) || null
 }
 
 export function reviewedAeMouthAssets(project: any, scenes: any[], assets: any[]) {

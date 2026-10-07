@@ -53,7 +53,7 @@ function overview(project: any, assets: any[]) {
         return {
             ...scene,
             result,
-            error: failure?.error || (Number(meta.current_scene) === scene.number ? meta.error : null),
+            error: result ? null : failure?.error || (Number(meta.current_scene) === scene.number ? meta.error : null),
             analysisState: meta.state,
             currentScene: meta.current_scene,
             heartbeatAt: meta.heartbeat_at || job?.updated_at,
@@ -63,6 +63,8 @@ function overview(project: any, assets: any[]) {
     return {
         count: items.length,
         completed: results.length,
+        failed: items.filter((s) => !s.result && s.error).length,
+        pending: items.filter((s) => !s.result && !s.error).length,
         confirmed: items.filter((s) => s.result?.origin === 'user').length,
         scenes: items,
         state: results.length === items.length ? 'ready' : 'needs_review',

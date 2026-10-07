@@ -43,15 +43,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (b.response) return b.response
         const body = await req.json()
         const { fingerprint } = aeMouthInput(b.project, b.scenes!, b.assets!)
-        if (body.fingerprint !== fingerprint) throw new Error('음성·이미지·대본이 변경되었습니다. 작업 목록을 새로 확인해 주세요.')
         const job = currentAeMouthJob(b.project, b.scenes!, b.assets!)
+        if (body.fingerprint !== (job?.metadata?.fingerprint || fingerprint)) throw new Error('음성·이미지·대본이 변경되었습니다. 작업 목록을 새로 확인해 주세요.')
         if (!job) throw new Error('제출 버튼으로 AE 후작업을 먼저 요청해 주세요.')
         if (body.action === 'retry') {
             await ensureAeMouthJob(b.project, b.scenes!, b.assets!, true)
             return NextResponse.json({ success: true })
         }
         if (body.action === 'approve_direction') {
-            if (job.metadata.state !== 'direction_pending' || job.metadata.results.some((r: any) => r.status === 'needs_review')) throw new Error('보류한 씬의 화자를 확인하거나 제외 사유를 기록한 뒤 지침을 승인해 주세요.')
+            if (job.metadata.state !== 'direction_pending' || !job.metadata.results.some((r: any) => r.status === 'direction_pending')) throw new Error('승인할 준비가 된 씬의 AE 지침이 없습니다.')
             const results = job.metadata.results.map((r: any) => r.status === 'direction_pending' ? { ...r, status: 'direction_approved' } : r)
             const updated = await db.from('std_project_assets').update({ metadata: { ...job.metadata, results, state: 'direction_approved', phase: 'render' }, updated_at: new Date().toISOString() })
                 .eq('id', job.id).eq('updated_at', job.updated_at).select('id').maybeSingle()
@@ -64,7 +64,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (body.action === 'review') {
             if (!['review_pending', 'approved'].includes(row.status) || !row.asset_id) throw new Error('완성된 AE 영상만 승인할 수 있습니다.')
             const asset = b.assets!.find(a => a.id === row.asset_id && a.asset_type === 'video'
-                && Number(a.scene_number) === row.number && a.metadata?.ae_mouth_fingerprint === fingerprint && a.metadata?.timing_locked
+                && Number(a.scene_number) === row.number && a.metadata?.ae_mouth_fingerprint === job.metadata.fingerprint && a.metadata?.timing_locked
                 && a.metadata?.render_sha256 === row.render_sha256 && Math.abs(Number(a.metadata.duration_seconds) - Number(row.duration)) <= .12)
             if (!asset) throw new Error('검수 영상이 현재 작업과 일치하지 않습니다.')
             const approved = await db.from('std_project_assets').update({ metadata: { ...asset.metadata, ae_reviewed: true } }).eq('id', asset.id).eq('project_id', params.projectId)

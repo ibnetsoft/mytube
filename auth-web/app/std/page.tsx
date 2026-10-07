@@ -1,5 +1,7 @@
 'use client'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
+import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
+import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
 import { isComicProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
@@ -2911,26 +2913,20 @@ export default function StdPortalPage() {
             ? [index] : []
     )))
 
+    // Count the same yellow subtitle rows shown by renderAiDialogue. A selected
+    // voice alone does not establish which character is speaking.
+    const dialogueSpeakerProgress = localSubtitles.reduce((count, subtitle, index) => {
+        const yellow = aiDialogueParts.get(index)?.some(part => part.dialogue) || isSubtitleDialogue(subtitle, index)
+        if (!yellow) return count
+        return { total: count.total + 1, confirmed: count.confirmed + (subtitleSpeakers[index]?.name ? 1 : 0) }
+    }, { total: 0, confirmed: 0 })
+
     // Use the same classification as the subtitle rows; unresolved candidates are never narration targets.
     const isSubtitleNarration = (subtitle: any, index: number) => (
         !isSubtitleDialogue(subtitle, index) && !pendingDialogueCandidateIndexes.has(index)
     )
 
-    const hasDistinctDialogueVoiceAssignment = () => {
-        const narrationVoiceIds = new Set(
-            localSubtitles
-                .filter((subtitle: any, index: number) => !isSubtitleDialogue(subtitle, index))
-                .map((subtitle: any) => String(subtitle?.voice_id || selectedVoice || '').trim())
-                .filter(Boolean)
-        )
-        const dialogueVoiceIds = localSubtitles
-            .filter((subtitle: any, index: number) => isSubtitleDialogue(subtitle, index))
-            .map((subtitle: any) => String(subtitle?.voice_id || '').trim())
-
-        return localSubtitles.length > 0
-            && dialogueVoiceIds.every(voiceId => Boolean(voiceId) && !narrationVoiceIds.has(voiceId))
-    }
-
+    const hasDistinctDialogueVoiceAssignment = () => subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice).ready
     const selectSubtitlePreview = (subtitleIndex: number) => {
         const subtitle = localSubtitles[subtitleIndex]
         if (!subtitle) return
@@ -8228,6 +8224,7 @@ export default function StdPortalPage() {
             {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
                 key={selectedProject.project.id} projectId={selectedProject.project.id}
                 revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
+                speakerProgress={dialogueSpeakerProgress}
                 selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />}
             {renderSuccessNotice && (
                 <div className={`fixed right-4 ${renderSuccessNotice.heading ? 'bottom-4' : 'top-4'} z-[80] w-[min(360px,calc(100vw-32px))] animate-in fade-in zoom-in-95 duration-200`} role="status" aria-live="polite">
@@ -9481,6 +9478,12 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 자막 카드 목록 */}
+                                    <StdTtsReadinessNotice subtitles={localSubtitles} busy={generatingTts} voices={voiceNameById}
+                                        readiness={subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice)}
+                                        onJump={index => {
+                                            selectSubtitleBlock(index, false)
+                                            requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                                        }} />
                                     <div className="flex flex-1 overflow-hidden">
                                         <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-1.5 sm:p-2 space-y-1.5 sm:space-y-2">
                                             {subtitleSceneGroups.map((group) => {
@@ -9683,6 +9686,7 @@ export default function StdPortalPage() {
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
+                                                                                data-subtitle-index={item.subtitleIndex}
                                                                                 onClick={event => {
                                                                                     if ((event.target as HTMLElement).closest('button,select,input,textarea,a,[role="dialog"]')) return
                                                                                     event.stopPropagation()

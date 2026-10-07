@@ -60,3 +60,31 @@ test('user-confirmed coordinates reach the render snapshot without an AI job',()
  assert.equal(snapshot.input.scenes[0].speaker_regions.origin,'user');
  assert.deepEqual(snapshot.input.scenes[0].speaker_regions.speakers,result.speakers);
 });
+
+test('partial coordinates remain available to AE when another scene needs review',()=>{
+ const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
+ const result={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]};
+ const metadata={kind:'ae_speaker_coordinates',state:'needs_review',input:{cast_key:JSON.stringify(cast)},results:[result],failures:[{number:20,error:'uncertain'}]};
+ f.assets.push({id:'partial',asset_type:'other',status:'uploaded',metadata});
+ for(const state of ['needs_review','processing','queued']){
+  metadata.state=state;
+  const scenes=lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes;
+  assert.equal(scenes[0].speaker_regions.image_id,'image19',state);
+  assert.equal(scenes[1].speaker_regions,null);
+ }
+});
+
+test('newly analyzed scenes do not discard AE work but corrected used coordinates do',()=>{
+ const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
+ f.project.project_payload.subtitles[2].dialogue_kind='dialogue';
+ f.project.project_payload.subtitles[2].dialogue_speaker='소녀';
+ const result=n=>({number:n,image_id:`image${n}`,source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]});
+ const metadata={kind:'ae_speaker_coordinates',state:'processing',input:{cast_key:JSON.stringify(cast)},results:[result(19)]};
+ f.assets.push({id:'coords',asset_type:'other',status:'uploaded',metadata});
+ const snapshot=JSON.parse(JSON.stringify(lib.aeMouthInput(f.project,f.scenes,f.assets)));
+ f.assets.push({id:'ae',asset_type:'other',status:'uploaded',metadata:{kind:'ae_mouth_job',state:'direction_pending',...snapshot}});
+ metadata.results.push(result(20));
+ assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets).id,'ae');
+ metadata.results[0].speakers[0].mouth_box=[.42,.4,.47,.43];
+ assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets),null);
+});

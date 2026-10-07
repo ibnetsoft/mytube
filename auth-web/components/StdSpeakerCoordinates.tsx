@@ -15,7 +15,7 @@ type Scene = {
     currentScene?: number
     heartbeatAt?: string
 }
-type Overview = { count: number; completed: number; confirmed: number; scenes: Scene[] }
+type Overview = { count: number; completed: number; confirmed: number; failed?: number; pending?: number; scenes: Scene[] }
 const empty: Overview = { count: 0, completed: 0, confirmed: 0, scenes: [] }
 function names(scene: Scene) {
     return [...new Set(scene.rows.map((r) => r.speaker))]
@@ -47,11 +47,13 @@ export default function StdSpeakerCoordinates({
     revision,
     headers,
     selectedSceneNumber,
+    speakerProgress,
 }: {
     projectId: string
     revision: string
     headers: Record<string, string>
     selectedSceneNumber?: number
+    speakerProgress?: { total: number; confirmed: number }
 }) {
     const [data, setData] = useState<Overview>(empty),
         [error, setError] = useState(''),
@@ -205,8 +207,11 @@ export default function StdSpeakerCoordinates({
             >
                 <h2 className="text-sm font-bold">대사씬 캐릭터 확인</h2>
                 <p role="status" className="mt-1 text-xs">
-                    {error || `위치 준비 ${data.completed}/${data.count} · 직접 확정 ${data.confirmed}`}
+                    {error || `AE 위치 준비 ${data.completed}/${data.count}씬 · 직접 확정 ${data.confirmed}씬`}
                 </p>
+                <p className="mt-1 text-xs">추가 확인 {data.failed || 0}씬 · 남은 분석 {data.pending ?? Math.max(0, data.count - data.completed)}씬</p>
+                {data.completed > 0 && <p className="mt-1 text-xs">완료된 씬의 위치는 저장되어 AE 작업에 사용할 수 있습니다.</p>}
+                {speakerProgress && <p className="mt-1 text-xs text-yellow-200">대사 화자 지정 {speakerProgress.confirmed}/{speakerProgress.total}개 자막</p>}
                 <div className="mt-2 flex gap-2">
                     <button
                         type="button"
