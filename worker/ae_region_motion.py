@@ -93,12 +93,20 @@ try {
   var tr=l.property('ADBE Transform Group');
   tr.property('ADBE Anchor Point').setValue(a);tr.property('ADBE Position').setValue(a);
   tr.property('ADBE Scale').setValue([100,100]);
-  var prop=tr.property(r.action=='rotate'?'ADBE Rotate Z':r.action=='scale'?'ADBE Scale':'ADBE Position');
+  var propertyName='ADBE Position';
+  if(r.action=='rotate'){propertyName='ADBE Rotate Z';}
+  else if(r.action=='scale'){propertyName='ADBE Scale';}
+  var prop=tr.property(propertyName);
+  if(prop.matchName!=propertyName)throw new Error('Unexpected AE transform property');
   var steps=r.cycles*24;
   for(var k=0;k<=steps;k++){
    var t=r.start+r.period*r.cycles*k/steps;
    var v=(k==0||k==steps)?0:Math.sin(2*Math.PI*r.cycles*k/steps)*r.amplitude;
-   var value=r.action=='rotate'?v:r.action=='scale'?[100+v,100+v]:r.action=='horizontal'?[a[0]+v*D.width/100,a[1]]:[a[0],a[1]+v*D.height/100];
+   var value;
+   if(r.action=='rotate'){value=v;}
+   else if(r.action=='scale'){value=[100+v,100+v];}
+   else if(r.action=='horizontal'){value=[a[0]+v*D.width/100,a[1]];}
+   else{value=[a[0],a[1]+v*D.height/100];}
    prop.setValueAtTime(t,value);
   }
   for(var j=1;j<=prop.numKeys;j++)prop.setInterpolationTypeAtKey(j,KeyframeInterpolationType.LINEAR,KeyframeInterpolationType.LINEAR);
