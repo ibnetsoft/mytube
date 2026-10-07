@@ -21,7 +21,7 @@ def ffmpeg():
 
 
 def run(command):
-    result = subprocess.run(command, capture_output=True, text=True, timeout=600,
+    result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
                             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if os.name == 'nt' else 0)
     if result.returncode:
         raise RuntimeError('Media conversion failed: ' + result.stderr[-1200:])

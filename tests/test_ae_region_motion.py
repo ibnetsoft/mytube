@@ -40,3 +40,14 @@ def test_layers_and_background_preserve_dimensions_and_alpha(tmp_path):
     script=(tmp_path/'script.jsx').read_text();assert 'AIR_REGION_MOTION' in script;assert 'KeyframeInterpolationType.LINEAR' in script
     d['imageSha256']='0'*64
     with pytest.raises(ValueError):prepare_layers(source,tmp_path/'invalid',d)
+
+
+def test_resolves_native_output_module_extension(tmp_path):
+    from ae_region_motion import rendered_media
+    requested = tmp_path / "native-job.avi"
+    actual = tmp_path / "native-job.mp4"
+    actual.write_bytes(b"rendered")
+    assert rendered_media(requested) == actual
+    requested.write_bytes(b"ambiguous")
+    with pytest.raises(RuntimeError):
+        rendered_media(requested)

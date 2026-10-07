@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import uuid
 from pathlib import Path
 
 
@@ -111,17 +112,27 @@ finally{app.endSuppressDialogs(false);}
     jsx.write_text(script,encoding='utf-8')
 
 
+def rendered_media(requested):
+    # AE output-module presets may replace the requested extension (e.g. H.264).
+    candidates = [p for p in requested.parent.glob(requested.stem + '.*')
+                  if p.suffix.lower() in ('.avi', '.mp4', '.mov', '.mxf') and p.stat().st_size > 0]
+    if len(candidates) != 1:
+        raise RuntimeError('AE did not produce one supported video file: ' + str(requested))
+    return candidates[0]
+
+
 def render(source, directory, data):
     import ae_highlight_worker as ae
     from ae_media_utils import ffmpeg, run
     from media_checkpoint import valid_mp4
     runtime=prepare_layers(source,directory/'layers',data)
-    project,raw,output,jsx=[directory/name for name in ('region-motion.aep','region-motion.avi','region-motion.mp4','region-motion.jsx')]
+    project,raw,output,jsx=[directory/name for name in ('region-motion.aep','native-'+uuid.uuid4().hex+'.avi','region-motion.mp4','region-motion.jsx')]
     afterfx=ae.find_afterfx();aerender=ae.find_aerender()
     if not afterfx or not aerender:raise RuntimeError('After Effects executable not found')
     write_jsx(runtime,project,raw,jsx)
     ae._run_afterfx_script(afterfx,jsx,project)
     ae._run_checked([str(aerender),'-project',str(project),'-comp','AIR_REGION_MOTION','-output',str(raw)],timeout=1200)
+    raw=rendered_media(raw)
     run([ffmpeg(),'-y','-i',str(raw),'-an','-c:v','libx264','-crf','18','-pix_fmt','yuv420p','-movflags','+faststart',str(output)])
     if not valid_mp4(output,data['timeline']['duration']*.95):raise RuntimeError('AE output duration is invalid')
     return output

@@ -45,6 +45,7 @@ export default function StdRegionMotionEditor({
     const [playing, setPlaying] = useState(false),
         [time, setTime] = useState(0),
         [video, setVideo] = useState(''),
+        [previewId, setPreviewId] = useState(''),
         [dirty, setDirty] = useState(false)
     const drag = useRef<MotionPoint | null>(null),
         scene = scenes.find((s) => s.number === number),
@@ -174,7 +175,7 @@ export default function StdRegionMotionEditor({
         try {
             const body =
                 action === 'apply'
-                    ? { action, sceneNumber: number, planId: scene.plan?.id }
+                    ? { action, sceneNumber: number, planId: previewId }
                     : {
                           action,
                           sceneNumber: number,
@@ -605,7 +606,7 @@ export default function StdRegionMotionEditor({
                                         />
                                     )}
                                 </div>
-                                <div className="space-y-3">
+                                <fieldset disabled={busy} className="space-y-3">
                                     <label>
                                         영역 선택
                                         <select
@@ -825,7 +826,7 @@ export default function StdRegionMotionEditor({
                                         선택 부위를 움직이며, 기존 영상이나
                                         립싱크와 자동 합성하지 않습니다.
                                     </p>
-                                </div>
+                                </fieldset>
                             </div>
                             <footer className="mt-4 space-y-3">
                                 <p role="status" className="text-cyan-200">
@@ -855,9 +856,11 @@ export default function StdRegionMotionEditor({
                                                     className={button}
                                                     onClick={async () => {
                                                         try {
+                                                            const requestedPlanId =
+                                                                scene.plan.id
                                                             const r =
                                                                 await fetch(
-                                                                    `${api}?preview=${scene.plan.id}`,
+                                                                    `${api}?preview=${requestedPlanId}`,
                                                                     { headers },
                                                                 )
                                                             const data =
@@ -867,6 +870,9 @@ export default function StdRegionMotionEditor({
                                                                     data.error,
                                                                 )
                                                             setVideo(data.url)
+                                                            setPreviewId(
+                                                                requestedPlanId,
+                                                            )
                                                         } catch (e: any) {
                                                             setNotice(e.message)
                                                         }
@@ -876,7 +882,12 @@ export default function StdRegionMotionEditor({
                                                 </button>
                                                 <button
                                                     className={`${button} bg-emerald-700`}
-                                                    disabled={busy || !video}
+                                                    disabled={
+                                                        busy ||
+                                                        !video ||
+                                                        previewId !==
+                                                            scene?.plan?.id
+                                                    }
                                                     onClick={() =>
                                                         void submit('apply')
                                                     }

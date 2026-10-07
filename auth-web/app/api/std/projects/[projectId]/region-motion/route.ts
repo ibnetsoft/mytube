@@ -168,6 +168,23 @@ export async function POST(
                 saved.imageSha256
             )
                 throw new Error('원본 이미지가 변경됐습니다.')
+            const fresh = await context(req, params.projectId)
+            if (fresh.response) return fresh.response
+            const latest = scenes(fresh).find((s) => s.number === number)
+            if (
+                !latest ||
+                latest.plan?.id !== plan.id ||
+                latest.imageId !== saved.image.id ||
+                JSON.stringify(
+                    motionSceneTimeline(
+                        fresh.project.project_payload?.subtitles || [],
+                        number,
+                    ),
+                ) !== JSON.stringify(saved.timeline)
+            )
+                throw new Error(
+                    '확인한 영상의 설정이나 원본이 변경됐습니다. 다시 확인해 주세요.',
+                )
             const result = plan.metadata.result
             if (!result?.gcs_path || !result?.gcs_bucket)
                 throw new Error('AE 결과 파일이 없습니다.')
@@ -177,24 +194,22 @@ export async function POST(
                     a.metadata?.region_motion_plan_id === plan.id,
             )
             if (!existing) {
-                const added = await db
-                    .from('std_project_assets')
-                    .insert({
-                        project_id: params.projectId,
-                        scene_number: number,
-                        asset_type: 'video',
-                        status: 'assigned',
-                        file_name: `scene-${number}-region-motion.mp4`,
-                        mime_type: 'video/mp4',
-                        metadata: {
-                            ...result,
-                            storage_provider: 'gcs',
-                            postprocess_mode: 'region_motion',
-                            region_motion_plan_id: plan.id,
-                            timing_locked: true,
-                            reviewed_by_user: true,
-                        },
-                    })
+                const added = await db.from('std_project_assets').insert({
+                    project_id: params.projectId,
+                    scene_number: number,
+                    asset_type: 'video',
+                    status: 'assigned',
+                    file_name: `scene-${number}-region-motion.mp4`,
+                    mime_type: 'video/mp4',
+                    metadata: {
+                        ...result,
+                        storage_provider: 'gcs',
+                        postprocess_mode: 'region_motion',
+                        region_motion_plan_id: plan.id,
+                        timing_locked: true,
+                        reviewed_by_user: true,
+                    },
+                })
                 if (added.error) throw added.error
             }
             return NextResponse.json({ applied: true })
