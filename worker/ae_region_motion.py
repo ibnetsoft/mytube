@@ -90,8 +90,10 @@ try {
  for(var i=0;i<D.regions.length;i++){
   var r=D.regions[i],l=c.layers.add(footage(r.path));l.name=r.name;
   var a=[r.anchor[0]*D.width,r.anchor[1]*D.height];
-  l.property('Anchor Point').setValue(a);l.property('Position').setValue(a);
-  var prop=l.property(r.action=='rotate'?'Rotation':r.action=='scale'?'Scale':'Position');
+  var tr=l.property('ADBE Transform Group');
+  tr.property('ADBE Anchor Point').setValue(a);tr.property('ADBE Position').setValue(a);
+  tr.property('ADBE Scale').setValue([100,100]);
+  var prop=tr.property(r.action=='rotate'?'ADBE Rotate Z':r.action=='scale'?'ADBE Scale':'ADBE Position');
   var steps=r.cycles*24;
   for(var k=0;k<=steps;k++){
    var t=r.start+r.period*r.cycles*k/steps;
