@@ -224,22 +224,21 @@ export default function StdSpeakerCoordinates({
         <>
             <aside
                 aria-label={copy.title}
-                className="order-4 mt-3 w-full min-w-0 shrink-0 rounded-xl border border-cyan-500/40 bg-[#10252d] p-3 text-cyan-200 lg:order-none lg:mt-auto"
+                className="relative order-4 mt-3 w-full min-w-0 shrink-0 rounded-xl border border-cyan-500/40 bg-[#10252d] p-2 text-cyan-200 lg:order-none lg:mt-auto"
             >
-                <div className="flex items-start justify-between gap-2">
-                    <h2 className="min-w-0 text-sm font-bold">{copy.title}</h2>
                     <button type="button" aria-label={copy.refresh} title={copy.refresh}
-                        className="shrink-0 rounded-md p-1 text-cyan-200 hover:bg-cyan-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                        className="absolute right-1 top-1 rounded-md p-1 text-cyan-200 hover:bg-cyan-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                         onClick={() => void load().catch((e) => setError(e.message))}>
                         <RefreshCw size={16} aria-hidden="true" />
                     </button>
-                </div>
+                <div className="pr-5">
                 {error ? <p role="alert" className="mt-1 text-xs">{copy.error}</p> : <StdSpeakerWorkInfo data={data} speakerProgress={speakerProgress} locale={locale} />}
-                <div className="mt-2 grid grid-cols-2 items-stretch gap-2">
+                </div>
+                <div className="mt-1 grid w-[70%] min-w-[250px] max-w-full grid-cols-2 items-stretch gap-1.5">
                     <button
                         type="button"
                         disabled={!data.scenes.length}
-                        className={`${button} bg-cyan-900`}
+                        className="min-w-0 whitespace-nowrap rounded-md border border-white/20 bg-cyan-900 px-2 py-1 text-xs disabled:opacity-40"
                         onClick={() => {
                             const s =
                                 data.scenes.find((s) => s.number === selectedSceneNumber) ||

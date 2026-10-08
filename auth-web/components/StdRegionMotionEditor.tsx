@@ -246,7 +246,7 @@ export default function StdRegionMotionEditor({
         <>
             <button
                 type="button"
-                className={`${button} min-w-0 bg-indigo-900`}
+                className="min-w-0 whitespace-nowrap rounded-md border border-white/20 bg-indigo-900 px-2 py-1 text-xs disabled:opacity-40"
                 onClick={async () => {
                     try {
                         const items = await refresh()

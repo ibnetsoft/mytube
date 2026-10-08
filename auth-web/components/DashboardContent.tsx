@@ -4576,10 +4576,9 @@ export default function DashboardContent() {
                                                     {item.work_info?.error ? (
                                                         <span className="text-xs text-amber-300">작업정보를 불러오지 못했습니다. 다음 갱신 시 다시 확인합니다.</span>
                                                     ) : item.work_info ? (
-                                                        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
-                                                            <p className="mb-1 text-xs font-bold text-cyan-200">대사씬 캐릭터 확인</p>
+                                                        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2">
                                                             <StdSpeakerWorkInfo data={item.work_info} />
-                                                            <p className="mt-2 text-[10px] text-gray-500">저장된 작업 기준 · 10초마다 갱신</p>
+                                                            <p className="mt-1 text-[10px] text-gray-500">저장된 작업 기준 · 10초마다 갱신</p>
                                                         </div>
                                                     ) : <span className="text-xs text-gray-500">연결된 작업 프로젝트 없음</span>}
                                                 </td>
