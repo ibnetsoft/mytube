@@ -102,7 +102,7 @@ const thai: Record<string, string> = {
   "Failed to fetch": "เชื่อมต่อไม่สำเร็จ โปรดลองอีกครั้ง"
 }
 export function regionMotionText(text: string, locale = 'ko') {
- if(locale !== 'th') return text
+ if(locale !== 'th') return text.replace(/\bAE\b/g, 'AIR STUDIO')
  const key=text.replace(/\s+/g,' ').trim()
- return thai[key] || (/[가-힣]/.test(text) ? 'ไม่สามารถดำเนินการได้ โปรดตรวจสอบการตั้งค่าแล้วลองอีกครั้ง' : text)
+ return (thai[key] || (/[가-힣]/.test(text) ? 'ไม่สามารถดำเนินการได้ โปรดตรวจสอบการตั้งค่าแล้วลองอีกครั้ง' : text)).replace(/\bAE\b/g, 'AIR STUDIO')
 }

@@ -8271,13 +8271,6 @@ export default function StdPortalPage() {
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
-            {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
-                locale={currentLocale}
-                key={selectedProject.project.id} projectId={selectedProject.project.id}
-                revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
-                speakerProgress={dialogueSpeakerProgress}
-                onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev?.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
-                selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />}
             {topicProjectOpen && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6"
@@ -9903,7 +9896,7 @@ export default function StdPortalPage() {
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
                                 <div className="std-subtitle-preview contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
-                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto lg:pb-28 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:h-full lg:overflow-y-auto lg:pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-b-lg sm:rounded-b-xl overflow-hidden shadow flex flex-col lg:order-none">
                                         {bgmAsset && (
@@ -10342,6 +10335,13 @@ export default function StdPortalPage() {
                                             </div>
                                         )}
                                     </div>
+                                    <StdSpeakerCoordinates
+                                        locale={currentLocale}
+                                        key={selectedProject.project.id} projectId={selectedProject.project.id}
+                                        revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
+                                        speakerProgress={dialogueSpeakerProgress}
+                                        onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev?.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
+                                        selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />
 
                                     </div>
                                 </div>

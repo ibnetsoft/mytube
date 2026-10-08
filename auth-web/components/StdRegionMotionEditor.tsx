@@ -246,7 +246,7 @@ export default function StdRegionMotionEditor({
         <>
             <button
                 type="button"
-                className={`${button} mt-2 w-full bg-indigo-900`}
+                className={`${button} min-w-0 bg-indigo-900`}
                 onClick={async () => {
                     try {
                         const items = await refresh()
@@ -262,8 +262,8 @@ export default function StdRegionMotionEditor({
                         setNotice(e.message)
                     }
                 }}
-            >{tr("영역 동작 지정 · AE")}</button>
-            {!open && notice && <p role="status">{tr(notice)}</p>}
+            >{tr("영역 동작 지정")}</button>
+            {!open && notice && <p role="status" className="col-span-2 text-xs">{tr(notice)}</p>}
             {open &&
                 createPortal(
                     <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-3">

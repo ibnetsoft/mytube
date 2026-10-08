@@ -15,6 +15,6 @@ const component=load('components/StdRegionMotionEditor.tsx',name=>{
 });
 global.document={body:{}};
 const html=renderToStaticMarkup(React.createElement(component.default,{projectId:'p',headers:{},locale:'th'}));
-assert.match(html,/กำหนดการเคลื่อนไหวของส่วนภาพ/);assert.match(html,/เลื่อนซ้ายขวาซ้ำ/);assert.match(html,/ขอสร้างวิดีโอ AE/);assert.doesNotMatch(html,/[가-힣]/);
+assert.match(html,/กำหนดการเคลื่อนไหวของส่วนภาพ/);assert.match(html,/เลื่อนซ้ายขวาซ้ำ/);assert.match(html,/ขอสร้างวิดีโอ AIR STUDIO/);assert.doesNotMatch(html,/[가-힣]/);
 assert.equal(motion.parseRegionMotionCommand('เลื่อนซ้ายขวา 3% ทุก 2 วินาที 3 ครั้ง').cycles,3);
 console.log('PASS: full Thai popup, motion names, buttons and Thai command');
