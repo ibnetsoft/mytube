@@ -44,6 +44,13 @@ export async function templateOverlaySettings(settings: Record<string, any>) {
         std_template_shape_layers: [], std_template_contract: TEMPLATE_OVERLAY_CONTRACT,
         std_template_reference_width: TEMPLATE_REFERENCE_WIDTH, std_template_overlay_png_data_url: null,
         std_template_overlay_layers: layers }
+    // Preserve explicit background choices from the current editor; legacy text-only
+    // presets still discard their old default background and shape settings.
+    if (typeof settings.std_image_template_bg_transparent === 'boolean') {
+        clean.std_image_template_bg_url = settings.std_image_template_bg_url || null
+        clean.std_image_template_bg_color = settings.std_image_template_bg_color
+        clean.std_template_shape_layers = settings.std_template_shape_layers || []
+    }
     if (!settings.std_image_template_enabled || !layers.length) return clean
     const canvas = document.createElement('canvas')
     await drawTemplateOverlay(canvas, layers)

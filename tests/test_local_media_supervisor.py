@@ -29,7 +29,7 @@ def test_no_overlapping_children_and_alternating_roles(isolated):
     manager.execute(manager.choose(['ae','render']))
     manager.execute(manager.choose(['ae','render']))
     assert 'ae_mouth_worker.py' in order[0][2]
-    assert 'remote_render_source.py' in order[1][2]
+    assert 'remote_drive_worker.py' in order[1][2]
 
 def test_three_failures_block_role_and_render_pause_is_preserved(isolated):
     manager = media.Supervisor()
@@ -38,6 +38,17 @@ def test_three_failures_block_role_and_render_pause_is_preserved(isolated):
     media.HOME.mkdir()
     (media.HOME/'pause-render').touch()
     assert manager.choose(['ae','render']) is None
+
+def test_region_jobs_use_separate_serialized_worker(isolated):
+    assert media.role_command('region')[2].endswith('ae_region_motion_worker.py')
+    manager = media.Supervisor()
+    assert manager.choose(['region', 'render']) == 'region'
+    manager.last_role = 'region'
+    assert manager.choose(['region', 'render']) == 'render'
+
+def test_ready_region_video_still_requires_review():
+    from worker.local_media_dashboard import summarize
+    assert summarize({'id':'r','scene_number':13,'metadata':{'kind':'region_motion_plan','state':'ready'}})['group'] == 'review'
 
 def test_singleton_rejects_second_manager(isolated):
     with media.singleton():
@@ -84,3 +95,26 @@ def test_coordinate_role_does_not_import_ae_render_worker():
     command = media.role_command('coordinates')
     assert command[-2].endswith('ae_speaker_coordinates.py')
     assert command[-1] == '--once'
+
+
+def test_all_role_commands_resolve_to_tracked_entrypoints():
+    for role in ['coordinates', 'ae', 'region', 'video_tail', 'render', 'highlight']:
+        assert Path(media.role_command(role)[2]).is_file(), role
+
+
+def test_submitted_ae_waiting_project_is_polled_before_final_submission(monkeypatch):
+    import requests
+    monkeypatch.setenv('SUPABASE_URL', 'https://database.example')
+    monkeypatch.setenv('SUPABASE_SERVICE_ROLE_KEY', 'fixture')
+    calls = []
+    class Response:
+        def raise_for_status(self): pass
+        def json(self): return []
+    def get(url, **kwargs):
+        calls.append((url, kwargs['params']))
+        return Response()
+    monkeypatch.setattr(requests, 'get', get)
+    assert media.pending_roles() == []
+    project_filter = next(params for url, params in calls if url.endswith('/std_projects'))
+    assert project_filter['or'] == '(submitted_at.not.is.null,project_payload->ae_mouth->>enabled.eq.true)'
+    assert project_filter['status'] == 'not.in.(approved,canceled)'

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 def group(state):
     if state in ('ready', 'reviewed', 'completed'): return 'completed'
     if state in ('failed', 'obsolete', 'cancelled'): return 'failed'
-    if state in ('needs_review', 'direction_pending', 'review_pending'): return 'review'
+    if state in ('prepared', 'approved', 'needs_review', 'direction_pending', 'review_pending'): return 'review'
     if state in ('processing', 'rendering'): return 'working'
     return 'waiting'
 
@@ -21,8 +21,9 @@ def summarize(row, render=False):
     if meta.get('kind') == 'ae_speaker_coordinates': completed = len(results)
     return {'id': row['id'], 'project_id': meta.get('std_web_project_id') or row.get('project_id'),
             'title': row.get('project_name') or '', 'kind': 'render' if render else meta.get('kind'),
-            'state': state, 'group': group(state), 'phase': meta.get('phase'),
+            'state': state, 'group': 'review' if meta.get('kind') == 'region_motion_plan' and state == 'ready' else group(state), 'phase': meta.get('phase'),
             'total': len(scenes), 'done': completed, 'analyzed': len(results),
+            'scene_number': row.get('scene_number'),
             'progress': max(0, min(100, float(row.get('progress') or 0))) if render else None,
             'created_at': row.get('created_at'), 'updated_at': row.get('updated_at'),
             'scene_numbers': [r.get('number') for r in results if r.get('status') == 'needs_review']}
@@ -38,9 +39,9 @@ def fetch_jobs():
         response.raise_for_status()
         return response.json()
     # Project only display fields; do not retrieve asset URLs, credentials or full input.
-    select = 'id,project_id,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes'
+    select = 'id,project_id,scene_number,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes'
     # Input scenes can contain assets; select just counts on the server and never return them.
-    assets = query('std_project_assets', {'select':select,'metadata->>kind':'in.(ae_speaker_coordinates,ae_mouth_job)', 'order':'created_at.desc','limit':'100'})
+    assets = query('std_project_assets', {'select':select,'metadata->>kind':'in.(ae_speaker_coordinates,ae_mouth_job,region_layer_package,region_motion_plan)', 'order':'created_at.desc','limit':'100'})
     jobs = []
     for row in assets:
         row['metadata'] = {'state':row.get('metadata'), 'kind':row.get('kind'), 'phase':row.get('phase'),

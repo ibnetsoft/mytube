@@ -17,6 +17,7 @@ import ae_highlight_worker as ae
 from ae_mouth import assess_dialogue, locate_speakers, mouth_layers, amplitude_cues, decode_scene_audio, review_layers, digest, direction_text, visible_speakers
 from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
+from ae_video_tracking import track_video
 from ae_media_utils import ffmpeg, run, ref
 
 
@@ -30,7 +31,8 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
     structure = payload.get('structure') or {}
     if (payload.get('tts_speed', (project.get('progress_payload') or {}).get('tts_speed')) != snapshot.get('tts_speed')):
         return False
-    audio = next((a for a in assets if a.get('asset_type') == 'audio' and a.get('status') in ('uploaded', 'assigned')), None)
+    audio = next((a for a in assets if a.get('asset_type') == 'audio' and a.get('status') in ('uploaded', 'assigned')
+                  and ((a.get('metadata') or {}).get('subtitle_timeline') or a.get('id') == snapshot['audio']['id'])), None)
     if not audio or snapshot['audio'] != {'id': audio['id'], 'metadata': audio.get('metadata')}:
         return False
     saved = payload.get('subtitles') or []
@@ -49,7 +51,11 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
             'scene_cast': structure.get('scene_cast') or []}
     if cast != snapshot['cast'] or (structure.get('dialogue_annotations') or {}) != snapshot['annotations']:
         return False
-    current_numbers = [int(s['scene_number']) for s in scenes if int(s['scene_number']) >= 19]
+    current_numbers = [int(s['scene_number']) for s in scenes if int(s['scene_number']) >= 19 or
+        (snapshot.get('version',1) >= 2 and any(int(r.get('scene_number') or 0)==int(s['scene_number']) and r.get('dialogue_kind')=='dialogue' for r in saved)
+         and any(a.get('asset_type')=='video' and int(a.get('scene_number') or 0)==int(s['scene_number']) and a.get('status') in ('uploaded','assigned')
+                 and not (a.get('metadata') or {}).get('ae_mouth_fingerprint') and not (a.get('metadata') or {}).get('lipsync_fingerprint')
+                 and (a.get('metadata') or {}).get('postprocess_mode')!='after_effects' for a in assets))]
     if current_numbers != [s['number'] for s in snapshot['scenes']]:
         return False
     for original in snapshot['scenes']:
@@ -143,12 +149,14 @@ def process_one() -> bool:
                 outcomes[number] = {**result, 'status': 'needs_review', 'reason': '대사·화자를 확실히 판별하지 못했습니다. 자막에서 대사와 화자를 확인한 뒤 다시 제출해 주세요.'}
             elif not dialogue:
                 outcomes[number] = {**result, 'status': 'skipped', 'reason': '실제 캐릭터 대사가 없는 내레이션·반응 장면입니다.'}
-            elif scene.get('original_video'):
-                outcomes[number] = {**result, 'status': 'needs_review', 'reason': '원본이 동영상인 씬은 얼굴·입 추적이 필요합니다. 정지 이미지로 대체하지 않으므로 별도 영상 립싱크 작업을 검토해 주세요.'}
             else:
                 scene_dir = directory / f'scene-{number}'
                 scene_dir.mkdir(parents=True, exist_ok=True)
                 image = scene_dir / 'original.png'
+                if not scene.get('image'):
+                    outcomes[number] = {**result,'status':'needs_review','reason':'영상 추적을 시작할 화자 좌표의 기준 이미지가 필요합니다.'}
+                    save(results=list(outcomes.values()))
+                    continue
                 if not image.exists():
                     bucket, path = ref(scene['image'])
                     ae._download_gcs_file(ae.GcsRef(bucket, path), image)
@@ -163,9 +171,18 @@ def process_one() -> bool:
                     if not speakers:
                         outcomes[number] = {**result, 'status': 'skipped', 'reason': '화자가 화면 밖에 있습니다. 화면 속 듣는 인물의 입은 움직이지 않습니다.'}
                     else:
+                        video, tracking = None, None
+                        if scene.get('original_video'):
+                            video = scene_dir / 'original-video.mp4'
+                            if not video.exists():
+                                bucket, path = ref(scene['original_video'])
+                                ae._download_gcs_file(ae.GcsRef(bucket,path),video)
+                            image, speakers, tracking = track_video(video,image,speakers,scene_dir/'tracking',duration)
                         direction = direction_text(speakers, dialogue, scene['start'])
+                        if tracking:
+                            direction += ' 원본 영상은 1배속으로 유지하고 얼굴·입의 이동·크기·회전을 추적합니다. 영상 종료 후 입 움직임은 확정된 대사 끝까지 유지하며 마지막 화면에 6% 줌인을 적용합니다.'
                         if not render_phase:
-                            outcomes[number] = {**result, 'status': 'direction_pending', 'direction': direction, 'visibility': visibility}
+                            outcomes[number] = {**result, 'status': 'direction_pending', 'direction': direction, 'visibility': visibility, 'tracking':tracking}
                             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
                             continue
                         samples = decode_scene_audio(ffmpeg(), audio_path, scene['start'], duration)
@@ -176,7 +193,9 @@ def process_one() -> bool:
                         review_layers(runner, f'{identity}-{number}', image, speakers, scene_dir)
                         fresh()
                         source_scene = {'scene_number': number, 'scene_text': scene['text'], **copy.deepcopy(scene['direction']),
-                                        'ae_mouth_runtime': {'enabled': True, 'speakers': speakers, 'audio_sha256': digest(audio_path)}}
+                                        'ae_mouth_runtime': {'enabled': True, 'speakers': speakers, 'audio_sha256': digest(audio_path),
+                                            'video_source':bool(video),'video_duration':tracking['source_duration'] if tracking else None,
+                                            'tracking':tracking}}
                         selected = ae._render_plan_from_scene(source_scene)
                         if not selected:
                             source_scene['ae_motion_plan'] = {'enabled': True, 'preset': 'subtle_dialogue', 'vfx': [], 'intensity': .15,
@@ -188,7 +207,7 @@ def process_one() -> bool:
                         source_scene['duration_seconds'] = duration
                         job_spec = ae.SceneJob(topic_id=job['project_id'], topic_title='AE mouth postprocessing', structure={'scenes': [source_scene]}, scene_index=0,
                             scene=source_scene, scene_number=number, plan_kind=kind, preset=str(plan.get('preset') or 'subtle_dialogue'),
-                            duration_seconds=duration, source=ae.GcsRef('__local__', str(image.resolve())), source_type='project',
+                            duration_seconds=duration, source=ae.GcsRef('__local__', str((video or image).resolve())), source_type='project',
                             project_payload={'ae_scene_delivery': 'local'})
                         # Existing AE effects consume the animated-mouth source precomp, preserving registration.
                         rendered = ae._render_job(job_spec, keep_workdir=True)
@@ -214,9 +233,10 @@ def process_one() -> bool:
                                 'metadata': {'storage_provider': 'gcs', 'gcs_bucket': bucket, 'gcs_path': path, 'storage_bucket': bucket,
                                     'storage_path': path, 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'ae_reviewed': False,
                                     'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction,
-                                    'source_image_id': scene['image']['id'], 'source_audio_id': snapshot['audio']['id']},
+                                    'source_image_id': scene['image']['id'], 'source_audio_id': snapshot['audio']['id'],
+                                    'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking},
                             }).json()[0]
-                        outcomes[number] = {**result, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction}
+                        outcomes[number] = {**result, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction,'tracking':tracking}
                 except ValueError as exc:
                     outcomes[number] = {**result, 'status': 'needs_review', 'reason': str(exc)[:500]}
             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])

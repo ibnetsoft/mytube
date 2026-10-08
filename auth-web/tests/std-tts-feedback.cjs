@@ -78,6 +78,10 @@ function harness(options = {}) {
         },
         hasDistinctDialogueVoiceAssignment: () => options.assignment !== false,
         setHighlightSaveTts() {},
+        speechSubtitlesRef: { current: [{ text: 'Saved script.' }] },
+        applyRecordedSubtitleTiming: (rows, timeline) => rows.map((row, index) => ({ ...row, ...timeline[index] })),
+        setLocalSubtitles: rows => { state.timedSubtitles = rows },
+        persistVrewVoiceSubtitles: async rows => { state.persistedTiming = rows },
         handleSaveSubtitles: async () => {
             state.saves++
             if (options.saveGate) await options.saveGate.promise
@@ -291,3 +295,14 @@ for (const locale of ['th', 'vi']) {
         assert.equal(save.state.requests.length, 0)
     })
 }
+
+
+test('finalized TTS timing is persisted while preserving the localized completion notice', async () => {
+    const payload = successfulPayload()
+    payload.asset = { ...payload.asset, metadata: { subtitle_timeline: [{ start: 0, end: 3.5 }] } }
+    const h = harness({ payload })
+    await h.generateTts(true)
+    assert.equal(h.state.timedSubtitles[0].end, 3.5)
+    assert.deepEqual(h.state.persistedTiming, h.state.timedSubtitles)
+    assert.equal(terminal(h).at(-1).phase, 'success')
+})

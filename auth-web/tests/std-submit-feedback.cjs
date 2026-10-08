@@ -356,3 +356,15 @@ for (const locale of ['th', 'vi']) {
         assert.ok(detail.includes(localizeStdActionError('생성 이미지 24번을 GCS에서 읽을 수 없습니다', locale, 'submit')))
     })
 }
+
+test('accepted AE postprocessing is pending, not a completed final render queue submission', async () => {
+    for (const locale of ['ko', 'th', 'en', 'vi']) {
+        const h = harness({ locale, status: 202, payload: { success: true, postprocess_pending: true } })
+        await h.submitProject()
+        assert.equal(h.state.notices.at(-1).phase, 'pending')
+        assert.equal(h.state.notices.at(-1).detail, submissionNoticeCopy(locale).postprocessPending)
+        assert.equal(h.state.accepted.length, 0)
+        assert.equal(h.state.project.project.submitted_at, undefined)
+        assert.equal(h.state.opens.length, 0)
+    }
+})

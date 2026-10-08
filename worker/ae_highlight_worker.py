@@ -32,6 +32,8 @@ from ae_recovery import AeRecoveryError, continue_crash_recovery
 from manga_ae_templates import template_for_scene, write_manga_jsx
 from manga_scene_qa import validate_scene_plan, validate_render
 from media_checkpoint import Checkpoint, fingerprint, valid_file, valid_mp4, verified_local_mp4
+from ae_mouth import mouth_jsx
+from ae_video_tail import VIDEO_TAIL_POLICY, recorded_scene_duration, video_tail_jsx, pending_video_tail
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -235,6 +237,12 @@ def _gcs_ref_from_scene(scene: dict[str, Any]) -> GcsRef | None:
     metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
     motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
     source_kind = str(motion_plan.get("input_source") or "").strip().lower()
+    if source_kind == "lipsync_asset":
+        lip = metadata.get("lipsync_asset") or {}
+        if not lip.get("lipsync_reviewed") or not lip.get("timing_locked"):
+            return None
+        return GcsRef(bucket=lip["gcs_bucket"], path=lip["gcs_path"])
+
     video_mode = str(scene.get("video_generation_mode") or metadata.get("video_generation_mode") or "").strip().lower()
     # When a post-process plan names generated video as its input, never fall
     # back to the scene's still image. Wait for the registered clip instead.
@@ -413,8 +421,16 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
             asset_key = _asset_key(plan_kind)
             url_key = _video_url_key(plan_kind)
             ae_meta = meta.get(asset_key) if isinstance(meta.get(asset_key), dict) else {}
+            target_duration = recorded_scene_duration(project_payload,
+                int(scene.get("scene_number") or scene.get("scene_order") or index + 1),
+                float(plan.get("duration_seconds") or scene.get("duration_seconds") or 4))
+            video_timing_changed = (
+                (video_mode in {"comfyui", "user_upload"} or scene.get("visual_type") == "video")
+                and (ae_meta.get("video_tail_policy") != VIDEO_TAIL_POLICY
+                     or abs(float(ae_meta.get("duration_seconds") or 0) - target_duration) > 0.12)
+            )
             delivery = _scene_delivery(source_type, project_payload, structure, scene)
-            if not force:
+            if not force and not video_timing_changed:
                 if delivery == "local" and ae_meta.get("storage_provider") == "local" and ae_meta.get("status") == "ready":
                     try:
                         required_seconds = max(0.5, float(ae_meta.get("duration_seconds") or 1) * 0.8)
@@ -427,7 +443,8 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
                       (ae_meta.get("status") == "ready" or
                        (scene.get(url_key) and ae_meta.get("status") in {None, "", "ready"}))):
                     continue
-            if not force and ae_meta.get("status") in {"needs_attention", "review_pending"}:
+            if not force and (ae_meta.get("status") == "needs_attention" or
+                              (ae_meta.get("status") == "review_pending" and not video_timing_changed)):
                 continue
             if not force and float(ae_meta.get("next_retry_at") or 0) > time.time():
                 continue
@@ -447,7 +464,7 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
             except (TypeError, ValueError):
                 scene_number = index + 1
             try:
-                duration = float(plan.get("duration_seconds") or scene.get("duration_seconds") or 4)
+                duration = target_duration
             except (TypeError, ValueError):
                 duration = 4.0
             jobs.append(
@@ -460,7 +477,7 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
                     scene_number=scene_number,
                     plan_kind=plan_kind,
                     preset=_safe_name(plan.get("preset"), "wuxia_sword_aura"),
-                    duration_seconds=max(1.0, min(duration, 12.0)),
+                    duration_seconds=(max(0.1, min(duration, 300.0)) if Path(source.path).suffix.lower() in {'.mp4', '.mov', '.webm', '.m4v'} or (scene.get('metadata') or {}).get('lipsync_asset', {}).get('timing_locked') else max(1.0, min(duration, 12.0))),
                     source=source,
                     source_type=source_type,
                     project_payload=project_payload,
@@ -492,7 +509,8 @@ def fetch_candidate_projects(limit: int) -> list[dict[str, Any]]:
     response = _request(
         "GET", f"{base_url}/rest/v1/std_projects", headers,
         params={"select": "id,title,submitted_at,project_payload,updated_at",
-                "submitted_at": "not.is.null", "order": "updated_at.desc", "limit": str(limit)},
+                "or": "(submitted_at.not.is.null,project_payload->ae_mouth->>enabled.eq.true)",
+                "status": "not.in.(approved,canceled)", "order": "updated_at.desc", "limit": str(limit)},
     )
     rows = response.json()
     return [{**row, "__source_type": "project"} for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
@@ -1073,9 +1091,10 @@ try {{
     importOptions.importAs = ImportAsType.COMP_CROPPED_LAYERS;
   }}
   var footage = app.project.importFile(importOptions);
+  {mouth_jsx(job.scene.get('ae_mouth_runtime') or {'enabled': False})}
   var comp = app.project.items.addComp("ae_highlight_{_safe_name(preset)}", W, H, 1, DUR, FPS);
   comp.bgColor = [0, 0, 0];
-  var layeredPsd = footage instanceof CompItem && footage.numLayers > 1;
+  var layeredPsd = footage instanceof CompItem && footage.numLayers > 1 && !mouthRuntime.enabled;
   var bg = null;
   if (layeredPsd) {{
     for (var li = footage.numLayers; li >= 1; li--) {{
@@ -1135,7 +1154,8 @@ try {{
     bg.property("Position").setValueAtTime(0.42, [W / 2 - shakePixels * 0.7, H / 2 + shakePixels * 0.25]);
     bg.property("Position").setValueAtTime(0.55, [W / 2 + PLAN.drift_x * W * 0.3, H / 2 + PLAN.drift_y * H * 0.3]);
   }}
-  if (!layeredPsd && (hasVfx("layered_depth_proxy") || hasVfx("comic_parallax_camera") || hasVfx("depth_of_field"))) {{
+  {video_tail_jsx(bool((job.scene.get('metadata') or {}).get('lipsync_asset', {}).get('timing_locked')))}
+  if (!sourceVideo && !layeredPsd && (hasVfx("layered_depth_proxy") || hasVfx("comic_parallax_camera") || hasVfx("depth_of_field"))) {{
     applyDepthProxy(comp, footage);
   }}
   if (!layeredPsd && hasVfx("puppet_breath_idle")) {{
@@ -1532,6 +1552,29 @@ def _manga_preflight(job: SceneJob, input_psd: Path) -> dict[str, Any]:
 
 
 def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
+    # Dialogue and effect workers share one Adobe render host.
+    with (STATE_DIR / 'adobe-render.lock').open('a+b') as lock:
+        if os.name == 'nt':
+            import msvcrt
+            deadline = time.monotonic() + 1800
+            while True:
+                try:
+                    lock.seek(0)
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise AeWorkerError('Adobe render host is still busy; retry this scene later')
+                    time.sleep(2)
+        try:
+            return _render_job_unlocked(job, keep_workdir=keep_workdir)
+        finally:
+            if os.name == 'nt':
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def _render_job_unlocked(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     afterfx = find_afterfx() or Path(DEFAULT_AFTERFX)
     aerender = find_aerender() or Path(DEFAULT_AERENDER)
     if not afterfx.is_file() or not aerender.is_file():
@@ -1543,6 +1586,7 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
         "version": 3 if template else 2, "source": job.source.__dict__, "kind": job.plan_kind,
         "preset": job.preset, "plan": direction_plan, "duration": job.duration_seconds,
         "width": DEFAULT_WIDTH, "height": DEFAULT_HEIGHT, "fps": DEFAULT_FPS,
+        "ae_mouth_runtime": job.scene.get("ae_mouth_runtime"),
     })
     workdir = worker_config.TEMP_DIR / "ae_highlight" / f"{_safe_name(job.topic_id)}-{job.scene_number:03d}-{job.plan_kind}-{identity}"
     checkpoint = Checkpoint(workdir / "checkpoint.json", identity)
@@ -1568,13 +1612,17 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     uploaded_video_direction = None
     uploaded_video_sha256 = ""
     if source_suffix in {".mp4", ".mov", ".webm", ".m4v"}:
-        uploaded_video_direction, uploaded_video_sha256 = _review_uploaded_video_direction(job, input_image)
+        if (job.scene.get('ae_mouth_runtime') or {}).get('video_source'):
+            uploaded_video_sha256 = _sha256_file(input_image)
+        else:
+            uploaded_video_direction, uploaded_video_sha256 = _review_uploaded_video_direction(job, input_image)
         direction_plan = _effect_plan(job)
         identity = fingerprint({
-            "version": 4, "source": job.source.__dict__, "kind": job.plan_kind,
+            "version": 5, "video_tail_policy": VIDEO_TAIL_POLICY, "source": job.source.__dict__, "kind": job.plan_kind,
             "preset": job.preset, "plan": direction_plan, "duration": job.duration_seconds,
             "width": DEFAULT_WIDTH, "height": DEFAULT_HEIGHT, "fps": DEFAULT_FPS,
             "source_video_sha256": uploaded_video_sha256,
+            "ae_mouth_runtime": job.scene.get('ae_mouth_runtime'),
         })
         checkpoint = Checkpoint(workdir / "checkpoint.json", identity)
 
@@ -1608,7 +1656,14 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     write_state("rendering", 50, _job_summary(job))
     if not valid_mp4(mp4_path, job.duration_seconds * 0.8):
         try:
-            _run_checked([str(aerender), "-project", str(project_path), "-comp", f"ae_highlight_{_safe_name(job.preset)}", "-output", str(mp4_path)], timeout=1200)
+            tracked_video = bool((job.scene.get('ae_mouth_runtime') or {}).get('video_source'))
+            native = mp4_path.with_name('native-mouth-' + uuid.uuid4().hex + '.avi') if tracked_video else mp4_path
+            _run_checked([str(aerender), "-project", str(project_path), "-comp", f"ae_highlight_{_safe_name(job.preset)}", "-output", str(native)], timeout=1200)
+            if tracked_video:
+                candidates = [p for p in native.parent.glob(native.stem + '.*') if p.suffix.lower() in {'.avi','.mov','.mp4','.mxf'} and p.stat().st_size > 0]
+                if len(candidates) != 1:
+                    raise AeWorkerError('AE did not produce one tracked-mouth video')
+                _run_checked([_ffmpeg_executable(), '-y', '-i', str(candidates[0]), '-an', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(mp4_path)],timeout=600)
         except Exception:
             # A partially saved AEP can be large enough to pass a size check.
             # Rebuild it on the next attempt instead of looping on the same file.
@@ -1636,7 +1691,7 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
                     "local_bytes": mp4_path.stat().st_size,
                     "local_mtime_ns": mp4_path.stat().st_mtime_ns, "media_url": ""}
     else:
-        object_name = f"{'projects' if job.source_type == 'project' else 'topics'}/{job.topic_id}/ae/{job.plan_kind}/scene-{job.scene_number:03d}-{_safe_name(job.preset)}.mp4"
+        object_name = f"{'projects' if job.source_type == 'project' else 'topics'}/{job.topic_id}/ae/{job.plan_kind}/scene-{job.scene_number:03d}-{_safe_name(job.preset)}-{identity}.mp4"
         write_state("uploading", 88, _job_summary(job))
         uploaded = checkpoint.get("uploaded")
         if isinstance(uploaded, dict) and uploaded.get("object_path") == object_name:
@@ -1649,6 +1704,9 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
                     "gcs_bucket": bucket, "gcs_path": gcs_path, "media_url": media_url}
     result = {
         **location,
+        **({"lipsync_fingerprint": job.scene["metadata"]["lipsync_asset"]["lipsync_fingerprint"],
+            "timing_locked": True} if (job.scene.get("metadata") or {}).get("lipsync_asset", {}).get("timing_locked") else {}),
+
         "plan_kind": job.plan_kind,
         "preset": job.preset,
         "duration_seconds": job.duration_seconds,
@@ -1661,9 +1719,10 @@ def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
         "scene_visual_qa": scene_visual_qa,
         "quality_report": quality,
         "manga_qa": {"plan": plan_qa, "render": render_qa} if template else None,
-        "review_required": bool(render_qa and render_qa["review_required"]),
-        "render_sha256": _sha256_file(mp4_path) if template else "",
-        "review_local_path": str(mp4_path.resolve()) if template else "",
+        "review_required": bool(uploaded_video_direction is not None or (render_qa and render_qa["review_required"])),
+        "render_sha256": _sha256_file(mp4_path) if template or uploaded_video_direction is not None else "",
+        "review_local_path": str(mp4_path.resolve()) if template or uploaded_video_direction is not None else "",
+        "video_tail_policy": VIDEO_TAIL_POLICY if uploaded_video_direction is not None else None,
         "source_image": {"bucket": job.source.bucket, "object_path": job.source.path},
         "postprocess_mode": "after_effects",
         "local_workdir": str(workdir) if keep_workdir else "",
@@ -1766,6 +1825,8 @@ def run_once(args: argparse.Namespace) -> int:
     if os.getenv("AE_RENDER_PREGEN_TOPICS") == "1" or args.topic_id:
         rows.extend(fetch_candidate_topics(args.topic_limit))
     jobs = _find_scene_jobs(rows, force=args.force)
+    if getattr(args, 'video_tails_only', False):
+        jobs = [job for job in jobs if job.source_type == 'project' and pending_video_tail(job.scene, job.project_payload)]
     if args.topic_id:
         jobs = [job for job in jobs if job.topic_id == str(args.topic_id)]
     if args.scene_number:
@@ -1821,6 +1882,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-seconds", type=float, default=DEFAULT_POLL_SECONDS)
     parser.add_argument("--force", action="store_true", help="Re-render even if ae_video_url already exists.")
     parser.add_argument("--dry-run", action="store_true", help="Show matching jobs without rendering.")
+    parser.add_argument("--video-tails-only", action="store_true", help="Process submitted short videos needing a normal-speed frozen zoom tail.")
     parser.add_argument("--keep-workdir", action="store_true", help="Keep local AE job files for debugging.")
     args, _unknown = parser.parse_known_args()
     if "--role" in sys.argv and not args.dry_run:

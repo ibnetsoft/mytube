@@ -38,21 +38,35 @@ def pending_roles():
         response=requests.get(base+'/rest/v1/'+table,headers=headers,params={'select':'id','limit':'1',**params},timeout=(5,15))
         response.raise_for_status();return bool(response.json())
     roles=[]
+    for kind in ('region_layer_package','region_motion_plan'):
+        if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.(queued,processing)'}):
+            roles.append('region');break
     for kind,states,role in [('ae_speaker_coordinates','queued,processing','coordinates'),('ae_mouth_job','queued,processing,direction_approved','ae')]:
         if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.('+states+')'}): roles.append(role)
+    from ae_video_tail import pending_video_tail
+    response=requests.get(base+'/rest/v1/std_projects',headers=headers,params={
+        'select':'project_payload','or':'(submitted_at.not.is.null,project_payload->ae_mouth->>enabled.eq.true)','status':'not.in.(approved,canceled)',
+        'order':'updated_at.desc','limit':'20'},timeout=(5,15))
+    response.raise_for_status()
+    if any(pending_video_tail(scene,row.get('project_payload'))
+           for row in response.json()
+           for scene in ((row.get('project_payload') or {}).get('structure') or {}).get('scenes',[])):
+        roles.append('video_tail')
     if exists('remote_render_queue',{'status':'eq.pending','render_mode':'eq.gcs_api'}):roles.append('render')
     return roles
 
 def role_command(role):
     if role=='coordinates': return [sys.executable,'-u',str(ROOT/'worker/ae_speaker_coordinates.py'),'--once']
+    if role=='video_tail': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--video-tails-only','--max-scenes','1']
+    if role=='region': return [sys.executable,'-u',str(ROOT/'worker/ae_region_motion_worker.py'),'--once']
     if role=='ae': return [sys.executable,'-u',str(ROOT/'worker/ae_mouth_worker.py'),'--once']
-    if role=='render': return [sys.executable,'-u',str(ROOT/'worker/remote_render_source.py'),'--once']
+    if role=='render': return [sys.executable,'-u',str(ROOT/'remote_drive_worker.py'),'--once']
     if role=='highlight': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--max-scenes','1']
     raise ValueError('Unknown media role')
 
 def busy_processes():
     if os.name!='nt':return []
-    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe','ffmpeg.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
+    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe','ffmpeg.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
     result=subprocess.run(['powershell','-NoProfile','-Command',script],capture_output=True,text=True,creationflags=subprocess.CREATE_NO_WINDOW,timeout=15)
     if result.returncode:raise RuntimeError('Could not verify local media resources')
     rows=json.loads(result.stdout) if result.stdout.strip() else []
