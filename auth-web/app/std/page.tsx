@@ -8719,7 +8719,7 @@ export default function StdPortalPage() {
                             {sidebarProgress}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                                 {[
-                                    { id: 'topic_submissions', label: ui('토픽 등록') },
+                                    { id: 'topic_submissions', label: t('nav_topic_submissions') },
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
                                     { id: 'subtitle_vrew', label: t('nav_subtitles') },
@@ -8822,7 +8822,7 @@ export default function StdPortalPage() {
                     {sidebarProgress}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
-                            { id: 'topic_submissions', label: ui('토픽 등록') },
+                            { id: 'topic_submissions', label: t('nav_topic_submissions') },
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_vrew', label: t('nav_subtitles') },
@@ -8876,7 +8876,6 @@ export default function StdPortalPage() {
                             is_hook_zone: true,
                         }
                         const narrationSubtitleCount = localSubtitles.filter(isSubtitleNarration).length
-                        const dialogueSubtitleCount = localSubtitles.filter((sub, index) => isSubtitleDialogue(sub, index)).length
                         const canFinalizeSubtitlesAndTts = localSubtitles.length > 0 && hasDistinctDialogueVoiceAssignment()
                         const selectedSubtitleSceneGroup = subtitleSceneGroups.find(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
@@ -8895,11 +8894,6 @@ export default function StdPortalPage() {
                         const hasSelectedSubtitleSections = selectedSubtitleSceneNumbers.length > 0
                         const narrationVoiceId = isVoiceStudioVoice(vrewNarrationVoice) ? vrewNarrationVoice : 'gemini:Charon'
                         const narrationVoiceName = voiceNameById.get(narrationVoiceId) || narrationVoiceId.replace('gemini:', '')
-                        const firstDialogueSub = localSubtitles.find((sub, index) => isSubtitleDialogue(sub, index))
-                        const dialogueVoiceId = String(firstDialogueSub?.voice_id || '')
-                        const dialogueVoiceName = dialogueVoiceId
-                            ? (voiceNameById.get(dialogueVoiceId) || dialogueVoiceId.replace('gemini:', ''))
-                            : ui("대사 성우 선택")
                         return (
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일 + 모바일 오밀조밀 최적화 & 숨김/펼침) */}
@@ -8937,28 +8931,10 @@ export default function StdPortalPage() {
 
                                 {/* 패널 본문: 모바일에서는 토글 상태에 따라 노출(기본 숨김), 데스크톱(md 이상) 상시 노출 */}
                                 <div className={`${mobileSubtitlePanelOpen ? 'flex' : 'hidden md:flex'} flex-col gap-2`}>
-                                    {/* 1행: 성우선택 | 대사 | 안정성 | 대본복구 | 템플릿 | 프리셋관리 | 글자색/테두리색 */}
+                                    {/* 1행: 안정성 | 대본복구 | 템플릿 | 프리셋관리 | 글자색/테두리색 */}
                                     <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
                                         {isVrewSubtitleMode && (
                                             <>
-                                                {currentLocale !== 'th' && (
-                                                    <>
-
-                                                        <VoiceStudioPicker locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
-                                                            voices={allVoices}
-                                                            scope="dialogue"
-                                                            value={dialogueVoiceId || (narrationVoiceId === 'gemini:Charon' ? 'gemini:Puck' : 'gemini:Charon')}
-                                                            direction=""
-                                                            headers={authedJsonHeaders}
-                                                            buttonText={`${ui("대사")} ${dialogueSubtitleCount}`}
-                                                            buttonClassName="h-7 rounded-md border border-violet-400/30 bg-violet-500/10 px-2 text-[11px] font-bold text-violet-100 transition hover:bg-violet-500/20 shrink-0"
-                                                            label={`대사 ${dialogueSubtitleCount}개 성우 선택`}
-                                                            onChange={(id, direction) => {
-                                                                applyVrewVoiceBulk('dialogue', id, direction)
-                                                            }}
-                                                        />
-                                                    </>
-                                                )}
                                                 <div className="flex items-center gap-1 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1 shrink-0">
                                                     <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
                                                         {t('sub_stability')}
@@ -9532,7 +9508,7 @@ export default function StdPortalPage() {
                                                         }`}
                                                     >
                                                         <div
-                                                            className="w-6 pt-1 shrink-0 flex justify-center"
+                                                            className="w-6 pt-1 shrink-0 flex flex-col items-center gap-1"
                                                             onClick={(event) => event.stopPropagation()}
                                                         >
                                                             <input
@@ -9548,6 +9524,7 @@ export default function StdPortalPage() {
                                                                 aria-label={`씬 ${sNum} 선택`}
                                                                 className="w-4 h-4 accent-[#0b1f3a] cursor-pointer"
                                                             />
+                                                            <span className="text-xs font-bold leading-none tabular-nums text-white">{sNum}</span>
                                                         </div>
                                                         {/* 이미지와 구간 시간 */}
                                                         <div className="w-[calc(100%-2rem)] shrink-0 self-start min-[390px]:w-36 sm:w-40">

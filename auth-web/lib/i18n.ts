@@ -49,6 +49,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         cat_drama: '휴먼/감동',
 
         // Navigation Menus
+        nav_topic_submissions: '토픽 등록',
         nav_topics: '주제',
         nav_projects: '프로젝트',
         nav_plan: '기획',
@@ -218,6 +219,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         cat_drama: 'Human Drama',
 
         // Navigation Menus
+        nav_topic_submissions: 'Submit Topic',
         nav_topics: 'Topics',
         nav_projects: 'Projects',
         nav_plan: 'Plan',
@@ -348,6 +350,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         cat_drama: 'Cảm động / Nhân văn',
 
         // Navigation Menus
+        nav_topic_submissions: 'Đăng ký chủ đề',
         nav_topics: 'Chủ đề',
         nav_projects: 'Dự án',
         nav_plan: 'Kế hoạch',
@@ -478,6 +481,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         cat_drama: 'ดราม่า / ซาบซึ้ง',
 
         // Navigation Menus
+        nav_topic_submissions: 'ส่งหัวข้อ',
         nav_topics: 'หัวข้อ',
         nav_projects: 'โปรเจกต์',
         nav_plan: 'การวางแผน',
