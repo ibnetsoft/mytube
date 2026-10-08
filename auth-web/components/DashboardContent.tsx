@@ -1,5 +1,6 @@
 'use client'
 
+import StdSpeakerWorkInfo from './StdSpeakerWorkInfo'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
@@ -4384,6 +4385,7 @@ export default function DashboardContent() {
                                             <th className="px-10 py-3">제안 영상 주제</th>
                                             <th className="px-10 py-3">배정된 직원 이메일</th>
                                             <th className="px-10 py-3 text-center whitespace-nowrap">기획-대본-이미지-TTS-자막-썸네일-설명-제출</th>
+                                            <th className="px-4 py-3 whitespace-nowrap">작업정보</th>
                                             <th className="px-10 py-3 text-right">{t('admin.manage')}</th>
                                         </tr>
                                     </thead>
@@ -4568,6 +4570,17 @@ export default function DashboardContent() {
                                                         })()}
                                                     </div>
                                                 </td>
+                                                <td className="min-w-[320px] max-w-[380px] px-4 py-3 align-top">
+                                                    {item.work_info?.error ? (
+                                                        <span className="text-xs text-amber-300">작업정보를 불러오지 못했습니다. 다음 갱신 시 다시 확인합니다.</span>
+                                                    ) : item.work_info ? (
+                                                        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+                                                            <p className="mb-1 text-xs font-bold text-cyan-200">대사씬 캐릭터 확인</p>
+                                                            <StdSpeakerWorkInfo data={item.work_info} />
+                                                            <p className="mt-2 text-[10px] text-gray-500">저장된 작업 기준 · 10초마다 갱신</p>
+                                                        </div>
+                                                    ) : <span className="text-xs text-gray-500">연결된 작업 프로젝트 없음</span>}
+                                                </td>
                                                 <td className="px-10 py-3 text-right">
                                                     {canManageTopics && item.status === 'pending' ? (
                                                         <div className="flex flex-col items-end justify-center gap-2 text-[11px] font-black">
@@ -4663,7 +4676,7 @@ export default function DashboardContent() {
                                         )})}
                                         {filteredTopics.length === 0 && (
                                             <tr>
-                                                <td colSpan={5} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
+                                                <td colSpan={6} className="px-10 py-20 text-center text-gray-600 font-black uppercase tracking-widest text-xs italic">
                                                     {selectedCategory ? '선택한 카테고리에 등록된 주제가 없습니다.' : '대기열에 등록된 주제가 없습니다. 카테고리를 먼저 선택해 주세요.'}
                                                 </td>
                                             </tr>

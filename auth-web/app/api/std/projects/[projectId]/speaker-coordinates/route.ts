@@ -1,3 +1,5 @@
+import { loadSpeakerCoordinateAssets } from '@/lib/stdSpeakerCoordinateAssets'
+import { speakerCoordinateOverview } from '@/lib/stdSpeakerCoordinateOverview'
 import { NextResponse } from 'next/server'
 import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
@@ -8,8 +10,6 @@ import {
     coordinateCast,
     coordinateScenes,
     coordinateSource,
-    savedSpeakerGeometry,
-    savedSpeakerDraft,
     validateSpeakerGeometry,
 } from '@/lib/stdSpeakerGeometry'
 export const dynamic = 'force-dynamic'
@@ -27,52 +27,8 @@ async function context(req: Request, projectId: string) {
     if (p.error) throw p.error
     if (!p.data || p.data.status === 'canceled')
         return { response: NextResponse.json({ error: 'Project not available' }, { status: 404 }) }
-    const a = await db
-        .from('std_project_assets')
-        .select('*')
-        .eq('project_id', projectId)
-        .in('status', ['uploaded', 'assigned'])
-        .order('created_at', { ascending: false })
-    if (a.error) throw a.error
-    return { project: p.data, assets: a.data || [], email: auth.requester.email }
-}
-function overview(project: any, assets: any[]) {
-    const cast = coordinateCast(project),
-        scenes = coordinateScenes(project, assets)
-    const jobs = assets.filter((a) => a.metadata?.kind === 'ae_speaker_coordinates')
-    const items = scenes.map((scene) => {
-        const result = savedSpeakerGeometry(assets, cast, scene)
-        const job = jobs.find(
-            (a) =>
-                a.metadata.input?.cast_key === JSON.stringify(cast) &&
-                a.metadata.input?.scenes?.some(
-                    (s: any) => s.number === scene.number && s.image?.id === scene.image?.id,
-                ),
-        )
-        const meta = job?.metadata || {}
-        const failure = meta.failures?.find((f: any) => f.number === scene.number)
-        return {
-            ...scene,
-            result,
-            draft: savedSpeakerDraft(assets, scene),
-            error: result ? null : failure?.error || (Number(meta.current_scene) === scene.number ? meta.error : null),
-            analysisState: meta.state,
-            currentScene: meta.current_scene,
-            heartbeatAt: meta.heartbeat_at || job?.updated_at,
-        }
-    })
-    const results = items.flatMap((s) => (s.result ? [s.result] : []))
-    return {
-        count: items.length,
-        completed: results.length,
-        failed: items.filter((s) => !s.result && s.error).length,
-        pending: items.filter((s) => !s.result && !s.error).length,
-        confirmed: items.filter((s) => s.result?.origin === 'user').length,
-        scenes: items,
-        state: results.length === items.length ? 'ready' : 'needs_review',
-        results,
-        error: '웹에서 화자 위치를 직접 확정할 수 있습니다. 새로고침 후 위치 지정 버튼을 눌러 주세요.',
-    }
+    const assets = await loadSpeakerCoordinateAssets(db, [projectId])
+    return { project: p.data, assets, email: auth.requester.email }
 }
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
     try {
@@ -140,7 +96,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 assets.unshift(result.data)
             }
         }
-        return NextResponse.json(overview(project, assets))
+        return NextResponse.json(speakerCoordinateOverview(project, assets))
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 400 })
     }
@@ -209,7 +165,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             .select('*')
             .single()
         if (saved.error) throw saved.error
-        return NextResponse.json(overview(fresh.project, [saved.data, ...fresh.assets]))
+        return NextResponse.json(speakerCoordinateOverview(fresh.project, [saved.data, ...fresh.assets]))
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 400 })
     }

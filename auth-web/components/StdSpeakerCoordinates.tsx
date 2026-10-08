@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { RefreshCw } from 'lucide-react'
+import StdSpeakerWorkInfo from './StdSpeakerWorkInfo'
 import StdRegionMotionEditor from './StdRegionMotionEditor'
 
 type Box = [number, number, number, number]
@@ -69,7 +70,6 @@ export default function StdSpeakerCoordinates({
         refresh: th ? 'รีเฟรช' : '새로고침',
         position: th ? 'กำหนดตำแหน่งผู้พูด' : '화자 위치 지정',
         error: th ? 'โหลดข้อมูลตำแหน่งไม่สำเร็จ โปรดรีเฟรชเพื่อลองอีกครั้ง' : '위치 확인 정보를 불러오지 못했습니다. 새로고침해 주세요.',
-        saved: th ? 'บันทึกตำแหน่งของฉากที่เสร็จแล้ว พร้อมใช้งานใน AIR STUDIO' : '완료된 씬의 위치는 저장되어 AIR STUDIO 작업에 사용할 수 있습니다.',
     }
     const [data, setData] = useState<Overview>(empty),
         [error, setError] = useState(''),
@@ -234,18 +234,7 @@ export default function StdSpeakerCoordinates({
                         <RefreshCw size={16} aria-hidden="true" />
                     </button>
                 </div>
-                <p role="status" className="mt-1 text-xs">
-                    {error ? copy.error : th
-                        ? `ตำแหน่งพร้อมสำหรับ AIR STUDIO ${data.completed}/${data.count} ฉาก · ยืนยันเอง ${data.confirmed} ฉาก`
-                        : `AIR STUDIO 위치 준비 ${data.completed}/${data.count}씬 · 직접 확정 ${data.confirmed}씬`}
-                </p>
-                <p className="mt-1 text-xs">{th
-                    ? `ต้องตรวจสอบเพิ่ม ${data.failed || 0} ฉาก · รอวิเคราะห์ ${data.pending ?? Math.max(0, data.count - data.completed)} ฉาก`
-                    : `추가 확인 ${data.failed || 0}씬 · 남은 분석 ${data.pending ?? Math.max(0, data.count - data.completed)}씬`}</p>
-                {data.completed > 0 && <p className="mt-1 text-xs">{copy.saved}</p>}
-                {speakerProgress && <p className="mt-1 text-xs text-yellow-200">{th
-                    ? `กำหนดผู้พูดแล้ว ${speakerProgress.confirmed}/${speakerProgress.total} คำบรรยาย`
-                    : `대사 화자 지정 ${speakerProgress.confirmed}/${speakerProgress.total}개 자막`}</p>}
+                {error ? <p role="alert" className="mt-1 text-xs">{copy.error}</p> : <StdSpeakerWorkInfo data={data} speakerProgress={speakerProgress} locale={locale} />}
                 <div className="mt-2 grid grid-cols-2 items-stretch gap-2">
                     <button
                         type="button"

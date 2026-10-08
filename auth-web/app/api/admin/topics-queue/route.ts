@@ -1,3 +1,4 @@
+import { attachTopicWorkInfo } from '@/lib/adminTopicWorkInfo'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
@@ -614,7 +615,7 @@ export async function GET(req: Request) {
             : normalizedRows
 
         return NextResponse.json({
-            topics,
+            topics: await attachTopicWorkInfo(supabase, topics),
             page,
             perPage,
             total: status === 'active' ? topics.length : (count ?? topics.length),
