@@ -16,11 +16,15 @@ for(const role of ['bgm','sfx']) {
 }
 const queue=fs.readFileSync(require.resolve('../lib/stdRenderQueue.ts'),'utf8')
 const section=queue.slice(queue.indexOf('    const audioEffectAssets ='),queue.indexOf('    const savedSfxCues ='))
-const build=new Function('activeAssets','projectRenderSettings','project','storageSourceForAsset','audioManifestPath',compile('const manifestFiles=[];'+section+'\nreturn {bgmPath,manifestFiles}'))
+const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor
+const build=new AsyncFunction('activeAssets','projectRenderSettings','project','storageSourceForAsset','audioManifestPath','storageManifestFields',compile('const manifestFiles=[];'+section+'\nreturn {bgmPath,manifestFiles}'))
 const storageAsset={id:'bgm',asset_type:'bgm',metadata:{storage_path:'project/music.mp3'}}
-const result=volume=>build([storageAsset],{bgm_asset_id:'bgm',bgm_volume:volume},{},a=>a?.metadata?.storage_path?{bucket:'content-assets',path:a.metadata.storage_path}:null,()=> 'audio/music.mp3')
-assert.equal(result(0).bgmPath,'')
-assert.equal(result(0).manifestFiles.length,0,'Mute must not be replaced by worker defaults')
-assert.equal(result(0.08).manifestFiles[0].supabase_path,'project/music.mp3')
-assert.equal(result(0.5).bgmPath,'audio/music.mp3')
+const result=volume=>build([storageAsset],{bgm_asset_id:'bgm',bgm_volume:volume},{},a=>a?.metadata?.storage_path?{bucket:'content-assets',path:a.metadata.storage_path}:null,()=> 'audio/music.mp3',async storage=>({supabase_bucket:storage.bucket,supabase_path:storage.path}))
+require('node:test')('zero-volume render mute and stored BGM survive asynchronous storage resolution',async()=>{
+assert.equal((await result(0)).bgmPath,'')
+assert.equal((await result(0)).manifestFiles.length,0,'Mute must not be replaced by worker defaults')
+assert.equal((await result(0.08)).manifestFiles[0].supabase_path,'project/music.mp3')
+assert.equal((await result(0.5)).bgmPath,'audio/music.mp3')
 console.log('PASS: DB-compatible audio roles, volume clamping, zero-volume render mute, Storage-only BGM manifest')
+
+})
