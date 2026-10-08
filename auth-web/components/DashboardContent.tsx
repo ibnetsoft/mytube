@@ -1618,12 +1618,12 @@ export default function DashboardContent() {
                                 <tr>
                                     <th className="px-4 py-4">생성일</th>
                                     <th className="px-4 py-4">사용자</th>
+                                    <th className="px-4 py-4 whitespace-nowrap">프로젝트 번호</th>
                                     <th className="px-4 py-4">프로젝트</th>
                                     <th className="px-4 py-4">채널</th>
                                     <th className="px-4 py-4">진행 상태</th>
-                                    <th className="px-4 py-4 text-center">진행률</th>
                                     <th className="px-4 py-4">메시지</th>
-                                    <th className="px-4 py-4 text-center">썸네일</th>
+                                    <th className="min-w-[160px] px-4 py-4 text-center whitespace-nowrap">썸네일</th>
                                     <th className="px-4 py-4">설명</th>
                                     <th className="px-4 py-4 text-center">작업 관리</th>
                                 </tr>
@@ -1646,9 +1646,10 @@ export default function DashboardContent() {
                                             <div className="text-[10px] text-gray-500 mt-0.5">{new Date(task.created_at).toLocaleDateString()}</div>
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-blue-400 font-bold">{task.email}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap font-mono text-cyan-200">{task.project_number || meta.topic_queue_id || task.project_id}</td>
                                         <td className="px-4 py-4 font-bold text-white max-w-[260px]" title={meta.title || task.project_name}>
                                             <div className="truncate">
-                                                {meta.title || task.project_name} <span className="text-[10px] text-gray-500 font-mono">({task.project_id})</span>
+                                                {meta.title || task.project_name}
                                             </div>
                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                 {meta.is_music_queue && (
@@ -1694,6 +1695,16 @@ export default function DashboardContent() {
                                             )}
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                            <div className="flex w-28 shrink-0 items-center gap-2">
+                                                <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all duration-500 ${
+                                                        task.status === 'completed' ? 'bg-green-500' :
+                                                        task.status === 'failed' ? 'bg-red-500' : 'bg-blue-500'
+                                                    }`} style={{ width: `${Math.max(0, Math.min(100, Number(task.progress) || 0))}%` }} />
+                                                </div>
+                                                <span className="font-bold font-mono text-[10px] w-8 text-right">{Math.max(0, Math.min(100, Number(task.progress) || 0))}%</span>
+                                            </div>
                                             <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
                                                 task.status === 'completed' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
                                                 task.status === 'rendering' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse' :
@@ -1702,6 +1713,7 @@ export default function DashboardContent() {
                                             }`}>
                                                 {task.status === 'pending' ? '대기중' : task.status === 'rendering' ? '렌더링중' : task.status === 'completed' ? '완료' : '실패'}
                                             </span>
+                                            </div>
                                             {meta.admin_publish_status ? (
                                                 <div className="mt-2 text-[9px] font-black uppercase tracking-widest text-amber-300">
                                                     Publish Ready: {String(meta.admin_publish_status).replace(/_/g, ' ')}
@@ -1728,17 +1740,6 @@ export default function DashboardContent() {
                                                 </div>
                                             ) : null}
                                         </td>
-                                        <td className="px-4 py-4 min-w-[150px]">
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                                    <div className={`h-full rounded-full transition-all duration-500 ${
-                                                        task.status === 'completed' ? 'bg-green-500' :
-                                                        task.status === 'failed' ? 'bg-red-500' : 'bg-blue-500'
-                                                    }`} style={{ width: `${task.progress || 0}%` }} />
-                                                </div>
-                                                <span className="font-bold font-mono text-[10px] w-8 text-right">{task.progress || 0}%</span>
-                                            </div>
-                                        </td>
                                         <td className="px-4 py-4 max-w-[320px] text-gray-400 italic" title={localizedMessage}>
                                             <div className="line-clamp-2 break-words">{localizedMessage}</div>
                                             {failureDetail ? (
@@ -1752,18 +1753,18 @@ export default function DashboardContent() {
                                                 </details>
                                             ) : null}
                                         </td>
-                                        <td className="px-4 py-4 text-center">
+                                        <td className="min-w-[160px] px-4 py-4 text-center">
                                             {meta.gcs_thumbnail_url || meta.gcs_thumbnail_link ? (
                                                 <button
                                                     type="button"
                                                     onClick={() => openThumbnailModal(task)}
-                                                    className="inline-block rounded-lg border border-white/10 overflow-hidden hover:border-blue-500/50 transition-all"
+                                                    className="inline-flex h-[72px] w-32 min-w-[128px] shrink-0 items-center justify-center rounded-lg border border-white/10 overflow-hidden hover:border-blue-500/50 transition-all"
                                                     title="클릭해서 크게 보기 / 교체"
                                                 >
                                                     <img
-                                                        src={`${meta.gcs_thumbnail_url || meta.gcs_thumbnail_link}${thumbnailCacheBust[task.id] ? `${String(meta.gcs_thumbnail_url || meta.gcs_thumbnail_link).includes('?') ? '&' : '?'}_ts=${thumbnailCacheBust[task.id]}` : ''}`}
+                                                        src={meta.gcs_thumbnail_url || meta.gcs_thumbnail_link}
                                                         alt="썸네일"
-                                                        className="w-20 h-12 object-cover bg-black/40"
+                                                        className="block h-full w-full max-w-none object-contain bg-black/40"
                                                     />
                                                 </button>
                                             ) : (
@@ -6865,7 +6866,7 @@ export default function DashboardContent() {
                                 <img src={thumbnailPreviewFile.url} alt="새 썸네일 미리보기" className="w-full h-full object-contain" />
                             ) : (thumbnailEditTask.metadata?.gcs_thumbnail_url || thumbnailEditTask.metadata?.gcs_thumbnail_link) ? (
                                 <img
-                                    src={`${thumbnailEditTask.metadata.gcs_thumbnail_url || thumbnailEditTask.metadata.gcs_thumbnail_link}${thumbnailCacheBust[thumbnailEditTask.id] ? `${String(thumbnailEditTask.metadata.gcs_thumbnail_url || thumbnailEditTask.metadata.gcs_thumbnail_link).includes('?') ? '&' : '?'}_ts=${thumbnailCacheBust[thumbnailEditTask.id]}` : ''}`}
+                                    src={thumbnailEditTask.metadata.gcs_thumbnail_url || thumbnailEditTask.metadata.gcs_thumbnail_link}
                                     alt="현재 썸네일"
                                     className="w-full h-full object-contain"
                                 />

@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requireSuperAdmin, isAuthResponse } from '../../_auth'
-import { getDriveFileJson, updateDriveFileJson, createDriveJsonFile } from '@/lib/googleDrive'
+import { getDriveFileJson, updateDriveFileJson } from '@/lib/googleDrive'
+import { loadRenderPublishContext, resolveRenderPublishMetadata } from '@/lib/renderQueuePublishMetadata'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ const getAdmin = () => createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// GET: 렌더큐 작업의 유튜브 업로드 메타데이터(metadata.json, Google Drive)를 조회한다.
+// Read saved web metadata and explicit admin edits, with legacy file support.
 export async function GET(req: Request) {
     const requester = await requireSuperAdmin(req)
     if (isAuthResponse(requester)) return requester
@@ -23,39 +24,29 @@ export async function GET(req: Request) {
         const sb = getAdmin()
         const { data: task, error } = await sb
             .from('remote_render_queue')
-            .select('metadata')
+            .select('*')
             .eq('id', id)
             .single()
 
         if (error) throw error
+        const { project, topic } = await loadRenderPublishContext(sb, task)
         const fileId = task?.metadata?.result_metadata_file_id
-        if (!fileId) {
-            return NextResponse.json({
-                success: true,
-                exists: false,
-                title: task?.metadata?.title || '',
-                description: '',
-                tags: [],
-            })
+        let file = null
+        if (fileId) {
+            try { file = await getDriveFileJson(fileId) }
+            catch (error) {
+                if (!project && !topic && !task.metadata?.publish_metadata) throw error
+            }
         }
+        const metadata = resolveRenderPublishMetadata(task, project, topic, file)
+        return NextResponse.json({ success: true, exists: Boolean(metadata.title || metadata.description || metadata.tags.length), ...metadata })
 
-        const json = await getDriveFileJson(fileId)
-        return NextResponse.json({
-            success: true,
-            exists: true,
-            title: json.title || '',
-            description: json.description || '',
-            tags: Array.isArray(json.tags) ? json.tags : [],
-        })
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 })
     }
 }
 
-// PATCH: title/description/tags를 수정해 Drive의 metadata.json에 반영한다.
-// 이 파일은 나중에 실제 유튜브 업로드 시 제목/설명/태그의 1순위 소스로 쓰인다
-// (services/drive_bundle_service.py get_project_bundle 참고) - 즉 여기서 고친
-// 내용이 그대로 실제 업로드에 반영된다.
+// Save edits for both the web project and the upload request; retain legacy file support.
 export async function PATCH(req: Request) {
     const requester = await requireSuperAdmin(req)
     if (isAuthResponse(requester)) return requester
@@ -76,41 +67,34 @@ export async function PATCH(req: Request) {
 
         if (error) throw error
 
+        if ((title !== undefined && typeof title !== 'string')
+            || (description !== undefined && typeof description !== 'string')
+            || (tags !== undefined && (!Array.isArray(tags) || tags.some((tag: any) => typeof tag !== 'string')))) {
+            return NextResponse.json({ error: 'Invalid title, description or tags' }, { status: 400 })
+        }
         const meta = task?.metadata || {}
-        const fileId = meta.result_metadata_file_id
+        const { project, topic } = await loadRenderPublishContext(sb, task)
+        let file: any = {}
+        if (meta.result_metadata_file_id) file = await getDriveFileJson(meta.result_metadata_file_id)
+        const existing = resolveRenderPublishMetadata(task, project, topic, file)
+        const nextJson = { ...file, ...existing, title: title ?? existing.title,
+            description: description ?? existing.description, tags: tags ?? existing.tags }
 
-        let existingJson: any = {}
-        if (fileId) {
-            try {
-                existingJson = await getDriveFileJson(fileId)
-            } catch (e) {
-                // 파일이 지워졌거나 접근 불가 - 새로 만드는 셈 치고 계속 진행
-                existingJson = {}
-            }
+        if (meta.result_metadata_file_id) await updateDriveFileJson(meta.result_metadata_file_id, nextJson)
+        if (project) {
+            const { error: projectError } = await sb.from('std_projects').update({
+                project_payload: { ...project.project_payload, publish_metadata: {
+                    ...project.project_payload?.publish_metadata, title: nextJson.title,
+                    description: nextJson.description, tags: nextJson.tags,
+                } },
+            }).eq('id', project.id)
+            if (projectError) throw projectError
         }
-
-        const nextJson = {
-            ...existingJson,
-            title: title ?? existingJson.title ?? '',
-            description: description ?? existingJson.description ?? '',
-            tags: Array.isArray(tags) ? tags : (existingJson.tags || []),
-        }
-
-        let finalFileId = fileId
-        if (fileId) {
-            await updateDriveFileJson(fileId, nextJson)
-        } else {
-            const folderId = meta.result_folder_id
-            if (!folderId) {
-                return NextResponse.json({ error: '이 작업에는 아직 업로드된 Drive 폴더가 없어 메타데이터를 저장할 수 없습니다.' }, { status: 400 })
-            }
-            finalFileId = await createDriveJsonFile(folderId, 'metadata.json', nextJson)
-            const { error: patchError } = await sb
-                .from('remote_render_queue')
-                .update({ metadata: { ...meta, result_metadata_file_id: finalFileId } })
-                .eq('id', id)
-            if (patchError) throw patchError
-        }
+        const { error: patchError } = await sb.from('remote_render_queue').update({ metadata: {
+            ...meta, publish_metadata: nextJson, title: nextJson.title,
+            description: nextJson.description, tags: nextJson.tags,
+        } }).eq('id', id)
+        if (patchError) throw patchError
 
         return NextResponse.json({ success: true })
     } catch (e: any) {

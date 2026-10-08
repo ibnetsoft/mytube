@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requireSuperAdmin, isAuthResponse } from '../_auth'
+import { loadRenderPublishContext, resolveRenderPublishMetadata } from '@/lib/renderQueuePublishMetadata'
+import { getDriveFileJson } from '@/lib/googleDrive'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +69,7 @@ function normalizeQueueItem(row: any, topicRow?: any) {
 
     return {
         ...row,
+        project_number: metadata.topic_queue_id || topicRow?.id || row.project_id,
         result_view_link: metadata.gcs_public_url || metadata.result_public_url || buildResultViewLink(row?.result_file_id),
         metadata: {
             ...metadata,
@@ -158,11 +161,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: '작업에 사용자 이메일 정보가 없습니다.' }, { status: 400 })
         }
 
-        const { data: topicRow } = await sb
-            .from('topics_queue')
-            .select('topic, categories(upload_channel_id, upload_channel_name, upload_channel_handle)')
-            .eq('local_project_id', task.project_id)
-            .maybeSingle()
+        const { project, topic: topicRow } = await loadRenderPublishContext(sb, task)
+        let metadataFile = null
+        if (task.metadata?.result_metadata_file_id && !task.metadata?.publish_metadata) {
+            metadataFile = await getDriveFileJson(task.metadata.result_metadata_file_id)
+        }
+        const publishMetadata = resolveRenderPublishMetadata(task, project, topicRow, metadataFile)
 
         const category = (topicRow as any)?.categories || null
         const channelId = category?.upload_channel_id ?? null
@@ -181,7 +185,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: `사용자를 찾을 수 없습니다: ${task.email}` }, { status: 404 })
         }
 
-        const title = (topicRow as any)?.topic || task.project_name || `Project ${task.project_id}`
+        const title = publishMetadata.title || task.project_name || `Project ${task.project_id}`
         const taskMetadata = task.metadata || {}
         const videoUrl = taskMetadata.gcs_public_url || taskMetadata.result_public_url || buildResultViewLink(task.result_file_id)
         const gcsVideoUrl = videoUrl || null
@@ -206,6 +210,8 @@ export async function POST(req: Request) {
         const metadataPayload = {
             ...(existingRow?.metadata || {}),
             ...taskMetadata,
+            ...publishMetadata,
+            publish_metadata: publishMetadata,
             project_id: task.project_id,
             title,
             project_name: task.project_name || title,

@@ -617,6 +617,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         project_upload_metadata: {
             title: project.project_payload?.publish_metadata?.title || project.title,
             description: project.project_payload?.publish_metadata?.description || '',
+            tags: project.project_payload?.publish_metadata?.tags || [],
             hashtags: project.project_payload?.publish_metadata?.hashtags || '',
             status: 'ready_for_upload',
         },
@@ -879,6 +880,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         project_upload_metadata: {
             title: project.project_payload?.publish_metadata?.title || project.title,
             description: project.project_payload?.publish_metadata?.description || '',
+            tags: project.project_payload?.publish_metadata?.tags || [],
             hashtags: project.project_payload?.publish_metadata?.hashtags || '',
             status: 'ready_for_upload',
         },
