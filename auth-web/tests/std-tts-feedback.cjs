@@ -18,6 +18,7 @@ function load(file) {
     return exports
 }
 const { isCurrentMediaScope, assetBelongsToProject } = load('../lib/stdMediaScope.ts')
+const { loadSavedTtsAudio } = load('../lib/stdTtsPlayback.ts')
 const { localizeStdActionError } = load('../lib/stdActionFeedback.ts')
 const { default: StdTtsNotice, ttsNoticeCopy } = load('../components/StdTtsNotice.tsx')
 function extract(start, end, result, context) {
@@ -43,6 +44,7 @@ function harness(options = {}) {
     const state = { project: selectedProject, audio: 'initial-audio', notices: [], spinning: [], alerts: [], messages: [], remembered: [], requests: [], revoked: [], fallbackCalls: 0, saves: 0 }
     const mediaScopeRef = { current: { session: 'session-a', projectId: 'project-a', generation: 1 } }
     const context = {
+        loadSavedTtsAudio: (url, headers, read) => loadSavedTtsAudio(url, headers, read, async () => {}),
         selectedProject, mediaScopeRef, isCurrentMediaScope, assetBelongsToProject, currentLocale: options.locale || 'ko', ttsNoticeCopy, localizeStdActionError,
         currentNav: options.nav || 'subtitle_vrew',
         getProjectSyncedTitle: p => p?.project?.title || '',
@@ -65,6 +67,7 @@ function harness(options = {}) {
             state.requests.push({ url, init })
             if (url.endsWith('/tts/generate')) return { ok: options.status !== 500, status: options.status || 200, payload: options.payload ?? successfulPayload() }
             if (url === '/api/std/tts-proxy') return { ok: true, arrayBuffer: async () => new Uint8Array(300).buffer }
+            if (url === '/saved-audio' && options.playbackFailures > 0) { options.playbackFailures--; throw new TypeError('Failed to fetch') }
             if (url === '/saved-audio') return { ok: true, blob: async () => new Blob([new Uint8Array(300)]) }
             throw Error(`Unexpected fetch: ${url}`)
         },
@@ -81,7 +84,7 @@ function harness(options = {}) {
         speechSubtitlesRef: { current: [{ text: 'Saved script.' }] },
         applyRecordedSubtitleTiming: (rows, timeline) => rows.map((row, index) => ({ ...row, ...timeline[index] })),
         setLocalSubtitles: rows => { state.timedSubtitles = rows },
-        persistVrewVoiceSubtitles: async rows => { state.persistedTiming = rows },
+        persistVrewVoiceSubtitles: async rows => { if (options.timingError) throw Error('Network unavailable'); state.persistedTiming = rows },
         handleSaveSubtitles: async () => {
             state.saves++
             if (options.saveGate) await options.saveGate.promise
@@ -305,4 +308,89 @@ test('finalized TTS timing is persisted while preserving the localized completio
     assert.equal(h.state.timedSubtitles[0].end, 3.5)
     assert.deepEqual(h.state.persistedTiming, h.state.timedSubtitles)
     assert.equal(terminal(h).at(-1).phase, 'success')
+})
+
+
+test('saved audio survives preview network failure; only the audio GET is retried', async () => {
+    for (const playbackFailures of [1, 3]) {
+        const payload = successfulPayload()
+        payload.asset = { ...asset, metadata: { subtitle_timeline: [{ start: 0, end: 3.5 }] } }
+        const h = harness({ payload, playbackFailures })
+        await h.handleFinalizeSubtitlesAndTts()
+        assert.equal(h.state.requests.filter(r => r.url.endsWith('/tts/generate')).length, 1)
+        assert.equal(h.state.requests.filter(r => r.url === '/saved-audio').length, playbackFailures === 1 ? 2 : 3)
+        assert.equal(h.state.project.assets[0].id, asset.id)
+        assert.equal(h.state.project.project.progress_payload.has_tts_audio, true)
+        assert.equal(h.state.persistedTiming[0].end, 3.5)
+        assert.equal(h.state.alerts.length, 0)
+        assert.equal(terminal(h).at(-1).phase, playbackFailures === 1 ? 'success' : 'warning')
+        assert.match(terminal(h).at(-1).detail, /최종 음성이 서버에 저장/)
+        if (playbackFailures === 3) assert.match(terminal(h).at(-1).detail, /TTS를 다시 생성할 필요는 없습니다/)
+        assert.equal(h.state.fallbackCalls, 0)
+    }
+})
+
+test('timing save failure preserves the recording and reports the correct problem', async () => {
+    const payload = successfulPayload()
+    payload.asset = { ...asset, metadata: { subtitle_timeline: [{ start: 0, end: 3.5 }] } }
+    const h = harness({ payload, timingError: true })
+    await h.generateTts(true)
+    assert.equal(h.state.project.assets[0].id, asset.id)
+    assert.equal(h.state.audio, 'blob:fixture-audio')
+    assert.equal(h.state.alerts.length, 0)
+    assert.equal(terminal(h).at(-1).phase, 'warning')
+    assert.match(terminal(h).at(-1).detail, /자막 타이밍/)
+})
+
+test('audio reads retry transient HTTP and interrupted bodies, but not authorization or invalid files', async () => {
+    for (const scenario of ['503', 'body', '403', 'invalid']) {
+        let calls = 0
+        const read = async () => {
+            calls++
+            if (calls === 1) {
+                if (scenario === '503' || scenario === '403') return new Response('', { status: Number(scenario) })
+                if (scenario === 'invalid') return new Response('{}', { headers: { 'Content-Type': 'application/json' } })
+                return { ok: true, blob: async () => { throw new TypeError('connection closed') } }
+            }
+            return new Response(new Uint8Array(300), { headers: { 'Content-Type': 'audio/mpeg' } })
+        }
+        const result = loadSavedTtsAudio('/saved-audio', {}, read, async () => {})
+        if (['403', 'invalid'].includes(scenario)) {
+            await assert.rejects(result)
+            assert.equal(calls, 1)
+        } else {
+            assert.equal((await result).size, 300)
+            assert.equal(calls, 2)
+        }
+    }
+})
+
+test('large saved recordings are read in bounded ranges; a failed range resumes without duplicating bytes', async () => {
+    const size = 2 * 1024 * 1024
+    const source = new Uint8Array(size + 600).fill(23)
+    source[size] = 71
+    const ranges = []
+    const read = async (_url, init) => {
+        const range = init.headers.get('Range')
+        ranges.push(range)
+        assert.equal(init.headers.get('Authorization'), 'Bearer fixture')
+        if (ranges.length === 2) throw new TypeError('ERR_HTTP2_PING_FAILED')
+        const [, start, end] = /^bytes=(\d+)-(\d+)$/.exec(range)
+        const last = Math.min(Number(end), source.length - 1)
+        return new Response(source.slice(Number(start), last + 1), { status: 206, headers: {
+            'Content-Type': 'audio/mpeg', 'Content-Range': `bytes ${start}-${last}/${source.length}`,
+        } })
+    }
+    const blob = await loadSavedTtsAudio('/saved-audio', { Authorization: 'Bearer fixture' }, read, async () => {})
+    assert.deepEqual(ranges, [`bytes=0-${size - 1}`, `bytes=${size}-${size * 2 - 1}`, `bytes=${size}-${size * 2 - 1}`])
+    assert.deepEqual(new Uint8Array(await blob.arrayBuffer()), source)
+})
+
+test('mismatched audio ranges cannot produce a corrupt playable blob', async () => {
+    let calls = 0
+    await assert.rejects(loadSavedTtsAudio('/saved-audio', {}, async () => {
+        calls++
+        return new Response(new Uint8Array(300), { status: 206, headers: { 'Content-Range': 'bytes 1-300/301' } })
+    }, async () => {}), /invalid byte range/)
+    assert.equal(calls, 1)
 })

@@ -9,6 +9,7 @@ import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/
 import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
+import { loadSavedTtsAudio } from '@/lib/stdTtsPlayback'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import { localizeStdActionError } from '@/lib/stdActionFeedback'
 import { isTemplateBackgroundTransparent } from '@/lib/stdTemplateBackground'
@@ -6372,12 +6373,12 @@ export default function StdPortalPage() {
             if (isCurrent()) setAudioResultUrl(url)
             else if (url.startsWith('blob:')) URL.revokeObjectURL(url)
         }
-        const reportSavedTts = (asset: any, reuse?: { reused?: number; generated?: number }) => {
+        const reportSavedTts = (asset: any, reuse?: { reused?: number; generated?: number }, warnings: string[] = []) => {
             const saved = asset?.id && assetBelongsToProject(asset, noticeProject.projectId)
             const detail = saved
-                ? `${copy.saved}${reuse ? ` ${copy.counts(reuse.reused || 0, reuse.generated || 0)}` : ''}`
+                ? `${copy.saved}${reuse ? ` ${copy.counts(reuse.reused || 0, reuse.generated || 0)}` : ''}${warnings.length ? ` ${warnings.join(' ')}` : ''}`
                 : copy.unsaved
-            reportTts(saved ? 'success' : 'warning', detail)
+            reportTts(saved && !warnings.length ? 'success' : 'warning', detail)
             if (requestScope.session === mediaScopeRef.current.session) setMessage(detail)
         }
         reportTts('running', copy.preparing)
@@ -6570,39 +6571,36 @@ export default function StdPortalPage() {
                 }
                 persistedAudioAsset = payload.asset || null
 
-                const generatedAudioUrl = payload.audio_url || payload.download_url
-                if (!generatedAudioUrl) {
-                    throw new Error('TTS audio was generated, but no playable audio URL was returned.')
-                }
-
-                if (String(generatedAudioUrl).startsWith('data:audio/')) {
-                    const inlineAudioRes = await fetch(generatedAudioUrl)
-                    const audioBlob = await inlineAudioRes.blob()
-                    if (audioBlob.size < 256) {
-                        throw new Error('ElevenLabs returned an empty audio file.')
-                    }
-                    audioUrl = URL.createObjectURL(audioBlob)
-                } else {
-                    const audioRes = await fetch(generatedAudioUrl, { headers: authedJsonHeaders })
-                    if (!audioRes.ok) {
-                        const errorText = await audioRes.text().catch(() => '')
-                        console.warn('[STD TTS] generated audio playback load failed:', errorText || audioRes.status)
-                        audioUrl = payload.web_view_link || ''
-                    } else {
-                        const audioBlob = await audioRes.blob()
-                        audioUrl = URL.createObjectURL(audioBlob)
-                    }
-                }
-
-                setTtsAudio(audioUrl)
-                if (isCurrent() && persistedAudioAsset?.metadata?.subtitle_timeline?.length) {
-                const synced = applyRecordedSubtitleTiming(speechSubtitlesRef.current, persistedAudioAsset.metadata.subtitle_timeline)
-                speechSubtitlesRef.current = synced
-                setLocalSubtitles(synced)
-                await persistVrewVoiceSubtitles(synced, { strict: true })
-            }
+                // The server has already saved the recording and its subtitle timeline.
+                // Register it before any optional browser playback request can fail.
+                const saved = persistedAudioAsset?.id && assetBelongsToProject(persistedAudioAsset, noticeProject.projectId)
+                const warnings: string[] = []
                 rememberPersistedAudioAsset(persistedAudioAsset)
-                reportSavedTts(persistedAudioAsset, payload.segment_reuse)
+                if (isCurrent() && persistedAudioAsset?.metadata?.subtitle_timeline?.length) {
+                    const synced = applyRecordedSubtitleTiming(speechSubtitlesRef.current, persistedAudioAsset.metadata.subtitle_timeline)
+                    speechSubtitlesRef.current = synced
+                    setLocalSubtitles(synced)
+                    try {
+                        await persistVrewVoiceSubtitles(synced, { strict: true })
+                    } catch (error) {
+                        if (!saved) throw error
+                        console.warn('[STD TTS] subtitle timing refresh failed:', error)
+                        warnings.push(copy.timingSaveFailed)
+                    }
+                }
+                try {
+                    const generatedAudioUrl = payload.audio_url || payload.download_url
+                    if (!generatedAudioUrl) throw new Error('No playable audio URL was returned')
+                    const audioBlob = await loadSavedTtsAudio(generatedAudioUrl, authedJsonHeaders, fetch)
+                    audioUrl = URL.createObjectURL(audioBlob)
+                    setTtsAudio(audioUrl)
+                } catch (error) {
+                    if (!saved) throw error
+                    console.warn('[STD TTS] saved audio preview unavailable:', error)
+                    setTtsAudio('')
+                    warnings.push(copy.playbackFailed)
+                }
+                reportSavedTts(persistedAudioAsset, payload.segment_reuse, warnings)
                 if (payload.warning) console.warn('[STD TTS] generation warning:', payload.warning)
                 return
                 /*
