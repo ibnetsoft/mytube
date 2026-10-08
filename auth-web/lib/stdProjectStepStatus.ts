@@ -1,9 +1,9 @@
+import { savedStdOutputStepStatus } from './stdOutputStepStatus'
 import { isStdRequiredClipScene } from './stdPolicy'
 
 // List rows and editor rows must not infer completion from absent projection fields.
 export function summarizeStdProject(project: any, assets: any[] = []) {
  const payload = project.project_payload || {}
- const progress = project.progress_payload || {}
  const scenes = payload.scenes || payload.structure?.scenes || []
  const active = assets.filter(a => {
    if (!['uploaded', 'assigned'].includes(a.status)) return false
@@ -20,9 +20,7 @@ export function summarizeStdProject(project: any, assets: any[] = []) {
      : Boolean(s.image_url || s.video_url || media.some(a => ['image', 'video'].includes(a.asset_type)))
  }).length
  const isImageDone = scenes.length > 0 && uploadedAssetsCount === scenes.length
- const isTtsDone = !progress.script_changed_requires_audio_regeneration && Boolean(payload.audio_url || payload.tts_url || progress.tts_completed || active.some(a => a.asset_type === 'audio'))
- const isSubtitlesDone = Boolean(progress.subtitles_saved || progress.subtitles_completed || payload.subtitles_saved)
- const isThumbnailDone = Boolean(payload.thumbnail_url || progress.thumbnail_url || progress.thumbnail_completed || active.some(a => a.asset_type === 'thumbnail'))
+ const { isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(project, assets)
  return { isTopicDone, isPlanningDone, isScriptDone, isImageDone, isTtsDone, isSubtitlesDone, isThumbnailDone,
   allDone: isTopicDone && isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone,
   uploadedAssetsCount, totalScenesCount: scenes.length }

@@ -1,5 +1,6 @@
 'use client'
 
+import { topicOutputStepDone } from '@/lib/stdOutputStepStatus'
 import StdSpeakerWorkInfo from './StdSpeakerWorkInfo'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
@@ -4543,6 +4544,7 @@ export default function DashboardContent() {
                                                             const publishMetadata = item.publish_metadata || item.progress_payload?.publish_metadata || {};
                                                             const hasPublishDescription = String(publishMetadata?.description || '').trim().length > 0;
                                                             const isStepDone = (key: string) => {
+                                                                if (['tts', 'subtitle', 'template'].includes(key)) return topicOutputStepDone(key, item.work_info?.outputSteps, stepMap);
                                                                 if (stepMap[key]) return true;
                                                                 if (key === 'plan') return item.pregenerated_structure_status === 'ready';
                                                                 if (key === 'script') return item.pregenerated_script_status === 'ready';

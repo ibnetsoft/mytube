@@ -1,4 +1,5 @@
 'use client'
+import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
@@ -7397,19 +7398,8 @@ export default function StdPortalPage() {
         const uploadedAssetsCount = readyVisualScenes.length
         const isImageDone = scenes.length > 0 && uploadedAssetsCount >= scenes.length
 
-        // 5. TTS: 오디오 생성 완료 여부
-        const isTtsDone = Boolean(currentAudio || payload.audio_url || payload.tts_url || p.audio_url || (p.progress_payload?.tts_completed))
-
-        // 6. 자막: 자막 저장 완료 여부
-        const isSubtitlesDone = Boolean(
-            (proj?.project && isSubtitleSaved) ||
-            p.progress_payload?.subtitles_saved ||
-            p.progress_payload?.subtitles_completed ||
-            payload.subtitles_saved
-        )
-
-        // 7. 썸네일: 썸네일 등록 완료 여부
-        const isThumbnailDone = Boolean(currentThumb || payload.thumbnail_url || p.thumbnail_url || p.progress_payload?.thumbnail_completed)
+        // Use saved project data, as in the admin queue and project list.
+        const { isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
 
         const allDone = isTopicDone && isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone
 

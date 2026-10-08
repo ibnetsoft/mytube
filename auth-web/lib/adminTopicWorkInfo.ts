@@ -1,3 +1,4 @@
+import { savedStdOutputStepStatus } from './stdOutputStepStatus'
 import { loadSpeakerCoordinateAssets } from './stdSpeakerCoordinateAssets'
 import { speakerWorkInfo } from './stdSpeakerCoordinateOverview'
 
@@ -10,14 +11,14 @@ export async function attachTopicWorkInfo(db: any, topics: any[]) {
         const batch = ids.slice(offset, offset + 20)
         try {
             const { data, error } = await db.from('std_projects')
-                .select('id,topic_queue_id,employee_email,project_payload,updated_at')
+                .select('id,topic_queue_id,employee_email,project_payload,progress_payload,updated_at')
                 .in('topic_queue_id', batch).neq('status', 'canceled')
                 .order('updated_at', { ascending: false })
             if (error) throw error
             const projects = (data || []).filter((project: any, index: number, all: any[]) =>
                 all.findIndex(other => String(other.topic_queue_id) === String(project.topic_queue_id)) === index)
             if (!projects.length) continue
-            const assets = await loadSpeakerCoordinateAssets(db, projects.map((project: any) => project.id))
+            const assets = await loadSpeakerCoordinateAssets(db, projects.map((project: any) => project.id), true)
             const byProject = new Map<string, any[]>()
             for (const asset of assets) {
                 const list = byProject.get(asset.project_id) || []
@@ -25,7 +26,7 @@ export async function attachTopicWorkInfo(db: any, topics: any[]) {
                 byProject.set(asset.project_id, list)
             }
             for (const project of projects) {
-                info.set(String(project.topic_queue_id), speakerWorkInfo(project, byProject.get(project.id) || []))
+                info.set(String(project.topic_queue_id), { ...speakerWorkInfo(project, byProject.get(project.id) || []), outputSteps: savedStdOutputStepStatus(project, byProject.get(project.id) || []) })
             }
         } catch (error) {
             console.error('Failed to load topic work info:', error)

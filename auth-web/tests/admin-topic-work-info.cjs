@@ -24,3 +24,23 @@ test('shared status display supports Korean and Thai without raw AE labels',()=>
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),component=load('components/StdSpeakerWorkInfo.tsx').default
  for(const locale of ['ko','th']){const html=renderToStaticMarkup(React.createElement(component,{locale,data:{count:60,completed:47,confirmed:0,failed:9,pending:4,speakerProgress:{total:183,confirmed:183}}}));assert.match(html,/47\/60/);assert.match(html,/183\/183/);assert.match(html,/AIR STUDIO/);assert.doesNotMatch(html,/\bAE\b/);if(locale==='th')assert.doesNotMatch(html,/[가-힣]/)}
 })
+
+test('current project output completion overrides stale false topic flags',async()=>{
+ const saved={...project,progress_payload:{tts_completed:true,subtitles_saved:true,thumbnail_completed:true}}
+ const [topic]=await attachTopicWorkInfo(dbMock([saved],[image]),[{id:1,progress_payload:{steps:{tts:false,subtitle:false,template:false}}}])
+ const {savedStdOutputStepStatus,topicOutputStepDone}=load('lib/stdOutputStepStatus.ts')
+ assert.deepEqual(topic.work_info.outputSteps,savedStdOutputStepStatus(saved,[image]))
+ for(const key of ['tts','subtitle','template'])assert.equal(topicOutputStepDone(key,topic.work_info.outputSteps,topic.progress_payload.steps),true)
+})
+test('incomplete project outputs override stale true flags and invalidated audio stays incomplete',()=>{
+ const {savedStdOutputStepStatus,topicOutputStepDone}=load('lib/stdOutputStepStatus.ts')
+ const incomplete=savedStdOutputStepStatus({progress_payload:{tts_completed:true,script_changed_requires_audio_regeneration:true}})
+ for(const key of ['tts','subtitle','template'])assert.equal(topicOutputStepDone(key,incomplete,{tts:true,subtitle:true,template:true}),false)
+ assert.equal(topicOutputStepDone('tts',undefined,{tts:true}),true)
+ const ready=savedStdOutputStepStatus({project_payload:{subtitles_saved:true}},[
+  {id:'audio',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'a.wav'}},
+  {id:'thumb',asset_type:'thumbnail',status:'assigned',metadata:{storage_path:'t.png'}}])
+ assert.deepEqual(ready,{isTtsDone:true,isSubtitlesDone:true,isThumbnailDone:true})
+ const notReady=savedStdOutputStepStatus({},[{id:'thumb',asset_type:'thumbnail',status:'failed',metadata:{gcs_path:'old.png'}}])
+ assert.equal(notReady.isThumbnailDone,false)
+})
