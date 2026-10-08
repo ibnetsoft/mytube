@@ -9454,7 +9454,7 @@ export default function StdPortalPage() {
                                             requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
                                         }} />
                                     <div className="flex flex-1 overflow-hidden">
-                                        <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-1.5 sm:p-2 space-y-1.5 sm:space-y-2">
+                                        <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-0 space-y-1">
                                             {subtitleSceneGroups.map((group) => {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
@@ -9499,7 +9499,7 @@ export default function StdPortalPage() {
                                                         onMouseLeave={() => setHoveredSubtitleSceneNumber(current => (
                                                             current === Number(sNum) ? null : current
                                                         ))}
-                                                        className={`p-2 sm:p-3 rounded-lg sm:rounded-xl border flex flex-wrap items-start gap-2 sm:flex-nowrap sm:gap-3 cursor-pointer transition-all ${
+                                                        className={`p-0 rounded-lg sm:rounded-xl border flex flex-wrap items-start gap-2 sm:flex-nowrap sm:gap-3 cursor-pointer transition-all ${
                                                             isChecked
                                                                 ? 'bg-cyan-500/10 border-cyan-400/70 shadow-md'
                                                                 : isActive
