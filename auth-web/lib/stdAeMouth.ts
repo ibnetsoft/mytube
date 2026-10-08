@@ -9,7 +9,7 @@ const canonical = (v: any): any => Array.isArray(v) ? v.map(canonical) : v && ty
     ? Object.fromEntries(Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => [k, canonical(v[k])])) : v
 
 export function aeMouthApplicable(project: any, scenes: any[]) {
-    return !isComicProject(project) && scenes.some(s => Number(s.scene_number) >= 19)
+    return !isComicProject(project) && scenes.some(s => Number(s.scene_number) >= 19 || (project.project_payload?.subtitles || []).some((r: any) => Number(r.scene_number) === Number(s.scene_number) && r.dialogue_kind === 'dialogue'))
 }
 
 export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
@@ -26,18 +26,19 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
         kind: s.dialogue_kind || '', speaker: subtitleDialogueSpeakerName(s),
         direction: String(s.direction || ''),
     }))
-    const input = { version: 1, project_id: project.id, tts_speed: payload.tts_speed ?? project.progress_payload?.tts_speed ?? null,
+    const input = { version: subtitles.some((r: any) => r.scene_number < 19 && r.kind === 'dialogue') ? 2 : 1, project_id: project.id, tts_speed: payload.tts_speed ?? project.progress_payload?.tts_speed ?? null,
         audio: { id: audio.id, metadata: audio.metadata }, subtitles,
         dialogue_scene_index: dialogueSceneIndex(payload.subtitles || []),
         cast: { main: structure.main_character || payload.main_character || {}, supporting: structure.supporting_characters || payload.supporting_characters || [], scene_cast: structure.scene_cast || [] },
         annotations: structure.dialogue_annotations || {},
         scenes: scenes.flatMap((s, index) => {
             const number = Number(s.scene_number)
-            if (number < 19) return []
+            if (number < 19 && !subtitles.some((r: any) => r.scene_number === number && r.kind === 'dialogue')) return []
             const source = structure.scenes?.find((r: any) => Number(r.scene_number ?? r.scene_order) === number) || s
             const image = assets.find(a => active(a) && a.asset_type === 'image' && Number(a.scene_number) === number)
             const originalVideo = assets.find(a => active(a) && a.asset_type === 'video' && Number(a.scene_number) === number
                 && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint && a.metadata?.postprocess_mode !== 'after_effects')
+            if (number < 19 && !originalVideo) throw new Error(`${number}번 대사 씬의 원본 영상이 필요합니다.`)
             if (!image && !originalVideo) throw new Error(`${number}번 씬의 원본 이미지가 필요합니다.`)
             const start = starts[index], end = starts[index + 1] ?? subtitles[subtitles.length - 1]?.end
             if (!Number.isFinite(start) || !Number.isFinite(end) || end < start || (end === start && subtitles.some((t: any) => t.scene_number === number))) throw new Error(`${number}번 씬의 음성 시간을 확인해 주세요.`)
@@ -75,11 +76,11 @@ export function reviewedAeMouthAssets(project: any, scenes: any[], assets: any[]
     const result = new Map<number, any>()
     if (!project.project_payload?.ae_mouth?.enabled) return result
     const job = currentAeMouthJob(project, scenes, assets)
-    if (job?.metadata?.state !== 'reviewed') throw new Error('19씬 이후 대사 장면의 AE 입모양 후작업·검수를 완료해 주세요.')
-    const numbers = scenes.filter(s => Number(s.scene_number) >= 19).map(s => Number(s.scene_number))
+    if (job?.metadata?.state !== 'reviewed') throw new Error('대사 영상과 정지 씬의 AE 입모양 후작업·검수를 완료해 주세요.')
+    const numbers = (job.metadata.input?.scenes || aeMouthInput(project, scenes, assets).input.scenes).map((s: any) => Number(s.number))
     const checked = job.metadata.results || []
     if (checked.length !== numbers.length || numbers.some(n => checked.filter((r: any) => r.number === n).length !== 1)) {
-        throw new Error('19씬 이후 모든 씬의 대사 판별 결과가 필요합니다.')
+        throw new Error('작업 대상 씬 모두의 대사 판별 결과가 필요합니다.')
     }
     for (const row of job.metadata.results || []) {
         if (row.status === 'skipped') continue

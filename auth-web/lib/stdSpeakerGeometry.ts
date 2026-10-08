@@ -32,7 +32,7 @@ export function coordinateScenes(project: any, assets: any[]) {
         subtitles = p.subtitles || [],
         cast = coordinateCast(project)
     return dialogueSceneIndex(subtitles)
-        .scenes.filter((s) => s.scene_number >= 19)
+        .scenes.filter((s) => s.scene_number >= 19 || assets.some(a => ['uploaded','assigned'].includes(a.status) && a.asset_type === 'video' && Number(a.scene_number) === s.scene_number && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint))
         .map((s) => {
             const image = assets.find(
                 (a) =>

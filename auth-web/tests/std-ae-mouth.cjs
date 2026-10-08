@@ -88,3 +88,18 @@ test('newly analyzed scenes do not discard AE work but corrected used coordinate
  metadata.results[0].speakers[0].mouth_box=[.42,.4,.47,.43];
  assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets),null);
 });
+
+ test('video dialogue before scene 19 enters tracking snapshot and invalidates on clip changes',()=>{
+ const f=fixture();f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='소녀';
+ const video={id:'video18',scene_number:18,asset_type:'video',status:'assigned',metadata:{gcs_path:'original.mp4'}};f.assets.push(video);
+ const before=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ assert.equal(before.input.version,2);assert.deepEqual(before.input.scenes.map(s=>s.number),[18,19,20]);
+ assert.equal(before.input.scenes[0].original_video.id,'video18');
+ video.id='new-video';assert.notEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint,before.fingerprint);
+ });
+ test('video narration remains excluded and missing dialogue video cannot silently use a still',()=>{
+ const f=fixture();f.assets.push({id:'video18',scene_number:18,asset_type:'video',status:'assigned',metadata:{gcs_path:'original.mp4'}});
+ assert.deepEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes.map(s=>s.number),[19,20]);
+ f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='소녀';f.assets.pop();
+ assert.throws(()=>lib.aeMouthInput(f.project,f.scenes,f.assets),/원본 영상/);
+ });
