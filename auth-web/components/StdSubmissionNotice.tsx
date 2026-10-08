@@ -4,11 +4,13 @@ export type SubmissionNotice = {
     projectId: string
     title: string
     detail: string
-    phase: 'running' | 'success' | 'warning' | 'error'
+    phase: 'running' | 'success' | 'pending' | 'warning' | 'error'
 }
 
 const COPY = {
     ko: {
+        pending: 'AE 후작업 접수 완료',
+        postprocessPending: 'AE 후작업과 검수 후 최종 렌더링이 자동으로 진행됩니다.',
         running: '프로젝트 제출 중',
         success: '렌더 큐 등록 완료',
         warning: '제출 상태 확인 필요',
@@ -32,6 +34,8 @@ const COPY = {
         confirm: '확인',
     },
     th: {
+        pending: 'รับงานปรับแต่ง AE แล้ว',
+        postprocessPending: 'หลังจากปรับแต่งและตรวจสอบผล AE แล้ว ระบบจะเริ่มเรนเดอร์ขั้นสุดท้ายโดยอัตโนมัติ',
         running: 'กำลังส่งโปรเจกต์',
         success: 'เพิ่มลงคิวเรนเดอร์แล้ว',
         warning: 'ต้องตรวจสอบสถานะการส่ง',
@@ -55,6 +59,8 @@ const COPY = {
         confirm: 'ตกลง',
     },
     en: {
+        pending: 'AE post-processing accepted',
+        postprocessPending: 'Final rendering will continue automatically after AE processing and review.',
         running: 'Submitting project',
         success: 'Added to render queue',
         warning: 'Check submission status',
@@ -78,6 +84,8 @@ const COPY = {
         confirm: 'OK',
     },
     vi: {
+        pending: 'Đã tiếp nhận hậu kỳ AE',
+        postprocessPending: 'Kết xuất cuối cùng sẽ tự động tiếp tục sau khi xử lý và kiểm tra AE.',
         running: 'Đang gửi dự án',
         success: 'Đã thêm vào hàng đợi kết xuất',
         warning: 'Cần kiểm tra trạng thái gửi',

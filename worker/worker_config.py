@@ -22,7 +22,7 @@ def _load_worker_env():
         from dotenv import load_dotenv
     except ImportError:
         return
-    candidates = []
+    candidates = [Path(os.environ["AIR_WORKER_ENV_FILE"])] if os.environ.get("AIR_WORKER_ENV_FILE") else []
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).resolve().parent
         candidates.append(exe_dir / ".env")

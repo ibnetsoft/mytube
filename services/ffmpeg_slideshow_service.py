@@ -726,11 +726,8 @@ def render_ffmpeg_slideshow(
         if _setting(subtitle_settings or {}, "bgm_loop", default=True):
             command.extend(["-stream_loop", "-1"])
         command.extend(["-i", bgm_path])
-        bgm_volume = float(_setting(subtitle_settings or {}, "bgm_volume", default=0.25) or 0.25)
-        filters.append(
-            f"[{bgm_index}:a]volume={max(0.0, min(1.0, bgm_volume)):.3f},"
-            f"atrim=duration={audio_duration:.3f},asetpts=PTS-STARTPTS[bgm]"
-        )
+        from services.bgm_timeline import bgm_filter
+        filters.append(f"[{bgm_index}:a]{bgm_filter(subtitle_settings or {}, audio_duration)}[bgm]")
         audio_labels.append("bgm")
 
     next_audio_index = audio_index + 1 + (1 if bgm_path else 0)

@@ -55,7 +55,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
-    if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
+    if (['review_requested', 'approved', 'canceled'].includes(project.status) && !(['sfx', 'bgm'].includes(assetType) && sceneNumber == null && project.status !== 'canceled')) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 

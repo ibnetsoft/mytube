@@ -5,12 +5,15 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { sfxDescriptionKo } from '@/lib/stdSfxDescriptions'
 
-export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projectId, headers, disabled, onChange, onOpen }: {
-    locale?: SupportedLocale;
+export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets, value, projectId, headers, disabled, onChange, onOpen, openRequest = 0, onUpload, onRegistered }: {
+    locale?: SupportedLocale; role?: 'sfx' | 'bgm';
     assets: any[]; value: string; projectId: string; headers: Record<string, string>; disabled?: boolean;
-    onChange: (id: string) => void; onOpen: () => void;
+    onChange: (id: string, asset?: any) => void | Promise<void>; onOpen: () => void; openRequest?: number; onUpload?: (file: File) => Promise<any>; onRegistered?: (asset: any) => void;
 }) {
-    const ui = (text: string) => stdUiText(locale, text)
+    const ui = (text: string) => stdUiText(locale, role === 'bgm' ? text.replaceAll('효과음', '배경음') : text)
+    const [uploadedAssets, setUploadedAssets] = useState<any[]>([])
+    const [uploading, setUploading] = useState(false)
+    assets = [...uploadedAssets.filter(a => !assets.some(existing => existing.id === a.id)), ...assets]
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
     const [draft, setDraft] = useState(value)
@@ -22,7 +25,25 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
     const request = useRef<AbortController | null>(null)
     const urls = useRef<Record<string, string>>({})
     const selected = assets.find(asset => asset.id === value)
-    const matchesSearch = (asset: any) => `${asset.file_name} ${sfxDescriptionKo(asset)}`.toLowerCase().includes(search.trim().toLowerCase())
+    const libraryEndpoint = `/api/std/projects/${encodeURIComponent(projectId)}/assets/${role}-library`
+    useEffect(() => {
+        if (!open) return
+        const controller = new AbortController()
+        void fetch(libraryEndpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal })
+            .then(async response => {
+                const result = await response.json()
+                if (!response.ok) throw new Error(result.error || '효과음 목록을 불러오지 못했습니다.')
+                if (!controller.signal.aborted) setUploadedAssets(previous => [...previous.filter(a => !result.assets.some((b: any) => b.id === a.id)), ...result.assets])
+            }).catch(error => { if (!controller.signal.aborted) setError(error.message) })
+        return () => controller.abort()
+    }, [open, libraryEndpoint])
+    const lastOpenRequest = useRef(0)
+    useEffect(() => {
+        if (!openRequest || lastOpenRequest.current === openRequest) return
+        lastOpenRequest.current = openRequest
+        onOpen(); setDraft(value); setSearch(''); setError(''); setSample(''); setBusy(''); setOpen(true)
+    }, [openRequest, value, onOpen])
+    const matchesSearch = (asset: any) => `${asset.file_name} ${role === 'sfx' ? sfxDescriptionKo(asset) : ''}`.toLowerCase().includes(search.trim().toLowerCase())
     useEffect(() => {
         if (!open) return
         const previous = document.activeElement as HTMLElement | null
@@ -55,7 +76,7 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
         try {
             let url = urls.current[asset.id]
             if (!url) {
-                const response = await fetch(`/api/std/projects/${encodeURIComponent(projectId)}/assets/file?assetId=${encodeURIComponent(asset.id)}`, {
+                const response = await fetch(`/api/std/projects/${encodeURIComponent(asset.project_id || projectId)}/assets/file?assetId=${encodeURIComponent(asset.id)}`, {
                     headers, signal: controller.signal,
                 })
                 if (!response.ok) throw new Error(ui("효과음 파일을 불러오지 못했습니다. 다시 시도해 주세요."))
@@ -89,13 +110,28 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
                     <h2 id="sfx-picker-title" className="text-base font-bold">{ui("효과음 선택")} <span className="text-xs text-purple-300">{assets.length} {ui("개")}</span></h2>
                     <button type="button" aria-label={ui("효과음 팝업 닫기")} onClick={() => setOpen(false)} className="rounded px-2 py-1 text-gray-400 hover:bg-white/10">✕</button>
                 </div>
+                {onUpload && <label className="cursor-pointer rounded border border-purple-400/40 bg-purple-500/10 p-3 text-xs text-purple-200">
+                    {uploading ? ui('효과음 파일 업로드·저장 중…') : ui('+ 새 효과음 업로드')}
+                    <input type="file" accept="audio/*" className="hidden" disabled={uploading} onChange={async event => {
+                        const file = event.target.files?.[0]
+                        event.target.value = ''
+                        if (!file) return
+                        setUploading(true); setError('')
+                        try {
+                            const asset = await onUpload(file)
+                            setUploadedAssets(previous => [asset, ...previous.filter(a => a.id !== asset.id)])
+                            setDraft(asset.id); setSearch(''); setSample(`${asset.file_name} · 저장 완료`)
+                        } catch (error: any) { setError(error.message || '효과음 업로드에 실패했습니다.') }
+                        finally { setUploading(false) }
+                    }} />
+                </label>}
                 <p className="text-[11px] text-gray-400">{ui("파일명을 바탕으로 작성한 설명입니다. 정확한 소리는 미리듣기로 확인해 주세요.")}</p>
                 <input aria-label={ui("효과음 검색")} placeholder={ui("파일명 또는 한국어 설명 검색")} value={search} onChange={event => setSearch(event.target.value)} className="w-full rounded-lg border border-white/10 bg-black/25 p-2.5 text-sm outline-none focus:border-purple-400" />
                 <div className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
                     {assets.filter(matchesSearch).map(asset => <div key={asset.id}
                         className={`min-w-0 rounded-xl border p-3 ${draft === asset.id ? 'border-purple-400 bg-purple-500/15' : 'border-white/10 bg-black/15'}`}>
                         <p className="break-all text-xs font-semibold leading-5">{asset.file_name}</p>
-                        <p className="mt-1 text-xs leading-5 text-purple-200">{sfxDescriptionKo(asset)}</p>
+                        {role === 'sfx' && <p className="mt-1 text-xs leading-5 text-purple-200">{sfxDescriptionKo(asset)}</p>}
                         <div className="mt-3 flex items-center justify-between gap-2 text-xs">
                             <button type="button" disabled={busy === asset.id} onClick={() => void play(asset)} aria-label={`${asset.file_name} ${ui("미리듣기")}`} className="rounded border border-white/15 px-2.5 py-1.5 hover:bg-white/10 disabled:opacity-50">{busy === asset.id ? ui("불러오는 중…") : ui("▶ 미리듣기")}</button>
                             <button type="button" aria-pressed={draft === asset.id} onClick={() => setDraft(asset.id)} className="rounded bg-purple-500/20 px-2.5 py-1.5 text-purple-100">{draft === asset.id ? ui("✓ 선택됨") : ui("선택")}</button>
@@ -110,9 +146,18 @@ export default function SubtitleSfxPicker({ locale = 'ko', assets, value, projec
                     {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
                 </div>
                 <div className="flex shrink-0 justify-end gap-2 text-xs">
-                    <button type="button" onClick={() => { onChange(''); setOpen(false) }} className="mr-auto rounded px-3 py-2 text-gray-400 hover:bg-white/5">{ui("선택 해제")}</button>
+                    <button type="button" onClick={async () => { try { await onChange(''); setOpen(false) } catch (error: any) { setError(error.message || ui('선택 해제 실패')) } }} className="mr-auto rounded px-3 py-2 text-gray-400 hover:bg-white/5">{ui("선택 해제")}</button>
                     <button type="button" onClick={() => setOpen(false)} className="rounded border border-white/10 px-4 py-2">{ui("취소")}</button>
-                    <button type="button" disabled={!assets.some(asset => asset.id === draft)} onClick={() => { onChange(draft); setOpen(false) }} className="rounded bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-500 disabled:opacity-40">{ui("선택 완료")}</button>
+                    <button type="button" disabled={uploading || !assets.some(asset => asset.id === draft)} onClick={async () => {
+                        setUploading(true); setError('')
+                        try {
+                            const response = await fetch(libraryEndpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: draft }) })
+                            const result = await response.json()
+                            if (!response.ok || !result.asset) throw new Error(result.error || '효과음 선택에 실패했습니다.')
+                            onRegistered?.(result.asset); await onChange(result.asset.id, result.asset); setOpen(false)
+                        } catch (error: any) { setError(error.message) }
+                        finally { setUploading(false) }
+                    }} className="rounded bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-500 disabled:opacity-40">{ui("선택 완료")}</button>
                 </div>
             </div>
         </div>, document.body)}

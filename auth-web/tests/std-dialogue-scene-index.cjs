@@ -1,0 +1,4 @@
+const assert=require('node:assert/strict'),fs=require('fs'),ts=require('typescript');const api={}
+new Function('exports',ts.transpile(fs.readFileSync(require.resolve('../lib/stdDialogueSceneIndex.ts'),'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}))(api)
+const result=api.dialogueSceneIndex([{scene_number:30,dialogue_kind:'dialogue',dialogue_speaker:'A'},{scene_number:19,dialogue_kind:'dialogue',dialogue_speaker:'B'},{scene_number:19,dialogue_kind:'dialogue',dialogue_speaker:'B'},{scene_number:20,dialogue_kind:'narration'}])
+assert.deepEqual(result.scene_numbers,[19,30]);assert.equal(result.scene_count,2);assert.equal(result.subtitle_count,3);assert.deepEqual(result.scenes[0].speakers,['B']);assert.deepEqual(result.scenes[0].subtitle_indices,[1,2]);console.log('PASS: dialogue scene count, ordered queue, speaker assignments and original subtitle indices')

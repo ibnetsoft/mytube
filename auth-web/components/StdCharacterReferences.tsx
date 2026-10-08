@@ -3,7 +3,7 @@
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 
-export default function StdCharacterReferences({ payload }: { payload: any }) {
+export default function StdCharacterReferences({ payload, impersonateEmail }: { payload: any; impersonateEmail?: string | null }) {
     const characters = charactersFromPayload(payload)
     return (
         <section className="bg-[#1c222c] border border-white/10 rounded-xl p-4">
@@ -12,7 +12,12 @@ export default function StdCharacterReferences({ payload }: { payload: any }) {
             {!characters.length && <p className="text-sm text-amber-300 mt-3">캐릭터 기준 이미지 생성 대기</p>}
             <div className="grid grid-cols-2 gap-2 mt-3 sm:grid-cols-3 lg:grid-cols-5">
                 {characters.map((character: any, index: number) => {
-                    const url = persistentThumbnailUrl(character.image_url)
+                    let url = persistentThumbnailUrl(character.image_url)
+                    if (url && impersonateEmail && /^\/api\/std\/projects\/[^/?#]+\/character-thumbnail(?:\?|$)/.test(url)) {
+                        const thumbnail = new URL(url, 'http://localhost')
+                        thumbnail.searchParams.set('impersonate', impersonateEmail)
+                        url = `${thumbnail.pathname}${thumbnail.search}`
+                    }
                     const sceneCount = Array.isArray(character.scene_numbers)
                         ? new Set(character.scene_numbers.map(Number).filter((number: number) => Number.isSafeInteger(number) && number > 0)).size
                         : 0

@@ -1,3 +1,6 @@
+import { dialogueSceneIndex } from '@/lib/stdDialogueSceneIndex'
+import { normalizeSubtitleFragments } from '@/lib/stdSubtitleFragments'
+import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { normalizeComicSettings, isComicProject } from '@/lib/stdComic'
 import { canEditStdProject } from '@/lib/stdProjectEditPolicy'
 import { editableThumbnailError } from '@/lib/stdThumbnailRender'
@@ -11,6 +14,7 @@ import { isGcsConfiguredAsync, createGcsSignedReadUrl } from '@/lib/gcsStorage'
 import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 300
 
 const CONTENT_ASSETS_BUCKET = 'content-assets'
 
@@ -347,6 +351,23 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         }
     }))
 
+    const subtitlePayload = project.project_payload || {}
+    if (Array.isArray(subtitlePayload.subtitles)) {
+        const normalizedRows = normalizeSubtitleFragments(subtitlePayload.subtitles, 20, { punctuationOnly: true })
+        const repaired = preserveSubtitleScenes(normalizedRows, normalizedRows,
+            [...(subtitlePayload.structure?.scenes || subtitlePayload.scenes || []), ...(scenes || [])],
+            subtitlePayload.deleted_subtitle_scene_numbers || [])
+        if (JSON.stringify(repaired.subtitles) !== JSON.stringify(subtitlePayload.subtitles)) {
+            const repairedPayload = { ...subtitlePayload, subtitles: repaired.subtitles }
+            const { data: repairedProject, error: repairError } = await supabaseAdmin.from('std_projects')
+                .update({ project_payload: repairedPayload, updated_at: new Date().toISOString() })
+                .eq('id', project.id).eq('updated_at', project.updated_at).select('*').maybeSingle()
+            if (repairError) return NextResponse.json({ success: false, error: repairError.message }, { status: 503 })
+            if (!repairedProject) return NextResponse.json({ success: false, error: '프로젝트가 변경됐습니다. 다시 열어 주세요.' }, { status: 409 })
+            project = repairedProject
+        }
+    }
+
     const protectedProject = {
         ...project,
         project_payload: protectCharacterReferenceUrls(project.project_payload, project.id),
@@ -404,6 +425,30 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
 
     const incomingProgress = body?.progress_payload || {}
     const incomingProjectPayload = body?.project_payload || {}
+    const currentSubtitlePayload = project.project_payload || {}
+    const deletedSubtitleScenes = [...new Set([
+        ...(currentSubtitlePayload.deleted_subtitle_scene_numbers || []),
+        ...(Array.isArray(body.deleted_subtitle_scene_numbers) ? body.deleted_subtitle_scene_numbers : []),
+    ].map(Number).filter((number: number) => Number.isInteger(number) && number > 0))]
+    let sceneManifest = currentSubtitlePayload.structure?.scenes || currentSubtitlePayload.scenes || []
+    if (Array.isArray(incomingProjectPayload.subtitles)) {
+        const { data: canonicalScenes, error: canonicalScenesError } = await supabaseAdmin.from('std_project_scenes')
+            .select('scene_number,scene_text').eq('project_id', project.id)
+        if (canonicalScenesError) return NextResponse.json({ success: false, error: canonicalScenesError.message }, { status: 503 })
+        sceneManifest = [...sceneManifest, ...(canonicalScenes || [])]
+        const repaired = preserveSubtitleScenes(
+            normalizeSubtitleFragments(incomingProjectPayload.subtitles, 20, { punctuationOnly: true }),
+            normalizeSubtitleFragments(currentSubtitlePayload.subtitles || [], 20, { punctuationOnly: true }), sceneManifest, deletedSubtitleScenes)
+        incomingProjectPayload.subtitles = repaired.subtitles
+        incomingProjectPayload.deleted_subtitle_scene_numbers = deletedSubtitleScenes
+        incomingProjectPayload.deleted_subtitle_scene_archive = {
+            ...(currentSubtitlePayload.deleted_subtitle_scene_archive || {}),
+            ...Object.fromEntries(deletedSubtitleScenes.map(number => [number,
+                (currentSubtitlePayload.subtitles || []).filter((row: any) => Number(row.scene_number) === number)
+                    .concat(currentSubtitlePayload.deleted_subtitle_scene_archive?.[number] || [])])),
+        }
+    }
+
     if (incomingProjectPayload.thumbnail_design || incomingProgress.thumbnail_completed === true) {
         const thumbnailError = editableThumbnailError(
             incomingProjectPayload.thumbnail_design || project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
@@ -429,6 +474,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'original_worker_script',
         'subtitles',
         'subtitles_saved',
+        'deleted_subtitle_scene_numbers',
+        'deleted_subtitle_scene_archive',
         'title',
         'video_title',
         'scenes',
@@ -446,6 +493,25 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const projectPayloadPatch: Record<string, any> = Object.fromEntries(
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
+    if (projectPayloadPatch.render_settings && ['audio', 'subtitle'].includes(body.render_settings_scope)) {
+        const audioKeys = ['bgm_asset_id', 'bgm_file_name', 'bgm_volume', 'bgm_loop', 'bgm_start_scene', 'bgm_start_subtitle', 'bgm_end_scene', 'bgm_fade_in', 'bgm_fade_out', 'sfx_cues', 'sfx_plan']
+        const incoming = projectPayloadPatch.render_settings
+        const current = project.project_payload?.render_settings || {}
+        if (body.render_settings_scope === 'subtitle') {
+            projectPayloadPatch.render_settings = { ...current,
+                ...Object.fromEntries(Object.entries(incoming).filter(([key]) => !audioKeys.includes(key))) }
+        } else {
+            const settings = { ...current }
+            for (const key of audioKeys) {
+                if (Object.prototype.hasOwnProperty.call(incoming, key)) settings[key] = incoming[key]
+            }
+            // The audio form sends its complete audio snapshot; missing BGM identifiers mean clear.
+            for (const key of ['bgm_asset_id', 'bgm_file_name']) {
+                if (!Object.prototype.hasOwnProperty.call(incoming, key)) delete settings[key]
+            }
+            projectPayloadPatch.render_settings = settings
+        }
+    }
     if (projectPayloadPatch.render_settings?.comic !== undefined) {
         projectPayloadPatch.render_settings = {
             ...(project.project_payload?.render_settings || {}),
@@ -578,6 +644,9 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             ...(persistableScenes.length > 0 ? { scenes: persistableScenes } : {}),
             ...(Object.keys(nextStructure).length > 0 ? { structure: nextStructure } : {}),
         }
+    }
+    if (updatePayload.project_payload) {
+        updatePayload.project_payload.dialogue_scene_index = dialogueSceneIndex(updatePayload.project_payload.subtitles || [])
     }
     if (titlePatch) updatePayload.title = titlePatch
 

@@ -406,7 +406,9 @@ function mergeShortJapaneseTail(chunks: string[], limit: number): string[] {
     if (result.length < 2) return result
     const tail = result[result.length - 1]
     const previous = result[result.length - 2]
-    if (Array.from(tail).length <= 2 && previous.length + tail.length <= limit) {
+    const tailLetters = tail.replace(/[。．.!！?？…，,、;；:：」』”’）)\]】]/gu, '')
+    const orphanCharacter = /^[\p{Script=Hiragana}\p{Script=Katakana}]$/u.test(tailLetters)
+    if (orphanCharacter || (Array.from(tail).length <= 2 && previous.length + tail.length <= limit)) {
         result[result.length - 2] = previous + tail
         result.pop()
     }

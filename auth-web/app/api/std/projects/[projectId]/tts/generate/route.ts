@@ -1,3 +1,4 @@
+import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { NextResponse } from 'next/server'
 import { assembleStoredNarration } from '@/lib/stdStoredNarration'
 import { NARRATION_BATCH_SIZE } from '@/lib/stdNarrationBatch'
@@ -1055,6 +1056,7 @@ async function runTts(body: any, auth: any, project: any) {
             .eq('asset_type', 'audio').neq('id', asset.id).in('status', ['uploaded', 'assigned'])
         if (replaceError) throw replaceError
         const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
+        const syncedSubtitles = applyRecordedSubtitleTiming(project.project_payload?.subtitles || [], subtitleTimeline)
         const { error: stateError } = await supabaseAdmin.from('std_projects').update({
             progress_payload: {
                 ...completedScriptTtsProgress(project.progress_payload || {}, text, buildTtsText(project, scenes)),
@@ -1063,7 +1065,7 @@ async function runTts(body: any, auth: any, project: any) {
                 voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
                 voice_map: voiceMap, voice_segments: voiceSegments,
             },
-            project_payload: { ...(project.project_payload || {}), audio_url: audioUrl, tts_url: audioUrl,
+            project_payload: { ...(project.project_payload || {}), subtitles: syncedSubtitles, audio_url: audioUrl, tts_url: audioUrl,
                 voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
                 voice_map: voiceMap, voice_segments: voiceSegments },
             updated_at: now,

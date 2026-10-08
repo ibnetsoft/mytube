@@ -1,4 +1,7 @@
 'use client'
+import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
+import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
+import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
 import { isComicProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
@@ -12,20 +15,24 @@ import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotic
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
-import { audioAssetRole, backgroundVolume } from '@/lib/stdAudioMix'
+import { downloadStdFile } from '@/lib/stdFileDownload'
+import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
 import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
+import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
 import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio, isSavedAudioRequiredError, savedAudioRequiredMessage } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
-import AiSfxPlanButton from '@/components/AiSfxPlanButton'
+import { voiceDialogCopy, voiceDialogSpeakerName } from '@/lib/voiceDialogLocale'
 import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
+import StdTemplateOverlay from '@/components/StdTemplateOverlay'
+import { templateOverlaySettings } from '@/lib/stdTemplateOverlay'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, confirmSubtitleSpeaker, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
@@ -197,7 +204,9 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
+import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
+import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
@@ -565,7 +574,8 @@ const ELEVENLABS_VOICES = [
     },
 ]
 
-const SUBTITLE_FONTS = Object.keys(subtitleFontCatalog).map(value => ({ value, label: value }))
+const SUBTITLE_FONTS = [...Object.keys(subtitleFontCatalog).map(value => ({ value, label: value })),
+    { value: 'Malgun Gothic', label: '맑은 고딕 (Malgun Gothic · 렌더 폰트)' }]
 
 const DEFAULT_SUBTITLE_PRESETS = [
     {
@@ -766,6 +776,7 @@ export default function StdPortalPage() {
     const [renderSubmissionNotice, setRenderSubmissionNotice] = useState<SubmissionNotice | null>(null)
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
     const [message, setMessageRaw] = useState('')
+    const [imageDownloadStatus, setImageDownloadStatus] = useState('')
     const setMessage = (msg: string | ((prev: string) => string)) => {
         if (typeof msg === 'string') {
             if (legacyStorageErrorPattern.test(msg)) {
@@ -813,6 +824,7 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const ui = (text: string) => stdUiText(currentLocale, text)
+    const voiceCopy = voiceDialogCopy(currentLocale)
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
     const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale)
         && (subtitleTranslationScope === 'all' || currentLocale === 'th' || currentLocale === 'ko') ? currentLocale : null
@@ -1150,9 +1162,16 @@ export default function StdPortalPage() {
     const vrewAudioRef = useRef<HTMLAudioElement | null>(null)
     const previousBgmVolumeRef = useRef(0.08)
     const [bgmLoop, setBgmLoop] = useState(true)
+    const [bgmStartScene, setBgmStartScene] = useState(0)
+    const [bgmStartSubtitle, setBgmStartSubtitle] = useState(1)
+    const [bgmEndScene, setBgmEndScene] = useState(0)
+    const [bgmFadeIn, setBgmFadeIn] = useState(2)
+    const [bgmFadeOut, setBgmFadeOut] = useState(2)
+    const bgmRangeRef = useRef({ start: 0, end: Infinity, valid: true, fadeIn: 2, fadeOut: 2 })
     const [bgmVolume, setBgmVolume] = useState(0.08)
     const [savingBgmVolume, setSavingBgmVolume] = useState(false)
     const [selectedSfxAssetId, setSelectedSfxAssetId] = useState('')
+    const [sfxPickerOpenRequest, setSfxPickerOpenRequest] = useState(0)
     const [previewBgmUrl, setPreviewBgmUrl] = useState('')
     const previewBgmAudioRef = useRef<HTMLAudioElement | null>(null)
     const vrewPreviewVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -1760,8 +1779,9 @@ export default function StdPortalPage() {
         }
     }, [currentNav, isPlayingPreview, totalDuration])
 
-    // playbackTime에 맞춰 현재 자막 인덱스 동기화
+    // Vrew playback owns its selected row (the recorded timeline may differ from editor timing).
     useEffect(() => {
+        if (currentNav === 'subtitle_vrew') return
         if (!localSubtitles || localSubtitles.length === 0) return
         const activeIdx = localSubtitles.findIndex(s => {
             const start = s.start_num ?? Number(s.start_time) ?? 0
@@ -1771,7 +1791,7 @@ export default function StdPortalPage() {
         if (activeIdx >= 0 && activeIdx !== selectedSubIndex) {
             setSelectedSubIndex(activeIdx)
         }
-    }, [playbackTime, localSubtitles])
+    }, [currentNav, playbackTime, localSubtitles])
 
     const authedJsonHeaders = useMemo<Record<string, string>>(() => {
         const headers: Record<string, string> = {
@@ -2326,13 +2346,9 @@ export default function StdPortalPage() {
         const fileName = safeDownloadFileName(`std-${projectKey}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
         try {
             if (assetType === 'image' && sceneImageDownloadUrl) {
-                const link = document.createElement('a')
-                link.href = sceneImageDownloadUrl
-                link.download = fileName
-                link.rel = 'noopener'
-                document.body.appendChild(link)
-                link.click()
-                link.remove()
+                setImageDownloadStatus('이미지를 다운로드하는 중입니다…')
+                await downloadStdFile(sceneImageDownloadUrl, authedUploadHeaders, fileName, 'image')
+                setImageDownloadStatus(`${sceneNumber}번 씬 이미지 다운로드를 시작했습니다.`)
                 return true
             }
             const response = await fetch(url)
@@ -2347,7 +2363,11 @@ export default function StdPortalPage() {
             link.remove()
             setTimeout(() => URL.revokeObjectURL(blobUrl), 1500)
             return true
-        } catch {
+        } catch (error: any) {
+            if (assetType === 'image') {
+                setImageDownloadStatus(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+                return false
+            }
             const link = document.createElement('a')
             link.href = url
             link.download = fileName
@@ -2390,14 +2410,13 @@ export default function StdPortalPage() {
             const zipUrl = getSceneImagesZipDownloadUrl(imageScenes)
             const projectKey = String(selectedProject.project.id || 'project').slice(0, 8) || 'project'
             const fileName = safeDownloadFileName(`std-${projectKey}-images.zip`)
-            const link = document.createElement('a')
-            link.href = zipUrl
-            link.download = fileName
-            link.rel = 'noopener'
-            document.body.appendChild(link)
-            link.click()
-            link.remove()
-            setMessage(`이미지 ${imageScenes.length}개 ZIP 다운로드를 시작했습니다.`)
+            try {
+                setImageDownloadStatus('이미지 ZIP 파일을 준비하는 중입니다…')
+                await downloadStdFile(zipUrl, authedUploadHeaders, fileName, 'zip')
+                setImageDownloadStatus(`이미지 ${imageScenes.length}개 ZIP 다운로드를 시작했습니다.`)
+            } catch (error: any) {
+                setImageDownloadStatus(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+            }
             return
         }
         setMessage(`이미지 ${imageScenes.length}개 다운로드를 시작합니다...`)
@@ -2811,9 +2830,18 @@ export default function StdPortalPage() {
     }
     const applySubtitleSpeakerVoice = async (index: number, voiceId: string, allSpeaker = false) => {
         if (isPlayingPreview) stopVrewPlayback()
-        const updated = assignSpeakerVoice(localSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, subtitleSpeakers)
-        updated.forEach((item, i) => { if (item !== localSubtitles[i]) markVrewSegmentStale(item, i) })
+        const currentSubtitles = speechSubtitlesRef.current
+        const project = selectedProject?.project
+        const parts = mapDialogueAnnotations(currentSubtitles, project?.project_payload?.structure?.dialogue_annotations)
+        const speakers = currentSubtitles.map((row: any, i: number) => row.dialogue_override === false ? null
+            : subtitleSpeaker(row, parts.get(i), speakerCharacters, currentLocale, speakerNameTranslations))
+        const updated = assignSpeakerVoice(currentSubtitles, index, voiceId, voiceNameById.get(voiceId) || voiceId, allSpeaker, speakers, {
+            characters: speakerCharacters,
+            voiceSources: [{ voice_map: characterVoices, explicit: true }, project?.project_payload || {}, project?.progress_payload || {}],
+        })
+        updated.forEach((item, i) => { if (item !== currentSubtitles[i]) markVrewSegmentStale(item, i) })
         await persistVrewVoiceSubtitles(updated, { signal: new AbortController().signal, strict: true })
+        if (updated[index]?.dialogue_override === true && !updated[index]?.editor_speaker?.name) setSpeakerEditorIndex(index)
     }
     const saveSubtitleSpeaker = (index: number, name: string, gender: string) => {
         const project = selectedProject?.project
@@ -2892,24 +2920,28 @@ export default function StdPortalPage() {
             ? [index] : []
     )))
 
+    // Count the same yellow subtitle rows shown by renderAiDialogue. A selected
+    // voice alone does not establish which character is speaking.
+    const dialogueSpeakerProgress = localSubtitles.reduce((count, subtitle, index) => {
+        const yellow = aiDialogueParts.get(index)?.some(part => part.dialogue) || isSubtitleDialogue(subtitle, index)
+        if (!yellow) return count
+        return { total: count.total + 1, confirmed: count.confirmed + (subtitleSpeakers[index]?.name ? 1 : 0) }
+    }, { total: 0, confirmed: 0 })
+
     // Use the same classification as the subtitle rows; unresolved candidates are never narration targets.
     const isSubtitleNarration = (subtitle: any, index: number) => (
         !isSubtitleDialogue(subtitle, index) && !pendingDialogueCandidateIndexes.has(index)
     )
 
-    const hasDistinctDialogueVoiceAssignment = () => {
-        const narrationVoiceIds = new Set(
-            localSubtitles
-                .filter((subtitle: any, index: number) => !isSubtitleDialogue(subtitle, index))
-                .map((subtitle: any) => String(subtitle?.voice_id || selectedVoice || '').trim())
-                .filter(Boolean)
-        )
-        const dialogueVoiceIds = localSubtitles
-            .filter((subtitle: any, index: number) => isSubtitleDialogue(subtitle, index))
-            .map((subtitle: any) => String(subtitle?.voice_id || '').trim())
-
-        return localSubtitles.length > 0
-            && dialogueVoiceIds.every(voiceId => Boolean(voiceId) && !narrationVoiceIds.has(voiceId))
+    const hasDistinctDialogueVoiceAssignment = () => subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice).ready
+    const selectSubtitlePreview = (subtitleIndex: number) => {
+        const subtitle = localSubtitles[subtitleIndex]
+        if (!subtitle) return
+        stopVrewPlayback()
+        setPreviewTransition(null)
+        setSelectedSubIndex(subtitleIndex)
+        const start = Number(subtitle.start_num ?? subtitle.start_time ?? 0)
+        setPlaybackTime(Number.isFinite(start) ? Math.max(0, start) : 0)
     }
 
     const selectSubtitleBlock = (subtitleIndex: number, shiftKey: boolean) => {
@@ -2934,9 +2966,7 @@ export default function StdPortalPage() {
             subtitleBlockSelectionAnchorRef.current = targetIndex
         }
 
-        setSelectedSubIndex(targetIndex)
-        const subtitle = localSubtitles[targetIndex]
-        setPlaybackTime(subtitle?.start_num ?? Number(subtitle?.start_time) ?? 0)
+        selectSubtitlePreview(targetIndex)
     }
 
     const updateSubtitleDraft = (subtitles: any[]) => {
@@ -2947,7 +2977,7 @@ export default function StdPortalPage() {
         setSubtitleSaveState('dirty')
     }
 
-    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal?: AbortSignal; strict?: boolean; renderSettings?: Record<string, any> }) => {
+    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal?: AbortSignal; strict?: boolean; renderSettings?: Record<string, any>; deletedScenes?: number[] }) => {
         const projectId = selectedProject?.project?.id
         if (!projectId) {
             const error = new Error('저장할 프로젝트를 먼저 선택해 주세요.')
@@ -2966,6 +2996,8 @@ export default function StdPortalPage() {
         const revision = subtitleSaveRevisionRef.current
         try {
             const project = await saveSubtitleProject(projectId, {
+                render_settings_scope: 'subtitle',
+                ...(options?.deletedScenes ? { deleted_subtitle_scene_numbers: options.deletedScenes } : {}),
                 progress_payload: { subtitles_saved: true, subtitles_completed: true },
                 project_payload: {
                     subtitles: updatedSubtitles, subtitles_saved: true,
@@ -2980,6 +3012,10 @@ export default function StdPortalPage() {
             })
             if (isCurrentProject() && revision === subtitleSaveRevisionRef.current) {
                 const pendingDraft = Boolean(subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current)
+                if (!pendingDraft && Array.isArray(project.project_payload?.subtitles)) {
+                    speechSubtitlesRef.current = project.project_payload.subtitles
+                    setLocalSubtitles(project.project_payload.subtitles)
+                }
                 setIsSubtitleSaved(!pendingDraft)
                 setSubtitleSaveState(pendingDraft ? 'dirty' : 'saved')
             }
@@ -3114,7 +3150,11 @@ export default function StdPortalPage() {
         disabled = false,
         options: { description?: string; buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
     ) => {
-        const currentVoiceName = voiceNameById.get(voiceId) || voiceId || '성우'
+        const currentVoiceName = voiceNameById.get(voiceId) || voiceId || voiceCopy.chooseVoice
+        const popupTitle = pickerKey === 'selected-scenes-bulk' ? voiceCopy.selectedScenesTitle(selectedSubtitleSceneNumbers.length)
+            : pickerKey === 'selected-blocks-bulk' ? voiceCopy.selectedBlocksTitle(selectedSubtitleBlockIndexes.length)
+            : pickerKey.startsWith('scene-') ? voiceCopy.sceneTitle(pickerKey.slice('scene-'.length))
+            : tone === 'dialogue' ? voiceCopy.dialogueTitle : voiceCopy.narrationTitle
         const isOpen = !disabled && openVoicePickerKey === pickerKey
         const closePicker = () => {
             setOpenVoicePickerKey('')
@@ -3160,11 +3200,11 @@ export default function StdPortalPage() {
                     locale={currentLocale} translations={speakerNameTranslations} projectId={selectedProject?.project?.id}
                     headers={authedJsonHeaders} onTranslations={rememberSpeakerNameTranslations}
                     onSave={(name, gender) => saveSubtitleSpeaker(speakerEditorIndex, name, gender)} onClose={() => setSpeakerEditorIndex(null)} />}
-                {isOpen && <UnifiedVoiceDialog historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email} value={voiceId} voices={allVoices}
+                {isOpen && <UnifiedVoiceDialog locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email} value={voiceId} voices={allVoices}
                     initialTab={options.elevenLabsOnly || tone === 'dialogue' ? 'elevenlabs' : 'google'}
-                    title={title.replace(/^ElevenLabs · /, '')} headers={authedJsonHeaders}
+                    title={popupTitle} headers={authedJsonHeaders}
                     speakerContext={options.speakerContext}
-                    description={options.description || (options.speakerContext?.name ? (options.speakerContext.thai ? 'เลือกเสียงให้ตัวละคร หรือยกเลิกการเลือกใช้กับทุกประโยคเพื่อเปลี่ยนเฉพาะบรรทัดนี้' : '인물별 성우를 선택합니다. 전체 적용을 해제하면 이 자막만 변경합니다.') : pickerKey.startsWith('block-') ? '이 자막 한 줄에만 적용합니다. 다른 자막의 성우는 유지됩니다.' : '선택한 대상의 성우를 변경합니다.')}
+                    description={options.description || (options.speakerContext?.name ? voiceCopy.characterScope : pickerKey.startsWith('block-') ? voiceCopy.lineScope : voiceCopy.targetScope)}
                     onApply={(id, _direction, allSpeaker) => onSelect(id, allSpeaker)} onClose={closePicker} />}
 
             </div>
@@ -3415,21 +3455,29 @@ export default function StdPortalPage() {
         if (reset) audio.currentTime = 0
     }
 
+    const updatePreviewBgmVolume = (audio: HTMLAudioElement, timelineTime: number) => {
+        const range = backgroundPlaybackWindow(bgmRangeRef.current, audio.duration, bgmLoop)
+        audio.volume = backgroundVolume(bgmVolume) * backgroundEnvelope(timelineTime, range)
+    }
+
     const playPreviewBgm = (timelineTime: number) => {
         const audio = previewBgmAudioRef.current
         if (!audio) return
-        audio.volume = backgroundVolume(bgmVolume)
+        const range = bgmRangeRef.current
+        if (!range.valid || timelineTime < range.start || timelineTime >= range.end) { audio.pause(); return }
+        const offset = Math.max(0, timelineTime - range.start)
         audio.loop = bgmLoop
 
         const seekAndPlay = () => {
+            updatePreviewBgmVolume(audio, timelineTime)
             const duration = Number(audio.duration)
             if (Number.isFinite(duration) && duration > 0) {
-                if (!bgmLoop && timelineTime >= duration) {
+                if (!bgmLoop && offset >= duration) {
                     audio.pause()
                     audio.currentTime = duration
                     return
                 }
-                audio.currentTime = bgmLoop ? Math.max(0, timelineTime) % duration : Math.max(0, timelineTime)
+                audio.currentTime = bgmLoop ? offset % duration : offset
             }
             void audio.play().catch(error => {
                 console.warn('[STD preview] BGM playback failed:', error)
@@ -3450,6 +3498,9 @@ export default function StdPortalPage() {
             vrewProgressTimerRef.current = null
         }
         if (vrewAudioRef.current) {
+            vrewAudioRef.current.onloadedmetadata = null
+            vrewAudioRef.current.onended = null
+            vrewAudioRef.current.onerror = null
             vrewAudioRef.current.pause()
             vrewAudioRef.current.removeAttribute('src')
             vrewAudioRef.current.load()
@@ -3677,7 +3728,11 @@ export default function StdPortalPage() {
                     if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
                     setIsNarrationPlaying(true)
                     playPreviewBgm(audio.currentTime)
-                }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
+                }, () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
+                    setIsNarrationPlaying(false)
+                    stopPreviewBgm()
+                })
                 audio.preload = 'auto'
                 const cleanup = () => {
                     speechGain.dispose()
@@ -3692,6 +3747,7 @@ export default function StdPortalPage() {
                     audio.onerror = null
                 }
                 const syncPlaybackProgress = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     const time = Math.max(0, audio.currentTime)
                     setPlaybackTime(Math.round(time * 10) / 10)
                     const activeIndex = playbackSubtitles.findIndex((subtitle: any) => {
@@ -3708,6 +3764,7 @@ export default function StdPortalPage() {
                     setVrewActiveTokenIndex(vrewActiveTokenAtPlaybackTime(playbackSubtitles[activeIndex], time))
                 }
                 audio.onloadedmetadata = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     if (Number.isFinite(audio.duration) && startTime >= audio.duration) {
                         cleanup()
                         reject(new Error('선택한 자막 시간이 오디오 길이를 넘었습니다. 앞쪽 자막을 선택해 재생해 주세요.'))
@@ -3717,17 +3774,20 @@ export default function StdPortalPage() {
                     syncPlaybackProgress()
                     vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
                     audio.play().catch(error => {
+                        if (vrewPlaybackCancelRef.current !== cancelToken) return
                         stopPreviewBgm()
                         cleanup()
                         reject(error)
                     })
                 }
                 audio.onended = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     setVrewActiveTokenIndex(-1)
                     resolve()
                 }
                 audio.onerror = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     reject(new Error('최종 TTS 음성 재생에 실패했습니다.'))
                 }
@@ -3754,6 +3814,7 @@ export default function StdPortalPage() {
             try {
                 audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
             } catch (err: any) {
+                if (vrewPlaybackCancelRef.current !== cancelToken) return
                 const isDriveError = err?.code === 'legacy_drive_auth_failed'
                     || legacyStorageErrorPattern.test(String(err?.message || ''))
                 const isClaimedOrSaveNeeded = isSavedAudioRequiredError(err)
@@ -3796,7 +3857,11 @@ export default function StdPortalPage() {
                     if (vrewPlaybackCancelRef.current !== cancelToken) { audio.pause(); return }
                     setIsNarrationPlaying(true)
                     playPreviewBgm(baseStart + scheduledDuration * (audio.currentTime / (audio.duration || scheduledDuration)))
-                }, () => { setIsNarrationPlaying(false); stopPreviewBgm() })
+                }, () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
+                    setIsNarrationPlaying(false)
+                    stopPreviewBgm()
+                })
                 const cleanup = () => {
                     speechGain.dispose()
                     speechGainCleanupRef.current = null
@@ -3809,15 +3874,18 @@ export default function StdPortalPage() {
                     audio.onerror = null
                 }
                 audio.onended = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     setVrewActiveTokenIndex(-1)
                     resolve()
                 }
                 audio.onerror = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     reject(new Error('자막 구간 음성 재생에 실패했습니다.'))
                 }
                 const syncPlaybackProgress = () => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     speechGain.set(normalization * subtitleGain(speechSubtitlesRef.current[index]))
                     const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0
                         ? audio.duration
@@ -3829,6 +3897,7 @@ export default function StdPortalPage() {
                 syncPlaybackProgress()
                 vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
                 audio.play().catch(error => {
+                    if (vrewPlaybackCancelRef.current !== cancelToken) return
                     stopPreviewBgm()
                     cleanup()
                     reject(error)
@@ -3848,7 +3917,10 @@ export default function StdPortalPage() {
             stopVrewPlayback()
             return
         }
-        void playVrewSegmentsFrom(selectedSubIndex).catch((error: any) => {
+        const playback = playVrewSegmentsFrom(selectedSubIndex)
+        const cancelToken = vrewPlaybackCancelRef.current
+        void playback.catch((error: any) => {
+            if (vrewPlaybackCancelRef.current !== cancelToken) return
             stopVrewPlayback()
             const isClaimedOrSaveNeeded = isSavedAudioRequiredError(error)
 
@@ -4616,8 +4688,10 @@ export default function StdPortalPage() {
         const scenes = selectedProject?.scenes || []
         const savedSubtitles = selectedProject?.project?.project_payload?.subtitles
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
-        const subs = restoreSavedSubtitleSnapshot(savedSubtitles,
+        const loadedRows = restoreSavedSubtitleSnapshot(savedSubtitles,
             () => generateSynchronizedSubtitles(currentScript, scenes, Number(subMaxChars) || 20))
+        const subs = preserveSubtitleScenes(loadedRows, savedSubtitles || [], scenes,
+            selectedProject?.project?.project_payload?.deleted_subtitle_scene_numbers || []).subtitles
         const normalizedSubtitles = matchSubtitlesToSceneVisuals(ensureSubtitlesHaveTiming(subs, scenes), scenes)
         setLocalSubtitles(normalizedSubtitles)
         if (Array.isArray(savedSubtitles)) {
@@ -5062,39 +5136,17 @@ export default function StdPortalPage() {
 
     const updateBgmSfxSettings = async (nextRenderSettings: any, nextAssets?: any[], nextSubtitles?: any[]) => {
         if (!selectedProject?.project?.id) return
-        const nextProjectPayload = {
-            ...(selectedProject.project.project_payload || {}),
-            render_settings: nextRenderSettings,
-            ...(nextSubtitles ? { subtitles: nextSubtitles } : {}),
-            bgm_sfx_saved: true,
-        }
-        const nextProject = {
-            ...selectedProject,
-            ...(nextAssets ? { assets: nextAssets } : {}),
-            project: {
-                ...selectedProject.project,
-                progress_payload: {
-                    ...(selectedProject.project.progress_payload || {}),
-                    bgm_sfx_saved: true,
-                },
-                project_payload: nextProjectPayload,
-            },
-        }
-
-        const res = await fetch('/api/std/projects/' + selectedProject.project.id, {
-            method: 'PATCH',
-            headers: authedJsonHeaders,
-            body: JSON.stringify({
-                progress_payload: { bgm_sfx_saved: true },
-                project_payload: nextProjectPayload,
-            }),
+        const project = await saveSubtitleProject(selectedProject.project.id, {
+            render_settings_scope: 'audio',
+            progress_payload: { bgm_sfx_saved: true },
+            project_payload: { render_settings: nextRenderSettings, bgm_sfx_saved: true },
+        }, authedJsonHeaders)
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== project.id) return prev
+            const updated = { ...prev, ...(nextAssets ? { assets: nextAssets } : {}), project }
+            rememberProjectState(updated)
+            return updated
         })
-        const payload = await safeParseJson(res, 'BGM/SFX settings save failed')
-        if (!res.ok || payload.success === false) {
-            throw new Error(payload.error || 'BGM/SFX settings save failed')
-        }
-        setSelectedProject(nextProject)
-        rememberProjectState(nextProject)
     }
 
     const uploadDriveAudioAsset = async (file: File, assetType: 'bgm' | 'sfx', sceneNumber?: number | null) => {
@@ -5111,7 +5163,7 @@ export default function StdPortalPage() {
         if (!initRes.ok || !init.storage_upload_url) throw new Error(init.error || '오디오 업로드 준비 실패')
         // Send binary data directly to storage, avoiding the server request-size limit.
         const uploadRes = await fetch(init.storage_upload_url, {
-            method: 'PUT', headers: { 'Content-Type': details.mime_type }, body: file,
+            method: 'PUT', headers: { 'Content-Type': details.mime_type }, body: file, signal: AbortSignal.timeout(120000),
         })
         if (!uploadRes.ok) throw new Error(`오디오 파일 업로드 실패 (${uploadRes.status})`)
         const completeRes = await fetch(`/api/std/projects/${projectId}/assets/complete`, {
@@ -5131,7 +5183,7 @@ export default function StdPortalPage() {
         try {
             const asset = await uploadDriveAudioAsset(file, 'bgm')
             const currentSettings = selectedProject.project.project_payload?.render_settings || {}
-            const nextAssets = [asset, ...selectedProject.assets.filter(a => audioAssetRole(a) !== 'bgm')]
+            const nextAssets = [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)]
             await updateBgmSfxSettings({
                 ...currentSettings,
                 bgm_asset_id: asset.id,
@@ -5147,24 +5199,42 @@ export default function StdPortalPage() {
         }
     }
 
+    const registerSelectedSfx = (asset: any) => {
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== asset.project_id) return prev
+            const next = { ...prev, assets: [asset, ...prev.assets.filter(a => a.id !== asset.id)] }
+            rememberProjectState(next)
+            return next
+        })
+    }
+
+    const uploadSelectableSfx = async (file: File) => {
+        const projectId = selectedProject?.project?.id
+        if (!projectId) throw new Error('프로젝트를 먼저 선택하세요.')
+        const asset = await uploadDriveAudioAsset(file, 'sfx')
+        setSelectedProject(prev => {
+            if (!prev || prev.project.id !== projectId) return prev
+            const next = { ...prev, assets: [asset, ...prev.assets.filter(a => a.id !== asset.id)] }
+            rememberProjectState(next)
+            return next
+        })
+        return asset
+    }
+
     const handleUploadCurrentSfxFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (!file || !selectedProject?.project?.id) return
+        e.target.value = ''
+        if (!file) return
         setUploadingKey('sfx-upload')
         try {
-            const asset = await uploadDriveAudioAsset(file, 'sfx')
-            const nextProject = { ...selectedProject, assets: [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)] }
-            setSelectedProject(nextProject)
-            rememberProjectState(nextProject)
+            const asset = await uploadSelectableSfx(file)
             setSelectedSfxAssetId(asset.id)
-            setSubEditTab('subtitle')
-            setMessage(`효과음 '${file.name}'을 저장했습니다. 우측 단어 사이의 + 버튼으로 삽입하세요.`)
+            setSubEditTab('bgm')
+            setSfxPickerOpenRequest(Date.now())
+            setMessage(`효과음 '${file.name}'을 저장했습니다. 팝업에서 미리듣기 후 선택 완료를 누르세요.`)
         } catch (error: any) {
-            setMessage(error?.message || 'SFX upload failed')
-        } finally {
-            setUploadingKey('')
-            e.target.value = ''
-        }
+            setMessage(error?.message || '효과음 업로드에 실패했습니다.')
+        } finally { setUploadingKey('') }
     }
 
     const clearBgmSetting = async () => {
@@ -5278,10 +5348,7 @@ export default function StdPortalPage() {
             ...layer,
             id: layer.id || `subtitle-template-layer-${Date.now()}-${index}`,
         })))
-        setShapeLayers((preset.settings.shapeLayers || []).map((shape: any, index: number) => ({
-            ...shape,
-            id: shape.id || `subtitle-template-shape-${Date.now()}-${index}`,
-        })))
+        setShapeLayers([])
         setMessage("'" + preset.name + "' 이미지 템플릿이 미리보기에 적용되었습니다.")
     }
 
@@ -5401,10 +5468,18 @@ export default function StdPortalPage() {
         try {
             if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
             subtitleStyleSaveTimerRef.current = null
-            const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || [])
+            const renderSettings = await templateOverlaySettings({ ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() })
+            const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || []).map((subtitle: any, index: number) => (
+                typeof isSubtitleDialogue === 'function' ? {
+                    ...subtitle,
+                    dialogue_kind: isSubtitleDialogue(subtitle, index) ? 'dialogue' : 'narration',
+                    dialogue_speaker: isSubtitleDialogue(subtitle, index)
+                        ? subtitle.editor_speaker?.name || subtitleSpeakers[index]?.name || subtitle.dialogue_speaker || null : null,
+                } : subtitle
+            ))
             await persistVrewVoiceSubtitles(subtitlesForStorage, {
                 strict: true,
-                renderSettings: { ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() },
+                renderSettings,
             })
             if (showSuccessAlert) setMessage(copy.subtitleSaved)
             reportSave('success', copy.subtitleSaved)
@@ -5435,7 +5510,6 @@ export default function StdPortalPage() {
         if (activeImpEmail) fetchHeaders['x-impersonate-email'] = activeImpEmail
         try {
             stopVrewPlayback()
-            revokeProjectMediaObjectUrls(selectedProject?.project?.id)
 
             const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
                 headers: fetchHeaders,
@@ -5483,9 +5557,11 @@ export default function StdPortalPage() {
                 const storedServerSubtitles = Array.isArray(payload.project?.project_payload?.subtitles)
                     ? payload.project.project_payload.subtitles
                     : []
-                const projectSubtitles = restoreSavedSubtitleSnapshot(storedServerSubtitles,
+                const loadedProjectSubtitles = restoreSavedSubtitleSnapshot(storedServerSubtitles,
                     () => generateAnnotatedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20,
                         payload.project.project_payload?.structure?.dialogue_annotations))
+                const projectSubtitles = preserveSubtitleScenes(loadedProjectSubtitles, storedServerSubtitles, normalizedScenes,
+                    payload.project?.project_payload?.deleted_subtitle_scene_numbers || []).subtitles
 
                 const fullProjectPayload: SelectedProjectPayload = {
                     ...payload,
@@ -6198,6 +6274,11 @@ export default function StdPortalPage() {
                 })
             }
             if (!isSameSession()) return
+            if (payload.postprocess_pending) {
+                report('pending', copy.postprocessPending)
+                setMessage(copy.postprocessPending)
+                return
+            }
             const accepted = payload.already_submitted ? copy.alreadySubmitted
                 : payload.shared_submission ? copy.sharedSubmitted
                 : copy.accepted(payload.render_version || 1)
@@ -6247,12 +6328,18 @@ export default function StdPortalPage() {
         setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || '', phase: 'running', detail: submissionNoticeCopy(currentLocale).preparing })
         setMessage(copy.preparing)
         try {
+            if (selectedProject?.project?.id === projectId) await handleSaveSubtitles(false)
             const res = await fetch(`/api/std/projects/${projectId}/reopen`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
             })
             const payload = await safeParseJson(res, copy.error)
             if (!res.ok || payload.success === false) throw new Error(payload.error || copy.error)
+            if (payload.postprocess_pending) {
+                setRenderSubmissionNotice({ projectId, title: projects.find((p: any) => String(p.id) === projectId)?.title || copy.project, phase: 'pending', detail: copy.postprocessPending })
+                setMessage(copy.postprocessPending)
+                return
+            }
             await loadStdData(token, { showLoading: false })
             const rerenderMessage = copy.accepted(payload.next_render_version || 1)
             setMessage(rerenderMessage)
@@ -6507,6 +6594,12 @@ export default function StdPortalPage() {
                 }
 
                 setTtsAudio(audioUrl)
+                if (isCurrent() && persistedAudioAsset?.metadata?.subtitle_timeline?.length) {
+                const synced = applyRecordedSubtitleTiming(speechSubtitlesRef.current, persistedAudioAsset.metadata.subtitle_timeline)
+                speechSubtitlesRef.current = synced
+                setLocalSubtitles(synced)
+                await persistVrewVoiceSubtitles(synced, { strict: true })
+            }
                 rememberPersistedAudioAsset(persistedAudioAsset)
                 reportSavedTts(persistedAudioAsset, payload.segment_reuse)
                 if (payload.warning) console.warn('[STD TTS] generation warning:', payload.warning)
@@ -7127,6 +7220,8 @@ export default function StdPortalPage() {
             videoUrl: currentSubVideoUrl,
         }
         previewTransitionVisualRef.current = nextVisual
+        setPreviewTransition(null)
+        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview) return
         if (!previousVisual || previousVisual.sceneNumber === nextVisual.sceneNumber) return
 
         const incomingScene = selectedProject?.scenes?.find((scene: any) => (
@@ -7155,6 +7250,8 @@ export default function StdPortalPage() {
                 timeout = window.setTimeout(() => setPreviewTransition(null), 560)
             })
         }
+        // A stalled media request must not leave the preceding scene covering the preview.
+        const revealTimeout = window.setTimeout(reveal, 1500)
         const video = vrewPreviewVideoRef.current
         const image = new window.Image()
         if (currentSubVideoUrl && video) {
@@ -7174,8 +7271,9 @@ export default function StdPortalPage() {
             image.onerror = null
             window.cancelAnimationFrame(frame)
             window.clearTimeout(timeout)
+            window.clearTimeout(revealTimeout)
         }
-    }, [currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl])
+    }, [currentNav, isPlayingPreview, currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl])
 
     useEffect(() => {
         const video = vrewPreviewVideoRef.current
@@ -7196,28 +7294,36 @@ export default function StdPortalPage() {
     useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
+        setBgmStartScene(Number(bgmSfxSettings.bgm_start_scene) || 0)
+        setBgmStartSubtitle(Number(bgmSfxSettings.bgm_start_subtitle ?? 1))
+        setBgmEndScene(Number(bgmSfxSettings.bgm_end_scene) || 0)
+        setBgmFadeIn(Number(bgmSfxSettings.bgm_fade_in ?? 2))
+        setBgmFadeOut(Number(bgmSfxSettings.bgm_fade_out ?? 2))
         setBgmLoop(bgmSfxSettings.bgm_loop !== false)
         const volume = backgroundVolume(bgmSfxSettings.bgm_volume)
         previousBgmVolumeRef.current = volume > 0 ? volume : 0.08
         setBgmVolume(volume)
-    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume, bgmSfxSettings.bgm_loop])
+    }, [selectedProject?.project?.id, bgmSfxSettings.bgm_volume, bgmSfxSettings.bgm_loop, bgmSfxSettings.bgm_start_scene, bgmSfxSettings.bgm_start_subtitle, bgmSfxSettings.bgm_end_scene, bgmSfxSettings.bgm_fade_in, bgmSfxSettings.bgm_fade_out])
 
+    const bgmStartSubtitles = localSubtitles.filter(row => Number(row.scene_number) === bgmStartScene)
+    const bgmTimelineEnd = Math.max(0, ...localSubtitles.map(row => Number(row.end_num ?? row.end_time ?? 0) || 0))
+    const bgmRange = backgroundWindow({ bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene,
+        bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut }, localSubtitles, bgmTimelineEnd)
+    bgmRangeRef.current = bgmRange
     useEffect(() => {
         if (bgmVolume > 0) previousBgmVolumeRef.current = bgmVolume
-        if (previewBgmAudioRef.current) previewBgmAudioRef.current.volume = backgroundVolume(bgmVolume)
-    }, [bgmVolume])
-
-    useEffect(() => {
         const audio = previewBgmAudioRef.current
         if (!audio) return
         audio.loop = bgmLoop
-        if (isPlayingPreview) {
-            if (!bgmLoop && Number.isFinite(audio.duration) && playbackTime >= audio.duration) {
-                audio.pause()
-                audio.currentTime = audio.duration
-            } else playPreviewBgm(playbackTime)
-        }
-    }, [bgmLoop])
+        updatePreviewBgmVolume(audio, playbackTime)
+        if (isNarrationPlaying) {
+            if (audio.paused) playPreviewBgm(playbackTime)
+        } else audio.pause()
+    }, [playbackTime, isNarrationPlaying, bgmVolume, bgmLoop, bgmStartScene, bgmStartSubtitle, bgmEndScene, bgmFadeIn, bgmFadeOut])
+
+    useEffect(() => {
+        if (isNarrationPlaying) playPreviewBgm(playbackTime)
+    }, [bgmLoop, bgmStartScene, bgmStartSubtitle, bgmEndScene])
 
     const toggleBgmMute = () => {
         if (bgmVolume > 0) {
@@ -7229,10 +7335,11 @@ export default function StdPortalPage() {
     }
 
     const saveBgmVolume = async () => {
+        if (!bgmRange.valid) { setMessage(ui('배경음 시작 자막·종료 씬과 녹음 시간을 확인해 주세요.')); return }
         setSavingBgmVolume(true)
         try {
-            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop })
-            setMessage(`배경음 ${Math.round(bgmVolume * 100)}% · ${bgmLoop ? '반복 켜짐' : '한 번 재생'} 설정을 저장했습니다.`)
+            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene, bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut })
+            setMessage('배경음 구간·볼륨·페이드 설정을 저장했습니다.')
         } catch (error: any) {
             setMessage(error?.message || '배경음 볼륨 저장 실패')
         } finally { setSavingBgmVolume(false) }
@@ -7258,7 +7365,7 @@ export default function StdPortalPage() {
 
     const sfxCues = Array.isArray(bgmSfxSettings.sfx_cues) ? bgmSfxSettings.sfx_cues : []
     const sfxSubtitleIndexes = new Set(sfxCues.filter((cue: any) => cue.enabled !== false).map((cue: any) => sfxSubtitleIndex(cue, localSubtitles)).filter((index: number) => index >= 0))
-    const currentSfxCue = sfxCues.find((cue: any) => Number(cue?.subtitle_index) === selectedSubIndex)
+    const currentSfxCue = sfxCues.find((cue: any) => cue.enabled !== false && sfxSubtitleIndex(cue, localSubtitles) === selectedSubIndex)
     const currentSfxAsset = currentSfxCue?.asset_id
         ? selectedProject?.assets?.find((asset: any) => asset.id === currentSfxCue.asset_id)
         : null
@@ -8164,6 +8271,13 @@ export default function StdPortalPage() {
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
+            {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
+                locale={currentLocale}
+                key={selectedProject.project.id} projectId={selectedProject.project.id}
+                revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
+                speakerProgress={dialogueSpeakerProgress}
+                onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev?.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
+                selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />}
             {topicProjectOpen && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6"
@@ -8859,8 +8973,9 @@ export default function StdPortalPage() {
                                                 {currentLocale !== 'th' && (
                                                     <>
 
-                                                        <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
+                                                        <VoiceStudioPicker locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                             voices={allVoices}
+                                                            scope="dialogue"
                                                             value={dialogueVoiceId || (narrationVoiceId === 'gemini:Charon' ? 'gemini:Puck' : 'gemini:Charon')}
                                                             direction=""
                                                             headers={authedJsonHeaders}
@@ -9241,7 +9356,7 @@ export default function StdPortalPage() {
                                                     'default',
                                                     'left',
                                                     !hasSelectedSubtitleSections,
-                                                    { description: '선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다.' }
+                                                    { description: voiceCopy.sceneScope }
                                                 )}
                                                 {renderSelectedSceneTransitionPicker(!hasSelectedSubtitleSections)}
                                                 <div className="ml-0.5">
@@ -9270,7 +9385,13 @@ export default function StdPortalPage() {
                                                 )}
                                                 <button
                                                     type="button"
-                                                    onClick={() => alert('선택한 자막 레이어를 삭제합니다.')}
+                                                    onClick={async () => {
+                                                        const sceneNumbers = selectedSubtitleSceneNumbers.length ? selectedSubtitleSceneNumbers : selectedSubtitleBlockIndexes.map(index => Number(localSubtitles[index]?.scene_number)).filter(Number.isFinite)
+                                                        if (!sceneNumbers.length || !confirm(`${[...new Set(sceneNumbers)].join(', ')}번 씬의 자막 섹션을 삭제하시겠습니까?`)) return
+                                                        const removed = new Set(sceneNumbers)
+                                                        const remaining = localSubtitles.filter(row => !removed.has(Number(row.scene_number)))
+                                                        if (await persistVrewVoiceSubtitles(remaining, { deletedScenes: [...removed] })) { setSelectedSubtitleBlockIndexes([]); setSelectedSubtitleSceneNumbers([]) }
+                                                    }}
                                                     className="h-7 w-7 inline-flex items-center justify-center bg-[#202632] hover:bg-[#28303e] border border-white/10 text-white/80 hover:text-white rounded transition shrink-0"
                                                     title={t('sub_delete_selected')}
                                                     aria-label={t('sub_delete_selected')}
@@ -9379,6 +9500,12 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 자막 카드 목록 */}
+                                    <StdTtsReadinessNotice subtitles={localSubtitles} busy={generatingTts} voices={voiceNameById}
+                                        readiness={subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice)}
+                                        onJump={index => {
+                                            selectSubtitleBlock(index, false)
+                                            requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                                        }} />
                                     <div className="flex flex-1 overflow-hidden">
                                         <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-1.5 sm:p-2 space-y-1.5 sm:space-y-2">
                                             {subtitleSceneGroups.map((group) => {
@@ -9403,7 +9530,9 @@ export default function StdPortalPage() {
                                                 const motionEffect = sceneMotion(sceneRecord)
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : undefined)
-                                                const segmentStatusLabel = segmentStatus === 'ready'
+                                                const segmentStatusLabel = group.subtitles.some((item: any) => item.restored_audio_pending)
+                                                    ? '음성 복구 필요'
+                                                    : segmentStatus === 'ready'
                                                     ? ui("음성 준비됨")
                                                     : segmentStatus === 'generating'
                                                     ? ui("생성 중")
@@ -9417,8 +9546,7 @@ export default function StdPortalPage() {
                                                         key={`scene-group-card-${sNum}`}
                                                         onClick={() => {
                                                             setOpenVoicePickerKey('')
-                                                            setSelectedSubIndex(group.firstIndex)
-                                                            setPlaybackTime(group.start_num ?? Number(group.start_time) ?? 0)
+                                                            selectSubtitlePreview(group.firstIndex)
                                                         }}
                                                         onMouseEnter={() => setHoveredSubtitleSceneNumber(Number(sNum))}
                                                         onMouseLeave={() => setHoveredSubtitleSceneNumber(current => (
@@ -9544,12 +9672,12 @@ export default function StdPortalPage() {
                                                                                 {groupVoiceNames[0]}
                                                                             </span>
                                                                         )}
-                                                                        <VoiceStudioPicker historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
+                                                                        <VoiceStudioPicker locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
                                                                             voices={allVoices}
                                                                             microphone
                                                                             buttonText={ui("내레이션")}
                                                                             label={`씬 ${sNum} Google 내레이션 성우 선택`}
-                                                                            description="선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다."
+                                                                            description={voiceCopy.sceneScope}
                                                                             value={groupNarrationVoiceId}
                                                                             direction={groupNarrationSubtitle?.voice_direction || ''}
                                                                             headers={authedJsonHeaders}
@@ -9562,6 +9690,7 @@ export default function StdPortalPage() {
                                                                 <div className="space-y-0.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const speakerInfo = subtitleSpeakers[item.subtitleIndex]
+                                                                        const speakerDisplayName = voiceDialogSpeakerName(speakerInfo, currentLocale)
                                                                         const blockVoiceId = String(item.voice_id || selectedVoice)
                                                                         const blockVoiceName = String(item.voice_name || voiceNameById.get(blockVoiceId) || blockVoiceId || '성우')
                                                                         const isDialogueBlock = typeof item.dialogue_override === 'boolean'
@@ -9579,6 +9708,7 @@ export default function StdPortalPage() {
                                                                         return (
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
+                                                                                data-subtitle-index={item.subtitleIndex}
                                                                                 onClick={event => {
                                                                                     if ((event.target as HTMLElement).closest('button,select,input,textarea,a,[role="dialog"]')) return
                                                                                     event.stopPropagation()
@@ -9638,7 +9768,7 @@ export default function StdPortalPage() {
                                                                                                 isDialogueBlock ? 'dialogue' : 'default',
                                                                                                 'left',
                                                                                                 false,
-                                                                                                { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerInfo?.label || '', gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
+                                                                                                { elevenLabsOnly: true, speakerContext: isDialogueBlock ? { name: speakerDisplayName, gender: speakerInfo?.gender || '', count: speakerInfo ? subtitleSpeakers.filter(s => s?.name === speakerInfo.name).length : 1, thai: currentLocale === 'th' } : undefined }
                                                                                             )}
                                                                                             <SubtitleVolumePicker
                                                                                                 volume={item.volume ?? (item.volume_ratio != null ? Math.round(item.volume_ratio * 100) : 100)}
@@ -9654,7 +9784,6 @@ export default function StdPortalPage() {
                                                                                             lang={subtitleReviewLocale}
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
-                                                                                            <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
                                                                                             {localizedTranslation || (item.translation_manual ? (
                                                                                                 <span className="inline-flex items-center gap-1.5">
                                                                                                     <span>{subtitleReviewLocale === 'th' ? 'แปล' : subtitleReviewLocale === 'vi' ? 'Dịch' : 'Translate'}</span>
@@ -9733,8 +9862,7 @@ export default function StdPortalPage() {
                                                                                     type="button"
                                                                                     onClick={(event) => {
                                                                                         event.stopPropagation()
-                                                                                        setSelectedSubIndex(item.subtitleIndex)
-                                                                                        setPlaybackTime(item.start_num ?? Number(item.start_time) ?? 0)
+                                                                                        selectSubtitlePreview(item.subtitleIndex)
                                                                                     }}
                                                                                     className={`text-[9px] px-1.5 py-0.5 rounded border transition-all ${
                                                                                         selectedSubIndex === item.subtitleIndex
@@ -9763,7 +9891,7 @@ export default function StdPortalPage() {
                                                                 (nextVoiceId) => void setSubtitleGroupVoice(group, nextVoiceId),
                                                                 `씬 ${sNum} 나레이션 성우`,
                                                                 'default', 'right', false,
-                                                                { description: '선택한 씬의 나레이션 자막만 변경합니다. 화자가 지정된 대사와 확인이 필요한 노란색 자막은 유지됩니다.' }
+                                                                { description: voiceCopy.sceneScope }
                                                             )}
                                                         </div>
                                                     </div>
@@ -9775,13 +9903,15 @@ export default function StdPortalPage() {
 
                                 {/* 우측 캔버스 프리뷰 및 편집 패널 (Col 4~5) */}
                                 <div className="std-subtitle-preview contents lg:block lg:min-w-0 lg:min-h-0 lg:overflow-hidden">
-                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                    <div className="contents lg:flex lg:flex-col lg:gap-3 lg:w-full lg:max-h-full lg:overflow-y-auto lg:pb-28 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                     {/* 16:9 캔버스 프리뷰 */}
                                     <div className="order-1 shrink-0 bg-[#181d26] border border-white/10 rounded-b-lg sm:rounded-b-xl overflow-hidden shadow flex flex-col lg:order-none">
                                         {bgmAsset && (
                                             <audio
                                                 ref={previewBgmAudioRef}
                                                 src={previewBgmUrl || undefined}
+                                                onLoadedMetadata={event => updatePreviewBgmVolume(event.currentTarget, playbackTime)}
+                                                onDurationChange={event => updatePreviewBgmVolume(event.currentTarget, playbackTime)}
                                                 preload="auto"
                                                 loop={bgmLoop}
                                                 className="hidden"
@@ -9789,9 +9919,7 @@ export default function StdPortalPage() {
                                             />
                                         )}
                                         {previewAudioError && !legacyStorageErrorPattern.test(previewAudioError) && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
-                                        <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
-                                            cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
-                                            headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
+
                                         <div
                                             className="relative aspect-video shrink-0 bg-black flex items-center justify-center overflow-hidden [container-type:inline-size]"
                                             style={currentSubImageUrl ? { backgroundImage: `url(${JSON.stringify(currentSubImageUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : !currentSubVideoUrl && selectedImageTemplatePreset
@@ -9800,6 +9928,7 @@ export default function StdPortalPage() {
                                         >
                                             {currentSubVideoUrl ? (
                                                 <video
+                                                    key={`${selectedProject?.project?.id}:${currentPreviewSceneNumber}:${currentSubVideoUrl}`}
                                                     ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
                                                     onEnded={(event) => {
@@ -9825,12 +9954,6 @@ export default function StdPortalPage() {
                                                     decoding="async"
                                                     fetchPriority="high"
                                                     style={previewImageMotionStyle}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : selectedImageTemplatePreset && templateBgUrl ? (
-                                                <img
-                                                    src={templateBgUrl}
-                                                    alt="Template Preview"
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
@@ -9865,36 +9988,9 @@ export default function StdPortalPage() {
                                                     )}
                                                 </div>
                                             )}
-                                            {selectedImageTemplatePreset && shapeLayers.map(shape => (
-                                                <div
-                                                    key={shape.id}
-                                                    className="absolute inset-x-0 pointer-events-none"
-                                                    style={{
-                                                        top: `${shape.y}%`,
-                                                        height: `${shape.height}%`,
-                                                        backgroundColor: hexToRgba(shape.color, shape.opacity),
-                                                    }}
-                                                />
-                                            ))}
-                                            {selectedImageTemplatePreset && textLayers.map(layer => (
-                                                <div
-                                                    key={layer.id}
-                                                    className="absolute select-none pointer-events-none transition-all whitespace-nowrap"
-                                                    style={{
-                                                        left: `${layer.x}%`,
-                                                        top: `${layer.y}%`,
-                                                        transform: 'translate(-50%, -50%)',
-                                                        fontFamily: layer.fontFamily,
-                                                        color: layer.color,
-                                                        fontSize: `${layer.fontSize}px`,
-                                                        fontWeight: 'bold',
-                                                        WebkitTextStroke: `${Math.max(0, Number(layer.strokeWidth) || 0)}px ${layer.strokeColor}`,
-                                                        paintOrder: 'stroke fill',
-                                                    }}
-                                                >
-                                                    {layer.text}
-                                                </div>
-                                            ))}
+                                            {selectedImageTemplatePreset && <StdTemplateOverlay layers={textLayers}
+                                                savedImage={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_png_data_url}
+                                                savedLayers={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_layers} />}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
                                                 return (
@@ -9913,7 +10009,7 @@ export default function StdPortalPage() {
                                                         fontSize: `${Math.min(22, Math.max(13, Number(subFontSize) * 2.8)) / 4.4}cqw`,
                                                         padding: '0.3em 0.6em',
                                                         borderRadius: '0.25em',
-                                                        fontWeight: 'bold',
+                                                        fontWeight: 400,
                                                         whiteSpace: 'nowrap',
                                                         lineHeight: '1',
                                                         WebkitTextStroke: `${Math.max(0, Number(subStrokeWidth) || 0) / 19.2}cqw ${subStrokeColor}`,
@@ -9936,6 +10032,13 @@ export default function StdPortalPage() {
                                                     const clickX = e.clientX - rect.left
                                                     const pct = Math.max(0, Math.min(1, clickX / rect.width))
                                                     const targetTime = Math.round(pct * totalDuration * 10) / 10
+                                                    stopVrewPlayback()
+                                                    setPreviewTransition(null)
+                                                    const targetIndex = localSubtitles.findIndex(subtitle => (
+                                                        targetTime >= Number(subtitle.start_num ?? subtitle.start_time ?? 0)
+                                                        && targetTime < Number(subtitle.end_num ?? subtitle.end_time ?? 0)
+                                                    ))
+                                                    if (targetIndex >= 0) setSelectedSubIndex(targetIndex)
                                                     setPlaybackTime(targetTime)
                                                 }}
                                                 className="w-full h-1.5 bg-gray-700 hover:h-2.5 rounded-full overflow-hidden cursor-pointer transition-all relative group"
@@ -9985,8 +10088,12 @@ export default function StdPortalPage() {
                                                     </span>
                                                 </div>
                                             </div>
-                                            {bgmAsset && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={playbackTime}
-                                                timelineDuration={totalDuration} muted={bgmVolume === 0} loop={bgmLoop} />}
+                                        <SubtitleSfxPreview key={selectedProject?.project?.id} projectId={selectedProject?.project?.id}
+                                            cues={sfxCues} subtitles={localSubtitles} assets={selectedProject?.assets || []}
+                                            audioContextRef={speechContextRef} headers={authedJsonHeaders} time={playbackTime} playing={isVrewSubtitleMode ? isNarrationPlaying : isPlayingPreview} onError={setMessage} />
+                                            {bgmAsset && bgmRange.valid && playbackTime >= bgmRange.start && playbackTime < bgmRange.end && <BackgroundAudioWaveform locale={currentLocale} src={previewBgmUrl} time={Math.max(0, playbackTime - bgmRange.start)}
+                                                startTime={bgmRange.start} fadeIn={bgmRange.fadeIn} fadeOut={bgmRange.fadeOut}
+                                                timelineDuration={Math.max(0, bgmRange.end - bgmRange.start)} muted={bgmVolume === 0 || playbackTime < bgmRange.start || playbackTime >= bgmRange.end} loop={bgmLoop} />}
                                         </div>
                                     </div>
 
@@ -10098,7 +10205,7 @@ export default function StdPortalPage() {
                                                                 key={selectedProject?.project?.id}
                                                                 subtitle={currentSub} subtitleIndex={selectedSubIndex} subtitles={localSubtitles}
                                                                 assets={(selectedProject?.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
-                                                                cues={sfxCues} selectedAssetId={selectedSfxAssetId} onSelect={setSelectedSfxAssetId}
+                                                                onRegistered={registerSelectedSfx} onUpload={uploadSelectableSfx} cues={sfxCues} selectedAssetId={selectedSfxAssetId} onSelect={setSelectedSfxAssetId}
                                                                 onEdit={() => setIsSubtitleTextEditing(true)} onError={setMessage}
                                                                 activeTokenIndex={isPlayingPreview ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime) : -1}
                                                                 onSave={async cues => {
@@ -10140,20 +10247,42 @@ export default function StdPortalPage() {
                                                     className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] font-black text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
                                                 >
                                                     <Upload size={13} className="shrink-0" />
-                                                    {ui("BGM배경음")}
+                                                    {uploadingKey === 'bgm-upload' ? 'BGM 업로드·저장 중…' : ui("BGM배경음")}
                                                 </button>
                                             </div>
-                                                {selectedProject && <AiSfxPlanButton locale={currentLocale} key={selectedProject.project.id}
+                                                <input id="std-sfx-upload" type="file" accept="audio/*" className="hidden" onChange={handleUploadCurrentSfxFile} disabled={uploadingKey !== ''} />
+                                                <button type="button" disabled={uploadingKey !== ''}
+                                                    onClick={() => document.getElementById('std-sfx-upload')?.click()}
+                                                    className="w-full rounded border border-purple-400/40 bg-purple-500/10 px-3 py-2 text-xs text-purple-200 disabled:opacity-50">
+                                                    {uploadingKey === 'sfx-upload' ? '효과음 업로드·저장 중…' : '효과음 업로드 · 자막에 삽입'}
+                                                </button>
+                                                <p className="text-[11px] text-gray-400">BGM은 지정한 씬 구간에서 재생됩니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.</p>
+                                                {message && <p role="status" className="break-words text-xs text-cyan-200">{message}</p>}
+                                                {selectedProject && <SubtitleSfxPicker locale={currentLocale}
+                                                    key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
+                                                    assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
+                                                    onRegistered={registerSelectedSfx} onUpload={uploadSelectableSfx} value={selectedSfxAssetId} openRequest={sfxPickerOpenRequest} disabled={uploadingKey !== ''}
+                                                    onOpen={() => setSfxPickerOpenRequest(0)} onChange={id => {
+                                                        setSelectedSfxAssetId(id)
+                                                        if (id) setSubEditTab('subtitle')
+                                                    }} />}
+                                                {selectedProject && <SubtitleSfxPicker locale={currentLocale} role="bgm"
                                                     projectId={selectedProject.project.id} headers={authedJsonHeaders}
-                                                    appliedJobId={bgmSfxSettings.sfx_plan?.job_id} subtitles={localSubtitles}
-                                                    beforeSave={() => handleSaveSubtitles(false)}
-                                                    onApplied={() => openProject(selectedProject.project.id)} />}
-                                                {(selectedProject?.assets || []).some(a => audioAssetRole(a) === 'sfx') && (
-                                                    <button type="button" onClick={() => setSubEditTab('subtitle')}
-                                                        className="text-left text-[11px] text-purple-200 underline underline-offset-2">
-                                                        {ui("저장된 효과음 선택 · 단어 사이에 배치 →")}
-                                                    </button>
-                                                )}
+                                                    assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'bgm' && ['uploaded', 'assigned'].includes(a.status))}
+                                                    value={bgmSfxSettings.bgm_asset_id || ''} disabled={savingBgmVolume || uploadingKey !== ''}
+                                                    onOpen={() => stopVrewPlayback()} onUpload={file => uploadDriveAudioAsset(file, 'bgm')}
+                                                    onChange={async (id, asset) => {
+                                                        setSavingBgmVolume(true)
+                                                        try {
+                                                            await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_asset_id: id || null,
+                                                                bgm_file_name: asset?.file_name || null, bgm_volume: backgroundVolume(bgmVolume),
+                                                                bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene,
+                                                                bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut },
+                                                                asset ? [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)] : undefined)
+                                                            setMessage(id ? '배경음 선택과 씬 구간을 저장했습니다.' : '배경음 적용을 해제했습니다.')
+                                                        } catch (error: any) { setMessage(error.message || '배경음 저장 실패'); throw error }
+                                                        finally { setSavingBgmVolume(false) }
+                                                    }} />}
                                                 {(bgmAsset?.file_name || bgmSfxSettings.bgm_file_name) && (
                                                     <div className="truncate text-[11px] text-cyan-200" title={bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}>
                                                         BGM · {bgmAsset?.file_name || bgmSfxSettings.bgm_file_name}
@@ -10164,6 +10293,27 @@ export default function StdPortalPage() {
                                                         SFX · {currentSfxAsset?.file_name || currentSfxCue?.file_name}
                                                     </div>
                                                 )}
+                                                <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
+                                                    <label>시작 씬<select aria-label="배경음 시작 씬" value={bgmStartScene} disabled={savingBgmVolume} onChange={event => { setBgmStartScene(Number(event.target.value)); setBgmStartSubtitle(1) }} className="ml-2 rounded bg-[#10151c] p-1">
+                                                        <option value={0}>처음부터</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
+                                                    </select></label>
+                                                    <label>종료 씬<select aria-label="배경음 종료 씬" value={bgmEndScene} disabled={savingBgmVolume} onChange={event => setBgmEndScene(Number(event.target.value))} className="ml-2 rounded bg-[#10151c] p-1">
+                                                        <option value={0}>끝까지</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
+                                                    </select></label>
+                                                    <label className="col-span-2 flex min-w-0 items-center gap-2">{ui('시작 자막')}
+                                                        <select aria-label={ui('배경음 시작 자막')} value={bgmStartSubtitle} disabled={savingBgmVolume || !bgmStartScene}
+                                                            onChange={event => setBgmStartSubtitle(Number(event.target.value))} className="min-w-0 flex-1 rounded bg-[#10151c] p-1">
+                                                            {!bgmStartScene ? <option value={1}>{ui('처음부터')}</option> : bgmStartSubtitles.map((row, index) => (
+                                                                <option key={index + 1} value={index + 1}>{index + 1} · {String(row.text || '').slice(0, 80)}</option>
+                                                            ))}
+                                                            {bgmStartScene > 0 && !bgmStartSubtitles[bgmStartSubtitle - 1] && <option value={bgmStartSubtitle} disabled>{ui('시작 자막을 다시 선택해 주세요.')}</option>}
+                                                        </select>
+                                                    </label>
+                                                    <label>점점 크게 (초)<input aria-label="배경음 페이드 인" type="number" min="0" max="30" step="0.5" value={bgmFadeIn} disabled={savingBgmVolume} onChange={event => setBgmFadeIn(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
+                                                    <label>점점 작게 (초)<input aria-label="배경음 페이드 아웃" type="number" min="0" max="30" step="0.5" value={bgmFadeOut} disabled={savingBgmVolume} onChange={event => setBgmFadeOut(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
+                                                </div>
+                                                <p className="text-[11px] text-gray-400">{ui('선택한 자막에서 시작해 종료 씬까지 이어집니다. 음악이 먼저 끝나면 멈추며, 배경음 반복을 켜면 구간 끝까지 반복됩니다.')}</p>
+                                                {!bgmRange.valid && <p className="text-xs text-red-300">{ui('시작 자막·종료 씬을 확인해 주세요.')}</p>}
                                                 <label className="flex items-center gap-1.5 text-[11px] text-cyan-200">
                                                     <input type="checkbox" checked={bgmLoop} disabled={savingBgmVolume}
                                                         onChange={event => setBgmLoop(event.target.checked)} className="accent-cyan-400" />
@@ -10192,6 +10342,7 @@ export default function StdPortalPage() {
                                             </div>
                                         )}
                                     </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -10458,9 +10609,14 @@ export default function StdPortalPage() {
                     )}
 
                     {/* [이미지 생성 탭] */}
+                    {currentNav === 'image_gen' && imageDownloadStatus && (
+                        <div role="status" className="fixed bottom-5 right-5 z-50 max-w-sm rounded-xl border border-cyan-500/40 bg-[#10252d] px-4 py-3 text-sm text-cyan-100 shadow-lg">
+                            {imageDownloadStatus}
+                        </div>
+                    )}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
-                            <StdCharacterReferences payload={selectedProject.project.project_payload} />
+                            <StdCharacterReferences payload={selectedProject.project.project_payload} impersonateEmail={impersonateEmail} />
 
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">
@@ -10725,11 +10881,8 @@ export default function StdPortalPage() {
                                                                 href={getSceneImageDownloadUrl(scene) || scene.image_url}
                                                                 download={safeDownloadFileName(`std-${String(selectedProject?.project?.id || 'project').slice(0, 8) || 'project'}-scene-${String(sceneNum).padStart(3, '0')}.png`)}
                                                                 onClick={event => {
-                                                                    const href = getSceneImageDownloadUrl(scene) || scene.image_url
-                                                                    if (!href) {
-                                                                        event.preventDefault()
-                                                                        void downloadSceneMedia(scene, 'image')
-                                                                    }
+                                                                    event.preventDefault()
+                                                                    void downloadSceneMedia(scene, 'image')
                                                                 }}
                                                                 className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-black/70 hover:bg-black/90 text-white text-[10px] font-bold border border-white/20 transition-all"
                                                             >

@@ -48,4 +48,7 @@ def validate_dialogue(result, scenes):
                             'source_sha256': hashlib.sha256(source.encode()).hexdigest(),
                             'spans': sorted(spans, key=lambda s: s['start'])})
     return {'version': 1, 'source': 'codex-ai', 'model': ASTRA_MODEL,
-            'offset_unit': 'unicode-codepoint', 'scenes': annotations}
+            'offset_unit': 'unicode-codepoint', 'scenes': annotations,
+            'dialogue_scene_index': {'version': 1, 'scene_numbers': [r['scene_number'] for r in annotations if r['spans']],
+                'scene_count': sum(bool(r['spans']) for r in annotations),
+                'dialogue_count': sum(len(r['spans']) for r in annotations)}}

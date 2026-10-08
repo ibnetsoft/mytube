@@ -5,6 +5,8 @@ import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '@/lib/stdRenderQueue'
+import { aeMouthApplicable } from '@/lib/stdAeMouth'
+import { ensureAeMouthJob } from '@/lib/stdAeMouthQueue'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,16 +107,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (['approved', 'canceled'].includes(project.status)) {
         return NextResponse.json({ success: false, error: 'Project is closed' }, { status: 409 })
     }
-    if (project.submitted_at) {
-        return NextResponse.json({ success: true, already_submitted: true, submitted_at: project.submitted_at })
-    }
     const thumbnailError = editableThumbnailError(
         project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
         project.project_payload?.thumbnail_url || project.progress_payload?.thumbnail_url,
         true,
     )
     if (thumbnailError) return NextResponse.json({ success: false, error: thumbnailError }, { status: 409 })
-    if (project.topic_queue_id) {
+    if (project.topic_queue_id && !project.submitted_at) {
         const { data: sharedSubmission, error: sharedSubmissionError } = await supabaseAdmin
             .from('std_projects')
             .select('id,submitted_at')
@@ -220,6 +219,28 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             success: false,
             error: 'Thumbnail is required before submitting for render',
         }, { status: 409 })
+    }
+
+    if (aeMouthApplicable(project, scenes || [])) {
+        try {
+            const pending = await ensureAeMouthJob(project, scenes || [], assets)
+            // Record the required stage before accepting a final render, including bypass routes.
+            if (!project.project_payload?.ae_mouth?.enabled) {
+                const nextPayload = { ...project.project_payload, ae_mouth: { enabled: true, first_scene: 19 } }
+                const enabled = await supabaseAdmin.from('std_projects').update({ project_payload: nextPayload, updated_at: new Date().toISOString() })
+                    .eq('id', project.id).eq('updated_at', project.updated_at).select('id').maybeSingle()
+                if (enabled.error || !enabled.data) throw new Error('프로젝트가 변경되었습니다. 다시 제출해 주세요.')
+                project.project_payload = nextPayload
+            }
+            if (!pending.ready) return NextResponse.json({ success: true, postprocess_pending: true,
+                message: '제출 완료. AE 후작업과 검수 후 최종 렌더링이 자동으로 진행됩니다.',
+            }, { status: 202 })
+        } catch (e: any) { return NextResponse.json({ success: false, error: e.message || 'AE 후작업 요청 실패' }, { status: 409 }) }
+    }
+
+    // A previous submission must still discover and validate AE work for current assets.
+    if (project.submitted_at) {
+        return NextResponse.json({ success: true, already_submitted: true, submitted_at: project.submitted_at })
     }
 
     const submittedAt = new Date().toISOString()

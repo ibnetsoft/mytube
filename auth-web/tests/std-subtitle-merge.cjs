@@ -12,10 +12,11 @@ async function main() {
     const rows = Array.from({length: 8}, (_, index) => ({id: `row-${index}`, scene_number: 31, text: index === 3 ? '그' : index === 4 ? '밤에 네 울음이 그리 작더니.' : `문장 ${index}`, start_num: index * 2, end_num: index * 2 + 2, start_time: String(index * 2), end_time: String(index * 2 + 2), voice_id: 'actor'}))
     let selection = [], saved, selectedIndex, stale, translationRequest
     const anchor = {current: null}
-    const select = compileBetween('    const selectSubtitleBlock =', '    const persistVrewVoiceSubtitles', 'selectSubtitleBlock', {
+    const select = compileBetween('    const selectSubtitlePreview =', '    const persistVrewVoiceSubtitles', 'selectSubtitleBlock', {
         localSubtitles: rows, subtitleBlockSelectionAnchorRef: anchor,
         setSelectedSubtitleBlockIndexes: value => {selection = value}, setMessage: () => {},
         setSelectedSubIndex: value => {selectedIndex = value}, setPlaybackTime: () => {},
+        stopVrewPlayback: () => {}, setPreviewTransition: () => {},
     })
     select(3, false); select(4, true)
     assert.deepEqual(selection, [3, 4])
@@ -23,7 +24,7 @@ async function main() {
         selectedSubtitleBlockIndexes: selection, localSubtitles: rows,
         subtitleTranslationControllerRef: { current: null }, subtitleTranslationRequestRef: { current: '' }, setTranslatingSubtitleLanguage: () => {},
         subtitleReviewLocale: 'th', translateSubtitleBlocks: (...args) => { translationRequest = args },
-        isSubtitleDialogue: () => true, aiDialogueParts: new Map([[3, [{dialogue: true, speaker: '노인'}]], [4, [{dialogue: true, speaker: '노인'}]]]),
+        isSubtitleDialogue: () => true, subtitleSpeakers: {}, aiDialogueParts: new Map([[3, [{dialogue: true, speaker: '노인'}]], [4, [{dialogue: true, speaker: '노인'}]]]),
         currentNav: 'subtitle_vrew', isPlayingPreview: false, stopVrewPlayback: () => {},
         markVrewSegmentStale: item => {stale = item}, setSelectedSubIndex: value => {selectedIndex = value},
         setSelectedSubtitleBlockIndexes: value => {selection = value}, subtitleBlockSelectionAnchorRef: anchor,

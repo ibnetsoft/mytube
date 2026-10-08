@@ -399,7 +399,7 @@ export default function DashboardContent() {
         gcs_bucket_name: '', gcs_project_id: '', gcs_client_email: '', gcs_private_key: '',
         google_drive_client_id: '', google_drive_client_secret: '', google_drive_refresh_token: '', google_drive_root_folder_id: '',
         music_gemini_model: 'lyria-3-pro-preview', music_gemini_base_url: '', music_gemini_project_id: '', music_gemini_location: 'global',
-        topview: '', topview_uid: '',
+        hedra: '', topview: '', topview_uid: '',
         longform_min_duration_minutes: '15',
         longform_base_payout: '4',
         longform_extra_minute_payout: '0',
@@ -1283,6 +1283,7 @@ export default function DashboardContent() {
                 music_gemini_base_url: data.music_gemini_base_url || '',
                 music_gemini_project_id: data.music_gemini_project_id || '',
                 music_gemini_location: data.music_gemini_location || 'global',
+                hedra: data.hedra || '',
                 topview: data.topview || '',
                 topview_uid: data.topview_uid || '',
                 longform_min_duration_minutes: data.longform_min_duration_minutes || '15',
@@ -3335,6 +3336,7 @@ export default function DashboardContent() {
             </nav>
 
             <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
+                <a href="/admin/ae-worker" className="inline-block rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-blue-300">AE 워커 · 작업 큐와 완료 영상</a>
                 <div className="flex w-full items-center justify-between">
                     <div className="flex w-full flex-wrap justify-between gap-1.5 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
                         {[
@@ -5289,6 +5291,7 @@ export default function DashboardContent() {
                                             { key: 'claude',  label: 'Claude API Key',         hint: '대본 생성 전용 (Anthropic Claude)' },
                                             { key: 'youtube', label: 'YouTube Data API Key',  hint: '채널/영상 검색 및 통계 조회' },
                                             { key: 'youtube_keys', label: 'YouTube Backup API Keys', hint: '최대 5개까지 쉼표 또는 줄바꿈으로 입력하면 한도 초과 시 순서대로 대체 사용' },
+                                            { key: 'hedra', label: 'Hedra API Key', hint: '일레븐랩스 대사 음성과 인물 이미지로 립싱크 영상 생성 · API 지갑 잔액 필요' },
                                             { key: 'elevenlabs', label: 'ElevenLabs API Key', hint: '웹 STD 음성 생성에서 가장 먼저 사용하는 기본 Key' },
                                             { key: 'elevenlabs_keys', label: 'ElevenLabs Backup API Keys', hint: '기본 Key 외 백업 Key를 최대 3개까지 쉼표 또는 줄바꿈으로 입력하면 잔액 소진/쿼터 오류 시 다음 Key로 자동 전환' },
                                         ] as { key: keyof typeof sysKeys; label: string; hint: string }[]).map(({ key, label, hint }) => (

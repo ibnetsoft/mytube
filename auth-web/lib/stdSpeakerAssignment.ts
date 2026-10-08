@@ -29,13 +29,47 @@ export function subtitleSpeaker(subtitle: any, parts: DialoguePart[] | undefined
     const gender = normalizeSpeakerGender(manual?.text === subtitle.text ? manual.gender : character?.gender)
     return { name, gender, label: speakerNameLabel(name, characters, locale, translations) }
 }
-export function assignSpeakerVoice(subtitles: any[], target: number, voiceId: string, voiceName: string, all: boolean, speakers: (SpeakerInfo | null)[]) {
-    const name = speakers[target]?.name
-    return subtitles.map((item, index) => index === target || (all && name && speakers[index]?.name === name)
-        ? { ...item, voice_id: voiceId, voice_name: voiceName } : item)
-}
-
 type SpeakerVoiceSource = { voice_map?: Record<string, unknown>; voice_id?: unknown; explicit?: boolean }
+type VoiceAssignmentOptions = { voiceSources?: SpeakerVoiceSource[]; characters?: any[] }
+
+// Only an explicit row-level voice selection may turn narration into character dialogue.
+// Existing attributed rows and project character maps supply identities, never voice labels.
+export function assignSpeakerVoice(subtitles: any[], target: number, voiceId: string, voiceName: string, all: boolean,
+    speakers: (SpeakerInfo | null)[], options: VoiceAssignmentOptions = {}) {
+    const name = speakers[target]?.name
+    const candidates = new Map<string, string>()
+    if (!name) {
+        subtitles.forEach((row, index) => {
+            const speaker = speakers[index]
+            if (index !== target && row.dialogue_override !== false && speaker?.name
+                && String(row.voice_id || '').trim() === voiceId
+                && (!row.editor_speaker || row.editor_speaker.text === row.text)) {
+                candidates.set(speaker.name, speaker.gender)
+            }
+        })
+        for (const source of options.voiceSources || []) {
+            for (const [speaker, id] of Object.entries(source.voice_map || {})) {
+                if (id !== voiceId || (!source.explicit && id === source.voice_id) || !speaker.trim()) continue
+                const character = options.characters?.find(item => String(item.name || '').trim() === speaker)
+                candidates.set(speaker, normalizeSpeakerGender(character?.gender) || candidates.get(speaker) || '')
+            }
+        }
+    }
+    const match = candidates.size === 1 ? [...candidates.entries()][0] : undefined
+    return subtitles.map((item, index) => {
+        if (index !== target && !(all && name && speakers[index]?.name === name)) return item
+        const updated = { ...item, voice_id: voiceId, voice_name: voiceName }
+        if (index === target && !name && candidates.size) {
+            updated.dialogue_override = true
+            updated.dialogue_kind = 'dialogue'
+            updated.dialogue_source = 'user-voice-selection'
+            updated.dialogue_speaker = match?.[0] || null
+            // A shared actor proves dialogue intent, but cannot choose between characters.
+            updated.editor_speaker = match ? { name: match[0], gender: match[1], text: item.text } : null
+        }
+        return updated
+    })
+}
 
 // Resolve identity across the project, never from a translated label or the row's fallback narrator.
 export function confirmSubtitleSpeaker(subtitles: any[], target: number, name: string, gender: string,

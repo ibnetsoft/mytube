@@ -1,0 +1,110 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),ts=require('../node_modules/typescript');
+const cache={};function load(file){if(cache[file])return cache[file];const ex={};cache[file]=ex;new Function('exports','require',ts.transpile(fs.readFileSync(`lib/${file}.ts`,'utf8'),{module:1,target:7}))(ex,name=>name==='./stdComic'?{isComicProject:p=>p.project_payload?.comic_settings?.mode==='comic'}:name.startsWith('./')?load(name.slice(2)):require(name));return ex;}
+const lib=load('stdAeMouth');
+function fixture(){
+ const subtitles=[{text:'설명',voice_id:'n',scene_number:18,start:0,end:1,dialogue_kind:'narration'},
+  {text:'어머니',voice_id:'a',scene_number:19,start:1,end:2,dialogue_kind:'dialogue',dialogue_speaker:'소녀'},
+  {text:'끝',voice_id:'n',scene_number:20,start:3,end:4,dialogue_kind:'narration'}];
+ const project={id:'p',project_payload:{subtitles,ae_mouth:{enabled:true},structure:{scenes:[{scene_number:19,scene_text:'어머니',image_prompt:'girl'}]}}};
+ const scenes=[18,19,20].map(n=>({scene_number:n,scene_text:n===19?'어머니':'설명'}));
+ const assets=[{id:'audio',asset_type:'audio',status:'assigned',created_at:'2026-10-05',metadata:{subtitle_timeline:subtitles.map(s=>({...s}))}},
+  ...scenes.map(s=>({id:`image${s.scene_number}`,scene_number:s.scene_number,asset_type:'image',status:'assigned',created_at:'2026-10-05',metadata:{gcs_path:'image.png'}}))];
+ return {project,scenes,assets};
+}
+test('snapshot covers only still scenes 19 onward with finalized voice timing',()=>{
+ const f=fixture(),r=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ assert.deepEqual(r.input.scenes.map(s=>s.number),[19,20]);assert.equal(r.input.scenes[0].start,1);assert.equal(r.input.scenes[0].end,3);
+ assert.equal(lib.aeMouthApplicable({...f.project,project_payload:{comic_settings:{mode:'comic'}}},f.scenes),false);
+ assert.equal(lib.aeMouthApplicable(f.project,[{scene_number:18}]),false);
+});
+test('changed source, voice, cast, classification or AE direction invalidates fingerprint',()=>{
+ const original=fixture(),hash=lib.aeMouthInput(original.project,original.scenes,original.assets).fingerprint;
+ for(const mutate of [f=>f.assets[0].id='new-voice',f=>f.assets[2].id='new-image',f=>f.project.project_payload.structure.main_character={name:'different'},f=>f.project.project_payload.subtitles[1].dialogue_speaker='다른 인물',f=>f.project.project_payload.structure.scenes[0].ae_motion_plan={enabled:true,preset:'different'}]){
+  const f=fixture();mutate(f);assert.notEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint,hash);
+ }
+ const f=fixture();f.project.project_payload.subtitles[1].text='변경';assert.throws(()=>lib.aeMouthInput(f.project,f.scenes,f.assets),/TTS/);
+});
+test('render gate accepts reviewed current assets, rejects unreviewed and stale output',()=>{
+ const f=fixture(),fingerprint=lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint;
+ const output={id:'output',asset_type:'video',status:'uploaded',scene_number:19,metadata:{ae_mouth_fingerprint:fingerprint,ae_reviewed:true,timing_locked:true,duration_seconds:2}};
+ const job={id:'job',asset_type:'other',status:'uploaded',metadata:{kind:'ae_mouth_job',fingerprint,state:'review_pending',results:[{number:19,status:'approved',asset_id:'output',duration:2},{number:20,status:'skipped'}]}};
+ f.assets.push(output,job);assert.throws(()=>lib.reviewedAeMouthAssets(f.project,f.scenes,f.assets));
+ job.metadata.state='reviewed';assert.equal(lib.reviewedAeMouthAssets(f.project,f.scenes,f.assets).get(19).id,'output');
+ output.metadata.ae_reviewed=false;assert.throws(()=>lib.reviewedAeMouthAssets(f.project,f.scenes,f.assets));
+});
+test('newer retry and newer audio are selected regardless of caller ordering',()=>{
+ const f=fixture(),fingerprint=lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint;
+ const job=state=>({id:state,status:'uploaded',asset_type:'other',metadata:{kind:'ae_mouth_job',fingerprint,state}});
+ f.assets.push({...job('failed'),created_at:'2026-10-01'},{...job('queued'),created_at:'2026-10-06'});
+ assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets).id,'queued');
+});
+
+test('saved geometry is reused only for the same image, cast and assigned speaker',()=>{
+ const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
+ const regions={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,mouth_box:[.4,.4,.45,.43],face_box:[.2,.2,.7,.7]}]};
+ const metadata={kind:'ae_speaker_coordinates',state:'ready',input:{cast_key:JSON.stringify(cast)},results:[regions]};
+ f.assets.unshift({id:'coords',asset_type:'other',status:'uploaded',metadata});
+ assert.deepEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,{...regions,origin:'ai'});
+ metadata.input.cast_key='changed';assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,null);
+ metadata.input.cast_key=JSON.stringify(cast);regions.image_id='other';assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,null);
+ regions.image_id='image19';regions.speakers[0].speaker='other';assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,null);
+});
+
+
+test('user-confirmed coordinates reach the render snapshot without an AI job',()=>{
+ const f=fixture(),geometry=load('stdSpeakerGeometry'),scene=geometry.coordinateScenes(f.project,f.assets)[0];
+ const result={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),
+  speakers:[{speaker:'소녀',status:'visible',confidence:1,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]};
+ f.assets.push({id:'manual',asset_type:'other',status:'uploaded',metadata:{kind:'speaker_coordinate_confirmation',scene_key:scene.key,results:[result]}});
+ const snapshot=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ assert.equal(snapshot.input.scenes[0].speaker_regions.origin,'user');
+ assert.deepEqual(snapshot.input.scenes[0].speaker_regions.speakers,result.speakers);
+});
+
+test('partial coordinates remain available to AE when another scene needs review',()=>{
+ const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
+ const result={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]};
+ const metadata={kind:'ae_speaker_coordinates',state:'needs_review',input:{cast_key:JSON.stringify(cast)},results:[result],failures:[{number:20,error:'uncertain'}]};
+ f.assets.push({id:'partial',asset_type:'other',status:'uploaded',metadata});
+ for(const state of ['needs_review','processing','queued']){
+  metadata.state=state;
+  const scenes=lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes;
+  assert.equal(scenes[0].speaker_regions.image_id,'image19',state);
+  assert.equal(scenes[1].speaker_regions,null);
+ }
+});
+
+test('newly analyzed scenes do not discard AE work but corrected used coordinates do',()=>{
+ const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
+ f.project.project_payload.subtitles[2].dialogue_kind='dialogue';
+ f.project.project_payload.subtitles[2].dialogue_speaker='소녀';
+ const result=n=>({number:n,image_id:`image${n}`,source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]});
+ const metadata={kind:'ae_speaker_coordinates',state:'processing',input:{cast_key:JSON.stringify(cast)},results:[result(19)]};
+ f.assets.push({id:'coords',asset_type:'other',status:'uploaded',metadata});
+ const snapshot=JSON.parse(JSON.stringify(lib.aeMouthInput(f.project,f.scenes,f.assets)));
+ f.assets.push({id:'ae',asset_type:'other',status:'uploaded',metadata:{kind:'ae_mouth_job',state:'direction_pending',...snapshot}});
+ metadata.results.push(result(20));
+ assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets).id,'ae');
+ metadata.results[0].speakers[0].mouth_box=[.42,.4,.47,.43];
+ assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets),null);
+});
+
+ test('video dialogue before scene 19 enters tracking snapshot and invalidates on clip changes',()=>{
+ const f=fixture();f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='소녀';
+ const video={id:'video18',scene_number:18,asset_type:'video',status:'assigned',metadata:{gcs_path:'original.mp4'}};f.assets.push(video);
+ const before=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ assert.equal(before.input.version,2);assert.deepEqual(before.input.scenes.map(s=>s.number),[18,19,20]);
+ assert.equal(before.input.scenes[0].original_video.id,'video18');
+ video.id='new-video';assert.notEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint,before.fingerprint);
+ });
+ test('video narration remains excluded and missing dialogue video cannot silently use a still',()=>{
+ const f=fixture();f.assets.push({id:'video18',scene_number:18,asset_type:'video',status:'assigned',metadata:{gcs_path:'original.mp4'}});
+ assert.deepEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes.map(s=>s.number),[19,20]);
+ f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='소녀';f.assets.pop();
+ assert.throws(()=>lib.aeMouthInput(f.project,f.scenes,f.assets),/원본 영상/);
+ });
+
+ test('background audio is never substituted for finalized TTS',()=>{
+ const f=fixture();f.assets.unshift({id:'bgm',asset_type:'audio',status:'assigned',created_at:'2026-10-09',metadata:{audio_role:'background'}});
+ assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.audio.id,'audio');
+ });
