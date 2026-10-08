@@ -9635,7 +9635,7 @@ export default function StdPortalPage() {
                                                                 )}
                                                             </div>
                                                             {isVrewSubtitleMode ? (
-                                                                <div className="space-y-px">
+                                                                <div className="space-y-0">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const speakerInfo = subtitleSpeakers[item.subtitleIndex]
                                                                         const speakerDisplayName = voiceDialogSpeakerName(speakerInfo, currentLocale)
@@ -9664,7 +9664,7 @@ export default function StdPortalPage() {
                                                                                 }}
                                                                                 onMouseDown={event => { if (event.shiftKey) event.preventDefault() }}
                                                                                 title="클릭하여 선택 · Shift+클릭으로 연속된 자막 선택"
-                                                                                className={`grid grid-cols-[1.25rem_minmax(0,1fr)] sm:grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-px ${
+                                                                                className={`grid grid-cols-[1.25rem_minmax(0,1fr)] sm:grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-0 ${
                                                                                     isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
                                                                                         : isDialogueBlock
