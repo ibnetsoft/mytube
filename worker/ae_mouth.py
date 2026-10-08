@@ -54,7 +54,8 @@ def dialogue_rows(result: dict, subtitles: list[dict]) -> list[dict]:
 
 
 def assess_dialogue(runner, identity: str, snapshot: dict) -> list[dict]:
-    subtitles = [s for s in snapshot['subtitles'] if s['scene_number'] >= 19]
+    numbers = {s['number'] for s in snapshot['scenes']}
+    subtitles = [s for s in snapshot['subtitles'] if s['scene_number'] in numbers]
     if not subtitles:
         return []
     # Submission uses the user's saved classification and exact speaker assignment.
@@ -250,6 +251,21 @@ def mouth_jsx(runtime: dict) -> str:
     var mouthComp = app.project.items.addComp("ae_mouth_source", footage.width, footage.height, 1, DUR, FPS);
     var originalMouthPlate = mouthComp.layers.add(footage);
     originalMouthPlate.property("Position").setValue([footage.width / 2, footage.height / 2]);
+    originalMouthPlate.audioEnabled = false;
+    if (mouthRuntime.video_source) {
+      originalMouthPlate.stretch = 100;
+      if (DUR > footage.duration) {
+        originalMouthPlate.timeRemapEnabled = true;
+        var plateRemap = originalMouthPlate.property("ADBE Time Remapping");
+        while (plateRemap.numKeys > 0) plateRemap.removeKey(1);
+        var lastFrame = Math.max(0, footage.duration - footage.frameDuration);
+        plateRemap.setValueAtTime(0, 0);
+        plateRemap.setValueAtTime(lastFrame, lastFrame);
+        plateRemap.setValueAtTime(DUR, lastFrame);
+        for (var pr = 1; pr <= plateRemap.numKeys; pr++) plateRemap.setInterpolationTypeAtKey(pr, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+      }
+      originalMouthPlate.outPoint = DUR;
+    }
     var mouthPoses = ["closed", "half", "open"];
     for (var ms = 0; ms < mouthRuntime.speakers.length; ms++) {
       var speaker = mouthRuntime.speakers[ms];
@@ -261,6 +277,15 @@ def mouth_jsx(runtime: dict) -> str:
         mouthLayer.property("Position").setValue([
           Math.round(speaker.mouth_box[0] * footage.width) + mouthFootage.width / 2,
           Math.round(speaker.mouth_box[1] * footage.height) + mouthFootage.height / 2]);
+        if (speaker.tracking) {
+          var seedPosition = mouthLayer.property("Position").value;
+          for (var mt = 0; mt < speaker.tracking.length; mt++) {
+            var motion = speaker.tracking[mt];
+            mouthLayer.property("Position").setValueAtTime(motion.at_seconds, [seedPosition[0]+motion.offset[0],seedPosition[1]+motion.offset[1]]);
+            mouthLayer.property("Scale").setValueAtTime(motion.at_seconds, [motion.scale,motion.scale]);
+            mouthLayer.property("Rotation").setValueAtTime(motion.at_seconds, motion.rotation);
+          }
+        }
         var mouthOpacity = mouthLayer.property("Opacity");
         for (var mc = 0; mc < speaker.cues.length; mc++) {
           var cue = speaker.cues[mc];

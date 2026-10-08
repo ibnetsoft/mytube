@@ -43,10 +43,20 @@ def pending_roles():
             roles.append('region');break
     for kind,states in [('ae_speaker_coordinates','queued,processing'),('ae_mouth_job','queued,processing,direction_approved')]:
         if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.('+states+')'}): roles.append('ae');break
+    from ae_video_tail import pending_video_tail
+    response=requests.get(base+'/rest/v1/std_projects',headers=headers,params={
+        'select':'project_payload','submitted_at':'not.is.null','status':'not.in.(approved,canceled)',
+        'order':'updated_at.desc','limit':'20'},timeout=(5,15))
+    response.raise_for_status()
+    if any(pending_video_tail(scene,row.get('project_payload'))
+           for row in response.json()
+           for scene in ((row.get('project_payload') or {}).get('structure') or {}).get('scenes',[])):
+        roles.append('video_tail')
     if exists('remote_render_queue',{'status':'eq.pending','render_mode':'eq.gcs_api'}):roles.append('render')
     return roles
 
 def role_command(role):
+    if role=='video_tail': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--video-tails-only','--max-scenes','1']
     if role=='region': return [sys.executable,'-u',str(ROOT/'worker/ae_region_motion_worker.py'),'--once']
     if role=='ae': return [sys.executable,'-u',str(ROOT/'worker/ae_mouth_worker.py'),'--once']
     if role=='render': return [sys.executable,'-u',str(ROOT/'worker/remote_render_source.py'),'--once']
