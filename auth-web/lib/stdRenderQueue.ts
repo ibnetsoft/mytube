@@ -5,6 +5,7 @@ import { subtitleGain } from './stdSpeechGain'
 import { resolveSfxCues } from '@/lib/stdSfxCues'
 import { audioAssetRole, backgroundWindow } from './stdAudioMix'
 import { sceneMotion, sceneMotionSpeed } from './stdSceneMotion'
+import { reviewedVideoTail } from './stdVideoTail'
 import { templateOverlayPng } from './stdTemplateOverlayPng'
 import { randomUUID } from 'crypto'
 import { supabaseAdmin } from './supabaseAdmin'
@@ -817,7 +818,9 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         )
         const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
         if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
-        const asset = lipAssets.get(sceneNumber) || selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
+        const asset = lipAssets.get(sceneNumber) || reviewedVideoTail(scene,
+            selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset),
+            project.project_payload)
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
