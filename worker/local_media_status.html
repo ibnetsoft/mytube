@@ -12,8 +12,8 @@
 <footer>최근 작업 최대 200건 · 큐 정보 15초 간격 갱신 · AE와 렌더는 로컬 리소스를 순서대로 사용합니다.<br>검수 필요 상태는 완료로 집계하지 않습니다. 최종 렌더는 승인된 AE 결과를 사용합니다.</footer></main>
 <script>
 const labels={all:'전체',waiting:'큐 대기',working:'진행 중',review:'검수 필요',completed:'완료',failed:'실패 / 종료'};
-const states={queued:'큐 대기',pending:'큐 대기',processing:'작업 진행 중',rendering:'렌더링 중',direction_approved:'실행 대기',direction_pending:'지침 승인 대기',review_pending:'결과 검수 대기',needs_review:'확인 필요',ready:'좌표 준비 완료',reviewed:'AE 검수 완료',completed:'렌더 완료',failed:'작업 실패',obsolete:'이전 버전',cancelled:'취소됨'};
-const kinds={ae_speaker_coordinates:'얼굴 · 입 좌표 준비',ae_mouth_job:'AE 입모양',render:'최종 렌더'};
+const states={prepared:'레이어 확인 대기',approved:'레이어 확정',queued:'큐 대기',pending:'큐 대기',processing:'작업 진행 중',rendering:'렌더링 중',direction_approved:'실행 대기',direction_pending:'지침 승인 대기',review_pending:'결과 검수 대기',needs_review:'확인 필요',ready:'좌표 준비 완료',reviewed:'AE 검수 완료',completed:'렌더 완료',failed:'작업 실패',obsolete:'이전 버전',cancelled:'취소됨'};
+const kinds={region_layer_package:'영역 분리 · 배경 복원',region_motion_plan:'영역 동작 AE 렌더',ae_speaker_coordinates:'얼굴 · 입 좌표 준비',ae_mouth_job:'AE 입모양',render:'최종 렌더'};
 let jobs=[],filter='all',running=false;
 const el=id=>document.getElementById(id);
 function node(tag,text,cls){const n=document.createElement(tag);if(text!=null)n.textContent=text;if(cls)n.className=cls;return n}
@@ -26,6 +26,7 @@ function draw(){
  if(!visible.length){el('jobs').append(node('div',jobs.length?'이 조건에 해당하는 작업이 없습니다.':'등록된 미디어 작업이 없습니다. 새 제출이 들어오면 여기에 표시됩니다.','empty'));return}
  for(const j of visible){const a=node('article'),head=node('div',null,'row');head.append(node('span',kinds[j.kind]||j.kind,'tag'),node('span',states[j.state]||j.state,'badge '+j.group));a.append(head,node('div',j.title,'title'));
  if(j.kind==='render'){const bar=node('div',null,'bar'),fill=node('i');fill.style.width=j.progress+'%';bar.append(fill);a.append(bar,node('div',`실제 렌더 진행률 ${j.progress}%`,'subtle'))}
+ else if(j.kind?.startsWith('region_')) a.append(node('div',`씬 ${j.scene_number || '—'} · ${j.state==='ready'?'AE 결과를 확인한 뒤 씬에 적용해 주세요.':states[j.state]||j.state}`,'subtle'));
  else a.append(node('div',`대상 ${j.total}씬 · 분석 ${j.analyzed}씬 · ${j.kind==='ae_speaker_coordinates'?'좌표 처리':'검수 완료·효과 제외'} ${j.done}씬`,'subtle'));
  const meta=node('div',null,'meta');meta.append(node('span','최근 변경 '+stamp(j.updated_at)),node('span',j.phase==='discovery'?'대사·지침 확인 단계':j.phase==='render'?'입모양 생성 단계':''));a.append(meta);
  if(j.scene_numbers?.length)a.append(node('p','확인 필요한 씬: '+j.scene_numbers.join(', ')));
@@ -35,7 +36,7 @@ async function refresh(){if(running)return;running=true;el('refresh').disabled=t
  try{const statusResponse=await fetch('/status');if(!statusResponse.ok)throw Error();const s=await statusResponse.json();const stale=s.updated_at&&Date.now()-Date.parse(s.updated_at)>45000;
  el('connection').textContent=stale?'워커 응답 지연':s.status==='stopped'?'워커 중지':'로컬 연결됨';
  el('manager').textContent=({working:'작업을 처리하고 있습니다',idle:'다음 작업을 기다리고 있습니다',starting:'워커를 시작하고 있습니다',resources_busy:'다른 미디어 작업이 끝나기를 기다립니다',connection_error:'작업 큐 연결을 확인해 주세요',stopped:'워커가 중지되었습니다'})[s.status]||'워커 준비 중';
- el('activity').textContent=(s.active?`${s.active.role==='render'?'최종 렌더':'AE 작업'} 실행 · 시작 ${stamp(s.active.started_at)}`:'AE · 렌더를 순서대로 실행합니다.')+(s.render_paused?' · 렌더 실행 일시중지':'');
+ el('activity').textContent=(s.active?`${s.active.role==='render'?'최종 렌더':s.active.role==='region'?'영역 분리 · 배경 복원 · AE 동작':'AE 작업'} 실행 · 시작 ${stamp(s.active.started_at)}`:'AE · 렌더를 순서대로 실행합니다.')+(s.render_paused?' · 렌더 실행 일시중지':'');
  el('diagnostic').textContent=`PID: ${s.pid||'—'}\n최근 확인: ${stamp(s.updated_at)}\n`+Object.entries(s.roles||{}).map(([k,v])=>`${k}: ${v.status} / 연속 실패 ${v.failures}`).join('\n')+(s.active?.log?'\n로그: '+s.active.log:'');
  const response=await fetch('/jobs');if(!response.ok)throw Error();const data=await response.json();jobs=data.jobs||[];draw();
  el('error').hidden=!data.error&&!stale;el('error').textContent=data.error?`큐 조회에 실패했습니다 (${data.error}). 마지막 정상 조회 결과를 표시합니다. 최근 조회: ${stamp(data.updated_at)}`:'워커 상태 갱신이 지연되고 있습니다. 실행 정보를 확인해 주세요.';

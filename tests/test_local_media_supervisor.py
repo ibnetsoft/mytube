@@ -39,6 +39,17 @@ def test_three_failures_block_role_and_render_pause_is_preserved(isolated):
     (media.HOME/'pause-render').touch()
     assert manager.choose(['ae','render']) is None
 
+def test_region_jobs_use_separate_serialized_worker(isolated):
+    assert media.role_command('region')[2].endswith('ae_region_motion_worker.py')
+    manager = media.Supervisor()
+    assert manager.choose(['region', 'render']) == 'region'
+    manager.last_role = 'region'
+    assert manager.choose(['region', 'render']) == 'render'
+
+def test_ready_region_video_still_requires_review():
+    from worker.local_media_dashboard import summarize
+    assert summarize({'id':'r','scene_number':13,'metadata':{'kind':'region_motion_plan','state':'ready'}})['group'] == 'review'
+
 def test_singleton_rejects_second_manager(isolated):
     with media.singleton():
         with pytest.raises(RuntimeError, match='already running'):
