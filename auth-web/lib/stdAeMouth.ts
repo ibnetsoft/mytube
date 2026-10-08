@@ -15,8 +15,8 @@ export function aeMouthApplicable(project: any, scenes: any[]) {
 export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
     assets = [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     // Validate the finalized recording, including saved text, voice, direction and timing.
-    lipSyncPlan(project, scenes, assets)
-    const audio = assets.find(a => active(a) && a.asset_type === 'audio')
+    lipSyncPlan(project, scenes, assets.filter(a => a.asset_type !== 'audio' || a.metadata?.subtitle_timeline?.length))
+    const audio = assets.find(a => active(a) && a.asset_type === 'audio' && Array.isArray(a.metadata?.subtitle_timeline) && a.metadata.subtitle_timeline.length)
     const starts = lipSyncSceneStarts(project, scenes, audio)
     const payload = project.project_payload || {}, structure = payload.structure || {}
     const subtitles = (payload.subtitles || []).map((s: any, index: number) => ({

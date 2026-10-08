@@ -103,3 +103,8 @@ test('newly analyzed scenes do not discard AE work but corrected used coordinate
  f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='소녀';f.assets.pop();
  assert.throws(()=>lib.aeMouthInput(f.project,f.scenes,f.assets),/원본 영상/);
  });
+
+ test('background audio is never substituted for finalized TTS',()=>{
+ const f=fixture();f.assets.unshift({id:'bgm',asset_type:'audio',status:'assigned',created_at:'2026-10-09',metadata:{audio_role:'background'}});
+ assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.audio.id,'audio');
+ });
