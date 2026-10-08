@@ -9454,7 +9454,7 @@ export default function StdPortalPage() {
                                             requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
                                         }} />
                                     <div className="flex flex-1 overflow-hidden">
-                                        <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-0 space-y-1">
+                                        <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-0 space-y-0">
                                             {subtitleSceneGroups.map((group) => {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
