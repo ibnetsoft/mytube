@@ -825,7 +825,7 @@ export default function StdPortalPage() {
         }
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
-    const ui = (text: string) => stdUiText(currentLocale, text)
+    const ui = (text: string, values?: Record<string, string | number>) => stdUiText(currentLocale, text, values)
     const voiceCopy = voiceDialogCopy(currentLocale)
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
     const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale)
@@ -2339,7 +2339,7 @@ export default function StdPortalPage() {
         const sceneImageDownloadUrl = assetType === 'image' ? getSceneImageDownloadUrl(scene) : ''
         const url = String(assetType === 'video' ? scene?.video_url || '' : (sceneImageDownloadUrl || scene?.image_url || '')).trim()
         if (!url) {
-            alert(assetType === 'video' ? '다운로드할 영상이 없습니다.' : '다운로드할 이미지가 없습니다.')
+            alert(assetType === 'video' ? ui('다운로드할 영상이 없습니다.') : ui('다운로드할 이미지가 없습니다.'))
             return false
         }
         const projectTitle = selectedProject?.project?.title || 'std-project'
@@ -2348,9 +2348,9 @@ export default function StdPortalPage() {
         const fileName = safeDownloadFileName(`std-${projectKey}-scene-${String(sceneNumber || 0).padStart(3, '0')}.${extension}`)
         try {
             if (assetType === 'image' && sceneImageDownloadUrl) {
-                setImageDownloadStatus('이미지를 다운로드하는 중입니다…')
+                setImageDownloadStatus(ui('이미지를 다운로드하는 중입니다…'))
                 await downloadStdFile(sceneImageDownloadUrl, authedUploadHeaders, fileName, 'image')
-                setImageDownloadStatus(`${sceneNumber}번 씬 이미지 다운로드를 시작했습니다.`)
+                setImageDownloadStatus(ui('{count}번 씬 이미지 다운로드를 시작했습니다.', { count: sceneNumber }))
                 return true
             }
             const response = await fetch(url)
@@ -2367,7 +2367,7 @@ export default function StdPortalPage() {
             return true
         } catch (error: any) {
             if (assetType === 'image') {
-                setImageDownloadStatus(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+                setImageDownloadStatus(`${ui('이미지 다운로드 실패')}: ${error?.message || ui('다시 시도해 주세요.')}`)
                 return false
             }
             const link = document.createElement('a')
@@ -2405,7 +2405,7 @@ export default function StdPortalPage() {
             : selectedProject.scenes
         const imageScenes = sourceScenes.filter((scene: any) => String(scene?.image_url || '').trim())
         if (!imageScenes.length) {
-            alert('다운로드할 이미지가 없습니다.')
+            alert(ui('다운로드할 이미지가 없습니다.'))
             return
         }
         if (selectedProject?.project?.id) {
@@ -2413,15 +2413,15 @@ export default function StdPortalPage() {
             const projectKey = String(selectedProject.project.id || 'project').slice(0, 8) || 'project'
             const fileName = safeDownloadFileName(`std-${projectKey}-images.zip`)
             try {
-                setImageDownloadStatus('이미지 ZIP 파일을 준비하는 중입니다…')
+                setImageDownloadStatus(ui('이미지 ZIP 파일을 준비하는 중입니다…'))
                 await downloadStdFile(zipUrl, authedUploadHeaders, fileName, 'zip')
-                setImageDownloadStatus(`이미지 ${imageScenes.length}개 ZIP 다운로드를 시작했습니다.`)
+                setImageDownloadStatus(ui('이미지 {count}개 ZIP 다운로드를 시작했습니다.', { count: imageScenes.length }))
             } catch (error: any) {
-                setImageDownloadStatus(`이미지 다운로드 실패: ${error?.message || '다시 시도해 주세요.'}`)
+                setImageDownloadStatus(`${ui('이미지 다운로드 실패')}: ${error?.message || ui('다시 시도해 주세요.')}`)
             }
             return
         }
-        setMessage(`이미지 ${imageScenes.length}개 다운로드를 시작합니다...`)
+        setMessage(ui('이미지 {count}개 다운로드를 시작합니다...', { count: imageScenes.length }))
         for (const scene of imageScenes) {
             await downloadSceneMedia(scene, 'image')
             await new Promise(resolve => setTimeout(resolve, 250))
@@ -7536,7 +7536,7 @@ export default function StdPortalPage() {
 
     const copyPromptText = (text: string) => {
         navigator.clipboard.writeText(text)
-        alert('프롬프트가 클립보드에 복사되었습니다!')
+        alert(ui('프롬프트가 클립보드에 복사되었습니다!'))
     }
 
     const copyAllPrompts = () => {
@@ -8719,7 +8719,7 @@ export default function StdPortalPage() {
                             {sidebarProgress}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                                 {[
-                                    { id: 'topic_submissions', label: '토픽 등록' },
+                                    { id: 'topic_submissions', label: ui('토픽 등록') },
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
                                     { id: 'subtitle_vrew', label: t('nav_subtitles') },
@@ -8822,7 +8822,7 @@ export default function StdPortalPage() {
                     {sidebarProgress}
                     <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
                         {[
-                            { id: 'topic_submissions', label: '토픽 등록' },
+                            { id: 'topic_submissions', label: ui('토픽 등록') },
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_vrew', label: t('nav_subtitles') },
@@ -10594,26 +10594,26 @@ export default function StdPortalPage() {
                     )}
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
-                            <StdCharacterReferences payload={selectedProject.project.project_payload} impersonateEmail={impersonateEmail} />
+                            <StdCharacterReferences payload={selectedProject.project.project_payload} impersonateEmail={impersonateEmail} locale={currentLocale} />
 
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">
                                     <div>
-                                        <h3 className="font-bold text-sm text-white">씬 에셋 검토</h3>
-                                        <p className="text-xs text-gray-400 mt-0.5">계속하기 전에 프롬프트, 가져온 이미지, 최종 클립을 검토하세요.</p>
+                                        <h3 className="font-bold text-sm text-white">{ui('씬 에셋 검토')}</h3>
+                                        <p className="text-xs text-gray-400 mt-0.5">{ui('계속하기 전에 프롬프트, 가져온 이미지, 최종 클립을 검토하세요.')}</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 text-xs">
-                                        <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">씬 {assetStats.totalScenes}</span>
-                                        <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">유효 이미지 {assetStats.imageCount}</span>
-                                        <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">영상 {assetStats.videoCount}</span>
+                                        <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">{ui('씬')} {assetStats.totalScenes}</span>
+                                        <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">{ui('유효 이미지')} {assetStats.imageCount}</span>
+                                        <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">{ui('영상')} {assetStats.videoCount}</span>
                                         <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/{STD_REQUIRED_CLIP_SCENE_END}</span>
-                                        <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">비주얼 누락 {assetStats.missingScenes.length}</span>
+                                        <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">{ui('비주얼 누락')} {assetStats.missingScenes.length}</span>
                                     </div>
                                 </div>
 
                                 <div className="px-5 space-y-2">
                                     <div className="flex items-center justify-between text-xs text-gray-400">
-                                        <span>전체 에셋 완성도</span>
+                                        <span>{ui('전체 에셋 완성도')}</span>
                                         <span className="text-white font-bold font-mono">{assetStats.completion}%</span>
                                     </div>
                                     <div className="h-2 rounded-full bg-[#11141a] overflow-hidden">
@@ -10621,12 +10621,12 @@ export default function StdPortalPage() {
                                     </div>
                                     {assetStats.missingScenes.length > 0 && (
                                         <p className="text-xs text-amber-400 pt-1">
-                                            에셋 누락: {assetStats.missingScenes.join(', ')}
+                                            {ui('에셋 누락')}: {assetStats.missingScenes.join(', ')}
                                         </p>
                                     )}
                                     {assetStats.requiredZoneOnlyImage.length > 0 && (
                                         <p className="text-xs text-orange-400">
-                                            🔒 필수 영상 클립 필요 (이미지만 있음: {assetStats.requiredZoneOnlyImage.join(', ')})
+                                            🔒 {ui('필수 영상 클립 필요 (이미지만 있음:')} {assetStats.requiredZoneOnlyImage.join(', ')})
                                         </p>
                                     )}
                                 </div>
@@ -10638,11 +10638,11 @@ export default function StdPortalPage() {
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                                                 <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">
-                                                    초반 1분 필수 영상 구간 (씬 1 ~ 12)
+                                                    {ui('초반 1분 필수 영상 구간 (씬 1 ~ 12)')}
                                                 </span>
                                             </div>
                                             <span className="text-[10px] text-gray-400 font-mono">
-                                                완료: {selectedProject.scenes.filter(s => (s.scene_number <= 12) && Boolean(s.video_url)).length} / 12
+                                                {ui('완료')}: {selectedProject.scenes.filter(s => (s.scene_number <= 12) && Boolean(s.video_url)).length} / 12
                                             </span>
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
@@ -10664,7 +10664,7 @@ export default function StdPortalPage() {
                                                                 #{sNum}
                                                             </span>
                                                             <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-orange-400'}`}>
-                                                                {isReady ? '✅ 영상 완료' : isUploading ? '업로드 중...' : '영상 없음'}
+                                                                {isReady ? ui('✅ 영상 완료') : isUploading ? ui('업로드 중...') : ui('영상 없음')}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -10676,11 +10676,11 @@ export default function StdPortalPage() {
                                                                 }}
                                                                 className="text-gray-400 hover:text-white transition-colors"
                                                             >
-                                                                보기
+                                                                {ui('보기')}
                                                             </button>
                                                             <span className="text-gray-600">|</span>
                                                             <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-orange-400 hover:text-orange-300'} transition-colors`}>
-                                                                {isUploading ? '처리 중' : isReady ? '교체' : '업로드'}
+                                                                {isUploading ? ui('처리 중') : isReady ? ui('교체') : ui('업로드')}
                                                                 <input
                                                                     type="file"
                                                                     accept="video/*"
@@ -10702,12 +10702,12 @@ export default function StdPortalPage() {
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-amber-500/70" />
                                                 <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
-                                                    본문 미디어 구간 (영상 클립 13~18, 이미지 19~{selectedProject.scenes.length})
+                                                    {ui('본문 미디어 구간 (영상 클립 13~18, 이미지 19~{count})', { count: selectedProject.scenes.length })}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] text-gray-400 font-mono">
-                                                    고정: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
+                                                    {ui('고정')}: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
                                                 </span>
                                                 <button
                                                     type="button"
@@ -10715,7 +10715,7 @@ export default function StdPortalPage() {
                                                     className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-300 hover:border-amber-400/70 hover:bg-amber-500/15 transition-colors"
                                                     aria-expanded={isBodyImageSectionOpen}
                                                 >
-                                                    {isBodyImageSectionOpen ? '접기' : '펼치기'}
+                                                    {isBodyImageSectionOpen ? ui('접기') : ui('펼치기')}
                                                     <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isBodyImageSectionOpen ? 'rotate-180' : ''}`} />
                                                 </button>
                                             </div>
@@ -10743,8 +10743,8 @@ export default function StdPortalPage() {
                                                                 </span>
                                                                 <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
                                                                     {isMiddleVideo
-                                                                        ? scene.video_url ? '🎬 영상 준비됨' : isUploading ? '업로드 중...' : '영상 필요'
-                                                                        : scene.image_url ? '🔒 이미지 고정' : isUploading ? '처리 중...' : '이미지 없음'}
+                                                                        ? scene.video_url ? ui('🎬 영상 준비됨') : isUploading ? ui('업로드 중...') : ui('영상 필요')
+                                                                        : scene.image_url ? ui('🔒 이미지 고정') : isUploading ? ui('처리 중...') : ui('이미지 없음')}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -10756,10 +10756,10 @@ export default function StdPortalPage() {
                                                                     }}
                                                                     className="text-gray-400 hover:text-white transition-colors"
                                                                 >
-                                                                    보기
+                                                                    {ui('보기')}
                                                                 </button>
                                                                 {isMiddleVideo && <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-300 hover:text-amber-200'} transition-colors`}>
-                                                                    <span className="text-gray-600">|</span> {isUploading ? '업로드 중...' : scene.video_url ? '영상 교체' : '영상 업로드'}
+                                                                    <span className="text-gray-600">|</span> {isUploading ? ui('업로드 중...') : scene.video_url ? ui('영상 교체') : ui('영상 업로드')}
                                                                     <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || ['review_requested','approved','canceled'].includes(selectedProject.project.status)} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />
                                                                 </label>}
                                                             </div>
@@ -10774,8 +10774,8 @@ export default function StdPortalPage() {
                             </div>
 
                             {comicProject && <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">
-                                영상 프롬프트 복사 → 필요한 씬만 수동 영상 제작 → 아래에서 클립 업로드 → 자막 페이지에서 대사·말풍선·컷 최종 수정 → 기존 렌더링 제출.
-                                무빙툰 모드에서는 업로드한 클립이 해당 컷의 영상으로 선택됩니다. 클립이 없는 씬은 이미지로 구성합니다.
+                                {ui('영상 프롬프트 복사 → 필요한 씬만 수동 영상 제작 → 아래에서 클립 업로드 → 자막 페이지에서 대사·말풍선·컷 최종 수정 → 기존 렌더링 제출.')}
+                                {ui('무빙툰 모드에서는 업로드한 클립이 해당 컷의 영상으로 선택됩니다. 클립이 없는 씬은 이미지로 구성합니다.')}
                             </div>}
                             <div className="space-y-4">
                                 {selectedProject.scenes
@@ -10807,7 +10807,7 @@ export default function StdPortalPage() {
                                                     <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
                                                         {sceneNum}
                                                     </span>
-                                                    <span className="font-bold text-white text-xs">Scene {sceneNum}</span>
+                                                    <span className="font-bold text-white text-xs">{ui('Scene')} {sceneNum}</span>
                                                     <span className="text-xs text-gray-400 truncate max-w-md" title={getSceneScriptStartText(scene, i)}>
                                                         📄 {getSceneScriptStartText(scene, i)}
                                                     </span>
@@ -10816,16 +10816,16 @@ export default function StdPortalPage() {
 
                                             {comicProject && <div className="px-4 py-3 flex flex-wrap items-center gap-3 border-t border-white/5">
                                                 <label className="cursor-pointer rounded bg-blue-600 px-3 py-2 text-xs font-bold text-white">
-                                                    {scene.video_url ? '영상 클립 교체' : '영상 클립 업로드'}
-                                                    <input aria-label={`씬 ${sceneNum} 영상 클립 업로드`} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={!!uploadingKey || ['review_requested','approved','canceled'].includes(selectedProject.project.status)} onChange={e=>{const file=e.target.files?.[0] || null;e.target.value='';void uploadAsset(scene,'video',file)}} />
+                                                    {scene.video_url ? ui('영상 클립 교체') : ui('영상 클립 업로드')}
+                                                    <input aria-label={`${ui('씬')} ${sceneNum} ${ui('영상 클립 업로드')}`} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={!!uploadingKey || ['review_requested','approved','canceled'].includes(selectedProject.project.status)} onChange={e=>{const file=e.target.files?.[0] || null;e.target.value='';void uploadAsset(scene,'video',file)}} />
                                                 </label>
-                                                <span className="text-xs text-gray-400">{scene.video_url ? '저장된 영상 클립 있음' : '영상 없이 이미지로도 렌더링 가능'}</span>
+                                                <span className="text-xs text-gray-400">{scene.video_url ? ui('저장된 영상 클립 있음') : ui('영상 없이 이미지로도 렌더링 가능')}</span>
                                             </div>}
                                             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
                                                 <div className="lg:col-span-4 relative bg-[#11141a] rounded-lg overflow-hidden border border-white/10 aspect-video flex items-center justify-center group">
                                                     {(inRequiredZone || inMiddleVideoZone) && (
                                                         <div className={`absolute top-2 left-2 ${inRequiredZone ? 'bg-orange-500' : 'bg-violet-600'} text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow z-10`}>
-                                                            {inRequiredZone ? '필수 영상 클립' : '영상 클립'}
+                                                            {inRequiredZone ? ui('필수 영상 클립') : ui('영상 클립')}
                                                         </div>
                                                     )}
                                                     {inMiddleVideoZone && scene.video_url ? (
@@ -10834,7 +10834,7 @@ export default function StdPortalPage() {
                                                         <>
                                                             <img
                                                                 src={scene.image_url}
-                                                                alt={`Scene ${sceneNum}`}
+                                                                alt={`${ui('Scene')} ${sceneNum}`}
                                                                 loading={sceneNum <= 4 ? 'eager' : 'lazy'}
                                                                 decoding="async"
                                                                 fetchPriority={sceneNum <= 4 ? 'high' : 'low'}
@@ -10843,7 +10843,7 @@ export default function StdPortalPage() {
                                                             {scene.video_url && (
                                                                 <>
                                                                     <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                                                        🎬 Video Ready
+                                                                        🎬 {ui('Video Ready')}
                                                                     </div>
                                                                     <a
                                                                         href={scene.video_url}
@@ -10851,7 +10851,7 @@ export default function StdPortalPage() {
                                                                         rel="noreferrer"
                                                                         className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-purple-700/80 hover:bg-purple-700 text-white text-[10px] font-bold border border-white/20 transition-all"
                                                                     >
-                                                                        영상 보기
+                                                                        {ui('영상 보기')}
                                                                     </a>
                                                                 </>
                                                             )}
@@ -10864,7 +10864,7 @@ export default function StdPortalPage() {
                                                                 }}
                                                                 className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 px-2 py-1 rounded bg-black/70 hover:bg-black/90 text-white text-[10px] font-bold border border-white/20 transition-all"
                                                             >
-                                                                이미지 다운로드
+                                                                {ui('이미지 다운로드')}
                                                             </a>
                                                         </>
                                                     ) : scene.video_url ? (
@@ -10877,16 +10877,16 @@ export default function StdPortalPage() {
                                                                 muted
                                                             />
                                                             <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                                                🎬 Video Ready
+                                                                🎬 {ui('Video Ready')}
                                                             </div>
                                                         </>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
                                                             <span className="text-xl">{inRequiredZone ? '🎬' : '🖼️'}</span>
-                                                            <span className="text-xs font-bold text-gray-400">{requiresClip ? '영상 클립 등록 필요' : '생성 이미지 보호됨'}</span>
+                                                            <span className="text-xs font-bold text-gray-400">{requiresClip ? ui('영상 클립 등록 필요') : ui('생성 이미지 보호됨')}</span>
                                                             {requiresClip || isComicProject(selectedProject.project) ? (
                                                                 <label className="cursor-pointer mt-1 px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-[11px] font-bold transition-all">
-                                                                    📁 영상 업로드
+                                                                    📁 {ui('영상 업로드')}
                                                                     <input
                                                                         type="file"
                                                                         accept="video/*"
@@ -10896,7 +10896,7 @@ export default function StdPortalPage() {
                                                                 </label>
                                                             ) : (
                                                                 <span className="mt-1 px-3 py-1 bg-emerald-950/20 border border-emerald-500/20 text-emerald-300/90 rounded text-[11px] font-bold">
-                                                                    🔒 교체 불가
+                                                                    🔒 {ui('교체 불가')}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -10905,19 +10905,19 @@ export default function StdPortalPage() {
 
                                                 <div className="lg:col-span-5 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-blue-500/20">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-bold text-blue-400">🌊 Video Prompt</span>
+                                                        <span className="text-[10px] font-bold text-blue-400">🌊 {ui('Video Prompt')}</span>
                                                         <div className="flex items-center gap-1">
                                                             <button
                                                                 onClick={() => copyPromptText(videoPromptText)}
                                                                 className="px-2 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold transition-all"
                                                             >
-                                                                Copy
+                                                                {ui('Copy')}
                                                             </button>
                                                             <button
-                                                                onClick={() => alert('프롬프트 편집 모드')}
+                                                                onClick={() => alert(ui('프롬프트 편집 모드'))}
                                                                 className="text-gray-400 hover:text-gray-200 text-[10px]"
                                                             >
-                                                                Edit
+                                                                {ui('Edit')}
                                                             </button>
                                                         </div>
                                                     </div>
@@ -10930,12 +10930,12 @@ export default function StdPortalPage() {
                                                         <p className="mt-2 text-xs text-gray-300">{ratioLabels.note}</p>
                                                     </div>
                                                     <pre className="whitespace-pre-wrap text-[11px] text-gray-300 leading-relaxed max-h-36 overflow-y-auto font-mono">
-                                                        {videoPromptText || '영상 프롬프트 없음'}
+                                                        {videoPromptText || ui('영상 프롬프트 없음')}
                                                     </pre>
                                                 </div>
 
                                                 <div className="lg:col-span-3 flex flex-col gap-1.5 bg-[#14181f] p-3 rounded-lg border border-white/5">
-                                                    <span className="text-[10px] font-bold text-gray-400">📜 Script Context</span>
+                                                    <span className="text-[10px] font-bold text-gray-400">📜 {ui('Script Context')}</span>
                                                     <p className="text-[11px] text-gray-300 leading-relaxed">
                                                         {scene.scene_text || 'At the funeral hall, an elderly husband finds a sealed letter hidden inside his late wife\'s old handbag.'}
                                                     </p>
