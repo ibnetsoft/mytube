@@ -3322,7 +3322,7 @@ export default function DashboardContent() {
 
     return (
         <div className="min-h-screen bg-[#000106] text-white font-sans selection:bg-blue-500/30">
-            <nav className="p-6 border-b border-white/5 bg-black/60 sticky top-0 z-[100] backdrop-blur-xl">
+            <nav className="px-6 py-3 border-b border-white/5 bg-black/60 sticky top-0 z-[100] backdrop-blur-xl">
                 <div className="max-w-[1600px] mx-auto flex justify-between items-center">
                     <span className="text-2xl font-black italic tracking-tighter text-blue-500">AIR STUDIO</span>
                     <div className="flex gap-6 items-center">
@@ -3337,10 +3337,10 @@ export default function DashboardContent() {
                 </div>
             </nav>
 
-            <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-12">
-                <a href="/admin/ae-worker" className="inline-block rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm text-blue-300">AE 워커 · 작업 큐와 완료 영상</a>
+            <main className="max-w-[1600px] mx-auto px-6 py-5 space-y-6">
                 <div className="flex w-full items-center justify-between">
-                    <div className="flex w-full flex-wrap justify-between gap-1.5 p-1.5 bg-white/5 rounded-2xl border border-white/5 shadow-2xl">
+                    <nav aria-label="관리자 메뉴" className="flex w-full flex-wrap items-center gap-1.5 p-2 bg-white/5 rounded-xl border border-white/5">
+                        <a href="/admin/ae-worker" className="rounded-lg border border-blue-500/20 px-3 py-2 text-xs font-bold text-blue-300 hover:bg-blue-500/10">AIR STUDIO 작업 큐</a>
                         {[
                             {title:'제작 운영',tabs:[
                                 {id:'topics',label:'토픽·카테고리',superOnly:false},
@@ -3364,8 +3364,7 @@ export default function DashboardContent() {
                             {title:'이전 기록',tabs:[
                                 {id:'learning',label:'이전 학습 기록',superOnly:true},
                                 {id:'music',label:'이전 음악 작업',superOnly:false}]},
-                        ].flatMap(group=>[{id:group.title,label:group.title,superOnly:false,group:true},...group.tabs.map(tab=>({...tab,group:false}))]).map(tab => {
-                            if(tab.group)return <p key={tab.id} className="w-full px-3 pt-3 pb-1 text-xs font-bold text-gray-400">{tab.label}</p>
+                        ].flatMap(group => group.tabs).map(tab => {
 
                             const locked = tab.superOnly && !isSuperAdmin;
                             return (
@@ -3375,7 +3374,8 @@ export default function DashboardContent() {
                                     disabled={locked}
                                     title={locked ? '최고 관리자 전용 기능입니다.' : undefined}
                                     onClick={() => !locked && setActiveTab(tab.id as any)}
-                                    className={`flex-1 px-3.5 py-2 rounded-xl text-[13px] font-black transition-all uppercase tracking-tight whitespace-nowrap ${
+                                    aria-current={activeTab === tab.id ? 'page' : undefined}
+                                    className={`shrink-0 px-3 py-2 rounded-lg text-xs font-black transition-all uppercase tracking-tight whitespace-nowrap ${
                                         activeTab === tab.id
                                             ? 'bg-blue-600 text-white shadow-xl'
                                             : locked
@@ -3387,7 +3387,7 @@ export default function DashboardContent() {
                                 </button>
                             )
                         })}
-                    </div>
+                    </nav>
                 </div>
 
                 {activeTab === 'script-worker' && <ScriptOperationsPanel adminFetch={adminFetch} mode="worker" key="worker"/>}
@@ -4544,7 +4544,7 @@ export default function DashboardContent() {
                                                             const publishMetadata = item.publish_metadata || item.progress_payload?.publish_metadata || {};
                                                             const hasPublishDescription = String(publishMetadata?.description || '').trim().length > 0;
                                                             const isStepDone = (key: string) => {
-                                                                if (['tts', 'subtitle', 'template'].includes(key)) return topicOutputStepDone(key, item.work_info?.outputSteps, stepMap);
+                                                                if (['image', 'tts', 'subtitle', 'template'].includes(key)) return topicOutputStepDone(key, item.work_info?.outputSteps, stepMap);
                                                                 if (stepMap[key]) return true;
                                                                 if (key === 'plan') return item.pregenerated_structure_status === 'ready';
                                                                 if (key === 'script') return item.pregenerated_script_status === 'ready';

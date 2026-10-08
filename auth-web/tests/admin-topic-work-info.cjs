@@ -40,7 +40,22 @@ test('incomplete project outputs override stale true flags and invalidated audio
  const ready=savedStdOutputStepStatus({project_payload:{subtitles_saved:true}},[
   {id:'audio',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'a.wav'}},
   {id:'thumb',asset_type:'thumbnail',status:'assigned',metadata:{storage_path:'t.png'}}])
- assert.deepEqual(ready,{isTtsDone:true,isSubtitlesDone:true,isThumbnailDone:true})
+ assert.equal(ready.isTtsDone,true);assert.equal(ready.isSubtitlesDone,true);assert.equal(ready.isThumbnailDone,true)
  const notReady=savedStdOutputStepStatus({},[{id:'thumb',asset_type:'thumbnail',status:'failed',metadata:{gcs_path:'old.png'}}])
  assert.equal(notReady.isThumbnailDone,false)
+})
+
+test('image status is shared for 12 opening videos and remaining stills, including stale topic flags',async()=>{
+ const {savedStdOutputStepStatus,topicOutputStepDone}=load('lib/stdOutputStepStatus.ts'),{summarizeStdProject}=load('lib/stdProjectStepStatus.ts')
+ const scenes=Array.from({length:101},(_,i)=>({scene_number:i+1}))
+ const p={...project,project_payload:{scenes,subtitles:[]}}
+ const media=scenes.map(s=>({id:'media'+s.scene_number,project_id:'p1',scene_number:s.scene_number,asset_type:s.scene_number<=12?'video':'image',status:'uploaded',metadata:{gcs_path:'saved/'+s.scene_number}}))
+ const [topic]=await attachTopicWorkInfo(dbMock([p],media),[{id:1,progress_payload:{steps:{image:false}}}])
+ assert.equal(topic.work_info.outputSteps.isImageDone,true)
+ assert.equal(topicOutputStepDone('image',topic.work_info.outputSteps,{image:false}),true)
+ assert.equal(savedStdOutputStepStatus(p,media).uploadedAssetsCount,101)
+ assert.equal(summarizeStdProject(p,media).isImageDone,true)
+ assert.equal(savedStdOutputStepStatus(p,media.slice(0,-1)).isImageDone,false)
+ assert.equal(topicOutputStepDone('image',savedStdOutputStepStatus(p,media.slice(1)),{image:true}),false)
+ assert.equal(savedStdOutputStepStatus(p,[{...media[0],asset_type:'image'},...media.slice(1)]).isImageDone,false)
 })

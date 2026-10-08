@@ -7388,18 +7388,8 @@ export default function StdPortalPage() {
         // 3. 대본 (Script)
         const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt || s.text)))
         
-        // 4. 이미지 (Image): 씬 에셋 등록 여부
-        const readyVisualScenes = scenes.filter((scene: any, index: number) => {
-            const sceneNumber = Number(scene?.scene_number || scene?.scene_order || index + 1)
-            return baseIsStdRequiredVideoScene(sceneNumber, p)
-                ? Boolean(scene?.video_url)
-                : Boolean(scene?.image_url || scene?.video_url || scene?.drive_file_id)
-        })
-        const uploadedAssetsCount = readyVisualScenes.length
-        const isImageDone = scenes.length > 0 && uploadedAssetsCount >= scenes.length
-
-        // Use saved project data, as in the admin queue and project list.
-        const { isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
+        // Read the same saved visual/output status as the project list and admin queue.
+        const { isImageDone, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
 
         const allDone = isTopicDone && isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone
 
@@ -7413,7 +7403,7 @@ export default function StdPortalPage() {
             isThumbnailDone,
             allDone,
             uploadedAssetsCount,
-            totalScenesCount: scenes.length || DEFAULT_15_MINUTE_SCENE_COUNT,
+            totalScenesCount,
         }
     }
 

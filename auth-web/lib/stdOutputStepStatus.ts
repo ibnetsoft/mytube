@@ -1,3 +1,4 @@
+import { savedStdVisualStepStatus } from './stdVisualStepStatus'
 // Canonical saved output status for the user editor, project list, and admin queue.
 // Local previews and stale topics_queue.steps do not override saved project state.
 export function savedStdOutputStepStatus(project: any, assets: any[] = []) {
@@ -9,11 +10,12 @@ export function savedStdOutputStepStatus(project: any, assets: any[] = []) {
  const isTtsDone = !progress.script_changed_requires_audio_regeneration && Boolean(payload.audio_url || payload.tts_url || progress.tts_completed || active.some(a => a.asset_type === 'audio'))
  const isSubtitlesDone = Boolean(progress.subtitles_saved || progress.subtitles_completed || payload.subtitles_saved)
  const isThumbnailDone = Boolean(payload.thumbnail_url || progress.thumbnail_url || progress.thumbnail_completed || active.some(a => a.asset_type === 'thumbnail'))
- return { isTtsDone, isSubtitlesDone, isThumbnailDone }
+ return { ...savedStdVisualStepStatus(project, assets), isTtsDone, isSubtitlesDone, isThumbnailDone }
 }
 
 export function topicOutputStepDone(key: string, saved: ReturnType<typeof savedStdOutputStepStatus> | undefined, legacy: Record<string, boolean> = {}) {
  if (saved) {
+  if (key === 'image') return saved.isImageDone
   if (key === 'tts') return saved.isTtsDone
   if (key === 'subtitle') return saved.isSubtitlesDone
   if (key === 'template') return saved.isThumbnailDone
