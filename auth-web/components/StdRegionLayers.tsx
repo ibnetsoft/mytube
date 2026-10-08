@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { regionLayerKey, type RegionMotion } from "@/lib/stdRegionMotion";
+import { regionMotionText } from '@/lib/stdRegionMotionCopy';
 
 type Props = {
+  locale?: string;
   projectId: string;
   headers: Record<string, string>;
   number: number;
@@ -21,6 +23,7 @@ type Props = {
 const button =
   "rounded border border-white/20 px-3 py-2 text-sm disabled:opacity-40";
 export default function StdRegionLayers(p: Props) {
+ const tr = (text: string) => regionMotionText(text, p.locale)
   const api = `/api/std/projects/${p.projectId}/region-layers`;
   const [pack, setPack] = useState<any>(null),
     [busy, setBusy] = useState(false),
@@ -88,7 +91,7 @@ export default function StdRegionLayers(p: Props) {
           `${api}?id=${pack.id}&role=${encodeURIComponent(f.role)}`,
           { headers: p.headers },
         );
-        if (!r.ok) throw new Error("레이어 미리보기를 불러오지 못했습니다.");
+        if (!r.ok) throw new Error(tr("레이어 미리보기를 불러오지 못했습니다."));
         const url = URL.createObjectURL(await r.blob());
         if (!active) {
           URL.revokeObjectURL(url);
@@ -132,8 +135,8 @@ export default function StdRegionLayers(p: Props) {
       await refresh();
       setNotice(
         action === "approve"
-          ? "레이어를 확정했습니다. 동작을 바꿔도 재사용합니다."
-          : "외곽선 분리와 배경 복원을 요청했습니다.",
+          ? tr("레이어를 확정했습니다. 동작을 바꿔도 재사용합니다.")
+          : tr("외곽선 분리와 배경 복원을 요청했습니다."),
       );
     } catch (e: any) {
       setNotice(e.message);
@@ -165,7 +168,7 @@ export default function StdRegionLayers(p: Props) {
       else p.patch({ replacementAssetId: d.asset.id });
       setEditing(false);
       setNotice(
-        "보완 이미지를 저장했습니다. 레이어 준비를 눌러 합성 결과를 확인해 주세요.",
+        tr("보완 이미지를 저장했습니다. 레이어 준비를 눌러 합성 결과를 확인해 주세요."),
       );
     } catch (e: any) {
       setNotice(e.message);
@@ -199,7 +202,7 @@ export default function StdRegionLayers(p: Props) {
         c.getContext("2d")!.drawImage(layer, 0, 0);
       });
     } catch {
-      setNotice("브러시 편집 이미지를 불러오지 못했습니다.");
+      setNotice(tr("브러시 편집 이미지를 불러오지 못했습니다."));
       setEditing(false);
     }
   }
@@ -221,18 +224,11 @@ export default function StdRegionLayers(p: Props) {
   const disabled = busy || p.locked;
   return (
     <section className="mt-4 rounded border border-cyan-700 p-3 space-y-3">
-      <h3 className="font-bold text-cyan-200">
-        정밀 레이어 준비 · 저장 · 재사용
-      </h3>
-      <p className="text-xs text-gray-300">
-        외곽선과 배경을 한 번 준비해 확정하면, 속도·반복·고정점을 바꿔도 다시
-        분리하지 않습니다. 자동 분리는 보조 기능이며 브러시로 가장자리를 수정할
-        수 있습니다.
-      </p>
+      <h3 className="font-bold text-cyan-200">{tr("정밀 레이어 준비 · 저장 · 재사용")}</h3>
+      <p className="text-xs text-gray-300">{tr("외곽선과 배경을 한 번 준비해 확정하면, 속도·반복·고정점을 바꿔도 다시 분리하지 않습니다. 자동 분리는 보조 기능이며 브러시로 가장자리를 수정할 수 있습니다.")}</p>
       {region && (
         <fieldset disabled={disabled} className="space-y-2">
-          <label className="block">
-            선택 부위 외곽선{" "}
+          <label className="block">{tr("선택 부위 외곽선")}{" "}
             <select
               className="bg-gray-800 p-1"
               value={region.contour || "auto"}
@@ -242,8 +238,8 @@ export default function StdRegionLayers(p: Props) {
                 })
               }
             >
-              <option value="auto">지정 영역 안에서 경계 자동 분리</option>
-              <option value="exact">내가 그린 외곽선 그대로</option>
+              <option value="auto">{tr("지정 영역 안에서 경계 자동 분리")}</option>
+              <option value="exact">{tr("내가 그린 외곽선 그대로")}</option>
             </select>
           </label>
           <label className="block">
@@ -251,19 +247,13 @@ export default function StdRegionLayers(p: Props) {
               type="checkbox"
               checked={!!region.occluded}
               onChange={(e) => p.patch({ occluded: e.target.checked })}
-            />{" "}
-            이 부위가 가려졌거나 이미지 밖으로 잘려 있음
-          </label>
+            />{" "}{tr("이 부위가 가려졌거나 이미지 밖으로 잘려 있음")}</label>
           {region.occluded && (
-            <p className="text-amber-200">
-              보이지 않는 형태는 자동으로 확정하지 않습니다. 완성된 부위 PNG를
-              추가하거나 이미지 페이지에서 원본을 수정한 뒤 다시 지정해 주세요.
-            </p>
+            <p className="text-amber-200">{tr("보이지 않는 형태는 자동으로 확정하지 않습니다. 완성된 부위 PNG를 추가하거나 이미지 페이지에서 원본을 수정한 뒤 다시 지정해 주세요.")}</p>
           )}
-          <label className="block">
-            완성·수정한 부위 추가 (투명 PNG){" "}
+          <label className="block">{tr("완성·수정한 부위 추가 (투명 PNG)")}{" "}
             <input
-              aria-label="보완 부위 이미지"
+              aria-label={tr("보완 부위 이미지")}
               type="file"
               accept="image/png"
               onChange={(e) => {
@@ -277,14 +267,11 @@ export default function StdRegionLayers(p: Props) {
             <button
               className={button}
               onClick={() => p.patch({ replacementAssetId: "" })}
-            >
-              추가 부위 사용 해제
-            </button>
+            >{tr("추가 부위 사용 해제")}</button>
           )}
-          <label className="block">
-            복원 배경 수정 이미지 추가{" "}
+          <label className="block">{tr("복원 배경 수정 이미지 추가")}{" "}
             <input
-              aria-label="수정 배경 이미지"
+              aria-label={tr("수정 배경 이미지")}
               type="file"
               accept="image/png,image/jpeg,image/webp"
               onChange={(e) => {
@@ -295,14 +282,9 @@ export default function StdRegionLayers(p: Props) {
             />
           </label>
           {p.backgroundAssetId && (
-            <button className={button} onClick={() => p.onBackground("")}>
-              수정 배경 사용 해제
-            </button>
+            <button className={button} onClick={() => p.onBackground("")}>{tr("수정 배경 사용 해제")}</button>
           )}
-          <p className="text-xs text-gray-400">
-            추가 이미지는 원본 전체 캔버스와 같은 크기·위치로 맞춰 주세요.
-            준비된 레이어를 내려받아 수정 후 다시 올릴 수도 있습니다. 최대 4MB.
-          </p>
+          <p className="text-xs text-gray-400">{tr("추가 이미지는 원본 전체 캔버스와 같은 크기·위치로 맞춰 주세요. 준비된 레이어를 내려받아 수정 후 다시 올릴 수도 있습니다. 최대 4MB.")}</p>
         </fieldset>
       )}
       <div className="flex flex-wrap gap-2 items-center">
@@ -312,26 +294,24 @@ export default function StdRegionLayers(p: Props) {
             disabled || !key || ["queued", "processing"].includes(pack?.state)
           }
           onClick={() => void action("prepare")}
-        >
-          외곽선 분리·배경 복원 / 저장 레이어 불러오기
-        </button>
+        >{tr("외곽선 분리·배경 복원 / 저장 레이어 불러오기")}</button>
         <span>
           {
             (
               {
-                queued: "레이어 준비 대기",
-                processing: "레이어 준비 중",
-                prepared: "레이어 검토 필요",
-                approved: "확정한 레이어 재사용 가능",
-                failed: "준비 실패",
+                queued: tr("레이어 준비 대기"),
+                processing: tr("레이어 준비 중"),
+                prepared: tr("레이어 검토 필요"),
+                approved: tr("확정한 레이어 재사용 가능"),
+                failed: tr("준비 실패"),
               } as any
             )[pack?.state]
           }
         </span>
       </div>
-      {pack?.error && <p className="text-amber-200">{pack.error}</p>}
+      {pack?.error && <p className="text-amber-200">{tr(pack.error)}</p>}
       {pack?.result?.warnings?.map((w: string) => (
-        <p className="text-xs text-amber-200" key={w}>
+        <p className="text-xs text-amber-200" key={tr(w)}>
           {w}
         </p>
       ))}
@@ -341,9 +321,9 @@ export default function StdRegionLayers(p: Props) {
           <>
             <div className="grid gap-3 md:grid-cols-3">
               {[
-                ["background", "복원 배경"],
-                ["region:" + region?.id, "선택 부위"],
-                ["composite", "정지 합성 결과"],
+                ["background", tr("복원 배경")],
+                ["region:" + region?.id, tr("선택 부위")],
+                ["composite", tr("정지 합성 결과")],
               ].map(
                 ([role, label]) =>
                   urls[role] && (
@@ -362,9 +342,7 @@ export default function StdRegionLayers(p: Props) {
                         className="text-cyan-300 underline"
                         download={`${role.replace(":", "-")}.png`}
                         href={urls[role]}
-                      >
-                        PNG 내려받기
-                      </a>
+                      >{tr("PNG 내려받기")}</a>
                     </div>
                   ),
               )}
@@ -374,9 +352,7 @@ export default function StdRegionLayers(p: Props) {
                 className={button}
                 disabled={disabled || !urls["region:" + region?.id]}
                 onClick={() => void edit()}
-              >
-                선택 부위 외곽선 브러시 수정
-              </button>
+              >{tr("선택 부위 외곽선 브러시 수정")}</button>
               {pack.result.files
                 .filter((f: any) => f.role.startsWith("region:"))
                 .map((f: any, i: number) => (
@@ -385,8 +361,7 @@ export default function StdRegionLayers(p: Props) {
                     className={button}
                     href={urls[f.role]}
                     download={`layer-${i + 1}.png`}
-                  >
-                    부위 {i + 1} PNG
+                  >{tr("부위")}{i + 1} PNG
                   </a>
                 ))}
             </div>
@@ -396,10 +371,7 @@ export default function StdRegionLayers(p: Props) {
                 checked={reviewed}
                 disabled={disabled}
                 onChange={(e) => setReviewed(e.target.checked)}
-              />{" "}
-              모든 부위의 외곽선·가려진 부분·복원 배경과 합성 결과를
-              확인했습니다.
-            </label>
+              />{" "}{tr("모든 부위의 외곽선·가려진 부분·복원 배경과 합성 결과를 확인했습니다.")}</label>
             <button
               className={`${button} bg-emerald-800`}
               disabled={
@@ -409,25 +381,20 @@ export default function StdRegionLayers(p: Props) {
                 Object.keys(urls).length !== pack?.result?.files?.length
               }
               onClick={() => void action("approve")}
-            >
-              레이어 확정하고 재사용
-            </button>
+            >{tr("레이어 확정하고 재사용")}</button>
           </>
         )}
       <p role="status" className="text-cyan-200">
-        {notice}
+        {tr(notice)}
       </p>
       {editing && (
         <div className="fixed inset-0 z-[195] bg-black/95 p-4 flex flex-col">
           <div className="flex flex-wrap gap-2 mb-2">
-            <button className={button} onClick={() => setMode("erase")}>
-              지우기 {mode === "erase" ? "✓" : ""}
+            <button className={button} onClick={() => setMode("erase")}>{tr("지우기")}{mode === "erase" ? "✓" : ""}
             </button>
-            <button className={button} onClick={() => setMode("restore")}>
-              원본에서 복원 {mode === "restore" ? "✓" : ""}
+            <button className={button} onClick={() => setMode("restore")}>{tr("원본에서 복원")}{mode === "restore" ? "✓" : ""}
             </button>
-            <label>
-              브러시{" "}
+            <label>{tr("브러시")}{" "}
               <input
                 type="range"
                 min="1"
@@ -437,8 +404,7 @@ export default function StdRegionLayers(p: Props) {
               />
               {brush}px
             </label>
-            <label>
-              확대{" "}
+            <label>{tr("확대")}{" "}
               <select
                 value={zoom}
                 className="bg-gray-800"
@@ -457,16 +423,12 @@ export default function StdRegionLayers(p: Props) {
                   if (b) void upload(b, "foreground");
                 }, "image/png")
               }
-            >
-              수정한 외곽선 저장
-            </button>
+            >{tr("수정한 외곽선 저장")}</button>
             <button
               className={button}
               disabled={busy}
               onClick={() => setEditing(false)}
-            >
-              닫기
-            </button>
+            >{tr("닫기")}</button>
           </div>
           <div className="overflow-auto flex-1">
             <canvas

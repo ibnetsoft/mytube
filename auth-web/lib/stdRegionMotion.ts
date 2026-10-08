@@ -131,30 +131,30 @@ export function validateRegionMotions(
 export function parseRegionMotionCommand(
     command: string,
 ): Partial<RegionMotion> {
-    if (/걷|뛰|손가락|관절|굽히|구부|walk|run|finger|bend/i.test(command))
+    if (/걷|뛰|손가락|관절|굽히|구부|walk|run|finger|bend|เดิน|วิ่ง|นิ้ว|งอ/i.test(command))
         throw new Error(
             '관절을 구부리는 동작은 지원하지 않습니다. 좌우·상하 이동, 회전, 확대·축소 중 선택해 주세요.',
         )
     const actions: RegionMotion['action'][] = []
-    if (/좌우|왼쪽|오른쪽|horizontal|left|right/i.test(command))
+    if (/좌우|왼쪽|오른쪽|horizontal|left|right|ซ้าย|ขวา/i.test(command))
         actions.push('horizontal')
-    if (/상하|위아래|vertical|up and down/i.test(command))
+    if (/상하|위아래|vertical|up and down|ขึ้น|ลง/i.test(command))
         actions.push('vertical')
-    if (/회전|흔들|기울|rotate|swing|tilt|wave/i.test(command))
+    if (/회전|흔들|기울|rotate|swing|tilt|wave|หมุน|แกว่ง|เอียง/i.test(command))
         actions.push('rotate')
-    if (/확대|축소|크기|scale|zoom|숨쉬/i.test(command)) actions.push('scale')
+    if (/확대|축소|크기|scale|zoom|숨쉬|ขยาย|ย่อ/i.test(command)) actions.push('scale')
     // "좌우로 흔들기" is a translation unless rotation was explicitly requested.
     const action =
-        actions.includes('horizontal') && !/회전|rotate/i.test(command)
+        actions.includes('horizontal') && !/회전|rotate|หมุน/i.test(command)
             ? 'horizontal'
             : actions.at(-1)
     if (!action)
         throw new Error(
             '예: “좌우로 3%씩 2초마다 3번 반복”, “15도 회전, 1초마다 4번”',
         )
-    const amplitude = command.match(/(\d+(?:\.\d+)?)\s*(?:%|도|degrees?)/i)
-    const period = command.match(/(\d+(?:\.\d+)?)\s*(?:초|seconds?|sec)/i)
-    const cycles = command.match(/(\d+)\s*(?:번|회|times?)/i)
+    const amplitude = command.match(/(\d+(?:\.\d+)?)\s*(?:%|도|degrees?|องศา)/i)
+    const period = command.match(/(\d+(?:\.\d+)?)\s*(?:초|seconds?|sec|วินาที)/i)
+    const cycles = command.match(/(\d+)\s*(?:번|회|times?|ครั้ง)/i)
     return {
         action,
         amplitude: amplitude

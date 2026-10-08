@@ -8231,6 +8231,7 @@ export default function StdPortalPage() {
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             {currentNav === 'subtitle_vrew' && selectedProject && <StdSpeakerCoordinates
+                locale={currentLocale}
                 key={selectedProject.project.id} projectId={selectedProject.project.id}
                 revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
                 speakerProgress={dialogueSpeakerProgress}

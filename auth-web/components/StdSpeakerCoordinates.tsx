@@ -52,7 +52,9 @@ export default function StdSpeakerCoordinates({
     selectedSceneNumber,
     speakerProgress,
     onMotionApplied,
+    locale = 'ko',
 }: {
+    locale?: string
     projectId: string
     revision: string
     headers: Record<string, string>
@@ -248,7 +250,7 @@ export default function StdSpeakerCoordinates({
                         새로고침
                     </button>
                 </div>
-                <StdRegionMotionEditor projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} onApplied={onMotionApplied} />
+                <StdRegionMotionEditor locale={locale} projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} onApplied={onMotionApplied} />
             </aside>
             {open &&
                 scene &&

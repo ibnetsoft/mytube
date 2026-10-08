@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import StdRegionLayers from './StdRegionLayers'
+import { regionMotionText } from '@/lib/stdRegionMotionCopy'
 import {
     motionPhase,
     parseRegionMotionCommand,
@@ -23,12 +24,15 @@ export default function StdRegionMotionEditor({
     headers,
     selectedSceneNumber,
     onApplied,
+    locale = "ko",
 }: {
+    locale?: string
     projectId: string
     headers: Record<string, string>
     selectedSceneNumber?: number
     onApplied?: () => void
 }) {
+    const tr = (text: string) => regionMotionText(text, locale)
     const [open, setOpen] = useState(false),
         [scenes, setScenes] = useState<Scene[]>([]),
         [number, setNumber] = useState(0)
@@ -105,7 +109,7 @@ export default function StdRegionMotionEditor({
         setSha('')
         void fetch(`${api}?image=${number}`, { headers, signal: abort.signal })
             .then(async (r) => {
-                if (!r.ok) throw new Error('이미지를 불러오지 못했습니다.')
+                if (!r.ok) throw new Error(tr("이미지를 불러오지 못했습니다."))
                 const blob = await r.blob()
                 const hash = await crypto.subtle.digest(
                     'SHA-256',
@@ -156,14 +160,14 @@ export default function StdRegionMotionEditor({
     function finish(polygon: MotionPoint[]) {
         if (!scene || polygon.length < 3) return
         if (regions.length >= 8) {
-            setNotice('영역은 최대 8개입니다.')
+            setNotice(tr("영역은 최대 8개입니다."))
             return
         }
         const xs = polygon.map((p) => p[0]),
             ys = polygon.map((p) => p[1])
         const item: RegionMotion = {
             id: crypto.randomUUID(),
-            name: `영역 ${regions.length + 1}`,
+            name: `${tr("영역")} ${regions.length + 1}`,
             polygon,
             anchor: [
                 (Math.min(...xs) + Math.max(...xs)) / 2,
@@ -189,7 +193,7 @@ export default function StdRegionMotionEditor({
         setPlaying(false)
         try {
             if (action === 'render' && !layerPackageId)
-                throw new Error('레이어를 준비하고 확정해 주세요.')
+                throw new Error(tr("레이어를 준비하고 확정해 주세요."))
             const body =
                 action === 'apply'
                     ? { action, sceneNumber: number, planId: previewId }
@@ -216,10 +220,10 @@ export default function StdRegionMotionEditor({
             setDirty(false)
             setNotice(
                 action === 'apply'
-                    ? '이 씬에 AE 영상을 적용했습니다.'
+                    ? tr("이 씬에 AE 영상을 적용했습니다.")
                     : action === 'render'
-                      ? 'AE 렌더를 요청했습니다. 완료되면 결과를 확인해 주세요.'
-                      : '영역과 동작 설정을 저장했습니다.',
+                      ? tr("AE 렌더를 요청했습니다. 완료되면 결과를 확인해 주세요.")
+                      : tr("영역과 동작 설정을 저장했습니다."),
             )
             if (action === 'apply') onApplied?.()
         } catch (e: any) {
@@ -231,12 +235,12 @@ export default function StdRegionMotionEditor({
     const coords = (polygon: MotionPoint[]) =>
         polygon.map((p) => `${p[0] * size[0]},${p[1] * size[1]}`).join(' ')
     const states: Record<string, string> = {
-        draft: '설정 저장됨',
-        queued: 'AE 작업 대기',
-        processing: 'AE 렌더 중',
-        ready: 'AE 결과 준비됨',
-        failed: '렌더 실패',
-        obsolete: '설정 변경됨 · 다시 렌더 필요',
+        draft: tr("설정 저장됨"),
+        queued: tr("AE 작업 대기"),
+        processing: tr("AE 렌더 중"),
+        ready: tr("AE 결과 준비됨"),
+        failed: tr("렌더 실패"),
+        obsolete: tr("설정 변경됨 · 다시 렌더 필요"),
     }
     return (
         <>
@@ -251,30 +255,26 @@ export default function StdRegionMotionEditor({
                                 (s) => s.number === selectedSceneNumber,
                             ) || items[0]
                         if (!s)
-                            throw new Error('먼저 씬 이미지를 준비해 주세요.')
+                            throw new Error(tr("먼저 씬 이미지를 준비해 주세요."))
                         choose(s)
                         setOpen(true)
                     } catch (e: any) {
                         setNotice(e.message)
                     }
                 }}
-            >
-                영역 동작 지정 · AE
-            </button>
-            {!open && notice && <p role="status">{notice}</p>}
+            >{tr("영역 동작 지정 · AE")}</button>
+            {!open && notice && <p role="status">{tr(notice)}</p>}
             {open &&
                 createPortal(
                     <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-3">
                         <section
                             role="dialog"
                             aria-modal="true"
-                            aria-label="영역 동작 지정"
+                            aria-label={tr("영역 동작 지정")}
                             className="max-h-[96vh] w-full max-w-7xl overflow-auto rounded-xl bg-[#171c24] p-4 text-white"
                         >
                             <header className="flex justify-between">
-                                <h2 className="text-xl font-bold">
-                                    영역 동작 지정
-                                </h2>
+                                <h2 className="text-xl font-bold">{tr("영역 동작 지정")}</h2>
                                 <button
                                     className={button}
                                     disabled={busy}
@@ -282,15 +282,12 @@ export default function StdRegionMotionEditor({
                                         setOpen(false)
                                         setPlaying(false)
                                     }}
-                                >
-                                    닫기
-                                </button>
+                                >{tr("닫기")}</button>
                             </header>
                             <div className="my-3 flex flex-wrap items-center gap-3">
-                                <label>
-                                    씬{' '}
+                                <label>{tr("씬")}{' '}
                                     <select
-                                        aria-label="동작 씬"
+                                        aria-label={tr("동작 씬")}
                                         disabled={busy}
                                         className={input}
                                         value={number}
@@ -308,24 +305,18 @@ export default function StdRegionMotionEditor({
                                                 key={s.number}
                                                 value={s.number}
                                             >
-                                                {s.number}번 씬 ·{' '}
-                                                {s.duration.toFixed(1)}초
-                                            </option>
+                                                {s.number}{tr("번 씬 ·")}{' '}
+                                                {s.duration.toFixed(1)}{tr("초")}</option>
                                         ))}
                                     </select>
                                 </label>
                                 <span>
                                     {states[scene?.plan?.state] ||
-                                        '영역과 동작을 지정해 주세요.'}
-                                    {dirty ? ' · 저장 전 변경 있음' : ''}
+                                        tr("영역과 동작을 지정해 주세요.")}
+                                    {dirty ? tr(" · 저장 전 변경 있음") : ''}
                                 </span>
                             </div>
-                            <p className="mb-3 text-sm text-gray-300">
-                                움직일 부위를 외곽선으로 지정하고 고정점을
-                                찍으세요. 팔 흔들기는 고정점을 중심으로
-                                회전합니다. 관절을 구부리는 동작은 아직 지원하지
-                                않습니다.
-                            </p>
+                            <p className="mb-3 text-sm text-gray-300">{tr("움직일 부위를 외곽선으로 지정하고 고정점을 찍으세요. 팔 흔들기는 고정점을 중심으로 회전합니다. 관절을 구부리는 동작은 아직 지원하지 않습니다.")}</p>
                             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                                 <div>
                                     <div className="mb-2 flex flex-wrap gap-2">
@@ -353,10 +344,10 @@ export default function StdRegionMotionEditor({
                                                 {
                                                     {
                                                         rectangle:
-                                                            '사각형 영역',
+                                                            tr("사각형 영역"),
                                                         polygon:
-                                                            '외곽선 점 찍기',
-                                                        anchor: '고정점 지정',
+                                                            tr("외곽선 점 찍기"),
+                                                        anchor: tr("고정점 지정"),
                                                     }[t]
                                                 }
                                             </button>
@@ -368,15 +359,13 @@ export default function StdRegionMotionEditor({
                                                     points.length < 3 || playing
                                                 }
                                                 onClick={() => finish(points)}
-                                            >
-                                                외곽선 완료
-                                            </button>
+                                            >{tr("외곽선 완료")}</button>
                                         )}
                                     </div>
                                     {image ? (
                                         <svg
                                             role="img"
-                                            aria-label="움직일 영역과 고정점 지정"
+                                            aria-label={tr("움직일 영역과 고정점 지정")}
                                             viewBox={`0 0 ${size[0]} ${size[1]}`}
                                             className="w-full touch-none bg-gray-700"
                                             onPointerDown={(e) => {
@@ -567,7 +556,7 @@ export default function StdRegionMotionEditor({
                                             />
                                         </svg>
                                     ) : (
-                                        <p>이미지 불러오는 중…</p>
+                                        <p>{tr("이미지 불러오는 중…")}</p>
                                     )}
                                     {image && (
                                         <img
@@ -594,11 +583,11 @@ export default function StdRegionMotionEditor({
                                             onClick={() => setPlaying(!playing)}
                                         >
                                             {playing
-                                                ? '미리보기 정지'
-                                                : '동작 미리보기'}
+                                                ? tr("미리보기 정지")
+                                                : tr("동작 미리보기")}
                                         </button>
                                         <input
-                                            aria-label="동작 미리보기 시간"
+                                            aria-label={tr("동작 미리보기 시간")}
                                             className="flex-1"
                                             type="range"
                                             min="0"
@@ -610,15 +599,11 @@ export default function StdRegionMotionEditor({
                                                 setTime(Number(e.target.value))
                                             }}
                                         />
-                                        <span>{time.toFixed(1)}초</span>
+                                        <span>{time.toFixed(1)}{tr("초")}</span>
                                     </div>
-                                    <p className="mt-2 text-xs text-gray-400">
-                                        회색 빈 영역은 움직인 뒤 드러나는
-                                        부분입니다. 배경 보정 상태는 실제 AE
-                                        결과에서 확인하세요.
-                                    </p>
+                                    <p className="mt-2 text-xs text-gray-400">{tr("회색 빈 영역은 움직인 뒤 드러나는 부분입니다. 배경 보정 상태는 실제 AE 결과에서 확인하세요.")}</p>
                                     {scene && (
-                                        <StdRegionLayers
+                                        <StdRegionLayers locale={locale}
                                             projectId={projectId}
                                             headers={headers}
                                             number={number}
@@ -650,10 +635,8 @@ export default function StdRegionMotionEditor({
                                     )}
                                 </div>
                                 <fieldset disabled={busy} className="space-y-3">
-                                    <label>
-                                        영역 선택
-                                        <select
-                                            aria-label="동작 영역"
+                                    <label>{tr("영역 선택")}<select
+                                            aria-label={tr("동작 영역")}
                                             className={input}
                                             value={selected}
                                             onChange={(e) =>
@@ -671,10 +654,8 @@ export default function StdRegionMotionEditor({
                                     </label>
                                     {region && (
                                         <>
-                                            <label>
-                                                영역 이름
-                                                <input
-                                                    aria-label="영역 이름"
+                                            <label>{tr("영역 이름")}<input
+                                                    aria-label={tr("영역 이름")}
                                                     className={input}
                                                     value={region.name}
                                                     onChange={(e) =>
@@ -685,10 +666,8 @@ export default function StdRegionMotionEditor({
                                                     }
                                                 />
                                             </label>
-                                            <label>
-                                                동작
-                                                <select
-                                                    aria-label="동작 종류"
+                                            <label>{tr("동작")}<select
+                                                    aria-label={tr("동작 종류")}
                                                     className={input}
                                                     value={region.action}
                                                     onChange={(e) =>
@@ -706,19 +685,17 @@ export default function StdRegionMotionEditor({
                                                             key={v}
                                                             value={v}
                                                         >
-                                                            {l}
+                                                            {tr(l)}
                                                         </option>
                                                     ))}
                                                 </select>
                                             </label>
-                                            <label>
-                                                세기 (
-                                                {region.action === 'rotate'
-                                                    ? '도'
+                                            <label>{tr("세기 (")}{region.action === 'rotate'
+                                                    ? tr("도")
                                                     : '%'}
                                                 )
                                                 <input
-                                                    aria-label="동작 세기"
+                                                    aria-label={tr("동작 세기")}
                                                     className={input}
                                                     type="number"
                                                     min="0.1"
@@ -739,10 +716,8 @@ export default function StdRegionMotionEditor({
                                                     }
                                                 />
                                             </label>
-                                            <label>
-                                                한 번 반복하는 시간 (초)
-                                                <input
-                                                    aria-label="반복 주기"
+                                            <label>{tr("한 번 반복하는 시간 (초)")}<input
+                                                    aria-label={tr("반복 주기")}
                                                     className={input}
                                                     type="number"
                                                     min="0.2"
@@ -757,10 +732,8 @@ export default function StdRegionMotionEditor({
                                                     }
                                                 />
                                             </label>
-                                            <label>
-                                                반복 횟수
-                                                <input
-                                                    aria-label="반복 횟수"
+                                            <label>{tr("반복 횟수")}<input
+                                                    aria-label={tr("반복 횟수")}
                                                     className={input}
                                                     type="number"
                                                     min="1"
@@ -775,10 +748,8 @@ export default function StdRegionMotionEditor({
                                                     }
                                                 />
                                             </label>
-                                            <label>
-                                                시작 자막
-                                                <select
-                                                    aria-label="동작 시작 자막"
+                                            <label>{tr("시작 자막")}<select
+                                                    aria-label={tr("동작 시작 자막")}
                                                     className={input}
                                                     value={region.subtitleId}
                                                     onChange={(e) => {
@@ -813,12 +784,10 @@ export default function StdRegionMotionEditor({
                                                     )}
                                                 </select>
                                             </label>
-                                            <label>
-                                                명령으로 설정
-                                                <input
-                                                    aria-label="동작 명령"
+                                            <label>{tr("명령으로 설정")}<input
+                                                    aria-label={tr("동작 명령")}
                                                     className={input}
-                                                    placeholder="좌우로 3%씩 2초마다 3번 반복"
+                                                    placeholder={tr("좌우로 3%씩 2초마다 3번 반복")}
                                                     value={command}
                                                     onChange={(e) =>
                                                         setCommand(
@@ -837,15 +806,13 @@ export default function StdRegionMotionEditor({
                                                             ),
                                                         )
                                                         setNotice(
-                                                            '변환된 동작 설정을 확인한 뒤 저장해 주세요.',
+                                                            tr("변환된 동작 설정을 확인한 뒤 저장해 주세요."),
                                                         )
                                                     } catch (e: any) {
                                                         setNotice(e.message)
                                                     }
                                                 }}
-                                            >
-                                                명령을 설정에 반영
-                                            </button>
+                                            >{tr("명령을 설정에 반영")}</button>
                                             <button
                                                 className={`${button} text-red-300`}
                                                 onClick={() => {
@@ -859,39 +826,29 @@ export default function StdRegionMotionEditor({
                                                     setDirty(true)
                                                     setVideo('')
                                                 }}
-                                            >
-                                                이 영역 삭제
-                                            </button>
+                                            >{tr("이 영역 삭제")}</button>
                                         </>
                                     )}
-                                    <p className="text-xs text-gray-400">
-                                        영역은 최대 8개입니다. 정지 이미지의
-                                        선택 부위를 움직이며, 기존 영상이나
-                                        립싱크와 자동 합성하지 않습니다.
-                                    </p>
+                                    <p className="text-xs text-gray-400">{tr("영역은 최대 8개입니다. 정지 이미지의 선택 부위를 움직이며, 기존 영상이나 립싱크와 자동 합성하지 않습니다.")}</p>
                                 </fieldset>
                             </div>
                             <footer className="mt-4 space-y-3">
                                 <p role="status" className="text-cyan-200">
-                                    {notice || scene?.plan?.error || ''}
+                                    {tr(notice || scene?.plan?.error || '')}
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                     <button
                                         disabled={busy || !sha}
                                         className={button}
                                         onClick={() => void submit('save')}
-                                    >
-                                        설정 저장
-                                    </button>
+                                    >{tr("설정 저장")}</button>
                                     <button
                                         disabled={
                                             busy || !sha || !regions.length
                                         }
                                         className={`${button} bg-indigo-700`}
                                         onClick={() => void submit('render')}
-                                    >
-                                        AE 영상 만들기
-                                    </button>
+                                    >{tr("AE 영상 만들기")}</button>
                                     {scene?.plan?.state === 'ready' &&
                                         !dirty && (
                                             <>
@@ -920,9 +877,7 @@ export default function StdRegionMotionEditor({
                                                             setNotice(e.message)
                                                         }
                                                     }}
-                                                >
-                                                    AE 결과 보기
-                                                </button>
+                                                >{tr("AE 결과 보기")}</button>
                                                 <button
                                                     className={`${button} bg-emerald-700`}
                                                     disabled={
@@ -934,9 +889,7 @@ export default function StdRegionMotionEditor({
                                                     onClick={() =>
                                                         void submit('apply')
                                                     }
-                                                >
-                                                    확인한 영상을 씬에 적용
-                                                </button>
+                                                >{tr("확인한 영상을 씬에 적용")}</button>
                                             </>
                                         )}
                                 </div>
