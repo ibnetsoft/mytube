@@ -1,3 +1,4 @@
+import { appendGeneratedSpeakerAssets } from './stdGeneratedSpeakerGeometry'
 /** Read every active asset, including original clips older than the REST row limit. */
 export async function loadStdProjectAssets(db: any, projectId: string, columns: string) {
     const assets: any[] = []
@@ -12,6 +13,9 @@ export async function loadStdProjectAssets(db: any, projectId: string, columns: 
             .range(start, start + pageSize - 1)
         if (error) return { data: null, error }
         assets.push(...(data || []))
-        if ((data || []).length < pageSize) return { data: assets, error: null }
+        if ((data || []).length < pageSize) {
+            try { return { data: await appendGeneratedSpeakerAssets(db, [projectId], assets), error: null } }
+            catch (error) { return { data: null, error } }
+        }
     }
 }

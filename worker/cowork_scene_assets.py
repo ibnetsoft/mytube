@@ -748,6 +748,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
             gcs_bucket, gcs_path = scene_refs[number]
             image_policy = scene.get("image_generation_policy") if isinstance(scene.get("image_generation_policy"), dict) else {}
             layer_plan = scene.get("local_layer_plan") if isinstance(scene.get("local_layer_plan"), dict) else {}
+            previous_image = copy.deepcopy(scene.get("metadata", {}).get("cowork_image_asset", {}))
             scene["image_url"] = scene_urls[number]
             scene["asset_status"] = "ready"
             scene.setdefault("metadata", {})["cowork_image_asset"] = {
@@ -779,6 +780,9 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
                     "credit_cost": int(layer_plan.get("credit_cost") or 0),
                 },
             }
+            if (previous_image.get('gcs_path') == gcs_path and previous_image.get('gcs_bucket') == gcs_bucket
+                    and previous_image.get('speaker_geometry')):
+                scene['metadata']['cowork_image_asset']['speaker_geometry'] = previous_image['speaker_geometry']
             if number in scene_layer_assets:
                 scene.setdefault("metadata", {})["local_layer_asset"] = scene_layer_assets[number]
                 scene["local_layer_status"] = "ready"
@@ -807,6 +811,13 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
         "asset_patch": _scene_asset_patch(published_scenes[number]),
     } for number in sorted(scene_urls)]
     _patch_topic_scene_assets(topic_id, updates, base_url, headers)
+    # Final cropped pixels, not grid prompts, are the source of face/mouth boxes.
+    try:
+        from .generated_speaker_coordinates import analyze_published_scenes
+    except ImportError:
+        from generated_speaker_coordinates import analyze_published_scenes
+    analyze_published_scenes(topic_id, structure, published_scenes, images_dir,
+                             base_url, headers, sys.modules[__name__])
     if manifest_layer_specs and not defer_layers:
         _propagate_published_template_assets(topic_id, base_url, headers)
     return [scene_urls[number] for number in sorted(scene_urls)]

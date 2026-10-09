@@ -1,3 +1,4 @@
+import { appendGeneratedSpeakerAssets } from './stdGeneratedSpeakerGeometry'
 export async function loadSpeakerCoordinateAssets(db: any, projectIds: string[], includeOutputs = false) {
     if (!projectIds.length) return []
     const assets: any[] = []
@@ -11,6 +12,6 @@ export async function loadSpeakerCoordinateAssets(db: any, projectIds: string[],
             .range(start, start + 499)
         if (result.error) throw result.error
         assets.push(...(result.data || []))
-        if ((result.data || []).length < 500) return assets
+        if ((result.data || []).length < 500) return appendGeneratedSpeakerAssets(db, projectIds, assets)
     }
 }

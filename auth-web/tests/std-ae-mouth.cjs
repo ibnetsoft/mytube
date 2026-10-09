@@ -108,3 +108,13 @@ test('newly analyzed scenes do not discard AE work but corrected used coordinate
  const f=fixture();f.assets.unshift({id:'bgm',asset_type:'audio',status:'assigned',created_at:'2026-10-09',metadata:{audio_role:'background'}});
  assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.audio.id,'audio');
  });
+test('generation-time coordinates reach AE submission with original asset metadata intact',()=>{
+ const f=fixture(),geometry=load('stdSpeakerGeometry'),generated=load('stdGeneratedSpeakerGeometry');
+ f.assets.forEach(a=>a.project_id='p');
+ const image=f.assets.find(a=>a.scene_number===19),speakers=[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.1,.1,.5,.6],mouth_box:[.25,.4,.32,.44]}];
+ const structure={scenes:[{scene_number:19,metadata:{cowork_image_asset:{speaker_geometry:{source:'local-codex-image-publish',number:19,state:'ready',fingerprint:'ready',cast:geometry.coordinateCast(f.project),source_bucket:'air-studio-prod',source_path:'image.png',source_sha256:'a'.repeat(64),speakers}}}}]};
+ const assets=[...f.assets,...generated.generatedSpeakerAssets(f.project,structure,f.assets)];
+ const input=lib.aeMouthInput(f.project,f.scenes,assets).input;
+ assert.deepEqual(input.scenes[0].speaker_regions.speakers,speakers);
+ assert.deepEqual(input.scenes[0].image,{id:image.id,metadata:image.metadata});
+});

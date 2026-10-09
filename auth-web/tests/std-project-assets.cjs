@@ -4,8 +4,11 @@ const fs = require('node:fs')
 const path = require('node:path')
 const Module = require('node:module')
 const ts = require('typescript')
+require.extensions['.ts'] = (mod, filename) => mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, filename)
 const filename = path.resolve(__dirname, '../lib/stdProjectAssets.ts')
 const mod = new Module(filename, module)
+mod.filename = filename
+mod.paths = Module._nodeModulePaths(path.dirname(filename))
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, filename)
 const { loadStdProjectAssets } = mod.exports
 function database(rows, failAt = -1) {
