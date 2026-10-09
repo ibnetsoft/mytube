@@ -7307,8 +7307,8 @@ export default function StdPortalPage() {
         const video = vrewPreviewVideoRef.current
         if (!video) return
         syncScenePreviewVideo(video, playbackTime, previewMotionStart,
-            currentNav === 'subtitle_vrew' && isPlayingPreview && Boolean(currentSubVideoUrl))
-    }, [currentNav, currentSubVideoUrl, isPlayingPreview, playbackTime, previewMotionStart])
+            currentNav === 'subtitle_vrew' && isPlayingPreview && Boolean(currentSubVideoUrl), !currentPreviewIsWorkerVideo)
+    }, [currentNav, currentSubVideoUrl, isPlayingPreview, playbackTime, previewMotionStart, currentPreviewIsWorkerVideo])
     useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
@@ -9897,17 +9897,10 @@ export default function StdPortalPage() {
                                                     key={`${selectedProject?.project?.id}:${currentPreviewSceneNumber}:${currentSubVideoUrl}`}
                                                     ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
-                                                    onEnded={(event) => {
-                                                        const video = event.currentTarget
-                                                        video.pause()
-                                                        video.dataset.finished = 'true'
-                                                        if (Number.isFinite(video.duration) && video.duration > 0) {
-                                                            video.currentTime = Math.max(0, video.duration - 0.04)
-                                                        }
-                                                    }}
+                                                    loop={!currentPreviewIsWorkerVideo}
                                                     poster={currentSubImageUrl || undefined}
                                                     preload="auto"
-                                                    onLoadedMetadata={event => syncScenePreviewVideo(event.currentTarget, playbackTime, previewMotionStart, isPlayingPreview)}
+                                                    onLoadedMetadata={event => syncScenePreviewVideo(event.currentTarget, playbackTime, previewMotionStart, isPlayingPreview, !currentPreviewIsWorkerVideo)}
                                                     onError={() => setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })}
                                                     style={currentPreviewIsWorkerVideo ? previewImageMotionStyle : undefined}
                                                     className="w-full h-full object-cover"

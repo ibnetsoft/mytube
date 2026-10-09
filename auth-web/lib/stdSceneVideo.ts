@@ -31,12 +31,14 @@ export async function loadScenePreviewVideo(projectId: string, assetId: string, 
     return { url, revoke: () => URL.revokeObjectURL(url) }
 }
 
-/** Scene-relative seeking keeps AIR output aligned when selecting or scrubbing a later subtitle. */
-export function syncScenePreviewVideo(video: HTMLVideoElement, time: number, sceneStart: number, playing: boolean) {
+/** Original clips loop across the narration; timed AIR output holds its final frame. */
+export function syncScenePreviewVideo(video: HTMLVideoElement, time: number, sceneStart: number, playing: boolean, loop = false) {
     const offset = Math.max(0, time - sceneStart)
     const end = Number.isFinite(video.duration) && video.duration > 0 ? Math.max(0, video.duration - 0.04) : Infinity
-    const target = Math.min(offset, end)
+    const canLoop = loop && Number.isFinite(video.duration) && video.duration > 0
+    video.loop = loop
+    const target = canLoop ? offset % video.duration : Math.min(offset, end)
     if (video.readyState >= 1 && Math.abs(video.currentTime - target) > (playing ? 0.3 : 0.01)) video.currentTime = target
-    if (!playing || offset >= end) video.pause()
+    if (!playing || (!canLoop && offset >= end)) video.pause()
     else if (video.paused) void video.play().catch(() => {})
 }

@@ -67,3 +67,37 @@ test('AIR preview seeks within the scene, continues playback, pauses and replays
     assert.equal(video.currentTime, 0)
     assert.equal(video.paused, false)
 })
+
+test('original clips keep moving after their first pass and seek into later subtitles', () => {
+    const video = { duration: 5, readyState: 1, currentTime: 0, paused: true,
+        play() { this.paused = false; return Promise.resolve() }, pause() { this.paused = true } }
+    // An eight-second offset is inside the second pass of a five-second clip.
+    syncScenePreviewVideo(video, 108, 100, true, true)
+    assert.equal(video.loop, true)
+    assert.equal(video.currentTime, 3)
+    assert.equal(video.paused, false)
+    syncScenePreviewVideo(video, 110, 100, true, true)
+    assert.equal(video.currentTime, 0)
+    assert.equal(video.paused, false)
+    syncScenePreviewVideo(video, 112, 100, false, true)
+    assert.equal(video.currentTime, 2)
+    assert.equal(video.paused, true)
+    syncScenePreviewVideo(video, 112, 100, true, true)
+    assert.equal(video.paused, false)
+    // Entering the next scene starts its clip at zero.
+    syncScenePreviewVideo(video, 114, 114, true, true)
+    assert.equal(video.currentTime, 0)
+})
+
+test('unknown clip duration starts playback without an invalid seek and recovers on metadata', () => {
+    const video = { duration: NaN, readyState: 0, currentTime: 0, paused: true,
+        play() { this.paused = false; return Promise.resolve() }, pause() { this.paused = true } }
+    syncScenePreviewVideo(video, 108, 100, true, true)
+    assert.equal(video.currentTime, 0)
+    assert.equal(video.paused, false)
+    video.duration = 5
+    video.readyState = 1
+    syncScenePreviewVideo(video, 108, 100, true, true)
+    assert.equal(video.currentTime, 3)
+    assert.equal(video.paused, false)
+})
