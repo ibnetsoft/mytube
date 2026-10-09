@@ -1,3 +1,4 @@
+import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { aeMouthApplicable } from '@/lib/stdAeMouth'
 import { ensureAeMouthJob } from '@/lib/stdAeMouthQueue'
 import { NextResponse } from 'next/server'
@@ -41,7 +42,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     try {
         const [scenes, assets] = await Promise.all([
             supabaseAdmin.from('std_project_scenes').select('*').eq('project_id', project.id).order('scene_number'),
-            supabaseAdmin.from('std_project_assets').select('*').eq('project_id', project.id).in('status', ['uploaded', 'assigned']).order('created_at', { ascending: false }),
+            loadStdProjectAssets(supabaseAdmin, project.id, '*'),
         ])
         if (scenes.error || assets.error) throw scenes.error || assets.error
         if (aeMouthApplicable(project, scenes.data || [])) {
