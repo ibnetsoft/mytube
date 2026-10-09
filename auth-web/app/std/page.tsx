@@ -9496,7 +9496,7 @@ export default function StdPortalPage() {
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const motionEffect = sceneMotion(sceneRecord)
                                                 const workerVideo = isWorkerSceneVideo(sceneVideos.get(Number(sNum)))
-                                                const originalVideo = Boolean(group.video_url) && !workerVideo
+                                                const originalVideo = Boolean(sceneVideos.get(Number(sNum)) || group.video_url) && !workerVideo
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : undefined)
                                                 const segmentStatusLabel = group.subtitles.some((item: any) => item.restored_audio_pending)
@@ -9558,6 +9558,11 @@ export default function StdPortalPage() {
                                                                     shouldPlay={shouldPlayThumbnailVideo}
                                                                     priority={Number(sNum) <= 4 || isActive}
                                                                 />
+                                                                {originalVideo && (
+                                                                    <span className="absolute top-0.5 right-0.5 rounded bg-purple-600/90 px-1 text-[8px] font-bold text-white">
+                                                                        {ui("영상")}
+                                                                    </span>
+                                                                )}
                                                                 <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
                                                                     {group.subtitles.length} lines
                                                                 </span>
