@@ -242,11 +242,11 @@ export default function StdSpeakerCoordinates({
                 <div className="pr-5">
                 {error ? <p role="alert" className="mt-1 text-xs">{copy.error}</p> : <StdSpeakerWorkInfo data={data} speakerProgress={speakerProgress} locale={locale} />}
                 </div>
-                <div className="mt-1 grid w-[70%] min-w-[250px] max-w-full grid-cols-2 items-stretch gap-1.5">
+                <div className="mt-1 flex w-full flex-wrap items-start gap-1.5">
                     <button
                         type="button"
                         disabled={!data.scenes.length}
-                        className="min-w-0 whitespace-nowrap rounded-md border border-white/20 bg-cyan-900 px-2 py-1 text-xs disabled:opacity-40"
+                        className="w-max max-w-full flex-none whitespace-normal break-words rounded-md border border-white/20 bg-cyan-900 px-2 py-1 text-xs disabled:opacity-40"
                         onClick={() => {
                             const s =
                                 data.scenes.find((s) => s.number === selectedSceneNumber) ||

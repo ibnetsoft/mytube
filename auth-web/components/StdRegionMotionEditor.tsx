@@ -246,7 +246,7 @@ export default function StdRegionMotionEditor({
         <>
             <button
                 type="button"
-                className="min-w-0 whitespace-nowrap rounded-md border border-white/20 bg-indigo-900 px-2 py-1 text-xs disabled:opacity-40"
+                className="w-max max-w-full flex-none whitespace-normal break-words rounded-md border border-white/20 bg-indigo-900 px-2 py-1 text-xs disabled:opacity-40"
                 onClick={async () => {
                     try {
                         const items = await refresh()
@@ -263,7 +263,7 @@ export default function StdRegionMotionEditor({
                     }
                 }}
             >{tr("영역 동작 지정")}</button>
-            {!open && notice && <p role="status" className="col-span-2 text-xs">{tr(notice)}</p>}
+            {!open && notice && <p role="status" className="w-full text-xs">{tr(notice)}</p>}
             {open &&
                 createPortal(
                     <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/80 p-3">
