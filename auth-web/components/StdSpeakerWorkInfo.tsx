@@ -1,5 +1,6 @@
 export type SpeakerWorkInfo = {
     count: number
+    workerCompleted?: number
     completed: number
     confirmed: number
     failed?: number
@@ -13,18 +14,15 @@ export default function StdSpeakerWorkInfo({ data, speakerProgress = data.speake
     locale?: string
 }) {
     const th = locale === 'th'
+    const workerCompleted = data.workerCompleted
+    const pending = data.pending ?? Math.max(0, data.count - data.completed - (data.failed || 0))
     return <div className="text-xs leading-5 text-cyan-200" role="status">
+        {workerCompleted !== undefined && <p className="font-semibold text-purple-200">{th
+            ? `งาน AIR เสร็จแล้ว ${workerCompleted}/${data.count} ฉาก · ยังไม่เสร็จ ${Math.max(0, data.count - workerCompleted)} ฉาก`
+            : `AIR작업 완료 ${workerCompleted}/${data.count}씬 · 미완료 ${Math.max(0, data.count - workerCompleted)}씬`}</p>}
         <p>{th
-            ? `ตำแหน่งพร้อมสำหรับ AIR STUDIO ${data.completed}/${data.count} ฉาก · ยืนยันเอง ${data.confirmed} ฉาก`
-            : `AIR STUDIO 위치 준비 ${data.completed}/${data.count}씬 · 직접 확정 ${data.confirmed}씬`}</p>
-        <div className="flex flex-wrap items-baseline gap-x-2">
-        <p>{th
-            ? `ต้องตรวจสอบเพิ่ม ${data.failed || 0} ฉาก · รอวิเคราะห์ ${data.pending ?? Math.max(0, data.count - data.completed)} ฉาก`
-            : `추가 확인 ${data.failed || 0}씬 · 남은 분석 ${data.pending ?? Math.max(0, data.count - data.completed)}씬`}</p>
-        {data.completed > 0 && <span className="whitespace-nowrap">{th
-            ? 'พร้อมทำงานใน AIR STUDIO'
-            : 'AIR STUDIO 작업가능'}</span>}
-        </div>
+            ? `ตำแหน่งพร้อม ${data.completed}/${data.count} ฉาก · ต้องตรวจสอบเพิ่ม ${data.failed || 0} ฉาก · รอวิเคราะห์ ${pending} ฉาก · ยืนยันเอง ${data.confirmed} ฉาก`
+            : `위치 준비 ${data.completed}/${data.count}씬 · 추가 확인 ${data.failed || 0}씬 · 남은 분석 ${pending}씬 · 직접 확정 ${data.confirmed}씬`}</p>
         {speakerProgress && <p className="text-yellow-200">{th
             ? `กำหนดผู้พูดแล้ว ${speakerProgress.confirmed}/${speakerProgress.total} คำบรรยาย`
             : `대사 화자 지정 ${speakerProgress.confirmed}/${speakerProgress.total}개 자막`}</p>}

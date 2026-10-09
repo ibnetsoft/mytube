@@ -1,3 +1,4 @@
+import { isWorkerSceneVideo, sceneVideoAssets } from './stdSceneVideo'
 import { coordinateCast, coordinateScenes, savedSpeakerGeometry, savedSpeakerDraft } from './stdSpeakerGeometry'
 import { subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
 
@@ -26,9 +27,13 @@ export function speakerCoordinateOverview(project: any, assets: any[]) {
             heartbeatAt: meta.heartbeat_at || job?.updated_at,
         }
     })
+    // Use the same latest-video selection and AIR badge rule as the subtitle scene list.
+    const videos = sceneVideoAssets(assets, project.id)
+    const workerCompleted = items.filter(scene => isWorkerSceneVideo(videos.get(scene.number))).length
     const results = items.flatMap((s) => (s.result ? [s.result] : []))
     return {
         count: items.length,
+        workerCompleted,
         completed: results.length,
         failed: items.filter((s) => !s.result && s.error).length,
         pending: items.filter((s) => !s.result && !s.error).length,
@@ -41,9 +46,9 @@ export function speakerCoordinateOverview(project: any, assets: any[]) {
 }
 
 export function speakerWorkInfo(project: any, assets: any[]) {
-    const { count, completed, confirmed, failed, pending } = speakerCoordinateOverview(project, assets)
+    const { count, completed, confirmed, failed, pending, workerCompleted } = speakerCoordinateOverview(project, assets)
     const subtitles = Array.isArray(project.project_payload?.subtitles) ? project.project_payload.subtitles : []
     const dialogue = subtitles.filter((row: any) => row.dialogue_kind === 'dialogue')
-    return { projectId: project.id, count, completed, confirmed, failed, pending,
+    return { projectId: project.id, count, completed, confirmed, failed, pending, workerCompleted,
         speakerProgress: { total: dialogue.length, confirmed: dialogue.filter((row: any) => subtitleDialogueSpeakerName(row)).length } }
 }

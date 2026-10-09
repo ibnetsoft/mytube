@@ -9,7 +9,7 @@ const confirmed={id:'confirmation',project_id:'p1',asset_type:'other',status:'up
 function dbMock(projects,assets,error=false){let reads=0;return{get reads(){return reads},from(table){let range=[0,999];const q={select:()=>q,in:()=>q,neq:()=>q,order:()=>q,or:()=>q,range:(a,b)=>{range=[a,b];return q},then:(a,b)=>{if(table==='std_project_assets')reads++;return Promise.resolve({data:table==='std_projects'?projects:assets.slice(range[0],range[1]+1),error:error?new Error('test read failure'):null}).then(a,b)}};return q}}}
 test('admin uses the same coordinate overview and text-matched speaker assignments',async()=>{
  const db=dbMock([project],[image,confirmed]),[topic,empty]=await attachTopicWorkInfo(db,[{id:1},{id:2}]),overview=speakerCoordinateOverview(project,[image,confirmed])
- for(const key of ['count','completed','confirmed','failed','pending'])assert.equal(topic.work_info[key],overview[key])
+ for(const key of ['count','completed','confirmed','failed','pending','workerCompleted'])assert.equal(topic.work_info[key],overview[key])
  assert.deepEqual(topic.work_info.speakerProgress,{total:2,confirmed:1});assert.equal(topic.work_info.confirmed,1);assert.equal(empty.work_info,null)
  assert(!('scenes' in topic.work_info));assert(!('project_payload' in topic.work_info))
 })
@@ -22,7 +22,7 @@ test('read failures are explicit instead of showing a false zero or removing the
 })
 test('shared status display supports Korean and Thai without raw AE labels',()=>{
  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),component=load('components/StdSpeakerWorkInfo.tsx').default
- for(const locale of ['ko','th']){const html=renderToStaticMarkup(React.createElement(component,{locale,data:{count:60,completed:47,confirmed:0,failed:9,pending:4,speakerProgress:{total:183,confirmed:183}}}));assert.match(html,/47\/60/);assert.match(html,/183\/183/);assert.match(html,/AIR STUDIO/);assert.doesNotMatch(html,/\bAE\b/);if(locale==='th')assert.doesNotMatch(html,/[가-힣]/)}
+ for(const locale of ['ko','th']){const html=renderToStaticMarkup(React.createElement(component,{locale,data:{count:60,workerCompleted:6,completed:47,confirmed:0,failed:9,pending:4,speakerProgress:{total:183,confirmed:183}}}));assert.match(html,/47\/60/);assert.match(html,/183\/183/);assert.match(html,/AIR/);assert.match(html,/6\/60/);assert.match(html,/54/);assert.doesNotMatch(html,/\bAE\b/);if(locale==='th')assert.doesNotMatch(html,/[가-힣]/)}
 })
 
 test('current project output completion overrides stale false topic flags',async()=>{
@@ -58,4 +58,16 @@ test('image status is shared for 12 opening videos and remaining stills, includi
  assert.equal(savedStdOutputStepStatus(p,media.slice(0,-1)).isImageDone,false)
  assert.equal(topicOutputStepDone('image',savedStdOutputStepStatus(p,media.slice(1)),{image:true}),false)
  assert.equal(savedStdOutputStepStatus(p,[{...media[0],asset_type:'image'},...media.slice(1)]).isImageDone,false)
+})
+
+test('AIR completion counts latest worker outputs once per target scene and matches admin',async()=>{
+ const output=(id,number,metadata={},extra={})=>({id,project_id:'p1',asset_type:'video',status:'uploaded',scene_number:number,metadata,created_at:'2026-10-09T01:00:00Z',...extra})
+ const videos=[output('old',19,{ae_mouth_fingerprint:'old'},{created_at:'2026-10-08'}),output('latest',19,{ae_mouth_fingerprint:'new'}),output('original',20),output('outside',30,{region_motion_plan_id:'plan'}),output('other-project',20,{lipsync_fingerprint:'fp'},{project_id:'p2'}),output('failed',20,{ae_mouth_fingerprint:'failed'},{status:'failed'})]
+ const assets=[image,confirmed,...videos]
+ assert.equal(speakerCoordinateOverview(project,assets).workerCompleted,1)
+ const [topic]=await attachTopicWorkInfo(dbMock([project],assets),[{id:1}])
+ assert.equal(topic.work_info.workerCompleted,1)
+ const replaced=[...assets,output('new-original',19,{}, {created_at:'2026-10-10'})]
+ assert.equal(speakerCoordinateOverview(project,replaced).workerCompleted,0)
+ assert.equal(speakerCoordinateOverview(project,[...assets,output('region',20,{region_motion_plan_id:'plan'}, {created_at:'2026-10-10'})]).workerCompleted,2)
 })
