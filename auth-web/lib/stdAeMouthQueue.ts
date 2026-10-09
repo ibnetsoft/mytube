@@ -5,6 +5,29 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
     assets = [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     const { input, fingerprint } = aeMouthInput(project, scenes, assets)
     const existing = currentAeMouthJob(project, scenes, assets)
+    // Submission enables video analysis in the existing default AIR worker. No frame decoding
+    // or model call runs inside this HTTP request.
+    const videoCandidates = new Set(input.scenes.filter((scene: any) => scene.original_video &&
+        (!existing?.metadata.auto_video_coordinates || retry || existing?.metadata.results?.some((r: any) =>
+            r.number === scene.number && r.status === 'skipped' &&
+            ['missing_speaker_coordinates', 'missing_reference_image'].includes(r.skip_reason))) &&
+        (!existing?.metadata.results?.some((r: any) => r.number === scene.number) ||
+         existing.metadata.results.some((r: any) => r.number === scene.number &&
+            (r.status === 'needs_review' || (r.status === 'skipped' &&
+             ['missing_speaker_coordinates', 'missing_reference_image'].includes(r.skip_reason)))))
+    ).map((scene: any) => scene.number))
+    if (existing && videoCandidates.size && !existing.metadata.auto_render_queue_id &&
+        ['queued', 'direction_pending', 'review_pending', 'failed', 'reviewed'].includes(existing.metadata.state)) {
+        const metadata = { ...existing.metadata, auto_video_coordinates: true, state: 'queued', phase: 'discovery', error: null,
+            input: { ...existing.metadata.input, scenes: input.scenes.map((scene: any) =>
+                videoCandidates.has(scene.number) ? scene : existing.metadata.input.scenes.find((old: any) => old.number === scene.number) || scene) },
+            results: (existing.metadata.results || []).filter((r: any) => !videoCandidates.has(r.number)) }
+        const updated = await db.from('std_project_assets').update({ metadata, updated_at: new Date().toISOString() })
+            .eq('id', existing.id).eq('updated_at', existing.updated_at).select('*').maybeSingle()
+        if (updated.error) throw updated.error
+        if (!updated.data) throw new Error('AE 작업 상태가 변경되었습니다. 다시 제출해 주세요.')
+        return { ready: false, job: updated.data }
+    }
     if (existing && !existing.metadata.auto_render_queue_id && ['direction_pending', 'review_pending', 'failed', 'reviewed'].includes(existing.metadata.state)) {
         const added = new Set(input.scenes.filter((scene: any) => scene.speaker_regions &&
             existing.metadata.input?.scenes?.some((old: any) => old.number === scene.number && !old.speaker_regions) &&
@@ -37,7 +60,7 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
         throw claim.error
     }
     const inserted = await db.from('std_project_assets').insert({ project_id: project.id, asset_type: 'other', status: 'uploaded',
-        file_name: `ae_mouth_${fingerprint}.json`, mime_type: 'application/json', metadata: { kind: 'ae_mouth_job', state: 'queued', fingerprint, input, results: [] },
+        file_name: `ae_mouth_${fingerprint}.json`, mime_type: 'application/json', metadata: { kind: 'ae_mouth_job', state: 'queued', auto_video_coordinates: true, fingerprint, input, results: [] },
     }).select('*').single()
     if (inserted.error) { await db.storage.from('content-assets').remove([path]); throw inserted.error }
     return { ready: false, job: inserted.data }

@@ -21,6 +21,7 @@ from ae_mouth import assess_dialogue, locate_speakers, mouth_layers, amplitude_c
 from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
 from ae_video_tracking import track_video
+from submitted_video_coordinates import prepare_submitted_video
 from ae_media_utils import ffmpeg, run, ref
 from std_project_assets import load_project_assets
 from ae_mouth_runtime import Heartbeat, instance_lock, claimable_filter
@@ -221,27 +222,36 @@ def process_one(report=None, should_stop=None) -> bool:
                 scene_dir = directory / f'scene-{number}'
                 scene_dir.mkdir(parents=True, exist_ok=True)
                 image = scene_dir / 'original.png'
-                missing = missing_geometry(scene, result['speakers'])
+                auto_video = bool(scene.get('original_video') and meta.get('auto_video_coordinates')
+                                  and (not render_phase or outcomes.get(number, {}).get('video_coordinate_asset_id')))
+                missing = None if auto_video else missing_geometry(scene, result['speakers'])
                 if missing:
                     outcomes[number] = {**result, 'status': 'skipped', 'skip_reason': missing, 'reason': '저장된 화자 좌표 또는 기준 이미지가 없어 건너뜁니다.'}
                     save(results=list(outcomes.values()))
                     continue
-                if not image.exists():
+                if not auto_video and not image.exists():
                     bucket, path = ref(scene['image'])
                     ae._download_gcs_file(ae.GcsRef(bucket, path), image)
                 try:
-                    regions = scene.get('speaker_regions')
-                    if not regions or regions.get('image_id') != scene['image']['id'] or regions.get('source_sha256') != digest(image):
-                        raise ValueError('제출 전 얼굴·입 좌표 준비를 완료해 주세요. 원본 이미지가 변경됐거나 저장된 좌표가 없습니다.')
-                    names = list(dict.fromkeys(r['speaker'] for r in dialogue))
-                    by_name = {r['speaker']:r for r in regions['speakers']}
-                    visibility = visible_speakers({'speakers':[by_name.get(name,{}) for name in names]}, names)
-                    speakers = [r for r in visibility if r['status'] == 'visible']
+                    video, tracking, coordinate_asset_id = None, None, None
+                    if auto_video:
+                        video, image, visibility, speakers, tracking, coordinate_asset_id = prepare_submitted_video(
+                            runner, job['project_id'], scene, dialogue, snapshot['cast'], scene_dir, fresh,
+                            allow_analyze=not render_phase)
+                        result['video_coordinate_asset_id'] = coordinate_asset_id
+                        result['coordinate_state'] = 'ready'
+                    else:
+                        regions = scene.get('speaker_regions')
+                        if not regions or regions.get('image_id') != scene['image']['id'] or regions.get('source_sha256') != digest(image):
+                            raise ValueError('제출 전 얼굴·입 좌표 준비를 완료해 주세요. 원본 이미지가 변경됐거나 저장된 좌표가 없습니다.')
+                        names = list(dict.fromkeys(r['speaker'] for r in dialogue))
+                        by_name = {r['speaker']:r for r in regions['speakers']}
+                        visibility = visible_speakers({'speakers':[by_name.get(name,{}) for name in names]}, names)
+                        speakers = [r for r in visibility if r['status'] == 'visible']
                     if not speakers:
                         outcomes[number] = {**result, 'status': 'skipped', 'reason': '화자가 화면 밖에 있습니다. 화면 속 듣는 인물의 입은 움직이지 않습니다.'}
                     else:
-                        video, tracking = None, None
-                        if scene.get('original_video'):
+                        if scene.get('original_video') and not auto_video:
                             video = scene_dir / 'original-video.mp4'
                             if not video.exists():
                                 bucket, path = ref(scene['original_video'])
@@ -305,11 +315,15 @@ def process_one(report=None, should_stop=None) -> bool:
                                 'metadata': {'storage_provider': 'gcs', 'gcs_bucket': bucket, 'gcs_path': path, 'storage_bucket': bucket,
                                     'storage_path': path, 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'ae_reviewed': False,
                                     'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction,
-                                    'source_image_id': scene['image']['id'], 'source_audio_id': snapshot['audio']['id'],
-                                    'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking},
+                                    'source_image_id': (scene.get('image') or {}).get('id'), 'source_audio_id': snapshot['audio']['id'],
+                                    'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking,
+                                    'video_coordinate_asset_id':coordinate_asset_id},
                             }).json()[0]
                         outcomes[number] = {**result, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction,'tracking':tracking}
-                except ValueError as exc:
+                except (LeaseLost, Obsolete):
+                    raise
+                except Exception as exc:
+                    if auto_video and not result.get('video_coordinate_asset_id'): result['coordinate_state'] = 'needs_review'
                     outcomes[number] = {**result, 'status': 'needs_review', 'reason': str(exc)[:500]}
             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
         fresh()

@@ -57,8 +57,10 @@ def track_video(video, reference, speakers, directory, duration):
                 raise ValueError('화자 얼굴을 안정적으로 추적할 특징점이 부족합니다.')
             states.append({'points':points, 'origin':points.copy(), 'initial_count':len(points),
                            'center':np.array([[(l+r)/2, (t+b)/2]],np.float32), 'matrix':np.eye(2,3,dtype=np.float32),
+                           'face_box':speaker['face_box'][:], 'mouth_box':speaker['mouth_box'][:],
                            'mask':mask.astype(bool), 'appearance':gray[mask.astype(bool)].astype(float)})
-            speaker['tracking'] = [{'at_seconds':0., 'offset':[0.,0.], 'scale':100., 'rotation':0.}]
+            speaker['tracking'] = [{'at_seconds':0., 'offset':[0.,0.], 'scale':100., 'rotation':0.,
+                                    'face_box':speaker['face_box'][:], 'mouth_box':speaker['mouth_box'][:]}]
         previous = gray
         frame = 1
         while frame / fps < duration:
@@ -94,8 +96,15 @@ def track_video(video, reference, speakers, directory, duration):
                 similarity = np.corrcoef(state['appearance'],appearance)[0,1]
                 if not math.isfinite(similarity) or similarity < .65:
                     raise ValueError('얼굴 가림·회전 또는 화자 변경으로 추적을 검수해야 합니다.')
+                def transformed_box(box):
+                    l, t, r, b = box
+                    corners = np.array([[[l*w,t*h],[r*w,t*h],[r*w,b*h],[l*w,b*h]]], np.float32)
+                    warped = cv2.transform(corners, matrix)[0]
+                    return [float(warped[:,0].min()/w), float(warped[:,1].min()/h),
+                            float(warped[:,0].max()/w), float(warped[:,1].max()/h)]
                 speaker['tracking'].append({'at_seconds':round(frame/fps,6),
-                    'offset':(center-state['center'][0]).tolist(), 'scale':scale*100, 'rotation':rotation})
+                    'offset':(center-state['center'][0]).tolist(), 'scale':scale*100, 'rotation':rotation,
+                    'face_box':transformed_box(state['face_box']), 'mouth_box':transformed_box(state['mouth_box'])})
                 state.update(points=moved,origin=origin,matrix=matrix)
             previous = current
             frame += 1

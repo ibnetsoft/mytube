@@ -32,6 +32,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             status: job?.metadata?.state || 'not_started', error: job?.metadata?.error || '',
             results: (job?.metadata?.results || []).map((r: any) => ({ number: r.number, status: r.status, reason: r.reason || '',
                 speakers: r.speakers || [], direction: r.direction || '',
+                coordinateState: r.coordinate_state || '', trackedFrames: r.tracking?.frames_checked || 0,
+                coordinateUrl: r.video_coordinate_asset_id ? `/api/std/projects/${params.projectId}/assets/file?assetId=${r.video_coordinate_asset_id}` : '',
                 videoUrl: r.asset_id ? `/api/std/projects/${params.projectId}/assets/file?assetId=${r.asset_id}` : '',
             })),
         })

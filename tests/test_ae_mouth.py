@@ -75,8 +75,8 @@ def test_snapshot_invalidates_new_sources_but_ignores_generated_output():
     assert not worker.input_matches(snapshot, changed, assets, scenes)
 
 
-@pytest.mark.parametrize('video_scene', [False, True])
-def test_submitted_job_discovers_then_waits_for_direction_approval_before_generating(monkeypatch, tmp_path, video_scene):
+@pytest.mark.parametrize('video_scene,auto_video', [(False,False),(True,False),(True,True)])
+def test_submitted_job_discovers_then_waits_for_direction_approval_before_generating(monkeypatch, tmp_path, video_scene, auto_video):
     import json
     from PIL import Image, ImageDraw
     from ae_media_utils import ffmpeg, run
@@ -132,7 +132,7 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
             return image, speakers, {'source_duration': 3, 'speakers': speakers}
         monkeypatch.setattr(worker, 'track_video', track)
     job = {'id': 'job', 'project_id': 'p', 'asset_type': 'other', 'updated_at': 'initial',
-           'metadata': {'kind': 'ae_mouth_job', 'state': 'queued', 'fingerprint': 'test-fingerprint', 'input': snapshot, 'results': []}}
+           'metadata': {'kind': 'ae_mouth_job', 'state': 'queued', 'fingerprint': 'test-fingerprint', 'input': snapshot, 'results': [], 'auto_video_coordinates': auto_video}}
     class Response:
         def __init__(self, value): self.value = copy.deepcopy(value)
         def json(self): return self.value
@@ -154,6 +154,17 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
         if method == 'POST':
             asset = {**json, 'id': 'output'}; assets.insert(0, asset); return Response([asset])
         raise AssertionError(method)
+    if auto_video:
+        def prepare(runner, project_id, scene, dialogue, cast, directory, fresh, allow_analyze):
+            fresh()
+            if scene['number'] == 5:
+                raise ValueError('face is obscured')
+            tracked.append(scene['end']-scene['start'])
+            path = directory / 'original-video.mp4'
+            path.write_bytes(original.read_bytes())
+            visibility = copy.deepcopy(scene['speaker_regions']['speakers'])
+            return path, original, visibility, copy.deepcopy(visibility), {'source_duration':3}, 'saved-video-coordinates'
+        monkeypatch.setattr(worker, 'prepare_submitted_video', prepare)
     monkeypatch.setattr(worker, 'ROOT', tmp_path)
     monkeypatch.setattr(ae, '_supabase', lambda: ('https://db', {}))
     monkeypatch.setattr(ae, '_request', request)
@@ -195,20 +206,24 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
         assert worker.process_one(should_stop=lambda: any(r.get('number') == 5 for r in job['metadata']['results']))
         assert job['metadata']['state'] == 'processing'
         assert tracked == []
-        assert next(r for r in job['metadata']['results'] if r['number'] == 5)['status'] == 'skipped'
+        assert next(r for r in job['metadata']['results'] if r['number'] == 5)['status'] == ('needs_review' if auto_video else 'skipped')
     assert worker.process_one()
     assert job['metadata']['state'] == 'direction_pending'
     assert generated == []
-    assert [r['status'] for r in job['metadata']['results']] == (['skipped', 'direction_pending', 'skipped'] if video_scene else ['direction_pending', 'skipped'])
+    assert [r['status'] for r in job['metadata']['results']] == ([('needs_review' if auto_video else 'skipped'), 'direction_pending', 'skipped'] if video_scene else ['direction_pending', 'skipped'])
     if video_scene:
-        assert job['metadata']['results'][0]['skip_reason'] == 'missing_speaker_coordinates'
+        if auto_video:
+            assert job['metadata']['results'][0]['coordinate_state'] == 'needs_review'
+            assert job['metadata']['results'][1]['video_coordinate_asset_id'] == 'saved-video-coordinates'
+        else:
+            assert job['metadata']['results'][0]['skip_reason'] == 'missing_speaker_coordinates'
         assert tracked == [18]
     job['metadata']['state'] = 'direction_approved'; job['metadata']['phase'] = 'render'
     job['metadata']['results'][1 if video_scene else 0]['status'] = 'direction_approved'
     assert worker.process_one()
     assert job['metadata']['state'] == 'review_pending'
     assert len(generated) == 3
-    assert [r['status'] for r in job['metadata']['results']] == (['skipped', 'review_pending', 'skipped'] if video_scene else ['review_pending', 'skipped'])
+    assert [r['status'] for r in job['metadata']['results']] == ([('needs_review' if auto_video else 'skipped'), 'review_pending', 'skipped'] if video_scene else ['review_pending', 'skipped'])
     output = next(a for a in assets if a.get('metadata', {}).get('ae_mouth_fingerprint'))
     assert output['metadata']['source_video_id'] == ('video12' if video_scene else None)
     assert output['metadata']['timing_locked'] is True
