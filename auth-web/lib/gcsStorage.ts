@@ -226,6 +226,17 @@ export async function downloadGcsObject(input: {
     return data
 }
 
+export async function deleteGcsObject(input: { bucket: string; objectPath: string }) {
+    await getGcsConfig().catch(() => null)
+    const bucket = getStorageClient()?.bucket(input.bucket)
+    if (!bucket) throw new Error('GCS storage is not configured')
+    try {
+        await bucket.file(input.objectPath).delete()
+    } catch (error: any) {
+        if (Number(error?.code) !== 404) throw error
+    }
+}
+
 export async function getGcsObjectMetadata(input: { bucket?: string; objectPath: string }) {
     await getGcsConfig()
     const [metadata] = await getBucket(input.bucket).file(input.objectPath).getMetadata()

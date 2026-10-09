@@ -24,6 +24,17 @@ test('changed source, voice, cast, classification or AE direction invalidates fi
  }
  const f=fixture();f.project.project_payload.subtitles[1].text='변경';assert.throws(()=>lib.aeMouthInput(f.project,f.scenes,f.assets),/TTS/);
 });
+test('replacing a submitted dialogue clip invalidates the old AE job',()=>{
+ const f=fixture();f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='소녀';
+ f.assets.push({id:'old-video',project_id:'p',asset_type:'video',status:'assigned',scene_number:18,created_at:'2026-10-05',metadata:{gcs_path:'old.mp4'}});
+ const snapshot=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ f.assets.push({id:'old-job',asset_type:'other',status:'uploaded',created_at:'2026-10-06',metadata:{kind:'ae_mouth_job',state:'queued',...snapshot}});
+ assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets).id,'old-job');
+ f.assets.find(a=>a.id==='old-video').status='replaced';
+ f.assets.push({id:'new-video',project_id:'p',asset_type:'video',status:'assigned',scene_number:18,created_at:'2026-10-09',metadata:{gcs_path:'new.mp4'}});
+ assert.equal(lib.currentAeMouthJob(f.project,f.scenes,f.assets),null);
+ assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].original_video.id,'new-video');
+});
 test('render gate accepts reviewed current assets, rejects unreviewed and stale output',()=>{
  const f=fixture(),fingerprint=lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint;
  const output={id:'output',asset_type:'video',status:'uploaded',scene_number:19,metadata:{ae_mouth_fingerprint:fingerprint,ae_reviewed:true,timing_locked:true,duration_seconds:2}};

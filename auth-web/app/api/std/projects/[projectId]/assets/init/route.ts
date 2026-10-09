@@ -1,4 +1,5 @@
 import { isComicProject } from '@/lib/stdComic'
+import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -55,7 +56,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
-    if (['review_requested', 'approved', 'canceled'].includes(project.status) && !(['sfx', 'bgm'].includes(assetType) && sceneNumber == null && project.status !== 'canceled')) {
+    if (!canEditStdAsset(project, assetType, sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 

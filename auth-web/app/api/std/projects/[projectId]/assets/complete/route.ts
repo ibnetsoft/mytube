@@ -1,11 +1,14 @@
 import { isComicProject } from '@/lib/stdComic'
+import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
+import { queueSubmittedVideoReplacement } from '@/lib/stdSubmittedVideoReplacement'
+import { cleanupReplacedSceneVideos } from '@/lib/stdReplacedVideoCleanup'
 import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { isStdRequiredClipScene, isStdVideoPromptScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
-import { isGcsConfiguredAsync } from '@/lib/gcsStorage'
+import { getGcsObjectMetadata, isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,7 +138,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
-    if (['review_requested', 'approved', 'canceled'].includes(project.status) && !(['sfx', 'bgm'].includes(assetType) && sceneNumber == null && project.status !== 'canceled')) {
+    if (!canEditStdAsset(project, assetType, sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
@@ -206,6 +209,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (!(await isGcsConfiguredAsync())) {
             return NextResponse.json({ success: false, error: 'GCS storage is not configured' }, { status: 500 })
         }
+        const uploadedObject = await getGcsObjectMetadata({ bucket: storageBucket, objectPath: storagePath })
+        if (!uploadedObject.size || (assetType === 'video' && !uploadedObject.contentType.startsWith('video/'))) {
+            return NextResponse.json({ success: false, error: 'Uploaded GCS file is missing or invalid' }, { status: 422 })
+        }
 
         const { data: existingAsset, error: existingAssetError } = await supabaseAdmin
             .from('std_project_assets')
@@ -223,10 +230,21 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         )) {
             return NextResponse.json({ success: false, error: 'GCS file is already assigned to another asset' }, { status: 409 })
         }
+        if (existingAsset && !['uploaded', 'assigned'].includes(existingAsset.status)) {
+            return NextResponse.json({ success: false, error: 'This GCS file has already been replaced' }, { status: 409 })
+        }
 
         let asset = existingAsset
+        let replacedVideos: any[] = []
         if (!asset) {
             if (sceneNumber != null && ['image', 'video'].includes(assetType)) {
+                if (assetType === 'video') {
+                    const previous = await supabaseAdmin.from('std_project_assets').select('id,metadata')
+                        .eq('project_id', project.id).eq('scene_number', sceneNumber).eq('asset_type', 'video')
+                        .in('status', ['uploaded', 'assigned'])
+                    if (previous.error) throw previous.error
+                    replacedVideos = previous.data || []
+                }
                 const { error: replaceError } = await supabaseAdmin
                     .from('std_project_assets')
                     .update({ status: 'replaced', updated_at: new Date().toISOString() })
@@ -305,14 +323,34 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             return NextResponse.json({ success: false, error: projectUpdateError.message }, { status: 500 })
         }
 
+        let postprocessWarning: string | null = null
+        if (assetType === 'video' && sceneNumber != null && project.status === 'review_requested') {
+            try {
+                await queueSubmittedVideoReplacement(project, nextProjectPayload)
+            } catch (error: any) {
+                console.error('[STD VideoReplacement] AE queue failed:', error?.message)
+                postprocessWarning = '영상은 교체됐지만 AIR 작업을 다시 예약하지 못했습니다. 프로젝트를 다시 제출해 주세요.'
+            }
+        }
+
         try {
             await syncStdProjectToLegacy(project.id)
         } catch (syncError: any) {
             console.error('[STD AssetComplete] legacy sync failed:', syncError?.message)
         }
 
+        if (replacedVideos.length) {
+            try {
+                await cleanupReplacedSceneVideos(project.id, replacedVideos, asset)
+            } catch (cleanupError: any) {
+                console.error('[STD AssetComplete] replaced GCS video cleanup failed:', cleanupError?.message)
+                postprocessWarning = [postprocessWarning, '영상은 교체됐지만 이전 GCS 파일을 삭제하지 못했습니다.'].filter(Boolean).join(' ')
+            }
+        }
+
         return NextResponse.json({
             success: true,
+            postprocess_warning: postprocessWarning,
             asset: {
                 ...asset,
                 drive_file_link: null,

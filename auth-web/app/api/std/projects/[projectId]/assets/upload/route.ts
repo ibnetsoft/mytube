@@ -1,4 +1,7 @@
 import { isComicProject } from '@/lib/stdComic'
+import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
+import { queueSubmittedVideoReplacement } from '@/lib/stdSubmittedVideoReplacement'
+import { cleanupReplacedSceneVideos } from '@/lib/stdReplacedVideoCleanup'
 import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
@@ -145,7 +148,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
-    if (['review_requested', 'approved', 'canceled'].includes(project.status)) {
+    if (!canEditStdAsset(project, assetType, sceneNumber)) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
@@ -219,14 +222,23 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }
         const stored = await uploadGcsBuffer({ objectPath: storagePath, data: buffer, contentType: mimeType })
 
+        let replacedVideos: any[] = []
         if (sceneNumber != null && ['image', 'video'].includes(assetType)) {
-            await supabaseAdmin
+            if (assetType === 'video') {
+                const previous = await supabaseAdmin.from('std_project_assets').select('id,metadata')
+                    .eq('project_id', project.id).eq('scene_number', sceneNumber).eq('asset_type', 'video')
+                    .in('status', ['uploaded', 'assigned'])
+                if (previous.error) throw previous.error
+                replacedVideos = previous.data || []
+            }
+            const { error: replaceError } = await supabaseAdmin
                 .from('std_project_assets')
                 .update({ status: 'replaced', updated_at: new Date().toISOString() })
                 .eq('project_id', project.id)
                 .eq('scene_number', sceneNumber)
                 .eq('asset_type', assetType)
                 .in('status', ['uploaded', 'assigned'])
+            if (replaceError) throw replaceError
         }
 
         const { data: asset, error: assetError } = await supabaseAdmin
@@ -273,7 +285,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const progressPayload = project.progress_payload || {}
         const nextProjectPayload = buildProjectPayloadWithVisualAsset(project, sceneNumber, assetType, asset)
 
-        await supabaseAdmin
+        const { error: projectUpdateError } = await supabaseAdmin
             .from('std_projects')
             .update({
                 status: project.status === 'claimed' ? 'in_progress' : project.status,
@@ -286,6 +298,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 updated_at: new Date().toISOString(),
             })
             .eq('id', project.id)
+        if (projectUpdateError) throw projectUpdateError
+
+        let postprocessWarning: string | null = null
+        if (assetType === 'video' && sceneNumber != null && project.status === 'review_requested') {
+            try {
+                await queueSubmittedVideoReplacement(project, nextProjectPayload)
+            } catch (error: any) {
+                console.error('[STD VideoReplacement] AE queue failed:', error?.message)
+                postprocessWarning = '영상은 교체됐지만 AIR 작업을 다시 예약하지 못했습니다. 프로젝트를 다시 제출해 주세요.'
+            }
+        }
 
         try {
             await syncStdProjectToLegacy(project.id)
@@ -293,8 +316,18 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             console.error('[STD AssetUpload] legacy sync failed:', syncError?.message)
         }
 
+        if (replacedVideos.length) {
+            try {
+                await cleanupReplacedSceneVideos(project.id, replacedVideos, asset)
+            } catch (cleanupError: any) {
+                console.error('[STD AssetUpload] replaced GCS video cleanup failed:', cleanupError?.message)
+                postprocessWarning = [postprocessWarning, '영상은 교체됐지만 이전 GCS 파일을 삭제하지 못했습니다.'].filter(Boolean).join(' ')
+            }
+        }
+
         return NextResponse.json({
             success: true,
+            postprocess_warning: postprocessWarning,
             asset: {
                 ...asset,
                 drive_file_link: null,

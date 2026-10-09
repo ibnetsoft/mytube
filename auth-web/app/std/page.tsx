@@ -211,6 +211,7 @@ import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
+import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
@@ -5674,6 +5675,7 @@ export default function StdPortalPage() {
             })
             const mimeType = inferVisualMimeType(file, actualAssetType)
             let persistedAsset: any = null
+            let postprocessWarning = ''
             const shouldUseDirectStorageUpload = ['image', 'video', 'thumbnail'].includes(actualAssetType)
                 && file.size >= GCS_DIRECT_UPLOAD_THRESHOLD_BYTES
 
@@ -5730,6 +5732,7 @@ export default function StdPortalPage() {
                     throw new Error(completePayload.error || 'Asset upload complete failed')
                 }
                 persistedAsset = completePayload.asset
+                postprocessWarning = String(completePayload.postprocess_warning || '')
             } else {
                 const form = new FormData()
                 form.set('file', file)
@@ -5752,6 +5755,7 @@ export default function StdPortalPage() {
                     throw new Error(uploadPayload.error || 'Asset upload failed')
                 }
                 persistedAsset = uploadPayload.asset
+                postprocessWarning = String(uploadPayload.postprocess_warning || '')
             }
             if (!assetBelongsToProject(persistedAsset, uploadProjectId)) {
                 throw new Error('업로드 결과의 프로젝트가 일치하지 않습니다.')
@@ -5806,7 +5810,7 @@ export default function StdPortalPage() {
                     return 'synced'
                 }
             }
-            setMessage(`에셋 (${file.name}) 저장 완료! GCS API 보관본도 준비합니다.`)
+            setMessage(postprocessWarning || `에셋 (${file.name}) 저장 완료! GCS API 보관본도 준비합니다.`)
             return 'synced'
         } catch (error: any) {
             if (objectUrl) {
@@ -10765,7 +10769,7 @@ export default function StdPortalPage() {
                                                                     type="file"
                                                                     accept="video/*"
                                                                     className="hidden"
-                                                                    disabled={isUploading}
+                                                                    disabled={isUploading || !canEditStdAsset(selectedProject.project, 'video', Number(scene.scene_number))}
                                                                     onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
                                                                 />
                                                             </label>
@@ -10840,7 +10844,7 @@ export default function StdPortalPage() {
                                                                 </button>
                                                                 {isMiddleVideo && <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-300 hover:text-amber-200'} transition-colors`}>
                                                                     <span className="text-gray-600">|</span> {isUploading ? ui('업로드 중...') : scene.video_url ? ui('영상 교체') : ui('영상 업로드')}
-                                                                    <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || ['review_requested','approved','canceled'].includes(selectedProject.project.status)} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />
+                                                                    <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || !canEditStdAsset(selectedProject.project, 'video', Number(scene.scene_number))} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />
                                                                 </label>}
                                                             </div>
                                                         </div>
