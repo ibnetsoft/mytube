@@ -1,3 +1,4 @@
+import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
 import { reviewedAeMouthAssets } from './stdAeMouth'
 import { comicSettingsForProject, isComicProject, selectComicMedia, comicSceneTimings } from './stdComic'
@@ -469,11 +470,7 @@ async function loadBundle(projectId: string) {
             .select('*')
             .eq('project_id', project.id)
             .order('scene_number', { ascending: true }),
-        supabaseAdmin
-            .from('std_project_assets')
-            .select('*')
-            .eq('project_id', project.id)
-            .order('created_at', { ascending: false }),
+        loadStdProjectAssets(supabaseAdmin, project.id, '*'),
     ])
     if (scenesError) throw scenesError
     if (assetsError) throw assetsError

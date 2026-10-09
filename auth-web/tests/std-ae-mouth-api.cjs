@@ -3,6 +3,7 @@ function load(auth,db,lib={}){
  const ex={};new Function('exports','require',ts.transpile(fs.readFileSync('app/api/std/projects/[projectId]/ae-mouth/route.ts','utf8'),{module:1,target:7}))(ex,name=>{
   if(name==='next/server')return {NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:db};
+  if(name.includes('stdProjectAssets'))return {loadStdProjectAssets:async()=>({data:[],error:null})};
   if(name.includes('stdWeb'))return {requireStdUser:async()=>auth};
   if(name.includes('stdAeMouthQueue'))return {ensureAeMouthJob:()=>{throw Error('unexpected generation')}};
   if(name.includes('stdAeMouth'))return lib;

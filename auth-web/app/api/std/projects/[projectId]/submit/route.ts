@@ -1,3 +1,4 @@
+import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -139,12 +140,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .from('std_project_scenes')
             .select('*')
             .eq('project_id', project.id),
-        supabaseAdmin
-            .from('std_project_assets')
-            .select('*')
-            .eq('project_id', project.id)
-            .in('asset_type', ['image', 'video', 'audio', 'bgm', 'sfx', 'thumbnail', 'other'])
-            .in('status', ['uploaded', 'assigned']),
+        loadStdProjectAssets(supabaseAdmin, project.id, '*'),
     ])
 
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })

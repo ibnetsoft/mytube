@@ -1,3 +1,4 @@
+import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -14,7 +15,7 @@ async function bundle(req: Request, id: string) {
     if (!project.data) return { response: NextResponse.json({ error: 'Project not found' }, { status: 404 }) }
     const [s, a] = await Promise.all([
         db.from('std_project_scenes').select('*').eq('project_id', id).order('scene_number'),
-        db.from('std_project_assets').select('*').eq('project_id', id).order('created_at', { ascending: false }),
+        loadStdProjectAssets(db, id, '*'),
     ])
     if (s.error || a.error) throw s.error || a.error
     return { project: project.data, scenes: s.data || [], assets: a.data || [] }
