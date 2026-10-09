@@ -17,7 +17,7 @@ import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotic
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
-import { isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo } from '@/lib/stdSceneVideo'
+import { sceneClipTailStyle, isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo } from '@/lib/stdSceneVideo'
 import { downloadStdFile } from '@/lib/stdFileDownload'
 import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -7114,6 +7114,7 @@ export default function StdPortalPage() {
 
     const sceneVideos = useMemo(() => sceneVideoAssets(selectedProject?.assets || [], selectedProject?.project?.id || ''), [selectedProject?.assets, selectedProject?.project?.id])
     const [resolvedPreviewVideo, setResolvedPreviewVideo] = useState<{ key: string; url: string; error: boolean } | null>(null)
+    const [previewClipDuration, setPreviewClipDuration] = useState<{ url: string; duration: number } | null>(null)
 
     const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
         text: '글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.',
@@ -7307,8 +7308,8 @@ export default function StdPortalPage() {
         const video = vrewPreviewVideoRef.current
         if (!video) return
         syncScenePreviewVideo(video, playbackTime, previewMotionStart,
-            currentNav === 'subtitle_vrew' && isPlayingPreview && Boolean(currentSubVideoUrl), !currentPreviewIsWorkerVideo)
-    }, [currentNav, currentSubVideoUrl, isPlayingPreview, playbackTime, previewMotionStart, currentPreviewIsWorkerVideo])
+            currentNav === 'subtitle_vrew' && isPlayingPreview && Boolean(currentSubVideoUrl))
+    }, [currentNav, currentSubVideoUrl, isPlayingPreview, playbackTime, previewMotionStart])
     useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
@@ -9897,12 +9898,18 @@ export default function StdPortalPage() {
                                                     key={`${selectedProject?.project?.id}:${currentPreviewSceneNumber}:${currentSubVideoUrl}`}
                                                     ref={vrewPreviewVideoRef}
                                                     src={currentSubVideoUrl}
-                                                    loop={!currentPreviewIsWorkerVideo}
                                                     poster={currentSubImageUrl || undefined}
                                                     preload="auto"
-                                                    onLoadedMetadata={event => syncScenePreviewVideo(event.currentTarget, playbackTime, previewMotionStart, isPlayingPreview, !currentPreviewIsWorkerVideo)}
+                                                    onLoadedMetadata={event => {
+                                                        setPreviewClipDuration({ url: currentSubVideoUrl, duration: event.currentTarget.duration })
+                                                        syncScenePreviewVideo(event.currentTarget, playbackTime, previewMotionStart, isPlayingPreview)
+                                                    }}
+                                                    onDurationChange={event => setPreviewClipDuration({ url: currentSubVideoUrl, duration: event.currentTarget.duration })}
                                                     onError={() => setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })}
-                                                    style={currentPreviewIsWorkerVideo ? previewImageMotionStyle : undefined}
+                                                    style={currentPreviewIsWorkerVideo ? previewImageMotionStyle : sceneClipTailStyle(
+                                                        playbackTime, previewMotionStart, previewMotionEnd,
+                                                        previewClipDuration?.url === currentSubVideoUrl ? previewClipDuration.duration : 0,
+                                                    )}
                                                     className="w-full h-full object-cover"
                                                     muted
                                                     playsInline

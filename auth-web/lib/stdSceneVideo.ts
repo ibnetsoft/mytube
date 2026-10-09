@@ -31,14 +31,22 @@ export async function loadScenePreviewVideo(projectId: string, assetId: string, 
     return { url, revoke: () => URL.revokeObjectURL(url) }
 }
 
-/** Original clips loop across the narration; timed AIR output holds its final frame. */
-export function syncScenePreviewVideo(video: HTMLVideoElement, time: number, sceneStart: number, playing: boolean, loop = false) {
+/** Seek by scene time and retain the last frame after the clip ends. */
+export function syncScenePreviewVideo(video: HTMLVideoElement, time: number, sceneStart: number, playing: boolean) {
     const offset = Math.max(0, time - sceneStart)
     const end = Number.isFinite(video.duration) && video.duration > 0 ? Math.max(0, video.duration - 0.04) : Infinity
-    const canLoop = loop && Number.isFinite(video.duration) && video.duration > 0
-    video.loop = loop
-    const target = canLoop ? offset % video.duration : Math.min(offset, end)
+    video.loop = false
+    const target = Math.min(offset, end)
     if (video.readyState >= 1 && Math.abs(video.currentTime - target) > (playing ? 0.3 : 0.01)) video.currentTime = target
-    if (!playing || (!canLoop && offset >= end)) video.pause()
+    if (!playing || offset >= end) video.pause()
     else if (video.paused) void video.play().catch(() => {})
+}
+
+/** Start a gentle zoom only after the original clip, across the remaining scene time. */
+export function sceneClipTailStyle(time: number, sceneStart: number, sceneEnd: number, clipDuration: number) {
+    const tailStart = sceneStart + clipDuration
+    const hasTail = Number.isFinite(clipDuration) && clipDuration > 0 && sceneEnd > tailStart
+    const progress = hasTail ? Math.max(0, Math.min(1, (time - tailStart) / (sceneEnd - tailStart))) : 0
+    const eased = (1 - Math.cos(Math.PI * progress)) / 2
+    return { transform: `scale(${1 + 0.06 * eased})`, transformOrigin: 'center', willChange: 'transform' }
 }

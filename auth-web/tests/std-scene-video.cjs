@@ -11,7 +11,7 @@ mod.paths = Module._nodeModulePaths(path.dirname(filename))
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, filename)
-const { isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo } = mod.exports
+const { isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo, sceneClipTailStyle } = mod.exports
 const asset = (id, scene, metadata = {}, extra = {}) => ({ id, project_id: 'p', scene_number: scene, asset_type: 'video', status: 'uploaded', metadata, ...extra })
 
 test('original clips stay distinct from all three worker output formats', () => {
@@ -68,36 +68,32 @@ test('AIR preview seeks within the scene, continues playback, pauses and replays
     assert.equal(video.paused, false)
 })
 
-test('original clips keep moving after their first pass and seek into later subtitles', () => {
+test('original clips hold their last frame, then zoom only during the remaining scene time', () => {
     const video = { duration: 5, readyState: 1, currentTime: 0, paused: true,
         play() { this.paused = false; return Promise.resolve() }, pause() { this.paused = true } }
-    // An eight-second offset is inside the second pass of a five-second clip.
-    syncScenePreviewVideo(video, 108, 100, true, true)
-    assert.equal(video.loop, true)
+    syncScenePreviewVideo(video, 103, 100, true)
     assert.equal(video.currentTime, 3)
     assert.equal(video.paused, false)
-    syncScenePreviewVideo(video, 110, 100, true, true)
-    assert.equal(video.currentTime, 0)
-    assert.equal(video.paused, false)
-    syncScenePreviewVideo(video, 112, 100, false, true)
-    assert.equal(video.currentTime, 2)
+    assert.equal(sceneClipTailStyle(103, 100, 115, 5).transform, 'scale(1)')
+    assert.equal(sceneClipTailStyle(105, 100, 115, 5).transform, 'scale(1)')
+    syncScenePreviewVideo(video, 110, 100, true)
+    assert.equal(video.loop, false)
+    assert.equal(video.currentTime, 4.96)
     assert.equal(video.paused, true)
-    syncScenePreviewVideo(video, 112, 100, true, true)
+    assert.equal(sceneClipTailStyle(110, 100, 115, 5).transform, 'scale(1.03)')
+    assert.equal(sceneClipTailStyle(115, 100, 115, 5).transform, 'scale(1.06)')
+    assert.equal(sceneClipTailStyle(200, 100, 115, 5).transform, 'scale(1.06)')
+    // Scrubbing back restarts the video and removes the tail zoom.
+    syncScenePreviewVideo(video, 102, 100, true)
+    assert.equal(video.currentTime, 2)
     assert.equal(video.paused, false)
-    // Entering the next scene starts its clip at zero.
-    syncScenePreviewVideo(video, 114, 114, true, true)
-    assert.equal(video.currentTime, 0)
+    assert.equal(sceneClipTailStyle(102, 100, 115, 5).transform, 'scale(1)')
+    // Next scene does not inherit the previous scene's zoom.
+    assert.equal(sceneClipTailStyle(115, 115, 125, 5).transform, 'scale(1)')
 })
 
-test('unknown clip duration starts playback without an invalid seek and recovers on metadata', () => {
-    const video = { duration: NaN, readyState: 0, currentTime: 0, paused: true,
-        play() { this.paused = false; return Promise.resolve() }, pause() { this.paused = true } }
-    syncScenePreviewVideo(video, 108, 100, true, true)
-    assert.equal(video.currentTime, 0)
-    assert.equal(video.paused, false)
-    video.duration = 5
-    video.readyState = 1
-    syncScenePreviewVideo(video, 108, 100, true, true)
-    assert.equal(video.currentTime, 3)
-    assert.equal(video.paused, false)
+test('no tail zoom for unknown duration or a clip covering the entire scene', () => {
+    for (const duration of [0, NaN, Infinity, 15, 20]) {
+        assert.equal(sceneClipTailStyle(115, 100, 115, duration).transform, 'scale(1)')
+    }
 })
