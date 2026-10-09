@@ -18,6 +18,8 @@ def pending_video_tail(scene, payload):
     if duration <= source_duration + .12 or asset.get('status') in {'needs_attention', 'rendering'}:
         return False
     current = asset.get('video_tail_policy') == VIDEO_TAIL_POLICY and abs(float(asset.get('duration_seconds') or 0) - duration) <= .12
+    if current and asset.get('status') == 'review_pending' and (payload or {}).get('ae_mouth', {}).get('enabled'):
+        return True  # Reuse checkpoint and inspect output automatically after updating the worker.
     return not (current and asset.get('status') in {'ready', 'review_pending'})
 
 
@@ -66,3 +68,22 @@ def video_tail_jsx(timing_locked=False):
     }
   }
 '''.replace('TAIL_TIMING_LOCKED', 'true' if timing_locked else 'false')
+
+
+def automatic_tail_review(payload, result):
+    """Authorize only the submitted-project tail whose real-source/output QA passed."""
+    if not (payload or {}).get('ae_mouth', {}).get('enabled'):
+        return None
+    qa = result.get('scene_visual_qa') or {}
+    direction = result.get('directorial_plan') or {}
+    checks = qa.get('checks') or []
+    if (result.get('video_tail_policy') != VIDEO_TAIL_POLICY
+            or direction.get('source_video_review_status') != 'reviewed'
+            or qa.get('passed') is not True or qa.get('critical_issues') != []
+            or not checks or not all(isinstance(c, dict) and c.get('passed') is True and str(c.get('evidence') or '').strip() for c in checks)
+            or not all(any(c.get('assertion') == assertion for c in checks) for assertion in direction.get('qa_assertions', []))
+            or not result.get('render_sha256')):
+        return None
+    return {'decision':'approved','reviewer':'Codex automatic worker',
+            'note':'Actual uploaded source keyframes and rendered output inspected by local Codex CLI; scene_visual_qa contains evidence.',
+            'render_sha256':result['render_sha256']}

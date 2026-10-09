@@ -884,10 +884,19 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
     }
 }
 
-export async function enqueueStdProjectRender(projectId: string) {
+export async function enqueueStdProjectRender(projectId: string, automatic?: { jobId: string; taskId: string }) {
     const { project, scenes, assets } = await loadBundle(projectId)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')
 
+    if (automatic) {
+        const receipt = await supabaseAdmin.from('remote_render_queue').select('*').eq('id', automatic.taskId).maybeSingle()
+        if (receipt.error) throw receipt.error
+        if (receipt.data) {
+            if (receipt.data.metadata?.ae_mouth_job_id !== automatic.jobId || receipt.data.metadata?.std_web_project_id !== projectId)
+                throw new Error('Automatic render receipt does not match this job')
+            return receipt.data
+        }
+    }
     const { data: activeRows, error: activeRowsError } = await supabaseAdmin
         .from('remote_render_queue')
         .select('*')
@@ -896,7 +905,11 @@ export async function enqueueStdProjectRender(projectId: string) {
         .order('created_at', { ascending: false })
     if (activeRowsError) throw activeRowsError
     const existingRow = (activeRows || [])[0]
-    if (existingRow) return existingRow
+    if (existingRow) {
+        if (automatic && existingRow.metadata?.ae_mouth_job_id !== automatic.jobId)
+            throw new Error('Another render is active for this project')
+        return existingRow
+    }
 
     const renderHistory = await getStdProjectRenderHistory(project.id)
     const renderVersion = nextStdRenderVersion(renderHistory)
@@ -905,7 +918,7 @@ export async function enqueueStdProjectRender(projectId: string) {
     reviewedLipSyncAssets(project, scenes, assets)
     reviewedAeMouthAssets(project, scenes, assets)
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
-    const taskId = randomUUID()
+    const taskId = automatic?.taskId || randomUUID()
 
     const archivedAssets = await ensureStdGeneratedSceneAssetsArchived(project, scenes, assets)
     const renderConfig = {
@@ -938,6 +951,7 @@ export async function enqueueStdProjectRender(projectId: string) {
     }
 
     const metadata = {
+        ...(automatic ? { ae_mouth_job_id: automatic.jobId } : {}),
         queue_scope: 'remote_render',
         worker_platform: 'korea_render_pc',
         upload_owner: 'web_admin',
@@ -990,7 +1004,13 @@ export async function enqueueStdProjectRender(projectId: string) {
         .insert(payload)
         .select()
         .single()
-    if (error) throw error
+    if (error) {
+        if (automatic && error.code === '23505') {
+            const receipt = await supabaseAdmin.from('remote_render_queue').select('*').eq('id', taskId).single()
+            if (!receipt.error && receipt.data?.metadata?.ae_mouth_job_id === automatic.jobId && receipt.data?.metadata?.std_web_project_id === projectId) return receipt.data
+        }
+        throw error
+    }
 
     await Promise.all([
         supabaseAdmin

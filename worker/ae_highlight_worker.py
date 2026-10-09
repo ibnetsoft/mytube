@@ -710,13 +710,19 @@ def _qa_uploaded_video_render(job: SceneJob, render_path: Path,
         "Review the attached frames from the rendered AE scene against approved_direction and its qa_assertions. "
         "Check that directed effects happen in the stated time windows, the uploaded action and identities remain "
         "consistent, and no unintended zoom, repeated motion, color/wardrobe drift, or visual damage appears. "
+        "Include one check for each qa_assertions entry, copying the assertion exactly. If uncertain fail. "
         "Return JSON only: {\"passed\":boolean,\"critical_issues\":[string],\"checks\":[{\"assertion\":string,\"passed\":boolean,\"evidence\":string}]}.",
     )
     if not isinstance(result, dict) or not isinstance(result.get("passed"), bool):
         raise AeReviewRequired("Scene visual QA did not return a valid pass/fail result")
     critical = result.get("critical_issues") if isinstance(result.get("critical_issues"), list) else []
     checks = result.get("checks") if isinstance(result.get("checks"), list) else []
-    report = {"passed": result["passed"] and not critical, "critical_issues": critical,
+    assertions = direction.get("qa_assertions") or []
+    complete = (bool(checks) and isinstance(result.get("critical_issues"), list)
+                and all(isinstance(c, dict) and c.get("passed") is True
+                        and str(c.get("evidence") or "").strip() for c in checks)
+                and all(any(c.get("assertion") == assertion for c in checks) for assertion in assertions))
+    report = {"passed": result["passed"] and not critical and complete, "critical_issues": critical,
               "checks": checks, "review_frame_timestamps_seconds": timestamps}
     if not report["passed"]:
         raise AeReviewRequired("AE scene visual QA failed: " + "; ".join(str(issue) for issue in critical[:6]))
@@ -1745,6 +1751,13 @@ def process_job(job: SceneJob, *, keep_workdir: bool = False) -> dict[str, Any]:
         metadata = scene.setdefault("metadata", {})
         asset_key = _asset_key(job)
         render_started_at = str((metadata.get(asset_key) or {}).get("started_at") or "")
+        # Submitted AIR projects continue after evidence-based source/output QA.
+        # Legacy/template workflows keep their separate review requirement.
+        from ae_video_tail import automatic_tail_review
+        tail_review = automatic_tail_review(job.project_payload, result) if job.source_type == 'project' else None
+        if tail_review:
+            result['visual_review'] = tail_review
+            result['review_required'] = False
         rendered_status = "review_pending" if result.get("review_required") else "ready"
         metadata[asset_key] = {
             **result,

@@ -42,3 +42,16 @@ def test_video_jsx_keeps_speed_and_holds_last_frame_then_zooms(tmp_path):
     assert 'videoScale.setValueAtTime(sourceDuration, [scale, scale])' in script
     assert 'needsTail && !mouthRuntime.video_source && (mouthRuntime.enabled || false)' in script
     assert 'mouthRuntime.enabled || true' in video_tail_jsx(True)
+
+
+def test_automatic_tail_approval_requires_real_source_and_output_checks():
+    from ae_video_tail import automatic_tail_review
+    payload={'ae_mouth':{'enabled':True}}
+    result={'video_tail_policy':VIDEO_TAIL_POLICY,'render_sha256':'a'*64,
+            'directorial_plan':{'source_video_review_status':'reviewed','qa_assertions':['identity']},
+            'scene_visual_qa':{'passed':True,'critical_issues':[],
+                'checks':[{'assertion':'identity','passed':True,'evidence':'The same woman is visible throughout the sampled frames.'}]}}
+    assert automatic_tail_review(payload,result)['decision']=='approved'
+    assert automatic_tail_review({},result) is None
+    result['scene_visual_qa']['checks'][0]['passed']=False
+    assert automatic_tail_review(payload,result) is None

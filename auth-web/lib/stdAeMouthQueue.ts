@@ -18,7 +18,7 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
     ).map((scene: any) => scene.number))
     if (existing && videoCandidates.size && !existing.metadata.auto_render_queue_id &&
         ['queued', 'direction_pending', 'review_pending', 'failed', 'reviewed'].includes(existing.metadata.state)) {
-        const metadata = { ...existing.metadata, auto_video_coordinates: true, state: 'queued', phase: 'discovery', error: null,
+        const metadata = { ...existing.metadata, auto_video_coordinates: true, automatic: true, auto_pending: true, state: 'queued', phase: 'discovery', error: null,
             input: { ...existing.metadata.input, scenes: input.scenes.map((scene: any) =>
                 videoCandidates.has(scene.number) ? scene : existing.metadata.input.scenes.find((old: any) => old.number === scene.number) || scene) },
             results: (existing.metadata.results || []).filter((r: any) => !videoCandidates.has(r.number)) }
@@ -35,7 +35,7 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
                 (result.status === 'skipped' && result.skip_reason === 'missing_speaker_coordinates')))
         ).map((scene: any) => scene.number))
         if (added.size) {
-            const metadata = { ...existing.metadata, state: 'queued', phase: 'discovery', error: null,
+            const metadata = { ...existing.metadata, automatic: true, auto_pending: true, state: 'queued', phase: 'discovery', error: null,
                 input: { ...existing.metadata.input, scenes: existing.metadata.input.scenes.map((scene: any) =>
                     added.has(scene.number) ? input.scenes.find((next: any) => next.number === scene.number) : scene) },
                 results: existing.metadata.results.filter((result: any) => !added.has(result.number)) }
@@ -45,6 +45,24 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
             if (!updated.data) throw new Error('AE 작업 상태가 변경되었습니다. 다시 확인해 주세요.')
             return { ready: false, job: updated.data }
         }
+    }
+    if (existing && !existing.metadata.automatic && !existing.metadata.auto_render_queue_id &&
+        ['queued', 'direction_pending', 'review_pending', 'reviewed'].includes(existing.metadata.state) &&
+        (['queued', 'reviewed'].includes(existing.metadata.state) || existing.metadata.results?.some((r: any) => ['direction_pending', 'review_pending', 'direction_approved'].includes(r.status)))) {
+        const updated = await db.from('std_project_assets').update({
+            metadata: { ...existing.metadata, automatic: true, auto_pending: true }, updated_at: new Date().toISOString(),
+        }).eq('id', existing.id).eq('updated_at', existing.updated_at).select('*').maybeSingle()
+        if (updated.error || !updated.data) throw new Error('작업 상태가 변경되었습니다. 다시 제출해 주세요.')
+        return { ready: false, job: updated.data }
+    }
+    if (existing?.metadata?.state === 'reviewed' && existing.metadata.automatic && !existing.metadata.auto_render_queue_id) {
+        if (!existing.metadata.auto_pending) {
+            const updated = await db.from('std_project_assets').update({ metadata: { ...existing.metadata, auto_pending: true, auto_enqueue_attempts: 0 }, updated_at: new Date().toISOString() })
+                .eq('id', existing.id).eq('updated_at', existing.updated_at).select('*').maybeSingle()
+            if (updated.error || !updated.data) throw new Error('작업 상태가 변경되었습니다. 다시 제출해 주세요.')
+            return { ready: false, job: updated.data }
+        }
+        return { ready: false, job: existing }
     }
     if (existing?.metadata?.state === 'reviewed') {
         reviewedAeMouthAssets({ ...project, project_payload: { ...project.project_payload, ae_mouth: { enabled: true } } }, scenes, assets)
@@ -60,7 +78,7 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
         throw claim.error
     }
     const inserted = await db.from('std_project_assets').insert({ project_id: project.id, asset_type: 'other', status: 'uploaded',
-        file_name: `ae_mouth_${fingerprint}.json`, mime_type: 'application/json', metadata: { kind: 'ae_mouth_job', state: 'queued', auto_video_coordinates: true, fingerprint, input, results: [] },
+        file_name: `ae_mouth_${fingerprint}.json`, mime_type: 'application/json', metadata: { kind: 'ae_mouth_job', state: 'queued', auto_video_coordinates: true, automatic: true, auto_pending: true, fingerprint, input, results: [] },
     }).select('*').single()
     if (inserted.error) { await db.storage.from('content-assets').remove([path]); throw inserted.error }
     return { ready: false, job: inserted.data }

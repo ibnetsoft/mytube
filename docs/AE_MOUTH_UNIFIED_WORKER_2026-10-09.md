@@ -1,6 +1,6 @@
 # AIR STUDIO 얼굴·입 분석 및 입모양 작업 전체 프로세스
 
-최종 정리: 2026-10-09 · 구현 기준: `534586cb`
+최종 정리: 2026-10-09 · 자동 연출 검수·출력 검수·최종 렌더 연결 반영
 
 이 문서는 이미지 생성부터 영상 제출, 얼굴·입 좌표 저장, AIR 입모양 합성, 검수와 최종 렌더까지의 현재 실행 흐름을 설명한다. 이전 문서의 “영상도 제출 전에 좌표를 반드시 저장해야 한다”는 설명은 제출 시 자동 분석 기능으로 대체한다.
 
@@ -38,9 +38,9 @@ flowchart TD
     K --> L[영상 시간별 좌표 저장]
     J --> M[씬별 입모양 연출 준비]
     L --> M
-    M --> N[연출 확인·승인]
+    M --> N[워커: 원본·음성·연출 자동 검수]
     N --> O[AIR/AE: 확정 음성에 맞춰 입모양 합성]
-    O --> P[결과 영상 검수]
+    O --> P[워커: 출력 프레임·음성 자동 검수]
     P --> Q[검수된 결과로 최종 렌더 큐 등록]
     Q --> R[최종 영상 렌더 및 완료 확인]
     D --> S[불확실한 씬은 확인 필요 기록]
@@ -84,7 +84,7 @@ worker/cowork_scene_assets.py publish
 2. 대사/내레이션 구분, 화자와 성우 연결, 자막 및 TTS를 확인·저장한다.
 3. 필요한 이미지·영상·음성·썸네일이 준비되면 프로젝트를 제출한다.
 4. 제출 API가 현재 대본·화자·확정 음성·씬 시간·원본 미디어를 검증하여 작업 입력을 저장한다.
-5. `ensureAeMouthJob`가 `ae_mouth_job`을 접수하고 `auto_video_coordinates: true`를 기록한다.
+5. `ensureAeMouthJob`가 `ae_mouth_job`을 접수하고 `auto_video_coordinates: true`, `automatic: true`, `auto_pending: true`를 기록한다.
 
 **영상 업로드만으로 제출 후 분석이 시작되지는 않는다. 프로젝트 제출이 시작 조건이다.** 제출 HTTP 요청은 영상 분석이 끝날 때까지 기다리지 않는다. 큐에 접수한 뒤 통합워커가 백그라운드에서 처리한다.
 
@@ -140,20 +140,25 @@ DB에는 원본 영상 ID·SHA-256, 좌표 파일 경로·SHA-256, 기준 프레
 
 1. 이미지 씬은 대본워커 또는 유저가 저장한 좌표를 원본 이미지와 대조한다. 영상 씬은 제출 후 저장한 추적 결과를 사용한다.
 2. 실제 대사를 말하는 화자만 대상으로 연출 지침을 준비한다. 내레이션·쉼·다른 화자의 대사에서는 해당 인물의 입을 다문다.
-3. 연출 확인 후 닫힘·반열림·열림의 입 패치를 만들고 확정 음성의 진폭과 대사 시간에 맞춰 합성한다. 현재 구현은 음소별 정밀 립싱크가 아닌 세 가지 입 모양의 발화 애니메이션이다.
+3. 워커가 원본 프레임·저장 좌표·화자·연출·확정 음성 구간을 자동 검수한다. 통과하면 닫힘·반열림·열림의 입 패치를 만들고 확정 음성의 진폭과 대사 시간에 맞춰 합성한다. 현재 구현은 음소별 정밀 립싱크가 아닌 세 가지 입 모양의 발화 애니메이션이다.
 4. 영상은 원본을 1배속으로 유지하고 입 위치를 추적한다. 클립이 먼저 끝나면 마지막 화면을 유지하고 남은 씬 구간에 줌인과 입 움직임을 적용한다.
 5. 출력 길이가 확정 TTS 시간과 맞는지 확인한 뒤 결과 영상을 저장한다.
-6. 실제 원본·음성·연출·출력 영상을 확인하여 검수한다. 승인된 결과만 최종 렌더에 사용한다.
-7. `scripts/std_continue_submission.cjs`가 현재 입력과 검수 결과를 확인하고 최종 렌더 큐에 연결한다. 큐 등록과 최종 렌더 완료는 별도로 확인한다.
+6. `worker/ae_mouth_automation.py`가 모든 자막 구간의 표본 프레임을 추출하여 실제 원본/출력의 화자·입 위치·합성 흔적·듣는 인물 보존을 로컬 Codex CLI로 검수한다. 확정 음성을 PCM으로 디코딩하여 각 대사 구간에 음성이 있는지 확인하고, 출력 음성의 길이·상관도·크기를 원본과 비교한다. 이는 표본 시각 검사와 음성 수치 검사이며 모든 프레임의 품질이나 발음까지 보증하는 전수 시청 검수는 아니다.
+7. 모든 대상이 승인 또는 명시적으로 건너뛰기 상태가 되면 워커가 `/api/worker/ae-mouth/continue`를 호출한다. 서버가 현재 입력·작업 점유 토큰·검수 결과를 재검증하고 최종 렌더 큐에 자동 등록한다. 별도의 승인 버튼이나 재제출은 정상 흐름에서 필요하지 않다.
+8. 기존 통합워커의 `render` 역할이 `remote_render_queue`를 받아 최종 영상을 만든다. 큐 등록 성공과 렌더 완료는 서로 다른 상태다. `scripts/std_continue_submission.cjs`는 수동 복구 도구로 남긴다.
 
 ```text
 queued → processing → direction_pending
-  → 연출 확인 → direction_approved → processing
-  → review_pending → 출력 검수 → reviewed
-  → 최종 렌더 큐 등록 → 최종 영상 완료 확인
+  → auto_direction 자동 검수 → direction_approved → processing(render)
+  → review_pending → auto_review 자동 검수 → reviewed
+  → processing(auto_enqueue) → 최종 렌더 큐 등록 → render 역할 실행 → 완료
 ```
 
-사용자가 승인한 Codex 감독 흐름에서는 Codex가 실제 자료를 확인한 뒤 연출 승인·검수를 진행할 수 있다. 불확실한 결과를 무조건 승인하지 않는다. 관리자 게시·YouTube 업로드는 별도 단계다.
+기본 통합워커 자체가 실제 자료를 확인한 뒤 연출 승인·검수를 진행한다. 별도 대화 heartbeat에 의존하지 않는다. 불확실한 결과를 무조건 승인하지 않는다. 관리자 게시·YouTube 업로드는 별도 단계다.
+
+자동 검수 통과 근거는 작업 결과의 `direction_review`, `output_review`와 출력 에셋의 `automatic_review`에 저장한다. 원본/출력 해시, 검사 시점과 프레임 해시, 검사별 근거, 음성 수치가 포함된다. `needs_review` 씬이 있어도 다른 씬은 계속 합성·검수하지만, 해당 씬을 수정하거나 사유와 함께 제외하기 전에는 최종 렌더를 등록하지 않는다.
+
+최종 큐 ID는 AE 작업 ID로부터 결정하므로 HTTP 응답 유실·재시작·이미 완료된 큐의 재조회에도 같은 작업이 중복 등록되지 않는다. 일반 등록 실패는 최대 3회 시도하고 오류를 저장한다. 원본 클립의 정지·줌인 후처리를 기다리는 경우는 5분 뒤 다시 확인하여 다른 워커 작업의 실행을 막지 않는다. 해당 후처리도 실제 원본/출력 프레임 QA의 모든 검사에 근거가 있고 통과하면 자동 승인한다. 이후 재제출로 등록 재시도를 요청할 수 있다. `auto_render_queue_id`가 최종 등록 영수증이다.
 
 AIR 출력에는 원본 이미지/영상/음성 ID, 영상 좌표 에셋 ID, 추적 정보, 렌더 해시, 길이와 `timing_locked`를 기록한다.
 
@@ -196,7 +201,7 @@ python -m worker.launch --role local
   → ae_mouth_worker.py --once --mouth-only
 ```
 
-제출 영상의 자동 좌표 분석은 이 `ae` 역할 안에서 실행한다. 웹에서 사용자가 별도로 요청하는 선택 씬 분석은 기존 `coordinates` 역할이 처리한다. 별도 관리자 진입점의 `full`·`render_only` 프로필에도 `ae_mouth_worker`가 포함된다. 같은 컴퓨터에서 supervisor와 관리자를 중복 실행하지 않는다.
+제출 영상의 자동 좌표 분석과 연출·출력 자동 검수, 최종 큐 등록은 이 `ae` 역할 안에서 실행한다. 웹에서 사용자가 별도로 요청하는 선택 씬 분석은 기존 `coordinates` 역할이 처리한다. 별도 관리자 진입점의 `full`·`render_only` 프로필에도 `ae_mouth_worker`가 포함된다. 같은 컴퓨터에서 supervisor와 관리자를 중복 실행하지 않는다.
 
 Windows 적용 예시:
 
@@ -217,7 +222,7 @@ python -m worker.launch --role local --env-file worker/connection.env
 
 ## 9. 진행 확인과 저장 데이터 조회
 
-- 웹 작업 조회: `/api/std/projects/<project-id>/ae-mouth`. 씬별 결과, `coordinateState`, `trackedFrames`, 보호된 `coordinateUrl`을 반환한다.
+- 웹 작업 조회: `/api/std/projects/<project-id>/ae-mouth`. 씬별 결과, `coordinateState`, `trackedFrames`, 보호된 `coordinateUrl`, 자동 처리 여부·단계(`automatic`, `autoPending`, `phase`)와 `renderQueueId`를 반환한다.
 - 로컬 상태 화면: `http://127.0.0.1:3004`
 - 로그: `logs/local-media/ae.log`, `logs/ae_mouth_worker.log`
 - 상태 파일: `state/ae_mouth_worker.json`. 실제 경로는 `AIRWORKER_HOME` 설정에 따른다.
@@ -236,3 +241,7 @@ python -m worker.launch --role local --env-file worker/connection.env
 Codex 응답과 DB/GCS는 테스트 대역을 사용했다. 운영 영상 전체의 실제 Codex 분석 완료나 별도 Windows AE 출력의 시청 검수 완료를 뜻하지 않는다. Next.js 빌드는 저장소 설정상 전체 TypeScript/lint 검사를 생략한다.
 
 앞선 12번 씬의 직접 확정 저장 확인은 해당 기준 프레임의 수동 좌표 저장에 대한 증거다. 이 기록을 제출 후 영상 전체 자동 추적이나 최종 렌더 완료로 간주하지 않는다.
+
+자동 처리 변경은 실제 Windows 컴퓨터의 AE 실행 완료를 뜻하지 않는다. 웹 배포와 별개로 통합워커 소스를 갱신하고 재시작해야 한다. 기존 수동 대기 작업은 재제출 시 자동 처리 플래그를 활성화하며, 진행 중인 작업을 강제 변경하지 않는다.
+
+이번 자동 연결 검증: Python의 단계별 승인·실패 격리·중단 재개·음성 대조·후처리 의존성 대기 테스트, 웹의 인증·점유 토큰·검수 차단·고정 큐 ID 테스트 및 관련 회귀 테스트를 실행했다. 실제 별도 Windows 워커의 AE 실행과 최종 출력은 업데이트 후 별도 확인이 필요하다.

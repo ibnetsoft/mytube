@@ -8,8 +8,9 @@ from datetime import datetime, timezone, timedelta
 
 
 def claimable_filter():
+    now = datetime.now(timezone.utc).isoformat()
     stale = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
-    return f"(metadata->>state.in.(queued,direction_approved),and(metadata->>state.eq.processing,updated_at.lt.{stale}))"
+    return f"(metadata->>state.in.(queued,direction_approved),and(metadata->>automatic.eq.true,metadata->>auto_pending.eq.true,metadata->>state.in.(direction_pending,review_pending,reviewed),or(metadata->>auto_not_before.is.null,metadata->>auto_not_before.lt.{now})),and(metadata->>state.eq.processing,updated_at.lt.{stale}))"
 
 
 @contextmanager

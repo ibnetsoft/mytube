@@ -25,6 +25,7 @@ from submitted_video_coordinates import prepare_submitted_video
 from ae_media_utils import ffmpeg, run, ref
 from std_project_assets import load_project_assets
 from ae_mouth_runtime import Heartbeat, instance_lock, claimable_filter
+from ae_mouth_automation import automatic_phase, run_phase
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -124,7 +125,8 @@ def process_one(report=None, should_stop=None) -> bool:
         return False
     job = jobs[0]
     meta = copy.deepcopy(job['metadata'])
-    render_phase = meta.get('phase') == 'render' or meta.get('state') == 'direction_approved'
+    auto_phase = automatic_phase(meta)
+    render_phase = not auto_phase and (meta.get('phase') == 'render' or meta.get('state') == 'direction_approved')
     snapshot, identity = meta['input'], meta['fingerprint']
     directory = ROOT / 'output' / 'codex-local-console' / 'ae-mouth' / identity
     directory.mkdir(parents=True, exist_ok=True)
@@ -149,7 +151,7 @@ def process_one(report=None, should_stop=None) -> bool:
     # Local lock plus a renewed database lease prevent duplicate work across hosts.
     claimed = ae._request('PATCH', assets_url, {**headers, 'Prefer': 'return=representation'},
         params={'id': 'eq.' + job['id'], 'updated_at': 'eq.' + job['updated_at']},
-        json={'metadata': {**meta, 'state': 'processing', 'worker_token': lease, 'heartbeat_at': ae._now(), 'phase': 'render' if render_phase else 'discovery'}, 'updated_at': ae._now()}).json()
+        json={'metadata': {**meta, 'state': 'processing', 'worker_token': lease, 'heartbeat_at': ae._now(), 'phase': auto_phase or ('render' if render_phase else 'discovery')}, 'updated_at': ae._now()}).json()
     if not claimed:
         return False
     meta = claimed[0]['metadata']
@@ -183,8 +185,11 @@ def process_one(report=None, should_stop=None) -> bool:
 
     try:
         fresh()
+        if auto_phase == 'auto_enqueue':
+            run_phase(None, job, meta, directory, None, fresh, save, should_stop)
+            return True
         runner = CodexStagedContentRunner()
-        generator = NativeCodexLayerGenerator()
+        generator = None if auto_phase else NativeCodexLayerGenerator()
         # Recheck before each image generation, not just after publishing a long job.
         class CurrentGenerator:
             def generate(self, **kwargs):
@@ -196,6 +201,9 @@ def process_one(report=None, should_stop=None) -> bool:
         if not audio_path.exists():
             bucket, path = ref(snapshot['audio'])
             ae._download_gcs_file(ae.GcsRef(bucket, path), audio_path)
+        if auto_phase:
+            run_phase(runner, job, meta, directory, audio_path, fresh, save, should_stop)
+            return True
         outcomes = {r['number']: r for r in meta.get('results', [])}
         candidates = {r['scene_number'] for r in rows if r['kind'] != 'narration'}
         for scene in snapshot['scenes']:
@@ -319,7 +327,7 @@ def process_one(report=None, should_stop=None) -> bool:
                                     'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking,
                                     'video_coordinate_asset_id':coordinate_asset_id},
                             }).json()[0]
-                        outcomes[number] = {**result, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction,'tracking':tracking}
+                        outcomes[number] = {**outcomes.get(number, {}), **result, 'visibility': visibility, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction,'tracking':tracking}
                 except (LeaseLost, Obsolete):
                     raise
                 except Exception as exc:
@@ -327,7 +335,7 @@ def process_one(report=None, should_stop=None) -> bool:
                     outcomes[number] = {**result, 'status': 'needs_review', 'reason': str(exc)[:500]}
             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
         fresh()
-        save(state='reviewed' if all(r['status'] == 'skipped' for r in outcomes.values()) else 'review_pending' if render_phase else 'direction_pending', error='')
+        save(state='reviewed' if all(r['status'] == 'skipped' for r in outcomes.values()) else 'review_pending' if render_phase else 'direction_pending', auto_pending=bool(meta.get('automatic')), error='')
     except LeaseLost as exc:
         report(last_error=str(exc))
     except Obsolete as exc:

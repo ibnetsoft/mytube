@@ -75,7 +75,7 @@ export function reviewedAeMouthAssets(project: any, scenes: any[], assets: any[]
     const result = new Map<number, any>()
     if (!project.project_payload?.ae_mouth?.enabled) return result
     const job = currentAeMouthJob(project, scenes, assets)
-    if (job?.metadata?.state !== 'reviewed') throw new Error('대사 영상과 정지 씬의 AE 입모양 후작업·검수를 완료해 주세요.')
+    if (job?.metadata?.state !== 'reviewed' && !(job?.metadata?.automatic === true && job.metadata.state === 'processing' && job.metadata.phase === 'auto_enqueue')) throw new Error('대사 영상과 정지 씬의 AE 입모양 후작업·검수를 완료해 주세요.')
     const numbers = (job.metadata.input?.scenes || aeMouthInput(project, scenes, assets).input.scenes).map((s: any) => Number(s.number))
     const checked = job.metadata.results || []
     if (checked.length !== numbers.length || numbers.some(n => checked.filter((r: any) => r.number === n).length !== 1)) {

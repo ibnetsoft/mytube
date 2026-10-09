@@ -29,7 +29,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         let job: any, error = ''
         try { job = currentAeMouthJob(b.project, b.scenes!, b.assets!) } catch (e: any) { error = e.message }
         return NextResponse.json({ applicable: true, preparationError: error, fingerprint: job?.metadata?.fingerprint || '',
-            status: job?.metadata?.state || 'not_started', error: job?.metadata?.error || '',
+            status: job?.metadata?.state || 'not_started', phase: job?.metadata?.phase || '',
+            automatic: Boolean(job?.metadata?.automatic), autoPending: Boolean(job?.metadata?.auto_pending), renderQueueId: job?.metadata?.auto_render_queue_id || '', error: job?.metadata?.error || '',
             results: (job?.metadata?.results || []).map((r: any) => ({ number: r.number, status: r.status, reason: r.reason || '',
                 speakers: r.speakers || [], direction: r.direction || '',
                 coordinateState: r.coordinate_state || '', trackedFrames: r.tracking?.frames_checked || 0,
@@ -79,7 +80,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             ? { ...r, status: 'approved' } : { ...r, status: 'skipped', reason: String(body.reason).trim(), excluded_by_user: true })
         const state = results.every((r: any) => ['approved', 'skipped'].includes(r.status)) ? 'reviewed'
             : results.some((r: any) => r.status === 'direction_pending') ? 'direction_pending' : 'review_pending'
-        const updated = await db.from('std_project_assets').update({ metadata: { ...job.metadata, results, state }, updated_at: new Date().toISOString() })
+        const updated = await db.from('std_project_assets').update({ metadata: { ...job.metadata, results, state, auto_pending: Boolean(job.metadata.automatic) }, updated_at: new Date().toISOString() })
             .eq('id', job.id).eq('updated_at', job.updated_at).select('id').maybeSingle()
         if (updated.error || !updated.data) throw new Error('다른 검수가 저장되었습니다. 새로 확인해 주세요.')
         return NextResponse.json({ success: true, state })
