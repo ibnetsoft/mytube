@@ -3,7 +3,7 @@ import { stdUiText } from '@/lib/stdUiText'
 import type { SupportedLocale } from '@/lib/i18n'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { sfxDescriptionKo } from '@/lib/stdSfxDescriptions'
+import { sfxDescription } from '@/lib/stdSfxDescriptions'
 
 export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets, value, projectId, headers, disabled, onChange, onOpen, openRequest = 0, onUpload, onRegistered }: {
     locale?: SupportedLocale; role?: 'sfx' | 'bgm';
@@ -11,6 +11,10 @@ export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets,
     onChange: (id: string, asset?: any) => void | Promise<void>; onOpen: () => void; openRequest?: number; onUpload?: (file: File) => Promise<any>; onRegistered?: (asset: any) => void;
 }) {
     const ui = (text: string) => stdUiText(locale, role === 'bgm' ? text.replaceAll('효과음', '배경음') : text)
+    const errorText = (message: string | undefined, fallback: string) => {
+        const translated = ui(message || fallback)
+        return locale === 'th' && /[가-힣]/.test(translated) ? ui(fallback) : translated
+    }
     const [uploadedAssets, setUploadedAssets] = useState<any[]>([])
     const [uploading, setUploading] = useState(false)
     assets = [...uploadedAssets.filter(a => !assets.some(existing => existing.id === a.id)), ...assets]
@@ -32,9 +36,9 @@ export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets,
         void fetch(libraryEndpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}', signal: controller.signal })
             .then(async response => {
                 const result = await response.json()
-                if (!response.ok) throw new Error(result.error || '효과음 목록을 불러오지 못했습니다.')
+                if (!response.ok) throw new Error(result.error || ui('효과음 목록을 불러오지 못했습니다.'))
                 if (!controller.signal.aborted) setUploadedAssets(previous => [...previous.filter(a => !result.assets.some((b: any) => b.id === a.id)), ...result.assets])
-            }).catch(error => { if (!controller.signal.aborted) setError(error.message) })
+            }).catch(error => { if (!controller.signal.aborted) setError(errorText(error.message, '효과음 목록을 불러오지 못했습니다.')) })
         return () => controller.abort()
     }, [open, libraryEndpoint])
     const lastOpenRequest = useRef(0)
@@ -43,7 +47,7 @@ export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets,
         lastOpenRequest.current = openRequest
         onOpen(); setDraft(value); setSearch(''); setError(''); setSample(''); setBusy(''); setOpen(true)
     }, [openRequest, value, onOpen])
-    const matchesSearch = (asset: any) => `${asset.file_name} ${role === 'sfx' ? sfxDescriptionKo(asset) : ''}`.toLowerCase().includes(search.trim().toLowerCase())
+    const matchesSearch = (asset: any) => `${asset.file_name} ${role === 'sfx' ? sfxDescription(asset, locale) : ''}`.toLowerCase().includes(search.trim().toLowerCase())
     useEffect(() => {
         if (!open) return
         const previous = document.activeElement as HTMLElement | null
@@ -92,7 +96,7 @@ export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets,
                 await player.current.play()
             }
         } catch (e: any) {
-            if (!controller.signal.aborted) setError(e.message || ui("미리듣기에 실패했습니다."))
+            if (!controller.signal.aborted) setError(errorText(e.message, '미리듣기에 실패했습니다.'))
         } finally { if (!controller.signal.aborted) setBusy('') }
     }
     return <>
@@ -120,18 +124,18 @@ export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets,
                         try {
                             const asset = await onUpload(file)
                             setUploadedAssets(previous => [asset, ...previous.filter(a => a.id !== asset.id)])
-                            setDraft(asset.id); setSearch(''); setSample(`${asset.file_name} · 저장 완료`)
-                        } catch (error: any) { setError(error.message || '효과음 업로드에 실패했습니다.') }
+                            setDraft(asset.id); setSearch(''); setSample(`${asset.file_name} · ${ui("저장 완료")}`)
+                        } catch (error: any) { setError(errorText(error.message, '효과음 업로드에 실패했습니다.')) }
                         finally { setUploading(false) }
                     }} />
                 </label>}
                 <p className="text-[11px] text-gray-400">{ui("파일명을 바탕으로 작성한 설명입니다. 정확한 소리는 미리듣기로 확인해 주세요.")}</p>
-                <input aria-label={ui("효과음 검색")} placeholder={ui("파일명 또는 한국어 설명 검색")} value={search} onChange={event => setSearch(event.target.value)} className="w-full rounded-lg border border-white/10 bg-black/25 p-2.5 text-sm outline-none focus:border-purple-400" />
+                <input aria-label={ui("효과음 검색")} placeholder={ui("파일명 또는 설명 검색")} value={search} onChange={event => setSearch(event.target.value)} className="w-full rounded-lg border border-white/10 bg-black/25 p-2.5 text-sm outline-none focus:border-purple-400" />
                 <div className="grid min-h-0 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
                     {assets.filter(matchesSearch).map(asset => <div key={asset.id}
                         className={`min-w-0 rounded-xl border p-3 ${draft === asset.id ? 'border-purple-400 bg-purple-500/15' : 'border-white/10 bg-black/15'}`}>
                         <p className="break-all text-xs font-semibold leading-5">{asset.file_name}</p>
-                        {role === 'sfx' && <p className="mt-1 text-xs leading-5 text-purple-200">{sfxDescriptionKo(asset)}</p>}
+                        {role === 'sfx' && <p className="mt-1 text-xs leading-5 text-purple-200">{sfxDescription(asset, locale)}</p>}
                         <div className="mt-3 flex items-center justify-between gap-2 text-xs">
                             <button type="button" disabled={busy === asset.id} onClick={() => void play(asset)} aria-label={`${asset.file_name} ${ui("미리듣기")}`} className="rounded border border-white/15 px-2.5 py-1.5 hover:bg-white/10 disabled:opacity-50">{busy === asset.id ? ui("불러오는 중…") : ui("▶ 미리듣기")}</button>
                             <button type="button" aria-pressed={draft === asset.id} onClick={() => setDraft(asset.id)} className="rounded bg-purple-500/20 px-2.5 py-1.5 text-purple-100">{draft === asset.id ? ui("✓ 선택됨") : ui("선택")}</button>
@@ -146,16 +150,16 @@ export default function SubtitleSfxPicker({ locale = 'ko', role = 'sfx', assets,
                     {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
                 </div>
                 <div className="flex shrink-0 justify-end gap-2 text-xs">
-                    <button type="button" onClick={async () => { try { await onChange(''); setOpen(false) } catch (error: any) { setError(error.message || ui('선택 해제 실패')) } }} className="mr-auto rounded px-3 py-2 text-gray-400 hover:bg-white/5">{ui("선택 해제")}</button>
+                    <button type="button" onClick={async () => { try { await onChange(''); setOpen(false) } catch (error: any) { setError(errorText(error.message, '선택 해제 실패')) } }} className="mr-auto rounded px-3 py-2 text-gray-400 hover:bg-white/5">{ui("선택 해제")}</button>
                     <button type="button" onClick={() => setOpen(false)} className="rounded border border-white/10 px-4 py-2">{ui("취소")}</button>
                     <button type="button" disabled={uploading || !assets.some(asset => asset.id === draft)} onClick={async () => {
                         setUploading(true); setError('')
                         try {
                             const response = await fetch(libraryEndpoint, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_id: draft }) })
                             const result = await response.json()
-                            if (!response.ok || !result.asset) throw new Error(result.error || '효과음 선택에 실패했습니다.')
+                            if (!response.ok || !result.asset) throw new Error(result.error || ui('효과음 선택에 실패했습니다.'))
                             onRegistered?.(result.asset); await onChange(result.asset.id, result.asset); setOpen(false)
-                        } catch (error: any) { setError(error.message) }
+                        } catch (error: any) { setError(errorText(error.message, '효과음 선택에 실패했습니다.')) }
                         finally { setUploading(false) }
                     }} className="rounded bg-purple-600 px-4 py-2 font-bold text-white hover:bg-purple-500 disabled:opacity-40">{ui("선택 완료")}</button>
                 </div>

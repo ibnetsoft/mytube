@@ -5164,20 +5164,20 @@ export default function StdPortalPage() {
         const initRes = await fetch(`/api/std/projects/${projectId}/assets/init`, {
             method: 'POST', headers: authedJsonHeaders, body: JSON.stringify(details),
         })
-        const init = await safeParseJson(initRes, '오디오 업로드 준비 실패')
-        if (!initRes.ok || !init.storage_upload_url) throw new Error(init.error || '오디오 업로드 준비 실패')
+        const init = await safeParseJson(initRes, ui('오디오 업로드 준비 실패'))
+        if (!initRes.ok || !init.storage_upload_url) throw new Error(init.error || ui('오디오 업로드 준비 실패'))
         // Send binary data directly to storage, avoiding the server request-size limit.
         const uploadRes = await fetch(init.storage_upload_url, {
             method: 'PUT', headers: { 'Content-Type': details.mime_type }, body: file, signal: AbortSignal.timeout(120000),
         })
-        if (!uploadRes.ok) throw new Error(`오디오 파일 업로드 실패 (${uploadRes.status})`)
+        if (!uploadRes.ok) throw new Error(ui('오디오 파일 업로드 실패 ({status})', { status: uploadRes.status }))
         const completeRes = await fetch(`/api/std/projects/${projectId}/assets/complete`, {
             method: 'POST', headers: authedJsonHeaders,
             body: JSON.stringify({ ...details, storage_provider: init.storage_provider, storage_bucket: init.storage_bucket,
                 storage_path: init.storage_path, storage_public_url: init.storage_public_url }),
         })
-        const complete = await safeParseJson(completeRes, '오디오 저장 실패')
-        if (!completeRes.ok || !complete.asset) throw new Error(complete.error || '오디오 저장 실패')
+        const complete = await safeParseJson(completeRes, ui('오디오 저장 실패'))
+        if (!completeRes.ok || !complete.asset) throw new Error(complete.error || ui('오디오 저장 실패'))
         return complete.asset
     }
 
@@ -5195,9 +5195,9 @@ export default function StdPortalPage() {
                 bgm_file_name: asset.file_name || file.name,
                 bgm_volume: currentSettings.bgm_volume ?? 0.08,
             }, nextAssets)
-            setMessage(`BGM '${file.name}'이 저장되어 미리보기에 적용되었습니다.`)
+            setMessage(ui("BGM '{name}'이 저장되어 미리보기에 적용되었습니다.", { name: file.name }))
         } catch (error: any) {
-            setMessage(error?.message || 'BGM upload failed')
+            setMessage(error?.message || ui('BGM upload failed'))
         } finally {
             setUploadingKey('')
             e.target.value = ''
@@ -5236,9 +5236,9 @@ export default function StdPortalPage() {
             setSelectedSfxAssetId(asset.id)
             setSubEditTab('bgm')
             setSfxPickerOpenRequest(Date.now())
-            setMessage(`효과음 '${file.name}'을 저장했습니다. 팝업에서 미리듣기 후 선택 완료를 누르세요.`)
+            setMessage(ui("효과음 '{name}'을 저장했습니다. 팝업에서 미리듣기 후 선택 완료를 누르세요.", { name: file.name }))
         } catch (error: any) {
-            setMessage(error?.message || '효과음 업로드에 실패했습니다.')
+            setMessage(error?.message || ui('효과음 업로드에 실패했습니다.'))
         } finally { setUploadingKey('') }
     }
 
@@ -7353,9 +7353,9 @@ export default function StdPortalPage() {
         setSavingBgmVolume(true)
         try {
             await updateBgmSfxSettings({ ...bgmSfxSettings, bgm_volume: backgroundVolume(bgmVolume), bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene, bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut })
-            setMessage('배경음 구간·볼륨·페이드 설정을 저장했습니다.')
+            setMessage(ui('배경음 구간·볼륨·페이드 설정을 저장했습니다.'))
         } catch (error: any) {
-            setMessage(error?.message || '배경음 볼륨 저장 실패')
+            setMessage(error?.message || ui('배경음 볼륨 저장 실패'))
         } finally { setSavingBgmVolume(false) }
     }
     const bgmAsset = selectedProject?.assets?.find((asset: any) =>
@@ -9116,7 +9116,7 @@ export default function StdPortalPage() {
                                                 )}
                                                 {SUBTITLE_FONTS.map(f => (
                                                     <option key={f.value} value={f.value} style={{ fontFamily: f.value }} className="bg-[#1c2027] text-white">
-                                                        {f.label}
+                                                        {ui(f.label)}
                                                     </option>
                                                 ))}
                                             </select>
@@ -9133,7 +9133,7 @@ export default function StdPortalPage() {
                                                     step="0.1"
                                                     min="1"
                                                     max="20"
-                                                    title="글자 크기 (%)"
+                                                    title={ui('글자 크기 (%)')}
                                                 />
                                                 <span className="text-[10px] text-gray-400">%</span>
                                                 <span className="text-[9px] text-gray-500 ml-0.5">{ui("크기")}</span>
@@ -10174,7 +10174,7 @@ export default function StdPortalPage() {
                                                                 activeTokenIndex={isPlayingPreview ? vrewActiveTokenAtPlaybackTime(currentSub, playbackTime) : -1}
                                                                 onSave={async cues => {
                                                                     await updateBgmSfxSettings({ ...bgmSfxSettings, sfx_cues: cues }, undefined, localSubtitles)
-                                                                    setMessage('효과음 위치를 저장했습니다.')
+                                                                    setMessage(ui('효과음 위치를 저장했습니다.'))
                                                                 }}
                                                             />
                                                             <button
@@ -10211,16 +10211,16 @@ export default function StdPortalPage() {
                                                     className="flex h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 text-[11px] font-black text-cyan-200 transition hover:bg-cyan-500/20 disabled:cursor-wait disabled:opacity-60"
                                                 >
                                                     <Upload size={13} className="shrink-0" />
-                                                    {uploadingKey === 'bgm-upload' ? 'BGM 업로드·저장 중…' : ui("BGM배경음")}
+                                                    {uploadingKey === 'bgm-upload' ? ui('BGM 업로드·저장 중…') : ui("BGM배경음")}
                                                 </button>
                                             </div>
                                                 <input id="std-sfx-upload" type="file" accept="audio/*" className="hidden" onChange={handleUploadCurrentSfxFile} disabled={uploadingKey !== ''} />
                                                 <button type="button" disabled={uploadingKey !== ''}
                                                     onClick={() => document.getElementById('std-sfx-upload')?.click()}
                                                     className="w-full rounded border border-purple-400/40 bg-purple-500/10 px-3 py-2 text-xs text-purple-200 disabled:opacity-50">
-                                                    {uploadingKey === 'sfx-upload' ? '효과음 업로드·저장 중…' : '효과음 업로드 · 자막에 삽입'}
+                                                    {uploadingKey === 'sfx-upload' ? ui('효과음 업로드·저장 중…') : ui('효과음 업로드 · 자막에 삽입')}
                                                 </button>
-                                                <p className="text-[11px] text-gray-400">BGM은 지정한 씬 구간에서 재생됩니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.</p>
+                                                <p className="text-[11px] text-gray-400">{ui('BGM은 지정한 씬 구간에서 재생됩니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.')}</p>
                                                 {message && <p role="status" className="break-words text-xs text-cyan-200">{message}</p>}
                                                 {selectedProject && <SubtitleSfxPicker locale={currentLocale}
                                                     key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
@@ -10243,8 +10243,8 @@ export default function StdPortalPage() {
                                                                 bgm_loop: bgmLoop, bgm_start_scene: bgmStartScene, bgm_start_subtitle: bgmStartSubtitle, bgm_end_scene: bgmEndScene,
                                                                 bgm_fade_in: bgmFadeIn, bgm_fade_out: bgmFadeOut },
                                                                 asset ? [asset, ...selectedProject.assets.filter(a => a.id !== asset.id)] : undefined)
-                                                            setMessage(id ? '배경음 선택과 씬 구간을 저장했습니다.' : '배경음 적용을 해제했습니다.')
-                                                        } catch (error: any) { setMessage(error.message || '배경음 저장 실패'); throw error }
+                                                            setMessage(id ? ui('배경음 선택과 씬 구간을 저장했습니다.') : ui('배경음 적용을 해제했습니다.'))
+                                                        } catch (error: any) { setMessage(error.message || ui('배경음 저장 실패')); throw error }
                                                         finally { setSavingBgmVolume(false) }
                                                     }} />}
                                                 {(bgmAsset?.file_name || bgmSfxSettings.bgm_file_name) && (
@@ -10258,11 +10258,11 @@ export default function StdPortalPage() {
                                                     </div>
                                                 )}
                                                 <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
-                                                    <label>시작 씬<select aria-label="배경음 시작 씬" value={bgmStartScene} disabled={savingBgmVolume} onChange={event => { setBgmStartScene(Number(event.target.value)); setBgmStartSubtitle(1) }} className="ml-2 rounded bg-[#10151c] p-1">
-                                                        <option value={0}>처음부터</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
+                                                    <label>{ui('시작 씬')}<select aria-label={ui('배경음 시작 씬')} value={bgmStartScene} disabled={savingBgmVolume} onChange={event => { setBgmStartScene(Number(event.target.value)); setBgmStartSubtitle(1) }} className="ml-2 rounded bg-[#10151c] p-1">
+                                                        <option value={0}>{ui('처음부터')}</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{ui('{n}번 씬', { n })}</option>)}
                                                     </select></label>
-                                                    <label>종료 씬<select aria-label="배경음 종료 씬" value={bgmEndScene} disabled={savingBgmVolume} onChange={event => setBgmEndScene(Number(event.target.value))} className="ml-2 rounded bg-[#10151c] p-1">
-                                                        <option value={0}>끝까지</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{n}번 씬</option>)}
+                                                    <label>{ui('종료 씬')}<select aria-label={ui('배경음 종료 씬')} value={bgmEndScene} disabled={savingBgmVolume} onChange={event => setBgmEndScene(Number(event.target.value))} className="ml-2 rounded bg-[#10151c] p-1">
+                                                        <option value={0}>{ui('끝까지')}</option>{Array.from(new Set(localSubtitles.map(row => Number(row.scene_number)).filter(n => n > 0))).sort((a,b) => a-b).map(n => <option key={n} value={n}>{ui('{n}번 씬', { n })}</option>)}
                                                     </select></label>
                                                     <label className="col-span-2 flex min-w-0 items-center gap-2">{ui('시작 자막')}
                                                         <select aria-label={ui('배경음 시작 자막')} value={bgmStartSubtitle} disabled={savingBgmVolume || !bgmStartScene}
@@ -10273,8 +10273,8 @@ export default function StdPortalPage() {
                                                             {bgmStartScene > 0 && !bgmStartSubtitles[bgmStartSubtitle - 1] && <option value={bgmStartSubtitle} disabled>{ui('시작 자막을 다시 선택해 주세요.')}</option>}
                                                         </select>
                                                     </label>
-                                                    <label>점점 크게 (초)<input aria-label="배경음 페이드 인" type="number" min="0" max="30" step="0.5" value={bgmFadeIn} disabled={savingBgmVolume} onChange={event => setBgmFadeIn(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
-                                                    <label>점점 작게 (초)<input aria-label="배경음 페이드 아웃" type="number" min="0" max="30" step="0.5" value={bgmFadeOut} disabled={savingBgmVolume} onChange={event => setBgmFadeOut(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
+                                                    <label>{ui('점점 크게 (초)')}<input aria-label={ui('배경음 페이드 인')} type="number" min="0" max="30" step="0.5" value={bgmFadeIn} disabled={savingBgmVolume} onChange={event => setBgmFadeIn(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
+                                                    <label>{ui('점점 작게 (초)')}<input aria-label={ui('배경음 페이드 아웃')} type="number" min="0" max="30" step="0.5" value={bgmFadeOut} disabled={savingBgmVolume} onChange={event => setBgmFadeOut(Math.max(0, Math.min(30, Number(event.target.value))))} className="ml-2 w-12 rounded bg-[#10151c] p-1" /></label>
                                                 </div>
                                                 <p className="text-[11px] text-gray-400">{ui('선택한 자막에서 시작해 종료 씬까지 이어집니다. 음악이 먼저 끝나면 멈추며, 배경음 반복을 켜면 구간 끝까지 반복됩니다.')}</p>
                                                 {!bgmRange.valid && <p className="text-xs text-red-300">{ui('시작 자막·종료 씬을 확인해 주세요.')}</p>}

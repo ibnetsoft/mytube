@@ -1,3 +1,6 @@
+import type { SupportedLocale } from './i18n'
+import { sfxDescriptionsTh } from './stdSfxDescriptionsTh'
+
 // Descriptions inferred from filenames; these are not audio transcriptions.
 const descriptions: [string, string][] = [
     ['Slow,_dry_creak_of_a_', '천천히 삐걱거리는 건조한 마찰음'],
@@ -39,4 +42,13 @@ export function sfxDescriptionKo(asset: { file_name?: string; metadata?: { descr
     const name = String(asset.file_name || '').toLowerCase()
     return descriptions.find(([prefix]) => name.startsWith(prefix.toLowerCase()))?.[1]
         || '파일명만으로 소리를 확인하기 어렵습니다. 미리듣기로 확인해 주세요.'
+}
+
+/** Display descriptions in the UI locale without altering filenames or saved metadata. */
+export function sfxDescription(asset: { file_name?: string; metadata?: { description_ko?: string; description_th?: string } }, locale: SupportedLocale): string {
+    if (locale !== 'th') return sfxDescriptionKo(asset)
+    const localized = asset.metadata?.description_th?.trim()
+    if (localized && !/[가-힣]/.test(localized)) return localized
+    return sfxDescriptionsTh[sfxDescriptionKo(asset)]
+        || 'ยังไม่มีคำอธิบายภาษาไทยสำหรับไฟล์นี้ โปรดลองฟังเพื่อตรวจสอบเสียง'
 }
