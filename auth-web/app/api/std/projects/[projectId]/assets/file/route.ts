@@ -109,15 +109,26 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         // Prefer GCS for new primary recordings and older archived recordings.
         if ((asset.metadata?.gcs_path || asset.metadata?.storage_provider === 'gcs') && await isGcsConfiguredAsync()) {
             try {
-                const chunk = await downloadGcsObjectViaSignedUrl({bucket: gcsBucket, objectPath: gcsPath, range: requestedRange})
-                return new NextResponse(new Uint8Array(chunk.buffer), {
-                    status: chunk.status === 206 ? 206 : 200,
+                const signedUrl = await createGcsSignedReadUrl({ bucket: gcsBucket, objectPath: gcsPath, expiresInMinutes: 10 })
+                const upstream = await fetch(signedUrl, {
+                    headers: requestedRange ? { Range: requestedRange } : {},
+                    cache: 'no-store', signal: req.signal,
+                })
+                if (!upstream.ok) {
+                    await upstream.body?.cancel()
+                    if (upstream.status === 416) return new NextResponse(null, { status: 416,
+                        headers: upstream.headers.has('content-range') ? { 'Content-Range': upstream.headers.get('content-range')! } : {} })
+                    throw new Error(`GCS storage HTTP ${upstream.status}`)
+                }
+                // Stream large clips to the browser instead of buffering a complete video in the function.
+                return new NextResponse(upstream.body, {
+                    status: upstream.status,
                     headers: {
-                        'Content-Type': chunk.contentType || asset.mime_type || 'application/octet-stream',
-                        'Content-Length': chunk.contentLength || String(chunk.buffer.length),
+                        'Content-Type': upstream.headers.get('content-type') || asset.mime_type || 'application/octet-stream',
                         'Cache-Control': 'private, max-age=86400', ETag: etag, 'Accept-Ranges': 'bytes',
                         'Vary': 'Authorization, Cookie, x-impersonate-email', 'X-STD-Media-Source': 'gcs',
-                        ...(chunk.contentRange ? {'Content-Range': chunk.contentRange} : {}),
+                        ...(upstream.headers.get('content-length') ? { 'Content-Length': upstream.headers.get('content-length')! } : {}),
+                        ...(upstream.headers.get('content-range') ? { 'Content-Range': upstream.headers.get('content-range')! } : {}),
                     },
                 })
             } catch (error) {
