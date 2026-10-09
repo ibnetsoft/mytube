@@ -17,6 +17,7 @@ import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotic
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
+import { isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo } from '@/lib/stdSceneVideo'
 import { downloadStdFile } from '@/lib/stdFileDownload'
 import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -4096,7 +4097,9 @@ export default function StdPortalPage() {
             .filter(image => !scopedAssets.some(asset => asset.asset_type === 'image' && Number(asset.scene_number) === image.scene_number))
         const allSceneNumbers = (projectPayload.scenes || []).map((scene: any) => Number(scene.scene_number)).sort((a: number, b: number) => a - b)
         const sceneOrder = allSceneNumbers
+        const latestVideos = sceneVideoAssets(scopedAssets, projectId)
         const mediaAssets = [...sceneImages, ...selectFallbackAssetsForScenes(scopedAssets, allSceneNumbers, options.includeProjectAssets !== false)]
+            .filter(asset => asset.asset_type !== 'video' || latestVideos.get(Number(asset.scene_number))?.id === asset.id)
             .sort((a, b) => {
                 const rank = (asset: any) => {
                     const index = sceneOrder.indexOf(Number(asset.scene_number))
@@ -7105,6 +7108,9 @@ export default function StdPortalPage() {
         return cleanScriptContextText(scene.scene_text || scene.script_excerpt || '') || `Scene ${sceneIndex + 1}`
     }
 
+    const sceneVideos = useMemo(() => sceneVideoAssets(selectedProject?.assets || [], selectedProject?.project?.id || ''), [selectedProject?.assets, selectedProject?.project?.id])
+    const [resolvedPreviewVideo, setResolvedPreviewVideo] = useState<{ key: string; url: string; error: boolean } | null>(null)
+
     const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
         text: '글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.',
         start_time: '0.0',
@@ -7116,10 +7122,29 @@ export default function StdPortalPage() {
         || ''
     const currentSubVideoCandidate = currentSubVisual.video_url
         || ''
-    const currentSubVideoUrl = isPlayablePreviewVideoUrl(currentSubVideoCandidate)
-        ? currentSubVideoCandidate
-        : ''
     const currentPreviewSceneNumber = Number(currentSub?.scene_number || currentSubVisual.scene_number || selectedSubIndex + 1)
+    const currentPreviewVideoAsset = sceneVideos.get(currentPreviewSceneNumber)
+    const currentPreviewIsWorkerVideo = isWorkerSceneVideo(currentPreviewVideoAsset)
+    const previewVideoKey = `${selectedProject?.project?.id}:${currentPreviewVideoAsset?.id || ''}`
+    const currentSubVideoUrl = currentPreviewVideoAsset
+        ? (resolvedPreviewVideo?.key === previewVideoKey ? resolvedPreviewVideo.url : '')
+        : isPlayablePreviewVideoUrl(currentSubVideoCandidate) ? currentSubVideoCandidate : ''
+
+    // Resolve the selected video independently; do not wait behind all project images/audio.
+    useEffect(() => {
+        if (currentNav !== 'subtitle_vrew' || !selectedProject?.project?.id || !currentPreviewVideoAsset?.id) return
+        const controller = new AbortController()
+        let release = () => {}
+        void loadScenePreviewVideo(selectedProject.project.id, currentPreviewVideoAsset.id, authedJsonHeaders, controller.signal)
+            .then(source => {
+                if (controller.signal.aborted) { source.revoke(); return }
+                release = source.revoke
+                setResolvedPreviewVideo({ key: previewVideoKey, url: source.url, error: false })
+            }).catch(() => {
+                if (!controller.signal.aborted) setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })
+            })
+        return () => { controller.abort(); release() }
+    }, [currentNav, previewVideoKey, authedJsonHeaders])
 
     useEffect(() => {
         const cache = previewPrefetchRef.current
@@ -7277,19 +7302,9 @@ export default function StdPortalPage() {
     useEffect(() => {
         const video = vrewPreviewVideoRef.current
         if (!video) return
-        if (currentNav !== 'subtitle_vrew' || !isPlayingPreview || !currentSubVideoUrl) {
-            video.pause()
-            return
-        }
-        const identity = `${selectedProject?.project?.id}:${currentPreviewSceneNumber}:${currentSubVideoUrl}`
-        if (previewVideoIdentityRef.current !== identity) {
-            previewVideoIdentityRef.current = identity
-            video.dataset.finished = ''
-            video.currentTime = 0
-        }
-        if (video.dataset.finished === 'true') return
-        void video.play().catch(() => {})
-    }, [currentNav, currentPreviewSceneNumber, currentSubVideoUrl, isPlayingPreview])
+        syncScenePreviewVideo(video, playbackTime, previewMotionStart,
+            currentNav === 'subtitle_vrew' && isPlayingPreview && Boolean(currentSubVideoUrl))
+    }, [currentNav, currentSubVideoUrl, isPlayingPreview, playbackTime, previewMotionStart])
     useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
@@ -9475,6 +9490,8 @@ export default function StdPortalPage() {
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const motionEffect = sceneMotion(sceneRecord)
+                                                const workerVideo = isWorkerSceneVideo(sceneVideos.get(Number(sNum)))
+                                                const originalVideo = Boolean(group.video_url) && !workerVideo
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : undefined)
                                                 const segmentStatusLabel = group.subtitles.some((item: any) => item.restored_audio_pending)
@@ -9536,11 +9553,6 @@ export default function StdPortalPage() {
                                                                     shouldPlay={shouldPlayThumbnailVideo}
                                                                     priority={Number(sNum) <= 4 || isActive}
                                                                 />
-                                                                {group.video_url ? (
-                                                                    <span className="absolute top-0.5 right-0.5 bg-purple-700/90 text-white text-[8px] font-bold px-1 rounded">
-                                                                        {ui("영상 완료")}
-                                                                    </span>
-                                                                ) : null}
                                                                 <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
                                                                     {group.subtitles.length} lines
                                                                 </span>
@@ -9569,15 +9581,15 @@ export default function StdPortalPage() {
                                                             {isVrewSubtitleMode && !isHook && (
                                                                 <label className="mt-2 flex flex-col items-start gap-1 text-[9px] text-cyan-200">
                                                                     <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
-                                                                        disabled={Boolean(group.video_url) || isSceneEffectSaving}
-                                                                        title={group.video_url ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
+                                                                        disabled={originalVideo || isSceneEffectSaving}
+                                                                        title={originalVideo ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
                                                                         onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect', [Number(sNum)])}
                                                                         className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
                                                                         {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
                                                                     </select>
                                                                     <span className="flex items-center gap-1">속도
                                                                         <select aria-label={`씬 ${sNum} 모션 속도`} value={sceneMotionSpeed(sceneRecord)}
-                                                                            disabled={Boolean(group.video_url) || motionEffect === 'none' || isSceneEffectSaving}
+                                                                            disabled={originalVideo || motionEffect === 'none' || isSceneEffectSaving}
                                                                             onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [Number(sNum)])}
                                                                             className="rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
                                                                             {[0.5, 1, 1.5, 2, 3].map(speed => <option key={speed} value={speed}>{speed}×</option>)}
@@ -9607,6 +9619,7 @@ export default function StdPortalPage() {
                                                                         {segmentStatusLabel}
                                                                     </span>
                                                                 )}
+                                                                {workerVideo && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-200">{ui('AIR작업')}</span>}
                                                                 {isVrewSubtitleMode && (
                                                                     <div
                                                                         className="ml-auto flex min-w-0 items-center gap-1 sm:gap-2"
@@ -9866,6 +9879,7 @@ export default function StdPortalPage() {
                                                 aria-hidden="true"
                                             />
                                         )}
+                                        {currentPreviewVideoAsset && resolvedPreviewVideo?.key === previewVideoKey && resolvedPreviewVideo.error && <div role="alert" className="p-2 text-xs text-amber-200">{ui('씬 영상을 불러오지 못했습니다. 다시 선택해 주세요.')}</div>}
                                         {previewAudioError && !legacyStorageErrorPattern.test(previewAudioError) && <div role="alert" className="p-3 text-xs text-red-300 bg-red-950/50">{previewAudioError}</div>}
 
                                         <div
@@ -9889,7 +9903,9 @@ export default function StdPortalPage() {
                                                     }}
                                                     poster={currentSubImageUrl || undefined}
                                                     preload="auto"
-                                                    style={{ opacity: !isPlayingPreview && currentSubImageUrl ? 0 : 1 }}
+                                                    onLoadedMetadata={event => syncScenePreviewVideo(event.currentTarget, playbackTime, previewMotionStart, isPlayingPreview)}
+                                                    onError={() => setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })}
+                                                    style={currentPreviewIsWorkerVideo ? previewImageMotionStyle : undefined}
                                                     className="w-full h-full object-cover"
                                                     muted
                                                     playsInline

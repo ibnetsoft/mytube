@@ -2,6 +2,8 @@ import type { SupportedLocale } from './i18n'
 
 // UI labels only. Never apply this to scripts, filenames, or saved model output.
 const thai: Record<string, string> = {
+    "AIR작업": "งาน AIR",
+    "씬 영상을 불러오지 못했습니다. 다시 선택해 주세요.": "โหลดวิดีโอฉากไม่สำเร็จ กรุณาเลือกฉากอีกครั้ง",
     "토픽": "หัวข้อ",
     "프로젝트 선택": "เลือกโปรเจกต์",
     "닫기": "ปิด",
