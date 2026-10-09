@@ -80,9 +80,9 @@ test('original clips hold their last frame, then zoom only during the remaining 
     assert.equal(video.loop, false)
     assert.equal(video.currentTime, 4.96)
     assert.equal(video.paused, true)
-    assert.equal(sceneClipTailStyle(110, 100, 115, 5).transform, 'scale(1.03)')
-    assert.equal(sceneClipTailStyle(115, 100, 115, 5).transform, 'scale(1.06)')
-    assert.equal(sceneClipTailStyle(200, 100, 115, 5).transform, 'scale(1.06)')
+    assert.equal(sceneClipTailStyle(110, 100, 115, 5).transform, 'scale(1.01)')
+    assert.equal(sceneClipTailStyle(115, 100, 115, 5).transform, 'scale(1.02)')
+    assert.equal(sceneClipTailStyle(200, 100, 115, 5).transform, 'scale(1.02)')
     // Scrubbing back restarts the video and removes the tail zoom.
     syncScenePreviewVideo(video, 102, 100, true)
     assert.equal(video.currentTime, 2)

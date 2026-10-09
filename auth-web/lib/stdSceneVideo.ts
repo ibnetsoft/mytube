@@ -81,5 +81,6 @@ export function sceneClipTailStyle(time: number, sceneStart: number, sceneEnd: n
     const hasTail = Number.isFinite(clipDuration) && clipDuration > 0 && sceneEnd > tailStart
     const progress = hasTail ? Math.max(0, Math.min(1, (time - tailStart) / (sceneEnd - tailStart))) : 0
     const eased = (1 - Math.cos(Math.PI * progress)) / 2
-    return { transform: `scale(${1 + 0.06 * eased})`, transformOrigin: 'center', willChange: 'transform' }
+    // One third of the original scale change keeps zoom velocity at one third.
+    return { transform: `scale(${1 + (0.06 / 3) * eased})`, transformOrigin: 'center', willChange: 'transform' }
 }
