@@ -11,7 +11,6 @@ import { requireStdUser } from '@/lib/stdWeb'
 import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
-import { isGcsConfiguredAsync, createGcsSignedReadUrl } from '@/lib/gcsStorage'
 import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
 
 export const dynamic = 'force-dynamic'
@@ -317,22 +316,10 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         console.warn('[STD Project] render history unavailable:', renderHistoryError?.message)
     }
 
-    const gcsActive = await isGcsConfiguredAsync().catch(() => false)
-    const enrichedAssets = await Promise.all((assets || []).map(async (asset: any) => {
+    // Resolve private media on demand through the authorized asset reader. Signing every
+    // historical TTS/image/video object here delays the entire project response.
+    const enrichedAssets = (assets || []).map((asset: any) => {
         const metadata = asset?.metadata || {}
-        const gcsPath = String(metadata?.gcs_path || '').trim()
-        let gcsSignedUrl = metadata?.gcs_signed_url
-        if (gcsActive && gcsPath && !gcsSignedUrl) {
-            try {
-                gcsSignedUrl = await createGcsSignedReadUrl({
-                    bucket: metadata?.gcs_bucket,
-                    objectPath: gcsPath,
-                    expiresInMinutes: 240,
-                })
-            } catch {
-                // optional
-            }
-        }
         const storageBucket = metadata?.storage_bucket || CONTENT_ASSETS_BUCKET
         const storagePath = metadata?.storage_path
         const publicUrl = metadata?.storage_public_url || storagePublicUrl(storageBucket, storagePath)
@@ -341,11 +328,10 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             ...asset,
             metadata: {
                 ...metadata,
-                ...(gcsSignedUrl ? { gcs_signed_url: gcsSignedUrl } : {}),
                 ...(publicUrl ? { storage_public_url: publicUrl } : {}),
             },
         }
-    }))
+    })
 
     const subtitlePayload = project.project_payload || {}
     if (Array.isArray(subtitlePayload.subtitles)) {

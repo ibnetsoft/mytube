@@ -46,3 +46,21 @@ test('a later-page failure never returns a silently incomplete project', async (
     assert.equal(result.data, null)
     assert.equal(result.error.message, 'query failed')
 })
+
+test('project asset enrichment does not wait for private media signing', () => {
+    const route = fs.readFileSync(path.resolve(__dirname, '../app/api/std/projects/[projectId]/route.ts'), 'utf8')
+    const ast = ts.createSourceFile('route.ts', route, ts.ScriptTarget.Latest, true)
+    let initializer
+    function visit(node) {
+        if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'enrichedAssets') initializer = node.initializer
+        ts.forEachChild(node, visit)
+    }
+    visit(ast)
+    assert(initializer)
+    const code = ts.transpileModule(`return (${initializer.getText(ast)})`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
+    const assets = Array.from({ length: 1265 }, (_, id) => ({ id, metadata: { gcs_path: `private/${id}` } }))
+    const enriched = new Function('assets', 'CONTENT_ASSETS_BUCKET', 'storagePublicUrl', code)(assets, 'content-assets', () => '')
+    assert(Array.isArray(enriched), 'Project data must be immediately available without signing every file')
+    assert.equal(enriched.length, assets.length)
+    assert.deepEqual(enriched[1264], assets[1264])
+})

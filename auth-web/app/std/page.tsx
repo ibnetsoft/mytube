@@ -867,7 +867,8 @@ export default function StdPortalPage() {
     const isStdVideoPromptScene = (number: any) => baseIsStdVideoPromptScene(number, selectedProject?.project)
     const isStdMiddleVideoScene = (number: any) => baseIsStdMiddleVideoScene(number, selectedProject?.project)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
-    const mediaSession = JSON.stringify([token, user?.id || user?.email || '', isImpersonating ? impersonateEmail : ''])
+    // Profile hydration is not an authentication change and must not invalidate openProject.
+    const mediaSession = JSON.stringify([token, isImpersonating ? impersonateEmail : ''])
     if (mediaScopeRef.current.session !== mediaSession) {
         mediaScopeRef.current = { session: mediaSession, projectId: '', generation: mediaScopeRef.current.generation + 1 }
     }
@@ -4525,7 +4526,7 @@ export default function StdPortalPage() {
                         openedProject.project,
                         ...prev.filter(p => p.id !== openedProject.project.id),
                     ])
-                } else if (loadedProjects.length > 0) {
+                } else if (!urlProjectId && loadedProjects.length > 0 && loadedProjects[0].id !== preferredProjectId) {
                     await openProject(loadedProjects[0].id, accessToken).catch(() => {})
                 }
             } else if (loadedProjects.length > 0) {
@@ -5522,7 +5523,7 @@ export default function StdPortalPage() {
 
             const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
                 headers: fetchHeaders,
-                signal: AbortSignal.timeout(20000),
+                signal: AbortSignal.timeout(60000),
             })
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (!isLatestOpen()) return null
@@ -8920,6 +8921,22 @@ export default function StdPortalPage() {
                         ? 'px-2 pb-2 pt-0.5 sm:px-5 sm:pb-5 sm:pt-[5px] md:px-6 md:pb-6 md:pt-1.5 overflow-y-auto lg:pb-0 lg:overflow-hidden'
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
+                    {!selectedProject && ['image_gen', 'subtitle_vrew', 'thumbnail'].includes(currentNav) && (
+                        <div role={projectLoading ? 'status' : 'alert'} className="rounded-xl border border-white/10 bg-[#1c2129] p-6 text-gray-200">
+                            <p>{projectLoading
+                                ? ({ ko: '프로젝트를 불러오는 중입니다…', en: 'Loading project…', vi: 'Đang tải dự án…', th: 'กำลังโหลดโปรเจกต์…' }[currentLocale])
+                                : ({ ko: '프로젝트를 불러오지 못했습니다. 다시 시도해 주세요.', en: 'Could not load the project. Please try again.', vi: 'Không thể tải dự án. Vui lòng thử lại.', th: 'ไม่สามารถโหลดโปรเจกต์ได้ โปรดลองอีกครั้ง' }[currentLocale])}</p>
+                            {!projectLoading && (
+                                <button className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white" onClick={() => {
+                                    const projectId = readUrlProjectId() || projects[0]?.id
+                                    if (projectId) void openProject(projectId)
+                                    else setTopicProjectOpen(true)
+                                }}>
+                                    {{ ko: '다시 불러오기', en: 'Reload project', vi: 'Tải lại dự án', th: 'โหลดโปรเจกต์อีกครั้ง' }[currentLocale]}
+                                </button>
+                            )}
+                        </div>
+                    )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
                     {currentNav === 'subtitle_vrew' && selectedProject && (() => {
                         const isVrewSubtitleMode = true

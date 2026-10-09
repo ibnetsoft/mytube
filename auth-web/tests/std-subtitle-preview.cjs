@@ -286,3 +286,15 @@ test('late transition callbacks from a previous selection cannot cover the newes
     assert.equal(harness.state.transition, newest)
     assert.equal(harness.listeners.size, 0)
 })
+
+test('profile hydration keeps the in-flight project generation valid, but auth changes do not', () => {
+    const session = (token, user, impersonateEmail = '') => evaluate(variable('mediaSession'), {
+        token, user, isImpersonating: Boolean(impersonateEmail), impersonateEmail,
+    })
+    const initial = session('session-a', null)
+    assert.equal(session('session-a', { id: 'user-a', email: 'a@example.test' }), initial)
+    assert.equal(session('session-a', { id: 'user-a', full_name: 'Updated profile' }), initial)
+    assert.notEqual(session('session-b', { id: 'user-b' }), initial)
+    assert.notEqual(session('', null), initial)
+    assert.notEqual(session('session-a', null, 'other@example.test'), initial)
+})
