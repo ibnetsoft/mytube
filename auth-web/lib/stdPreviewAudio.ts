@@ -71,3 +71,11 @@ export async function resolveStoredSegmentAudio(
     const payload = await request()
     return await read(payload)
 }
+
+// A stale/estimated MP3 duration must never block later subtitles or silently
+// truncate the last line. Fall back to saved per-subtitle recordings instead.
+export function narrationDurationMatchesTimeline(duration: number, subtitles: any[]): boolean {
+    if (!Number.isFinite(duration) || duration <= 0 || !subtitles.length) return false
+    const end = Number(subtitles[subtitles.length - 1].end_num ?? subtitles[subtitles.length - 1].end_time)
+    return Number.isFinite(end) && end > 0 && Math.abs(duration - end) <= 0.15
+}

@@ -31,6 +31,12 @@ const deploymentCommit = String(
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    experimental: {
+        serverComponentsExternalPackages: ['ffmpeg-static'],
+        outputFileTracingIncludes: {
+            '/api/std/projects/*/tts/generate': ['./node_modules/ffmpeg-static/ffmpeg'],
+        },
+    },
     env: {
         NEXT_PUBLIC_BUILD_COMMIT: deploymentCommit,
     },

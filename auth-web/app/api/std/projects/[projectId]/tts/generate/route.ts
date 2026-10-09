@@ -1044,6 +1044,8 @@ async function runTts(body: any, auth: any, project: any) {
                 multi_voice: multiVoice, voice_map: voiceMap, voice_segments: voiceSegments,
                 segment_reuse: segmentReuse,
                 subtitle_timeline: subtitleTimeline,
+                ...(subtitleTimeline?.length ? { audio_format: 'mp3-44100-mono-seekable-v1',
+                    duration_seconds: subtitleTimeline[subtitleTimeline.length - 1].end } : {}),
                 text_length: text.length, chunk_count: chunkCount, generated_by: auth.requester.email,
                 elevenlabs_key_slots: elevenLabsTrace?.keySlots || [],
                 elevenlabs_model_ids: elevenLabsTrace?.modelIds || [],

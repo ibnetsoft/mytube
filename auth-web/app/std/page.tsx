@@ -26,7 +26,7 @@ import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDi
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import SubtitleSfxPreview from '@/components/SubtitleSfxPreview'
-import { alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio, isSavedAudioRequiredError, savedAudioRequiredMessage } from '@/lib/stdPreviewAudio'
+import { narrationDurationMatchesTimeline, alignedNarrationSubtitles, bindNarrationPlayback, narrationLoadError, resolveStoredSegmentAudio, isSavedAudioRequiredError, savedAudioRequiredMessage } from '@/lib/stdPreviewAudio'
 import BackgroundAudioWaveform from '@/components/BackgroundAudioWaveform'
 import VoiceStudioPicker from '@/components/VoiceStudioPicker'
 import UnifiedVoiceDialog from '@/components/UnifiedVoiceDialog'
@@ -3722,7 +3722,7 @@ export default function StdPortalPage() {
 
             const normalizations = await prepareSpeechPlayback(speechContext, savedNarrationUrl, playbackSubtitles)
             if (vrewPlaybackCancelRef.current !== cancelToken) return
-            await new Promise<void>((resolve, reject) => {
+            const playedNarration = await new Promise<boolean>((resolve, reject) => {
                 const audio = new Audio(savedNarrationUrl)
                 const speechGain = connectSpeechGain(speechContext, audio)
                 speechGainCleanupRef.current = speechGain.dispose
@@ -3768,9 +3768,13 @@ export default function StdPortalPage() {
                 }
                 audio.onloadedmetadata = () => {
                     if (vrewPlaybackCancelRef.current !== cancelToken) return
-                    if (Number.isFinite(audio.duration) && startTime >= audio.duration) {
+                    if (!narrationDurationMatchesTimeline(audio.duration, playbackSubtitles)) {
                         cleanup()
-                        reject(new Error('선택한 자막 시간이 오디오 길이를 넘었습니다. 앞쪽 자막을 선택해 재생해 주세요.'))
+                        audio.pause()
+                        audio.removeAttribute('src')
+                        audio.load()
+                        if (vrewAudioRef.current === audio) vrewAudioRef.current = null
+                        resolve(false)
                         return
                     }
                     audio.currentTime = startTime
@@ -3787,7 +3791,7 @@ export default function StdPortalPage() {
                     if (vrewPlaybackCancelRef.current !== cancelToken) return
                     cleanup()
                     setVrewActiveTokenIndex(-1)
-                    resolve()
+                    resolve(true)
                 }
                 audio.onerror = () => {
                     if (vrewPlaybackCancelRef.current !== cancelToken) return
@@ -3797,12 +3801,12 @@ export default function StdPortalPage() {
                 audio.load()
             })
 
-            if (vrewPlaybackCancelRef.current === cancelToken) {
+            if (playedNarration && vrewPlaybackCancelRef.current === cancelToken) {
                 stopPreviewBgm()
                 setIsPlayingPreview(false)
                 setMessage('자막 미리듣기가 완료되었습니다.')
             }
-            return
+            if (playedNarration) return
         }
 
         for (let index = Math.max(0, startIndex); index < localSubtitles.length; index += 1) {

@@ -17,6 +17,7 @@
     "@vercel/oidc": "^3.8.7",
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
+    "ffmpeg-static": "5.3.0",
     "framer-motion": "^12.29.2",
     "google-auth-library": "^10.7.0",
     "lucide-react": "^0.563.0",
