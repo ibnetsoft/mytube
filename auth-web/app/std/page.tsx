@@ -7115,6 +7115,19 @@ export default function StdPortalPage() {
     const sceneVideos = useMemo(() => sceneVideoAssets(selectedProject?.assets || [], selectedProject?.project?.id || ''), [selectedProject?.assets, selectedProject?.project?.id])
     const [resolvedPreviewVideo, setResolvedPreviewVideo] = useState<{ key: string; url: string; error: boolean } | null>(null)
     const [previewClipDuration, setPreviewClipDuration] = useState<{ url: string; duration: number } | null>(null)
+    const scenePreviewSourcesRef = useRef(new Map<string, Promise<{ url: string; revoke: () => void }>>())
+    const scenePreviewControllerRef = useRef<AbortController | null>(null)
+
+    useEffect(() => {
+        const controller = new AbortController()
+        scenePreviewControllerRef.current = controller
+        const sources = scenePreviewSourcesRef.current
+        return () => {
+            controller.abort()
+            sources.forEach(source => { void source.then(value => value.revoke()).catch(() => {}) })
+            sources.clear()
+        }
+    }, [selectedProject?.project?.id, authedJsonHeaders])
 
     const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
         text: '글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.',
@@ -7135,20 +7148,47 @@ export default function StdPortalPage() {
         ? (resolvedPreviewVideo?.key === previewVideoKey ? resolvedPreviewVideo.url : '')
         : isPlayablePreviewVideoUrl(currentSubVideoCandidate) ? currentSubVideoCandidate : ''
 
-    // Resolve the selected video independently; do not wait behind all project images/audio.
+    // Share the exact playback URL with preloading and later visits to the same scene.
     useEffect(() => {
-        if (currentNav !== 'subtitle_vrew' || !selectedProject?.project?.id || !currentPreviewVideoAsset?.id) return
-        const controller = new AbortController()
-        let release = () => {}
-        void loadScenePreviewVideo(selectedProject.project.id, currentPreviewVideoAsset.id, authedJsonHeaders, controller.signal)
-            .then(source => {
-                if (controller.signal.aborted) { source.revoke(); return }
-                release = source.revoke
-                setResolvedPreviewVideo({ key: previewVideoKey, url: source.url, error: false })
-            }).catch(() => {
-                if (!controller.signal.aborted) setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })
-            })
-        return () => { controller.abort(); release() }
+        const projectId = selectedProject?.project?.id
+        const controller = scenePreviewControllerRef.current
+        if (currentNav !== 'subtitle_vrew' || !projectId || !currentPreviewVideoAsset?.id || !controller) return
+        let canceled = false
+        const load = (asset: any) => {
+            const key = `${projectId}:${asset.id}`
+            let source = scenePreviewSourcesRef.current.get(key)
+            if (!source) {
+                source = loadScenePreviewVideo(projectId, asset.id, authedJsonHeaders, controller.signal)
+                scenePreviewSourcesRef.current.set(key, source)
+                void source.catch(() => {
+                    if (scenePreviewSourcesRef.current.get(key) === source) scenePreviewSourcesRef.current.delete(key)
+                })
+            }
+            return source
+        }
+        void load(currentPreviewVideoAsset).then(source => {
+            if (!canceled && !controller.signal.aborted) setResolvedPreviewVideo({ key: previewVideoKey, url: source.url, error: false })
+        }).catch(() => {
+            if (!canceled && !controller.signal.aborted) setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })
+        })
+        const preloads: HTMLVideoElement[] = []
+        for (const number of [currentPreviewSceneNumber + 1, currentPreviewSceneNumber + 2]) {
+            const asset = sceneVideos.get(number)
+            if (!asset) continue
+            void load(asset).then(source => {
+                if (canceled || controller.signal.aborted) return
+                const video = document.createElement('video')
+                video.muted = true
+                video.preload = 'auto'
+                video.src = source.url
+                video.load()
+                preloads.push(video)
+            }).catch(() => {})
+        }
+        return () => {
+            canceled = true
+            preloads.forEach(video => { video.pause(); video.removeAttribute('src'); video.load() })
+        }
     }, [currentNav, previewVideoKey, authedJsonHeaders])
 
     useEffect(() => {
