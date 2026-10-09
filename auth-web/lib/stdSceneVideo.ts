@@ -48,6 +48,20 @@ export function syncScenePreviewVideo(video: HTMLVideoElement, time: number, sce
     return true
 }
 
+// Track intentional buffering pauses even if playback resumes before rejection arrives.
+const narrationBufferPauses = new WeakMap<HTMLAudioElement, number>()
+
+export async function playScenePreviewNarration(audio: HTMLAudioElement): Promise<void> {
+    const pauseVersion = narrationBufferPauses.get(audio) || 0
+    try {
+        await audio.play()
+    } catch (error) {
+        if ((error as { name?: string })?.name === 'AbortError'
+            && (narrationBufferPauses.get(audio) || 0) > pauseVersion) return
+        throw error
+    }
+}
+
 export type ScenePreviewBuffer = { audio: HTMLAudioElement | null }
 
 /** The narration clock must wait for the selected clip, including scene transitions. */
@@ -64,13 +78,14 @@ export function syncScenePreviewPlayback(
         video?.pause()
         if (audio && (!audio.paused || buffer.audio === audio)) {
             buffer.audio = audio
+            narrationBufferPauses.set(audio, (narrationBufferPauses.get(audio) || 0) + 1)
             audio.pause()
         }
     } else if (buffer.audio) {
         const pausedAudio = buffer.audio
         buffer.audio = null
         // A scene load completing after Stop or a new playback session cannot restart old audio.
-        if (pausedAudio === audio) void audio.play().catch(() => {})
+        if (pausedAudio === audio) void playScenePreviewNarration(audio).catch(() => {})
     }
     return waiting
 }

@@ -11,7 +11,7 @@ mod.paths = Module._nodeModulePaths(path.dirname(filename))
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText, filename)
-const { isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo, syncScenePreviewPlayback, sceneClipTailStyle } = mod.exports
+const { isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo, syncScenePreviewPlayback, sceneClipTailStyle, playScenePreviewNarration } = mod.exports
 const asset = (id, scene, metadata = {}, extra = {}) => ({ id, project_id: 'p', scene_number: scene, asset_type: 'video', status: 'uploaded', metadata, ...extra })
 
 test('original clips stay distinct from all three worker output formats', () => {
@@ -147,4 +147,39 @@ test('video cannot run ahead while narration is loading or restart audio after S
     syncScenePreviewPlayback(video, nextAudio, 0, 0, true, true, state)
     assert.equal(audio.paused, true)
     assert.equal(nextAudio.paused, true)
+})
+
+// Browser play() remains pending until playback actually starts. A buffering pause
+// rejects that promise asynchronously, possibly after canplay has resumed it.
+test('buffering interrupts a pending narration start without failing the preview', async () => {
+    let rejectStart
+    let starts = 0
+    const audio = media({
+        play() {
+            this.paused = false
+            starts++
+            if (starts === 1) return new Promise((resolve, reject) => { rejectStart = reject })
+            return Promise.resolve()
+        },
+        pause() {
+            this.paused = true
+            queueMicrotask(() => rejectStart(new DOMException('Interrupted by pause()', 'AbortError')))
+        },
+    })
+    const start = playScenePreviewNarration(audio)
+    const state = { audio: null }
+    syncScenePreviewPlayback(null, audio, 7, 7, true, true, state)
+    assert.equal(audio.paused, true)
+    syncScenePreviewPlayback(media(), audio, 7, 7, true, true, state)
+    await start
+    assert.equal(starts, 2)
+    assert.equal(audio.paused, false)
+})
+
+test('unrelated playback failures still reach the preview error handler', async () => {
+    for (const name of ['NotAllowedError', 'NotSupportedError', 'AbortError']) {
+        const error = new DOMException('Playback failed', name)
+        const audio = media({ play() { return Promise.reject(error) } })
+        await assert.rejects(playScenePreviewNarration(audio), error)
+    }
 })

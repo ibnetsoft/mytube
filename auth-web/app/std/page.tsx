@@ -17,7 +17,7 @@ import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotic
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
-import { sceneClipTailStyle, isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewPlayback } from '@/lib/stdSceneVideo'
+import { sceneClipTailStyle, playScenePreviewNarration, isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewPlayback } from '@/lib/stdSceneVideo'
 import { downloadStdFile } from '@/lib/stdFileDownload'
 import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -3781,7 +3781,7 @@ export default function StdPortalPage() {
                     audio.currentTime = startTime
                     syncPlaybackProgress()
                     vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
-                    audio.play().catch(error => {
+                    playScenePreviewNarration(audio).catch(error => {
                         if (vrewPlaybackCancelRef.current !== cancelToken) return
                         stopPreviewBgm()
                         cleanup()
@@ -3904,7 +3904,7 @@ export default function StdPortalPage() {
                 }
                 syncPlaybackProgress()
                 vrewProgressTimerRef.current = setInterval(syncPlaybackProgress, 33)
-                audio.play().catch(error => {
+                playScenePreviewNarration(audio).catch(error => {
                     if (vrewPlaybackCancelRef.current !== cancelToken) return
                     stopPreviewBgm()
                     cleanup()
