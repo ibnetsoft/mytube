@@ -2,9 +2,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { RefreshCw } from 'lucide-react'
+import { stdUiText } from '../lib/stdUiText'
 import StdSpeakerWorkInfo from './StdSpeakerWorkInfo'
 import StdRegionMotionEditor from './StdRegionMotionEditor'
 
+type Notice = string | { text: string; values: Record<string, string | number> }
 type Box = [number, number, number, number]
 type Speaker = { speaker: string; status: string; face_box?: Box; mouth_box?: Box }
 type Scene = {
@@ -65,6 +67,12 @@ export default function StdSpeakerCoordinates({
     onMotionApplied?: () => void
 }) {
     const th = locale === 'th'
+    const ui = (text: string, values: Record<string, string | number> = {}) => stdUiText(th ? 'th' : 'ko', text, values)
+    const noticeText = (notice: Notice) => {
+        if (typeof notice !== 'string') return ui(notice.text, notice.values)
+        const translated = ui(notice)
+        return th && /[가-힣]/.test(translated) ? ui('작업을 완료하지 못했습니다. 다시 시도해 주세요.') : translated
+    }
     const copy = {
         title: th ? 'ตรวจสอบตัวละครในฉากบทสนทนา' : '대사씬 캐릭터 확인',
         refresh: th ? 'รีเฟรช' : '새로고침',
@@ -84,7 +92,7 @@ export default function StdSpeakerCoordinates({
         [image, setImage] = useState(''),
         [loaded, setLoaded] = useState(false)
     const [busy, setBusy] = useState(false),
-        [notice, setNotice] = useState(''),
+        [notice, setNotice] = useState<Notice>(''),
         [drawing, setDrawing] = useState<Box | null>(null)
     const start = useRef<[number, number] | null>(null),
         request = useRef(0),
@@ -209,8 +217,8 @@ export default function StdSpeakerCoordinates({
             request.current++
             setData(result)
             setNotice(pending.length
-                ? `${completedCount}명 위치를 저장했습니다. 남은 화자 ${pending.map(r => r.speaker).join(', ')}도 지정하면 씬을 확정할 수 있습니다.`
-                : `${number}번 씬의 화자 위치를 확정했습니다. AIR STUDIO 작업기를 기다릴 필요가 없습니다.`)
+                ? { text: '{count}명 위치를 저장했습니다. 남은 화자 {speakers}도 지정하면 씬을 확정할 수 있습니다.', values: { count: completedCount, speakers: pending.map(r => r.speaker).join(', ') } }
+                : { text: '{number}번 씬의 화자 위치를 확정했습니다. AIR STUDIO 작업기를 기다릴 필요가 없습니다.', values: { number } })
         } catch (e: any) {
             setNotice(e.message)
         } finally {
@@ -267,20 +275,18 @@ export default function StdSpeakerCoordinates({
                         <section
                             role="dialog"
                             aria-modal="true"
-                            aria-label="화자 얼굴·입 위치 지정"
+                            aria-label={ui("화자 얼굴·입 위치 지정")}
                             className="max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-white/20 bg-[#171c24] p-4 text-white shadow-xl"
                         >
                             <div className="flex items-center justify-between gap-3">
-                                <h2 className="text-lg font-bold">화자 얼굴·입 위치 지정</h2>
-                                <button className={button} disabled={busy} onClick={() => setOpen(false)}>
-                                    닫기
-                                </button>
+                                <h2 className="text-lg font-bold">{ui("화자 얼굴·입 위치 지정")}</h2>
+                                <button className={button} disabled={busy} onClick={() => setOpen(false)}>{ui("닫기")}</button>
                             </div>
                             <div className="my-3 flex flex-wrap items-center gap-3">
                                 <label>
-                                    씬{' '}
+                                    {ui('씬')}{' '}
                                     <select
-                                        aria-label="확인할 대사씬"
+                                        aria-label={ui("확인할 대사씬")}
                                         disabled={busy}
                                         value={number}
                                         onChange={(e) => {
@@ -291,22 +297,22 @@ export default function StdSpeakerCoordinates({
                                     >
                                         {data.scenes.map((s) => (
                                             <option key={s.number} value={s.number}>
-                                                {s.number}번 씬 ·{' '}
+                                                {ui('{n}번 씬', { n: s.number })} ·{' '}
                                                 {s.result?.origin === 'user'
-                                                    ? '직접 확정'
+                                                    ? ui('직접 확정')
                                                     : s.result
-                                                      ? '자동 분석 완료'
+                                                      ? ui('자동 분석 완료')
                                                       : s.error
-                                                        ? '직접 확인 필요'
-                                                        : '미확정'}
+                                                        ? ui('직접 확인 필요')
+                                                        : ui('미확정')}
                                             </option>
                                         ))}
                                     </select>
                                 </label>
                                 <label>
-                                    화자{' '}
+                                    {ui('화자')}{' '}
                                     <select
-                                        aria-label="위치를 지정할 화자"
+                                        aria-label={ui("위치를 지정할 화자")}
                                         disabled={busy}
                                         value={speaker}
                                         onChange={(e) => {
@@ -319,19 +325,17 @@ export default function StdSpeakerCoordinates({
                                     >
                                         {rows.map((r, i) => (
                                             <option key={r.speaker} value={i}>
-                                                {r.speaker || '이름 미지정'} · {r.status === 'offscreen' || (r.face_box && r.mouth_box) ? '지정됨' : '미지정'}
+                                                {r.speaker || ui('이름 미지정')} · {r.status === 'offscreen' || (r.face_box && r.mouth_box) ? ui('지정됨') : ui('미지정')}
                                             </option>
                                         ))}
                                     </select>
                                 </label>
-                                <span className="text-xs text-cyan-200">{analysisLabel(scene)}</span>
+                                <span className="text-xs text-cyan-200">{ui(analysisLabel(scene))}</span>
                             </div>
                             {scene.key !== draftKey && (
                                 <p role="alert">
-                                    이미지나 화자가 변경됐습니다.{' '}
-                                    <button className={button} onClick={() => choose(scene)}>
-                                        변경된 씬 다시 불러오기
-                                    </button>
+                                    {ui('이미지나 화자가 변경됐습니다.')}{' '}
+                                    <button className={button} onClick={() => choose(scene)}>{ui("변경된 씬 다시 불러오기")}</button>
                                 </p>
                             )}
                             {scene.result && (
@@ -342,15 +346,9 @@ export default function StdSpeakerCoordinates({
                                         setRows(drafts(scene))
                                         setNotice('저장된 위치를 불러왔습니다.')
                                     }}
-                                >
-                                    저장된 위치 불러오기
-                                </button>
+                                >{ui("저장된 위치 불러오기")}</button>
                             )}
-                            <p className="mb-3 text-sm text-gray-300">
-                                화자를 선택한 뒤 이미지에서 ① 얼굴 전체, ② 입술과 주변 피부를 차례로 드래그하세요. 화면
-                                밖 화자는 입을 움직이지 않습니다. 입이 가려졌거나 식별이 어려우면 확정하지 말고 원본
-                                이미지를 수정해 주세요.
-                            </p>
+                            <p className="mb-3 text-sm text-gray-300">{ui("화자를 선택한 뒤 이미지에서 ① 얼굴 전체, ② 입술과 주변 피부를 차례로 드래그하세요. 화면 밖 화자는 입을 움직이지 않습니다. 입이 가려졌거나 식별이 어려우면 확정하지 말고 원본 이미지를 수정해 주세요.")}</p>
                             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                                 <div>
                                     <div className="mb-2 flex flex-wrap gap-2">
@@ -358,23 +356,17 @@ export default function StdSpeakerCoordinates({
                                             disabled={busy}
                                             className={`${button} ${mode === 'face_box' ? 'bg-sky-700' : ''}`}
                                             onClick={() => setMode('face_box')}
-                                        >
-                                            ① 얼굴 영역 지정
-                                        </button>
+                                        >{ui("① 얼굴 영역 지정")}</button>
                                         <button
                                             disabled={busy}
                                             className={`${button} ${mode === 'mouth_box' ? 'bg-pink-700' : ''}`}
                                             onClick={() => setMode('mouth_box')}
-                                        >
-                                            ② 입 영역 지정
-                                        </button>
+                                        >{ui("② 입 영역 지정")}</button>
                                         <button
                                             disabled={busy}
                                             className={button}
                                             onClick={() => setImageReload((n) => n + 1)}
-                                        >
-                                            이미지 다시 불러오기
-                                        </button>
+                                        >{ui("이미지 다시 불러오기")}</button>
                                         <button
                                             disabled={busy}
                                             className={button}
@@ -385,26 +377,24 @@ export default function StdSpeakerCoordinates({
                                                     mouth_box: undefined,
                                                 })
                                             }
-                                        >
-                                            영역 지우기
-                                        </button>
+                                        >{ui("영역 지우기")}</button>
                                     </div>
                                     <div className={`relative bg-black ${loaded ? '' : 'min-h-32'}`}>
                                         {image ? (
                                             <img
                                                 src={image}
-                                                alt={`${number}번 씬 원본 이미지`}
+                                                alt={ui('{number}번 씬 원본 이미지', { number })}
                                                 draggable={false}
                                                 onLoad={() => setLoaded(true)}
                                                 onError={() => setNotice('이미지를 표시하지 못했습니다.')}
                                                 className="block h-auto w-full"
                                             />
                                         ) : (
-                                            <p className="p-8 text-center">원본 이미지 불러오는 중…</p>
+                                            <p className="p-8 text-center">{ui("원본 이미지 불러오는 중…")}</p>
                                         )}
                                         {loaded && (
                                             <svg
-                                                aria-label={`${current?.speaker || ''} 얼굴과 입 영역 그리기`}
+                                                aria-label={ui('{speaker} 얼굴과 입 영역 그리기', { speaker: current?.speaker || '' })}
                                                 role="img"
                                                 viewBox="0 0 1 1"
                                                 preserveAspectRatio="none"
@@ -487,12 +477,12 @@ export default function StdSpeakerCoordinates({
                                     </div>
                                 </div>
                                 <div className="space-y-3">
-                                    <p className="text-sm font-bold">화자 위치 {completedCount}/{rows.length}명 지정</p>
-                                    <div className="flex flex-wrap gap-2" aria-label="씬 화자 지정 상태">
+                                    <p className="text-sm font-bold">{ui('화자 위치 {completed}/{total}명 지정', { completed: completedCount, total: rows.length })}</p>
+                                    <div className="flex flex-wrap gap-2" aria-label={ui("씬 화자 지정 상태")}>
                                         {rows.map((r, i) => <button key={r.speaker} type="button" disabled={busy}
                                             className={`${button} ${i === speaker ? 'border-cyan-300 bg-cyan-900' : ''}`}
                                             onClick={() => { setSpeaker(i); setMode('face_box'); setDrawing(null); start.current = null }}>
-                                            {r.speaker} · {r.status === 'offscreen' ? '화면 밖' : r.face_box && r.mouth_box ? '지정됨' : '미지정'}
+                                            {r.speaker} · {r.status === 'offscreen' ? ui('화면 밖') : r.face_box && r.mouth_box ? ui('지정됨') : ui('미지정')}
                                         </button>)}
                                     </div>
                                     <p className="font-bold">{current?.speaker}</p>
@@ -502,15 +492,13 @@ export default function StdSpeakerCoordinates({
                                         onClick={() =>
                                             patch({ status: 'offscreen', face_box: undefined, mouth_box: undefined })
                                         }
-                                    >
-                                        이 화자는 화면 밖에 있음
-                                    </button>
+                                    >{ui("이 화자는 화면 밖에 있음")}</button>
                                     <p className="text-xs text-gray-300">
                                         {current?.status === 'offscreen'
-                                            ? '화면 밖으로 선택됨'
+                                            ? ui('화면 밖으로 선택됨')
                                             : current?.face_box && current?.mouth_box
-                                              ? '얼굴·입 영역 지정됨'
-                                              : '얼굴·입 영역을 지정해 주세요.'}
+                                              ? ui('얼굴·입 영역 지정됨')
+                                              : ui('얼굴·입 영역을 지정해 주세요.')}
                                     </p>
                                     <div className="max-h-44 overflow-auto text-sm text-gray-300">
                                         {scene.rows
@@ -537,17 +525,13 @@ export default function StdSpeakerCoordinates({
                                                 setBusy(false)
                                             }
                                         }}
-                                    >
-                                        선택 씬 자동 분석 (선택 사항)
-                                    </button>
-                                    <p className="text-xs text-gray-400">
-                                        자동 분석은 연결된 분석 작업기가 필요합니다. 직접 확정은 작업기 없이 저장됩니다.
-                                    </p>
+                                    >{ui("선택 씬 자동 분석 (선택 사항)")}</button>
+                                    <p className="text-xs text-gray-400">{ui("자동 분석은 연결된 분석 작업기가 필요합니다. 직접 확정은 작업기 없이 저장됩니다.")}</p>
                                 </div>
                             </div>
                             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                                 <p role="status" className="text-sm text-cyan-200">
-                                    {notice || (pending.length ? `아직 미지정: ${pending.map(r => r.speaker).join(', ')}. 지정한 위치는 먼저 저장할 수 있습니다.` : '모든 화자의 위치를 지정했습니다. 씬을 확정해 주세요.')}
+                                    {notice ? noticeText(notice) : pending.length ? ui('아직 미지정: {speakers}. 지정한 위치는 먼저 저장할 수 있습니다.', { speakers: pending.map(r => r.speaker).join(', ') }) : ui('모든 화자의 위치를 지정했습니다. 씬을 확정해 주세요.')}
                                 </p>
                                 <button
                                     className={`${button} bg-emerald-700 font-bold`}
@@ -560,7 +544,7 @@ export default function StdSpeakerCoordinates({
                                     }
                                     onClick={() => void save()}
                                 >
-                                    {busy ? '저장 중…' : pending.length ? '지정한 화자 위치 저장' : '이 씬 화자 위치 확정'}
+                                    {busy ? ui('저장 중…') : pending.length ? ui('지정한 화자 위치 저장') : ui('이 씬 화자 위치 확정')}
                                 </button>
                             </div>
                         </section>
