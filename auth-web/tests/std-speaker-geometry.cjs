@@ -23,10 +23,10 @@ test('human confirmation wins over later AI and survives text edits but not sour
  for(const mutate of [s=>s.image.id='new',s=>s.image.metadata.gcs_path='changed.png',s=>s.rows[0].speaker='other']){const s=structuredClone(f.scene);mutate(s);assert.equal(lib.savedSpeakerGeometry([manual],f.cast,s),null)}
  assert.equal(lib.savedSpeakerGeometry([manual],{...f.cast,main:{name:'other'}},f.scene),null)
 })
-function apiFixture({owned=true,authorized=true}={}){
- const f=fixture(),assets=[f.image],writes=[],filters=[]
+function apiFixture({owned=true,authorized=true,videoOnly=false}={}){
+ const f=fixture(),assets=[f.image],writes=[],filters=[];if(videoOnly){f.project.project_payload.subtitles[0].scene_number=12;assets.splice(0,1,{id:'clip12',asset_type:'video',status:'uploaded',scene_number:12,metadata:{gcs_bucket:'bucket',gcs_path:'clip.mp4'}})}
  const db={from(table){let insertion;const result=()=>({data:insertion?{id:'saved',...insertion}:table==='std_projects'?(owned?f.project:null):assets,error:null});const q={select:()=>q,eq:(...args)=>{filters.push([table,...args]);return q},in:()=>q,order:()=>q,or:()=>q,range:()=>q,insert:value=>{insertion=value;writes.push(value);return q},maybeSingle:async()=>result(),single:async()=>result(),then:(a,b)=>Promise.resolve(result()).then(a,b)};return q}}
- const api=load('app/api/std/projects/[projectId]/speaker-coordinates/route.ts',{'next/server':{NextResponse:Response},'@/lib/supabaseAdmin':{supabaseAdmin:db},'@/lib/stdWeb':{requireStdUser:async()=>authorized?{ok:true,requester:{email:'owner@example.com'}}:{ok:false,response:Response.json({error:'Authentication required'},{status:401})}},'@/lib/gcsStorage':{downloadGcsObject:async ref=>{assert.deepEqual(ref,{bucket:'bucket',objectPath:'original.png'});return original}},'@/lib/stdSceneImageDownload':{readSceneImage:async()=>({buffer:original,contentType:'image/png'})},'@/lib/stdSpeakerGeometry':lib,'@/lib/stdSpeakerCoordinateOverview':load('lib/stdSpeakerCoordinateOverview.ts'),'@/lib/stdSpeakerCoordinateAssets':load('lib/stdSpeakerCoordinateAssets.ts')})
+ const api=load('app/api/std/projects/[projectId]/speaker-coordinates/route.ts',{'next/server':{NextResponse:Response},'@/lib/supabaseAdmin':{supabaseAdmin:db},'@/lib/stdWeb':{requireStdUser:async()=>authorized?{ok:true,requester:{email:'owner@example.com'}}:{ok:false,response:Response.json({error:'Authentication required'},{status:401})}},'@/lib/stdSpeakerVideoFrame':{prepareSpeakerVideoFrame:async(db,id,scene)=>{assert.equal(scene.video.id,'clip12');const reference={id:'frame12',asset_type:'other',status:'uploaded',scene_number:12,metadata:{kind:'speaker_video_reference',source_video_id:'clip12',source_video_path:'clip.mp4',gcs_bucket:'bucket',gcs_path:'original.png'}};assets.unshift(reference);return reference}},'@/lib/gcsStorage':{downloadGcsObject:async ref=>{assert.deepEqual(ref,{bucket:'bucket',objectPath:'original.png'});return original}},'@/lib/stdSceneImageDownload':{readSceneImage:async()=>({buffer:original,contentType:'image/png'})},'@/lib/stdSpeakerGeometry':lib,'@/lib/stdSpeakerCoordinateOverview':load('lib/stdSpeakerCoordinateOverview.ts'),'@/lib/stdSpeakerCoordinateAssets':load('lib/stdSpeakerCoordinateAssets.ts')})
  const request=(body={},method='POST')=>new Request('https://studio.example/api/std/projects/'+id+'/speaker-coordinates',{method,headers:{'content-type':'application/json'},body:JSON.stringify(body)})
  return{...f,api,writes,filters,request,params:{params:{projectId:id}}}
 }
@@ -65,4 +65,18 @@ test('drafts reject empty, duplicate, unknown, invalid and stale-source submissi
   const f=apiFixture();const response=await f.api.PATCH(f.request({sceneNumber:19,sceneKey:f.scene.key,imageSha256:imageHash,speakers:f.speakers,draft:true,...change},'PATCH'),f.params)
   assert.ok([400,409].includes(response.status));assert.equal(f.writes.length,0)
  }
+})
+
+test('video-only scene prepares, displays and saves coordinates without an original image',async()=>{
+ const f=apiFixture({videoOnly:true});
+ const wrong=await f.api.POST(f.request({action:'prepare_video',sceneNumber:12,videoId:'stale'}),f.params);
+ assert.equal(wrong.status,409);
+ const prepared=await f.api.POST(f.request({action:'prepare_video',sceneNumber:12,videoId:'clip12'}),f.params);
+ assert.equal(prepared.status,200);
+ const scene=(await prepared.json()).scenes[0];assert.equal(scene.image.id,'frame12');
+ const image=await f.api.GET(new Request('https://studio.example/api/std/projects/'+id+'/speaker-coordinates?sceneNumber=12'),f.params);
+ assert.equal(image.status,200);assert.equal(image.headers.get('content-type'),'image/png');
+ const saved=await f.api.PATCH(f.request({sceneNumber:12,sceneKey:scene.key,imageSha256:imageHash,speakers:f.speakers},'PATCH'),f.params);
+ assert.equal(saved.status,200);assert.equal((await saved.json()).confirmed,1);
+ assert.equal(f.writes[0].metadata.results[0].image_id,'frame12');
 })

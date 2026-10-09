@@ -13,6 +13,7 @@ type Scene = {
     number: number
     key: string
     image: any
+    video?: any
     rows: { speaker: string; text: string }[]
     result?: { origin: string; speakers: Speaker[] }
     draft?: { speakers: Speaker[] }
@@ -94,6 +95,7 @@ export default function StdSpeakerCoordinates({
     const [busy, setBusy] = useState(false),
         [notice, setNotice] = useState<Notice>(''),
         [drawing, setDrawing] = useState<Box | null>(null)
+    const [imageError, setImageError] = useState('')
     const start = useRef<[number, number] | null>(null),
         request = useRef(0),
         saving = useRef(false)
@@ -149,16 +151,32 @@ export default function StdSpeakerCoordinates({
         start.current = null
     }
     useEffect(() => {
-        if (!open || !scene?.image) {
+        if (!open || !scene) {
             setImage('')
             setLoaded(false)
             return
         }
         const controller = new AbortController()
         let objectUrl = ''
+        setImageError('')
         setImage('')
         setImageSha('')
         setLoaded(false)
+        if (scene.video && scene.image?.metadata?.kind !== 'speaker_video_reference' && !scene.result) {
+            void load({ action: 'prepare_video', sceneNumber: scene.number, videoId: scene.video.id }, controller.signal)
+                .then(result => {
+                    if (controller.signal.aborted) return
+                    const prepared = result.scenes.find(s => s.number === scene.number)
+                    if (!prepared?.image || prepared.image.metadata?.kind !== 'speaker_video_reference')
+                        throw new Error('영상의 기준 프레임을 불러오지 못했습니다. 다시 불러와 주세요.')
+                    choose(prepared)
+                }).catch(e => { if (!controller.signal.aborted) setImageError(e.message) })
+            return () => controller.abort()
+        }
+        if (!scene.image) {
+            setImageError('원본 이미지 또는 영상이 없습니다. 이미지 페이지에서 미디어를 등록해 주세요.')
+            return () => controller.abort()
+        }
         fetch(`/api/std/projects/${projectId}/speaker-coordinates?sceneNumber=${scene.number}`, {
             headers,
             signal: controller.signal,
@@ -176,13 +194,13 @@ export default function StdSpeakerCoordinates({
                 }
             })
             .catch((e) => {
-                if (!controller.signal.aborted) setNotice(e.message)
+                if (!controller.signal.aborted) setImageError(e.message)
             })
         return () => {
             controller.abort()
             if (objectUrl) URL.revokeObjectURL(objectUrl)
         }
-    }, [open, scene?.key, projectId, headers, imageReload])
+    }, [open, scene?.key, projectId, headers, imageReload, load])
     const patch = (changes: Partial<Speaker>) =>
         setRows((old) => old.map((r, i) => (i === speaker ? { ...r, ...changes } : r)))
     const point = (e: React.PointerEvent<SVGSVGElement>): [number, number] => {
@@ -366,7 +384,7 @@ export default function StdSpeakerCoordinates({
                                             disabled={busy}
                                             className={button}
                                             onClick={() => setImageReload((n) => n + 1)}
-                                        >{ui("이미지 다시 불러오기")}</button>
+                                        >{ui(scene.video ? "영상 기준 프레임 다시 불러오기" : "이미지 다시 불러오기")}</button>
                                         <button
                                             disabled={busy}
                                             className={button}
@@ -379,18 +397,19 @@ export default function StdSpeakerCoordinates({
                                             }
                                         >{ui("영역 지우기")}</button>
                                     </div>
+                                    {scene.video && <p className="mb-2 text-sm text-cyan-200">{ui("원본 영상의 첫 프레임에서 얼굴·입 위치를 지정합니다. 저장한 위치를 기준으로 영상의 움직임을 추적합니다.")}</p>}
                                     <div className={`relative bg-black ${loaded ? '' : 'min-h-32'}`}>
-                                        {image ? (
+                                        {imageError ? <p role="alert" className="p-8 text-center text-red-300">{noticeText(imageError)}</p> : image ? (
                                             <img
                                                 src={image}
                                                 alt={ui('{number}번 씬 원본 이미지', { number })}
                                                 draggable={false}
                                                 onLoad={() => setLoaded(true)}
-                                                onError={() => setNotice('이미지를 표시하지 못했습니다.')}
+                                                onError={() => { setLoaded(false); setImageError('이미지를 표시하지 못했습니다.') }}
                                                 className="block h-auto w-full"
                                             />
                                         ) : (
-                                            <p className="p-8 text-center">{ui("원본 이미지 불러오는 중…")}</p>
+                                            <p className="p-8 text-center">{ui(scene.video ? "영상의 첫 프레임을 준비하는 중…" : "원본 이미지 불러오는 중…")}</p>
                                         )}
                                         {loaded && (
                                             <svg

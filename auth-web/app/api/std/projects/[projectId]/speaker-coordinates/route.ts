@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { readSceneImage } from '@/lib/stdSceneImageDownload'
+import { prepareSpeakerVideoFrame } from '@/lib/stdSpeakerVideoFrame'
 import { downloadGcsObject } from '@/lib/gcsStorage'
 import {
     coordinateCast,
@@ -56,6 +57,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (ctx.response) return ctx.response
         const { project, assets } = ctx,
             body = await req.json().catch(() => ({}))
+        if (body.action === 'prepare_video') {
+            const scene = coordinateScenes(project, assets).find(s => s.number === Number(body.sceneNumber))
+            if (!scene?.video || body.videoId !== scene.video.id)
+                return NextResponse.json({ error: '원본 영상이 변경됐습니다. 다시 불러와 주세요.' }, { status: 409 })
+            await prepareSpeakerVideoFrame(db, params.projectId, scene, assets)
+            const latest = await context(req, params.projectId)
+            if (latest.response) return latest.response
+            return NextResponse.json(speakerCoordinateOverview(latest.project, latest.assets))
+        }
         // Opening the editor only reads status. AI work is explicitly requested per scene.
         if (body.action === 'analyze') {
             const scene = coordinateScenes(project, assets).find((s) => s.number === Number(body.sceneNumber))

@@ -1,4 +1,4 @@
-import { savedSpeakerGeometry, coordinateCast } from './stdSpeakerGeometry'
+import { savedSpeakerGeometry, coordinateCast, coordinateImage, coordinateVideo } from './stdSpeakerGeometry'
 import { dialogueSceneIndex, subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
 import { createHash } from 'crypto'
 import { isComicProject } from './stdComic'
@@ -35,9 +35,8 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
             const number = Number(s.scene_number)
             if (number < 19 && !subtitles.some((r: any) => r.scene_number === number && r.kind === 'dialogue')) return []
             const source = structure.scenes?.find((r: any) => Number(r.scene_number ?? r.scene_order) === number) || s
-            const image = assets.find(a => active(a) && a.asset_type === 'image' && Number(a.scene_number) === number)
-            const originalVideo = assets.find(a => active(a) && a.asset_type === 'video' && Number(a.scene_number) === number
-                && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint && a.metadata?.postprocess_mode !== 'after_effects')
+            const image = coordinateImage(assets, number)
+            const originalVideo = coordinateVideo(assets, number)
             if (number < 19 && !originalVideo) throw new Error(`${number}번 대사 씬의 원본 영상이 필요합니다.`)
             if (!image && !originalVideo) throw new Error(`${number}번 씬의 원본 이미지가 필요합니다.`)
             const start = starts[index], end = starts[index + 1] ?? subtitles[subtitles.length - 1]?.end

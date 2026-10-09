@@ -121,6 +121,12 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
         subtitles.append(row); saved.append({**row, 'dialogue_kind': 'dialogue', 'dialogue_speaker': 'girl'})
         scenes.insert(0, {'scene_number': 5, 'scene_text': 'hello'})
         assets.extend([{**assets[1], 'id': 'image5', 'scene_number': 5}, {**video, 'id': 'video5', 'scene_number': 5}])
+        # The first-frame reference is an 'other' asset, not an editor image replacement.
+        assets[1]['asset_type'] = 'other'
+        assets[1]['metadata'] = {**assets[1]['metadata'], 'kind': 'speaker_video_reference',
+            'source_video_id': 'video12', 'source_video_path': 'video12.mp4',
+            'source_video_sha256': mouth.digest(original)}
+        snapshot['scenes'][1]['image']['metadata'] = assets[1]['metadata']
         def track(video, image, speakers, directory, duration):
             tracked.append(duration)
             return image, speakers, {'source_duration': 3, 'speakers': speakers}

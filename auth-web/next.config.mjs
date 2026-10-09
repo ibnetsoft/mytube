@@ -34,6 +34,7 @@ const nextConfig = {
     experimental: {
         serverComponentsExternalPackages: ['ffmpeg-static'],
         outputFileTracingIncludes: {
+            '/api/std/projects/*/speaker-coordinates': ['./node_modules/ffmpeg-static/ffmpeg'],
             '/api/std/projects/*/tts/generate': ['./node_modules/ffmpeg-static/ffmpeg'],
         },
     },

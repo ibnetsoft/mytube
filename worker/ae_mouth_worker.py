@@ -65,7 +65,8 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
         (snapshot.get('version',1) >= 2 and any(int(r.get('scene_number') or 0)==int(s['scene_number']) and r.get('dialogue_kind')=='dialogue' for r in saved)
          and any(a.get('asset_type')=='video' and int(a.get('scene_number') or 0)==int(s['scene_number']) and a.get('status') in ('uploaded','assigned')
                  and not (a.get('metadata') or {}).get('ae_mouth_fingerprint') and not (a.get('metadata') or {}).get('lipsync_fingerprint')
-                 and (a.get('metadata') or {}).get('postprocess_mode')!='after_effects' for a in assets))]
+                 and not (a.get('metadata') or {}).get('region_motion_plan_id')
+                 and (a.get('metadata') or {}).get('postprocess_mode') not in ('after_effects', 'region_motion') for a in assets))]
     if current_numbers != [s['number'] for s in snapshot['scenes']]:
         return False
     for original in snapshot['scenes']:
@@ -73,11 +74,17 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
         s = next(s for s in scenes if int(s['scene_number']) == number)
         source = next((r for r in structure.get('scenes', []) if int(r.get('scene_number') or r.get('scene_order') or 0) == number), s)
         image = next((a for a in assets if a.get('asset_type') == 'image' and int(a.get('scene_number') or 0) == number and a.get('status') in ('uploaded', 'assigned')), None)
-        if original['image'] != ({'id': image['id'], 'metadata': image.get('metadata')} if image else None):
-            return False
         video = next((a for a in assets if a.get('asset_type') == 'video' and int(a.get('scene_number') or 0) == number
                       and a.get('status') in ('uploaded', 'assigned') and not (a.get('metadata') or {}).get('ae_mouth_fingerprint')
-                      and not (a.get('metadata') or {}).get('lipsync_fingerprint') and (a.get('metadata') or {}).get('postprocess_mode') != 'after_effects'), None)
+                      and not (a.get('metadata') or {}).get('lipsync_fingerprint') and not (a.get('metadata') or {}).get('region_motion_plan_id')
+                      and (a.get('metadata') or {}).get('postprocess_mode') not in ('after_effects', 'region_motion')), None)
+        reference = next((a for a in assets if video and a.get('status') in ('uploaded', 'assigned')
+            and int(a.get('scene_number') or 0) == number and (a.get('metadata') or {}).get('kind') == 'speaker_video_reference'
+            and a['metadata'].get('source_video_id') == video['id']
+            and a['metadata'].get('source_video_path') == (video.get('metadata', {}).get('gcs_path') or video.get('metadata', {}).get('storage_path'))), None)
+        image = reference or image
+        if original['image'] != ({'id': image['id'], 'metadata': image.get('metadata')} if image else None):
+            return False
         if original.get('original_video') != ({'id': video['id'], 'metadata': video.get('metadata')} if video else None):
             return False
         direction = {k: source.get(k) for k in ('ae_motion_plan', 'ae_effect_plan', 'ae_directorial_plan')}
@@ -239,6 +246,9 @@ def process_one(report=None, should_stop=None) -> bool:
                             if not video.exists():
                                 bucket, path = ref(scene['original_video'])
                                 ae._download_gcs_file(ae.GcsRef(bucket,path),video)
+                            video_hash = (scene['image'].get('metadata') or {}).get('source_video_sha256')
+                            if video_hash and digest(video) != video_hash:
+                                raise ValueError('기준 프레임의 원본 영상이 변경됐습니다. 영상 좌표를 다시 저장해 주세요.')
                             image, speakers, tracking = track_video(video,image,speakers,scene_dir/'tracking',duration)
                         direction = direction_text(speakers, dialogue, scene['start'])
                         if tracking:

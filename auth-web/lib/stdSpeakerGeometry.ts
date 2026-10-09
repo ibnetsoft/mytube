@@ -27,19 +27,30 @@ export function coordinateKey(cast: any, scene: any) {
         )
         .digest('hex')
 }
+export function coordinateVideo(assets: any[], number: number) {
+    return assets.find(a => ['uploaded', 'assigned'].includes(a.status) && a.asset_type === 'video'
+        && Number(a.scene_number) === number && !a.metadata?.ae_mouth_fingerprint
+        && !a.metadata?.lipsync_fingerprint && !a.metadata?.region_motion_plan_id
+        && !['after_effects', 'region_motion'].includes(a.metadata?.postprocess_mode))
+}
+export function coordinateImage(assets: any[], number: number) {
+    const video = coordinateVideo(assets, number)
+    const reference = video && assets.find(a => ['uploaded', 'assigned'].includes(a.status)
+        && Number(a.scene_number) === number && a.metadata?.kind === 'speaker_video_reference'
+        && a.metadata.source_video_id === video.id
+        && a.metadata.source_video_path === coordinateSource(video).path)
+    return reference || assets.find(a => ['uploaded', 'assigned'].includes(a.status)
+        && a.asset_type === 'image' && Number(a.scene_number) === number)
+}
 export function coordinateScenes(project: any, assets: any[]) {
     const p = project.project_payload || {},
         subtitles = p.subtitles || [],
         cast = coordinateCast(project)
     return dialogueSceneIndex(subtitles)
-        .scenes.filter((s) => s.scene_number >= 19 || assets.some(a => ['uploaded','assigned'].includes(a.status) && a.asset_type === 'video' && Number(a.scene_number) === s.scene_number && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint))
+        .scenes.filter((s) => s.scene_number >= 19 || coordinateVideo(assets, s.scene_number))
         .map((s) => {
-            const image = assets.find(
-                (a) =>
-                    ['uploaded', 'assigned'].includes(a.status) &&
-                    a.asset_type === 'image' &&
-                    Number(a.scene_number) === s.scene_number,
-            )
+            const image = coordinateImage(assets, s.scene_number)
+            const video = coordinateVideo(assets, s.scene_number)
             const rows = s.subtitle_indices.map((i) => ({
                 kind: 'dialogue',
                 speaker: subtitleDialogueSpeakerName(subtitles[i]),
@@ -47,6 +58,7 @@ export function coordinateScenes(project: any, assets: any[]) {
             }))
             const scene = {
                 number: s.scene_number,
+                video: video ? { id: video.id, metadata: video.metadata } : null,
                 image: image ? { id: image.id, metadata: image.metadata } : null,
                 rows,
                 text: rows.map((r) => r.text).join(' '),
