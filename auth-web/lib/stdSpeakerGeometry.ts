@@ -63,7 +63,7 @@ export function coordinateScenes(project: any, assets: any[]) {
                 rows,
                 text: rows.map((r) => r.text).join(' '),
             }
-            return { ...scene, key: coordinateKey(cast, scene) }
+            return { ...scene, castKey: JSON.stringify(cast), key: coordinateKey(cast, scene) }
         })
 }
 export function validateSpeakerGeometry(rows: any, names: string[]) {

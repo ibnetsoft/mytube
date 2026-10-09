@@ -38,6 +38,9 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         const number = Number(new URL(req.url).searchParams.get('sceneNumber'))
         const scene = coordinateScenes(ctx.project, ctx.assets).find((s) => s.number === number)
         if (!scene?.image) return NextResponse.json({ error: '원본 이미지가 없습니다.' }, { status: 404 })
+        const expectedKey = new URL(req.url).searchParams.get('sceneKey')
+        if (expectedKey && expectedKey !== scene.key)
+            return NextResponse.json({ error: '이미지나 화자가 변경됐습니다. 다시 확인해 주세요.' }, { status: 409 })
         const source = coordinateSource(scene.image)
         const image = await readSceneImage(req, {
             metadata: {

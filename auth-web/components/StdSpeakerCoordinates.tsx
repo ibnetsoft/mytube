@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { RefreshCw } from 'lucide-react'
 import { stdUiText } from '../lib/stdUiText'
+import { canRetainSpeakerDraft } from '../lib/stdSpeakerDraftIdentity'
 import StdSpeakerWorkInfo from './StdSpeakerWorkInfo'
 import StdRegionMotionEditor from './StdRegionMotionEditor'
 
@@ -12,6 +13,7 @@ type Speaker = { speaker: string; status: string; face_box?: Box; mouth_box?: Bo
 type Scene = {
     number: number
     key: string
+    castKey?: string
     image: any
     video?: any
     rows: { speaker: string; text: string }[]
@@ -99,6 +101,8 @@ export default function StdSpeakerCoordinates({
     const start = useRef<[number, number] | null>(null),
         request = useRef(0),
         saving = useRef(false)
+    const draftSource = useRef<{ number: number; key: string; castKey?: string; speakers: string[]; sha: string } | null>(null)
+    const loadedSource = useRef<{ key: string; sha: string } | null>(null)
     const scene = data.scenes.find((s) => s.number === number)
     const load = useCallback(
         async (body: any = {}, signal?: AbortSignal) => {
@@ -141,6 +145,8 @@ export default function StdSpeakerCoordinates({
         }
     }, [load, revision])
     const choose = (s: Scene) => {
+        draftSource.current = { number: s.number, key: s.key, castKey: s.castKey,
+            speakers: names(s), sha: loadedSource.current?.key === s.key ? loadedSource.current.sha : '' }
         setDraftKey(s.key)
         setNumber(s.number)
         setRows(drafts(s))
@@ -177,18 +183,30 @@ export default function StdSpeakerCoordinates({
             setImageError('원본 이미지 또는 영상이 없습니다. 이미지 페이지에서 미디어를 등록해 주세요.')
             return () => controller.abort()
         }
-        fetch(`/api/std/projects/${projectId}/speaker-coordinates?sceneNumber=${scene.number}`, {
+        fetch(`/api/std/projects/${projectId}/speaker-coordinates?sceneNumber=${scene.number}&sceneKey=${encodeURIComponent(scene.key)}`, {
             headers,
             signal: controller.signal,
         })
             .then(async (r) => {
+                if (r.status === 409) await load({}, controller.signal)
                 if (!r.ok) throw new Error('원본 이미지를 불러오지 못했습니다.')
                 return r.blob()
             })
             .then(async (blob) => {
                 const hash = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
                 if (!controller.signal.aborted) {
-                    setImageSha(Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join(''))
+                    const sha = Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('')
+                    const previous = draftSource.current
+                    if ((previous?.key === scene.key && (!previous.sha || previous.sha === sha)) || canRetainSpeakerDraft(previous, scene, sha)) {
+                        // Only the server identity changed. Keep the user's rectangles intact.
+                        draftSource.current = { number: scene.number, key: scene.key, castKey: scene.castKey,
+                            speakers: names(scene), sha }
+                        setDraftKey(scene.key)
+                    } else if (previous) {
+                        setDraftKey('')
+                    }
+                    loadedSource.current = { key: scene.key, sha }
+                    setImageSha(sha)
                     objectUrl = URL.createObjectURL(blob)
                     setImage(objectUrl)
                 }

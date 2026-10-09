@@ -2,15 +2,16 @@ const fs=require('fs'),path=require('path'),ts=require('typescript'),test=requir
 const code=ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../components/StdSpeakerCoordinates.tsx'),'utf8'),{compilerOptions:{module:1,target:9,jsx:2}}).outputText
 const face={speaker:'仙太郎',status:'visible',face_box:[.2,.2,.6,.6],mouth_box:[.4,.4,.45,.43]}
 const scene={number:63,key:'same-image',image:{id:'image'},rows:[{speaker:'仙太郎',text:'父上。'},{speaker:'大五郎',text:'米俵が…'}]}
+const identity={};new Function('exports',ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../lib/stdSpeakerDraftIdentity.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(identity)
 const uiExports={};new Function('exports',ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../lib/stdUiText.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(uiExports)
-function harness(rows,locale='ko',overrideScene={},fetchError=''){
- const data={count:1,completed:0,confirmed:0,scenes:[{...scene,...overrideScene}]},state=[data,'',true,scene.key,'a'.repeat(64),0,63,rows,0,'mouth_box','blob:image',true,false,'',null];let cursor=0,submitted;const effects=[]
- const React={createElement:(type,props,...children)=>({type,props:props||{},children}),useState:()=>{const i=cursor++;return[state[i],v=>{state[i]=typeof v==='function'?v(state[i]):v}]},useEffect:(fn,deps)=>effects.push({fn,deps}),useCallback:f=>f,useRef:v=>({current:v})}
- const exports={};new Function('exports','require','React','document','fetch',code)(exports,n=>n==='react'?React:n==='../lib/stdUiText'?uiExports:{createPortal:node=>node},React,{body:{}},async(url,options)=>{submitted=JSON.parse(options.body);return{ok:!fetchError,json:async()=>fetchError?{error:fetchError}:data}})
- const render=()=>{cursor=0;return exports.default({projectId:'project',revision:'1',headers:{},locale})}
+function harness(rows,locale='ko',overrideScene={},fetchError='',fetchImpl){
+ const data={count:1,completed:0,confirmed:0,scenes:[{...scene,...overrideScene}]},state=[data,'',true,scene.key,'a'.repeat(64),0,63,rows,0,'mouth_box','blob:image',true,false,'',null];let cursor=0,refCursor=0,submitted;const effects=[],refs=[]
+ const React={createElement:(type,props,...children)=>({type,props:props||{},children}),useState:()=>{const i=cursor++;return[state[i],v=>{state[i]=typeof v==='function'?v(state[i]):v}]},useEffect:(fn,deps)=>effects.push({fn,deps}),useCallback:f=>f,useRef:v=>{const i=refCursor++;return refs[i]||(refs[i]={current:v})}}
+ const exports={};new Function('exports','require','React','document','fetch',code)(exports,n=>n==='react'?React:n==='../lib/stdSpeakerDraftIdentity'?identity:n==='../lib/stdUiText'?uiExports:{createPortal:node=>node},React,{body:{}},fetchImpl||(async(url,options)=>{submitted=JSON.parse(options.body);return{ok:!fetchError,json:async()=>fetchError?{error:fetchError}:data}}))
+ const render=()=>{cursor=0;refCursor=0;return exports.default({projectId:'project',revision:'1',headers:{},locale})}
  const find=(node,predicate)=>{if(!node||typeof node!=='object')return null;if(predicate(node))return node;for(const child of (node.children||[]).flat(Infinity)){const found=find(child,predicate);if(found)return found}return null}
  const label=n=>(n.children||[]).flat(Infinity).filter(v=>typeof v==='string').join('')
- return{state,render,find,label,effects,get submitted(){return submitted}}
+ return{state,render,find,label,effects,refs,get submitted(){return submitted}}
 }
 test('actual editor enables partial save and sends draft without losing the pending speaker',async()=>{
  const h=harness([face,{speaker:'大五郎',status:'unconfirmed'}]),tree=h.render()
@@ -69,4 +70,36 @@ test('video-only scene prepares a reference instead of waiting forever for an im
  assert.equal(h.submitted.videoId,'original-video')
  assert.equal(h.submitted.sceneNumber,63)
  cleanup()
+})
+
+test('draft rebinding requires identical actual pixels, cast, scene and speaker names',()=>{
+ const sha='a'.repeat(64),previous={number:12,key:'old',castKey:'cast',sha,speakers:['Father']}
+ const current={number:12,key:'new',castKey:'cast',rows:[{speaker:'Father',text:'edited text'}]}
+ assert.equal(identity.canRetainSpeakerDraft(previous,current,sha),true)
+ for(const patch of [{number:13},{castKey:'changed'},{rows:[{speaker:'Mother'}]}])
+  assert.equal(identity.canRetainSpeakerDraft(previous,{...current,...patch},sha),false)
+ assert.equal(identity.canRetainSpeakerDraft(previous,current,'b'.repeat(64)),false)
+ assert.equal(identity.canRetainSpeakerDraft({...previous,sha:''},current,sha),false)
+})
+
+ test('media refresh preserves drawn coordinates only for an identical source',async()=>{
+ const {webcrypto,createHash}=require('node:crypto'),blob=new Blob(['same image bytes'])
+ const sha=createHash('sha256').update('same image bytes').digest('hex')
+ globalThis.crypto=webcrypto
+ for(const changed of [false,true]){
+  const rows=[face,{speaker:'大五郎',status:'offscreen'}]
+  const h=harness(rows,'ko',{key:'new-key',castKey:'cast'},'',async()=>({ok:true,blob:async()=>blob}))
+  h.render()
+  h.refs[3].current={number:63,key:'old-key',castKey:'cast',speakers:['仙太郎','大五郎'],sha:changed?'b'.repeat(64):sha}
+  h.state[3]='old-key'
+  const cleanup=h.effects.find(e=>e.deps.includes('new-key')).fn()
+  await new Promise(resolve=>setTimeout(resolve,30))
+  assert.equal(h.state[3],changed?'':'new-key')
+  assert.equal(h.state[7],rows,'manual rectangles are retained')
+  assert.equal(h.state[4],sha)
+  h.state[11]=true // image onLoad
+  const button=h.find(h.render(),n=>n.type==='button'&&h.label(n)==='이 씬 화자 위치 확정')
+  assert.equal(button.props.disabled,changed)
+  cleanup()
+ }
 })
