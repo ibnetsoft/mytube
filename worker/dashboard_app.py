@@ -2469,6 +2469,26 @@ def api_ae_highlight_stop(
     return wait_for_result(submit_command("stop_process", {"name": "ae_highlight_worker"}))
 
 
+@app.post("/api/processes/ae-mouth/start")
+def api_ae_mouth_start(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("start_process", {"name": "ae_mouth_worker"}))
+
+
+@app.post("/api/processes/ae-mouth/stop")
+def api_ae_mouth_stop(
+    authorization: str | None = Header(default=None),
+    cookie: str | None = Header(default=None, alias="Cookie"),
+):
+    require_auth(authorization, cookie)
+    from ipc import submit_command, wait_for_result
+    return wait_for_result(submit_command("stop_process", {"name": "ae_mouth_worker"}))
+
+
 @app.post("/api/processes/remote-drive/start")
 def api_remote_drive_start(
     authorization: str | None = Header(default=None),
@@ -4941,6 +4961,7 @@ tr:hover { background: #161b22; }
               <select id="log-process" onchange="loadLogs()">
                 <option value="manager">작업 관리자</option>
                 <option value="render_worker">영상 작업 Worker</option>
+                <option value="ae_mouth_worker">AIR 입모양 Worker</option>
                 <option value="ae_highlight_worker">AE Highlight Worker</option>
                 <option value="remote_drive_worker">GCS API Render Worker</option>
                 <option value="hermes_worker">AI 기획·대본 Worker</option>
@@ -5564,6 +5585,7 @@ const SCRIPT_JOB_TYPES = new Set([
 ]);
 const RENDER_PROCESS_NAMES = new Set(['render_worker', 'remote_drive_worker']);
 RENDER_PROCESS_NAMES.add('ae_highlight_worker');
+RENDER_PROCESS_NAMES.add('ae_mouth_worker');
 const SCRIPT_PROCESS_NAMES = new Set(['hermes_worker']);
 
 function visibleForWorkerProfile(scope, profile) {
@@ -5809,7 +5831,7 @@ function renderProcessCards(status, jobs = []) {
     if (name === 'updater') continue;
     if (!visibleForWorkerProfile(processScope(name), workerProfile)) continue;
     const s = info.status || 'stopped';
-    const label = {render_worker:'영상 작업 Worker', ae_highlight_worker:'AE Highlight Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
+    const label = {render_worker:'영상 작업 Worker', ae_mouth_worker:'AIR 입모양 Worker', ae_highlight_worker:'AE Highlight Worker', hermes_worker:'AI 기획·대본 Worker', local_api:'앱 연결 API', updater:'업데이트 도구'}[name] || name;
     const icon = {render_worker:'\u{1F3AC}', ae_highlight_worker:'\u2728', hermes_worker:'\u{1F4E6}', local_api:'\u{1F310}', updater:'\u{1F504}'}[name] || '\u{1F4BB}';
     const progress = Math.max(0, Math.min(100, Number(info.progress || 0)));
     const currentJobId = typeof info.current_job === 'string'
@@ -5829,6 +5851,7 @@ function renderProcessCards(status, jobs = []) {
       : '';
     const workerDescription = {
       render_worker: '영상 조립, 렌더링, 결과 파일 저장을 담당합니다.',
+      ae_mouth_worker: '제출된 이미지·영상 대사 씬의 저장된 화자 좌표로 입모양 작업을 준비합니다. 좌표 없는 씬은 건너뜁니다.',
       ae_highlight_worker: 'GCS 장면 이미지를 감지해 After Effects 하이라이트 클립을 합성합니다.',
       hermes_worker: '',
       local_api: 'AIR Studio 앱과 Worker 사이의 요청을 연결합니다.',
@@ -7671,7 +7694,7 @@ function canCancel(status) {
 }
 
 /* ── Process start / stop ── */
-const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render', ae_highlight_worker: 'ae-highlight', remote_drive_worker: 'remote-drive' };
+const PROCESS_API_NAME = { hermes_worker: 'hermes', render_worker: 'render', ae_mouth_worker: 'ae-mouth', ae_highlight_worker: 'ae-highlight', remote_drive_worker: 'remote-drive' };
 
 async function startProcess(name) {
   try {
@@ -7681,7 +7704,7 @@ async function startProcess(name) {
     }
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/start`);
-    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker', ae_highlight_worker:'AE Highlight Worker'}[name] || name} 시작을 요청했습니다.`, 'info');
+    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker', ae_mouth_worker:'AIR 입모양 Worker', ae_highlight_worker:'AE Highlight Worker'}[name] || name} 시작을 요청했습니다.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
     showToast(`시작 실패: ${e}`, 'error');
@@ -7744,7 +7767,7 @@ async function stopProcess(name) {
     }
     const apiName = PROCESS_API_NAME[name] || name;
     const res = await api('POST', `/api/processes/${apiName}/stop`);
-    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker', ae_highlight_worker:'AE Highlight Worker'}[name] || name} 중지를 요청했습니다.`, 'info');
+    showToast(`${{hermes_worker:'AI 기획·대본 Worker', render_worker:'영상 작업 Worker', ae_mouth_worker:'AIR 입모양 Worker', ae_highlight_worker:'AE Highlight Worker'}[name] || name} 중지를 요청했습니다.`, 'info');
     setTimeout(refreshAll, 1500);
   } catch(e) {
     showToast(`중지 실패: ${e}`, 'error');

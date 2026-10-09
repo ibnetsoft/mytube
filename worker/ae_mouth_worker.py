@@ -4,10 +4,13 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import logging
 import os
 from pathlib import Path
 import sys
 import time
+import threading
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -19,6 +22,13 @@ from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
 from ae_video_tracking import track_video
 from ae_media_utils import ffmpeg, run, ref
+from std_project_assets import load_project_assets
+from ae_mouth_runtime import Heartbeat, instance_lock, claimable_filter
+from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
+
+
+class LeaseLost(RuntimeError):
+    pass
 
 
 class Obsolete(RuntimeError):
@@ -77,10 +87,29 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
     return True
 
 
-def process_one() -> bool:
+def missing_geometry(scene, names):
+    if not scene.get('image'):
+        return 'missing_reference_image'
+    regions = scene.get('speaker_regions') or {}
+    if not regions.get('source_sha256'):
+        return 'missing_speaker_coordinates'
+    by_name = {row.get('speaker'): row for row in regions.get('speakers', [])}
+    for name in names:
+        row = by_name.get(name) or {}
+        if row.get('status') == 'offscreen':
+            continue
+        if not row.get('face_box') or not row.get('mouth_box'):
+            return 'missing_speaker_coordinates'
+    return None
+
+
+def process_one(report=None, should_stop=None) -> bool:
+    report = report or (lambda **changes: None)
+    should_stop = should_stop or (lambda: False)
     base, headers = ae._supabase()
     jobs = ae._request('GET', base + '/rest/v1/std_project_assets', headers, params={
-        'select': '*', 'metadata->>kind': 'eq.ae_mouth_job', 'metadata->>state': 'in.(queued,processing,direction_approved)',
+        'select': '*', 'metadata->>kind': 'eq.ae_mouth_job',
+        'or': claimable_filter(),
         'order': 'created_at.asc', 'limit': '1',
     }).json()
     if not jobs:
@@ -96,25 +125,53 @@ def process_one() -> bool:
     scenes_url = base + '/rest/v1/std_project_scenes'
 
     def fresh():
+        if lease_lost.is_set():
+            raise LeaseLost('AE mouth job lease was lost')
         projects = ae._request('GET', project_url, headers, params={'select': '*', 'id': 'eq.' + job['project_id']}).json()
-        assets = ae._request('GET', assets_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'], 'order': 'created_at.desc'}).json()
+        assets = load_project_assets(ae._request, base, headers, job['project_id'])
         scenes = ae._request('GET', scenes_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'], 'order': 'scene_number.asc'}).json()
         if not projects or not input_matches(snapshot, projects[0], assets, scenes):
             raise Obsolete('대본·음성·원본 이미지가 변경되었습니다. 다시 제출해 주세요.')
         return projects[0]
 
-    # The worker's single-instance OS lock complements this compare-and-swap claim.
+    lease = str(uuid.uuid4())
+    lease_lost = threading.Event()
+    stopped = threading.Event()
+    guard = threading.Lock()
+    # Local lock plus a renewed database lease prevent duplicate work across hosts.
     claimed = ae._request('PATCH', assets_url, {**headers, 'Prefer': 'return=representation'},
         params={'id': 'eq.' + job['id'], 'updated_at': 'eq.' + job['updated_at']},
-        json={'metadata': {**meta, 'state': 'processing', 'phase': 'render' if render_phase else 'discovery'}, 'updated_at': ae._now()}).json()
+        json={'metadata': {**meta, 'state': 'processing', 'worker_token': lease, 'heartbeat_at': ae._now(), 'phase': 'render' if render_phase else 'discovery'}, 'updated_at': ae._now()}).json()
     if not claimed:
         return False
     meta = claimed[0]['metadata']
+    report(status='running', current_job={'id': job['id'], 'project_id': job['project_id'], 'phase': meta['phase']}, progress=0, last_error=None)
 
     def save(**changes):
-        meta.update(changes)
-        ae._request('PATCH', assets_url, headers, params={'id': 'eq.' + job['id']},
-                    json={'metadata': meta, 'updated_at': ae._now()})
+        with guard:
+            if lease_lost.is_set():
+                raise LeaseLost('AE mouth job lease was lost')
+            updated = {**meta, **changes, 'heartbeat_at': ae._now()}
+            saved = ae._request('PATCH', assets_url, {**headers, 'Prefer': 'return=representation'},
+                params={'id': 'eq.' + job['id'], 'metadata->>worker_token': 'eq.' + lease},
+                json={'metadata': updated, 'updated_at': ae._now()}).json()
+            if not saved:
+                lease_lost.set()
+                raise LeaseLost('AE mouth job lease was lost')
+            meta.update(updated)
+            report(progress=round(100 * len(meta.get('results', [])) / max(1, len(snapshot['scenes']))))
+            if changes:
+                logging.getLogger('ae_mouth_worker').info('Job %s state=%s saved_scenes=%s', job['id'], meta.get('state'), len(meta.get('results', [])))
+
+    def renew():
+        while not stopped.wait(15):
+            try:
+                save()
+            except Exception:
+                lease_lost.set()
+                return
+    ticker = threading.Thread(target=renew, daemon=True)
+    ticker.start()
 
     try:
         fresh()
@@ -141,7 +198,11 @@ def process_one() -> bool:
             number, duration = scene['number'], scene['end'] - scene['start']
             if number in outcomes and (not render_phase or outcomes[number]['status'] != 'direction_approved'):
                 continue
+            if should_stop():
+                # Leave the job processing; persisted scene outcomes resume on next launch.
+                return True
             fresh()
+            report(current_job={'id': job['id'], 'project_id': job['project_id'], 'scene_number': number, 'phase': meta['phase']})
             scene_rows = [r for r in rows if r['scene_number'] == number]
             dialogue = [r for r in scene_rows if r['kind'] == 'dialogue']
             result = {'number': number, 'duration': duration, 'speakers': list(dict.fromkeys(r['speaker'] for r in dialogue))}
@@ -153,8 +214,9 @@ def process_one() -> bool:
                 scene_dir = directory / f'scene-{number}'
                 scene_dir.mkdir(parents=True, exist_ok=True)
                 image = scene_dir / 'original.png'
-                if not scene.get('image'):
-                    outcomes[number] = {**result,'status':'needs_review','reason':'영상 추적을 시작할 화자 좌표의 기준 이미지가 필요합니다.'}
+                missing = missing_geometry(scene, result['speakers'])
+                if missing:
+                    outcomes[number] = {**result, 'status': 'skipped', 'skip_reason': missing, 'reason': '저장된 화자 좌표 또는 기준 이미지가 없어 건너뜁니다.'}
                     save(results=list(outcomes.values()))
                     continue
                 if not image.exists():
@@ -242,10 +304,17 @@ def process_one() -> bool:
             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
         fresh()
         save(state='reviewed' if all(r['status'] == 'skipped' for r in outcomes.values()) else 'review_pending' if render_phase else 'direction_pending', error='')
+    except LeaseLost as exc:
+        report(last_error=str(exc))
     except Obsolete as exc:
         save(state='obsolete', error=str(exc))
+        report(last_error=str(exc))
     except Exception as exc:
         save(state='failed', error=str(exc)[:500])
+        report(last_error=str(exc)[:500])
+    finally:
+        stopped.set()
+        ticker.join(timeout=65)
     return True
 
 
@@ -258,26 +327,51 @@ def subprocess_probe(path: Path) -> float:
     return duration
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--once', action='store_true')
-    parser.add_argument('--coordinates-only', action='store_true')
-    args = parser.parse_args()
-    lock_path = worker_config.STATE_DIR / 'ae_mouth_worker.lock'
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open('a+b') as lock:
-        import msvcrt
-        lock.seek(0)
-        try:
-            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-        except OSError:
-            sys.exit('AE mouth worker is already running')
-        while True:
-            try:
-                from ae_speaker_coordinates import process_one as prepare_coordinates
-                if not prepare_coordinates() and not args.coordinates_only: process_one()
-            except Exception as exc:
-                print('AE mouth poll:', type(exc).__name__, flush=True)
-            if args.once:
-                break
-            time.sleep(20)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--coordinates-only', action='store_true')
+    mode.add_argument('--mouth-only', action='store_true')
+    args, _ = parser.parse_known_args()  # Unified entry point also passes --role/--profile.
+    name = 'ae_mouth_worker'
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    handler = logging.FileHandler(worker_config.LOG_FILES[name], encoding='utf-8')
+    logger.addHandler(handler)
+    try:
+        with instance_lock(worker_config.STATE_DIR / (name + '.lock')):
+            clear_shutdown_flag(name)
+            with Heartbeat(worker_config.STATE_DIR / (name + '.json'), worker_config.WORKER_INSTANCE_ID) as heartbeat:
+                logger.info('AIR mouth worker started')
+                while not is_shutdown_requested(name):
+                    heartbeat.update(status='idle', current_job=None, progress=0)
+                    try:
+                        # Submitted media takes priority over optional coordinate analysis.
+                        handled = False if args.coordinates_only else process_one(
+                            report=heartbeat.update, should_stop=lambda: is_shutdown_requested(name))
+                        if not handled and not args.mouth_only and not is_shutdown_requested(name):
+                            from ae_speaker_coordinates import process_one as prepare_coordinates
+                            heartbeat.update(status='running', current_job={'id': 'coordinate-analysis'})
+                            prepare_coordinates(should_stop=lambda: is_shutdown_requested(name))
+                        if not heartbeat.state.get('last_error'):
+                            heartbeat.update(last_success_at=time.time())
+                    except Exception as exc:
+                        logger.exception('AE mouth poll failed')
+                        heartbeat.update(last_error=str(exc)[:500])
+                    finally:
+                        heartbeat.update(status='idle', current_job=None)
+                    if args.once:
+                        break
+                    for _ in range(20):
+                        if is_shutdown_requested(name):
+                            break
+                        time.sleep(1)
+            logger.info('AIR mouth worker stopped')
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+
+if __name__ == '__main__':
+    main()

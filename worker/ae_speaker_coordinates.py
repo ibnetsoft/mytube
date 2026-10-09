@@ -20,7 +20,8 @@ class LeaseLost(RuntimeError):
     pass
 
 
-def process_one():
+def process_one(should_stop=None):
+    should_stop = should_stop or (lambda: False)
     import ae_highlight_worker as ae
     from ae_mouth import locate_speakers, digest
     from codex_content_runner import CodexStagedContentRunner
@@ -67,6 +68,9 @@ def process_one():
         failures = {r['number']:r for r in meta.get('failures',[])}
         for scene in sorted(meta['input']['scenes'],key=lambda s:s['number']):
             if scene['number'] in results: continue
+            if should_stop():
+                save(state='queued', current_scene=None)
+                return True
             save(current_scene=scene['number'])
             try:
                 bucket,path = image_reference(scene['image'])

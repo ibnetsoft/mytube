@@ -17,7 +17,7 @@ def summarize(row, render=False):
     results = meta.get('results') or []
     scenes = (meta.get('input') or {}).get('scenes') or []
     # Discovery outcomes are not rendered or approved outputs.
-    completed = sum(r.get('status') in ('reviewed', 'skipped') for r in results)
+    completed = sum(r.get('status') in ('approved', 'reviewed', 'skipped') for r in results)
     if meta.get('kind') == 'ae_speaker_coordinates': completed = len(results)
     return {'id': row['id'], 'project_id': meta.get('std_web_project_id') or row.get('project_id'),
             'title': row.get('project_name') or '', 'kind': 'render' if render else meta.get('kind'),

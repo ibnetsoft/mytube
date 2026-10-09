@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'worker'))
 import worker_config
+from ae_mouth_runtime import claimable_filter
 HOME = worker_config.STATE_DIR / 'local-media'
 LOGS = worker_config.LOG_DIR / 'local-media'
 
@@ -41,8 +42,11 @@ def pending_roles():
     for kind in ('region_layer_package','region_motion_plan'):
         if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.(queued,processing)'}):
             roles.append('region');break
-    for kind,states,role in [('ae_speaker_coordinates','queued,processing','coordinates'),('ae_mouth_job','queued,processing,direction_approved','ae')]:
-        if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.('+states+')'}): roles.append(role)
+    # Submitted mouth work is independent of optional coordinate analysis.
+    if exists('std_project_assets', {'metadata->>kind':'eq.ae_mouth_job','or':claimable_filter()}):
+        roles.append('ae')
+    if exists('std_project_assets', {'metadata->>kind':'eq.ae_speaker_coordinates','metadata->>state':'in.(queued,processing)'}):
+        roles.append('coordinates')
     from ae_video_tail import pending_video_tail
     response=requests.get(base+'/rest/v1/std_projects',headers=headers,params={
         'select':'project_payload','or':'(submitted_at.not.is.null,project_payload->ae_mouth->>enabled.eq.true)','status':'not.in.(approved,canceled)',
@@ -59,7 +63,7 @@ def role_command(role):
     if role=='coordinates': return [sys.executable,'-u',str(ROOT/'worker/ae_speaker_coordinates.py'),'--once']
     if role=='video_tail': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--video-tails-only','--max-scenes','1']
     if role=='region': return [sys.executable,'-u',str(ROOT/'worker/ae_region_motion_worker.py'),'--once']
-    if role=='ae': return [sys.executable,'-u',str(ROOT/'worker/ae_mouth_worker.py'),'--once']
+    if role=='ae': return [sys.executable,'-u',str(ROOT/'worker/ae_mouth_worker.py'),'--once','--mouth-only']
     if role=='render': return [sys.executable,'-u',str(ROOT/'remote_drive_worker.py'),'--once']
     if role=='highlight': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--max-scenes','1']
     raise ValueError('Unknown media role')

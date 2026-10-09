@@ -5,10 +5,11 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
     assets = [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     const { input, fingerprint } = aeMouthInput(project, scenes, assets)
     const existing = currentAeMouthJob(project, scenes, assets)
-    if (existing && ['direction_pending', 'review_pending', 'failed'].includes(existing.metadata.state)) {
+    if (existing && !existing.metadata.auto_render_queue_id && ['direction_pending', 'review_pending', 'failed', 'reviewed'].includes(existing.metadata.state)) {
         const added = new Set(input.scenes.filter((scene: any) => scene.speaker_regions &&
             existing.metadata.input?.scenes?.some((old: any) => old.number === scene.number && !old.speaker_regions) &&
-            existing.metadata.results?.some((result: any) => result.number === scene.number && result.status === 'needs_review')
+            existing.metadata.results?.some((result: any) => result.number === scene.number && (result.status === 'needs_review' ||
+                (result.status === 'skipped' && result.skip_reason === 'missing_speaker_coordinates')))
         ).map((scene: any) => scene.number))
         if (added.size) {
             const metadata = { ...existing.metadata, state: 'queued', phase: 'discovery', error: null,

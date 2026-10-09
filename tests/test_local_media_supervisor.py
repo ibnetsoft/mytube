@@ -118,3 +118,29 @@ def test_submitted_ae_waiting_project_is_polled_before_final_submission(monkeypa
     project_filter = next(params for url, params in calls if url.endswith('/std_projects'))
     assert project_filter['or'] == '(submitted_at.not.is.null,project_payload->ae_mouth->>enabled.eq.true)'
     assert project_filter['status'] == 'not.in.(approved,canceled)'
+
+
+def test_pending_mouth_job_selects_mouth_process_without_coordinate_prerequisite(monkeypatch, isolated):
+    import requests
+    monkeypatch.setenv('SUPABASE_URL', 'https://database.example')
+    monkeypatch.setenv('SUPABASE_SERVICE_ROLE_KEY', 'fixture')
+    class Response:
+        def __init__(self, rows): self.rows = rows
+        def raise_for_status(self): pass
+        def json(self): return self.rows
+    def get(url, **kwargs):
+        params = kwargs['params']
+        if params.get('metadata->>kind') == 'eq.ae_mouth_job':
+            assert 'updated_at.lt.' in params['or']
+            return Response([{'id': 'submitted-job'}])
+        return Response([])
+    monkeypatch.setattr(requests, 'get', get)
+    roles = media.pending_roles()
+    assert roles == ['ae']
+    assert media.Supervisor().choose(roles) == 'ae'
+    assert media.role_command('ae')[-2:] == ['--once', '--mouth-only']
+
+
+def test_approved_mouth_output_counts_as_completed():
+    from worker.local_media_dashboard import summarize
+    assert summarize({'id':'job','metadata':{'kind':'ae_mouth_job','results':[{'status':'approved'}]}})['done'] == 1

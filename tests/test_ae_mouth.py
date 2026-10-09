@@ -75,7 +75,8 @@ def test_snapshot_invalidates_new_sources_but_ignores_generated_output():
     assert not worker.input_matches(snapshot, changed, assets, scenes)
 
 
-def test_submitted_job_discovers_then_waits_for_direction_approval_before_generating(monkeypatch, tmp_path):
+@pytest.mark.parametrize('video_scene', [False, True])
+def test_submitted_job_discovers_then_waits_for_direction_approval_before_generating(monkeypatch, tmp_path, video_scene):
     import json
     from PIL import Image, ImageDraw
     from ae_media_utils import ffmpeg, run
@@ -98,6 +99,32 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
                     for i, (n, text, start, end) in enumerate([(19, 'hello', 0, 18), (20, 'ending', 18, 19)])]}
     snapshot['scenes'][0]['speaker_regions'] = {'image_id':'image19','source_sha256':mouth.digest(original),
         'speakers':[{'speaker':'girl','status':'visible','confidence':.98,'face_box':[.2,.2,.7,.7], 'mouth_box':[.4,.4,.48,.44],'reason':'saved original-image geometry'}]}
+    tracked = []
+    if video_scene:
+        snapshot['version'] = 2
+        snapshot['scenes'][0]['number'] = 12
+        snapshot['subtitles'][0]['scene_number'] = 12
+        saved[0]['scene_number'] = 12
+        scenes[0]['scene_number'] = 12
+        assets[1]['scene_number'] = 12
+        video = {'id': 'video12', 'asset_type': 'video', 'status': 'uploaded', 'scene_number': 12,
+                 'metadata': {'gcs_bucket': 'bucket', 'gcs_path': 'video12.mp4'}}
+        assets.append(video)
+        snapshot['scenes'][0]['original_video'] = {'id': video['id'], 'metadata': video['metadata']}
+        # Scene 5 has dialogue and a video, but no coordinates. It must not block scene 12.
+        missing = copy.deepcopy(snapshot['scenes'][0])
+        missing.update(number=5, speaker_regions=None)
+        missing['image'] = {**missing['image'], 'id': 'image5'}
+        missing['original_video'] = {**missing['original_video'], 'id': 'video5'}
+        snapshot['scenes'].insert(0, missing)
+        row = {**subtitles[0], 'index': 2, 'scene_number': 5}
+        subtitles.append(row); saved.append({**row, 'dialogue_kind': 'dialogue', 'dialogue_speaker': 'girl'})
+        scenes.insert(0, {'scene_number': 5, 'scene_text': 'hello'})
+        assets.extend([{**assets[1], 'id': 'image5', 'scene_number': 5}, {**video, 'id': 'video5', 'scene_number': 5}])
+        def track(video, image, speakers, directory, duration):
+            tracked.append(duration)
+            return image, speakers, {'source_duration': 3, 'speakers': speakers}
+        monkeypatch.setattr(worker, 'track_video', track)
     job = {'id': 'job', 'project_id': 'p', 'asset_type': 'other', 'updated_at': 'initial',
            'metadata': {'kind': 'ae_mouth_job', 'state': 'queued', 'fingerprint': 'test-fingerprint', 'input': snapshot, 'results': []}}
     class Response:
@@ -109,11 +136,14 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
             if url.endswith('std_projects'): return Response([project])
             if url.endswith('std_project_scenes'): return Response(scenes)
             if 'metadata->>kind' in params:
+                assert 'updated_at.lt.' in params['or']
                 return Response([job] if job['metadata']['state'] in ('queued', 'processing', 'direction_approved') else [])
             if 'metadata->>ae_mouth_fingerprint' in params:
                 return Response([a for a in assets if a.get('metadata', {}).get('ae_mouth_fingerprint')])
             return Response([job, *assets])
         if method == 'PATCH':
+            if 'updated_at' not in params:
+                assert params['metadata->>worker_token'] == 'eq.' + job['metadata']['worker_token']
             job.update(copy.deepcopy(json)); return Response([job])
         if method == 'POST':
             asset = {**json, 'id': 'output'}; assets.insert(0, asset); return Response([asset])
@@ -147,20 +177,33 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
     def render(spec, keep_workdir):
         assert spec.duration_seconds == 18  # No old twelve-second AE cap.
         assert spec.scene['ae_mouth_runtime']['enabled']
+        assert spec.scene['ae_mouth_runtime']['video_source'] is video_scene
+        if video_scene:
+            assert spec.scene_number == 12
+            assert spec.source.path.endswith('original-video.mp4')
         output = tmp_path / 'ae.mp4'
         run([ffmpeg(), '-y', '-f', 'lavfi', '-i', 'color=c=tan:s=32x32:r=24:d=18', '-c:v', 'libx264', str(output)])
         return {'local_path': str(output)}
     monkeypatch.setattr(ae, '_render_job', render)
+    if video_scene:
+        assert worker.process_one(should_stop=lambda: any(r.get('number') == 5 for r in job['metadata']['results']))
+        assert job['metadata']['state'] == 'processing'
+        assert tracked == []
+        assert next(r for r in job['metadata']['results'] if r['number'] == 5)['status'] == 'skipped'
     assert worker.process_one()
     assert job['metadata']['state'] == 'direction_pending'
     assert generated == []
-    assert [r['status'] for r in job['metadata']['results']] == ['direction_pending', 'skipped']
+    assert [r['status'] for r in job['metadata']['results']] == (['skipped', 'direction_pending', 'skipped'] if video_scene else ['direction_pending', 'skipped'])
+    if video_scene:
+        assert job['metadata']['results'][0]['skip_reason'] == 'missing_speaker_coordinates'
+        assert tracked == [18]
     job['metadata']['state'] = 'direction_approved'; job['metadata']['phase'] = 'render'
-    job['metadata']['results'][0]['status'] = 'direction_approved'
+    job['metadata']['results'][1 if video_scene else 0]['status'] = 'direction_approved'
     assert worker.process_one()
     assert job['metadata']['state'] == 'review_pending'
     assert len(generated) == 3
-    assert [r['status'] for r in job['metadata']['results']] == ['review_pending', 'skipped']
-    output = next(a for a in assets if a['asset_type'] == 'video')
+    assert [r['status'] for r in job['metadata']['results']] == (['skipped', 'review_pending', 'skipped'] if video_scene else ['review_pending', 'skipped'])
+    output = next(a for a in assets if a.get('metadata', {}).get('ae_mouth_fingerprint'))
+    assert output['metadata']['source_video_id'] == ('video12' if video_scene else None)
     assert output['metadata']['timing_locked'] is True
     assert output['metadata']['ae_reviewed'] is False

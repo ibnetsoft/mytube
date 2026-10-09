@@ -31,6 +31,10 @@ def main():
         if args.check:
             from adobe_tools import find_aerender
             import imageio_ffmpeg
+            import ae_mouth_worker, ae_video_tracking
+            ae_mouth_worker.ae._supabase()
+            if not (shutil.which("codex") or shutil.which("codex.cmd")):
+                raise SystemExit("Install and authenticate Codex CLI for AE mouth layers before starting the local worker")
             if not find_aerender():raise SystemExit('After Effects aerender was not found')
             print('Local media prerequisites available; FFmpeg: '+imageio_ffmpeg.get_ffmpeg_exe());return
         module='worker.local_media_supervisor'

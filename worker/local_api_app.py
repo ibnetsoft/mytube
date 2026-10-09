@@ -158,6 +158,20 @@ async def ae_highlight_stop(authorization: str | None = Header(default=None)):
     return wait_for_result(submit_command("stop_process", {"name": "ae_highlight_worker"}))
 
 
+@app.post("/processes/ae-mouth/start")
+async def ae_mouth_start(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/ae-mouth/start")
+    return wait_for_result(submit_command("start_process", {"name": "ae_mouth_worker"}))
+
+
+@app.post("/processes/ae-mouth/stop")
+async def ae_mouth_stop(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    audit("processes/ae-mouth/stop")
+    return wait_for_result(submit_command("stop_process", {"name": "ae_mouth_worker"}))
+
+
 @app.post("/processes/remote-drive/start")
 async def remote_drive_start(authorization: str | None = Header(default=None)):
     require_auth(authorization)

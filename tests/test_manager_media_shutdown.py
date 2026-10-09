@@ -4,6 +4,7 @@ from __future__ import annotations
 import pathlib
 import sys
 import threading
+import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "worker"))
@@ -49,10 +50,11 @@ def _manager_with_worker(monkeypatch, role, clock, popen):
     return module, worker_manager
 
 
-def test_ae_active_scene_finishes_after_old_grace_without_hard_kill(monkeypatch):
+@pytest.mark.parametrize("role", ["ae_highlight_worker", "ae_mouth_worker"])
+def test_ae_active_scene_finishes_after_old_grace_without_hard_kill(monkeypatch, role):
     clock = _Clock()
     popen = _Popen(clock, exit_at=15)
-    module, worker_manager = _manager_with_worker(monkeypatch, "ae_highlight_worker", clock, popen)
+    module, worker_manager = _manager_with_worker(monkeypatch, role, clock, popen)
     monkeypatch.setattr(module, "SHUTDOWN_MEDIA_DRAIN_SECONDS", 30)
     monkeypatch.setattr(worker_manager, "_read_state_file", lambda _name: {
         "current_job": {"scene": 1} if clock.now < 13 else None,
@@ -60,11 +62,11 @@ def test_ae_active_scene_finishes_after_old_grace_without_hard_kill(monkeypatch)
     hard_kills = []
     monkeypatch.setattr(worker_manager, "_kill_process_tree", lambda pid: hard_kills.append(pid))
 
-    assert worker_manager.stop_process("ae_highlight_worker", timeout=2, force_tree_kill=True,
+    assert worker_manager.stop_process(role, timeout=2, force_tree_kill=True,
                                        drain_current_job=True)
     assert clock.now >= 15  # the former 13-second deadline has passed
     assert hard_kills == []
-    assert worker_manager.registry.get("ae_highlight_worker").status == "stopped"
+    assert worker_manager.registry.get(role).status == "stopped"
 
 
 def test_hung_premiere_export_is_bounded_and_tree_killed(monkeypatch):

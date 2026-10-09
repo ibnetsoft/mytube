@@ -102,6 +102,7 @@ _load_worker_settings_file()
 LOG_FILES = {
     "manager": LOG_DIR / "manager.log",
     "render_worker": LOG_DIR / "render_worker.log",
+    "ae_mouth_worker": LOG_DIR / "ae_mouth_worker.log",
     "ae_highlight_worker": LOG_DIR / "ae_highlight_worker.log",
     "comfy_scene_video_worker": LOG_DIR / "comfy_scene_video_worker.log",
     "premiere_final_worker": LOG_DIR / "premiere_final_worker.log",
@@ -143,9 +144,9 @@ WORKER_TOKEN = os.environ.get("AIRWORKER_TOKEN", "poc-worker-token-not-real")
 
 WORKER_PROFILES = ("full", "content_only", "render_only")
 PROFILE_CHILD_SCRIPTS = {
-    "full": ("render_worker", "ae_highlight_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "hermes_worker", "local_api"),
+    "full": ("render_worker", "ae_highlight_worker", "ae_mouth_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "hermes_worker", "local_api"),
     "content_only": ("hermes_worker", "local_api"),
-    "render_only": ("render_worker", "ae_highlight_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "local_api"),
+    "render_only": ("render_worker", "ae_highlight_worker", "ae_mouth_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "local_api"),
 }
 
 

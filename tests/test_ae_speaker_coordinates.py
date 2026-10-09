@@ -132,3 +132,10 @@ def test_retry_uses_fresh_analysis_identity_not_cached_rejected_response(coordin
     job['updated_at']='old';job['metadata']['state']='queued'
     worker.process_one()
     assert len(ids)==2 and ids[0]!=ids[1]
+
+
+def test_shutdown_requeues_coordinate_job_before_next_scene(coordinate_job):
+    worker, job, saved = coordinate_job
+    assert worker.process_one(should_stop=lambda: True)
+    assert job['metadata']['state'] == 'queued'
+    assert job['metadata']['results'] == []

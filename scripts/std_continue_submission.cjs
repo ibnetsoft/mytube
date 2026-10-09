@@ -24,7 +24,7 @@ async function main() {
  if (['approved','canceled'].includes(p.data.status)) throw Error('Project is closed')
  const [s,a] = await Promise.all([
   db.from('std_project_scenes').select('*').eq('project_id',id).order('scene_number'),
-  db.from('std_project_assets').select('*').eq('project_id',id).in('status',['uploaded','assigned']).order('created_at',{ascending:false}),
+  load('stdProjectAssets').loadStdProjectAssets(db, id, '*'),
  ])
  if (s.error || a.error) throw s.error || a.error
  const mouth = load('stdAeMouth')

@@ -63,12 +63,13 @@ ENTRY_SCRIPT = HERE / "air_worker_entry.py"
 # Every child is now spawned by re-invoking the current running program with
 # `--role <name>` instead - see _child_command() below and
 # worker/air_worker_entry.py's docstring for the full rationale.
-CHILD_SCRIPTS = ("render_worker", "ae_highlight_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "hermes_worker", "local_api")
+CHILD_SCRIPTS = ("render_worker", "ae_highlight_worker", "ae_mouth_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "hermes_worker", "local_api")
 # Hermes is part of the core generation path, so a full server restart brings
 # it back with the other worker services.
 ALWAYS_ON_CHILD_SCRIPTS = tuple(ALLOWED_CHILD_SCRIPTS)
 STATE_FILES = {
     "render_worker": STATE_DIR / "render_worker.json",
+    "ae_mouth_worker": STATE_DIR / "ae_mouth_worker.json",
     "ae_highlight_worker": STATE_DIR / "ae_highlight_worker.json",
     "comfy_scene_video_worker": STATE_DIR / "comfy_scene_video_worker.json",
     "premiere_final_worker": STATE_DIR / "premiere_final_worker.json",
@@ -77,7 +78,7 @@ STATE_FILES = {
     "local_api": STATE_DIR / "local_api.json",
 }
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
-MEDIA_WORKERS = frozenset(("ae_highlight_worker", "comfy_scene_video_worker", "premiere_final_worker"))
+MEDIA_WORKERS = frozenset(("ae_highlight_worker", "ae_mouth_worker", "comfy_scene_video_worker", "premiere_final_worker"))
 
 
 def _child_command(role: str) -> list[str]:
@@ -508,7 +509,7 @@ class WorkerManager:
         """docs/AIR_WORKER_RESOURCE_POLICY.md §2/§3: if the render worker
         currently reports a running job, pause Hermes by writing the pause
         flag file; otherwise clear it."""
-        if not ({"render_worker", "ae_highlight_worker", "premiere_final_worker"} & set(ALWAYS_ON_CHILD_SCRIPTS)):
+        if not ({"render_worker", "ae_highlight_worker", "ae_mouth_worker", "premiere_final_worker"} & set(ALWAYS_ON_CHILD_SCRIPTS)):
             if PAUSE_FLAG_FILE.exists():
                 logger.info("Render/AE workers disabled by profile -> clearing Hermes pause flag")
                 PAUSE_FLAG_FILE.unlink(missing_ok=True)
@@ -519,7 +520,8 @@ class WorkerManager:
         render_busy = bool(render_state and render_state.get("current_job"))
         ae_busy = bool(ae_state and ae_state.get("current_job"))
         premiere_busy = bool(premiere_state and premiere_state.get("current_job"))
-        media_busy = render_busy or ae_busy or premiere_busy
+        mouth_state = self._read_state_file("ae_mouth_worker")
+        media_busy = render_busy or ae_busy or premiere_busy or bool(mouth_state and mouth_state.get("current_job"))
         if media_busy and not PAUSE_FLAG_FILE.exists():
             logger.info("Render/AE/Premiere job active -> pausing Hermes new-job intake")
             PAUSE_FLAG_FILE.write_text("paused", encoding="utf-8")
@@ -595,6 +597,9 @@ class WorkerManager:
 
         log_step("Stopping GCS API Render Worker")
         self.stop_process("remote_drive_worker", timeout=SHUTDOWN_GRACE_SECONDS, force_tree_kill=True)
+
+        log_step("AE Mouth Worker: draining active scene and saving remaining work")
+        self.stop_process("ae_mouth_worker", force_tree_kill=True, drain_current_job=True)
 
         ae_state = self._read_state_file("ae_highlight_worker")
         ae_job_active = bool(ae_state and ae_state.get("current_job"))

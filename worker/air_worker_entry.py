@@ -75,7 +75,7 @@ try:
 except Exception:
     pass
 
-ROLES = ("manager", "render_worker", "ae_highlight_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "hermes_worker", "local_api")
+ROLES = ("manager", "render_worker", "ae_highlight_worker", "ae_mouth_worker", "comfy_scene_video_worker", "premiere_final_worker", "remote_drive_worker", "hermes_worker", "local_api")
 
 
 def _dispatch(role: str, crash_now: bool):
@@ -92,6 +92,8 @@ def _dispatch(role: str, crash_now: bool):
         import manager as mod
     elif role == "render_worker":
         import render_worker as mod
+    elif role == "ae_mouth_worker":
+        import ae_mouth_worker as mod
     elif role == "ae_highlight_worker":
         import ae_highlight_worker as mod
     elif role == "comfy_scene_video_worker":
