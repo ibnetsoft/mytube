@@ -17,7 +17,7 @@ import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotic
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
-import { sceneClipTailStyle, isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewVideo } from '@/lib/stdSceneVideo'
+import { sceneClipTailStyle, isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewPlayback } from '@/lib/stdSceneVideo'
 import { downloadStdFile } from '@/lib/stdFileDownload'
 import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
@@ -7116,6 +7116,9 @@ export default function StdPortalPage() {
     const sceneVideos = useMemo(() => sceneVideoAssets(selectedProject?.assets || [], selectedProject?.project?.id || ''), [selectedProject?.assets, selectedProject?.project?.id])
     const [resolvedPreviewVideo, setResolvedPreviewVideo] = useState<{ key: string; url: string; error: boolean } | null>(null)
     const [previewClipDuration, setPreviewClipDuration] = useState<{ url: string; duration: number } | null>(null)
+    const [previewVideoBuffering, setPreviewVideoBuffering] = useState(false)
+    const [previewVideoRetry, setPreviewVideoRetry] = useState(0)
+    const previewVideoBufferRef = useRef<{ audio: HTMLAudioElement | null }>({ audio: null })
     const scenePreviewSourcesRef = useRef(new Map<string, Promise<{ url: string; revoke: () => void }>>())
     const scenePreviewControllerRef = useRef<AbortController | null>(null)
 
@@ -7172,25 +7175,22 @@ export default function StdPortalPage() {
         }).catch(() => {
             if (!canceled && !controller.signal.aborted) setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })
         })
-        const preloads: HTMLVideoElement[] = []
+        // Cache complete playable blobs, rather than detached video elements whose range
+        // requests are canceled at each scene change. Keep only nearby clips in memory.
+        const keep = new Set([previewVideoKey])
         for (const number of [currentPreviewSceneNumber + 1, currentPreviewSceneNumber + 2]) {
             const asset = sceneVideos.get(number)
             if (!asset) continue
-            void load(asset).then(source => {
-                if (canceled || controller.signal.aborted) return
-                const video = document.createElement('video')
-                video.muted = true
-                video.preload = 'auto'
-                video.src = source.url
-                video.load()
-                preloads.push(video)
-            }).catch(() => {})
+            keep.add(`${projectId}:${asset.id}`)
+            void load(asset).catch(() => {})
         }
-        return () => {
-            canceled = true
-            preloads.forEach(video => { video.pause(); video.removeAttribute('src'); video.load() })
+        for (const [key, source] of scenePreviewSourcesRef.current) {
+            if (keep.has(key)) continue
+            scenePreviewSourcesRef.current.delete(key)
+            void source.then(value => value.revoke()).catch(() => {})
         }
-    }, [currentNav, previewVideoKey, authedJsonHeaders])
+        return () => { canceled = true }
+    }, [currentNav, previewVideoKey, authedJsonHeaders, previewVideoRetry])
 
     useEffect(() => {
         const cache = previewPrefetchRef.current
@@ -7345,12 +7345,15 @@ export default function StdPortalPage() {
         }
     }, [currentNav, isPlayingPreview, currentPreviewSceneNumber, currentSubImageUrl, currentSubVideoUrl])
 
-    useEffect(() => {
-        const video = vrewPreviewVideoRef.current
-        if (!video) return
-        syncScenePreviewVideo(video, playbackTime, previewMotionStart,
-            currentNav === 'subtitle_vrew' && isPlayingPreview && Boolean(currentSubVideoUrl))
-    }, [currentNav, currentSubVideoUrl, isPlayingPreview, playbackTime, previewMotionStart])
+    const updatePreviewVideoPlayback = () => {
+        const waiting = syncScenePreviewPlayback(
+            vrewPreviewVideoRef.current, vrewAudioRef.current, playbackTime, previewMotionStart,
+            currentNav === 'subtitle_vrew' && isPlayingPreview,
+            Boolean(currentPreviewVideoAsset || currentSubVideoUrl), previewVideoBufferRef.current,
+        )
+        setPreviewVideoBuffering(waiting)
+    }
+    useEffect(updatePreviewVideoPlayback, [currentNav, currentSubVideoUrl, currentPreviewVideoAsset?.id, isPlayingPreview, playbackTime, previewMotionStart])
     useEffect(() => { setSelectedSfxAssetId('') }, [selectedProject?.project?.id])
     const bgmSfxSettings = selectedProject?.project?.project_payload?.render_settings || {}
     useEffect(() => {
@@ -9964,10 +9967,19 @@ export default function StdPortalPage() {
                                                     preload="auto"
                                                     onLoadedMetadata={event => {
                                                         setPreviewClipDuration({ url: currentSubVideoUrl, duration: event.currentTarget.duration })
-                                                        syncScenePreviewVideo(event.currentTarget, playbackTime, previewMotionStart, isPlayingPreview)
+                                                        updatePreviewVideoPlayback()
                                                     }}
+                                                    onLoadedData={updatePreviewVideoPlayback}
+                                                    onCanPlay={updatePreviewVideoPlayback}
+                                                    onSeeked={updatePreviewVideoPlayback}
+                                                    onWaiting={updatePreviewVideoPlayback}
                                                     onDurationChange={event => setPreviewClipDuration({ url: currentSubVideoUrl, duration: event.currentTarget.duration })}
-                                                    onError={() => setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })}
+                                                    onError={() => {
+                                                        const source = scenePreviewSourcesRef.current.get(previewVideoKey)
+                                                        scenePreviewSourcesRef.current.delete(previewVideoKey)
+                                                        if (source) void source.then(value => value.revoke()).catch(() => {})
+                                                        setResolvedPreviewVideo({ key: previewVideoKey, url: '', error: true })
+                                                    }}
                                                     style={currentPreviewIsWorkerVideo ? previewImageMotionStyle : sceneClipTailStyle(
                                                         playbackTime, previewMotionStart, previewMotionEnd,
                                                         previewClipDuration?.url === currentSubVideoUrl ? previewClipDuration.duration : 0,
@@ -9990,6 +10002,15 @@ export default function StdPortalPage() {
                                                 <div className="w-full h-full bg-[#0b0e14] flex flex-col items-center justify-center text-gray-600 gap-1 select-none">
                                                     <span className="text-2xl opacity-40">🖼️</span>
                                                     <span className="text-[10px] font-mono text-gray-500">{ui("이미지 없음 (업로드 대기)")}</span>
+                                                </div>
+                                            )}
+                                            {previewVideoBuffering && (
+                                                <div role="status" className="absolute top-2 left-2 z-20 rounded bg-black/80 px-3 py-2 text-xs text-white">
+                                                    {resolvedPreviewVideo?.key === previewVideoKey && resolvedPreviewVideo.error ? (
+                                                        <button onClick={() => setPreviewVideoRetry(value => value + 1)}>
+                                                            {{ ko: '영상 로딩 실패 · 다시 시도', en: 'Video loading failed · Retry', vi: 'Tải video thất bại · Thử lại', th: 'โหลดวิดีโอไม่สำเร็จ · ลองอีกครั้ง' }[currentLocale]}
+                                                        </button>
+                                                    ) : ({ ko: '영상 준비 중…', en: 'Preparing video…', vi: 'Đang chuẩn bị video…', th: 'กำลังเตรียมวิดีโอ…' }[currentLocale])}
                                                 </div>
                                             )}
                                             {previewTransition && (previewTransition.videoUrl || previewTransition.imageUrl) && (
