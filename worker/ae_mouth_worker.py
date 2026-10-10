@@ -17,7 +17,10 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'worker'))
 import worker_config
 import ae_highlight_worker as ae
-from ae_mouth import assess_dialogue, locate_speakers, mouth_layers, amplitude_cues, audio_reactive_light_cues, decode_scene_audio, review_layers, digest, direction_text, visible_speakers
+from ae_mouth import (assess_dialogue, locate_speakers, mouth_layers, amplitude_cues,
+                      audio_reactive_light_cues, decode_scene_audio, review_layers,
+                      digest, direction_text, visible_speakers, eye_layers,
+                      review_eye_layers, blink_cues)
 from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
 from ae_video_tracking import track_video
@@ -88,6 +91,24 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
         if original['image'] != ({'id': image['id'], 'metadata': image.get('metadata')} if image else None):
             return False
         if original.get('original_video') != ({'id': video['id'], 'metadata': video.get('metadata')} if video else None):
+            return False
+        blink_asset = next((a for a in assets if a.get('status') in ('uploaded', 'assigned')
+            and int(a.get('scene_number') or 0) == number
+            and (a.get('metadata') or {}).get('kind') == 'eye_blink_confirmation'
+            and (a.get('metadata') or {}).get('state') == 'confirmed'
+            and (a.get('metadata') or {}).get('image_id') == (image or {}).get('id')), None)
+        blink = None
+        if blink_asset:
+            metadata = blink_asset.get('metadata') or {}
+            blink = {key: value for key, value in {
+                'id': blink_asset['id'], 'version': metadata.get('version'),
+                'character': metadata.get('character'), 'image_id': metadata.get('image_id'),
+                'source_bucket': metadata.get('source_bucket'), 'source_path': metadata.get('source_path'),
+                'source_sha256': metadata.get('source_sha256'), 'left_eye_box': metadata.get('left_eye_box'),
+                'right_eye_box': metadata.get('right_eye_box'), 'interval_seconds': metadata.get('interval_seconds'),
+                'confirmed_by': metadata.get('confirmed_by'), 'confirmed_at': metadata.get('confirmed_at'),
+            }.items() if value is not None}
+        if original.get('eye_blink') != blink:
             return False
         direction = {k: source.get(k) for k in ('ae_motion_plan', 'ae_effect_plan', 'ae_directorial_plan')}
         direction['image_prompt'] = source.get('image_prompt') or s.get('image_prompt') or ''
@@ -205,7 +226,8 @@ def process_one(report=None, should_stop=None) -> bool:
             run_phase(runner, job, meta, directory, audio_path, fresh, save, should_stop)
             return True
         outcomes = {r['number']: r for r in meta.get('results', [])}
-        candidates = {r['scene_number'] for r in rows if r['kind'] != 'narration'}
+        candidates = ({r['scene_number'] for r in rows if r['kind'] != 'narration'} |
+                      {s['number'] for s in snapshot['scenes'] if s.get('eye_blink')})
         for scene in snapshot['scenes']:
             if scene['number'] not in candidates:
                 outcomes[scene['number']] = {'number':scene['number'],'duration':scene['end']-scene['start'],'speakers':[], 'status':'skipped','reason':'저장된 자막에 실제 대사가 없는 씬입니다.'}
@@ -221,14 +243,16 @@ def process_one(report=None, should_stop=None) -> bool:
             report(current_job={'id': job['id'], 'project_id': job['project_id'], 'scene_number': number, 'phase': meta['phase']})
             scene_rows = [r for r in rows if r['scene_number'] == number]
             dialogue = [r for r in scene_rows if r['kind'] == 'dialogue']
-            result = {'number': number, 'duration': duration, 'speakers': list(dict.fromkeys(r['speaker'] for r in dialogue))}
+            blink = copy.deepcopy(scene.get('eye_blink'))
+            result = {'number': number, 'duration': duration, 'speakers': list(dict.fromkeys(r['speaker'] for r in dialogue)),
+                      'eye_blink_plan_id': blink.get('id') if blink else None}
             if any(r['kind'] == 'uncertain' for r in scene_rows):
                 outcomes[number] = {**result,
                     'status': 'skipped' if meta.get('automatic') else 'needs_review',
                     'skip_reason': 'uncertain_dialogue_speaker' if meta.get('automatic') else None,
                     'fallback': 'original' if meta.get('automatic') else None,
                     'reason': '대사·화자를 확실히 판별하지 못해 원본 시각 자료를 사용합니다.' if meta.get('automatic') else '대사·화자를 확실히 판별하지 못했습니다. 자막에서 대사와 화자를 확인한 뒤 다시 제출해 주세요.'}
-            elif not dialogue:
+            elif not dialogue and not blink:
                 outcomes[number] = {**result, 'status': 'skipped', 'reason': '실제 캐릭터 대사가 없는 내레이션·반응 장면입니다.'}
             else:
                 scene_dir = directory / f'scene-{number}'
@@ -236,7 +260,7 @@ def process_one(report=None, should_stop=None) -> bool:
                 image = scene_dir / 'original.png'
                 auto_video = bool(scene.get('original_video') and meta.get('auto_video_coordinates')
                                   and (not render_phase or outcomes.get(number, {}).get('video_coordinate_asset_id')))
-                missing = None if auto_video else missing_geometry(scene, result['speakers'])
+                missing = None if auto_video or not dialogue else missing_geometry(scene, result['speakers'])
                 if missing:
                     outcomes[number] = {**result, 'status': 'skipped', 'skip_reason': missing, 'reason': '저장된 화자 좌표 또는 기준 이미지가 없어 건너뜁니다.'}
                     save(results=list(outcomes.values()))
@@ -252,7 +276,7 @@ def process_one(report=None, should_stop=None) -> bool:
                             allow_analyze=not render_phase)
                         result['video_coordinate_asset_id'] = coordinate_asset_id
                         result['coordinate_state'] = 'ready'
-                    else:
+                    elif dialogue:
                         regions = scene.get('speaker_regions')
                         if not regions or regions.get('image_id') != scene['image']['id'] or regions.get('source_sha256') != digest(image):
                             raise ValueError('제출 전 얼굴·입 좌표 준비를 완료해 주세요. 원본 이미지가 변경됐거나 저장된 좌표가 없습니다.')
@@ -260,7 +284,9 @@ def process_one(report=None, should_stop=None) -> bool:
                         by_name = {r['speaker']:r for r in regions['speakers']}
                         visibility = visible_speakers({'speakers':[by_name.get(name,{}) for name in names]}, names)
                         speakers = [r for r in visibility if r['status'] == 'visible']
-                    if not speakers:
+                    else:
+                        visibility, speakers = [], []
+                    if not speakers and not blink:
                         outcomes[number] = {**result, 'status': 'skipped', 'reason': '화자가 화면 밖에 있습니다. 화면 속 듣는 인물의 입은 움직이지 않습니다.'}
                     else:
                         if scene.get('original_video') and not auto_video:
@@ -272,7 +298,10 @@ def process_one(report=None, should_stop=None) -> bool:
                             if video_hash and digest(video) != video_hash:
                                 raise ValueError('기준 프레임의 원본 영상이 변경됐습니다. 영상 좌표를 다시 저장해 주세요.')
                             image, speakers, tracking = track_video(video,image,speakers,scene_dir/'tracking',duration)
-                        direction = direction_text(speakers, dialogue, scene['start'])
+                        direction = direction_text(speakers, dialogue, scene['start']) if speakers else ''
+                        if blink:
+                            direction += (' 사용자가 지정한 ' + str(blink['character']) + '의 양쪽 눈 좌표에만 '
+                                          + str(blink['interval_seconds']) + '초 간격의 자연스러운 눈 깜빡임을 적용합니다.')
                         if tracking:
                             direction += ' 원본 영상은 1배속으로 유지하고 얼굴·입의 이동·크기·회전을 추적합니다. 영상 종료 후 입 움직임은 확정된 대사 끝까지 유지하며 마지막 화면에 6% 줌인을 적용합니다.'
                         if not render_phase:
@@ -284,11 +313,22 @@ def process_one(report=None, should_stop=None) -> bool:
                             speaker['layers'] = mouth_layers(CurrentGenerator(), image, speaker, scene_dir / f'speaker-{index}')
                             speaker['layer_sha256'] = {pose: digest(Path(path)) for pose, path in speaker['layers'].items()}
                             speaker['cues'] = amplitude_cues(samples, [r for r in dialogue if r['speaker'] == speaker['speaker']], start=scene['start'], duration=duration)
-                        review_layers(runner, f'{identity}-{number}', image, speakers, scene_dir)
+                        if speakers:
+                            review_layers(runner, f'{identity}-{number}', image, speakers, scene_dir)
+                        runtime_blinks = []
+                        if blink:
+                            if blink.get('image_id') != (scene.get('image') or {}).get('id') or blink.get('source_sha256') != digest(image):
+                                raise ValueError('눈 좌표를 지정한 원본 이미지가 변경되었습니다. 다시 지정해 주세요.')
+                            blink['layers'] = eye_layers(CurrentGenerator(), image, blink, scene_dir / 'eye-blink')
+                            blink['layer_sha256'] = {side: digest(Path(path)) for side, path in blink['layers'].items()}
+                            blink['cues'] = blink_cues(duration, float(blink['interval_seconds']))
+                            review_eye_layers(runner, f'{identity}-{number}', image, blink, scene_dir / 'eye-blink')
+                            runtime_blinks.append(blink)
                         fresh()
                         source_scene = {'scene_number': number, 'scene_text': scene['text'], **copy.deepcopy(scene['direction']),
                                         'ae_mouth_runtime': {'enabled': True, 'speakers': speakers, 'audio_sha256': digest(audio_path),
-                                            'audio_light_cues': audio_reactive_light_cues(samples, dialogue, start=scene['start'], duration=duration),
+                                            'blinks': runtime_blinks,
+                                            'audio_light_cues': audio_reactive_light_cues(samples, dialogue, start=scene['start'], duration=duration) if dialogue else [],
                                             'video_source':bool(video),'video_duration':tracking['source_duration'] if tracking else None,
                                             'tracking':tracking}}
                         selected = ae._render_plan_from_scene(source_scene)
@@ -330,7 +370,9 @@ def process_one(report=None, should_stop=None) -> bool:
                                     'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction,
                                     'source_image_id': (scene.get('image') or {}).get('id'), 'source_audio_id': snapshot['audio']['id'],
                                     'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking,
-                                    'video_coordinate_asset_id':coordinate_asset_id},
+                                    'video_coordinate_asset_id':coordinate_asset_id,
+                                    'eye_blink_plan_id':blink.get('id') if blink else None,
+                                    'eye_blink_applied':bool(blink)},
                             }).json()[0]
                         outcomes[number] = {**outcomes.get(number, {}), **result, 'visibility': visibility, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction,'tracking':tracking}
                 except (LeaseLost, Obsolete):

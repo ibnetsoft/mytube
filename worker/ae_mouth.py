@@ -1,4 +1,4 @@
-"""Mouth-only AE overlays for submitted still scenes, driven by the final voice.
+"""Reviewed mouth and user-selected eye overlays for submitted still scenes.
 
 This is stylized three-pose speaking motion, not phoneme-level lip sync.
 Semantic dialogue and visible-speaker decisions come from the local Codex CLI.
@@ -119,17 +119,17 @@ def locate_speakers(runner, identity: str, scene: dict, image: Path, rows: list[
 
 
 def normalize_patch(source: Path, target: Path, reference: Path, box: list[float]) -> None:
-    """Fit generated mouth art only into its verified region; preserve all other pixels."""
+    """Fit generated replacement art only into its verified region; preserve all other pixels."""
     with Image.open(reference) as base, Image.open(source) as patch:
         if patch.format != 'PNG' or min(patch.size) < 512:
-            raise ValueError('Mouth generator must return an actual PNG of at least 512px per edge')
+            raise ValueError('Layer generator must return an actual PNG of at least 512px per edge')
         rect = tuple(round(v * (base.width if i % 2 == 0 else base.height)) for i, v in enumerate(box))
         width, height = rect[2] - rect[0], rect[3] - rect[1]
         if min(width, height) < 8:
-            raise ValueError('Mouth is too small for a clean patch')
+            raise ValueError('Selected feature is too small for a clean patch')
         rgba = patch.convert('RGBA').resize((width, height), Image.Resampling.LANCZOS)
         if rgba.getchannel('A').getextrema() != (255, 255):
-            raise ValueError('Mouth replacement must cover the original lips with opaque matching skin')
+            raise ValueError('Replacement must cover the original feature with opaque matching skin')
         mask = Image.new('L', (width, height))
         ImageDraw.Draw(mask).rounded_rectangle((1, 1, width - 2, height - 2), radius=max(2, min(width, height) // 5), fill=255)
         mask = mask.filter(ImageFilter.GaussianBlur(min(2, height / 12)))
@@ -236,6 +236,86 @@ def audio_reactive_light_cues(samples: list[int], rows: list[dict], *, start: fl
     return cues
 
 
+def blink_cues(duration: float, interval: float, close_seconds: float = .12) -> list[dict]:
+    """Create restrained deterministic blinks; the open original remains visible between them."""
+    if not math.isfinite(duration) or duration <= 0 or not math.isfinite(interval) or not 2 <= interval <= 12:
+        raise ValueError('Blink duration or interval is invalid')
+    cues = [{'at_seconds': 0, 'opacity': 0}]
+    at = min(max(1.0, interval * .55), max(.15, duration * .55))
+    while at + close_seconds < duration:
+        cues.extend([
+            {'at_seconds': round(max(0, at - .055), 6), 'opacity': 0},
+            {'at_seconds': round(at, 6), 'opacity': 100},
+            {'at_seconds': round(min(duration, at + close_seconds), 6), 'opacity': 0},
+        ])
+        at += interval
+    if cues[-1]['at_seconds'] != round(duration, 6):
+        cues.append({'at_seconds': round(duration, 6), 'opacity': 0})
+    return cues
+
+
+def eye_layers(generator, image: Path, blink: dict, directory: Path) -> dict[str, str]:
+    """Generate only user-selected closed-eye patches against an immutable source image."""
+    directory.mkdir(parents=True, exist_ok=True)
+    layers = {}
+    source_hash = digest(image)
+    if blink.get('source_sha256') != source_hash:
+        raise ValueError('눈 좌표를 지정한 원본 이미지가 변경되었습니다.')
+    for side, key in (('left', 'left_eye_box'), ('right', 'right_eye_box')):
+        box = blink.get(key)
+        if not isinstance(box, list) or len(box) != 4:
+            raise ValueError('확정된 양쪽 눈 좌표가 필요합니다.')
+        reference = directory / f'{side}-reference.png'
+        with Image.open(image) as base:
+            rect = tuple(round(v * (base.width if i % 2 == 0 else base.height)) for i, v in enumerate(box))
+            base.crop(rect).save(reference)
+        target, receipt = directory / f'{side}-closed.png', directory / f'{side}-closed.receipt.json'
+        expected = {'source': source_hash, 'character': blink['character'], 'side': side, 'eye_box': box,
+                    'version': 1}
+        reusable = False
+        if target.exists() and receipt.exists():
+            saved = json.loads(receipt.read_text(encoding='utf-8'))
+            reusable = saved == {**expected, 'sha256': digest(target)}
+        if not reusable:
+            raw = generator.generate(role='background', reference=reference,
+                work_dir=directory / f'generate-{side}-closed', prompt=(
+                    f"Edit the attached crop of {blink['character']}'s {side} eye. Return the SAME crop with "
+                    "that eye naturally closed in a gentle blink. Preserve the exact eyebrow, face angle, "
+                    "skin color, lighting, linework and illustration style. Cover the original open-eye lines "
+                    "with matching opaque skin and draw exactly one closed eyelid at the same position. "
+                    "Do not add a second eye, face, text, transparency, or change any other feature."
+                ))
+            normalize_patch(raw, target, image, box)
+            receipt.write_text(json.dumps({**expected, 'sha256': digest(target)}, ensure_ascii=False), encoding='utf-8')
+        layers[side] = str(target.resolve())
+    return layers
+
+
+def review_eye_layers(runner, identity: str, image: Path, blink: dict, directory: Path) -> None:
+    with Image.open(image) as source:
+        composite = source.convert('RGBA')
+        for side, key in (('left', 'left_eye_box'), ('right', 'right_eye_box')):
+            with Image.open(blink['layers'][side]) as patch:
+                box = blink[key]
+                composite.alpha_composite(patch.convert('RGBA'),
+                                           (round(box[0] * source.width), round(box[1] * source.height)))
+        preview = directory / 'review-eyes-closed.png'
+        composite.convert('RGB').save(preview)
+    response = runner._stage(identity, '03_ae_eye_blink_layer_qa', {
+        '_local_image_paths': [str(image.resolve()), str(preview.resolve())],
+        'source_sha256': digest(image), 'character': blink['character'],
+        'left_eye_box': blink['left_eye_box'], 'right_eye_box': blink['right_eye_box'],
+        'patch_sha256': {side: digest(Path(path)) for side, path in blink['layers'].items()},
+    }, (
+        "Inspect the original and closed-eye composite in that order. Verify that the user-selected "
+        "character has exactly two naturally closed eyes while identity, brows, face, lighting and linework "
+        "remain unchanged. Reject open or doubled eyes, rectangular seams, facial drift, or edits outside "
+        "the two supplied eye boxes. Return {passed:true|false,reason:'visual evidence'}."
+    ))
+    if response.get('passed') is not True or not str(response.get('reason') or '').strip():
+        raise ValueError('생성된 눈 깜빡임 레이어 검수가 필요합니다: ' + str(response.get('reason') or 'missing visual QA'))
+
+
 def decode_scene_audio(ffmpeg: str, audio: Path, start: float, duration: float) -> list[int]:
     result = subprocess.run([ffmpeg, '-v', 'error', '-ss', str(start), '-i', str(audio), '-t', str(duration),
                              '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], capture_output=True, timeout=120, check=True)
@@ -309,8 +389,9 @@ def mouth_jsx(runtime: dict) -> str:
       originalMouthPlate.outPoint = DUR;
     }
     var mouthPoses = ["closed", "half", "open"];
-    for (var ms = 0; ms < mouthRuntime.speakers.length; ms++) {
-      var speaker = mouthRuntime.speakers[ms];
+    var runtimeSpeakers = mouthRuntime.speakers || [];
+    for (var ms = 0; ms < runtimeSpeakers.length; ms++) {
+      var speaker = runtimeSpeakers[ms];
       for (var mp = 0; mp < mouthPoses.length; mp++) {
         var pose = mouthPoses[mp];
         var mouthFootage = app.project.importFile(new ImportOptions(new File(speaker.layers[pose])));
@@ -334,6 +415,28 @@ def mouth_jsx(runtime: dict) -> str:
           var key = mouthOpacity.addKey(cue.at_seconds);
           mouthOpacity.setValueAtKey(key, cue.pose == pose ? 100 : 0);
           mouthOpacity.setInterpolationTypeAtKey(key, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+        }
+      }
+    }
+    var runtimeBlinks = mouthRuntime.blinks || [];
+    var eyeSides = ["left", "right"];
+    for (var eb = 0; eb < runtimeBlinks.length; eb++) {
+      var blink = runtimeBlinks[eb];
+      for (var es = 0; es < eyeSides.length; es++) {
+        var side = eyeSides[es];
+        var eyeBox = side == "left" ? blink.left_eye_box : blink.right_eye_box;
+        var eyeFootage = app.project.importFile(new ImportOptions(new File(blink.layers[side])));
+        var eyeLayer = mouthComp.layers.add(eyeFootage);
+        eyeLayer.name = "blink_" + eb + "_" + side;
+        eyeLayer.property("Position").setValue([
+          Math.round(eyeBox[0] * footage.width) + eyeFootage.width / 2,
+          Math.round(eyeBox[1] * footage.height) + eyeFootage.height / 2]);
+        var eyeOpacity = eyeLayer.property("Opacity");
+        for (var ec = 0; ec < blink.cues.length; ec++) {
+          var eyeCue = blink.cues[ec];
+          var eyeKey = eyeOpacity.addKey(eyeCue.at_seconds);
+          eyeOpacity.setValueAtKey(eyeKey, eyeCue.opacity);
+          eyeOpacity.setInterpolationTypeAtKey(eyeKey, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
         }
       }
     }

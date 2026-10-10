@@ -6,6 +6,7 @@ import { stdUiText } from '../lib/stdUiText'
 import { canRetainSpeakerDraft } from '../lib/stdSpeakerDraftIdentity'
 import StdSpeakerWorkInfo from './StdSpeakerWorkInfo'
 import StdRegionMotionEditor from './StdRegionMotionEditor'
+import StdEyeBlinkEditor from './StdEyeBlinkEditor'
 
 type Notice = string | { text: string; values: Record<string, string | number> }
 type Box = [number, number, number, number]
@@ -297,6 +298,7 @@ export default function StdSpeakerCoordinates({
                         {copy.position}
                     </button>
                     <StdRegionMotionEditor locale={locale} projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} onApplied={onMotionApplied} />
+                    <StdEyeBlinkEditor locale={locale} projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} />
                 </div>
             </aside>
             {open &&

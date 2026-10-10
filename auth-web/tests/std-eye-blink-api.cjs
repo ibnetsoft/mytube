@@ -1,0 +1,13 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),path=require('path'),ts=require('typescript'),crypto=require('crypto')
+const root=path.resolve(__dirname,'..'),bytes=Buffer.from('source-image'),hash=crypto.createHash('sha256').update(bytes).digest('hex')
+const load=(file,deps={})=>{const ex={};new Function('exports','require',ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(ex,n=>deps[n]||require(n));return ex}
+function harness(){
+ const project={id:'p',status:'draft',employee_email:'owner',project_payload:{structure:{scene_cast:[{scene_number:19,characters:['girl']}]}}},writes=[]
+ const assets=[{id:'image19',project_id:'p',scene_number:19,asset_type:'image',status:'uploaded',created_at:'2026-10-10',mime_type:'image/png',metadata:{gcs_path:'scene19.png'}}]
+ const db={from(table){let inserted;const result=()=>({data:inserted?{id:'blink',...inserted}:table==='std_projects'?project:assets,error:null});const q={select:()=>q,eq:()=>q,in:()=>q,order:()=>q,maybeSingle:async()=>result(),single:async()=>result(),insert:value=>{inserted=value;writes.push(value);return q},then:(a,b)=>Promise.resolve(result()).then(a,b)};return q}}
+ const api=load('app/api/std/projects/[projectId]/eye-blink/route.ts',{'next/server':{NextResponse:Response},'@/lib/supabaseAdmin':{supabaseAdmin:db},'@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'owner'}})},'@/lib/stdSpeakerGeometry':{coordinateSource:a=>({bucket:'b',path:a.metadata.gcs_path})},'@/lib/gcsStorage':{downloadGcsObject:async()=>bytes}})
+ const body={sceneNumber:19,imageId:'image19',imageSha256:hash,character:'girl',leftEyeBox:[.2,.2,.24,.23],rightEyeBox:[.3,.2,.34,.23],intervalSeconds:4}
+ return{api,writes,body,params:{params:{projectId:'p'}},request:value=>new Request('https://studio.example/api/std/projects/p/eye-blink',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)})}
+}
+test('confirmed eye boxes are saved against the exact source hash',async()=>{const f=harness(),r=await f.api.POST(f.request(f.body),f.params);assert.equal(r.status,200);assert.equal(f.writes[0].metadata.kind,'eye_blink_confirmation');assert.equal(f.writes[0].metadata.source_sha256,hash);assert.equal(f.writes[0].metadata.confirmed_by,'user')})
+test('changed image, broad or overlapping boxes and unsafe cadence are rejected',async()=>{for(const change of [{imageSha256:'stale'},{leftEyeBox:[0,0,.5,.5]},{rightEyeBox:[.22,.21,.25,.24]},{intervalSeconds:1}]){const f=harness(),r=await f.api.POST(f.request({...f.body,...change}),f.params);assert.equal(r.status,400);assert.equal(f.writes.length,0)}})

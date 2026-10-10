@@ -55,6 +55,21 @@ def test_audio_reactive_light_is_bounded_and_dialogue_only():
     assert cues[-1] == {'at_seconds': 3, 'value': 0.0}
 
 
+def test_user_selected_eye_blink_is_brief_bounded_and_composited_inside_source():
+    cues = mouth.blink_cues(10, 4)
+    assert cues[0] == {'at_seconds': 0, 'opacity': 0}
+    assert cues[-1] == {'at_seconds': 10, 'opacity': 0}
+    assert any(c['opacity'] == 100 for c in cues)
+    assert all(0 <= c['at_seconds'] <= 10 and c['opacity'] in (0, 100) for c in cues)
+    jsx = mouth.mouth_jsx({'enabled': True, 'speakers': [], 'blinks': [{
+        'left_eye_box': [.2,.2,.24,.23], 'right_eye_box': [.3,.2,.34,.23],
+        'layers': {'left':'left.png','right':'right.png'}, 'cues': cues,
+    }]})
+    assert 'blink_' in jsx
+    assert 'runtimeBlinks' in jsx
+    assert jsx.index('var runtimeBlinks') < jsx.index('footage = mouthComp')
+
+
 def test_ae_source_precomp_keeps_lips_attached_to_existing_camera_and_effects(tmp_path):
     scene = {'ae_motion_plan': {'enabled': True}, 'ae_mouth_runtime': {'enabled': True, 'speakers': [
         {'mouth_box': [.4, .4, .45, .43], 'layers': {p: str(tmp_path / f'{p}.png') for p in mouth.POSES},
@@ -86,6 +101,25 @@ def test_snapshot_invalidates_new_sources_but_ignores_generated_output():
     assert not worker.input_matches(snapshot, project, changed, scenes)
     changed = copy.deepcopy(project); changed['project_payload']['subtitles'][0]['direction'] = 'whisper'
     assert not worker.input_matches(snapshot, changed, assets, scenes)
+
+
+def test_snapshot_requires_the_same_confirmed_eye_plan():
+    project = {'project_payload': {'subtitles': [{'text':'still','scene_number':19,'start':0,'end':1,'voice_id':'n'}]}}
+    image = {'id':'image','asset_type':'image','status':'uploaded','scene_number':19,'metadata':{}}
+    audio = {'id':'audio','asset_type':'audio','status':'uploaded','metadata':{}}
+    blink_meta = {'kind':'eye_blink_confirmation','state':'confirmed','version':1,'image_id':'image','source_sha256':'a'*64,
+                  'character':'girl','left_eye_box':[.2,.2,.24,.23],'right_eye_box':[.3,.2,.34,.23],'interval_seconds':4}
+    blink = {'id':'blink','asset_type':'other','status':'uploaded','scene_number':19,'metadata':blink_meta}
+    plan = {'id':'blink','version':1,'character':'girl','image_id':'image','source_sha256':'a'*64,
+            'left_eye_box':[.2,.2,.24,.23],'right_eye_box':[.3,.2,.34,.23],'interval_seconds':4}
+    snapshot = {'audio':{'id':'audio','metadata':{}},'cast':{'main':{},'supporting':[],'scene_cast':[]},'annotations':{},
+                'subtitles':[{'index':0,'text':'still','scene_number':19,'start':0,'end':1,'voice_id':'n','kind':'','speaker':'','direction':''}],
+                'scenes':[{'number':19,'text':'still','image':{'id':'image','metadata':{}},'original_video':None,'eye_blink':plan,
+                           'direction':{'ae_motion_plan':None,'ae_effect_plan':None,'ae_directorial_plan':None,'image_prompt':''}}]}
+    scenes = [{'scene_number':19,'scene_text':'still'}]
+    assert worker.input_matches(snapshot,project,[blink,image,audio],scenes)
+    changed=copy.deepcopy(blink);changed['id']='blink2';changed['metadata']['interval_seconds']=6
+    assert not worker.input_matches(snapshot,project,[changed,image,audio],scenes)
 
 
 @pytest.mark.parametrize('video_scene,auto_video', [(False,False),(True,False),(True,True)])

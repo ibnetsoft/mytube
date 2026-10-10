@@ -129,3 +129,12 @@ test('generation-time coordinates reach AE submission with original asset metada
  assert.deepEqual(input.scenes[0].speaker_regions.speakers,speakers);
  assert.deepEqual(input.scenes[0].image,{id:image.id,metadata:image.metadata});
 });
+test('confirmed eye blink plan is source-bound and invalidates stale AE work',()=>{
+ const f=fixture(),plan={id:'blink',asset_type:'other',status:'uploaded',scene_number:19,created_at:'2026-10-10',metadata:{
+  kind:'eye_blink_confirmation',state:'confirmed',version:1,image_id:'image19',source_bucket:'b',source_path:'image.png',source_sha256:'a'.repeat(64),
+  character:'소녀',left_eye_box:[.3,.3,.34,.33],right_eye_box:[.4,.3,.44,.33],interval_seconds:4,confirmed_by:'user'}};
+ f.assets.unshift(plan);const before=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ assert.equal(before.input.scenes[0].eye_blink.id,'blink');assert.equal(before.input.scenes[0].eye_blink.character,'소녀');
+ f.assets.unshift({...plan,id:'new-blink',created_at:'2026-10-11',metadata:{...plan.metadata,interval_seconds:6}});
+ assert.notEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint,before.fingerprint);
+});

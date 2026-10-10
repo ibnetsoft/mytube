@@ -8,6 +8,23 @@ const active = (a: any) => ['uploaded', 'assigned'].includes(a.status)
 const canonical = (v: any): any => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object'
     ? Object.fromEntries(Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => [k, canonical(v[k])])) : v
 
+function eyeBlinkPlan(assets: any[], number: number, image: any) {
+    if (!image) return null
+    const asset = assets.find(a => active(a) && a.metadata?.kind === 'eye_blink_confirmation'
+        && Number(a.scene_number) === number && a.metadata?.state === 'confirmed'
+        && a.metadata?.image_id === image.id)
+    if (!asset) return null
+    const metadata = asset.metadata || {}
+    return {
+        id: asset.id, version: metadata.version, character: metadata.character,
+        image_id: metadata.image_id, source_bucket: metadata.source_bucket,
+        source_path: metadata.source_path, source_sha256: metadata.source_sha256,
+        left_eye_box: metadata.left_eye_box, right_eye_box: metadata.right_eye_box,
+        interval_seconds: metadata.interval_seconds, confirmed_by: metadata.confirmed_by,
+        confirmed_at: metadata.confirmed_at,
+    }
+}
+
 export function aeMouthApplicable(project: any, scenes: any[]) {
     return !isComicProject(project) && scenes.some(s => Number(s.scene_number) >= 19 || (project.project_payload?.subtitles || []).some((r: any) => Number(r.scene_number) === Number(s.scene_number) && r.dialogue_kind === 'dialogue'))
 }
@@ -44,6 +61,7 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
             const regions = savedSpeakerGeometry(assets, coordinateCast(project), {number,image,
                 rows:subtitles.filter((t:any)=>t.scene_number===number && t.kind==='dialogue').map((t:any)=>({speaker:t.speaker}))})
             return [{ number, start, end, speaker_regions: regions || null, text: String(s.scene_text || source.scene_text || source.narration || ''),
+                eye_blink: eyeBlinkPlan(assets, number, image),
                 image: image ? { id: image.id, metadata: image.metadata } : null,
                 original_video: originalVideo ? { id: originalVideo.id, metadata: originalVideo.metadata } : null,
                 direction: { ae_motion_plan: source.ae_motion_plan || null, ae_effect_plan: source.ae_effect_plan || null,
@@ -78,7 +96,7 @@ export function reviewedAeMouthAssets(project: any, scenes: any[], assets: any[]
     if (job?.metadata?.state !== 'reviewed' && !(job?.metadata?.automatic === true && job.metadata.state === 'processing' && job.metadata.phase === 'auto_enqueue')) throw new Error('대사 영상과 정지 씬의 AE 입모양 후작업·검수를 완료해 주세요.')
     const numbers = (job.metadata.input?.scenes || aeMouthInput(project, scenes, assets).input.scenes).map((s: any) => Number(s.number))
     const checked = job.metadata.results || []
-    if (checked.length !== numbers.length || numbers.some(n => checked.filter((r: any) => r.number === n).length !== 1)) {
+    if (checked.length !== numbers.length || numbers.some((n: number) => checked.filter((r: any) => r.number === n).length !== 1)) {
         throw new Error('작업 대상 씬 모두의 대사 판별 결과가 필요합니다.')
     }
     for (const row of job.metadata.results || []) {
