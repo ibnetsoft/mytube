@@ -8341,6 +8341,20 @@ export default function StdPortalPage() {
         </div>
         )
     })()
+    const sidebarTtsReadiness = (closeMobileMenu = false) => currentNav === 'subtitle_vrew' ? (
+        <StdTtsReadinessNotice
+            compact
+            subtitles={localSubtitles}
+            busy={generatingTts}
+            voices={voiceNameById}
+            readiness={subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice)}
+            onJump={index => {
+                selectSubtitleBlock(index, false)
+                if (closeMobileMenu) setMobileMenuOpen(false)
+                requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+            }}
+        />
+    ) : null
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
@@ -8843,6 +8857,7 @@ export default function StdPortalPage() {
                                         </button>
                                     )
                                 })}
+                                {sidebarTtsReadiness(true)}
                             </nav>
 
                             <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center gap-1.5 font-mono">
@@ -8943,6 +8958,7 @@ export default function StdPortalPage() {
                                 </button>
                             )
                         })}
+                        {sidebarTtsReadiness()}
                     </nav>
 
                     <div className="p-3 border-t border-white/5 text-[11px] text-gray-400 flex items-center gap-1.5 font-mono">
@@ -9560,12 +9576,6 @@ export default function StdPortalPage() {
                                     </div>
 
                                     {/* 자막 카드 목록 */}
-                                    <StdTtsReadinessNotice subtitles={localSubtitles} busy={generatingTts} voices={voiceNameById}
-                                        readiness={subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice)}
-                                        onJump={index => {
-                                            selectSubtitleBlock(index, false)
-                                            requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
-                                        }} />
                                     <div className="flex flex-1 overflow-hidden">
                                         <div className="subtitle-navy-scrollbar flex-1 overflow-y-auto p-0 space-y-0">
                                             {subtitleSceneGroups.map((group) => {
