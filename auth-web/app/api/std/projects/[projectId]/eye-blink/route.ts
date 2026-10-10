@@ -73,7 +73,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const image = ctx.assets!.find((asset: any) => asset.id === scene?.imageId)
         if (!scene || !image || body.imageId !== image.id) throw new Error('원본 이미지가 변경됐습니다. 다시 불러와 주세요.')
         const character = String(body.character || '').trim()
-        if (!character || character.length > 100) throw new Error('눈을 지정할 캐릭터를 선택하거나 입력해 주세요.')
+        if (character.length > 100) throw new Error('캐릭터 이름은 100자 이내로 입력해 주세요.')
         if (!validBox(body.leftEyeBox) || !validBox(body.rightEyeBox)) throw new Error('왼쪽 눈과 오른쪽 눈의 작은 영역을 각각 지정해 주세요.')
         const [left, right] = [body.leftEyeBox, body.rightEyeBox]
         if (left[0] < right[2] && left[2] > right[0] && left[1] < right[3] && left[3] > right[1]) throw new Error('왼쪽 눈과 오른쪽 눈 영역이 겹칠 수 없습니다.')
@@ -85,7 +85,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (body.imageSha256 && sha !== body.imageSha256) throw new Error('원본 이미지가 변경됐습니다. 다시 불러와 주세요.')
         const metadata = { kind: 'eye_blink_confirmation', version: 1, state: 'confirmed', scene_number: number,
             image_id: image.id, source_bucket: source.bucket, source_path: source.path, source_sha256: sha,
-            character, left_eye_box: [...left], right_eye_box: [...right], interval_seconds: interval,
+            character: character || null, left_eye_box: [...left], right_eye_box: [...right], interval_seconds: interval,
             confirmed_by: 'user', confirmed_at: new Date().toISOString() }
         const inserted = await db.from('std_project_assets').insert({ project_id: params.projectId, scene_number: number,
             asset_type: 'other', status: 'uploaded', file_name: `eye-blink-${number}.json`, mime_type: 'application/json', metadata }).select('*').single()
