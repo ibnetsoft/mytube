@@ -217,49 +217,35 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }, { status: 409 })
     }
 
-    if (aeMouthApplicable(project, scenes || [])) {
-        try {
-            const pending = await ensureAeMouthJob(project, scenes || [], assets)
-            // Record the required stage before accepting a final render, including bypass routes.
-            if (!project.project_payload?.ae_mouth?.enabled) {
-                const nextPayload = { ...project.project_payload, ae_mouth: { enabled: true, first_scene: 19 } }
-                const enabled = await supabaseAdmin.from('std_projects').update({ project_payload: nextPayload, updated_at: new Date().toISOString() })
-                    .eq('id', project.id).eq('updated_at', project.updated_at).select('id').maybeSingle()
-                if (enabled.error || !enabled.data) throw new Error('프로젝트가 변경되었습니다. 다시 제출해 주세요.')
-                project.project_payload = nextPayload
-            }
-            if (!pending.ready) return NextResponse.json({ success: true, postprocess_pending: true,
-                message: '제출 완료. AE 후작업과 검수 후 최종 렌더링이 자동으로 진행됩니다.',
-            }, { status: 202 })
-        } catch (e: any) { return NextResponse.json({ success: false, error: e.message || 'AE 후작업 요청 실패' }, { status: 409 }) }
+    const mouthRequired = aeMouthApplicable(project, scenes || [])
+    const plannedScenes = Array.isArray(project.project_payload?.structure?.scenes)
+        ? project.project_payload.structure.scenes.filter((scene: any) =>
+            scene?.ae_effect_plan?.enabled || scene?.ae_motion_plan?.enabled) : []
+    const needsPayloadUpdate = (mouthRequired && !project.project_payload?.ae_mouth?.enabled)
+        || (plannedScenes.length > 0 && project.project_payload?.ae_scene_delivery !== 'gcs')
+    if (needsPayloadUpdate) {
+        const nextPayload = {
+            ...project.project_payload,
+            ...(mouthRequired ? { ae_mouth: { ...(project.project_payload?.ae_mouth || {}), enabled: true, first_scene: 19 } } : {}),
+            ...(plannedScenes.length > 0 ? { ae_scene_delivery: 'gcs' } : {}),
+        }
+        const enabledAt = new Date().toISOString()
+        const enabled = await supabaseAdmin.from('std_projects')
+            .update({ project_payload: nextPayload, updated_at: enabledAt })
+            .eq('id', project.id).eq('updated_at', project.updated_at).select('*').maybeSingle()
+        if (enabled.error || !enabled.data) {
+            return NextResponse.json({ success: false, error: '프로젝트가 변경되었습니다. 다시 제출해 주세요.' }, { status: 409 })
+        }
+        project.project_payload = nextPayload
+        project.updated_at = enabled.data.updated_at || enabledAt
     }
 
-    // A previous submission must still discover and validate AE work for current assets.
-    if (project.submitted_at) {
-        return NextResponse.json({ success: true, already_submitted: true, submitted_at: project.submitted_at })
-    }
+    let submittedAt = String(project.submitted_at || '')
+    let submission: any = null
+    let submissionClaimed = false
 
-    const submittedAt = new Date().toISOString()
-    const { data: submissionClaim, error: submissionClaimError } = await supabaseAdmin
-        .from('std_projects')
-        .update({
-            status: 'review_requested',
-            submitted_at: submittedAt,
-            updated_at: submittedAt,
-        })
-        .eq('id', project.id)
-        .is('submitted_at', null)
-        .select('id')
-        .maybeSingle()
-
-    if (submissionClaimError) {
-        return NextResponse.json({ success: false, error: submissionClaimError.message }, { status: 500 })
-    }
-    if (!submissionClaim) {
-        return NextResponse.json({ success: true, already_submitted: true })
-    }
-
-    const releaseSubmissionClaim = async () => {
+    const releaseSubmissionClaim = async (errorMessage = '') => {
+        if (!submissionClaimed) return
         await supabaseAdmin
             .from('std_projects')
             .update({
@@ -269,32 +255,106 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             })
             .eq('id', project.id)
             .eq('submitted_at', submittedAt)
+        if (submission?.id) {
+            await supabaseAdmin.from('std_project_submissions').update({
+                status: 'failed',
+                metadata: {
+                    scene_count: scenes?.length || 0,
+                    asset_count: assets?.length || 0,
+                    failed_at: new Date().toISOString(),
+                    error: errorMessage,
+                },
+            }).eq('id', submission.id)
+        }
     }
 
-    const { data: submission, error: submissionError } = await supabaseAdmin
-        .from('std_project_submissions')
-        .insert({
+    const claimSubmission = async () => {
+        if (project.submitted_at) return false
+        submittedAt = new Date().toISOString()
+        const { data: submissionClaim, error: submissionClaimError } = await supabaseAdmin
+            .from('std_projects')
+            .update({ status: 'review_requested', submitted_at: submittedAt, updated_at: submittedAt })
+            .eq('id', project.id).is('submitted_at', null).select('id').maybeSingle()
+        if (submissionClaimError) throw submissionClaimError
+        if (!submissionClaim) return false
+        submissionClaimed = true
+        const inserted = await supabaseAdmin.from('std_project_submissions').insert({
             project_id: project.id,
             submitted_by: auth.requester.user.id,
             status: 'review_requested',
             metadata: {
                 scene_count: scenes?.length || 0,
                 asset_count: assets?.length || 0,
+                frozen_at: submittedAt,
+                postprocess_status: mouthRequired ? 'pending' : 'not_required',
             },
-        })
-        .select('*')
-        .single()
+        }).select('*').single()
+        if (inserted.error) {
+            await releaseSubmissionClaim(inserted.error.message)
+            throw inserted.error
+        }
+        submission = inserted.data
+        project.submitted_at = submittedAt
+        return true
+    }
 
-    if (submissionError) {
-        await releaseSubmissionClaim()
-        return NextResponse.json({ success: false, error: submissionError.message }, { status: 500 })
+    // Freeze the validated scene, subtitle, voice and asset set before a
+    // background worker is allowed to inspect or render it.
+    if (!project.submitted_at) {
+        try {
+            const claimed = await claimSubmission()
+            if (!claimed) return NextResponse.json({ success: true, already_submitted: true })
+        } catch (error: any) {
+            return NextResponse.json({ success: false, error: error.message || 'Failed to freeze submission data' }, { status: 500 })
+        }
+    }
+
+    if (mouthRequired) {
+        try {
+            const pending = await ensureAeMouthJob(project, scenes || [], assets)
+            if (!pending.ready) {
+                if (submission?.id) await supabaseAdmin.from('std_project_submissions').update({
+                    status: 'review_requested',
+                    metadata: {
+                        scene_count: scenes?.length || 0,
+                        asset_count: assets?.length || 0,
+                        frozen_at: submittedAt,
+                        postprocess_status: 'pending',
+                        ae_mouth_job_id: pending.job?.id || null,
+                        ae_mouth_fingerprint: pending.job?.metadata?.fingerprint || null,
+                    },
+                }).eq('id', submission.id)
+                await supabaseAdmin.from('std_projects').update({
+                    progress_payload: {
+                        ...(project.progress_payload || {}),
+                        submitted_at: submittedAt,
+                        submitted_asset_count: assets?.length || 0,
+                        postprocess_status: 'pending',
+                        ae_mouth_job_id: pending.job?.id || null,
+                    },
+                    updated_at: new Date().toISOString(),
+                }).eq('id', project.id)
+                return NextResponse.json({ success: true, postprocess_pending: true, submitted_at: submittedAt,
+                    message: '제출 완료. AE 후작업과 검수 후 최종 렌더링이 자동으로 진행됩니다.',
+                }, { status: 202 })
+            }
+        } catch (error: any) {
+            await releaseSubmissionClaim(error.message || 'AE 후작업 요청 실패')
+            return NextResponse.json({ success: false, error: error.message || 'AE 후작업 요청 실패' }, { status: 409 })
+        }
+    }
+
+    // A previous frozen submission still discovers current AE work above,
+    // but must never create a duplicate final-render queue row here.
+    if (!submissionClaimed) {
+        return NextResponse.json({ success: true, already_submitted: true, submitted_at: project.submitted_at })
     }
 
     let renderQueueRow: any = null
     try {
         renderQueueRow = await enqueueStdProjectRender(project.id)
     } catch (queueError: any) {
-        await releaseSubmissionClaim()
+        await releaseSubmissionClaim(queueError?.message || 'Failed to enqueue render job')
         return NextResponse.json({ success: false, error: queueError?.message || 'Failed to enqueue render job' }, { status: 500 })
     }
 

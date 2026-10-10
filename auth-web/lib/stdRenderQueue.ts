@@ -86,6 +86,46 @@ function storageSourceForAsset(asset: any) {
     return null
 }
 
+export function reviewedScenePostprocessAsset(project: any, sceneNumber: number) {
+    const structureScenes = project?.project_payload?.structure?.scenes
+    if (!Array.isArray(structureScenes)) return null
+    const plannedScene = structureScenes.find((scene: any) => Number(scene?.scene_number || scene?.scene_order) === sceneNumber)
+    if (!plannedScene) return null
+    const effectPlan = plannedScene?.ae_effect_plan && typeof plannedScene.ae_effect_plan === 'object'
+        ? plannedScene.ae_effect_plan : {}
+    const motionPlan = plannedScene?.ae_motion_plan && typeof plannedScene.ae_motion_plan === 'object'
+        ? plannedScene.ae_motion_plan : {}
+    const kind = effectPlan.enabled ? 'effect' : motionPlan.enabled ? 'motion' : ''
+    if (!kind) return null
+    const metadata = plannedScene?.metadata && typeof plannedScene.metadata === 'object' ? plannedScene.metadata : {}
+    const plan = kind === 'effect' ? effectPlan : motionPlan
+    // Layer templates are allowed only after the exact PSD package passed QA.
+    // An unapproved package is ignored and the original visual remains safe.
+    if (plan.template) {
+        const layered = metadata.psd_layer_asset && typeof metadata.psd_layer_asset === 'object'
+            ? metadata.psd_layer_asset : {}
+        if (layered.qa_status !== 'approved') return null
+    }
+    const rendered = metadata[`ae_${kind}_asset`] && typeof metadata[`ae_${kind}_asset`] === 'object'
+        ? metadata[`ae_${kind}_asset`] : {}
+    const status = String(rendered.status || plannedScene[`ae_${kind}_status`] || '')
+    if (status === 'needs_attention') return null
+    if (status !== 'ready') {
+        const error: any = new Error(`${sceneNumber}번 씬의 AIR STUDIO 후작업을 기다리고 있습니다.`)
+        error.code = 'SCENE_POSTPROCESS_PENDING'
+        throw error
+    }
+    const wrapped = {
+        asset_type: 'video', scene_number: sceneNumber, status: 'assigned',
+        file_name: `scene_${String(sceneNumber).padStart(3, '0')}_air.mp4`, mime_type: 'video/mp4',
+        file_size: rendered.file_size || rendered.size || null,
+        metadata: rendered,
+    }
+    // Local-only artifacts are consumed by the Premiere worker. The remote
+    // GCS renderer safely uses the original until a reviewed GCS artifact is present.
+    return storageSourceForAsset(wrapped) ? wrapped : null
+}
+
 async function storageManifestFields(storage: { bucket: string; path: string; provider?: string; gcsBucket?: string; gcsPath?: string } | null) {
     if (!storage) return {}
     const targetGcsPath = storage.gcsPath || storage.path
@@ -676,7 +716,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         )
         const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
         if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
-        const asset = lipAssets.get(sceneNumber) || reviewedVideoTail(scene,
+        const asset = lipAssets.get(sceneNumber) || reviewedScenePostprocessAsset(project, sceneNumber) || reviewedVideoTail(scene,
             selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset),
             project.project_payload)
         const assetStorage = storageSourceForAsset(asset)

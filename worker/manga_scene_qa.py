@@ -23,6 +23,7 @@ except ImportError:
 
 
 TEMPLATES = {
+    "parallax_layered_scene": ("background", "foreground"),
     "directed_performance": ("background",),
     "dialogue_closeup": ("background", "character"),
     "angled_triple_reaction": ("background", "character_left", "character_center", "character_right"),
@@ -34,6 +35,8 @@ TEMPLATES = {
     "backlit_hand_reveal": ("background", "hand_foreground"),
 }
 REVIEW_POINTS = {
+    "parallax_layered_scene": ["Check that only approved layers move and that foreground/background separation has no seams or exposed holes.",
+                                "Check that faces, hands, captions, and the main story subject remain stable and readable through the full move."],
     "directed_performance": ["Check each pose or prop reveal against the corresponding narration beat and supplied layer role.",
                              "Check that attention cues point to the intended story subject and remain subtle.",
                              "Check that alternate poses align without seams, identity drift, or unintended repeated movement."],

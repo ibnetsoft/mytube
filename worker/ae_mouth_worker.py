@@ -223,7 +223,11 @@ def process_one(report=None, should_stop=None) -> bool:
             dialogue = [r for r in scene_rows if r['kind'] == 'dialogue']
             result = {'number': number, 'duration': duration, 'speakers': list(dict.fromkeys(r['speaker'] for r in dialogue))}
             if any(r['kind'] == 'uncertain' for r in scene_rows):
-                outcomes[number] = {**result, 'status': 'needs_review', 'reason': '대사·화자를 확실히 판별하지 못했습니다. 자막에서 대사와 화자를 확인한 뒤 다시 제출해 주세요.'}
+                outcomes[number] = {**result,
+                    'status': 'skipped' if meta.get('automatic') else 'needs_review',
+                    'skip_reason': 'uncertain_dialogue_speaker' if meta.get('automatic') else None,
+                    'fallback': 'original' if meta.get('automatic') else None,
+                    'reason': '대사·화자를 확실히 판별하지 못해 원본 시각 자료를 사용합니다.' if meta.get('automatic') else '대사·화자를 확실히 판별하지 못했습니다. 자막에서 대사와 화자를 확인한 뒤 다시 제출해 주세요.'}
             elif not dialogue:
                 outcomes[number] = {**result, 'status': 'skipped', 'reason': '실제 캐릭터 대사가 없는 내레이션·반응 장면입니다.'}
             else:
@@ -332,7 +336,11 @@ def process_one(report=None, should_stop=None) -> bool:
                     raise
                 except Exception as exc:
                     if auto_video and not result.get('video_coordinate_asset_id'): result['coordinate_state'] = 'needs_review'
-                    outcomes[number] = {**result, 'status': 'needs_review', 'reason': str(exc)[:500]}
+                    outcomes[number] = {**result,
+                        'status': 'skipped' if meta.get('automatic') else 'needs_review',
+                        'skip_reason': 'automatic_processing_failed' if meta.get('automatic') else None,
+                        'fallback': 'original' if meta.get('automatic') else None,
+                        'reason': str(exc)[:500]}
             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
         fresh()
         save(state='reviewed' if all(r['status'] == 'skipped' for r in outcomes.values()) else 'review_pending' if render_phase else 'direction_pending', auto_pending=bool(meta.get('automatic')), error='')

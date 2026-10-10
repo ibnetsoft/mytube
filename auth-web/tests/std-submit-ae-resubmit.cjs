@@ -8,7 +8,9 @@ function fixture({ready=false,applicable=true,closed=false,queueError='',largePr
  const ex={};new Function('exports','require',ts.transpile(fs.readFileSync('app/api/std/projects/[projectId]/submit/route.ts','utf8'),{module:1,target:7}))(ex,name=>{
   if(name==='next/server')return {NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:db};
-  if(name.includes('stdProjectAssets')){const helper={};new Function('exports',ts.transpile(fs.readFileSync('lib/stdProjectAssets.ts','utf8'),{module:1,target:7}))(helper);return helper;}
+  if(name.includes('stdProjectAssets')){const helper={};new Function('exports','require',ts.transpile(fs.readFileSync('lib/stdProjectAssets.ts','utf8'),{module:1,target:7}))(helper,dep=>{
+   if(dep.includes('stdGeneratedSpeakerGeometry'))return {appendGeneratedSpeakerAssets:async(db,ids,assets)=>assets};throw Error(dep);
+  });return helper;}
   if(name.includes('stdWeb'))return {requireStdUser:async()=>({ok:true,requester:{email:'owner@test'}})};
   if(name.includes('stdPolicy'))return {isStdVideoPromptScene:()=>false};
   if(name.includes('stdThumbnailRender'))return {editableThumbnailError:()=>null};

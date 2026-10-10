@@ -364,6 +364,9 @@ def test_explicit_layer_scene_range_forces_registered_parallax_packages():
         assert scene["psd_layer_plan"]["template"] == "parallax_layered_scene"
         assert scene["psd_layer_plan"]["required_layers"] == ["background", "foreground"]
         assert scene["image_generation_policy"]["psd_layer_package_reason"] == "explicit_scene_range"
+        assert scene["ae_effect_plan"]["enabled"] is True
+        assert scene["ae_effect_plan"]["template"] == "parallax_layered_scene"
+        assert scene["ae_effect_plan"]["fallback"] == "original_visual"
 
 
 @pytest.mark.parametrize('text', [

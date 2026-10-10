@@ -11,7 +11,10 @@ function load(job,db,enqueue,review=()=>{}){
  });return ex;
 }
 const request=(token='test-secret',body={projectId:'p',jobId:'j',workerToken:'lease'})=>({headers:new Headers({authorization:'Bearer '+token}),json:async()=>body});
-const db={from:table=>{const q={select:()=>q,eq:()=>q,single:async()=>({data:{id:'p',status:'submitted'}}),order:async()=>({data:[]})};return q;}};
+const db={from:table=>{const q={select:()=>q,eq:()=>q,limit:()=>q,update:()=>q,
+ single:async()=>({data:{id:'p',status:'submitted',progress_payload:{}}}),
+ maybeSingle:async()=>({data:null,error:null}),order:()=>q,
+ then(resolve){resolve({data:table==='std_project_scenes'?[]:null,error:null})}};return q;}};
 const job=()=>({id:'j',metadata:{automatic:true,state:'processing',phase:'auto_enqueue',worker_token:'lease'}});
 test('internal continuation rejects unauthorized and malformed requests before reading data',async()=>{
  process.env.SUPABASE_SERVICE_ROLE_KEY='test-secret';

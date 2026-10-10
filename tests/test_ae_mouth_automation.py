@@ -45,7 +45,7 @@ def setup_job(phase,results):
     return {'id':'job','project_id':'project','metadata':meta},meta
 
 
-def test_direction_failure_persists_but_next_scene_proceeds(monkeypatch,tmp_path):
+def test_direction_failure_falls_back_to_original_and_next_scene_proceeds(monkeypatch,tmp_path):
     job,meta=setup_job('auto_direction',[{'number':1,'status':'direction_pending'},{'number':2,'status':'direction_pending'}])
     calls=[];saves=[]
     def inspect(*args):
@@ -56,7 +56,8 @@ def test_direction_failure_persists_but_next_scene_proceeds(monkeypatch,tmp_path
     def save(**changes):meta.update(copy.deepcopy(changes));saves.append(copy.deepcopy(changes))
     auto.run_phase(None,job,meta,tmp_path,tmp_path/'audio',lambda:None,save,lambda:False)
     assert calls==[1,2]
-    assert saves[0]['results'][0]['status']=='needs_review'
+    assert saves[0]['results'][0]['status']=='skipped'
+    assert saves[0]['results'][0]['fallback']=='original'
     assert meta['results'][1]['status']=='direction_approved'
     assert meta['state']=='direction_approved' and meta['phase']=='render'
 
@@ -75,12 +76,13 @@ def test_successful_output_review_is_persisted_before_enqueue(monkeypatch,tmp_pa
     assert meta['state']=='reviewed' and meta['phase']=='auto_enqueue' and meta['auto_pending']
 
 
-def test_uncertain_output_blocks_final_render(monkeypatch,tmp_path):
+def test_uncertain_output_uses_original_and_continues_to_final_render(monkeypatch,tmp_path):
     job,meta=setup_job('auto_review',[{'number':1,'status':'review_pending'}])
     monkeypatch.setattr(auto,'inspect_scene',lambda *args:(_ for _ in ()).throw(ValueError('mouth drifts')))
     auto.run_phase(None,job,meta,tmp_path,tmp_path/'audio',lambda:None,lambda **c:meta.update(c),lambda:False)
-    assert meta['state']=='review_pending' and not meta['auto_pending']
-    assert meta['results'][0]['status']=='needs_review'
+    assert meta['state']=='reviewed' and meta['phase']=='auto_enqueue' and meta['auto_pending']
+    assert meta['results'][0]['status']=='skipped'
+    assert meta['results'][0]['fallback']=='original'
 
 
 def test_final_enqueue_receipt_and_bounded_retries(monkeypatch,tmp_path):

@@ -16,6 +16,8 @@ python worker/air_worker_entry.py --profile render_only
 
 - `render_worker`
 - `ae_highlight_worker`
+- `ae_mouth_worker`
+- `comfy_scene_video_worker`
 - `premiere_final_worker`
 - `remote_drive_worker`
 - `local_api`

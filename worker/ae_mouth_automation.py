@@ -180,10 +180,10 @@ def run_phase(runner, job, meta, directory, audio_path, fresh, save, should_stop
                 headers={'Authorization':headers['Authorization']},
                 json={'projectId':job['project_id'],'jobId':job['id'],'workerToken':meta['worker_token']},
                 timeout=310,allow_redirects=False)
-            if response.status_code == 409 and response.json().get('code') == 'VIDEO_TAIL_PENDING':
+            if response.status_code == 409 and response.json().get('code') in {'VIDEO_TAIL_PENDING', 'SCENE_POSTPROCESS_PENDING'}:
                 save(state='reviewed', auto_pending=True,
                      auto_not_before=(datetime.now(timezone.utc)+timedelta(minutes=5)).isoformat(),
-                     error=response.json().get('error', 'Waiting for video tail rendering'))
+                     error=response.json().get('error', 'Waiting for scene post-processing'))
                 return
             response.raise_for_status()
             data=response.json()
@@ -208,9 +208,12 @@ def run_phase(runner, job, meta, directory, audio_path, fresh, save, should_stop
             receipt,asset=inspect_scene(runner,{**job,'metadata':meta},scene,result,audio_path,
                 directory/f'scene-{scene["number"]}'/phase,phase,fresh)
         except Exception as exc:
-            # Recheck lease and original inputs before treating a local QA error as scene failure.
+            # Recheck the lease and frozen inputs, then isolate the failure to
+            # this scene. Automatic submissions must keep moving with the
+            # original visual instead of blocking the entire final render.
             fresh()
-            result.update(status='needs_review',reason=str(exc)[:500])
+            result.update(status='skipped', skip_reason='automatic_review_failed',
+                          fallback='original', reason=str(exc)[:500])
         else:
             fresh()
             if asset:

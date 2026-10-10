@@ -136,6 +136,12 @@ AE_TARGET_KEYWORDS = (
 AE_MANGA_CLIP_MAX_SECONDS = 12  # Must match the AE worker's SceneJob duration cap.
 
 AE_MANGA_TEMPLATES = {
+    "parallax_layered_scene": {
+        "preset": "parallax_layered_scene",
+        "direction": "Use only the approved PSD layers for a restrained depth move: keep the background stable, drift foreground layers slowly, and preserve all faces, hands, captions, and safe margins.",
+        "required_layers": ["background", "foreground"],
+        "optional_layers": ["prop_focus", "atmosphere"],
+    },
     "directed_performance": {
         "preset": "directed_scene_performance",
         "direction": "Stage separately authored character poses and props on timed narration beats; preserve composition and guide attention to the declared target.",
@@ -382,7 +388,12 @@ def _manga_template_plan(template: str, scene: dict[str, Any], duration: float) 
         },
         "direction": spec["direction"],
     }
-    if template == "directed_performance":
+    if template == "parallax_layered_scene":
+        plan["beats"] = [
+            {"at_seconds": 0.0, "action": "depth_hold", "target": "background"},
+            {"at_seconds": at(0.18), "action": "foreground_drift", "target": "foreground"},
+        ]
+    elif template == "directed_performance":
         existing = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
         plan["asset_requirements"] = existing.get("asset_requirements") or plan["asset_requirements"]
         directorial = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
@@ -1309,6 +1320,30 @@ def _plan_image_generation_efficiency(
             "credit_cost_estimate": psd_units,
             "prompt": psd_prompt,
         }
+        if explicitly_layered and not (isinstance(scene.get("ae_effect_plan"), dict)
+                                       and scene["ae_effect_plan"].get("enabled")):
+            duration = max(1.0, float(scene.get("duration_seconds") or scene.get("target_duration") or 4))
+            template_plan = _manga_template_plan("parallax_layered_scene", scene, duration)
+            scene["ae_effect_plan"] = {
+                "enabled": True,
+                "preset": "parallax_layered_scene",
+                "priority": 2,
+                "duration_seconds": duration,
+                "direction": AE_MANGA_TEMPLATES["parallax_layered_scene"]["direction"],
+                "mood": "restrained cinematic depth",
+                "camera": "slow depth push",
+                "light": "preserve source lighting",
+                "vfx": ["approved_layer_parallax"],
+                "targets": [],
+                "intensity": 0.12,
+                "motion": {"push": 0.02, "drift_x": 0.01, "drift_y": -0.004, "shake": 0.0},
+                "transition_in": "none",
+                "transition_out": "hold_frame",
+                "quality_checks": {"min_duration_seconds": 1.0, "min_output_bytes": 1024,
+                                   "targeted_effects_required": True},
+                "fallback": "original_visual",
+                **template_plan,
+            }
         if psd_required:
             psd_layer_prompts.append({
                 "scene_number": number,

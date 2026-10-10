@@ -12,6 +12,7 @@ from typing import Any
 
 
 MANGA_TEMPLATES = frozenset({
+    "parallax_layered_scene",
     "directed_performance",
     "dialogue_closeup",
     "angled_triple_reaction", "body_following_qi", "ink_splat_impact",
@@ -243,6 +244,30 @@ function dialogueCloseup(comp) {
       opacity.setValueAtKey(key, cues[j].pose == poses[i] ? 100 : 0);
       opacity.setInterpolationTypeAtKey(key, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
     }
+  }
+}
+function parallaxLayeredScene(comp) {
+  var background = comp.layer("background");
+  var foreground = layerByRole(comp, "foreground", true);
+  var prop = layerByRole(comp, "prop_focus", false);
+  var atmosphere = layerByRole(comp, "atmosphere", false);
+  background.property("Scale").setValueAtTime(0, [102,102]);
+  background.property("Scale").setValueAtTime(DUR, [105,105]);
+  background.property("Position").setValueAtTime(0, [W/2 - 5,H/2]);
+  background.property("Position").setValueAtTime(DUR, [W/2 + 5,H/2 - 2]);
+  foreground.property("Scale").setValueAtTime(0, [100,100]);
+  foreground.property("Scale").setValueAtTime(DUR, [108,108]);
+  foreground.property("Position").setValueAtTime(0, [W/2 + 12,H/2 + 4]);
+  foreground.property("Position").setValueAtTime(DUR, [W/2 - 12,H/2 - 4]);
+  if (prop) {
+    prop.property("Scale").setValueAtTime(0, [100,100]);
+    prop.property("Scale").setValueAtTime(DUR, [106,106]);
+  }
+  if (atmosphere) {
+    atmosphere.blendingMode = BlendingMode.SCREEN;
+    atmosphere.property("Opacity").setValueAtTime(0, 20);
+    atmosphere.property("Opacity").setValueAtTime(DUR / 2, 38);
+    atmosphere.property("Opacity").setValueAtTime(DUR, 22);
   }
 }
 function triple(comp) {
@@ -752,7 +777,8 @@ try {
   // Directed performance uses authored pose changes and story attention cues.
   // Keep the plate locked; a continuous scale-up is not a substitute for direction.
   bg.property("Scale").setValue([100,100]);
-  if (CFG.template == "dialogue_closeup") dialogueCloseup(comp);
+  if (CFG.template == "parallax_layered_scene") parallaxLayeredScene(comp);
+  else if (CFG.template == "dialogue_closeup") dialogueCloseup(comp);
   else if (CFG.template == "angled_triple_reaction") triple(comp);
   else if (CFG.template == "body_following_qi") qi(comp);
   else if (CFG.template == "ink_splat_impact") impact(comp);
