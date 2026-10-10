@@ -179,6 +179,7 @@ import {
     Copy,
     Download,
     ExternalLink,
+    Eye,
     FileAudio,
     FileText,
     Grid,
@@ -207,6 +208,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
+import { directedEyeBlinkPlan } from '@/lib/stdSceneDirection'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
@@ -9557,6 +9559,9 @@ export default function StdPortalPage() {
                                                 const groupVoiceNames = subtitleGroupVoiceNamesInOrder(group.subtitles)
                                                 const hasSingleGroupVoice = groupVoiceNames.length === 1
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
+                                                const eyeBlinkPlan = directedEyeBlinkPlan(
+                                                    [sceneRecord, ...getProjectPayloadScenes()], Number(sNum)
+                                                )
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const motionEffect = sceneMotion(sceneRecord)
                                                 const workerVideo = isWorkerSceneVideo(sceneVideos.get(Number(sNum)))
@@ -9677,9 +9682,15 @@ export default function StdPortalPage() {
                                                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                                                                     Scene {sNum}
                                                                 </span>
-                                                                <span className="hidden text-[10px] text-gray-500 sm:inline">
-                                                                    {group.subtitles.length} subtitle block{group.subtitles.length > 1 ? 's' : ''}
-                                                                </span>
+                                                                {eyeBlinkPlan && (
+                                                                    <span
+                                                                        title={`${ui('눈 깜빡임 연출')}${eyeBlinkPlan.character ? ` · ${eyeBlinkPlan.character}` : ''}`}
+                                                                        aria-label={ui('눈 깜빡임 연출')}
+                                                                        className="inline-flex h-5 w-5 items-center justify-center rounded bg-fuchsia-500/15 text-fuchsia-200"
+                                                                    >
+                                                                        <Eye aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                                                    </span>
+                                                                )}
                                                                 {isVrewSubtitleMode && segmentStatus && (
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                         segmentStatus === 'ready'
