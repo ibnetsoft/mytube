@@ -10768,13 +10768,13 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <div className={comicProject ? 'hidden' : 'p-4 border-t border-white/5 space-y-4'}>
-                                    {/* 1. 대본 워커가 지정한 필수 영상 구간 */}
+                                    {/* 대본 워커가 지정한 전체 영상 구간 */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                                                 <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">
-                                                    {ui('초반 필수 영상 구간 (씬 1 ~ {count})', { count: requiredVideoSceneCount })}
+                                                    {ui('영상 구간 (씬 1 ~ {count})', { count: requiredVideoSceneCount })}
                                                 </span>
                                             </div>
                                             <span className="text-[10px] text-gray-400 font-mono">
@@ -10806,7 +10806,7 @@ export default function StdPortalPage() {
                                                         </div>
                                                         <div className={`text-[10px] font-bold ${transition.mode === 'continuous' ? 'text-cyan-300' : 'text-gray-400'}`}>
                                                             {transition.mode === 'continuous'
-                                                                ? ui('연속 → 씬 {number}', { number: transition.nextSceneNumber })
+                                                                ? ui('연속 → 씬 {number}', { number: transition.nextSceneNumber || sNum + 1 })
                                                                 : ui('컷 전환')}
                                                         </div>
                                                         <div className="flex items-center pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -10838,13 +10838,13 @@ export default function StdPortalPage() {
                                         </div>
                                     </div>
 
-                                    {/* 2. 필수 영상 구간 다음의 본문 미디어 */}
+                                    {/* 영상 구간 다음의 정지 이미지 */}
                                     <div className="space-y-2 pt-2 border-t border-white/5">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-amber-500/70" />
                                                 <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
-                                                    {ui('본문 미디어 구간 (씬 {start} ~ {count})', { start: requiredVideoSceneCount + 1, count: selectedProject.scenes.length })}
+                                                    {ui('이미지 구간 (씬 {start} ~ {count})', { start: requiredVideoSceneCount + 1, count: selectedProject.scenes.length })}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -11070,7 +11070,7 @@ export default function StdPortalPage() {
                                                         <div className="flex items-center justify-between gap-2">
                                                             <span className={`text-xs font-black ${transition.mode === 'continuous' ? 'text-cyan-300' : 'text-gray-300'}`}>
                                                                 {transition.mode === 'continuous'
-                                                                    ? ui('연속 → 씬 {number}', { number: transition.nextSceneNumber })
+                                                                    ? ui('연속 → 씬 {number}', { number: transition.nextSceneNumber || sceneNum + 1 })
                                                                     : ui('컷 전환')}
                                                             </span>
                                                             <span className="text-[10px] text-gray-400">{ui('영상 제작 지시')}</span>

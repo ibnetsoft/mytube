@@ -71,6 +71,18 @@ test('recurring characters beyond the old slot limit receive their authorized re
     assert.deepEqual(app.downloads, [{ bucket: 'studio-assets', objectPath: 'topics/42/characters/character-22.png' }])
 })
 
+test('prepared-topic and nested recurring-character paths are accepted', async () => {
+    const preparedCharacter = { name: 'Prepared', image_url: '/api/std/assets/gcs-file?bucket=studio-assets&path=topics%2Fprepared%2FBp8mgsjeeEo%2Fcharacters%2Fprepared.png' }
+    const prepared = harness({ projectPayload: { structure: { main_character: preparedCharacter } } })
+    assert.equal((await prepared.get('?slot=0')).status, 200)
+    assert.deepEqual(prepared.downloads, [{ bucket: 'studio-assets', objectPath: 'topics/prepared/Bp8mgsjeeEo/characters/prepared.png' }])
+
+    const nestedCharacter = { name: 'Nested', image_url: '/api/std/assets/gcs-file?bucket=studio-assets&path=topics%2F3377%2Fcharacters%2Frecurring-character-designs%2Fnested.webp' }
+    const nested = harness({ projectPayload: { structure: { main_character: nestedCharacter } } })
+    assert.equal((await nested.get('?slot=0')).status, 200)
+    assert.deepEqual(nested.downloads, [{ bucket: 'studio-assets', objectPath: 'topics/3377/characters/recurring-character-designs/nested.webp' }])
+})
+
 test('slot validation rejects absent, blank, fractional and unsafe indices without reading a project', async () => {
     for (const search of ['', '?slot=', '?slot=%20', '?slot=-1', '?slot=0.5', '?slot=9007199254740992', '?slot=NaN']) {
         const app = harness()
