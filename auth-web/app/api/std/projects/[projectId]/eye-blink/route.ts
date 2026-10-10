@@ -4,6 +4,7 @@ import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { coordinateSource } from '@/lib/stdSpeakerGeometry'
 import { downloadGcsObject } from '@/lib/gcsStorage'
+import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 
 export const dynamic = 'force-dynamic'
 type Box = [number, number, number, number]
@@ -25,9 +26,16 @@ async function context(req: Request, id: string) {
 }
 
 function sceneCharacters(project: any, number: number) {
-    const structure = project.project_payload?.structure || {}
+    const payload = project.project_payload || {}, structure = payload.structure || {}
     const entry = (structure.scene_cast || []).find((row: any) => Number(row.scene_number) === number)
-    return [...new Set<string>((entry?.characters || []).map((value: any) => String(value || '').trim()).filter(Boolean))]
+    const scene = (structure.scenes || []).find((row: any) => Number(row.scene_number ?? row.scene_order) === number)
+    const name = (value: any) => String(typeof value === 'string' ? value : value?.name || value?.character_name || '').trim()
+    return [...new Set<string>([
+        ...(entry?.characters || []),
+        ...(scene?.characters || scene?.cast || []),
+        ...charactersFromPayload(payload),
+        ...charactersFromPayload(project.source_payload),
+    ].map(name).filter(Boolean))]
 }
 
 function scenes(ctx: any) {
