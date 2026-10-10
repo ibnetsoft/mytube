@@ -8325,7 +8325,7 @@ export default function StdPortalPage() {
         { id: 'topics', label: ui("주제"), isDone: status.isTopicDone },
         { id: 'topics', label: ui("기획"), isDone: status.isPlanningDone },
         { id: 'script_gen', label: ui("대본"), isDone: status.isScriptDone },
-        { id: 'image_gen', label: ui("이미지"), isDone: status.isImageDone },
+        { id: 'image_gen', label: t('nav_image'), isDone: status.isImageDone },
         { id: 'subtitle_vrew', label: ui("자막"), isDone: status.isSubtitlesDone },
         { id: 'thumbnail', label: ui("썸네일"), isDone: status.isThumbnailDone },
         ]
@@ -8447,7 +8447,7 @@ export default function StdPortalPage() {
                                             <th className="px-1 py-2.5 w-12 text-center">{ui("주제")}</th>
                                             <th className="px-1 py-2.5 w-12 text-center">{ui("기획")}</th>
                                             <th className="px-1 py-2.5 w-12 text-center">{ui("대본")}</th>
-                                            <th className="px-1 py-2.5 w-12 text-center">{ui("이미지")}</th>
+                                            <th className="px-1 py-2.5 w-12 text-center">{t('nav_image')}</th>
                                             <th className="px-1 py-2.5 w-12 text-center">TTS</th>
                                             <th className="px-1 py-2.5 w-12 text-center">{ui("자막")}</th>
                                             <th className="px-1 py-2.5 w-12 text-center">{ui("썸네일")}</th>

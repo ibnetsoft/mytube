@@ -6,7 +6,8 @@ import { stdUiText } from '@/lib/stdUiText'
 
 export type TopicProjectRow = { id: string; title: string; thumbnail: string; steps: boolean[]; submitted?: boolean }
 const PAGE_SIZE = 10
-const stages = ['주제', '기획', '대본', '이미지', 'TTS', '자막', '썸네일']
+const stages = ['주제', '기획', '대본', '영상', 'TTS', '자막', '썸네일']
+const videoStageLabel: Record<SupportedLocale, string> = { ko: '영상', en: 'Video', vi: 'Video', th: 'วิดีโอ' }
 type ProjectTab = 'unfinished' | 'submitted'
 
 export default function TopicProjectDialog({ rows, activeId, locale, onClose, onSelect }: {
@@ -69,7 +70,7 @@ export default function TopicProjectDialog({ rows, activeId, locale, onClose, on
                 <table className="w-full min-w-[720px] border-collapse text-sm">
                     <thead className="sticky top-0 bg-[#202632] text-xs text-gray-400"><tr>
                         <th className="p-3">{ui('썸네일')}</th><th className="p-3 text-left">{ui('영상 제목')}</th>
-                        {stages.map(stage => <th key={stage} className="whitespace-nowrap px-2 py-3">{ui(stage)}</th>)}
+                        {stages.map(stage => <th key={stage} className="whitespace-nowrap px-2 py-3">{stage === '영상' ? videoStageLabel[locale] : ui(stage)}</th>)}
                     </tr></thead>
                     <tbody>{visible.map(row => <tr key={row.id} className={`border-b border-white/5 ${row.id === activeId ? 'bg-blue-500/15' : 'hover:bg-white/5'}`}>
                         <td className="w-28 p-2"><button type="button" disabled={!!opening} aria-label={row.title} onClick={() => void choose(row.id)} className="block w-24 overflow-hidden rounded border border-white/10">
