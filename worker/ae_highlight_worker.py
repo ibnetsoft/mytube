@@ -1125,6 +1125,7 @@ try {{
     bg = comp.layers.add(footage);
     bg.name = "source_scene";
   }}
+  applyAudioReactiveLight(comp);
   try {{ bg.audioEnabled = false; }} catch (audioErr) {{}}
   var scale = Math.max(W / footage.width, H / footage.height) * 100;
   var directorCameraMove = false;

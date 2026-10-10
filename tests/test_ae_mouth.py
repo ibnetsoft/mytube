@@ -44,6 +44,17 @@ def test_amplitude_animation_stays_closed_during_narration_and_voice_pauses():
         mouth.amplitude_cues(samples, [{'start': 2, 'end': 4}], start=0, duration=3)
 
 
+def test_audio_reactive_light_is_bounded_and_dialogue_only():
+    samples = [0] * 8000 + [1200, -1200] * 4000 + [1200, -1200] * 4000
+    cues = mouth.audio_reactive_light_cues(samples, [{'start': 1, 'end': 2}], start=0, duration=3)
+    def level(t):
+        return next(c['value'] for c in reversed(cues) if c['at_seconds'] <= t)
+    assert level(.5) == 0
+    assert 0 < level(1.5) <= 1
+    assert level(2.5) == 0
+    assert cues[-1] == {'at_seconds': 3, 'value': 0.0}
+
+
 def test_ae_source_precomp_keeps_lips_attached_to_existing_camera_and_effects(tmp_path):
     scene = {'ae_motion_plan': {'enabled': True}, 'ae_mouth_runtime': {'enabled': True, 'speakers': [
         {'mouth_box': [.4, .4, .45, .43], 'layers': {p: str(tmp_path / f'{p}.png') for p in mouth.POSES},
@@ -56,6 +67,8 @@ def test_ae_source_precomp_keeps_lips_attached_to_existing_camera_and_effects(tm
     assert text.index('footage = mouthComp') < text.index('bg = comp.layers.add(footage)')
     assert '&& !mouthRuntime.enabled' in text
     assert 'KeyframeInterpolationType.HOLD' in text
+    assert 'audio_reactive_dialogue_light' in text
+    assert 'Math.min(4, lightCue.value * 4)' in text
 
 
 def test_snapshot_invalidates_new_sources_but_ignores_generated_output():

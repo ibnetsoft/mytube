@@ -1283,12 +1283,13 @@ def _plan_image_generation_efficiency(
         }
         scene["image_generation_policy"] = policy
         scene["local_layer_plan"] = {
-            "enabled": True,
+            "enabled": False,
             "source": "single_scene_image",
-            "method": "local_segmentation_or_depth_proxy",
-            "outputs": ["foreground_rgba", "background_plate"],
+            "method": "disabled_unreviewed_segmentation",
+            "outputs": [],
             "credit_cost": 0,
             "targets": policy["targets"],
+            "reason": "Only separately generated and reviewed transparent layers or user-approved masks may be animated.",
         }
         psd_prompt = _psd_layer_prompt(scene, psd_outputs, image_layer_mode) if psd_required else ""
         package_template = template or ("parallax_layered_scene" if explicitly_layered else None)
@@ -1309,8 +1310,8 @@ def _plan_image_generation_efficiency(
             "mode": image_layer_mode,
             "selection_source": "explicit_scene_range" if explicitly_layered else "automatic_policy",
             "scene_range": explicit_range if explicitly_layered else None,
-            "source": "additional_layer_sheet_generation" if psd_required else "local_derived_layers_only",
-            "method": "psd_style_2x2_layer_sheet" if psd_required else "single_image_depth_proxy",
+            "source": "additional_layer_sheet_generation" if psd_required else "none",
+            "method": "psd_style_2x2_layer_sheet" if psd_required else "disabled_unreviewed_segmentation",
             "outputs": psd_outputs if psd_required else [],
             "template": package_template,
             "required_layers": package_required_layers,
@@ -2555,7 +2556,7 @@ class CodexStagedContentRunner:
             f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
             f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
             f"Explicit layer scene range is {json.dumps(image_layer_scene_range, ensure_ascii=False)}. Every existing scene inside that range must receive independently authored registered background and foreground PNG layers for PSD assembly; preserve the ordinary mode outside the range. "
-            "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including an inpainted clean background and aligned alternate pose/prop layers. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
+            "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including a complete independently generated clean background and aligned alternate pose/prop layers. Do not derive or inpaint hidden background pixels from the flattened scene. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
             "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
             "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-18 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-18 use video_generation_mode=user_upload. Scenes 19 onward must not contain video_prompt."
         )

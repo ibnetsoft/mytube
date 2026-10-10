@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'worker'))
 import worker_config
 import ae_highlight_worker as ae
-from ae_mouth import assess_dialogue, locate_speakers, mouth_layers, amplitude_cues, decode_scene_audio, review_layers, digest, direction_text, visible_speakers
+from ae_mouth import assess_dialogue, locate_speakers, mouth_layers, amplitude_cues, audio_reactive_light_cues, decode_scene_audio, review_layers, digest, direction_text, visible_speakers
 from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
 from ae_video_tracking import track_video
@@ -288,6 +288,7 @@ def process_one(report=None, should_stop=None) -> bool:
                         fresh()
                         source_scene = {'scene_number': number, 'scene_text': scene['text'], **copy.deepcopy(scene['direction']),
                                         'ae_mouth_runtime': {'enabled': True, 'speakers': speakers, 'audio_sha256': digest(audio_path),
+                                            'audio_light_cues': audio_reactive_light_cues(samples, dialogue, start=scene['start'], duration=duration),
                                             'video_source':bool(video),'video_duration':tracking['source_duration'] if tracking else None,
                                             'tracking':tracking}}
                         selected = ae._render_plan_from_scene(source_scene)

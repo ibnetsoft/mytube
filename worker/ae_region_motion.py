@@ -1,6 +1,5 @@
 """User-defined, bounded region motion. No generated JSX from free-form commands."""
 from __future__ import annotations
-import hashlib
 import json
 import math
 import uuid
@@ -47,31 +46,7 @@ def phase(region, time):
 
 
 def prepare_layers(source: Path, directory: Path, data: dict):
-    from PIL import Image, ImageDraw, ImageFilter
-    import cv2
-    import numpy as np
-    validate_input(data)
-    if hashlib.sha256(source.read_bytes()).hexdigest() != data['imageSha256']:
-        raise ValueError('Original image changed; redraw the regions')
-    original = Image.open(source).convert('RGB')
-    # Keep original aspect ratio and even dimensions for H.264.
-    ratio = min(1, 1920 / max(original.size))
-    width, height = [max(2, int(n * ratio) // 2 * 2) for n in original.size]
-    original = original.resize((width, height), Image.Resampling.LANCZOS)
-    directory.mkdir(parents=True, exist_ok=True)
-    union = np.zeros((height, width), dtype=np.uint8)
-    layers = []
-    for i, region in enumerate(data['regions']):
-        mask = Image.new('L', original.size)
-        ImageDraw.Draw(mask).polygon([(round(p[0]*width),round(p[1]*height)) for p in region['polygon']], fill=255)
-        union = np.maximum(union, np.asarray(mask))
-        layer = original.convert('RGBA');layer.putalpha(mask.filter(ImageFilter.GaussianBlur(.6)))
-        target = directory / f'region-{i}.png';layer.save(target)
-        layers.append({**region, 'path': str(target.resolve())})
-    expanded = cv2.dilate(union, np.ones((3,3),np.uint8))
-    background = cv2.inpaint(np.asarray(original), expanded, 5, cv2.INPAINT_TELEA)
-    plate = directory / 'background.png';Image.fromarray(background).save(plate)
-    return {'width': width, 'height': height, 'background': str(plate.resolve()), 'regions': layers, 'duration': data['timeline']['duration']}
+    raise ValueError('검수·승인된 레이어 패키지 없이 자동 분할 또는 배경 복원을 실행하지 않습니다.')
 
 
 def write_jsx(runtime, project: Path, output: Path, jsx: Path):
@@ -135,7 +110,9 @@ def render(source, directory, data, prepared_runtime=None):
     import ae_highlight_worker as ae
     from ae_media_utils import ffmpeg, run
     from media_checkpoint import valid_mp4
-    runtime=prepared_runtime or prepare_layers(source,directory/'layers',data)
+    if not prepared_runtime:
+        raise ValueError('검수·승인된 레이어 패키지가 필요합니다.')
+    runtime=prepared_runtime
     project,raw,output,jsx=[directory/name for name in ('region-motion.aep','native-'+uuid.uuid4().hex+'.avi','region-motion.mp4','region-motion.jsx')]
     afterfx=ae.find_afterfx();aerender=ae.find_aerender()
     if not afterfx or not aerender:raise RuntimeError('After Effects executable not found')

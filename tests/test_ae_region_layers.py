@@ -8,21 +8,30 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'worker'))
 from ae_region_layers import build_layers, load_runtime
 
 
-def fixture(tmp_path, contour='auto'):
+def fixture(tmp_path, contour='exact'):
     source=tmp_path/'source.png';im=Image.new('RGB',(320,200),'white');ImageDraw.Draw(im).ellipse((100,40,160,140),fill='red');im.save(source)
     r={'id':'arm','polygon':[[.25,.1],[.6,.1],[.6,.8],[.25,.8]],'contour':contour}
     return source,{'imageSha256':hashlib.sha256(source.read_bytes()).hexdigest(),'geometry':[r]}
 
 
-def test_refines_silhouette_and_saves_repair(tmp_path):
+def test_uses_reviewed_contour_and_supplied_background(tmp_path):
     source,data=fixture(tmp_path)
-    result=build_layers(source,tmp_path/'layers',data)
+    plate=tmp_path/'plate.png';Image.new('RGB',(320,200),'green').save(plate)
+    result=build_layers(source,tmp_path/'layers',data,background=plate)
     files={f['role']:f['path'] for f in result['files']}
     layer=Image.open(files['region:arm'])
     assert layer.getpixel((110,70))[3]>240
     assert layer.getpixel((85,25))[3]==0
-    assert Image.open(files['background']).getpixel((130,80))[1]>200
+    assert Image.open(files['background']).getpixel((130,80))==(0,128,0)
     assert Image.open(files['composite']).getpixel((130,80))[0]>200
+
+
+def test_rejects_automatic_contour_and_background_repair(tmp_path):
+    source,data=fixture(tmp_path,'auto')
+    plate=tmp_path/'plate.png';Image.new('RGB',(320,200),'green').save(plate)
+    with pytest.raises(ValueError,match='자동 외곽선'):build_layers(source,tmp_path/'auto',data,background=plate)
+    source,data=fixture(tmp_path,'exact')
+    with pytest.raises(ValueError,match='자동 배경'):build_layers(source,tmp_path/'background',data)
 
 
 def test_occluded_requires_complete_supplement_and_preserves_supplied_plate(tmp_path):
@@ -36,7 +45,7 @@ def test_occluded_requires_complete_supplement_and_preserves_supplied_plate(tmp_
 
 
 def test_reuses_saved_layers_and_rejects_modified_bytes(tmp_path):
-    source,data=fixture(tmp_path,'exact');result=build_layers(source,tmp_path/'layers',data)
+    source,data=fixture(tmp_path,'exact');plate=tmp_path/'plate.png';Image.new('RGB',(320,200),'green').save(plate);result=build_layers(source,tmp_path/'layers',data,background=plate)
     for f in result['files']:f['sha256']=hashlib.sha256(f['path'].read_bytes()).hexdigest()
     payload={'layerPackage':{'result':result},'timeline':{'duration':9},'regions':[{'id':'arm','period':4,'anchor':[.3,.3]}]}
     def download(f,p):shutil.copyfile(f['path'],p)

@@ -225,7 +225,7 @@ export default function StdRegionLayers(p: Props) {
   return (
     <section className="mt-4 rounded border border-cyan-700 p-3 space-y-3">
       <h3 className="font-bold text-cyan-200">{tr("정밀 레이어 준비 · 저장 · 재사용")}</h3>
-      <p className="text-xs text-gray-300">{tr("외곽선과 배경을 한 번 준비해 확정하면, 속도·반복·고정점을 바꿔도 다시 분리하지 않습니다. 자동 분리는 보조 기능이며 브러시로 가장자리를 수정할 수 있습니다.")}</p>
+      <p className="text-xs text-gray-300">{tr("검수한 외곽선과 전체 캔버스 배경을 확정하면, 속도·반복·고정점을 바꿔도 같은 승인 레이어를 재사용합니다. 자동 외곽선 분리와 자동 배경 복원은 사용하지 않습니다.")}</p>
       {region && (
         <fieldset disabled={disabled} className="space-y-2">
           <label className="block">{tr("선택 부위 외곽선")}{" "}
@@ -238,7 +238,7 @@ export default function StdRegionLayers(p: Props) {
                 })
               }
             >
-              <option value="auto">{tr("지정 영역 안에서 경계 자동 분리")}</option>
+              <option value="auto" disabled>{tr("자동 분리 사용 안 함")}</option>
               <option value="exact">{tr("내가 그린 외곽선 그대로")}</option>
             </select>
           </label>
@@ -269,7 +269,7 @@ export default function StdRegionLayers(p: Props) {
               onClick={() => p.patch({ replacementAssetId: "" })}
             >{tr("추가 부위 사용 해제")}</button>
           )}
-          <label className="block">{tr("복원 배경 수정 이미지 추가")}{" "}
+          <label className="block">{tr("검수한 전체 캔버스 배경 이미지 추가 (필수)")}{" "}
             <input
               aria-label={tr("수정 배경 이미지")}
               type="file"
@@ -291,10 +291,14 @@ export default function StdRegionLayers(p: Props) {
         <button
           className={button}
           disabled={
-            disabled || !key || ["queued", "processing"].includes(pack?.state)
+            disabled ||
+            !key ||
+            !p.backgroundAssetId ||
+            p.regions.some((item) => item.contour !== "exact") ||
+            ["queued", "processing"].includes(pack?.state)
           }
           onClick={() => void action("prepare")}
-        >{tr("외곽선 분리·배경 복원 / 저장 레이어 불러오기")}</button>
+        >{tr("검수 레이어 준비 / 저장 레이어 불러오기")}</button>
         <span>
           {
             (

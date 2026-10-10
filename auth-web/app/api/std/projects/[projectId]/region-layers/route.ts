@@ -223,6 +223,14 @@ export async function POST(
             throw new Error('지원하지 않는 작업입니다.')
         const geometry = regionLayerGeometry(body.regions),
             backgroundAssetId = String(body.backgroundAssetId || '')
+        if (geometry.some((g) => g.contour !== 'exact'))
+            throw new Error(
+                '자동 외곽선 분리는 사용하지 않습니다. 검수한 외곽선을 그대로 사용하도록 선택해 주세요.',
+            )
+        if (!backgroundAssetId)
+            throw new Error(
+                '자동 배경 복원은 사용하지 않습니다. 검수한 전체 캔버스 배경 이미지를 먼저 올려 주세요.',
+            )
         const supplement = (id: string, role: string) => {
             const a = ctx.assets!.find(
                 (a) =>

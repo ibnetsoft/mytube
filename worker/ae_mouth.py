@@ -207,6 +207,35 @@ def amplitude_cues(samples: list[int], rows: list[dict], *, start: float, durati
     return cues
 
 
+def audio_reactive_light_cues(samples: list[int], rows: list[dict], *, start: float, duration: float,
+                              sample_rate: int = 8000, cue_rate: int = 12) -> list[dict]:
+    """Return bounded 0..1 RMS cues only inside confirmed dialogue intervals."""
+    count = max(1, math.ceil(duration * cue_rate))
+    rms_values = [0.0] * count
+    for index in range(count):
+        left, right = index / cue_rate, min(duration, (index + 1) / cue_rate)
+        if not any(float(row['start']) - start < right and float(row['end']) - start > left for row in rows):
+            continue
+        segment = samples[round(left * sample_rate):round(right * sample_rate)]
+        if segment:
+            rms_values[index] = math.sqrt(sum(value * value for value in segment) / len(segment))
+    audible = sorted(value for value in rms_values if value >= 32)
+    reference = audible[min(len(audible) - 1, round((len(audible) - 1) * .95))] if audible else 0
+    normalized = []
+    for value in rms_values:
+        level = 0 if reference <= 0 or value < max(32, reference * .08) else min(1.0, value / reference)
+        previous = normalized[-1] if normalized else 0
+        normalized.append(round(previous * .55 + level * .45, 4))
+    cues = [{'at_seconds': 0, 'value': 0.0}]
+    for index, value in enumerate(normalized):
+        at = round(index / cue_rate, 6)
+        if value != cues[-1]['value']:
+            cues.append({'at_seconds': at, 'value': value})
+    if cues[-1]['at_seconds'] != round(duration, 6) or cues[-1]['value'] != 0:
+        cues.append({'at_seconds': round(duration, 6), 'value': 0.0})
+    return cues
+
+
 def decode_scene_audio(ffmpeg: str, audio: Path, start: float, duration: float) -> list[int]:
     result = subprocess.run([ffmpeg, '-v', 'error', '-ss', str(start), '-i', str(audio), '-t', str(duration),
                              '-ac', '1', '-ar', '8000', '-f', 's16le', 'pipe:1'], capture_output=True, timeout=120, check=True)
@@ -248,6 +277,18 @@ def mouth_jsx(runtime: dict) -> str:
     """Animate patches inside the source precomp so camera/effects cannot detach the lips."""
     return '''
   var mouthRuntime = ''' + json.dumps(runtime, ensure_ascii=True) + ''';
+  function applyAudioReactiveLight(comp) {
+    if (!mouthRuntime.enabled || !mouthRuntime.audio_light_cues || mouthRuntime.audio_light_cues.length < 2) return;
+    var light = comp.layers.addSolid([1.0, 0.93, 0.82], "audio_reactive_dialogue_light", comp.width, comp.height, 1, DUR);
+    light.blendingMode = BlendingMode.ADD;
+    var opacity = light.property("Opacity");
+    for (var lc = 0; lc < mouthRuntime.audio_light_cues.length; lc++) {
+      var lightCue = mouthRuntime.audio_light_cues[lc];
+      var lightKey = opacity.addKey(lightCue.at_seconds);
+      opacity.setValueAtKey(lightKey, Math.max(0, Math.min(4, lightCue.value * 4)));
+      opacity.setInterpolationTypeAtKey(lightKey, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+    }
+  }
   if (mouthRuntime.enabled) {
     var mouthComp = app.project.items.addComp("ae_mouth_source", footage.width, footage.height, 1, DUR, FPS);
     var originalMouthPlate = mouthComp.layers.add(footage);
