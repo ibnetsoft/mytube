@@ -30,6 +30,22 @@ test('direction badges expose planned, verified and review states in a stable or
  assert.match(badges[0].detail,/2.4초/);assert.match(badges[1].detail,/패럴랙스/)
 })
 
+test('layer icon requires the complete approved GCS layer receipt',()=>{
+ const asset={source:'independently_authored_png_layers',storage_provider:'gcs',gcs_bucket:'air-assets',
+  gcs_path:'topics/t1/layers/scene-025-a.psd',sha256:'a'.repeat(64),layers:['background','character','foreground'],
+  qa_status:'approved',review:{reviewer:'worker',reviewed_at:'2026-10-10T00:00:00Z'}}
+ const complete={scene_number:25,psd_layer_status:'ready',metadata:{psd_layer_asset:asset}}
+ assert.equal(exportsObject.hasApprovedGcsLayerAsset(complete),true)
+ assert.deepEqual(exportsObject.sceneDirectionBadges([complete],25).map(b=>[b.kind,b.state]),[['layer','verified']])
+ for(const incomplete of [
+  {...complete,psd_layer_status:'pending'},
+  {...complete,metadata:{psd_layer_asset:{...asset,gcs_path:''}}},
+  {...complete,metadata:{psd_layer_asset:{...asset,sha256:''}}},
+  {...complete,metadata:{psd_layer_asset:{...asset,qa_status:'pending'}}},
+  {...complete,metadata:{psd_layer_asset:{...asset,review:null}}},
+ ]) assert.equal(exportsObject.sceneDirectionBadges([incomplete],25).some(b=>b.kind==='layer'),false)
+})
+
 test('scenes without saved direction or geometry show no badges',()=>{
  assert.deepEqual(exportsObject.sceneDirectionBadges([{scene_number:25}],25),[])
 })

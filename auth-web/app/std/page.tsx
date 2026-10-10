@@ -9721,6 +9721,7 @@ export default function StdPortalPage() {
                                                                 {directionBadges.map((badge: any) => {
                                                                     const BadgeIcon = badge.kind === 'eye' ? Eye
                                                                         : badge.kind === 'mouth' ? Mic
+                                                                        : badge.kind === 'layer' ? null
                                                                         : badge.kind === 'parallax' ? LayoutTemplate
                                                                         : badge.kind === 'motion' ? Wand2
                                                                         : badge.kind === 'camera' ? Video
@@ -9740,7 +9741,16 @@ export default function StdPortalPage() {
                                                                         aria-label={badgeTitle}
                                                                         className={`inline-flex h-5 w-5 items-center justify-center rounded ${badgeStyle}`}
                                                                     >
-                                                                        <BadgeIcon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                                                        {badge.kind === 'layer' ? (
+                                                                            <img
+                                                                                src="/img/icons/layer-approved.png"
+                                                                                alt=""
+                                                                                aria-hidden="true"
+                                                                                className="h-3.5 w-3.5 object-contain invert"
+                                                                            />
+                                                                        ) : BadgeIcon ? (
+                                                                            <BadgeIcon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                                                        ) : null}
                                                                     </span>
                                                                     )
                                                                 })}
