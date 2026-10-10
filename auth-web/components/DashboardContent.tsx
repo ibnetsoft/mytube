@@ -26,6 +26,7 @@ const SubscriptionVerificationsPanel = dynamic(() => import('./SubscriptionVerif
 const SupportInboxPanel = dynamic(() => import('./SupportInboxPanel'), { loading: LazyPanelFallback })
 const AnnouncementsAdminPanel = dynamic(() => import('./AnnouncementsAdminPanel'), { loading: LazyPanelFallback })
 const ErrorLogsPanel = dynamic(() => import('./ErrorLogsPanel'), { loading: LazyPanelFallback })
+const AdminTopicDeleteDialog = dynamic(() => import('./AdminTopicDeleteDialog'))
 
 interface UserProfile {
     id: string
@@ -283,6 +284,7 @@ export default function DashboardContent() {
     const [categories, setCategories] = useState<any[]>([])
     const [topics, setTopics] = useState<any[]>([])
     const [hiddenAdminTopics, setHiddenAdminTopics] = useState<any[]>([])
+    const [topicDeleteLanguage, setTopicDeleteLanguage] = useState<'ko' | 'ja' | 'en' | null>(null)
     const [categoriesLoading, setCategoriesLoading] = useState(false)
     const hasLoadedCategoriesRef = useRef(false)
     const [newCatName, setNewCatName] = useState('')
@@ -489,6 +491,7 @@ export default function DashboardContent() {
     const canManageStyles = isSuperAdmin;
     const canManageRenderQueue = isSuperAdmin;
     const canManageTopics = isAdmin;
+    const canDeleteTopics = normalizedUserEmail === SUPER_ADMIN_EMAIL.toLowerCase();
     const canManageSensitiveUserSettings = isSuperAdmin;
     const ui = useMemo(() => {
         if (language === 'th') {
@@ -3887,6 +3890,16 @@ export default function DashboardContent() {
                                 </div>
                             </div>
 
+                            {canDeleteTopics && (
+                                <div className="mb-6 flex flex-wrap items-center gap-3">
+                                    <button type="button" onClick={() => setTopicDeleteLanguage(categoryLangTab)}
+                                        className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm font-bold text-red-200 hover:bg-red-500/20">
+                                        {{ ko: '한국', ja: '일본', en: '미국' }[categoryLangTab]} 토픽 선택 삭제
+                                    </button>
+                                    <span className="text-xs text-gray-400">전체 카테고리의 대기·준비·가림 토픽을 선택해 정리합니다.</span>
+                                </div>
+                            )}
+
                             {categoriesLoading ? (
                                 <div className="text-center py-20 text-gray-500 text-sm">카테고리 로딩 중...</div>
                             ) : categories.filter(c => (c.video_type || 'longform') === categoryListTab && normalizeContentLanguage(c.language) === categoryLangTab).length === 0 ? (
@@ -6898,6 +6911,18 @@ export default function DashboardContent() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {canDeleteTopics && topicDeleteLanguage && (
+                <AdminTopicDeleteDialog initialLanguage={topicDeleteLanguage} adminFetch={adminFetch}
+                    onClose={() => setTopicDeleteLanguage(null)}
+                    onDeleted={ids => {
+                        const deleted = new Set(ids)
+                        setTopics(previous => previous.filter(item => !deleted.has(String(item.id))))
+                        setHiddenAdminTopics(previous => previous.filter(item => !deleted.has(String(item.id))))
+                        if (editingTopicId && deleted.has(editingTopicId)) cancelEditingTopic()
+                        void Promise.allSettled([fetchCategories(true), fetchTopics()])
+                    }} />
             )}
 
             {descriptionEditTask && (
