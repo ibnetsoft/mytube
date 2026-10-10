@@ -110,6 +110,16 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
             }.items() if value is not None}
         if original.get('eye_blink') != blink:
             return False
+        layered = ((source.get('metadata') or {}).get('psd_layer_asset')
+                   if isinstance(source.get('metadata'), dict) else None)
+        current_layered = None
+        if isinstance(layered, dict) and layered.get('qa_status') == 'approved':
+            path = str(layered.get('gcs_path') or layered.get('storage_path') or layered.get('object_path') or '')
+            if path.lower().endswith('.psd'):
+                current_layered = {'metadata': {**layered, 'gcs_path': path,
+                    'gcs_bucket': layered.get('gcs_bucket') or layered.get('storage_bucket') or 'air-studio-prod'}}
+        if original.get('layered_source') != current_layered:
+            return False
         direction = {k: source.get(k) for k in ('ae_motion_plan', 'ae_effect_plan', 'ae_directorial_plan')}
         direction['image_prompt'] = source.get('image_prompt') or s.get('image_prompt') or ''
         if direction != original['direction'] or str(s.get('scene_text') or source.get('scene_text') or source.get('narration') or '') != original['text']:
@@ -331,18 +341,28 @@ def process_one(report=None, should_stop=None) -> bool:
                                             'audio_light_cues': audio_reactive_light_cues(samples, dialogue, start=scene['start'], duration=duration) if dialogue else [],
                                             'video_source':bool(video),'video_duration':tracking['source_duration'] if tracking else None,
                                             'tracking':tracking}}
+                        render_source = video or image
+                        layered_source = scene.get('layered_source')
+                        if layered_source and not video:
+                            layered_psd = scene_dir / 'approved-layers.psd'
+                            if not layered_psd.exists():
+                                bucket, path = ref(layered_source)
+                                ae._download_gcs_file(ae.GcsRef(bucket, path), layered_psd)
+                            approved = layered_source.get('metadata') or {}
+                            if digest(layered_psd) != approved.get('sha256'):
+                                raise ValueError('승인된 레이어 PSD의 해시가 변경되었습니다. 레이어 검수를 다시 진행해 주세요.')
+                            source_scene['metadata'] = {'psd_layer_asset': copy.deepcopy(approved)}
+                            render_source = layered_psd
                         selected = ae._render_plan_from_scene(source_scene)
                         if not selected:
                             source_scene['ae_motion_plan'] = {'enabled': True, 'preset': 'subtle_dialogue', 'vfx': [], 'intensity': .15,
                                                             'motion': {'push': .01, 'drift_x': 0, 'drift_y': 0, 'shake': 0}}
                             selected = ('motion', source_scene['ae_motion_plan'])
                         kind, plan = selected
-                        if ae.template_for_scene(source_scene):
-                            raise ValueError('별도 레이어 템플릿이 지정된 씬입니다. 해당 템플릿의 입모양 계획을 검토해 주세요.')
                         source_scene['duration_seconds'] = duration
                         job_spec = ae.SceneJob(topic_id=job['project_id'], topic_title='AE mouth postprocessing', structure={'scenes': [source_scene]}, scene_index=0,
                             scene=source_scene, scene_number=number, plan_kind=kind, preset=str(plan.get('preset') or 'subtle_dialogue'),
-                            duration_seconds=duration, source=ae.GcsRef('__local__', str((video or image).resolve())), source_type='project',
+                            duration_seconds=duration, source=ae.GcsRef('__local__', str(render_source.resolve())), source_type='project',
                             project_payload={'ae_scene_delivery': 'local'})
                         # Existing AE effects consume the animated-mouth source precomp, preserving registration.
                         rendered = ae._render_job(job_spec, keep_workdir=True)

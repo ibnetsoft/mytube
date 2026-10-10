@@ -125,3 +125,21 @@ def test_manga_jsx_uses_structured_impact_time_and_text(tmp_path):
     assert 'app.scheduleTask("app.quit()"' in script
     assert 'throw error;' in script
     assert "__MANGA_CONFIG__" not in script
+
+
+def test_parallax_jsx_combines_reviewed_layers_with_eye_and_mouth_runtime(tmp_path):
+    from manga_ae_templates import write_manga_jsx
+
+    scene = {"ae_effect_plan": {"enabled": True, "template": "parallax_layered_scene",
+        "layer_animation": {"camera": {"zoom": .025}, "hair_cloth": {"sway_degrees": .55}}},
+        "ae_mouth_runtime": {"enabled": True, "speakers": [], "blinks": []}}
+    jsx = tmp_path / "layered.jsx"
+    write_manga_jsx(scene=scene, input_psd=tmp_path / "scene.psd",
+                    project_path=tmp_path / "scene.aep", render_path=tmp_path / "scene.mp4",
+                    jsx_path=jsx, comp_name="layered", width=1920, height=1080, fps=24, duration=5)
+    script = jsx.read_text(encoding="utf-8")
+    assert 'layerByRole(comp, "character", true)' in script
+    assert 'layerByRole(comp, "hair_cloth", false)' in script
+    assert 'layerByRole(comp, "light_overlay", false)' in script
+    assert "addRuntimePatches(comp, character)" in script
+    assert '"runtime": {"enabled": true' in script

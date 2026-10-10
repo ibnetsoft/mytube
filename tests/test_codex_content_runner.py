@@ -362,7 +362,8 @@ def test_explicit_layer_scene_range_forces_registered_parallax_packages():
         assert scene["psd_layer_plan"]["enabled"] is True
         assert scene["psd_layer_plan"]["selection_source"] == "explicit_scene_range"
         assert scene["psd_layer_plan"]["template"] == "parallax_layered_scene"
-        assert scene["psd_layer_plan"]["required_layers"] == ["background", "foreground"]
+        assert scene["psd_layer_plan"]["required_layers"] == ["background", "character", "foreground"]
+        assert scene["ae_effect_plan"]["layer_animation"]["camera"]["zoom"] == 0.025
         assert scene["image_generation_policy"]["psd_layer_package_reason"] == "explicit_scene_range"
         assert scene["ae_effect_plan"]["enabled"] is True
         assert scene["ae_effect_plan"]["template"] == "parallax_layered_scene"

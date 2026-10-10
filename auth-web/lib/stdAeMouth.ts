@@ -25,6 +25,17 @@ function eyeBlinkPlan(assets: any[], number: number, image: any) {
     }
 }
 
+function approvedLayeredSource(source: any) {
+    const asset = source?.metadata?.psd_layer_asset
+    if (!asset || typeof asset !== 'object' || asset.qa_status !== 'approved') return null
+    const path = String(asset.gcs_path || asset.storage_path || asset.object_path || '')
+    if (!path.toLowerCase().endsWith('.psd') || !/^[0-9a-f]{64}$/i.test(String(asset.sha256 || ''))) return null
+    return { metadata: {
+        ...asset, gcs_path: path,
+        gcs_bucket: asset.gcs_bucket || asset.storage_bucket || 'air-studio-prod',
+    } }
+}
+
 export function aeMouthApplicable(project: any, scenes: any[]) {
     return !isComicProject(project) && scenes.some(s => Number(s.scene_number) >= 19 || (project.project_payload?.subtitles || []).some((r: any) => Number(r.scene_number) === Number(s.scene_number) && r.dialogue_kind === 'dialogue'))
 }
@@ -62,6 +73,7 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
                 rows:subtitles.filter((t:any)=>t.scene_number===number && t.kind==='dialogue').map((t:any)=>({speaker:t.speaker}))})
             return [{ number, start, end, speaker_regions: regions || null, text: String(s.scene_text || source.scene_text || source.narration || ''),
                 eye_blink: eyeBlinkPlan(assets, number, image),
+                layered_source: approvedLayeredSource(source),
                 image: image ? { id: image.id, metadata: image.metadata } : null,
                 original_video: originalVideo ? { id: originalVideo.id, metadata: originalVideo.metadata } : null,
                 direction: { ae_motion_plan: source.ae_motion_plan || null, ae_effect_plan: source.ae_effect_plan || null,

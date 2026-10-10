@@ -42,6 +42,7 @@ def write_manga_jsx(
     config = {
         "template": template,
         "plan": plan,
+        "runtime": scene.get("ae_mouth_runtime") if isinstance(scene.get("ae_mouth_runtime"), dict) else {"enabled": False},
         "layer_centers": layer_centers or {},
         "source": input_psd.resolve().as_posix(),
         "project": project_path.resolve().as_posix(),
@@ -61,6 +62,7 @@ var CFG = __MANGA_CONFIG__;
 app.exitAfterLaunchAndEval = true;
 var W = CFG.width, H = CFG.height, DUR = CFG.duration, FPS = CFG.fps;
 var PLAN = CFG.plan;
+var RUNTIME = CFG.runtime || {enabled:false};
 function pxX(x) { return Number(x) * W; }
 function pxY(y) { return Number(y) * H; }
 function alignLayer(role, x, y) {
@@ -187,6 +189,88 @@ function layerByRole(comp, role, required) {
   layer.property("Position").setValue([W / 2, H / 2]);
   return layer;
 }
+function finiteNumber(value, fallback, minimum, maximum) {
+  var number = Number(value);
+  if (!isFinite(number)) number = fallback;
+  return Math.max(minimum, Math.min(maximum, number));
+}
+function animateParallaxLayer(layer, role, fallbackDepth) {
+  var animation = PLAN.layer_animation || {};
+  var camera = animation.camera || {};
+  var values = animation[role] || {};
+  var depth = finiteNumber(values.depth, fallbackDepth, 0, 1.25);
+  var cameraZoom = finiteNumber(camera.zoom, 0.025, 0, 0.08);
+  var scaleMove = finiteNumber(values.scale, cameraZoom * depth, 0, 0.10);
+  var moveX = finiteNumber(values.move_x, finiteNumber(camera.pan_x, 0.006, -0.03, 0.03) * depth, -0.03, 0.03);
+  var moveY = finiteNumber(values.move_y, finiteNumber(camera.pan_y, -0.003, -0.03, 0.03) * depth, -0.03, 0.03);
+  var rotation = finiteNumber(values.rotation, 0, -1.0, 1.0);
+  layer.property("Scale").setValueAtTime(0, [100,100]);
+  layer.property("Scale").setValueAtTime(DUR, [100 + scaleMove * 100,100 + scaleMove * 100]);
+  layer.property("Position").setValueAtTime(0, [W/2 - moveX * W/2,H/2 - moveY * H/2]);
+  layer.property("Position").setValueAtTime(DUR, [W/2 + moveX * W/2,H/2 + moveY * H/2]);
+  if (rotation) {
+    layer.property("Rotation").setValueAtTime(0, -rotation / 2);
+    layer.property("Rotation").setValueAtTime(DUR, rotation / 2);
+  }
+}
+function blurLayer(layer, amount) {
+  amount = finiteNumber(amount, 0, 0, 4);
+  if (!amount) return;
+  var blur = effect(layer, "ADBE Gaussian Blur 2");
+  if (blur) {
+    try { blur.property(1).setValue(amount); } catch (ignoreBlur) {}
+  }
+}
+function addRuntimePatches(comp, character) {
+  if (!RUNTIME.enabled || !character) return;
+  var poses = ["closed", "half", "open"];
+  var speakers = RUNTIME.speakers || [];
+  for (var si = 0; si < speakers.length; si++) {
+    var speaker = speakers[si];
+    for (var pi = 0; pi < poses.length; pi++) {
+      var pose = poses[pi];
+      if (!speaker.layers || !speaker.layers[pose]) continue;
+      var patch = app.project.importFile(new ImportOptions(new File(speaker.layers[pose])));
+      var mouth = comp.layers.add(patch);
+      mouth.name = "mouth_" + si + "_" + pose;
+      mouth.property("Position").setValue([
+        Math.round(Number(speaker.mouth_box[0]) * W) + patch.width / 2,
+        Math.round(Number(speaker.mouth_box[1]) * H) + patch.height / 2]);
+      var opacity = mouth.property("Opacity");
+      var cues = speaker.cues || [];
+      for (var ci = 0; ci < cues.length; ci++) {
+        var key = opacity.addKey(at(cues[ci].at_seconds));
+        opacity.setValueAtKey(key, cues[ci].pose == pose ? 100 : 0);
+        opacity.setInterpolationTypeAtKey(key, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
+      }
+      mouth.parent = character;
+    }
+  }
+  var blinks = RUNTIME.blinks || [];
+  var sides = ["left", "right"];
+  for (var bi = 0; bi < blinks.length; bi++) {
+    var blink = blinks[bi];
+    for (var ei = 0; ei < sides.length; ei++) {
+      var side = sides[ei];
+      if (!blink.layers || !blink.layers[side]) continue;
+      var box = side == "left" ? blink.left_eye_box : blink.right_eye_box;
+      var eyePatch = app.project.importFile(new ImportOptions(new File(blink.layers[side])));
+      var eye = comp.layers.add(eyePatch);
+      eye.name = "blink_" + bi + "_" + side;
+      eye.property("Position").setValue([
+        Math.round(Number(box[0]) * W) + eyePatch.width / 2,
+        Math.round(Number(box[1]) * H) + eyePatch.height / 2]);
+      var eyeOpacity = eye.property("Opacity");
+      var eyeCues = blink.cues || [];
+      for (var ec = 0; ec < eyeCues.length; ec++) {
+        var eyeKey = eyeOpacity.addKey(at(eyeCues[ec].at_seconds));
+        eyeOpacity.setValueAtKey(eyeKey, eyeCues[ec].opacity);
+        eyeOpacity.setInterpolationTypeAtKey(eyeKey, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
+      }
+      eye.parent = character;
+    }
+  }
+}
 function maskPolygon(layer, polygonCoords) {
   var mask = layer.Masks.addProperty("Mask");
   var shape = new Shape();
@@ -248,26 +332,48 @@ function dialogueCloseup(comp) {
 }
 function parallaxLayeredScene(comp) {
   var background = comp.layer("background");
+  var character = layerByRole(comp, "character", true);
+  var animation = PLAN.layer_animation || {};
+  animateParallaxLayer(background, "background", 0.20);
+  blurLayer(background, (animation.background || {}).blur);
+  animateParallaxLayer(character, "character", 0.62);
+  blurLayer(character, (animation.character || {}).blur);
+  addRuntimePatches(comp, character);
+  var hairCloth = layerByRole(comp, "hair_cloth", false);
   var foreground = layerByRole(comp, "foreground", true);
   var prop = layerByRole(comp, "prop_focus", false);
   var atmosphere = layerByRole(comp, "atmosphere", false);
-  background.property("Scale").setValueAtTime(0, [102,102]);
-  background.property("Scale").setValueAtTime(DUR, [105,105]);
-  background.property("Position").setValueAtTime(0, [W/2 - 5,H/2]);
-  background.property("Position").setValueAtTime(DUR, [W/2 + 5,H/2 - 2]);
-  foreground.property("Scale").setValueAtTime(0, [100,100]);
-  foreground.property("Scale").setValueAtTime(DUR, [108,108]);
-  foreground.property("Position").setValueAtTime(0, [W/2 + 12,H/2 + 4]);
-  foreground.property("Position").setValueAtTime(DUR, [W/2 - 12,H/2 - 4]);
+  var lightOverlay = layerByRole(comp, "light_overlay", false);
+  animateParallaxLayer(foreground, "foreground", 1.0);
+  blurLayer(foreground, (animation.foreground || {}).blur);
   if (prop) {
-    prop.property("Scale").setValueAtTime(0, [100,100]);
-    prop.property("Scale").setValueAtTime(DUR, [106,106]);
+    animateParallaxLayer(prop, "prop_focus", 0.82);
+    blurLayer(prop, (animation.prop_focus || {}).blur);
+  }
+  if (hairCloth) {
+    var sway = finiteNumber((animation.hair_cloth || {}).sway_degrees, 0.55, 0, 1.5);
+    var center = CFG.layer_centers.hair_cloth || [0.5,0.5];
+    hairCloth.property("Anchor Point").setValue([pxX(center[0]),pxY(center[1])]);
+    hairCloth.property("Position").setValue([pxX(center[0]),pxY(center[1])]);
+    hairCloth.property("Rotation").setValueAtTime(0, -sway);
+    hairCloth.property("Rotation").setValueAtTime(DUR / 2, sway);
+    hairCloth.property("Rotation").setValueAtTime(DUR, -sway);
   }
   if (atmosphere) {
     atmosphere.blendingMode = BlendingMode.SCREEN;
-    atmosphere.property("Opacity").setValueAtTime(0, 20);
-    atmosphere.property("Opacity").setValueAtTime(DUR / 2, 38);
-    atmosphere.property("Opacity").setValueAtTime(DUR, 22);
+    var amin = finiteNumber((animation.atmosphere || {}).opacity_min, 18, 0, 45);
+    var amax = finiteNumber((animation.atmosphere || {}).opacity_max, 34, amin, 55);
+    atmosphere.property("Opacity").setValueAtTime(0, amin);
+    atmosphere.property("Opacity").setValueAtTime(DUR / 2, amax);
+    atmosphere.property("Opacity").setValueAtTime(DUR, amin);
+  }
+  if (lightOverlay) {
+    lightOverlay.blendingMode = BlendingMode.ADD;
+    var lmin = finiteNumber((animation.light_overlay || {}).opacity_min, 12, 0, 35);
+    var lmax = finiteNumber((animation.light_overlay || {}).opacity_max, 28, lmin, 45);
+    lightOverlay.property("Opacity").setValueAtTime(0, lmin);
+    lightOverlay.property("Opacity").setValueAtTime(DUR / 2, lmax);
+    lightOverlay.property("Opacity").setValueAtTime(DUR, lmin);
   }
 }
 function triple(comp) {

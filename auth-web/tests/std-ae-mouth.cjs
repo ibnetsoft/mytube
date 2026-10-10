@@ -138,3 +138,14 @@ test('confirmed eye blink plan is source-bound and invalidates stale AE work',()
  f.assets.unshift({...plan,id:'new-blink',created_at:'2026-10-11',metadata:{...plan.metadata,interval_seconds:6}});
  assert.notEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint,before.fingerprint);
 });
+test('approved layered PSD is frozen into the same eye and mouth render snapshot',()=>{
+ const f=fixture(),source=f.project.project_payload.structure.scenes[0];
+ source.ae_effect_plan={enabled:true,template:'parallax_layered_scene'};
+ source.metadata={psd_layer_asset:{qa_status:'approved',gcs_bucket:'layers',gcs_path:'p/scene-019.psd',sha256:'b'.repeat(64),layers:['background','character','foreground']}};
+ const before=lib.aeMouthInput(f.project,f.scenes,f.assets);
+ assert.equal(before.input.scenes[0].layered_source.metadata.gcs_path,'p/scene-019.psd');
+ source.metadata.psd_layer_asset.sha256='c'.repeat(64);
+ assert.notEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).fingerprint,before.fingerprint);
+ source.metadata.psd_layer_asset.qa_status='pending_visual_review';
+ assert.equal(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].layered_source,null);
+});

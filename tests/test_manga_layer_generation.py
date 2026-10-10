@@ -82,8 +82,8 @@ def test_explicit_parallax_range_uses_final_scene_as_registration_reference(tmp_
             "enabled": True,
             "selection_source": "explicit_scene_range",
             "template": "parallax_layered_scene",
-            "required_layers": ["background", "foreground"],
-            "optional_layers": ["prop_focus", "atmosphere"],
+            "required_layers": ["background", "character", "foreground"],
+            "optional_layers": ["prop_focus", "hair_cloth", "atmosphere", "light_overlay"],
         },
     }
     manifest = tmp_path / "manifest.json"
@@ -101,13 +101,13 @@ def test_explicit_parallax_range_uses_final_scene_as_registration_reference(tmp_
 
     report = generation.generate_layers(manifest, images, generator=fake)
 
-    assert [item[0] for item in fake.calls] == ["background", "foreground"]
+    assert [item[0] for item in fake.calls] == ["background", "foreground", "character"]
     assert all(item[1] == final_scene for item in fake.calls)
-    assert "fixed composition and registration reference" in fake.calls[1][2]
+    assert all("fixed composition and registration reference" in item[2] for item in fake.calls)
     assert all(job["status"] == "generated" for job in report["jobs"].values())
     specs = package.scene_specs([scene])
     assert specs[0]["template"] == "parallax_layered_scene"
-    assert specs[0]["required_layers"] == ["background", "foreground"]
+    assert specs[0]["required_layers"] == ["background", "foreground", "character"]
 
 
 def test_ambiguous_character_mapping_stops_before_provider_call(tmp_path):

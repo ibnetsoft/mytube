@@ -52,7 +52,9 @@ SLOTS = {
     "ink_splat": (0.15, 0.10, 0.85, 0.90),
     "speedlines": (0.02, 0.02, 0.98, 0.98),
     "prop_focus": (0.20, 0.15, 0.80, 0.90),
+    "hair_cloth": (0.02, 0.02, 0.98, 0.98),
     "atmosphere": (0.02, 0.02, 0.98, 0.98),
+    "light_overlay": (0.02, 0.02, 0.98, 0.98),
 }
 IDENTITY_ROLES = frozenset(("character_left", "character_center", "character_right",
                             "character", "hand_foreground"))
@@ -132,11 +134,18 @@ def _preflight(manifest_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]
             reference = None
             if role in IDENTITY_ROLES:
                 key = str(role_keys.get(role) or "").strip()
-                if not key or key not in refs:
+                # Explicit parallax ranges are registered against the already
+                # finalized scene. A verified portrait is preferred, but the
+                # final scene itself is sufficient for an exact cutout that
+                # must subsequently pass visual layer review.
+                if spec["template"] == "parallax_layered_scene" and role == "character" and not key:
+                    reference = None
+                elif not key or key not in refs:
                     raise ValueError(
                         f"scene {spec['scene_number']} {role}: verified character_role_keys mapping is required"
                     )
-                reference = {"character_key": key, **refs[key]}
+                else:
+                    reference = {"character_key": key, **refs[key]}
             jobs.append({"scene": scene, "spec": spec, "role": role, "reference": reference})
     return manifest, specs, jobs
 
@@ -160,11 +169,11 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         "mouth_half": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with slightly parted lips. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
         "mouth_open": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with an open speaking mouth. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
         "background": "Draw only the environmental background plate; no people, props, letters, impact art, effects, or watermarks.",
-        "foreground": "Using the attached final scene as the exact registration reference, redraw only all foreground people and the principal foreground subject together on transparent alpha. Preserve their exact positions, scale, pose, expression, identity, wardrobe, crop, lighting, and overlap. Remove the environment, captions, text, and watermarks.",
+        "foreground": "Using the attached final scene as the exact registration reference, isolate only near-camera environmental occluders on transparent alpha. Do not include people, the principal character, the movable prop, captions, text, or watermarks.",
         "character_left": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
         "character_center": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
         "character_right": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
-        "character": "Draw one isolated character cutout matching the verified portrait's face, age, hair, costume, and era. Preserve the scene's pose and expression. No scenery, text, or other person.",
+        "character": "Using the attached reference, isolate the principal character or inseparable principal character group on transparent alpha. Preserve exact canvas position, scale, pose, expression, identity, wardrobe, crop, lighting, and overlap. No scenery, captions, text, or watermark.",
         "hand_foreground": "Draw only the reaching foreground hand and forearm on transparent alpha. Match the verified character portrait's skin tone, sleeve, costume, and era. Keep all fingers anatomically distinct. No face, sky, light rays, or text.",
         "talisman": "Draw only one isolated paper talisman prop. No hand, person, scenery, effect, or readable lettering.",
         "wall_intact": "Draw an isolated intact wall plane at the collision location, with a distinct seam and surface texture. The wall must be separable from the background; no character, crack, flying debris, or text.",
@@ -180,12 +189,14 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         "ink_splat": "Draw only an isolated rough black and red ink burst, with transparent surroundings. No lettering or character.",
         "speedlines": "Draw only manga radial speed lines with transparent gaps; no person, scenery, or letters.",
         "prop_focus": "Using the attached final scene as the exact registration reference, isolate only the principal movable foreground prop on transparent alpha at the same position, scale, perspective, and lighting. No person, scenery, text, or watermark.",
+        "hair_cloth": "Using the attached final scene as the exact registration reference, isolate only already-visible loose hair tips, ribbons, sleeves, or cloth hems that may receive a very small approved sway. Do not invent hidden anatomy or fabric. Preserve exact position and transparent edges.",
         "atmosphere": "Using the attached final scene as the exact registration reference, draw only separable foreground atmosphere such as fog, dust, rain, glow, or drifting particles on transparent alpha. No people, solid scenery, text, or watermark.",
+        "light_overlay": "Using the attached final scene as the exact registration reference, isolate only existing motivated light, window glow, lamp glow, or soft shadow modulation on transparent alpha. Do not add a new light source, person, scenery, text, or watermark.",
     }
     if role not in directions:
         raise ValueError(f"unsupported required layer role: {role}")
     direction = directions[role]
-    if role in IDENTITY_ROLES:
+    if role in IDENTITY_ROLES and reference and reference.get("character_key"):
         source["verified_character"] = {"key": reference["character_key"], "name": reference["name"],
             **{field: reference[field] for field in (
                 "visual_dna_en", "hair_design_en", "wardrobe_en", "age_group", "continuity_instruction"
@@ -327,7 +338,7 @@ def _normalize(source: Path, target: Path, role: str,
             box = alpha.getbbox()
             if box is None:
                 raise ValueError(f"{role}: alpha cutout is empty")
-            if role in {"foreground", "prop_focus", "atmosphere"}:
+            if role in {"character", "foreground", "prop_focus", "hair_cloth", "atmosphere", "light_overlay"}:
                 # These roles are authored against the final full scene. Keep
                 # their canvas-relative registration instead of recentering the
                 # visible alpha bounds like a standalone character portrait.

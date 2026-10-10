@@ -139,8 +139,8 @@ AE_MANGA_TEMPLATES = {
     "parallax_layered_scene": {
         "preset": "parallax_layered_scene",
         "direction": "Use only the approved PSD layers for a restrained depth move: keep the background stable, drift foreground layers slowly, and preserve all faces, hands, captions, and safe margins.",
-        "required_layers": ["background", "foreground"],
-        "optional_layers": ["prop_focus", "atmosphere"],
+        "required_layers": ["background", "character", "foreground"],
+        "optional_layers": ["prop_focus", "hair_cloth", "atmosphere", "light_overlay"],
     },
     "directed_performance": {
         "preset": "directed_scene_performance",
@@ -197,6 +197,23 @@ AE_MANGA_TEMPLATES = {
         "optional_layers": ["light_core", "light_rays"],
     },
 }
+
+
+def _parallax_optional_requirements(scene: dict[str, Any]) -> list[str]:
+    """Select only motivated optional layers; every selected layer still needs visual approval."""
+    text = " ".join(str(scene.get(key) or "") for key in (
+        "scene_text", "scene_summary", "image_prompt", "visual_description"
+    )).lower()
+    roles: list[str] = []
+    if any(word in text for word in ("머리카락", "옷자락", "소매", "치마", "망토", "리본", "hair", "sleeve", "hem", "cloak", "ribbon")):
+        roles.append("hair_cloth")
+    if any(word in text for word in ("등불", "촛불", "창빛", "월광", "햇빛", "불빛", "lamp", "candle", "window light", "moonlight", "sunlight", "glow")):
+        roles.append("light_overlay")
+    if any(word in text for word in ("안개", "먼지", "비", "눈발", "연기", "fog", "mist", "dust", "rain", "snow", "smoke")):
+        roles.append("atmosphere")
+    if any(word in text for word in ("검", "칼", "책", "편지", "등불", "부채", "잔", "sword", "book", "letter", "lantern", "fan", "cup")):
+        roles.append("prop_focus")
+    return roles
 
 
 def _manga_template_for_scene(scene: dict[str, Any]) -> str:
@@ -389,6 +406,24 @@ def _manga_template_plan(template: str, scene: dict[str, Any], duration: float) 
         "direction": spec["direction"],
     }
     if template == "parallax_layered_scene":
+        selected_optional = _parallax_optional_requirements(scene)
+        plan["asset_requirements"]["required_layers"] += selected_optional
+        plan["asset_requirements"]["optional_layers"] = [
+            role for role in plan["asset_requirements"]["optional_layers"] if role not in selected_optional
+        ]
+        plan["layer_animation"] = {
+            "camera": {"zoom": 0.025, "pan_x": 0.006, "pan_y": -0.003},
+            "background": {"depth": 0.20, "blur": 1.2},
+            "character": {"depth": 0.62, "move_x": -0.006, "move_y": -0.003,
+                          "scale": 0.035, "rotation": 0.18},
+            "foreground": {"depth": 1.0, "move_x": -0.012, "move_y": -0.006,
+                           "scale": 0.055},
+            "prop_focus": {"depth": 0.82, "move_x": 0.008, "move_y": -0.004,
+                           "scale": 0.04, "rotation": 0.35},
+            "hair_cloth": {"sway_degrees": 0.55},
+            "atmosphere": {"opacity_min": 18, "opacity_max": 34},
+            "light_overlay": {"opacity_min": 12, "opacity_max": 28},
+        }
         plan["beats"] = [
             {"at_seconds": 0.0, "action": "depth_hold", "target": "background"},
             {"at_seconds": at(0.18), "action": "foreground_drift", "target": "foreground"},
@@ -1296,13 +1331,13 @@ def _plan_image_generation_efficiency(
         package_required_layers = (
             list(template_assets.get("required_layers") or [])
             if isinstance(template_assets, dict) and template
-            else ["background", "foreground"] if explicitly_layered
+            else ["background", "character", "foreground"] if explicitly_layered
             else []
         )
         package_optional_layers = (
             list(template_assets.get("optional_layers") or [])
             if isinstance(template_assets, dict) and template
-            else ["prop_focus", "atmosphere"] if explicitly_layered
+            else ["prop_focus", "hair_cloth", "atmosphere", "light_overlay"] if explicitly_layered
             else []
         )
         scene["psd_layer_plan"] = {
@@ -1345,6 +1380,8 @@ def _plan_image_generation_efficiency(
                 "fallback": "original_visual",
                 **template_plan,
             }
+            scene["psd_layer_plan"]["required_layers"] = list(template_plan["asset_requirements"]["required_layers"])
+            scene["psd_layer_plan"]["optional_layers"] = list(template_plan["asset_requirements"]["optional_layers"])
         if psd_required:
             psd_layer_prompts.append({
                 "scene_number": number,
