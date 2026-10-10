@@ -51,7 +51,12 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             if (!image) throw new Error('원본 이미지를 찾지 못했습니다.')
             const source = coordinateSource(image)
             const bytes = await downloadGcsObject({ bucket: source.bucket, objectPath: source.path })
-            return new NextResponse(new Uint8Array(bytes), { headers: { 'Content-Type': image.mime_type || 'image/png', 'Cache-Control': 'private, no-store' } })
+            const sha = createHash('sha256').update(bytes).digest('hex')
+            return new NextResponse(new Uint8Array(bytes), { headers: {
+                'Content-Type': image.mime_type || 'image/png',
+                'Cache-Control': 'private, no-store',
+                'X-Air-Image-Sha256': sha,
+            } })
         }
         return NextResponse.json({ scenes: scenes(ctx) }, { headers: { 'Cache-Control': 'private, no-store' } })
     } catch (error: any) {
@@ -77,7 +82,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const source = coordinateSource(image)
         const bytes = await downloadGcsObject({ bucket: source.bucket, objectPath: source.path })
         const sha = createHash('sha256').update(bytes).digest('hex')
-        if (sha !== body.imageSha256) throw new Error('원본 이미지가 변경됐습니다. 다시 불러와 주세요.')
+        if (body.imageSha256 && sha !== body.imageSha256) throw new Error('원본 이미지가 변경됐습니다. 다시 불러와 주세요.')
         const metadata = { kind: 'eye_blink_confirmation', version: 1, state: 'confirmed', scene_number: number,
             image_id: image.id, source_bucket: source.bucket, source_path: source.path, source_sha256: sha,
             character, left_eye_box: [...left], right_eye_box: [...right], interval_seconds: interval,

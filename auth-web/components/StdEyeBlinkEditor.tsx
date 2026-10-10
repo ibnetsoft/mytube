@@ -28,21 +28,22 @@ export default function StdEyeBlinkEditor({ projectId, headers, selectedSceneNum
         const controller = new AbortController(); let url = ''
         setImage(''); setSha('')
         void fetch(`${api}?image=${number}`, { headers, signal: controller.signal }).then(async response => {
-            if (!response.ok) throw new Error(text('이미지를 불러오지 못했습니다.', 'โหลดภาพไม่สำเร็จ'))
-            const blob = await response.blob(), hash = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+            if (!response.ok) throw new Error(th ? 'โหลดภาพไม่สำเร็จ' : '이미지를 불러오지 못했습니다.')
+            const serverSha = response.headers.get('X-Air-Image-Sha256') || ''
+            const blob = await response.blob()
             if (!controller.signal.aborted) {
                 url = URL.createObjectURL(blob)
                 const probe = new globalThis.Image()
                 probe.onload = () => { if (!controller.signal.aborted) setDimensions([probe.naturalWidth || 16, probe.naturalHeight || 9]) }
                 probe.src = url
-                setImage(url); setSha(Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join(''))
+                setImage(url); setSha(serverSha)
             }
         }).catch(error => { if (!controller.signal.aborted) setNotice(error.message) })
         return () => { controller.abort(); if (url) URL.revokeObjectURL(url) }
-    }, [open, number, scene?.imageId, api, headers])
+    }, [open, number, scene?.imageId, api, headers, th])
     const point = (event: React.PointerEvent<SVGSVGElement>): [number, number] => { const box = event.currentTarget.getBoundingClientRect(); return [Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)), Math.max(0, Math.min(1, (event.clientY - box.top) / box.height))] }
     async function save() {
-        if (!scene || !left || !right || !sha) return
+        if (!scene || !left || !right) return
         setBusy(true); setNotice('')
         try {
             const response = await fetch(api, { method: 'POST', headers, body: JSON.stringify({ sceneNumber: number, imageId: scene.imageId, imageSha256: sha, character, leftEyeBox: left, rightEyeBox: right, intervalSeconds: interval }) })
@@ -63,8 +64,8 @@ export default function StdEyeBlinkEditor({ projectId, headers, selectedSceneNum
                 <label>{text('깜빡임 간격', 'ช่วงเวลากะพริบ')} <input className="w-20 rounded bg-gray-800 p-2" type="number" min={2} max={12} step={.5} value={interval} onChange={event => setIntervalValue(Number(event.target.value))} /> {text('초', 'วินาที')}</label></div>
             <p className="mb-2 text-sm text-gray-300">{text('캐릭터를 선택하고 왼쪽 눈과 오른쪽 눈을 각각 작게 드래그하세요. 지정한 원본 이미지에서만 사용됩니다.', 'เลือกตัวละครแล้วลากกรอบเล็ก ๆ รอบตาซ้ายและตาขวา ระบบจะใช้เฉพาะกับภาพต้นฉบับนี้')}</p>
             <div className="mb-2 flex gap-2"><button className={`${button} ${mode === 'left' ? 'bg-sky-700' : ''}`} onClick={() => setMode('left')}>{text('① 왼쪽 눈', '① ตาซ้าย')}</button><button className={`${button} ${mode === 'right' ? 'bg-pink-700' : ''}`} onClick={() => setMode('right')}>{text('② 오른쪽 눈', '② ตาขวา')}</button></div>
-            {image ? <svg viewBox={`0 0 ${dimensions[0]} ${dimensions[1]}`} className="w-full touch-none bg-black" onPointerDown={event => { start.current = point(event); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerUp={event => { if (!start.current) return; const a = start.current, b = point(event); start.current = null; const box: Box = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; if (mode === 'left') { setLeft(box); setMode('right') } else setRight(box) }}><image href={image} width={dimensions[0]} height={dimensions[1]} />{left && <rect x={left[0] * dimensions[0]} y={left[1] * dimensions[1]} width={(left[2] - left[0]) * dimensions[0]} height={(left[3] - left[1]) * dimensions[1]} fill="none" stroke="#38bdf8" strokeWidth={Math.max(2, dimensions[0] / 500)} />}{right && <rect x={right[0] * dimensions[0]} y={right[1] * dimensions[1]} width={(right[2] - right[0]) * dimensions[0]} height={(right[3] - right[1]) * dimensions[1]} fill="none" stroke="#f472b6" strokeWidth={Math.max(2, dimensions[0] / 500)} />}</svg> : <div className="p-20 text-center">{text('이미지 불러오는 중…', 'กำลังโหลดภาพ…')}</div>}
-            <div className="mt-3 flex items-center gap-3"><button className="rounded bg-emerald-800 px-4 py-2 disabled:opacity-40" disabled={busy || !character || !left || !right || !sha} onClick={() => void save()}>{text('눈 깜빡임 저장', 'บันทึกการกะพริบตา')}</button><span role="status" className="text-cyan-200">{notice}</span></div>
+            {image ? <svg viewBox={`0 0 ${dimensions[0]} ${dimensions[1]}`} className="mx-auto w-3/5 max-w-full touch-none bg-black" onPointerDown={event => { start.current = point(event); event.currentTarget.setPointerCapture(event.pointerId) }} onPointerUp={event => { if (!start.current) return; const a = start.current, b = point(event); start.current = null; const box: Box = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])]; if (mode === 'left') { setLeft(box); setMode('right') } else setRight(box) }}><image href={image} width={dimensions[0]} height={dimensions[1]} />{left && <rect x={left[0] * dimensions[0]} y={left[1] * dimensions[1]} width={(left[2] - left[0]) * dimensions[0]} height={(left[3] - left[1]) * dimensions[1]} fill="none" stroke="#38bdf8" strokeWidth={Math.max(2, dimensions[0] / 500)} />}{right && <rect x={right[0] * dimensions[0]} y={right[1] * dimensions[1]} width={(right[2] - right[0]) * dimensions[0]} height={(right[3] - right[1]) * dimensions[1]} fill="none" stroke="#f472b6" strokeWidth={Math.max(2, dimensions[0] / 500)} />}</svg> : <div className="p-20 text-center">{text('이미지 불러오는 중…', 'กำลังโหลดภาพ…')}</div>}
+            <div className="mt-3 flex items-center gap-3"><button className="rounded bg-emerald-800 px-4 py-2 disabled:opacity-40" disabled={busy || !character || !left || !right || !image} onClick={() => void save()}>{text('눈 깜빡임 저장', 'บันทึกการกะพริบตา')}</button><span role="status" className="text-cyan-200">{notice}</span></div>
         </section></div>, document.body)}
     </>
 }
