@@ -9562,8 +9562,6 @@ export default function StdPortalPage() {
                                                 const directionBadges = sceneDirectionBadges(
                                                     [sceneRecord, ...getProjectPayloadScenes()], Number(sNum)
                                                 )
-                                                const visibleDirectionBadges = directionBadges.slice(0, 3)
-                                                const hiddenDirectionBadges = directionBadges.slice(3)
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const motionEffect = sceneMotion(sceneRecord)
                                                 const workerVideo = isWorkerSceneVideo(sceneVideos.get(Number(sNum)))
@@ -9573,7 +9571,7 @@ export default function StdPortalPage() {
                                                 const segmentStatusLabel = group.subtitles.some((item: any) => item.restored_audio_pending)
                                                     ? '음성 복구 필요'
                                                     : segmentStatus === 'ready'
-                                                    ? ui("음성 준비됨")
+                                                    ? ui("음성")
                                                     : segmentStatus === 'generating'
                                                     ? ui("생성 중")
                                                     : segmentStatus === 'loading'
@@ -9680,8 +9678,8 @@ export default function StdPortalPage() {
                                                             )}
                                                         </div>
                                                         <div className="w-full min-w-0 flex-none sm:flex-1">
-                                                            <div className="mb-1 flex items-center gap-1 sm:gap-2">
-                                                                {visibleDirectionBadges.map((badge: any) => {
+                                                            <div className="mb-1 flex flex-wrap items-center gap-1 sm:gap-2">
+                                                                {directionBadges.map((badge: any) => {
                                                                     const BadgeIcon = badge.kind === 'eye' ? Eye
                                                                         : badge.kind === 'mouth' ? Mic
                                                                         : badge.kind === 'parallax' ? LayoutTemplate
@@ -9707,15 +9705,6 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                     )
                                                                 })}
-                                                                {hiddenDirectionBadges.length > 0 && (
-                                                                    <span
-                                                                        title={hiddenDirectionBadges.map((badge: any) => `${ui(badge.label)}${badge.detail ? ` · ${ui(badge.detail)}` : ''}`).join('\n')}
-                                                                        aria-label={ui('추가 연출 {count}개', { count: hiddenDirectionBadges.length })}
-                                                                        className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-white/10 px-1 text-[9px] font-bold text-gray-300"
-                                                                    >
-                                                                        +{hiddenDirectionBadges.length}
-                                                                    </span>
-                                                                )}
                                                                 {isVrewSubtitleMode && segmentStatus && (
                                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                                                         segmentStatus === 'ready'
