@@ -237,6 +237,7 @@ $('new-form').onsubmit=e=>{
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
     image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
     image_layer_scene_end:form.get('image_layer_scene_end')?Number(form.get('image_layer_scene_end')):null,
+    required_video_scene_count:Number(form.get('required_video_scene_count')||18),
     title:form.get('title'),
     category,
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',

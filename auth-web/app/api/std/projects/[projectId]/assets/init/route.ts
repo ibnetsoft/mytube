@@ -3,7 +3,7 @@ import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredClipScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
+import { isStdRequiredClipScene, stdRequiredVideoSceneCount } from '@/lib/stdPolicy'
 import {
     buildStdGcsObjectPath,
     createGcsSignedUploadUrl,
@@ -61,21 +61,22 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     if (sceneNumber != null && isStdRequiredClipScene(sceneNumber, project) && assetType === 'image') {
+        const requiredVideoSceneCount = stdRequiredVideoSceneCount(project)
         return NextResponse.json({
             success: false,
-            error: 'Video files are required for scenes 1-18.',
+            error: `Video files are required for scenes 1-${requiredVideoSceneCount}.`,
             code: 'video_required_for_scene',
         }, { status: 422 })
     }
     if (
         sceneNumber != null
         && !isComicProject(project)
-        && sceneNumber > STD_REQUIRED_CLIP_SCENE_END
+        && sceneNumber > stdRequiredVideoSceneCount(project)
         && ['image', 'video'].includes(assetType)
     ) {
         return NextResponse.json({
             success: false,
-            error: 'Image scenes after scene 18 are protected and cannot be replaced.',
+            error: `Image scenes after scene ${stdRequiredVideoSceneCount(project)} are protected and cannot be replaced.`,
             code: 'generated_image_scene_protected',
         }, { status: 422 })
     }

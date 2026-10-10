@@ -16,6 +16,12 @@ import codex_content_runner as runner_module
 from senior_script_guard import PROFILE, CHECKS
 
 
+def test_required_video_scene_count_is_clamped_to_generated_scenes():
+    assert runner_module._required_video_scene_count({"required_video_scene_count": 24}) == 24
+    assert runner_module._required_video_scene_count({"required_video_scene_count": 24}, 20) == 20
+    assert runner_module._required_video_scene_count({}, 100) == 18
+
+
 def test_final_review_receives_only_current_script_version():
     old = {'language': 'ja', 'story_spine_contract': 'fixed story',
            'structure': {'scenes': [{'narration': 'old draft', 'duration_seconds': 5}]},

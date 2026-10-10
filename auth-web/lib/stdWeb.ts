@@ -12,6 +12,7 @@ import {
 } from './stdSubtitles'
 import { calculateLongformPayoutByScenes } from './stdPayoutPolicy'
 import { imageStyleLabelForPrompt, resolveCategoryImageStyle } from './categoryImageStyles'
+import { STD_REQUIRED_CLIP_SCENE_END, stdRequiredVideoSceneCount } from './stdPolicy'
 
 const getAuthClient = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -184,16 +185,16 @@ export function sceneVideoPrompt(scene: any): string {
     return firstText(scene?.video_prompt, scene?.motion_desc, scene?.flow_prompt, scene?.camera_motion)
 }
 
-export const MAX_VIDEO_PROMPT_SCENES = 18
+export const MAX_VIDEO_PROMPT_SCENES = STD_REQUIRED_CLIP_SCENE_END
 
 export function sceneNumber(scene: any, index: number): number {
     const value = Number(scene?.scene_order || scene?.scene_number || index + 1)
     return Number.isFinite(value) ? value : index + 1
 }
 
-export function sceneRequiresVideoPrompt(scene: any, index: number): boolean {
+export function sceneRequiresVideoPrompt(scene: any, index: number, topic?: any): boolean {
     if (scene?.video_prompt_required === false) return false
-    return sceneNumber(scene, index) <= MAX_VIDEO_PROMPT_SCENES
+    return sceneNumber(scene, index) <= stdRequiredVideoSceneCount(topic)
 }
 
 export function normalizeImageGridPrompts(structure: any): any[] {
@@ -282,6 +283,7 @@ export function buildStdScenes(topic: any) {
     const partitioned = partitionScriptByExistingSceneBoundaries(script, scenes, sceneCount)
     const requestedDurationMinutes = Number(topic?.assigned_duration_minutes || topic?.recommended_duration_minutes || 15)
     const durationSchedule = buildSceneDurationSchedule(requestedDurationMinutes * 60)
+    const requiredVideoSceneCount = stdRequiredVideoSceneCount(topic)
 
     return Array.from({ length: sceneCount }, (_, index) => scenes[index] || {
         scene_number: index + 1,
@@ -291,7 +293,7 @@ export function buildStdScenes(topic: any) {
         .map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
             const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
-            const requiresVideoPrompt = normalizedSceneNumber <= MAX_VIDEO_PROMPT_SCENES
+            const requiresVideoPrompt = normalizedSceneNumber <= requiredVideoSceneCount
             const videoPrompt = requiresVideoPrompt ? sceneVideoPrompt(scene) : ''
             const sceneText = firstText(
                 partitioned[index],
@@ -374,6 +376,7 @@ export function normalizeTopicSummary(topic: any) {
     const structureImageStyle = firstText(structure?.image_style)
     const categoryImageStyle = resolveCategoryImageStyle(category.name || topic.category_name, category.default_image_style)
     const estimatedPayout = calculateLongformPayoutByScenes(sceneCount)
+    const requiredVideoSceneCount = stdRequiredVideoSceneCount(topic)
     return {
         id: topic.id,
         topic: firstText(topic.generated_title, topic.topic),
@@ -392,6 +395,8 @@ export function normalizeTopicSummary(topic: any) {
         script_style: topic.assigned_script_style || category.default_script_style || 'default',
         image_style: topic.assigned_image_style || categoryImageStyle || structureImageStyle || 'realistic',
         scene_count: sceneCount,
+        required_video_scene_count: requiredVideoSceneCount,
+        video_scenes: requiredVideoSceneCount,
         pregenerated_script: topic.pregenerated_script || topic.script || '',
         pregenerated_structure: structure,
         publish_metadata: topic.publish_metadata || null,

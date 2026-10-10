@@ -100,6 +100,7 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
                    'image_layer_scene_start': request.get('image_layer_scene_start'),
                    'image_layer_scene_end': request.get('image_layer_scene_end'),
+                   'required_video_scene_count': request.get('required_video_scene_count', 18),
                    'ae_scene_delivery': request.get('ae_scene_delivery') or 'local',
                    'script_style': 'story',
                    'target_duration_seconds': request.get('duration_seconds') or request['duration_minutes'] * 60,
@@ -125,7 +126,7 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                          enabled=request.get('generate_bgm_prompt') is True)
         package['remaining'] = [f"배경 설정: {setting['summary_label']} (저장 완료)",
                                 '캐릭터 참고 이미지 생성·저장 (위 배경 설정 적용 예정)',
-                                ('무빙툰 장면별 이미지·선택 영상 연출' if moving else '장면 이미지·첫 12씬 영상 프롬프트 (위 배경 설정 적용 예정)'),
+                                ('무빙툰 장면별 이미지·선택 영상 연출' if moving else f"장면 이미지·첫 {payload['required_video_scene_count']}씬 영상 프롬프트 (위 배경 설정 적용 예정)"),
                                 '메타데이터·썸네일 기획', '전체 장면 이미지 실제 생성·게시', '썸네일 배경 실제 생성·게시',
                                 '토픽 패키지/유저웹 연결', '사용자 썸네일 최종 저장']
         return finish(package)

@@ -10,8 +10,15 @@ MEDIA_MIGRATION = Path("migrations/air_0246_std_supabase_primary_media.sql").rea
 
 
 def test_hook_scenes_remain_video_scenes():
-    assert "export const STD_VIDEO_REQUIRED_UNTIL_SEC = 60" in POLICY
-    assert "STD_REQUIRED_VIDEO_SCENE_COUNT" in POLICY
+    assert "stdRequiredVideoSceneCount" in POLICY
+    assert "required_video_scene_count" in POLICY
+
+
+def test_image_page_groups_all_configured_video_scenes_before_collapsed_body():
+    assert "selectedProject.scenes.slice(0, requiredVideoSceneCount)" in STD_PAGE
+    assert "selectedProject.scenes.slice(requiredVideoSceneCount)" in STD_PAGE
+    assert "초반 필수 영상 구간 (씬 1 ~ {count})" in STD_PAGE
+    assert "초반 1분 필수 영상 구간" not in STD_PAGE
 
 
 def test_existing_video_assets_are_preferred_over_scene_images():

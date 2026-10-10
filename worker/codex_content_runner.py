@@ -1172,6 +1172,17 @@ def _resolve_image_layer_scene_range(payload: dict[str, Any] | None) -> dict[str
     return {"start": start_number, "end": end_number}
 
 
+def _required_video_scene_count(payload: dict[str, Any] | None, scene_count: int | None = None) -> int:
+    raw = (payload or {}).get("required_video_scene_count", (payload or {}).get("video_scenes", 18))
+    try:
+        count = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("required video scene count must be a whole number") from exc
+    if count < 0 or count > 999:
+        raise ValueError("required video scene count must satisfy 0 <= count <= 999")
+    return min(count, scene_count) if scene_count is not None else count
+
+
 def _psd_layer_targets(scene_blob: str, targets: list[Any]) -> list[str]:
     result = ["background_plate", "foreground_subject_or_focus", "depth_matte"]
     if _scene_has_character_focus(scene_blob):
@@ -1956,8 +1967,11 @@ def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = 
                 raise CodexContentError(
                     f"Codex scene {index} duration violates required pacing: expected {expected['duration_seconds']}s"
                 )
-        if len(scenes) >= 18 and any(not bool((scene if isinstance(scene, dict) else {}).get("video_prompt_required")) for scene in scenes[:18]):
-            raise CodexContentError("Codex scenes 1-18 require video prompts for user-uploaded clips")
+        required_video_scene_count = _required_video_scene_count(payload, len(scenes))
+        if any(not bool((scene if isinstance(scene, dict) else {}).get("video_prompt_required")) for scene in scenes[:required_video_scene_count]):
+            raise CodexContentError(
+                f"Codex scenes 1-{required_video_scene_count} require video prompts for user-uploaded clips"
+            )
 
 
 def _validate_title_uniqueness(package: dict[str, Any], payload: dict[str, Any]) -> None:
@@ -1975,9 +1989,27 @@ def _validate_title_uniqueness(package: dict[str, Any], payload: dict[str, Any])
 def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Accept the concise content-director shape and map it to Hermes fields."""
     if package.get("generated_title"):
+        structure = package.get("structure") if isinstance(package.get("structure"), dict) else {}
+        scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+        required_video_scene_count = _required_video_scene_count(payload, len(scenes))
+        structure["required_video_scene_count"] = required_video_scene_count
+        structure["video_scenes"] = required_video_scene_count
+        package["required_video_scene_count"] = required_video_scene_count
+        package["video_scenes"] = required_video_scene_count
+        for index, scene in enumerate(scenes, 1):
+            if not isinstance(scene, dict):
+                continue
+            required = index <= required_video_scene_count
+            scene["video_prompt_required"] = required
+            scene["visual_type"] = "video" if required else "image"
+            scene["video_generation_mode"] = "user_upload" if required else "image"
+            if not required:
+                scene.pop("video_prompt", None)
+        package["structure"] = structure
         return package
     scenes = package.get("scenes") or []
     schedule = _pacing_schedule((payload or {}).get("target_duration_seconds"))
+    required_video_scene_count = _required_video_scene_count(payload, len(scenes))
     narration_rows = package.get("narration_script") or []
     narration_by_scene = {
         int(item.get("scene_number") or index): str(item.get("text") or "").strip()
@@ -1991,8 +2023,8 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
                 scene["scene_number"] = scene_number
                 scene["duration_seconds"] = schedule[index - 1]["duration_seconds"]
                 scene["target_duration"] = schedule[index - 1]["duration_seconds"]
-                scene["video_prompt_required"] = index <= 18
-                if index <= 18:
+                scene["video_prompt_required"] = index <= required_video_scene_count
+                if index <= required_video_scene_count:
                     scene["visual_type"] = "video"
                     scene["video_generation_mode"] = "user_upload"
                 else:
@@ -2043,6 +2075,8 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
     narrative = package.get("narrative_plan") or {}
     structure = {
         "scene_count": package.get("scene_count") or len(scenes),
+        "required_video_scene_count": required_video_scene_count,
+        "video_scenes": required_video_scene_count,
         "image_grid_prompt_status": package.get("image_grid_prompt_status") or "ready",
         "image_grid_prompt_mode": package.get("image_grid_prompt_mode") or "direct_2x2_only",
         "image_grid_prompts": canonical_grids,
@@ -2088,6 +2122,8 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
             "generation_models": {"title": "codex-cli"},
         },
         "structure": structure,
+        "required_video_scene_count": required_video_scene_count,
+        "video_scenes": required_video_scene_count,
         "script": script_text,
         "narrative_blueprint": narrative,
         "main_character": main,
@@ -2128,6 +2164,7 @@ class CodexContentRunner:
             "category_narration_voice": category_narration_voice,
             "script_rhythm_contract": script_rhythm_contract,
         }
+        required_video_scene_count = _required_video_scene_count(payload)
         request_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         # A retry after a downstream quality/compatibility failure should reuse
         # the already completed Codex response, not spend another generation.
@@ -2170,22 +2207,22 @@ image prompts and video prompts, SFX cues, and publish metadata.
 The visual pacing policy is mandatory. The exact internal scene schedule
 is {json.dumps(_pacing_schedule(payload.get("target_duration_seconds")), ensure_ascii=False)}.
 Generate exactly that many ordered scenes with the listed duration_seconds.
-Scenes 1-18 are user-uploaded video clips. Scenes 1-12 use the existing early-scene upload flow; scenes 13-18 are user-generated from the scene images, uploaded, and submitted before post-processing. Scenes 19-24 are seven seconds, scenes 25-30 are
+Scenes 1-{required_video_scene_count} are user-uploaded video clips and must use one unified required-video upload flow. Scenes after {required_video_scene_count} use still images. Scenes 19-24 are seven seconds, scenes 25-30 are
 ten seconds, scenes 31-45 are twelve seconds, scenes 46-60 are fifteen seconds,
 and scenes 61 onward are eighteen seconds unless the final remainder is shorter.
-Scenes 1-18 require video_prompt. Scenes 13-18 retain image_prompt as the user's source for creating their uploaded clips. Scenes 19 onward use image_prompt only.
+Scenes 1-{required_video_scene_count} require video_prompt and retain image_prompt as the user's source for creating uploaded clips. Scenes after {required_video_scene_count} use image_prompt only.
 Never print timestamps or timecodes in the narration; duration_seconds is
 internal JSON metadata only.
 
 Compatibility requirements for AIR Studio: structure must contain scene_count,
 image_grid_prompt_status="ready", image_grid_prompt_mode="direct_2x2_only",
-and compact 2x2 image_grid_prompts. Every scene must set
-media_prompt_status="ready". For scenes 1-18, include a unique English
+and compact 2x2 image_grid_prompts. Set required_video_scene_count={required_video_scene_count} and video_scenes={required_video_scene_count}. Every scene must set
+media_prompt_status="ready". For scenes 1-{required_video_scene_count}, include a unique English
 video_prompt of at least 260 characters with exactly one approved movement
 (slow push-in, slow pull-back, gentle pan, gentle tilt, slow dolly, slow
 tracking shot, locked-off shot, subtle crane movement, or slow drift) and all
 of these literal guards: no dialogue, no narration, no subtitles, no captions,
-no music, no sound effects, no audio. Mark scenes 1-18 as
+no music, no sound effects, no audio. Mark scenes 1-{required_video_scene_count} as
 video_generation_mode="user_upload". Produce prompts only, never media files.
 For Korean packages, write at least 1,000 Hangul characters in the script and
 a Korean publish_metadata.description of at least 120 characters. Include at
@@ -2376,6 +2413,7 @@ class CodexStagedContentRunner:
         schedule = _pacing_schedule(payload.get("target_duration_seconds"))
         if not schedule:
             raise CodexContentError("target_duration_seconds is required")
+        required_video_scene_count = _required_video_scene_count(payload, len(schedule))
         setting = resolve_setting(payload)
         script_style_directive = _resolve_script_style_directive(
             payload.get("assigned_script_style") or payload.get("script_style")
@@ -2425,10 +2463,11 @@ class CodexStagedContentRunner:
         for index, (scene, timing) in enumerate(zip(scenes, schedule), 1):
             if not isinstance(scene, dict):
                 raise CodexContentError(f"plan scene {index} is not an object")
-            scene.update({"scene_order": index, "scene_number": index, "duration_seconds": timing["duration_seconds"], "target_duration": timing["duration_seconds"], "video_prompt_required": index <= 18,
-                          "visual_type": "video" if index <= 18 else "image",
-                          "video_generation_mode": "user_upload" if index <= 18 else "image"})
-        structure = {"scene_count": len(scenes), "scenes": scenes, "story_core": plan.get("story_core") or {}}
+            scene.update({"scene_order": index, "scene_number": index, "duration_seconds": timing["duration_seconds"], "target_duration": timing["duration_seconds"], "video_prompt_required": index <= required_video_scene_count,
+                          "visual_type": "video" if index <= required_video_scene_count else "image",
+                          "video_generation_mode": "user_upload" if index <= required_video_scene_count else "image"})
+        structure = {"scene_count": len(scenes), "required_video_scene_count": required_video_scene_count,
+                     "video_scenes": required_video_scene_count, "scenes": scenes, "story_core": plan.get("story_core") or {}}
         scene_budgets = _scene_char_budgets(scenes, payload)
         script_context = {
             **plan_context,
@@ -2685,7 +2724,7 @@ class CodexStagedContentRunner:
             f"Explicit layer scene range is {json.dumps(image_layer_scene_range, ensure_ascii=False)}. Every existing scene inside that range must receive independently authored registered background and foreground PNG layers for PSD assembly; preserve the ordinary mode outside the range. "
             "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including a complete independently generated clean background and aligned alternate pose/prop layers. Do not derive or inpaint hidden background pixels from the flattened scene. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
             "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
-            "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-18 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-18 use video_generation_mode=user_upload. Scenes 19 onward must not contain video_prompt."
+            f"Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-{required_video_scene_count} also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-{required_video_scene_count} use video_generation_mode=user_upload. Scenes after {required_video_scene_count} must not contain video_prompt."
         )
         media = {}
         for media_attempt in range(2):
@@ -2698,7 +2737,7 @@ class CodexStagedContentRunner:
                     image = str((item or {}).get("image_prompt") or "").strip() if isinstance(item, dict) else ""
                     if len(image) < 120:
                         raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
-                    if index <= 18:
+                    if index <= required_video_scene_count:
                         _validate_video_prompt(str(item.get("video_prompt") or "").strip(), index)
                 break
             except CodexContentError as exc:
@@ -2716,7 +2755,7 @@ class CodexStagedContentRunner:
                 raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
             lock = scene_continuity_prompt(anchors, [index])
             scenes[index - 1].update({"image_prompt": image + ("\n" + lock if lock else ""), "media_prompt_status": "ready"})
-            if index <= 18:
+            if index <= required_video_scene_count:
                 video = str(item.get("video_prompt") or "").strip()
                 _validate_video_prompt(video, index)
                 scenes[index - 1]["video_prompt"] = video + ("\n" + lock if lock else "")
@@ -2734,7 +2773,7 @@ class CodexStagedContentRunner:
                 scene_number = int(scene.get("scene_number") or scene.get("scene_order") or 0)
             except (TypeError, ValueError):
                 continue
-            if scene_number <= 18:
+            if scene_number <= required_video_scene_count:
                 scene["video_generation_mode"] = "user_upload"
         ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
         image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload, ae_effect_plans)
@@ -2893,7 +2932,7 @@ class CodexStagedContentRunner:
         design['style'] = setting['image_style_en']
         design['setting_country'] = setting['setting_country']
         design['era_region'] = setting['era_region']
-        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "script": script, "language": setting["language"], "setting_country": setting["setting_country"], "era_region": setting["era_region"], "image_style": setting["image_style"], "content_setting": setting, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_design": design, "thumbnail_completed": False, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
+        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "required_video_scene_count": required_video_scene_count, "video_scenes": required_video_scene_count, "script": script, "language": setting["language"], "setting_country": setting["setting_country"], "era_region": setting["era_region"], "image_style": setting["image_style"], "content_setting": setting, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_design": design, "thumbnail_completed": False, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
 
 
 class CodexTopicDiscoveryRunner:

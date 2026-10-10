@@ -215,7 +215,7 @@ import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
-import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, STD_REQUIRED_CLIP_SCENE_END } from '@/lib/stdPolicy'
+import { isStdRequiredVideoScene as baseIsStdRequiredVideoScene, isStdRequiredClipScene as baseIsStdRequiredClipScene, isStdVideoPromptScene as baseIsStdVideoPromptScene, isStdMiddleVideoScene as baseIsStdMiddleVideoScene, stdRequiredVideoSceneCount } from '@/lib/stdPolicy'
 import {
     generateSynchronizedSubtitles as generateAnnotatedSubtitles,
     calculateLongformSceneTimings,
@@ -871,6 +871,7 @@ export default function StdPortalPage() {
     const isStdRequiredClipScene = (number: any) => baseIsStdRequiredClipScene(number, selectedProject?.project)
     const isStdVideoPromptScene = (number: any) => baseIsStdVideoPromptScene(number, selectedProject?.project)
     const isStdMiddleVideoScene = (number: any) => baseIsStdMiddleVideoScene(number, selectedProject?.project)
+    const requiredVideoSceneCount = stdRequiredVideoSceneCount(selectedProject?.project)
     const mediaScopeRef = useRef({ session: '', projectId: '', generation: 0 })
     // Profile hydration is not an authentication change and must not invalidate openProject.
     const mediaSession = JSON.stringify([token, isImpersonating ? impersonateEmail : ''])
@@ -1631,16 +1632,16 @@ export default function StdPortalPage() {
             scene_title: String(scene?.scene_title || `Scene ${index + 1}`),
             scene_text: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
             image_prompt: String(scene?.image_prompt || ''),
-            video_prompt: (comicProject || baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1))
+            video_prompt: (comicProject || baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1, selectedProject.project))
                 ? String(scene?.video_prompt || '')
                 : '',
             metadata: {
                 ...(scene?.metadata || {}),
                 script_excerpt: String(scene?.scene_text || scene?.script_excerpt || scene?.text || ''),
-                visual_type: baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1)
+                visual_type: baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1, selectedProject.project)
                     ? (scene?.visual_type || 'video')
                     : 'image',
-                video_prompt_required: baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1),
+                video_prompt_required: baseIsStdVideoPromptScene(scene?.scene_number || scene?.scene_order || index + 1, selectedProject.project),
                 synced_from_full_script_at: syncedAt,
             },
         }))
@@ -4308,7 +4309,7 @@ export default function StdPortalPage() {
             const defaultSceneCount = estimateRequiredSceneCount(projectScript)
             rawScenes = Array.from({ length: defaultSceneCount }, (_, i) => {
                 const sceneNumber = i + 1
-                const requiresVideoPrompt = baseIsStdVideoPromptScene(sceneNumber)
+                const requiresVideoPrompt = baseIsStdVideoPromptScene(sceneNumber, topic)
                 const excerpt = realDefaultNarratives[i % realDefaultNarratives.length]
                 return {
                     scene_number: sceneNumber,
@@ -4343,7 +4344,7 @@ export default function StdPortalPage() {
 
             const rawScript = partitionedScript[i] || s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || s.narration || s.prompt_ko || realDefaultNarratives[i % realDefaultNarratives.length]
             const scriptText = cleanScriptContextText(rawScript)
-            const requiresVideoPrompt = baseIsStdVideoPromptScene(num)
+            const requiresVideoPrompt = baseIsStdVideoPromptScene(num, topic)
             const videoPromptText = (requiresVideoPrompt || struct.comic_plan?.mode === 'moving_comic')
                 ? (s.video_prompt || s.prompt_en || s.prompt || `The shot uses a slow push-in for scene ${num}. Cinematic realistic 8k photorealism.`)
                 : ''
@@ -4424,7 +4425,13 @@ export default function StdPortalPage() {
                 project_payload: {
                     script: projectScript,
                     original_worker_script: projectScript,
-                    structure: { scenes, image_grid_prompts: gridPrompts },
+                    structure: {
+                        ...struct,
+                        required_video_scene_count: stdRequiredVideoSceneCount(topic),
+                        video_scenes: stdRequiredVideoSceneCount(topic),
+                        scenes,
+                        image_grid_prompts: gridPrompts,
+                    },
                     image_grid_prompts: gridPrompts,
                 }
             },
@@ -5553,7 +5560,7 @@ export default function StdPortalPage() {
                     const payloadScene = payloadSceneByNumber.get(sceneNumber) || {}
                     const rawText = s.script_excerpt || s.scene_text || s.scene_situation || s.scene_summary || `Scene ${idx + 1}`
                     const cleanedText = cleanScriptContextText(rawText)
-                    const requiresVideoPrompt = baseIsStdVideoPromptScene(sceneNumber)
+                    const requiresVideoPrompt = baseIsStdVideoPromptScene(sceneNumber, payload.project)
                     return {
                         ...s,
                         scene_text: cleanedText,
@@ -6976,12 +6983,12 @@ export default function StdPortalPage() {
             .map(({ sceneNumber }) => sceneNumber)
         const imageScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
-            .filter(({ scene, sceneNumber }) => Boolean(scene.image_url) && !scene.video_url && !isStdRequiredClipScene(sceneNumber))
+            .filter(({ scene, sceneNumber }) => Boolean(scene.image_url) && !scene.video_url && !baseIsStdRequiredClipScene(sceneNumber, selectedProject?.project))
             .map(({ sceneNumber }) => sceneNumber)
         const completeScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
             .filter(({ scene, sceneNumber }) =>
-                isStdRequiredClipScene(sceneNumber)
+                baseIsStdRequiredClipScene(sceneNumber, selectedProject?.project)
                     ? Boolean(scene.video_url)
                     : Boolean(scene.video_url || scene.image_url)
             )
@@ -6989,13 +6996,13 @@ export default function StdPortalPage() {
         const missingScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
             .filter(({ scene, sceneNumber }) =>
-                isStdRequiredClipScene(sceneNumber)
+                baseIsStdRequiredClipScene(sceneNumber, selectedProject?.project)
                     ? !scene.video_url
                     : !scene.video_url && !scene.image_url
             )
             .map(({ sceneNumber }) => sceneNumber)
 
-        const requiredVideoZone = Array.from({ length: STD_REQUIRED_CLIP_SCENE_END }, (_, index) => index + 1)
+        const requiredVideoZone = Array.from({ length: requiredVideoSceneCount }, (_, index) => index + 1)
         const videoReadyInZone = videoScenes.filter(num => requiredVideoZone.includes(num))
         const requiredZoneOnlyImage = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
@@ -7019,7 +7026,7 @@ export default function StdPortalPage() {
             completion,
             videoScenes,
         }
-    }, [selectedProject])
+    }, [selectedProject, requiredVideoSceneCount])
 
     const selectedVoiceObj = useMemo(() => {
         return allVoices.find(v => v.id === selectedVoice) || STD_DEFAULT_VOICE
@@ -10716,7 +10723,7 @@ export default function StdPortalPage() {
                                         <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">{ui('씬')} {assetStats.totalScenes}</span>
                                         <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">{ui('유효 이미지')} {assetStats.imageCount}</span>
                                         <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">{ui('영상')} {assetStats.videoCount}</span>
-                                        <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/{STD_REQUIRED_CLIP_SCENE_END}</span>
+                                        <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/{requiredVideoSceneCount}</span>
                                         <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">{ui('비주얼 누락')} {assetStats.missingScenes.length}</span>
                                     </div>
                                 </div>
@@ -10742,21 +10749,21 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <div className={comicProject ? 'hidden' : 'p-4 border-t border-white/5 space-y-4'}>
-                                    {/* 1. 초반 필수 영상 구간 (1~12씬 - 진한 주황색) */}
+                                    {/* 1. 대본 워커가 지정한 필수 영상 구간 */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
                                                 <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">
-                                                    {ui('초반 1분 필수 영상 구간 (씬 1 ~ 12)')}
+                                                    {ui('초반 필수 영상 구간 (씬 1 ~ {count})', { count: requiredVideoSceneCount })}
                                                 </span>
                                             </div>
                                             <span className="text-[10px] text-gray-400 font-mono">
-                                                {ui('완료')}: {selectedProject.scenes.filter(s => (s.scene_number <= 12) && Boolean(s.video_url)).length} / 12
+                                                {ui('완료')}: {selectedProject.scenes.filter(s => (s.scene_number <= requiredVideoSceneCount) && Boolean(s.video_url)).length} / {requiredVideoSceneCount}
                                             </span>
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                                            {selectedProject.scenes.slice(0, 12).map((scene: any, idx: number) => {
+                                            {selectedProject.scenes.slice(0, requiredVideoSceneCount).map((scene: any, idx: number) => {
                                                 const sNum = scene.scene_number || idx + 1
                                                 const isReady = Boolean(scene.video_url)
                                                 const isUploading = uploadingKey === `${sNum}-video`
@@ -10806,18 +10813,18 @@ export default function StdPortalPage() {
                                         </div>
                                     </div>
 
-                                    {/* 2. 필수 영상 클립(13~18) + 본문 이미지(19씬 이후) 구간 */}
+                                    {/* 2. 필수 영상 구간 다음의 본문 미디어 */}
                                     <div className="space-y-2 pt-2 border-t border-white/5">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-amber-500/70" />
                                                 <span className="text-xs font-bold text-amber-400/90 uppercase tracking-wide">
-                                                    {ui('본문 미디어 구간 (영상 클립 13~18, 이미지 19~{count})', { count: selectedProject.scenes.length })}
+                                                    {ui('본문 미디어 구간 (씬 {start} ~ {count})', { start: requiredVideoSceneCount + 1, count: selectedProject.scenes.length })}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] text-gray-400 font-mono">
-                                                    {ui('고정')}: {selectedProject.scenes.slice(12).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - 12)}
+                                                    {ui('고정')}: {selectedProject.scenes.slice(requiredVideoSceneCount).filter(s => Boolean(s.image_url || s.video_url)).length} / {Math.max(0, selectedProject.scenes.length - requiredVideoSceneCount)}
                                                 </span>
                                                 <button
                                                     type="button"
@@ -10832,8 +10839,8 @@ export default function StdPortalPage() {
                                         </div>
                                         {isBodyImageSectionOpen && (
                                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                                                {selectedProject.scenes.slice(12).map((scene: any, offsetIdx: number) => {
-                                                    const idx = offsetIdx + 12
+                                                {selectedProject.scenes.slice(requiredVideoSceneCount).map((scene: any, offsetIdx: number) => {
+                                                    const idx = offsetIdx + requiredVideoSceneCount
                                                     const sNum = scene.scene_number || idx + 1
                                                     const isMiddleVideo = isStdMiddleVideoScene(sNum)
                                                     const isReady = isMiddleVideo ? Boolean(scene.video_url) : Boolean(scene.image_url || scene.video_url)

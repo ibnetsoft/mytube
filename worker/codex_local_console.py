@@ -303,6 +303,7 @@ class StartRequest(BaseModel):
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)
+    required_video_scene_count: int = Field(default=18, ge=0, le=999)
     ae_scene_delivery: Literal['local', 'gcs'] = 'local'
     generate_bgm_prompt: bool = Field(default=False, strict=True)
     notes: str = Field(default='', max_length=4000)

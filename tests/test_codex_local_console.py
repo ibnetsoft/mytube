@@ -113,6 +113,15 @@ def test_direction_profile_is_validated():
         console.StartRequest(mode='new', title='test', category='story', direction_profile='unknown')
 
 
+def test_required_video_scene_count_is_configurable():
+    request = console.StartRequest(
+        mode='new', title='test', category='story', required_video_scene_count=24,
+    )
+    assert request.required_video_scene_count == 24
+    with pytest.raises(ValueError):
+        console.StartRequest(mode='new', title='test', category='story', required_video_scene_count=-1)
+
+
 def test_submission_is_protected_and_background_is_not_final():
     row = {'id': 'p', 'status': 'submitted', 'employee_email': 'owner@example.com',
            'project_payload': {'script': 'text'}, 'progress_payload': {'thumbnail_bg_url': 'https://example.com/bg.png'}}

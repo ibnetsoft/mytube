@@ -140,6 +140,7 @@ window.renderTopicResult=data=>{
       if (form.elements.image_layer_mode) form.elements.image_layer_mode.value = draft.image_layer_mode || 'hybrid';
       if (form.elements.image_layer_scene_start) form.elements.image_layer_scene_start.value = draft.image_layer_scene_start || '';
       if (form.elements.image_layer_scene_end) form.elements.image_layer_scene_end.value = draft.image_layer_scene_end || '';
+      if (form.elements.required_video_scene_count) form.elements.required_video_scene_count.value = draft.required_video_scene_count ?? 18;
       if (form.elements.direction_profile) form.elements.direction_profile.value = draft.direction_profile || 'auto';
       form.elements.duration.value=draft.duration_minutes;
       form.elements.notes.value=draft.notes;

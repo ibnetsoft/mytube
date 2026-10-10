@@ -1,3 +1,5 @@
+import { stdRequiredVideoSceneCount } from './stdPolicy'
+
 export type PreparedTopicLike = {
     status?: string | null
     assigned_at?: string | null
@@ -10,6 +12,7 @@ export type PreparedTopicLike = {
     pregenerated_script_status?: string | null
     publish_metadata?: any
     progress_payload?: any
+    video_scenes?: number | null
 }
 
 export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
@@ -51,6 +54,7 @@ export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
         for (const sceneNumber of sceneNumbers) coveredSceneNumbers.add(String(sceneNumber))
     }
     const seenImagePrompts = new Set<string>()
+    const requiredVideoSceneCount = stdRequiredVideoSceneCount(topic)
     return scenes.every((scene: any, index: number) => {
         const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
         const imagePrompt = String(scene?.image_prompt || '').trim()
@@ -58,7 +62,7 @@ export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
         if (fallbackMarkers.some(marker => imagePrompt.toLowerCase().includes(marker))) return false
         if (seenImagePrompts.has(imagePrompt)) return false
         seenImagePrompts.add(imagePrompt)
-        const requiresVideo = scene?.video_prompt_required !== false && sceneNumber <= 18
+        const requiresVideo = scene?.video_prompt_required !== false && sceneNumber <= requiredVideoSceneCount
         if (requiresVideo && !String(scene?.video_prompt || '').trim()) return false
         return coveredSceneNumbers.has(String(Number.isFinite(sceneNumber) ? sceneNumber : index + 1))
     })
