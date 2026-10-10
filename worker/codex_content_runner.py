@@ -661,7 +661,16 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             scene.get("narration"),
             scene.get("image_prompt"),
         )
+        directorial = _scene_direction(scene)
+        existing_effect = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
         template = _manga_template_for_scene(scene)
+        if directorial and not (
+            scene.get("ae_template")
+            or (existing_effect.get("enabled") and existing_effect.get("template_source") == "scene_visual_director")
+        ):
+            # Once the script-stage director has made a decision, the older
+            # keyword planner may not replace it with an unrelated highlight.
+            template = None
         requested_lips = scene.get("ae_lip_sync")
         requested_captions = scene.get("ae_caption_animation")
         requested_sfx_text = scene.get("ae_sfx_text_animation")
@@ -677,13 +686,16 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
         if template:
             spec = AE_MANGA_TEMPLATES[template]
             selected = (spec["preset"], spec["direction"])
-        else:
+        elif not directorial:
             for preset, keywords, direction in AE_EFFECT_PRESET_KEYWORDS:
                 if any(keyword.lower() in scene_blob for keyword in keywords):
                     selected = (preset, direction)
                     break
         if not selected:
-            scene["ae_effect_plan"] = {"enabled": False, "reason": "standard_scene_ffmpeg_only"}
+            scene["ae_effect_plan"] = {
+                "enabled": False,
+                "reason": "script_director_uses_motion_plan" if directorial else "standard_scene_ffmpeg_only",
+            }
             continue
         priority = 2
         if index <= 12:
@@ -961,6 +973,46 @@ def _motion_design(scene_blob: str) -> dict[str, Any]:
     return design
 
 
+def _scene_direction(scene: dict[str, Any]) -> dict[str, Any]:
+    plan = scene.get("scene_direction_plan")
+    if not isinstance(plan, dict):
+        plan = scene.get("ae_directorial_plan")
+    return plan if isinstance(plan, dict) else {}
+
+
+def _direction_render_fields(direction: dict[str, Any]) -> dict[str, Any]:
+    if not direction:
+        return {}
+    focus = direction.get("focus_target") if isinstance(direction.get("focus_target"), dict) else {}
+    limits = direction.get("effect_limits") if isinstance(direction.get("effect_limits"), dict) else {}
+    operations = set(direction.get("ae_operations") or [])
+    vfx: list[str] = []
+    for operation, effect in (
+        ("camera_move", "cinematic_camera"),
+        ("depth_parallax", "approved_layer_parallax"),
+        ("light_flicker", "warm_lantern_flicker"),
+        ("atmosphere_drift", "atmospheric_haze"),
+        ("mask_reveal", "approved_mask_reveal"),
+        ("prop_motion", "approved_prop_motion"),
+        ("transition", "directed_transition"),
+    ):
+        if operation in operations:
+            vfx.append(effect)
+    return {
+        "scene_direction_plan": direction,
+        "directorial_plan": direction,
+        "scene_role": direction.get("scene_role") or "narration",
+        "primary_effect": direction.get("primary_effect") or "hold",
+        "secondary_effects": list(direction.get("secondary_effects") or []),
+        "effect_limits": limits,
+        "targets": [{"type": focus.get("type") or "directorial_focus",
+                     "layer": focus.get("layer") or "", "x": float(focus.get("x", 0.5)),
+                     "y": float(focus.get("y", 0.5)), "reason": focus.get("reason") or ""}],
+        "timed_beats": list(direction.get("timed_beats") or []),
+        "vfx": vfx,
+    }
+
+
 def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Attach lightweight AE motion plans so ordinary images can be video-finished too."""
     category_blob = _text_blob(
@@ -981,13 +1033,8 @@ def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, 
             continue
         video_mode = str(scene.get("video_generation_mode") or "").lower()
         if video_mode == "user_upload":
-            directorial = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
-            operations = set(directorial.get("ae_operations") or [])
-            vfx = []
-            if "light_flicker" in operations:
-                vfx.append("warm_lantern_flicker")
-            if "atmosphere_drift" in operations:
-                vfx.append("atmospheric_haze")
+            directorial = _scene_direction(scene)
+            directed_fields = _direction_render_fields(directorial)
             scene["ae_motion_plan"] = {
                 "enabled": True,
                 "tier": "video_finish",
@@ -998,7 +1045,7 @@ def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, 
                 "input_source": "uploaded_video_asset",
                 "postprocess_after": "user_video_ready",
                 "direction": directorial.get("visual_strategy") or "After Effects post-process for the registered user-uploaded source clip; preserve source action, audio timing and duration; apply only restrained, story-motivated finishing.",
-                **({"directorial_plan": directorial, "vfx": vfx} if directorial else {}),
+                **directed_fields,
                 "quality_checks": {"min_duration_seconds": 1.0, "min_output_bytes": 1024,
                                    "targeted_effects_required": False, "fallback_on_failure": "copy_source_video"},
                 "fallback": "copy_source_video",
@@ -1039,22 +1086,25 @@ def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, 
             "fallback": "ffmpeg_basic_motion",
         }
         if video_mode not in {"user_upload", "comfyui"}:
-            directorial = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
+            directorial = _scene_direction(scene)
             if directorial:
                 operations = set(directorial.get("ae_operations") or [])
                 plan["direction"] = directorial.get("visual_strategy") or plan["direction"]
-                plan["directorial_plan"] = directorial
-                plan["vfx"] = (["cinematic_camera"] if "camera_move" in operations else [])
-                if "light_flicker" in operations:
-                    plan["vfx"].append("warm_lantern_flicker")
-                if "atmosphere_drift" in operations:
-                    plan["vfx"].append("atmospheric_haze")
-                focus = next((beat.get("attention_target") for beat in directorial.get("timed_beats", [])
-                              if isinstance(beat, dict) and isinstance(beat.get("attention_target"), list)), None)
-                if focus:
-                    plan["targets"] = [{"type": "directorial_focus", "x": focus[0], "y": focus[1]}]
+                plan.update(_direction_render_fields(directorial))
+                limits = directorial.get("effect_limits") if isinstance(directorial.get("effect_limits"), dict) else {}
+                plan["intensity"] = min(float(plan.get("intensity") or 0.25), float(limits.get("intensity") or 0.28))
                 if "camera_move" not in operations:
                     plan["motion"] = {"push": 0.0, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.0}
+                else:
+                    max_scale = float(limits.get("max_scale_delta") or 0.04)
+                    max_move = float(limits.get("max_move_ratio") or 0.025)
+                    plan["motion"] = {
+                        "push": min(abs(float(plan["motion"].get("push") or 0.0)), max_scale),
+                        "drift_x": max(-max_move, min(float(plan["motion"].get("drift_x") or 0.0), max_move)),
+                        "drift_y": max(-max_move, min(float(plan["motion"].get("drift_y") or 0.0), max_move)),
+                        "shake": 0.0,
+                    }
+                plan["fallback"] = directorial.get("fallback") or plan["fallback"]
         if video_mode == "comfyui":
             plan["input_source"] = "comfyui_video_asset"
             plan["postprocess_after"] = "comfyui_video_ready"
@@ -2492,13 +2542,20 @@ class CodexStagedContentRunner:
             "in order. Each item must contain dramatic_intent, visual_strategy, timed_beats (start_seconds, "
             "end_seconds, action, target, optional attention_target), required_layers (empty when no separated "
             "asset is needed), optional additional_keyframes (only individually justified layers, never a timed "
-            "full-frame storyboard), ae_operations, continuity_rules and observable qa_assertions. Set "
+            "full-frame storyboard), ae_operations, continuity_rules and observable qa_assertions. Also classify "
+            "scene_role, select exactly one primary_effect and at most two secondary_effects (secondary effects "
+            "may only be camera_move, light_flicker, atmosphere_drift, or transition), and return one "
+            "normalized focus_target {type, layer, x, y, reason}, effect_limits {intensity, speed, "
+            "max_scale_delta, max_move_ratio, max_rotation_degrees}, and fallback. Every selected effect must "
+            "also appear in ae_operations. Use hold as the primary effect when motion does not improve the story. "
+            "Avoid repeating the same conspicuous primary effect in adjacent scenes. Set "
             "source_video_reviewed=true only when actual uploaded-clip keyframes are supplied. Use only the "
             "persona's operation allowlist and these layer roles: background, "
             "character, character_left, character_center, character_right, hand_foreground, talisman, "
             "reflection_scene, training_prop, title_backdrop, debris, qi_overlay, ink_splat, speedlines, "
             "lens_glint, light_core, light_rays, pose_sleeping, pose_waking, pose_turning, pose_resting, "
-            "blanket, shoji, prop_focus, mouth_closed, mouth_half, mouth_open. Request only layers whose absence "
+            "blanket, shoji, prop_focus, mouth_closed, mouth_half, mouth_open, hair_cloth, atmosphere, "
+            "light_overlay. Request only layers whose absence "
             "would prevent the specified effect; each must have role, reason, and image_prompt. Never request "
             "one generated image per frame or per second. Never claim AE can invent facial expressions or body "
             "actions from footage that does not show them. Every beat must fit its scene duration. Do not add "
@@ -2530,6 +2587,13 @@ class CodexStagedContentRunner:
                     "qa_assertions": direction["qa_assertions"],
                     "continuity_rules": direction["continuity_rules"],
                     "required_keyframes": direction["additional_keyframes"],
+                    "directorial_plan": direction,
+                    "scene_direction_plan": direction,
+                    "focus_target": direction["focus_target"],
+                    "primary_effect": direction["primary_effect"],
+                    "secondary_effects": direction["secondary_effects"],
+                    "effect_limits": direction["effect_limits"],
+                    "fallback": direction["fallback"],
                 }
         character_context.update(scenes=scenes, dialogue_annotations=structure.get("dialogue_annotations"),
             existing_character_anchors=payload.get("character_anchors")
@@ -2552,6 +2616,11 @@ class CodexStagedContentRunner:
                 "scene_visual_direction_status": "planned",
                 "scene_visual_director_persona": "scene_visual_director",
                 "scene_visual_direction_count": len(directorial_plans),
+                "scene_direction_plan_contract": "scene_direction_plan/v1",
+                "scene_direction_plans": [
+                    {"scene_number": int(scene.get("scene_number") or scene.get("scene_order") or index), **direction}
+                    for index, (scene, direction) in enumerate(zip(scenes, directorial_plans), 1)
+                ],
                 "ae_effect_plan_status": "planned" if draft_effect_plans else "not_required",
                 "ae_effect_scene_count": len(draft_effect_plans),
                 "ae_effect_plans": draft_effect_plans,
@@ -2703,6 +2772,11 @@ class CodexStagedContentRunner:
             "scene_visual_direction_status": "planned",
             "scene_visual_director_persona": "scene_visual_director",
             "scene_visual_direction_count": len(directorial_plans),
+            "scene_direction_plan_contract": "scene_direction_plan/v1",
+            "scene_direction_plans": [
+                {"scene_number": int(scene.get("scene_number") or scene.get("scene_order") or index), **direction}
+                for index, (scene, direction) in enumerate(zip(scenes, directorial_plans), 1)
+            ],
             "image_grid_prompt_status": "ready",
             "image_grid_prompt_mode": "direct_2x2_only",
             "image_grid_prompts": grids,

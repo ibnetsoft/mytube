@@ -216,6 +216,7 @@ def _template_source_snapshot(scene: dict[str, Any], fallback: int) -> dict[str,
         "image_style": scene.get("image_style"),
         "ae_effect_plan": scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {},
         "ae_directorial_plan": scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {},
+        "scene_direction_plan": scene.get("scene_direction_plan") if isinstance(scene.get("scene_direction_plan"), dict) else {},
     }
 
 
@@ -413,6 +414,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
                              _grid_character_references(references, scene_cast, [_scene_number(s, i)])),
                          "image_style": s.get("image_style"),
                          "ae_directorial_plan": s.get("ae_directorial_plan") if isinstance(s.get("ae_directorial_plan"), dict) else {},
+                         "scene_direction_plan": s.get("scene_direction_plan") if isinstance(s.get("scene_direction_plan"), dict) else {},
                          "ae_effect_plan": s.get("ae_effect_plan") if isinstance(s.get("ae_effect_plan"), dict) else {},
                          "image_generation_policy": s.get("image_generation_policy") if isinstance(s.get("image_generation_policy"), dict) else {},
                          "local_layer_plan": s.get("local_layer_plan") if isinstance(s.get("local_layer_plan"), dict) else {},

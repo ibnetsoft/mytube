@@ -250,6 +250,9 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     scenes = package["structure"]["scenes"]
     assert package["structure"]["scene_visual_director_persona"] == "scene_visual_director"
     assert all(scene["ae_directorial_plan"]["timed_beats"] for scene in scenes)
+    assert package["structure"]["scene_direction_plan_contract"] == "scene_direction_plan/v1"
+    assert len(package["structure"]["scene_direction_plans"]) == scene_count
+    assert all(scene["scene_direction_plan"]["primary_effect"] == "hold" for scene in scenes)
     assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02f_scene_visual_director", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
     assert package['structure']['dialogue_annotations']['model'] == 'gpt-6-astra'
     assert package["structure"]["character_reference_status"] == "ready"

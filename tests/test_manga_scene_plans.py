@@ -129,6 +129,52 @@ def test_explicit_template_geometry_and_timing_override_defaults():
     assert next(beat for beat in plan["beats"] if beat["action"] == "impact_flash")["at_seconds"] == 2.25
 
 
+def test_scene_direction_plan_drives_regular_image_motion_with_limits():
+    scene = {
+        **_scene(24, "The daughter notices the letter in her father's hand."),
+        "scene_direction_plan": {
+            "contract": "scene_direction_plan/v1", "scene_role": "clue_reveal",
+            "visual_strategy": "Guide attention to the letter.",
+            "focus_target": {"type": "prop", "layer": "prop_focus", "x": 0.73, "y": 0.61},
+            "primary_effect": "camera_move", "secondary_effects": ["light_flicker"],
+            "effect_limits": {"intensity": 0.2, "max_scale_delta": 0.01, "max_move_ratio": 0.008},
+            "ae_operations": ["camera_move", "light_flicker"], "timed_beats": [],
+            "fallback": "original_visual",
+        },
+    }
+
+    runner._plan_ae_motion_for_scenes([scene], {"category": "옛날이야기"})
+    plan = scene["ae_motion_plan"]
+    assert plan["scene_direction_plan"]["contract"] == "scene_direction_plan/v1"
+    assert plan["primary_effect"] == "camera_move"
+    assert plan["targets"][0]["x"] == 0.73
+    assert plan["intensity"] <= 0.2
+    assert abs(plan["motion"]["push"]) <= 0.01
+    assert abs(plan["motion"]["drift_x"]) <= 0.008
+    assert "warm_lantern_flicker" in plan["vfx"]
+
+
+def test_script_director_hold_is_not_replaced_by_keyword_highlight():
+    scene = {
+        **_scene(25, "A dramatic explosion and final truth are described in narration."),
+        "scene_direction_plan": {
+            "contract": "scene_direction_plan/v1", "scene_role": "narration",
+            "visual_strategy": "Hold so the narration carries the reveal.",
+            "focus_target": {"type": "scene_focus", "x": 0.5, "y": 0.5},
+            "primary_effect": "hold", "secondary_effects": [],
+            "effect_limits": {"intensity": 0.1, "max_scale_delta": 0, "max_move_ratio": 0},
+            "ae_operations": ["hold"], "timed_beats": [], "fallback": "original_visual",
+        },
+    }
+
+    assert runner._plan_ae_effects_for_scenes([scene], {"category": "무협"}) == []
+    assert scene["ae_effect_plan"]["reason"] == "script_director_uses_motion_plan"
+    runner._plan_ae_motion_for_scenes([scene], {"category": "무협"})
+    assert scene["ae_motion_plan"]["motion"] == {
+        "push": 0.0, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.0,
+    }
+
+
 def test_invalid_template_coordinates_fall_back_and_ordinary_scene_stays_ordinary():
     special = {
         **_scene(1, "기운이 그의 몸을 따라 흘렀다."),

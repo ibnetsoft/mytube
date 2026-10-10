@@ -639,7 +639,7 @@ def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[di
             key: job.scene.get(key)
             for key in ("scene_number", "scene_order", "scene_summary", "scene_situation", "scene_purpose",
                         "scene_emotion", "scene_text", "narration", "dialogue_annotations", "video_prompt",
-                        "ae_directorial_plan")
+                        "ae_directorial_plan", "scene_direction_plan")
             if job.scene.get(key) is not None
         }
         scene_context["duration_seconds"] = job.duration_seconds
@@ -674,6 +674,7 @@ def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[di
             raise AeReviewRequired("Scene direction needs prepared layers before AE: " + ", ".join(missing))
 
     job.scene["ae_directorial_plan"] = direction
+    job.scene["scene_direction_plan"] = direction
     plan_key = "ae_motion_plan" if job.plan_kind == "motion" else "ae_effect_plan"
     render_plan = job.scene.get(plan_key) if isinstance(job.scene.get(plan_key), dict) else {}
     operations = set(direction.get("ae_operations") or [])
@@ -682,8 +683,15 @@ def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[di
         vfx.append("warm_lantern_flicker")
     if "atmosphere_drift" in operations:
         vfx.append("atmospheric_haze")
-    render_plan = {**render_plan, "directorial_plan": direction,
+    focus = direction.get("focus_target") if isinstance(direction.get("focus_target"), dict) else {}
+    render_plan = {**render_plan, "directorial_plan": direction, "scene_direction_plan": direction,
                    "direction": direction.get("visual_strategy") or render_plan.get("direction"),
+                   "scene_role": direction.get("scene_role"),
+                   "primary_effect": direction.get("primary_effect"),
+                   "secondary_effects": direction.get("secondary_effects") or [],
+                   "effect_limits": direction.get("effect_limits") or {},
+                   "targets": [{"type": focus.get("type") or "directorial_focus",
+                                "x": focus.get("x", 0.5), "y": focus.get("y", 0.5)}],
                    "vfx": vfx}
     if "camera_move" not in operations:
         render_plan["motion"] = {"push": 0.0, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.0}
@@ -758,13 +766,24 @@ def _effect_plan(job: SceneJob) -> dict[str, Any]:
     else:
         plan = job.scene.get("ae_effect_plan") if isinstance(job.scene.get("ae_effect_plan"), dict) else {}
     palette = plan.get("palette") if isinstance(plan.get("palette"), dict) else {}
+    direction = plan.get("scene_direction_plan") if isinstance(plan.get("scene_direction_plan"), dict) else {}
+    if not direction:
+        direction = plan.get("directorial_plan") if isinstance(plan.get("directorial_plan"), dict) else {}
+    if not direction:
+        direction = job.scene.get("scene_direction_plan") if isinstance(job.scene.get("scene_direction_plan"), dict) else {}
+    limits = direction.get("effect_limits") if isinstance(direction.get("effect_limits"), dict) else {}
     motion = plan.get("motion") if isinstance(plan.get("motion"), dict) else {}
     targets = plan.get("targets") if isinstance(plan.get("targets"), list) else []
+    if not targets and isinstance(direction.get("focus_target"), dict):
+        targets = [direction["focus_target"]]
     primary_fallback = {"type": "focus", "x": 0.5, "y": 0.54}
     secondary_fallback = {"type": "energy", "x": 0.62, "y": 0.36}
     primary = _target_value(targets[0] if targets else plan.get("primary_target"), primary_fallback)
     secondary = _target_value(targets[1] if len(targets) > 1 else plan.get("secondary_target"), secondary_fallback)
-    intensity = _clamp_float(plan.get("intensity"), 0.7, 0.25, 1.0)
+    intensity = _clamp_float(plan.get("intensity"), 0.7, 0.0, 1.0)
+    intensity = min(intensity, _clamp_float(limits.get("intensity"), 0.65, 0.0, 0.65))
+    max_scale = _clamp_float(limits.get("max_scale_delta"), 0.08, 0.0, 0.08)
+    max_move = _clamp_float(limits.get("max_move_ratio"), 0.06, 0.0, 0.06)
     return {
         "preset": _safe_name(plan.get("preset"), job.preset),
         "plan_kind": job.plan_kind,
@@ -772,16 +791,21 @@ def _effect_plan(job: SceneJob) -> dict[str, Any]:
         "camera": str(plan.get("camera") or "slow_push_in"),
         "light": str(plan.get("light") or "cinematic_edge_light"),
         "vfx": [str(item) for item in (plan.get("vfx") if isinstance(plan.get("vfx"), list) else [])[:8]],
-        "directorial_plan": plan.get("directorial_plan") if isinstance(plan.get("directorial_plan"), dict) else {},
+        "directorial_plan": direction,
+        "scene_direction_plan": direction,
+        "scene_role": str(direction.get("scene_role") or "narration"),
+        "primary_effect": str(direction.get("primary_effect") or "hold"),
+        "secondary_effects": list(direction.get("secondary_effects") or []),
+        "effect_limits": limits,
         "primary": primary,
         "secondary": secondary,
         "primary_color": _color_value(palette.get("primary"), [0.58, 0.78, 1.0]),
         "accent_color": _color_value(palette.get("accent"), [0.25, 0.65, 1.0]),
         "flash_color": _color_value(palette.get("flash"), [0.86, 0.96, 1.0]),
         "intensity": min(intensity, 0.55) if job.plan_kind == "motion" else intensity,
-        "push": _clamp_float(motion.get("push"), 0.05, -0.08, 0.12),
-        "drift_x": _clamp_float(motion.get("drift_x"), -0.015, -0.06, 0.06),
-        "drift_y": _clamp_float(motion.get("drift_y"), -0.008, -0.06, 0.06),
+        "push": _clamp_float(motion.get("push"), 0.05, -max_scale, max_scale),
+        "drift_x": _clamp_float(motion.get("drift_x"), -0.015, -max_move, max_move),
+        "drift_y": _clamp_float(motion.get("drift_y"), -0.008, -max_move, max_move),
         "shake": _clamp_float(motion.get("shake"), 0.01, 0.0, 0.06),
         "transition_in": str(plan.get("transition_in") or "effect_reveal"),
         "transition_out": str(plan.get("transition_out") or "atmosphere_hold"),
@@ -1722,6 +1746,9 @@ def _render_job_unlocked(job: SceneJob, keep_workdir: bool = False) -> dict[str,
         "fps": DEFAULT_FPS,
         "direction_plan": direction_plan,
         "directorial_plan": uploaded_video_direction,
+        "scene_direction_plan": uploaded_video_direction or (
+            direction_plan.get("scene_direction_plan") if isinstance(direction_plan, dict) else None
+        ),
         "source_video_sha256": uploaded_video_sha256,
         "scene_visual_qa": scene_visual_qa,
         "quality_report": quality,
@@ -1812,6 +1839,7 @@ def process_job(job: SceneJob, *, keep_workdir: bool = False) -> dict[str, Any]:
         failed_direction = job.scene.get("ae_directorial_plan")
         if isinstance(failed_direction, dict) and failed_direction.get("source_video_review_status") == "reviewed":
             metadata[asset_key]["directorial_plan"] = failed_direction
+            metadata[asset_key]["scene_direction_plan"] = failed_direction
             metadata[asset_key]["source_video_sha256"] = failed_direction.get("source_video_sha256")
         scene[_status_key(job)] = failed_status
         _patch_job_structure(

@@ -77,7 +77,8 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
                 image: image ? { id: image.id, metadata: image.metadata } : null,
                 original_video: originalVideo ? { id: originalVideo.id, metadata: originalVideo.metadata } : null,
                 direction: { ae_motion_plan: source.ae_motion_plan || null, ae_effect_plan: source.ae_effect_plan || null,
-                    image_prompt: source.image_prompt || s.image_prompt || '', ae_directorial_plan: source.ae_directorial_plan || null },
+                    image_prompt: source.image_prompt || s.image_prompt || '', ae_directorial_plan: source.ae_directorial_plan || null,
+                    scene_direction_plan: source.scene_direction_plan || source.ae_directorial_plan || null },
             }]
         }),
     }

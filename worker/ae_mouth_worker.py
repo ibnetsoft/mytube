@@ -120,7 +120,7 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
                     'gcs_bucket': layered.get('gcs_bucket') or layered.get('storage_bucket') or 'air-studio-prod'}}
         if original.get('layered_source') != current_layered:
             return False
-        direction = {k: source.get(k) for k in ('ae_motion_plan', 'ae_effect_plan', 'ae_directorial_plan')}
+        direction = {k: source.get(k) for k in ('ae_motion_plan', 'ae_effect_plan', 'ae_directorial_plan', 'scene_direction_plan')}
         direction['image_prompt'] = source.get('image_prompt') or s.get('image_prompt') or ''
         if direction != original['direction'] or str(s.get('scene_text') or source.get('scene_text') or source.get('narration') or '') != original['text']:
             return False
