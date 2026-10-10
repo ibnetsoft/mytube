@@ -8837,7 +8837,7 @@ export default function StdPortalPage() {
                             </div>
 
                             {sidebarProgress}
-                    <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
+                    <nav className="std-sidebar-hidden-scrollbar flex-1 px-2 py-1 space-y-0 overflow-y-auto text-xs">
                                 {[
                                     { id: 'topic_submissions', label: t('nav_topic_submissions') },
                                     { id: 'topics', label: t('nav_topics') },
@@ -8855,7 +8855,7 @@ export default function StdPortalPage() {
                                                 setCurrentNav(item.id as any)
                                                 setMobileMenuOpen(false)
                                             }}
-                                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded text-left transition-all font-medium ${
+                                            className={`w-full flex items-center justify-between px-3 py-1 rounded text-left transition-all font-medium ${
                                                 active
                                                     ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-bold shadow-sm'
                                                     : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
@@ -8935,7 +8935,7 @@ export default function StdPortalPage() {
                     </div>
 
                     {sidebarProgress}
-                    <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto text-xs">
+                    <nav className="std-sidebar-hidden-scrollbar flex-1 px-2 py-1 space-y-0 overflow-y-auto text-xs">
                         {[
                             { id: 'topic_submissions', label: t('nav_topic_submissions') },
                             { id: 'topics', label: t('nav_topics') },
@@ -8950,7 +8950,7 @@ export default function StdPortalPage() {
                                 <button
                                     key={item.id}
                                     onClick={() => setCurrentNav(item.id as any)}
-                                    className={`w-full flex items-center justify-between px-3 py-2 rounded text-left transition-all font-medium ${
+                                    className={`w-full flex items-center justify-between px-3 py-1 rounded text-left transition-all font-medium ${
                                         active
                                             ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-bold shadow-sm'
                                             : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
