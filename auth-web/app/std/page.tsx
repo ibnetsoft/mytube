@@ -208,7 +208,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
-import { directedEyeBlinkPlan } from '@/lib/stdSceneDirection'
+import { sceneDirectionBadges } from '@/lib/stdSceneDirection'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
@@ -9559,9 +9559,11 @@ export default function StdPortalPage() {
                                                 const groupVoiceNames = subtitleGroupVoiceNamesInOrder(group.subtitles)
                                                 const hasSingleGroupVoice = groupVoiceNames.length === 1
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
-                                                const eyeBlinkPlan = directedEyeBlinkPlan(
+                                                const directionBadges = sceneDirectionBadges(
                                                     [sceneRecord, ...getProjectPayloadScenes()], Number(sNum)
                                                 )
+                                                const visibleDirectionBadges = directionBadges.slice(0, 3)
+                                                const hiddenDirectionBadges = directionBadges.slice(3)
                                                 const transitionEffect = String(sceneRecord?.metadata?.transition_effect || sceneRecord?.transition_effect || '')
                                                 const motionEffect = sceneMotion(sceneRecord)
                                                 const workerVideo = isWorkerSceneVideo(sceneVideos.get(Number(sNum)))
@@ -9682,13 +9684,39 @@ export default function StdPortalPage() {
                                                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
                                                                     Scene {sNum}
                                                                 </span>
-                                                                {eyeBlinkPlan && (
+                                                                {visibleDirectionBadges.map((badge: any) => {
+                                                                    const BadgeIcon = badge.kind === 'eye' ? Eye
+                                                                        : badge.kind === 'mouth' ? Mic
+                                                                        : badge.kind === 'parallax' ? LayoutTemplate
+                                                                        : badge.kind === 'motion' ? Wand2
+                                                                        : badge.kind === 'camera' ? Video
+                                                                        : badge.kind === 'light' ? Sparkles
+                                                                        : badge.kind === 'atmosphere' ? ImageIcon
+                                                                        : AlertCircle
+                                                                    const badgeStyle = badge.state === 'verified'
+                                                                        ? 'bg-cyan-500/15 text-cyan-200'
+                                                                        : badge.state === 'needs_review'
+                                                                        ? 'bg-amber-500/15 text-amber-200'
+                                                                        : 'bg-white/10 text-gray-300'
+                                                                    const badgeTitle = `${ui(badge.label)}${badge.detail ? ` · ${ui(badge.detail)}` : ''}`
+                                                                    return (
                                                                     <span
-                                                                        title={`${ui('눈 깜빡임 연출')}${eyeBlinkPlan.character ? ` · ${eyeBlinkPlan.character}` : ''}`}
-                                                                        aria-label={ui('눈 깜빡임 연출')}
-                                                                        className="inline-flex h-5 w-5 items-center justify-center rounded bg-fuchsia-500/15 text-fuchsia-200"
+                                                                        key={`${sNum}-${badge.kind}`}
+                                                                        title={badgeTitle}
+                                                                        aria-label={badgeTitle}
+                                                                        className={`inline-flex h-5 w-5 items-center justify-center rounded ${badgeStyle}`}
                                                                     >
-                                                                        <Eye aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                                                        <BadgeIcon aria-hidden="true" className="h-3.5 w-3.5" strokeWidth={2.2} />
+                                                                    </span>
+                                                                    )
+                                                                })}
+                                                                {hiddenDirectionBadges.length > 0 && (
+                                                                    <span
+                                                                        title={hiddenDirectionBadges.map((badge: any) => `${ui(badge.label)}${badge.detail ? ` · ${ui(badge.detail)}` : ''}`).join('\n')}
+                                                                        aria-label={ui('추가 연출 {count}개', { count: hiddenDirectionBadges.length })}
+                                                                        className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-white/10 px-1 text-[9px] font-bold text-gray-300"
+                                                                    >
+                                                                        +{hiddenDirectionBadges.length}
                                                                     </span>
                                                                 )}
                                                                 {isVrewSubtitleMode && segmentStatus && (

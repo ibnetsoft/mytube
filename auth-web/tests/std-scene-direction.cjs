@@ -15,3 +15,21 @@ test('legacy AE direction and nested metadata remain readable',()=>{
  const plan={enabled:true,cues:[{at_seconds:1,type:'single'}]}
  assert.equal(exportsObject.directedEyeBlinkPlan([{scene_order:19,metadata:{ae_directorial_plan:{eye_blink_plan:plan}}}],19),plan)
 })
+
+test('direction badges expose planned, verified and review states in a stable order',()=>{
+ const scene={scene_number:25,scene_direction_plan:{
+  eye_blink_plan:{enabled:true,character:'お鈴',cues:[{at_seconds:2.4}]},
+  ae_operations:['camera_move','depth_parallax','light_flicker','atmosphere_drift'],
+  required_layers:['background','character','foreground'],focus_target:{reason:'speaker face'}},
+  metadata:{cowork_image_asset:{speaker_geometry:{eye_blink:{state:'ready'},speakers:[
+   {speaker:'お鈴',status:'visible',mouth_box:[.4,.4,.45,.43]}]}},psd_layer_asset:{qa_status:'pending'}}}
+ const badges=exportsObject.sceneDirectionBadges([scene],25)
+ assert.deepEqual(badges.map(b=>[b.kind,b.state]),[
+  ['eye','verified'],['review','needs_review'],['mouth','verified'],['parallax','needs_review'],
+  ['camera','planned'],['light','planned'],['atmosphere','planned']])
+ assert.match(badges[0].detail,/2.4초/);assert.match(badges[1].detail,/패럴랙스/)
+})
+
+test('scenes without saved direction or geometry show no badges',()=>{
+ assert.deepEqual(exportsObject.sceneDirectionBadges([{scene_number:25}],25),[])
+})
