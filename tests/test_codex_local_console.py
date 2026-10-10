@@ -104,6 +104,15 @@ def test_layer_scene_range_requires_complete_ordered_bounds():
         )
 
 
+def test_direction_profile_is_validated():
+    request = console.StartRequest(
+        mode='new', title='test', category='story', direction_profile='vertical_webtoon_speed',
+    )
+    assert request.direction_profile == 'vertical_webtoon_speed'
+    with pytest.raises(ValueError):
+        console.StartRequest(mode='new', title='test', category='story', direction_profile='unknown')
+
+
 def test_submission_is_protected_and_background_is_not_final():
     row = {'id': 'p', 'status': 'submitted', 'employee_email': 'owner@example.com',
            'project_payload': {'script': 'text'}, 'progress_payload': {'thumbnail_bg_url': 'https://example.com/bg.png'}}

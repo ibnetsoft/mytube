@@ -95,6 +95,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'era_region': setting['era_region'],
                    'image_style': setting['image_style_en'],
                    'content_setting': setting,
+                   'production_mode': request.get('production_mode') or 'standard',
+                   'direction_profile': request.get('direction_profile') or 'auto',
                    'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
                    'image_layer_scene_start': request.get('image_layer_scene_start'),
                    'image_layer_scene_end': request.get('image_layer_scene_end'),
@@ -111,6 +113,7 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
         package['era_region'] = setting['era_region']
         package['image_style'] = setting['image_style']
         package['content_setting'] = setting
+        package['direction_profile'] = package.get('structure', {}).get('direction_profile')
         package['ae_scene_delivery'] = payload['ae_scene_delivery']
         package['structure']['ae_scene_delivery'] = payload['ae_scene_delivery']
         package['render_settings'] = {

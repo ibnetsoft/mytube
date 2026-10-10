@@ -634,6 +634,15 @@ def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[di
     else:
         from codex_content_runner import CodexStagedContentRunner
         from scene_visual_director import PERSONA, validate_directorial_plans
+        from directing_profiles import resolve_directing_profile
+
+        existing_plan = job.scene.get("scene_direction_plan") if isinstance(job.scene.get("scene_direction_plan"), dict) else {}
+        requested_profile = str(existing_plan.get("direction_profile") or "").strip()
+        profile_source = {
+            **job.structure,
+            **({"direction_profile": requested_profile} if requested_profile else {}),
+        }
+        direction_profile = resolve_directing_profile(profile_source)
 
         scene_context = {
             key: job.scene.get(key)
@@ -651,13 +660,19 @@ def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[di
         result = CodexStagedContentRunner()._stage(
             f"ae-video-{_safe_name(job.topic_id)}-{job.scene_number:03d}-{source_sha256[:12]}",
             "02g_uploaded_video_scene_director",
-            {"scenes": [scene_context], "_local_image_paths": frame_paths},
-            PERSONA + "\n\nReview the attached frames from this exact uploaded clip in timestamp order. "
+            {"scenes": [scene_context],
+             "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
+             "_local_image_paths": frame_paths},
+            PERSONA + "\n\nACTIVE DIRECTING PROFILE — " + direction_profile["label"]
+            + " (" + direction_profile["id"] + "):\n" + direction_profile["directive"]
+            + "\n\nReview the attached frames from this exact uploaded clip in timestamp order. "
             "Return one final scene_directions item with source_video_reviewed=true. "
             "Use no storyboard frames. Keep timed beats tied to visible moments in the attached footage. "
             "Return {'scene_directions':[...]} only.",
         )
-        normalized = validate_directorial_plans([scene_context], result)
+        normalized = validate_directorial_plans(
+            [scene_context], result, direction_profile=direction_profile["id"]
+        )
         direction = {**normalized[0], "source_video_sha256": source_sha256,
                      "review_frame_timestamps_seconds": timestamps}
         if direction.get("source_video_review_status") != "reviewed":

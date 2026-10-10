@@ -115,7 +115,9 @@ def _effect_selection(raw: dict[str, Any], operations: list[str]) -> tuple[str, 
     return primary, secondary
 
 
-def validate_directorial_plans(scenes: list[dict[str, Any]], result: Any) -> list[dict[str, Any]]:
+def validate_directorial_plans(
+    scenes: list[dict[str, Any]], result: Any, *, direction_profile: str = "standard",
+) -> list[dict[str, Any]]:
     """Validate timed directions without imposing generated storyboard frames."""
     plans = result.get("scene_directions") if isinstance(result, dict) else None
     if not isinstance(plans, list) or len(plans) != len(scenes):
@@ -123,7 +125,7 @@ def validate_directorial_plans(scenes: list[dict[str, Any]], result: Any) -> lis
     normalized: list[dict[str, Any]] = []
     allowed = ALLOWED_OPERATIONS
     known_layers = {
-        "background", "character", "character_left", "character_center", "character_right",
+        "background", "foreground", "character", "character_left", "character_center", "character_right",
         "hand_foreground", "talisman", "reflection_scene", "training_prop", "title_backdrop",
         "debris", "qi_overlay", "ink_splat", "speedlines", "lens_glint", "light_core", "light_rays",
         "pose_sleeping", "pose_waking", "pose_turning", "pose_resting", "blanket", "shoji",
@@ -192,6 +194,7 @@ def validate_directorial_plans(scenes: list[dict[str, Any]], result: Any) -> lis
             "contract": "scene_direction_plan/v1",
             "status": "planned",
             "persona": "scene_visual_director",
+            "direction_profile": direction_profile,
             "scene_role": scene_role,
             "dramatic_intent": intent,
             "visual_strategy": str(raw.get("visual_strategy") or "").strip(),

@@ -299,6 +299,7 @@ class StartRequest(BaseModel):
     era_region: str = Field(default='현대 지방 소도시', max_length=120)
     image_style: str = Field(default='실사', max_length=80)
     production_mode: Literal['standard', 'moving_comic'] = 'standard'
+    direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)

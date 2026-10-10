@@ -36,6 +36,7 @@ from worker.content_language import (
     visual_setting_prompt,
 )
 from scene_visual_director import PERSONA as SCENE_VISUAL_DIRECTOR_PERSONA, validate_directorial_plans
+from directing_profiles import resolve_directing_profile
 from character_continuity import validate_character_identity, scene_continuity_prompt, character_design_anchors
 
 
@@ -2250,7 +2251,9 @@ class CodexStagedContentRunner:
             task += '\n' + language_directive(output_language(context))
         source_summary = name == '02_topic_source_analysis'
         model = 'gpt-5.6-sol' if source_summary else (ASTRA_MODEL if name.startswith('02') else self.config.model)
-        reasoning = 'low' if source_summary else None
+        reasoning = 'low' if source_summary else (
+            'high' if name in {'02f_scene_visual_director', '02g_uploaded_video_scene_director'} else None
+        )
         work_dir = OUTPUT_DIR / "codex_stage_requests"
         work_dir.mkdir(parents=True, exist_ok=True)
         # Changed instructions, rewritten text and QA feedback must never hit an old response.
@@ -2306,7 +2309,7 @@ class CodexStagedContentRunner:
             if model:
                 command.extend(["--model", model])
             if reasoning:
-                command.extend(['-c', 'model_reasoning_effort="low"'])
+                command.extend(['-c', f'model_reasoning_effort="{reasoning}"'])
             # --image accepts multiple arguments. Reserve the positional prompt before
             # attachments and send Unicode instructions over stdin instead of argv.
             command.append('-')
@@ -2527,8 +2530,10 @@ class CodexStagedContentRunner:
                 if attempt:
                     raise CodexContentError(str(exc)) from exc
                 dialogue_context['validation_feedback'] = str(exc)
+        direction_profile = resolve_directing_profile(payload)
         visual_context = {
             **script_context,
+            "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
             "script": script,
             "scenes": [{key: scene.get(key) for key in (
                 "scene_number", "duration_seconds", "scene_summary", "scene_situation",
@@ -2538,7 +2543,9 @@ class CodexStagedContentRunner:
         }
         visual_result = self._stage(
             job_id, "02f_scene_visual_director", visual_context,
-            SCENE_VISUAL_DIRECTOR_PERSONA + "\n\nFor every supplied scene return one scene_directions item "
+            SCENE_VISUAL_DIRECTOR_PERSONA + "\n\nACTIVE DIRECTING PROFILE — "
+            + direction_profile["label"] + " (" + direction_profile["id"] + "):\n"
+            + direction_profile["directive"] + "\n\nFor every supplied scene return one scene_directions item "
             "in order. Each item must contain dramatic_intent, visual_strategy, timed_beats (start_seconds, "
             "end_seconds, action, target, optional attention_target), required_layers (empty when no separated "
             "asset is needed), optional additional_keyframes (only individually justified layers, never a timed "
@@ -2550,7 +2557,7 @@ class CodexStagedContentRunner:
             "also appear in ae_operations. Use hold as the primary effect when motion does not improve the story. "
             "Avoid repeating the same conspicuous primary effect in adjacent scenes. Set "
             "source_video_reviewed=true only when actual uploaded-clip keyframes are supplied. Use only the "
-            "persona's operation allowlist and these layer roles: background, "
+            "persona's operation allowlist and these layer roles: background, foreground, "
             "character, character_left, character_center, character_right, hand_foreground, talisman, "
             "reflection_scene, training_prop, title_backdrop, debris, qi_overlay, ink_splat, speedlines, "
             "lens_glint, light_core, light_rays, pose_sleeping, pose_waking, pose_turning, pose_resting, "
@@ -2563,7 +2570,9 @@ class CodexStagedContentRunner:
             "Return {'scene_directions':[...]} only.",
         )
         try:
-            directorial_plans = validate_directorial_plans(scenes, visual_result)
+            directorial_plans = validate_directorial_plans(
+                scenes, visual_result, direction_profile=direction_profile["id"]
+            )
         except ValueError as exc:
             raise CodexContentError(f"scene visual direction rejected: {exc}") from exc
         for scene, direction in zip(scenes, directorial_plans):
@@ -2615,6 +2624,7 @@ class CodexStagedContentRunner:
             structure.update({
                 "scene_visual_direction_status": "planned",
                 "scene_visual_director_persona": "scene_visual_director",
+                "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
                 "scene_visual_direction_count": len(directorial_plans),
                 "scene_direction_plan_contract": "scene_direction_plan/v1",
                 "scene_direction_plans": [
@@ -2771,6 +2781,7 @@ class CodexStagedContentRunner:
         structure.update({
             "scene_visual_direction_status": "planned",
             "scene_visual_director_persona": "scene_visual_director",
+            "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
             "scene_visual_direction_count": len(directorial_plans),
             "scene_direction_plan_contract": "scene_direction_plan/v1",
             "scene_direction_plans": [

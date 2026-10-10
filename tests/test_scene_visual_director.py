@@ -4,6 +4,25 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
 
 from scene_visual_director import validate_directorial_plans
+from directing_profiles import resolve_directing_profile
+
+
+def test_directing_profile_auto_selection_and_explicit_override():
+    japanese = resolve_directing_profile({
+        "language": "ja", "category_name": "日本昔話", "setting_country": "日本",
+    })
+    webtoon = resolve_directing_profile({
+        "language": "ko", "production_mode": "moving_comic", "image_style": "웹툰",
+    })
+    explicit = resolve_directing_profile({
+        "language": "ja", "setting_country": "日本", "direction_profile": "standard",
+    })
+
+    assert japanese["id"] == "japanese_folktale"
+    assert japanese["selection"] == "automatic"
+    assert webtoon["id"] == "vertical_webtoon_speed"
+    assert explicit["id"] == "standard"
+    assert explicit["selection"] == "explicit"
 
 
 def test_director_accepts_video_first_plan_without_generated_storyboard():
@@ -27,6 +46,7 @@ def test_director_accepts_video_first_plan_without_generated_storyboard():
     assert plans[0]["source_video_review_status"] == "reviewed"
     assert plans[0]["required_layers"] == []
     assert plans[0]["contract"] == "scene_direction_plan/v1"
+    assert plans[0]["direction_profile"] == "standard"
     assert plans[0]["primary_effect"] == "hold"
     assert plans[0]["secondary_effects"] == []
     assert plans[0]["focus_target"]["x"] == 0.5

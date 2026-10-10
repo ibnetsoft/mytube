@@ -233,6 +233,7 @@ $('new-form').onsubmit=e=>{
   start({
     mode:'new',
     production_mode:form.get('production_mode')||'standard',
+    direction_profile:form.get('direction_profile')||'auto',
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
     image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
     image_layer_scene_end:form.get('image_layer_scene_end')?Number(form.get('image_layer_scene_end')):null,
@@ -260,6 +261,8 @@ async function showJob(id,origin='dedicated'){const revision=++resultRevision;tr
   $('result').hidden=false;
   $('result-title').textContent=data.job.title;
   let statusText = (labels[data.job.status]||data.job.status)+' · '+data.job.stage+(data.job.error?' · '+data.job.error:'');
+  const directionProfile=data.result_data?.structure?.direction_profile;
+  if(directionProfile?.label)statusText+=' · 연출 '+directionProfile.label;
   if(data.sfx_summary&&data.sfx_summary.status!=='not_run') statusText+=' · 효과음 '+data.sfx_summary.status+' / '+data.sfx_summary.count+'개 / 재검토 '+data.sfx_summary.review_count+'개';
   if(data.result_data?.comic_plan){const plan=data.result_data.comic_plan;statusText+=' · 무빙툰 '+plan.pages.length+'페이지 / 영상화 '+plan.scenes.filter(s=>s.motion==='video').length+'씬';}
   $('result-status').textContent=displayLabel(statusText);

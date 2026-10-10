@@ -127,6 +127,8 @@ def test_api_job_persistence_and_restart(tmp_path, monkeypatch):
     ('02_topic_candidates', 'gpt-6-astra'),
     ('02_script', 'gpt-6-astra'),
     ('02_grounded_write', 'gpt-6-astra'),
+    ('02f_scene_visual_director', 'gpt-6-astra'),
+    ('02g_uploaded_video_scene_director', 'gpt-6-astra'),
 ])
 def test_summary_model_routing(monkeypatch, tmp_path, stage, expected):
     import subprocess
@@ -141,7 +143,12 @@ def test_summary_model_routing(monkeypatch, tmp_path, stage, expected):
     runner.CodexStagedContentRunner(runner.CodexContentConfig('codex', 'other-model', 60))._stage('test', stage, {}, 'Test')
     command = calls[0]
     assert command[command.index('--model') + 1] == expected
-    assert ('model_reasoning_effort="low"' in command) == (stage == '02_topic_source_analysis')
+    if stage == '02_topic_source_analysis':
+        assert 'model_reasoning_effort="low"' in command
+    elif stage in {'02f_scene_visual_director', '02g_uploaded_video_scene_director'}:
+        assert 'model_reasoning_effort="high"' in command
+    else:
+        assert not any('model_reasoning_effort=' in part for part in command)
 
 
 @pytest.mark.parametrize('language', ['ko', 'en', 'ja', 'es'])
