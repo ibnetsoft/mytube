@@ -21,6 +21,12 @@ def test_image_page_groups_all_configured_video_scenes_before_collapsed_body():
     assert "초반 1분 필수 영상 구간" not in STD_PAGE
 
 
+def test_image_page_explains_continuous_and_cut_video_workflows():
+    assert "getSceneVideoTransitionPlan" in STD_PAGE
+    assert "현재 씬 이미지를 시작 프레임, 다음 씬 이미지를 종료 프레임" in STD_PAGE
+    assert "다음 씬과 보간하지 마세요" in STD_PAGE
+
+
 def test_existing_video_assets_are_preferred_over_scene_images():
     assert "const sceneId = String(scene?.id || scene?.metadata?.scene_id || '').trim()" in STD_PAGE
     assert "String(asset?.scene_id || '').trim() === sceneId" in STD_PAGE

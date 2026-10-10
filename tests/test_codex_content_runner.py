@@ -22,6 +22,21 @@ def test_required_video_scene_count_is_clamped_to_generated_scenes():
     assert runner_module._required_video_scene_count({}, 100) == 18
 
 
+def test_video_transition_plan_reuses_next_scene_only_for_continuous_boundaries():
+    scenes = [
+        {"transition_to_next": "continuous"},
+        {"transition_to_next": "cut"},
+        {"transition_to_next": "continuous"},
+    ]
+    runner_module._normalize_video_transition_plans(scenes, 3)
+    assert scenes[0]["video_keyframe_plan"]["start_frame"]["scene_number"] == 1
+    assert scenes[0]["video_keyframe_plan"]["end_frame"] == {
+        "source": "next_scene_image", "scene_number": 2,
+    }
+    assert scenes[1]["video_keyframe_plan"]["end_frame"]["source"] == "hard_cut"
+    assert scenes[2]["transition_to_next"] == "cut"
+
+
 def test_final_review_receives_only_current_script_version():
     old = {'language': 'ja', 'story_spine_contract': 'fixed story',
            'structure': {'scenes': [{'narration': 'old draft', 'duration_seconds': 5}]},

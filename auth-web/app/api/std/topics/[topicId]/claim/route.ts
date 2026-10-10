@@ -24,6 +24,10 @@ function toProjectSceneRow(scene: any, projectId: string) {
         duration_seconds: scene?.duration_seconds || scene?.target_duration || null,
         target_duration: scene?.target_duration || null,
         video_prompt_required: scene?.video_prompt_required ?? null,
+        transition_to_next: scene?.transition_to_next || scene?.video_keyframe_plan?.mode || 'cut',
+        video_keyframe_plan: scene?.video_keyframe_plan && typeof scene.video_keyframe_plan === 'object'
+            ? scene.video_keyframe_plan
+            : null,
         scene_summary: scene?.scene_summary || null,
         scene_situation: scene?.scene_situation || null,
         scene_emotion: scene?.scene_emotion || null,

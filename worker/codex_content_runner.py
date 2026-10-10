@@ -1183,6 +1183,44 @@ def _required_video_scene_count(payload: dict[str, Any] | None, scene_count: int
     return min(count, scene_count) if scene_count is not None else count
 
 
+def _normalize_video_transition_plans(scenes: list[Any], required_video_scene_count: int) -> None:
+    """Attach a safe, explicit keyframe contract to every required video scene."""
+    for index, scene in enumerate(scenes, 1):
+        if not isinstance(scene, dict):
+            continue
+        if index > required_video_scene_count:
+            scene.pop("video_keyframe_plan", None)
+            scene.pop("transition_to_next", None)
+            continue
+        existing_plan = scene.get("video_keyframe_plan") if isinstance(scene.get("video_keyframe_plan"), dict) else {}
+        raw_mode = str(
+            scene.get("transition_to_next")
+            or scene.get("transition_type")
+            or existing_plan.get("mode")
+            or "cut"
+        ).strip().lower()
+        mode = "continuous" if raw_mode == "continuous" and index < len(scenes) else "cut"
+        scene["transition_to_next"] = mode
+        if mode == "continuous":
+            end_frame = {"source": "next_scene_image", "scene_number": index + 1}
+            instruction = (
+                f"Use scene {index} image as the start frame and scene {index + 1} image as the end frame. "
+                f"Generate the clip for scene {index}, then upload it to scene {index}."
+            )
+        else:
+            end_frame = {"source": "hard_cut", "scene_number": None}
+            instruction = (
+                f"Use scene {index} image as the start reference. Do not interpolate into the next scene; "
+                f"finish this shot independently and use a hard cut. Upload the clip to scene {index}."
+            )
+        scene["video_keyframe_plan"] = {
+            "mode": mode,
+            "start_frame": {"source": "scene_image", "scene_number": index},
+            "end_frame": end_frame,
+            "user_instruction": instruction,
+        }
+
+
 def _psd_layer_targets(scene_blob: str, targets: list[Any]) -> list[str]:
     result = ["background_plate", "foreground_subject_or_focus", "depth_matte"]
     if _scene_has_character_focus(scene_blob):
@@ -2005,6 +2043,7 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
             scene["video_generation_mode"] = "user_upload" if required else "image"
             if not required:
                 scene.pop("video_prompt", None)
+        _normalize_video_transition_plans(scenes, required_video_scene_count)
         package["structure"] = structure
         return package
     scenes = package.get("scenes") or []
@@ -2033,6 +2072,7 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
             scene["narration"] = str(scene.get("narration") or narration_by_scene.get(scene_number) or "").strip()
             if scene.get("sfx_cue") and not scene.get("sfx_cues"):
                 scene["sfx_cues"] = [scene["sfx_cue"]]
+    _normalize_video_transition_plans(scenes, required_video_scene_count)
     plan_rows = package.get("scene_structure") or []
     plan_by_scene = {
         int(item.get("scene_number") or index): item
@@ -2211,6 +2251,7 @@ Scenes 1-{required_video_scene_count} are user-uploaded video clips and must use
 ten seconds, scenes 31-45 are twelve seconds, scenes 46-60 are fifteen seconds,
 and scenes 61 onward are eighteen seconds unless the final remainder is shorter.
 Scenes 1-{required_video_scene_count} require video_prompt and retain image_prompt as the user's source for creating uploaded clips. Scenes after {required_video_scene_count} use image_prompt only.
+For every required video scene, set transition_to_next to exactly "continuous" or "cut". Use continuous only when the next scene preserves the same place, time, visible character identity, wardrobe, and a visually plausible camera/action continuation. Otherwise use cut. A continuous scene uses its own image as the start frame and the next scene image as the end frame. A cut scene uses its own image as the start reference and must not interpolate into the next scene.
 Never print timestamps or timecodes in the narration; duration_seconds is
 internal JSON metadata only.
 
@@ -2440,7 +2481,9 @@ class CodexStagedContentRunner:
             "protagonist_want, first_causal_problem, personal_stake, central_conflict, escalation, irreversible_turn, "
             "concrete_resolution, and final_changed_action. Every scene needs scene_order, scene_summary, "
             "scene_situation, scene_purpose, scene_emotion, character_choice, emotional_shift, reveal_or_question, "
-            "and duration_seconds. When the story action truly calls for it, a scene may name ae_template as "
+            "and duration_seconds. Every required video scene also needs transition_to_next set to continuous or cut. "
+            "Use continuous only when the next scene keeps the same place, time, visible character identity, wardrobe, "
+            "and a plausible visual continuation; otherwise use cut. When the story action truly calls for it, a scene may name ae_template as "
             "angled_triple_reaction (three characters reacting), body_following_qi (energy crossing a character's body "
             "after talisman contact), ink_splat_impact (talisman strike with timed impact lettering), "
             "wall_impact_debris (a body breaks a wall and ejects debris), glasses_reflection (another scene appears "
@@ -2466,6 +2509,7 @@ class CodexStagedContentRunner:
             scene.update({"scene_order": index, "scene_number": index, "duration_seconds": timing["duration_seconds"], "target_duration": timing["duration_seconds"], "video_prompt_required": index <= required_video_scene_count,
                           "visual_type": "video" if index <= required_video_scene_count else "image",
                           "video_generation_mode": "user_upload" if index <= required_video_scene_count else "image"})
+        _normalize_video_transition_plans(scenes, required_video_scene_count)
         structure = {"scene_count": len(scenes), "required_video_scene_count": required_video_scene_count,
                      "video_scenes": required_video_scene_count, "scenes": scenes, "story_core": plan.get("story_core") or {}}
         scene_budgets = _scene_char_budgets(scenes, payload)

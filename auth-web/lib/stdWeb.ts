@@ -325,6 +325,12 @@ export function buildStdScenes(topic: any) {
                 visual_type: requiresVideoPrompt ? 'video' : 'image',
                 video_prompt_required: requiresVideoPrompt,
                 video_generation_mode: requiresVideoPrompt ? 'user_upload' : 'image',
+                transition_to_next: requiresVideoPrompt
+                    ? firstText(scene?.transition_to_next, scene?.video_keyframe_plan?.mode, 'cut')
+                    : '',
+                video_keyframe_plan: requiresVideoPrompt && scene?.video_keyframe_plan && typeof scene.video_keyframe_plan === 'object'
+                    ? scene.video_keyframe_plan
+                    : null,
                 shot_hints: Array.isArray(scene?.shot_hints) ? scene.shot_hints : [],
                 metadata: scene || {},
             }
