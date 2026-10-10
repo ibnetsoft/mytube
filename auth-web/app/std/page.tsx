@@ -9681,9 +9681,6 @@ export default function StdPortalPage() {
                                                         </div>
                                                         <div className="w-full min-w-0 flex-none sm:flex-1">
                                                             <div className="mb-1 flex items-center gap-1 sm:gap-2">
-                                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
-                                                                    Scene {sNum}
-                                                                </span>
                                                                 {visibleDirectionBadges.map((badge: any) => {
                                                                     const BadgeIcon = badge.kind === 'eye' ? Eye
                                                                         : badge.kind === 'mouth' ? Mic
