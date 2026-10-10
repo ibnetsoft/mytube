@@ -449,6 +449,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'thumbnail_confirmed_at',
         'subtitles_saved',
         'subtitles_completed',
+        'subtitle_tts_completed',
+        'subtitle_tts_completed_at',
         'bgm_sfx_saved',
     ])
     const allowedProjectPayloadKeys = new Set([
@@ -597,6 +599,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 script_changed_requires_audio_regeneration: true,
                 tts_invalidated_at: new Date().toISOString(),
                 tts_invalidated_reason: 'script_changed',
+                subtitle_tts_completed: false,
+                subtitle_tts_completed_at: null,
                 ...(!Array.isArray(projectPayloadPatch.subtitles) ? {
                     subtitles_saved: false,
                     subtitles_completed: false,

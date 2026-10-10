@@ -26,7 +26,7 @@ test('shared status display supports Korean and Thai without raw AE labels',()=>
 })
 
 test('current project output completion overrides stale false topic flags',async()=>{
- const saved={...project,progress_payload:{tts_completed:true,subtitles_saved:true,thumbnail_completed:true}}
+ const saved={...project,progress_payload:{tts_completed:true,subtitles_saved:true,subtitles_completed:true,subtitle_tts_completed:true,thumbnail_completed:true}}
  const [topic]=await attachTopicWorkInfo(dbMock([saved],[image]),[{id:1,progress_payload:{steps:{tts:false,subtitle:false,template:false}}}])
  const {savedStdOutputStepStatus,topicOutputStepDone}=load('lib/stdOutputStepStatus.ts')
  assert.deepEqual(topic.work_info.outputSteps,savedStdOutputStepStatus(saved,[image]))
@@ -37,19 +37,30 @@ test('incomplete project outputs override stale true flags and invalidated audio
  const incomplete=savedStdOutputStepStatus({progress_payload:{tts_completed:true,script_changed_requires_audio_regeneration:true}})
  for(const key of ['tts','subtitle','template'])assert.equal(topicOutputStepDone(key,incomplete,{tts:true,subtitle:true,template:true}),false)
  assert.equal(topicOutputStepDone('tts',undefined,{tts:true}),true)
- const ready=savedStdOutputStepStatus({project_payload:{subtitles_saved:true}},[
+ const savedOnly=savedStdOutputStepStatus({project_payload:{subtitles_saved:true}},[
   {id:'audio',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'a.wav'}},
   {id:'thumb',asset_type:'thumbnail',status:'assigned',metadata:{storage_path:'t.png'}}])
- assert.equal(ready.isTtsDone,true);assert.equal(ready.isSubtitlesDone,true);assert.equal(ready.isThumbnailDone,true)
+ assert.equal(savedOnly.isTtsDone,true);assert.equal(savedOnly.isSubtitlesDone,false);assert.equal(savedOnly.isThumbnailDone,true)
+ const finalized=savedStdOutputStepStatus({progress_payload:{tts_completed:true,subtitle_tts_completed:true}})
+ assert.equal(finalized.isSubtitlesDone,true)
+ assert.equal(savedStdOutputStepStatus({progress_payload:{subtitle_tts_completed:true}}).isSubtitlesDone,false)
  const notReady=savedStdOutputStepStatus({},[{id:'thumb',asset_type:'thumbnail',status:'failed',metadata:{gcs_path:'old.png'}}])
  assert.equal(notReady.isThumbnailDone,false)
 })
 
-test('image status is shared for 12 opening videos and remaining stills, including stale topic flags',async()=>{
+test('regenerating narration clears the combined subtitle and TTS completion marker',()=>{
+ const {completedScriptTtsProgress}=load('lib/stdTtsCompletion.ts')
+ const next=completedScriptTtsProgress({subtitle_tts_completed:true,subtitle_tts_completed_at:'2026-10-10'},'same text','same text')
+ assert.equal(next.tts_completed,true)
+ assert.equal(next.subtitle_tts_completed,false)
+ assert.equal(next.subtitle_tts_completed_at,null)
+})
+
+test('image status is shared for 18 opening videos and remaining stills, including stale topic flags',async()=>{
  const {savedStdOutputStepStatus,topicOutputStepDone}=load('lib/stdOutputStepStatus.ts'),{summarizeStdProject}=load('lib/stdProjectStepStatus.ts')
  const scenes=Array.from({length:101},(_,i)=>({scene_number:i+1}))
  const p={...project,project_payload:{scenes,subtitles:[]}}
- const media=scenes.map(s=>({id:'media'+s.scene_number,project_id:'p1',scene_number:s.scene_number,asset_type:s.scene_number<=12?'video':'image',status:'uploaded',metadata:{gcs_path:'saved/'+s.scene_number}}))
+ const media=scenes.map(s=>({id:'media'+s.scene_number,project_id:'p1',scene_number:s.scene_number,asset_type:s.scene_number<=18?'video':'image',status:'uploaded',metadata:{gcs_path:'saved/'+s.scene_number}}))
  const [topic]=await attachTopicWorkInfo(dbMock([p],media),[{id:1,progress_payload:{steps:{image:false}}}])
  assert.equal(topic.work_info.outputSteps.isImageDone,true)
  assert.equal(topicOutputStepDone('image',topic.work_info.outputSteps,{image:false}),true)

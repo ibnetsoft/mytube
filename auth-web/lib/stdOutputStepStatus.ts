@@ -8,7 +8,9 @@ export function savedStdOutputStepStatus(project: any, assets: any[] = []) {
   a.metadata?.gcs_path || a.metadata?.storage_path || a.metadata?.gcs_signed_url || a.metadata?.gcs_public_url
  ))
  const isTtsDone = !progress.script_changed_requires_audio_regeneration && Boolean(payload.audio_url || payload.tts_url || progress.tts_completed || active.some(a => a.asset_type === 'audio'))
- const isSubtitlesDone = Boolean(progress.subtitles_saved || progress.subtitles_completed || payload.subtitles_saved)
+ // The subtitle step is complete only after the combined Save + TTS flow
+ // durably saves both the subtitles and the final narration.
+ const isSubtitlesDone = isTtsDone && progress.subtitle_tts_completed === true
  const isThumbnailDone = Boolean(payload.thumbnail_url || progress.thumbnail_url || progress.thumbnail_completed || active.some(a => a.asset_type === 'thumbnail'))
  return { ...savedStdVisualStepStatus(project, assets), isTtsDone, isSubtitlesDone, isThumbnailDone }
 }

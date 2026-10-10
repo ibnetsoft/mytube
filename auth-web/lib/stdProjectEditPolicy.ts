@@ -19,5 +19,5 @@ export function canEditStdProject(status: string, body: any): boolean {
     if (!isRecord(payload) || !isRecord(progress)) return false
     return Array.isArray(payload.subtitles)
         && Object.keys(payload).every(key => ['subtitles', 'subtitles_saved', 'script', 'render_settings'].includes(key))
-        && Object.keys(progress).every(key => ['subtitles_saved', 'subtitles_completed'].includes(key))
+        && Object.keys(progress).every(key => ['subtitles_saved', 'subtitles_completed', 'subtitle_tts_completed', 'subtitle_tts_completed_at'].includes(key))
 }

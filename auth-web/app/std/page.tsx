@@ -1680,7 +1680,9 @@ export default function StdPortalPage() {
                         allow_scene_update: true,
                         progress_payload: {
                             subtitles_saved: true,
-                            subtitles_completed: true,
+                            subtitles_completed: false,
+                            subtitle_tts_completed: false,
+                            subtitle_tts_completed_at: null,
                         },
                         project_payload: {
                             original_worker_script: originalWorkerScript,
@@ -3005,7 +3007,7 @@ export default function StdPortalPage() {
         setSubtitleSaveState('dirty')
     }
 
-    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal?: AbortSignal; strict?: boolean; renderSettings?: Record<string, any>; deletedScenes?: number[] }) => {
+    const persistVrewVoiceSubtitles = async (updatedSubtitles: any[], options?: { signal?: AbortSignal; strict?: boolean; renderSettings?: Record<string, any>; deletedScenes?: number[]; subtitleTtsCompleted?: boolean }) => {
         const projectId = selectedProject?.project?.id
         if (!projectId) {
             const error = new Error('저장할 프로젝트를 먼저 선택해 주세요.')
@@ -3026,7 +3028,12 @@ export default function StdPortalPage() {
             const project = await saveSubtitleProject(projectId, {
                 render_settings_scope: 'subtitle',
                 ...(options?.deletedScenes ? { deleted_subtitle_scene_numbers: options.deletedScenes } : {}),
-                progress_payload: { subtitles_saved: true, subtitles_completed: true },
+                progress_payload: {
+                    subtitles_saved: true,
+                    subtitles_completed: options?.subtitleTtsCompleted === true,
+                    subtitle_tts_completed: options?.subtitleTtsCompleted === true,
+                    subtitle_tts_completed_at: options?.subtitleTtsCompleted === true ? new Date().toISOString() : null,
+                },
                 project_payload: {
                     subtitles: updatedSubtitles, subtitles_saved: true,
                     ...(options?.renderSettings ? { render_settings: options.renderSettings } : {}),
@@ -6402,7 +6409,7 @@ export default function StdPortalPage() {
     }
 
     const generateTts = async (skipScriptSync: boolean = false, originScope = { ...mediaScopeRef.current }) => {
-        if (!selectedProject) return
+        if (!selectedProject) return false
         const requestScope = { ...originScope, projectId: selectedProject.project.id }
         const isCurrent = () => isCurrentMediaScope(requestScope, mediaScopeRef.current)
         const copy = ttsNoticeCopy(currentLocale)
@@ -6428,7 +6435,7 @@ export default function StdPortalPage() {
         if (!skipScriptSync && !(await ensureScriptSyncedBeforeAction())) {
             reportTts('error', copy.sync)
             setGeneratingTts(false)
-            return
+            return false
         }
         const voiceObj = allVoices.find(v => v.id === selectedVoice) || STD_DEFAULT_VOICE
         const ttsProvider = subtitleVoiceSegments().some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : selectedVoice.startsWith('google_') ? 'google_free' : 'elevenlabs'
@@ -6437,7 +6444,7 @@ export default function StdPortalPage() {
             setMessage(copy.empty)
             reportTts('error', copy.empty)
             setGeneratingTts(false)
-            return
+            return false
         }
 
         try {
@@ -6608,7 +6615,7 @@ export default function StdPortalPage() {
                     setTtsAudio(audioUrl)
                     reportTts('warning', copy.unsaved)
                     setMessage(copy.unsaved)
-                    return
+                    return false
                 }
                 persistedAudioAsset = payload.asset || null
 
@@ -6643,7 +6650,7 @@ export default function StdPortalPage() {
                 }
                 reportSavedTts(persistedAudioAsset, payload.segment_reuse, warnings)
                 if (payload.warning) console.warn('[STD TTS] generation warning:', payload.warning)
-                return
+                return Boolean(saved)
                 /*
                 // ElevenLabs TTS: 클라이언트에서 직접 API 호출 (Vercel 타임아웃 우회)
                 setMessage('🔑 API 키 확인 중...')
@@ -6735,6 +6742,7 @@ export default function StdPortalPage() {
             setTtsAudio(audioUrl)
             rememberPersistedAudioAsset(persistedAudioAsset)
             reportSavedTts(persistedAudioAsset)
+            return Boolean(persistedAudioAsset?.id && assetBelongsToProject(persistedAudioAsset, noticeProject.projectId))
         } catch (error: any) {
             setTtsAudio('')
             console.warn('[TTS generation]', error?.message)
@@ -6742,6 +6750,7 @@ export default function StdPortalPage() {
             reportTts('error', errorMessage)
             setMessage(`❌ ${errorMessage}`)
             alert(`${copy.ttsFailedTitle}: ${errorMessage}`)
+            return false
         } finally {
             setGeneratingTts(false)
         }
@@ -6921,7 +6930,12 @@ export default function StdPortalPage() {
         setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'running', detail: ttsNoticeCopy(currentLocale).saving })
         try {
             await handleSaveSubtitles(false)
-            await generateTts(true, requestScope)
+            const ttsSaved = await generateTts(true, requestScope)
+            if (!ttsSaved) return
+            await persistVrewVoiceSubtitles(speechSubtitlesRef.current, {
+                strict: true,
+                subtitleTtsCompleted: true,
+            })
         } catch (error: any) {
             setGeneratingTts(false)
             console.warn('[subtitle final save]', error?.message)
@@ -8769,10 +8783,6 @@ export default function StdPortalPage() {
 
                             <div className="p-3 border-b border-white/5 space-y-2.5 text-[11px]">
                                 <div className="flex items-center justify-between text-gray-400">
-                                    <span>{ui("모드")}</span>
-                                    <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">{ui("롱폼")}</span>
-                                </div>
-                                <div className="flex items-center justify-between text-gray-400">
                                     <span>{ui("언어")}</span>
                                     <div className="flex items-center gap-1.5">
                                         <button
@@ -8820,7 +8830,6 @@ export default function StdPortalPage() {
                             </div>
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
-                                <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
                                 <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
                                     className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
                                     {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
@@ -8835,7 +8844,6 @@ export default function StdPortalPage() {
                                     { id: 'image_gen', label: t('nav_image') },
                                     { id: 'subtitle_vrew', label: t('nav_subtitles') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
-                                    { id: 'music_missions', label: ui("음악 미션") },
                                     { id: 'template', label: t('nav_template') },
                                     { id: 'settings', label: t('nav_settings') },
                                 ].map((item) => {
@@ -8872,10 +8880,6 @@ export default function StdPortalPage() {
                 <StdCollapsibleSidebar locale={currentLocale}>
                     <div className="p-3 border-b border-white/10">{sidebarAccount}</div>
                     <div className="p-3 border-b border-white/5 space-y-2 text-[11px]">
-                        <div className="flex items-center justify-between text-gray-400">
-                            <span>{ui("모드")}</span>
-                            <span className="px-2 py-0.5 bg-[#202632] text-gray-200 rounded font-bold border border-white/5">{ui("롱폼")}</span>
-                        </div>
                         <div className="flex items-center justify-between text-gray-400">
                             <span>{ui("언어")}</span>
                             <div className="flex items-center gap-1.5">
@@ -8924,7 +8928,6 @@ export default function StdPortalPage() {
                     </div>
 
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
-                        <label className="text-[10px] font-bold text-gray-400 block mb-1">{t('active_project')}</label>
                         <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
                             className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
                             {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
@@ -8939,7 +8942,6 @@ export default function StdPortalPage() {
                             { id: 'image_gen', label: t('nav_image') },
                             { id: 'subtitle_vrew', label: t('nav_subtitles') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
-                            { id: 'music_missions', label: ui("음악 미션") },
                             { id: 'template', label: t('nav_template') },
                             { id: 'settings', label: t('nav_settings') },
                         ].map((item) => {

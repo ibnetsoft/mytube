@@ -2,7 +2,14 @@
 export function completedScriptTtsProgress(progress: any, generatedText: string, scriptText: string) {
     const normalize = (text: string) => String(text || '').replace(/\s+/g, '')
     if (!normalize(scriptText) || normalize(generatedText) !== normalize(scriptText)) return { ...progress }
-    const next = { ...progress, has_tts_audio: true, tts_completed: true, script_changed_requires_audio_regeneration: false }
+    const next = {
+        ...progress,
+        has_tts_audio: true,
+        tts_completed: true,
+        script_changed_requires_audio_regeneration: false,
+        subtitle_tts_completed: false,
+        subtitle_tts_completed_at: null,
+    }
     delete next.tts_invalidated_at
     delete next.tts_invalidated_reason
     return next

@@ -83,6 +83,7 @@ function harness(locale = 'ko') {
         })
     const handleSaveSubtitles = extract('    const handleSaveSubtitles =', '    const openProject =', 'handleSaveSubtitles', {
         ...context, ...actions, matchSubtitlesToSceneVisuals,
+        templateOverlaySettings: async settings => settings,
         subtitleRenderSettings: () => ({ subtitle_font_family: 'NanumSquare', subtitle_font_size: 5.4 }),
     })
     function confirm(index) {
@@ -214,7 +215,12 @@ test('manual save persists current edited rows, metadata and render settings wit
     assert.deepEqual(request.body.project_payload.render_settings, {
         existing_setting: 'keep', subtitle_font_family: 'NanumSquare', subtitle_font_size: 5.4,
     })
-    assert.deepEqual(request.body.progress_payload, { subtitles_saved: true, subtitles_completed: true })
+    assert.deepEqual(request.body.progress_payload, {
+        subtitles_saved: true,
+        subtitles_completed: false,
+        subtitle_tts_completed: false,
+        subtitle_tts_completed_at: null,
+    })
     assert.equal(h.state.ttsCalls, 0)
     assert.ok(!h.state.messages.includes(ttsNoticeCopy('ko').subtitleSaved))
     h.confirm(0)
