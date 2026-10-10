@@ -25,17 +25,35 @@ async function context(req: Request, id: string) {
     return { project: project.data, assets: assets.data || [] }
 }
 
+const characterLocales = ['ko', 'en', 'vi', 'th'] as const
+
 function sceneCharacters(project: any, number: number) {
-    const payload = project.project_payload || {}, structure = payload.structure || {}
+    const payload = project.project_payload || {}, sourcePayload = project.source_payload || {}, structure = payload.structure || {}
     const entry = (structure.scene_cast || []).find((row: any) => Number(row.scene_number) === number)
     const scene = (structure.scenes || []).find((row: any) => Number(row.scene_number ?? row.scene_order) === number)
     const name = (value: any) => String(typeof value === 'string' ? value : value?.name || value?.character_name || '').trim()
-    return [...new Set<string>([
+    const canonical = [...charactersFromPayload(payload), ...charactersFromPayload(sourcePayload)]
+    const sources = [
         ...(entry?.characters || []),
         ...(scene?.characters || scene?.cast || []),
-        ...charactersFromPayload(payload),
-        ...charactersFromPayload(project.source_payload),
-    ].map(name).filter(Boolean))]
+        ...canonical,
+    ]
+    const options = new Map<string, { name: string; labels: Partial<Record<typeof characterLocales[number], string>> }>()
+    for (const source of sources) {
+        const original = name(source)
+        if (!original) continue
+        const option = options.get(original) || { name: original, labels: {} }
+        const matches = [source, ...canonical.filter(character => name(character) === original)]
+        for (const locale of characterLocales) {
+            const direct = matches.map(character => String(character?.[`name_${locale}`] || '').trim()).find(Boolean)
+            const cached = [payload, sourcePayload]
+                .map(item => String(item?.speaker_name_translations?.[locale]?.[original] || '').trim()).find(Boolean)
+            const localized = direct || cached
+            if (localized && localized !== original) option.labels[locale] = localized
+        }
+        options.set(original, option)
+    }
+    return [...options.values()]
 }
 
 function scenes(ctx: any) {
