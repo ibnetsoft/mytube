@@ -143,7 +143,24 @@ const thai: Record<string, string> = {
     "YouTube 검색에 실패했습니다. 검색 조건을 확인하거나 잠시 후 다시 시도하세요.": "ค้นหา YouTube ไม่สำเร็จ ตรวจสอบเงื่อนไขหรือทดลองใหม่ภายหลัง",
     "토픽 목록을 불러오지 못했습니다.": "โหลดรายการหัวข้อไม่ได้",
     "카테고리 목록을 불러오지 못했습니다.": "โหลดหมวดหมู่ไม่ได้",
-    "토픽 저장에 실패했습니다. 다시 시도하세요.": "บันทึกหัวข้อไม่สำเร็จ โปรดลองอีกครั้ง"
+    "토픽 저장에 실패했습니다. 다시 시도하세요.": "บันทึกหัวข้อไม่สำเร็จ โปรดลองอีกครั้ง",
+    "원본 주제 내용": "เนื้อหาหัวข้อต้นฉบับ",
+    "씬 구성": "โครงสร้างฉาก",
+    "총 {count}개 씬 구조": "โครงสร้างทั้งหมด {count} ฉาก",
+    "초반 1분 훅": "ช่วงดึงดูดใน 1 นาทีแรก",
+    "1~12씬 5초 비디오": "ฉาก 1–12 เป็นวิดีโอ 5 วินาที",
+    "추천 화풍": "สไตล์ภาพที่แนะนำ",
+    "정통 시대극 셀화": "ภาพเซลล์ย้อนยุคแบบดั้งเดิม",
+    "Cinematic / Ghibli": "ภาพยนตร์ / จิบลิ",
+    "안내 사항": "คำแนะนำ",
+    "이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.": "เมื่อเริ่มหัวข้อนี้ ระบบจะบันทึกเป็นโปรเจกต์ที่ใช้งานทันที และเชื่อมต่อไปยังขั้นตอนบท พรอมต์ฉาก เสียง การแบ่งคำบรรยายหนึ่งบรรทัด และภาพขนาดย่อ",
+    "정산 수당": "ค่าตอบแทน",
+    "{count}분 롱폼": "วิดีโอยาว {count} นาที",
+    "{count}분 영상": "วิดีโอ {count} นาที",
+    "취소": "ยกเลิก",
+    "프로젝트 생성 및 저장 중...": "กำลังสร้างและบันทึกโปรเจกต์…",
+    "이 주제로 작업 시작": "เริ่มงานด้วยหัวข้อนี้",
+    "{count}개 씬": "{count} ฉาก"
 }
 const vietnamese: Record<string, string> = {
     "토픽 등록": "Đăng ký chủ đề",
@@ -289,8 +306,54 @@ const vietnamese: Record<string, string> = {
     "YouTube 검색에 실패했습니다. 검색 조건을 확인하거나 잠시 후 다시 시도하세요.": "Tìm YouTube thất bại. Kiểm tra điều kiện hoặc thử lại sau.",
     "토픽 목록을 불러오지 못했습니다.": "Không tải được danh sách chủ đề.",
     "카테고리 목록을 불러오지 못했습니다.": "Không tải được danh mục.",
-    "토픽 저장에 실패했습니다. 다시 시도하세요.": "Lưu chủ đề thất bại. Vui lòng thử lại."
+    "토픽 저장에 실패했습니다. 다시 시도하세요.": "Lưu chủ đề thất bại. Vui lòng thử lại.",
+    "원본 주제 내용": "Nội dung chủ đề gốc",
+    "씬 구성": "Cấu trúc cảnh",
+    "총 {count}개 씬 구조": "Cấu trúc gồm {count} cảnh",
+    "초반 1분 훅": "Điểm thu hút trong phút đầu",
+    "1~12씬 5초 비디오": "Cảnh 1–12 là video 5 giây",
+    "추천 화풍": "Phong cách hình ảnh đề xuất",
+    "정통 시대극 셀화": "Tranh cel cổ trang truyền thống",
+    "Cinematic / Ghibli": "Điện ảnh / Ghibli",
+    "안내 사항": "Hướng dẫn",
+    "이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.": "Khi bắt đầu chủ đề này, hệ thống sẽ lưu ngay thành dự án đang hoạt động và chuyển sang các bước kịch bản, prompt cảnh, âm thanh, tách phụ đề một dòng và tạo ảnh thu nhỏ.",
+    "정산 수당": "Thù lao",
+    "{count}분 롱폼": "Video dài {count} phút",
+    "{count}분 영상": "Video {count} phút",
+    "취소": "Hủy",
+    "프로젝트 생성 및 저장 중...": "Đang tạo và lưu dự án…",
+    "이 주제로 작업 시작": "Bắt đầu với chủ đề này",
+    "{count}개 씬": "{count} cảnh"
 }
-export function topicUiText(locale: string, text: string): string {
-    return (locale === 'th' ? thai[text] : locale === 'vi' ? vietnamese[text] : undefined) ?? text
+
+const english: Record<string, string> = {
+    "日本昔話": "Japanese Folktales",
+    "옛날이야기": "Folktales",
+    "원본 주제 내용": "Original topic",
+    "씬 구성": "Scene structure",
+    "총 {count}개 씬 구조": "{count} scenes total",
+    "초반 1분 훅": "First-minute hook",
+    "1~12씬 5초 비디오": "Scenes 1–12: 5-second video",
+    "추천 화풍": "Recommended visual style",
+    "정통 시대극 셀화": "Traditional period cel art",
+    "Cinematic / Ghibli": "Cinematic / Ghibli",
+    "안내 사항": "Information",
+    "이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.": "Starting this topic immediately saves it as your active project and connects it to script, scene prompt, audio, single-line subtitle, and thumbnail production.",
+    "정산 수당": "Payout",
+    "{count}분 롱폼": "{count}-minute long-form",
+    "{count}분 영상": "{count}-minute video",
+    "취소": "Cancel",
+    "프로젝트 생성 및 저장 중...": "Creating and saving project…",
+    "이 주제로 작업 시작": "Start this project",
+    "{count}개 씬": "{count} Scenes",
+}
+
+const korean: Record<string, string> = {
+    "日本昔話": "일본 옛날이야기",
+}
+
+export function topicUiText(locale: string, text: string, values: Record<string, string | number> = {}): string {
+    const translated = (locale === 'th' ? thai[text] : locale === 'vi' ? vietnamese[text] : locale === 'en' ? english[text] : korean[text]) ?? text
+    return translated.replace(/\{(\w+)\}/g, (placeholder, key) =>
+        Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : placeholder)
 }

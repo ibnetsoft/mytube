@@ -2,7 +2,7 @@ export type TopicSubmission = {
     title: string; youtube_url: string; story: string; character_notes: string;
     requirements: string; category: string; duration_minutes: number;
     language: string; input_language: string; setting_country: string; era_region: string; image_style: string;
-    production_mode: string; ae_scene_delivery: 'local' | 'gcs'; transcript: string;
+    production_mode: string; ae_scene_delivery: 'gcs'; transcript: string;
     character_images: { name: string; data: string }[];
 }
 
@@ -36,7 +36,7 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     const production_mode = text('production_mode', 20, true)
     if (!['standard', 'moving_comic'].includes(production_mode)) throw new Error('제작 모드를 선택하세요.')
     const ae_scene_delivery = input.ae_scene_delivery == null ? 'gcs' : text('ae_scene_delivery', 5, true)
-    if (ae_scene_delivery !== 'local' && ae_scene_delivery !== 'gcs') throw new Error('AE 씬 영상 전달 방식을 선택하세요.')
+    if (ae_scene_delivery !== 'gcs') throw new Error('AE 씬 영상은 GCS로만 전달할 수 있습니다.')
     const images = input.character_images || []
     if (!Array.isArray(images) || images.length > 3) throw new Error('이미지는 최대 3장입니다.')
     const character_images = images.map((image: any) => {

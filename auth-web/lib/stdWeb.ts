@@ -377,6 +377,12 @@ export function normalizeTopicSummary(topic: any) {
     return {
         id: topic.id,
         topic: firstText(topic.generated_title, topic.topic),
+        generated_title: firstText(topic.generated_title, topic.topic),
+        topic_en: firstText(topic.topic_en),
+        topic_vi: firstText(topic.topic_vi),
+        topic_th: firstText(topic.topic_th),
+        title_translations: topic.title_translations || topic.progress_payload?.title_translations
+            || structure?.title_translations || topic.publish_metadata?.title_translations || {},
         category_name: category.name || topic.category_name || '옛날이야기',
         category_id: topic.category_id,
         language: topic.language || category.language || 'ko',

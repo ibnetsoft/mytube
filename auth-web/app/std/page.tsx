@@ -17,11 +17,12 @@ import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotic
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
+import { topicUiText } from '@/lib/topicUiText'
+import { localizedTopicTitle, topicSourceTitle } from '@/lib/stdTopicTitle'
 import { sceneClipTailStyle, playScenePreviewNarration, isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewPlayback } from '@/lib/stdSceneVideo'
 import { downloadStdFile } from '@/lib/stdFileDownload'
 import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
 import { isCurrentMediaScope, assetBelongsToProject } from '@/lib/stdMediaScope'
-import { resolveClaimAeSceneDelivery } from '@/lib/stdAeSceneDelivery'
 import { mapDialogueAnnotations, splitSubtitleDialogueBlocks } from '@/lib/stdDialogueAnnotations'
 import SubtitleSfxEditor from '@/components/SubtitleSfxEditor'
 import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
@@ -830,6 +831,7 @@ export default function StdPortalPage() {
     }, [verifyCodeSent, emailVerified, verifyTimer])
 
     const ui = (text: string, values?: Record<string, string | number>) => stdUiText(currentLocale, text, values)
+    const topicUi = (text: string, values?: Record<string, string | number>) => topicUiText(currentLocale, text, values)
     const voiceCopy = voiceDialogCopy(currentLocale)
     const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
     const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale)
@@ -1026,7 +1028,6 @@ export default function StdPortalPage() {
     // 2.1 주제 큐 & 모달 팝업 상태 (유저앱 topic.html 완벽 대응)
     const [selectedTopicForModal, setSelectedTopicForModal] = useState<any>(null)
     const [topicModalOpen, setTopicModalOpen] = useState(false)
-    const [topicAeSceneDelivery, setTopicAeSceneDelivery] = useState<'local' | 'gcs'>('local')
     const [trendLang, setTrendLang] = useState<'ko' | 'ja' | 'en'>('ko')
     const [trendPeriod, setTrendPeriod] = useState('now')
     const [trendAge, setTrendAge] = useState('50s')
@@ -5032,7 +5033,7 @@ export default function StdPortalPage() {
             const res = await fetch(`/api/std/topics/${topicId}/claim`, {
                 method: 'POST',
                 headers: authedJsonHeaders,
-                body: JSON.stringify({ ae_scene_delivery: topicAeSceneDelivery }),
+                body: JSON.stringify({ ae_scene_delivery: 'gcs' }),
             })
             const payload = await safeParseJson(res, '주제 선택 실패')
             if (res.ok && payload?.project?.id) {
@@ -11242,7 +11243,6 @@ export default function StdPortalPage() {
                                             key={topic.id}
                                             onClick={() => {
                                                 setSelectedTopicForModal(topic)
-                                                setTopicAeSceneDelivery(resolveClaimAeSceneDelivery(topic.pregenerated_structure))
                                                 setTopicModalOpen(true)
                                             }}
                                             className="bg-[#1c2027] border border-white/10 hover:border-indigo-500 rounded-2xl p-4 cursor-pointer hover:-translate-y-1.5 transition-all shadow-lg group flex flex-col justify-between relative overflow-hidden"
@@ -11251,7 +11251,7 @@ export default function StdPortalPage() {
                                                 {/* 상단 뱃지 & 수당 */}
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 truncate max-w-[65%]">
-                                                        {topic.category_name || '옛날이야기'}
+                                                        {topicUi(topic.category_name || '옛날이야기')}
                                                     </span>
                                                     <span className="text-xs font-bold text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
                                                         {formatTopicPayout(topic)}
@@ -11268,9 +11268,16 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                     )}
-                                                    <h4 className="min-w-0 flex-1 text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-3 leading-snug">
-                                                        {topic.generated_title || topic.topic}
-                                                    </h4>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-3 leading-snug">
+                                                            {topicSourceTitle(topic)}
+                                                        </h4>
+                                                        {localizedTopicTitle(topic, currentLocale) && (
+                                                            <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-indigo-200/80">
+                                                                ({localizedTopicTitle(topic, currentLocale)})
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -11278,9 +11285,9 @@ export default function StdPortalPage() {
                                             <div className="mt-3 pt-2.5 border-t border-white/5">
                                                 <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
                                                     <span className="flex items-center gap-1">
-                                                        <span>⏱️</span> {topic.assigned_duration_minutes || 15}분 영상
+                                                        <span>⏱️</span> {topicUi('{count}분 영상', { count: topic.assigned_duration_minutes || 15 })}
                                                     </span>
-                                                    <span className="text-cyan-400">{topic.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT} Scenes</span>
+                                                    <span className="text-cyan-400">{topicUi('{count}개 씬', { count: topic.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT })}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -11306,69 +11313,58 @@ export default function StdPortalPage() {
                                         <div className="space-y-1.5 border-b border-white/10 pb-4">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-bold px-3 py-1 bg-indigo-600 text-white rounded-full">
-                                                    {selectedTopicForModal.category_name || '옛날이야기'}
+                                                    {topicUi(selectedTopicForModal.category_name || '옛날이야기')}
                                                 </span>
                                                 <span className="text-xs font-bold px-2.5 py-1 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30 font-mono">
-                                                    정산 수당: {formatTopicPayoutDetail(selectedTopicForModal)}
+                                                    {topicUi('정산 수당')}: {formatTopicPayoutDetail(selectedTopicForModal)}
                                                 </span>
                                                 <span className="text-xs font-bold px-2.5 py-1 bg-blue-500/20 text-blue-300 rounded-full border border-blue-500/30">
-                                                    {selectedTopicForModal.assigned_duration_minutes || 15}분 롱폼
+                                                    {topicUi('{count}분 롱폼', { count: selectedTopicForModal.assigned_duration_minutes || 15 })}
                                                 </span>
                                             </div>
                                             <h3 className="text-lg font-bold text-white pt-2 leading-snug">
-                                                {selectedTopicForModal.generated_title || selectedTopicForModal.topic}
+                                                {topicSourceTitle(selectedTopicForModal)}
                                             </h3>
+                                            {localizedTopicTitle(selectedTopicForModal, currentLocale) && (
+                                                <p className="text-sm text-indigo-200/80">({localizedTopicTitle(selectedTopicForModal, currentLocale)})</p>
+                                            )}
                                         </div>
 
                                         {/* 본문 기획 상세 구성 */}
                                         <div className="space-y-3 text-xs bg-[#14181f] p-4 rounded-2xl border border-white/5">
                                             <div className="space-y-1">
-                                                <span className="text-gray-400 font-bold block">📌 원본 주제 내용</span>
+                                                <span className="text-gray-400 font-bold block">📌 {topicUi('원본 주제 내용')}</span>
                                                 <p className="text-gray-200 leading-relaxed">{selectedTopicForModal.topic}</p>
                                             </div>
 
                                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 border-t border-white/5 font-mono text-[11px]">
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
-                                                    <span className="text-gray-400 block">🎬 씬 구성</span>
-                                                    <span className="font-bold text-emerald-400">총 {selectedTopicForModal.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT}개 씬 구조</span>
+                                                    <span className="text-gray-400 block">🎬 {topicUi('씬 구성')}</span>
+                                                    <span className="font-bold text-emerald-400">{topicUi('총 {count}개 씬 구조', { count: selectedTopicForModal.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT })}</span>
                                                 </div>
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5">
-                                                    <span className="text-gray-400 block">⚡ 초반 1분 훅</span>
-                                                    <span className="font-bold text-orange-400">1~12씬 5초 비디오</span>
+                                                    <span className="text-gray-400 block">⚡ {topicUi('초반 1분 훅')}</span>
+                                                    <span className="font-bold text-orange-400">{topicUi('1~12씬 5초 비디오')}</span>
                                                 </div>
                                                 <div className="bg-[#1c2027] p-2.5 rounded-xl border border-white/5 space-y-0.5 col-span-2 sm:col-span-1">
-                                                    <span className="text-gray-400 block">🎨 추천 화풍</span>
+                                                    <span className="text-gray-400 block">🎨 {topicUi('추천 화풍')}</span>
                                                     <span className="font-bold text-purple-400">
                                                         {selectedTopicForModal.image_style === 'jidaigeki_cel'
-                                                            ? '정통 시대극 셀화'
-                                                            : 'Cinematic / Ghibli'}
+                                                            ? topicUi('정통 시대극 셀화')
+                                                            : topicUi('Cinematic / Ghibli')}
                                                     </span>
                                                 </div>
                                             </div>
 
                                             <div className="p-3 bg-blue-950/30 border border-blue-500/30 rounded-xl space-y-1">
                                                 <span className="text-blue-300 font-bold flex items-center gap-1.5">
-                                                    <span>💡</span> 안내 사항
+                                                    <span>💡</span> {topicUi('안내 사항')}
                                                 </span>
                                                 <p className="text-gray-300 text-[11px] leading-relaxed">
-                                                    이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.
+                                                    {topicUi('이 주제로 작업을 시작하면 작업자의 활성 프로젝트로 즉시 등록 및 저장되며, 대본, 씬 프롬프트, 음성, 1줄 자막 분할 및 썸네일 제작 단계로 연결됩니다.')}
                                                 </p>
                                             </div>
                                         </div>
-
-                                        <fieldset className="rounded-xl border border-white/10 bg-[#14181f] p-4 text-xs">
-                                            <legend className="px-1 font-bold text-gray-200">AE 씬 영상 전달 방식</legend>
-                                            <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                                                <label className="flex cursor-pointer gap-2 rounded-lg border border-white/10 p-3">
-                                                    <input type="radio" name="topic_ae_scene_delivery" value="local" checked={topicAeSceneDelivery === 'local'} onChange={() => setTopicAeSceneDelivery('local')} className="mt-0.5 accent-indigo-500" />
-                                                    <span><strong className="block text-gray-100">로컬 전달</strong><span className="mt-1 block text-gray-400">같은 PC의 프리미어 워커가 AE 씬 영상을 직접 사용합니다.</span></span>
-                                                </label>
-                                                <label className="flex cursor-pointer gap-2 rounded-lg border border-white/10 p-3">
-                                                    <input type="radio" name="topic_ae_scene_delivery" value="gcs" checked={topicAeSceneDelivery === 'gcs'} onChange={() => setTopicAeSceneDelivery('gcs')} className="mt-0.5 accent-indigo-500" />
-                                                    <span><strong className="block text-gray-100">GCS 업로드</strong><span className="mt-1 block text-gray-400">씬별 웹 미리보기나 다른 PC의 워커로 인계할 때 사용합니다.</span></span>
-                                                </label>
-                                            </div>
-                                        </fieldset>
 
                                         {/* 액션 버튼 */}
                                         <div className="flex items-center justify-end gap-3 pt-2">
@@ -11377,7 +11373,7 @@ export default function StdPortalPage() {
                                                 onClick={() => setTopicModalOpen(false)}
                                                 className="px-5 py-2.5 bg-[#202632] hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
                                             >
-                                                {ui("취소")}
+                                                {topicUi('취소')}
                                             </button>
                                             <button
                                                 type="button"
@@ -11386,7 +11382,7 @@ export default function StdPortalPage() {
                                                 className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2"
                                             >
                                                 <span>🚀</span>
-                                                {loading ? '프로젝트 생성 및 저장 중...' : '이 주제로 작업 시작 (Start Project)'}
+                                                {loading ? topicUi('프로젝트 생성 및 저장 중...') : topicUi('이 주제로 작업 시작')}
                                             </button>
                                         </div>
                                     </div>

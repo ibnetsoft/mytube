@@ -25,7 +25,7 @@ export async function GET(req: Request) {
         review_note: row.review_note,
         created_at: row.created_at,
         reviewed_at: row.reviewed_at,
-        ae_scene_delivery: row.request_data?.ae_scene_delivery === 'gcs' ? 'gcs' : 'local',
+        ae_scene_delivery: 'gcs',
         job_status: jobs.data?.find(job => job.id === row.job_id)?.status || null,
     })) })
 }

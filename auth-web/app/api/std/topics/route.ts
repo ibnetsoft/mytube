@@ -128,7 +128,7 @@ async function attachCategories(topics: any[]) {
 async function loadDirectPreparedTopics(limit: number) {
     const { data, error } = await supabaseAdmin
         .from('topics_queue')
-        .select('id,topic,generated_title,category_id,language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
+        .select('id,topic,generated_title,topic_en,topic_vi,topic_th,category_id,language,assigned_script_style,assigned_image_style,recommended_duration_minutes,assigned_duration_minutes,total_scenes,image_scenes,video_scenes,estimated_payout,created_at,status,assigned_at,assigned_employee_email')
         .eq('status', 'pending')
         .is('assigned_at', null)
         .not('generated_title', 'is', null)

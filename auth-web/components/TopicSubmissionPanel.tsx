@@ -16,7 +16,7 @@ const imageStyles = [
     { key: 'wimpy', name: '윔피' },
 ]
 
-type Item = { id: string; title: string; status: string; review_note: string; created_at: string; job_status: string | null; ae_scene_delivery: 'local' | 'gcs' }
+type Item = { id: string; title: string; status: string; review_note: string; created_at: string; job_status: string | null; ae_scene_delivery: 'gcs' }
 const statuses: Record<string, string> = { pending: '승인 대기', approved: '승인됨', rejected: '반려', queued: '실행 대기', running: '대본 작성 중', failed: '작성 실패', interrupted: '작업 중단', awaiting_approval: '대본 검토 대기', approved_pending_repair: '대본 승인됨', completed: '완료' }
 export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { headers: Record<string, string>; locale?: string }) {
     const ui = (text: string) => topicUiText(locale, text)
@@ -135,7 +135,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
         </form>
         <div className="rounded-xl border border-white/10 p-5"><div className="flex justify-between items-center"><h2 className="text-lg font-semibold">{ui('내 등록 토픽')}</h2><button type="button" onClick={() => void load()} className="text-indigo-300">{ui('새로고침')}</button></div>
             {!items.length && <p className="py-6 text-gray-400">{loading ? ui('불러오는 중…') : ui('등록한 토픽이 없습니다.')}</p>}
-            {items.map(item => <article key={item.id} className="border-t border-white/10 py-4 mt-3"><div className="flex justify-between gap-3"><strong>{item.title}</strong><span className="text-indigo-300">{ui(statuses[item.job_status || item.status] || item.status)}</span></div><p className="mt-1 text-gray-500">{new Date(item.created_at).toLocaleString(locale)} · {ui('AE 씬 전달')}: {item.ae_scene_delivery === 'gcs' ? ui('GCS 업로드') : ui('로컬 전달')}</p>{item.review_note && <p className="mt-2 whitespace-pre-wrap">{ui('검토 의견')}: {item.review_note}</p>}</article>)}
+            {items.map(item => <article key={item.id} className="border-t border-white/10 py-4 mt-3"><div className="flex justify-between gap-3"><strong>{item.title}</strong><span className="text-indigo-300">{ui(statuses[item.job_status || item.status] || item.status)}</span></div><p className="mt-1 text-gray-500">{new Date(item.created_at).toLocaleString(locale)} · {ui('AE 씬 전달')}: {ui('GCS 업로드')}</p>{item.review_note && <p className="mt-2 whitespace-pre-wrap">{ui('검토 의견')}: {item.review_note}</p>}</article>)}
         </div>
     </section>
 }
