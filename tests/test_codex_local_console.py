@@ -88,6 +88,22 @@ def test_duplicate_start_blocked(tmp_path):
     jobs.pool.shutdown()
 
 
+def test_layer_scene_range_requires_complete_ordered_bounds():
+    request = console.StartRequest(
+        mode='new', title='test', category='story',
+        image_layer_scene_start=19, image_layer_scene_end=35,
+    )
+    assert request.image_layer_scene_start == 19
+    assert request.image_layer_scene_end == 35
+    with pytest.raises(ValueError, match='함께 입력'):
+        console.StartRequest(mode='new', title='test', category='story', image_layer_scene_start=19)
+    with pytest.raises(ValueError, match='클 수 없습니다'):
+        console.StartRequest(
+            mode='new', title='test', category='story',
+            image_layer_scene_start=35, image_layer_scene_end=19,
+        )
+
+
 def test_submission_is_protected_and_background_is_not_final():
     row = {'id': 'p', 'status': 'submitted', 'employee_email': 'owner@example.com',
            'project_payload': {'script': 'text'}, 'progress_payload': {'thumbnail_bg_url': 'https://example.com/bg.png'}}

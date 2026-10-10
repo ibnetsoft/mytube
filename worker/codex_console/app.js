@@ -211,6 +211,18 @@ if ($('new-language')) {
   window.updateNewSettingSummary();
 }
 $('production-mode').onchange=()=>{if($('production-mode').value==='moving_comic'&&$('new-style').value==='실사'){$('new-style').value='웹툰';window.updateNewSettingSummary();}};
+if($('image-layer-mode')){
+  const grid=$('image-layer-mode').closest('.form-grid');
+  const makeRangeInput=(name,text,placeholder)=>{
+    const label=element('label',text),input=element('input');
+    input.name=name;input.type='number';input.min='1';input.max='999';input.placeholder=placeholder;
+    label.append(input);grid.append(label);
+  };
+  makeRangeInput('image_layer_scene_start','레이어 생성 시작 씬','예: 19');
+  makeRangeInput('image_layer_scene_end','레이어 생성 종료 씬','예: 35');
+  const help=element('p','선택 범위의 씬은 배경과 전경을 독립 PNG 레이어로 생성해 PSD로 준비합니다. 범위를 비우면 기존 레이어 모드만 적용됩니다.','muted');
+  grid.after(help);
+}
 $('new-form').onsubmit=e=>{
   e.preventDefault();
   const form=new FormData(e.target);
@@ -222,6 +234,8 @@ $('new-form').onsubmit=e=>{
     mode:'new',
     production_mode:form.get('production_mode')||'standard',
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
+    image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
+    image_layer_scene_end:form.get('image_layer_scene_end')?Number(form.get('image_layer_scene_end')):null,
     title:form.get('title'),
     category,
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',

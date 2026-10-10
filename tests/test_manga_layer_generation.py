@@ -72,6 +72,44 @@ def test_generated_roles_are_independent_full_canvas_and_still_need_visual_revie
     assert len(fake.calls) == 3
 
 
+def test_explicit_parallax_range_uses_final_scene_as_registration_reference(tmp_path):
+    scene = {
+        "scene_number": 19,
+        "scene_text": "인물이 등불을 들고 골목을 걷는다.",
+        "image_prompt": "A character walking through a lantern-lit street.",
+        "image_style": "period animation",
+        "psd_layer_plan": {
+            "enabled": True,
+            "selection_source": "explicit_scene_range",
+            "template": "parallax_layered_scene",
+            "required_layers": ["background", "foreground"],
+            "optional_layers": ["prop_focus", "atmosphere"],
+        },
+    }
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "schema": "cowork_scene_assets/v1",
+        "topic_id": "topic-1",
+        "scene_specs": [scene],
+        "character_references": [],
+    }), encoding="utf-8")
+    images = tmp_path / "images"
+    images.mkdir()
+    final_scene = images / "scene-019.png"
+    Image.new("RGB", (1920, 1080), (35, 40, 65)).save(final_scene)
+    fake = FakeGenerator()
+
+    report = generation.generate_layers(manifest, images, generator=fake)
+
+    assert [item[0] for item in fake.calls] == ["background", "foreground"]
+    assert all(item[1] == final_scene for item in fake.calls)
+    assert "fixed composition and registration reference" in fake.calls[1][2]
+    assert all(job["status"] == "generated" for job in report["jobs"].values())
+    specs = package.scene_specs([scene])
+    assert specs[0]["template"] == "parallax_layered_scene"
+    assert specs[0]["required_layers"] == ["background", "foreground"]
+
+
 def test_ambiguous_character_mapping_stops_before_provider_call(tmp_path):
     manifest, _, _ = _manifest(tmp_path, with_mapping=False)
     fake = FakeGenerator()

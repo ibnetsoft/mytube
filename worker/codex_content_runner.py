@@ -1054,6 +1054,27 @@ def _resolve_image_layer_mode(payload: dict[str, Any] | None) -> str:
     return "hybrid"
 
 
+def _resolve_image_layer_scene_range(payload: dict[str, Any] | None) -> dict[str, int] | None:
+    payload = payload or {}
+    start = payload.get("image_layer_scene_start")
+    end = payload.get("image_layer_scene_end")
+    if start in (None, "") and end in (None, ""):
+        nested = payload.get("image_layer_scene_range")
+        if isinstance(nested, dict):
+            start, end = nested.get("start"), nested.get("end")
+    if start in (None, "") and end in (None, ""):
+        return None
+    if start in (None, "") or end in (None, ""):
+        raise ValueError("image layer scene range requires both start and end")
+    try:
+        start_number, end_number = int(start), int(end)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("image layer scene range must use whole scene numbers") from exc
+    if start_number < 1 or end_number < 1 or start_number > end_number or end_number > 999:
+        raise ValueError("image layer scene range must satisfy 1 <= start <= end <= 999")
+    return {"start": start_number, "end": end_number}
+
+
 def _psd_layer_targets(scene_blob: str, targets: list[Any]) -> list[str]:
     result = ["background_plate", "foreground_subject_or_focus", "depth_matte"]
     if _scene_has_character_focus(scene_blob):
@@ -1123,6 +1144,7 @@ def _plan_image_generation_efficiency(
     """Plan image credits while sending every scene through AE post-production."""
     scene_count = len([scene for scene in scenes if isinstance(scene, dict)])
     image_layer_mode = _resolve_image_layer_mode(payload)
+    explicit_range = _resolve_image_layer_scene_range(payload)
     multi_cap = max(0, min(3, round(scene_count * 0.08)))
     layer_cap = scene_count
     psd_cap = scene_count if image_layer_mode == "full_psd" else max(1, min(scene_count, round(scene_count * 0.18)))
@@ -1171,6 +1193,11 @@ def _plan_image_generation_efficiency(
         psd_numbers = {
             number for number, _score in sorted(psd_candidates, key=lambda item: (-item[1], item[0]))[:psd_cap]
         }
+    explicit_range_numbers = {
+        number for number, _score in psd_candidates
+        if explicit_range and explicit_range["start"] <= number <= explicit_range["end"]
+    }
+    psd_numbers.update(explicit_range_numbers)
     psd_numbers.update(
         int(scene.get("scene_number") or scene.get("scene_order") or index)
         for index, scene in enumerate(scenes, 1)
@@ -1202,6 +1229,7 @@ def _plan_image_generation_efficiency(
         local_layers = number in layer_numbers
         multi_image = number in multi_numbers
         psd_required = number in psd_numbers
+        explicitly_layered = number in explicit_range_numbers
         psd_outputs = (
             list(template_assets.get("required_layers") or [])
             + [item for item in template_assets.get("optional_layers") or []
@@ -1217,6 +1245,7 @@ def _plan_image_generation_efficiency(
             "base_images": 1,
             "generation_unit": "2x2_grid_panel",
             "image_layer_mode": image_layer_mode,
+            "image_layer_scene_range": explicit_range,
             "api_generation_units_estimate": 0.25 + psd_units,
             "estimated_generation_credits": 0.25 + psd_units,
             "additional_images_allowed": 1 if multi_image else 0,
@@ -1231,6 +1260,7 @@ def _plan_image_generation_efficiency(
             "psd_layer_generation_units_estimate": psd_units,
             "psd_layer_package_reason": (
                 "ae_manga_template_required" if template and psd_required
+                else "explicit_scene_range" if explicitly_layered
                 else "full_psd_mode" if image_layer_mode == "full_psd" and psd_required
                 else "hybrid_priority_scene" if psd_required
                 else "hybrid_base_scene_uses_local_layers"
@@ -1250,15 +1280,30 @@ def _plan_image_generation_efficiency(
             "targets": policy["targets"],
         }
         psd_prompt = _psd_layer_prompt(scene, psd_outputs, image_layer_mode) if psd_required else ""
+        package_template = template or ("parallax_layered_scene" if explicitly_layered else None)
+        package_required_layers = (
+            list(template_assets.get("required_layers") or [])
+            if isinstance(template_assets, dict) and template
+            else ["background", "foreground"] if explicitly_layered
+            else []
+        )
+        package_optional_layers = (
+            list(template_assets.get("optional_layers") or [])
+            if isinstance(template_assets, dict) and template
+            else ["prop_focus", "atmosphere"] if explicitly_layered
+            else []
+        )
         scene["psd_layer_plan"] = {
             "enabled": psd_required,
             "mode": image_layer_mode,
+            "selection_source": "explicit_scene_range" if explicitly_layered else "automatic_policy",
+            "scene_range": explicit_range if explicitly_layered else None,
             "source": "additional_layer_sheet_generation" if psd_required else "local_derived_layers_only",
             "method": "psd_style_2x2_layer_sheet" if psd_required else "single_image_depth_proxy",
             "outputs": psd_outputs if psd_required else [],
-            "template": template or None,
-            "required_layers": list(template_assets.get("required_layers") or []) if isinstance(template_assets, dict) else [],
-            "optional_layers": list(template_assets.get("optional_layers") or []) if isinstance(template_assets, dict) else [],
+            "template": package_template,
+            "required_layers": package_required_layers,
+            "optional_layers": package_optional_layers,
             "transparent_layers_required": psd_required,
             "alpha_channel_preferred": psd_required,
             "credit_cost_estimate": psd_units,
@@ -1269,6 +1314,9 @@ def _plan_image_generation_efficiency(
                 "scene_number": number,
                 "scene_id": scene.get("scene_id") or f"scene{number:03d}",
                 "mode": image_layer_mode,
+                "selection_source": "explicit_scene_range" if explicitly_layered else "automatic_policy",
+                "scene_range": explicit_range if explicitly_layered else None,
+                "template": package_template,
                 "outputs": psd_outputs,
                 "prompt": psd_prompt,
                 "negative_prompt": "no text, no words, no readable letters, no captions, no watermarks, no panel labels, no borders, no grid dividers inside artwork, no extra limbs, preserve character identity",
@@ -1276,8 +1324,13 @@ def _plan_image_generation_efficiency(
         scene_policies.append(policy)
 
     return {
-        "mode": "full_psd_ae_postprocess" if image_layer_mode == "full_psd" else "hybrid_ae_postprocess",
+        "mode": (
+            "full_psd_ae_postprocess" if image_layer_mode == "full_psd"
+            else "hybrid_explicit_range_ae_postprocess" if explicit_range
+            else "hybrid_ae_postprocess"
+        ),
         "image_layer_mode": image_layer_mode,
+        "image_layer_scene_range": explicit_range,
         "scene_image_generation_mode": "strict_2x2_grid_one_generation_per_four_scenes",
         "default_base_images_per_scene": 1,
         "estimated_api_generation_units_per_scene": (
@@ -1287,7 +1340,11 @@ def _plan_image_generation_efficiency(
         "grid_panels_per_generation": 4,
         "multi_image_scene_cap": multi_cap,
         "local_layer_scene_cap": layer_cap,
-        "psd_layer_package_mode": "all_scenes" if image_layer_mode == "full_psd" else "priority_scenes_only",
+        "psd_layer_package_mode": (
+            "all_scenes" if image_layer_mode == "full_psd"
+            else "explicit_range_plus_required" if explicit_range
+            else "priority_scenes_only"
+        ),
         "psd_layer_scene_cap": max(psd_cap, len(psd_numbers)),
         "psd_layer_scene_count": len(psd_layer_prompts),
         "psd_layer_generation_unit": "additional_psd_style_2x2_layer_sheet_per_selected_scene",
@@ -1871,6 +1928,8 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
         "ae_motion_plan_status": "planned" if ae_motion_plans else "not_required",
         "ae_motion_scene_count": len(ae_motion_plans),
         "ae_motion_plans": ae_motion_plans,
+        "image_layer_mode": image_efficiency_policy.get("image_layer_mode") or "hybrid",
+        "image_layer_scene_range": image_efficiency_policy.get("image_layer_scene_range"),
         "image_generation_policy": image_efficiency_policy,
         "scenes": scenes,
         "story_core": {
@@ -2446,9 +2505,11 @@ class CodexStagedContentRunner:
         structure.update(main_character=anchors["main_character"], supporting_characters=anchors["supporting_characters"],
                          character_anchors=anchors, character_reference_status="ready")
         image_layer_mode = _resolve_image_layer_mode(payload)
+        image_layer_scene_range = _resolve_image_layer_scene_range(payload)
         media_context = {**script_context, "script": script, "scenes": scenes,
                          "character_anchors": anchors, "child_image_guidance": CHILD_IMAGE_GUIDANCE,
                          "image_layer_mode": image_layer_mode,
+                         "image_layer_scene_range": image_layer_scene_range,
                          "scene_visual_director_persona": SCENE_VISUAL_DIRECTOR_PERSONA,
                          "scene_cast": identity["scene_cast"],
                          "character_reference_rule": "These are verified actual reference images. Preserve their facial identity, age, wardrobe and era in every applicable scene. Copy the exact hair_design_en, including shaved-scalp boundary, hairline, hair length and topknot/braid shape/position/direction. Never substitute a different character or swap siblings' hairstyles."}
@@ -2458,6 +2519,7 @@ class CodexStagedContentRunner:
             "Use scene_cast to include only the actual scene participants. Repeat each visible person's locked hair_design_en verbatim in their image/video prompt and applicable grid panel; do not improvise haircuts or redraw shaved areas. "
             f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
             f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
+            f"Explicit layer scene range is {json.dumps(image_layer_scene_range, ensure_ascii=False)}. Every existing scene inside that range must receive independently authored registered background and foreground PNG layers for PSD assembly; preserve the ordinary mode outside the range. "
             "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including an inpainted clean background and aligned alternate pose/prop layers. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
             "For a scene carrying ae_template, describe each required character, hand, wall state, reflection source, training apparatus or talisman as separable full cutouts with consistent identity, perspective and lighting; keep panel lines, animated qi, flying debris, glasses reflections, backlight rays, timed titles, ink impacts and all Korean sound lettering out of the base image. "
             "Every scene needs a unique 120+ character English image_prompt grounded in its final scene_text. Make compact strict 2x2 grids for every four-scene window, with exactly four panels at Top-Left, Top-Right, Bottom-Left, Bottom-Right. Scenes 1-18 also need a 300+ character English video_prompt, exactly one approved camera movement, and the literal guards 'no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio'. Scenes 1-18 use video_generation_mode=user_upload. Scenes 19 onward must not contain video_prompt."
@@ -2578,6 +2640,7 @@ class CodexStagedContentRunner:
             "ae_motion_scene_count": len(ae_motion_plans),
             "ae_motion_plans": ae_motion_plans,
             "image_layer_mode": image_efficiency_policy.get("image_layer_mode") or image_layer_mode,
+            "image_layer_scene_range": image_efficiency_policy.get("image_layer_scene_range"),
             "psd_layer_prompt_status": "planned" if image_efficiency_policy.get("psd_layer_prompts") else "not_required",
             "psd_layer_scene_count": image_efficiency_policy.get("psd_layer_scene_count") or 0,
             "psd_layer_prompts": image_efficiency_policy.get("psd_layer_prompts") or [],

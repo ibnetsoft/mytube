@@ -335,6 +335,37 @@ def test_full_psd_layer_mode_marks_every_scene():
     assert all(scene["image_generation_policy"]["psd_layer_package_required"] for scene in scenes)
 
 
+def test_explicit_layer_scene_range_forces_registered_parallax_packages():
+    scenes = [
+        {
+            "scene_order": i,
+            "scene_summary": "인물이 골목을 걷는 장면",
+            "scene_text": "인물이 천천히 앞으로 걸었습니다.",
+            "image_prompt": "A period character walking through a layered village street.",
+            "ae_motion_plan": {"enabled": True, "targets": []},
+        }
+        for i in range(1, 41)
+    ]
+    policy = runner_module._plan_image_generation_efficiency(
+        scenes,
+        {
+            "image_layer_mode": "hybrid",
+            "image_layer_scene_start": 19,
+            "image_layer_scene_end": 35,
+        },
+        [],
+    )
+
+    assert policy["image_layer_scene_range"] == {"start": 19, "end": 35}
+    assert policy["mode"] == "hybrid_explicit_range_ae_postprocess"
+    for scene in scenes[18:35]:
+        assert scene["psd_layer_plan"]["enabled"] is True
+        assert scene["psd_layer_plan"]["selection_source"] == "explicit_scene_range"
+        assert scene["psd_layer_plan"]["template"] == "parallax_layered_scene"
+        assert scene["psd_layer_plan"]["required_layers"] == ["background", "foreground"]
+        assert scene["image_generation_policy"]["psd_layer_package_reason"] == "explicit_scene_range"
+
+
 @pytest.mark.parametrize('text', [
     '그는 눈물을 흘리며 열쇠를 동료의 손에 쥐여 주었습니다.',
     '장부를 확인한 그는 그제야 깨달았습니다. 빚은 이미 갚아져 있었지요.',

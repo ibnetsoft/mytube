@@ -96,6 +96,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'image_style': setting['image_style_en'],
                    'content_setting': setting,
                    'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
+                   'image_layer_scene_start': request.get('image_layer_scene_start'),
+                   'image_layer_scene_end': request.get('image_layer_scene_end'),
                    'ae_scene_delivery': request.get('ae_scene_delivery') or 'local',
                    'script_style': 'story',
                    'target_duration_seconds': request.get('duration_seconds') or request['duration_minutes'] * 60,

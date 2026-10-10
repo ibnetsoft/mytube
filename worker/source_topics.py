@@ -148,6 +148,8 @@ def produce_topics(identity, request, sources, runner, notify):
             'era_region': setting['era_region'],
             'image_style': setting['image_style'],
             'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
+            'image_layer_scene_start': request.get('image_layer_scene_start'),
+            'image_layer_scene_end': request.get('image_layer_scene_end'),
             'duration_minutes': request['duration_minutes'],
             'duration_seconds': request.get('duration_seconds'), 'notes': notes
         }

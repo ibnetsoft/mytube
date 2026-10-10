@@ -24,7 +24,7 @@ except ImportError:
 SCHEMA = "manga_layer_packages/v1"
 CANVAS_SIZE = (1920, 1080)
 ROLE_ORDER = (
-    "background", "wall_intact", "wall_broken", "character_left",
+    "background", "foreground", "wall_intact", "wall_broken", "character_left",
     "character_center", "character_right", "character", "hand_foreground",
     "talisman", "reflection_scene", "training_prop", "title_backdrop",
     "debris", "qi_overlay", "ink_splat", "speedlines", "lens_glint",
@@ -32,6 +32,7 @@ ROLE_ORDER = (
     "pose_sleeping", "pose_waking", "pose_turning", "pose_resting", "blanket", "shoji", "prop_focus", "atmosphere",
 )
 TEMPLATE_REQUIRED = {
+    "parallax_layered_scene": ("background", "foreground"),
     "directed_performance": ("background",),
     "dialogue_closeup": ("background", "character"),
     "angled_triple_reaction": ("background", "character_left", "character_center", "character_right"),
@@ -43,6 +44,7 @@ TEMPLATE_REQUIRED = {
     "backlit_hand_reveal": ("background", "hand_foreground"),
 }
 TEMPLATE_OPTIONAL = {
+    "parallax_layered_scene": ("prop_focus", "atmosphere"),
     "directed_performance": ("character", "pose_sleeping", "pose_waking", "pose_turning",
                              "pose_resting", "blanket", "shoji", "prop_focus", "light_core", "light_rays",
                              "debris", "speedlines", "lens_glint", "atmosphere"),
@@ -80,10 +82,21 @@ def scene_spec(scene: dict[str, Any], fallback: int) -> dict[str, Any] | None:
     plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
     template = str(plan.get("template") or "").strip()
     if not plan.get("enabled") or not template:
-        return None
+        layer_plan = scene.get("psd_layer_plan") if isinstance(scene.get("psd_layer_plan"), dict) else {}
+        if (layer_plan.get("enabled") and layer_plan.get("selection_source") == "explicit_scene_range"
+                and layer_plan.get("template") == "parallax_layered_scene"):
+            plan = layer_plan
+            template = "parallax_layered_scene"
+        else:
+            return None
     if template not in TEMPLATE_REQUIRED:
         raise ValueError(f"unknown manga AE template: {template}")
     requirements = plan.get("asset_requirements")
+    if template == "parallax_layered_scene" and requirements is None:
+        requirements = {
+            "required_layers": plan.get("required_layers"),
+            "optional_layers": plan.get("optional_layers"),
+        }
     if requirements is None:
         requirements = {}
     if not isinstance(requirements, dict):

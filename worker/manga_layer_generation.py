@@ -36,6 +36,7 @@ SLOTS = {
     "character_center": (0.30, 0.02, 0.77, 0.98),
     "character_right": (0.74, 0.02, 0.97, 0.98),
     "character": (0.12, 0.02, 0.88, 0.98),
+    "foreground": (0.02, 0.02, 0.98, 0.98),
     "hand_foreground": (0.16, 0.02, 0.86, 0.98),
     "talisman": (0.405, 0.43, 0.605, 0.70),
     "wall_intact": (0.30, 0.04, 0.80, 0.97),
@@ -50,6 +51,8 @@ SLOTS = {
     "qi_overlay": (0.04, 0.03, 0.96, 0.97),
     "ink_splat": (0.15, 0.10, 0.85, 0.90),
     "speedlines": (0.02, 0.02, 0.98, 0.98),
+    "prop_focus": (0.20, 0.15, 0.80, 0.90),
+    "atmosphere": (0.02, 0.02, 0.98, 0.98),
 }
 IDENTITY_ROLES = frozenset(("character_left", "character_center", "character_right",
                             "character", "hand_foreground"))
@@ -157,6 +160,7 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         "mouth_half": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with slightly parted lips. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
         "mouth_open": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with an open speaking mouth. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
         "background": "Draw only the environmental background plate; no people, props, letters, impact art, effects, or watermarks.",
+        "foreground": "Using the attached final scene as the exact registration reference, redraw only all foreground people and the principal foreground subject together on transparent alpha. Preserve their exact positions, scale, pose, expression, identity, wardrobe, crop, lighting, and overlap. Remove the environment, captions, text, and watermarks.",
         "character_left": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
         "character_center": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
         "character_right": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
@@ -175,6 +179,8 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         "qi_overlay": "Draw only thin flowing energy wisps that can be laid over a character's body, on transparent alpha. No person or scenery.",
         "ink_splat": "Draw only an isolated rough black and red ink burst, with transparent surroundings. No lettering or character.",
         "speedlines": "Draw only manga radial speed lines with transparent gaps; no person, scenery, or letters.",
+        "prop_focus": "Using the attached final scene as the exact registration reference, isolate only the principal movable foreground prop on transparent alpha at the same position, scale, perspective, and lighting. No person, scenery, text, or watermark.",
+        "atmosphere": "Using the attached final scene as the exact registration reference, draw only separable foreground atmosphere such as fog, dust, rain, glow, or drifting particles on transparent alpha. No people, solid scenery, text, or watermark.",
     }
     if role not in directions:
         raise ValueError(f"unsupported required layer role: {role}")
@@ -186,6 +192,9 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
             ) if field in reference}}
         direction += (" The attached verified character portrait is the identity reference. "
                       + character_continuity_prompt(reference))
+    elif spec.get("template") == "parallax_layered_scene" and reference:
+        source["registered_scene_sha256"] = reference["sha256"]
+        direction += " The attached final scene image is the fixed composition and registration reference; do not change the camera or layout."
     elif role == "wall_broken" and reference:
         source["source_layer_sha256"] = reference["sha256"]
     elif role in manga_layer_package.MOUTH_ROLES and reference:
@@ -218,8 +227,11 @@ class NativeCodexLayerGenerator:
             raise FileExistsError(f"unreviewed prior generation exists: {work_dir}")
         reference_file = None
         if reference is not None:
-            reference_file = work_dir / ("wall-intact-reference.png" if role == "wall_broken"
-                                         else "verified-character-reference.png")
+            reference_file = work_dir / (
+                "wall-intact-reference.png" if role == "wall_broken"
+                else "scene-registration-reference.png" if role in {"background", "foreground", "prop_focus", "atmosphere"}
+                else "verified-character-reference.png"
+            )
             shutil.copyfile(reference, reference_file)
         task = (
             "Use the imagegen skill and BUILT-IN image_gen tool to generate exactly one PNG. "
@@ -315,16 +327,25 @@ def _normalize(source: Path, target: Path, role: str,
             box = alpha.getbbox()
             if box is None:
                 raise ValueError(f"{role}: alpha cutout is empty")
-            content = rgba.crop(box)
-            slot = slot or SLOTS[role]
-            width, height = manga_layer_package.CANVAS_SIZE
-            left, top, right, bottom = (round(slot[0] * width), round(slot[1] * height),
-                                        round(slot[2] * width), round(slot[3] * height))
-            content.thumbnail((right - left, bottom - top), Image.Resampling.LANCZOS)
-            canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-            x = left + (right - left - content.width) // 2
-            y = top + (bottom - top - content.height) // 2
-            canvas.alpha_composite(content, (x, y))
+            if role in {"foreground", "prop_focus", "atmosphere"}:
+                # These roles are authored against the final full scene. Keep
+                # their canvas-relative registration instead of recentering the
+                # visible alpha bounds like a standalone character portrait.
+                canvas = ImageOps.fit(
+                    rgba, manga_layer_package.CANVAS_SIZE,
+                    method=Image.Resampling.LANCZOS,
+                )
+            else:
+                content = rgba.crop(box)
+                slot = slot or SLOTS[role]
+                width, height = manga_layer_package.CANVAS_SIZE
+                left, top, right, bottom = (round(slot[0] * width), round(slot[1] * height),
+                                            round(slot[2] * width), round(slot[3] * height))
+                content.thumbnail((right - left, bottom - top), Image.Resampling.LANCZOS)
+                canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+                x = left + (right - left - content.width) // 2
+                y = top + (bottom - top - content.height) // 2
+                canvas.alpha_composite(content, (x, y))
     target.parent.mkdir(parents=True, exist_ok=True)
     canvas.save(target, format="PNG")
     manga_layer_package._validate_png(target, role)
@@ -332,6 +353,19 @@ def _normalize(source: Path, target: Path, role: str,
 
 def _visual_reference_for_job(job: dict[str, Any], images_dir: Path) -> dict[str, str] | None:
     """Use the approved identity ref, or the just-authored intact wall geometry."""
+    if job["spec"].get("template") == "parallax_layered_scene":
+        scene_image = images_dir / f"scene-{job['spec']['scene_number']:03d}.png"
+        if not scene_image.is_file():
+            raise FileNotFoundError(
+                f"scene {job['spec']['scene_number']}: crop the final scene image before generating registered layers"
+            )
+        with Image.open(scene_image) as image:
+            image.load()
+            if image.format != "PNG" or image.size != manga_layer_package.CANVAS_SIZE:
+                raise ValueError(
+                    f"{scene_image.name}: registered layer source must be a 1920x1080 PNG"
+                )
+        return {"kind": "registered_scene", "path": str(scene_image), "sha256": _sha(scene_image)}
     if job["role"] in manga_layer_package.MOUTH_ROLES:
         character = images_dir / job["spec"]["layer_files"]["character"]
         manga_layer_package._validate_png(character, "character")

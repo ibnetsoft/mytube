@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Literal
 from worker.script_worker_store import ScriptStore, StoreUnavailable
 from worker.script_worker_media import media_summary
@@ -300,6 +300,8 @@ class StartRequest(BaseModel):
     image_style: str = Field(default='실사', max_length=80)
     production_mode: Literal['standard', 'moving_comic'] = 'standard'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
+    image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
+    image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)
     ae_scene_delivery: Literal['local', 'gcs'] = 'local'
     generate_bgm_prompt: bool = Field(default=False, strict=True)
     notes: str = Field(default='', max_length=4000)
@@ -310,6 +312,15 @@ class StartRequest(BaseModel):
     audience: str = Field(default='시니어 성도', max_length=200)
     perspective: str = Field(default='', max_length=500)
     passage: str = Field(default='', max_length=200)
+
+    @model_validator(mode='after')
+    def validate_image_layer_scene_range(self):
+        start, end = self.image_layer_scene_start, self.image_layer_scene_end
+        if (start is None) != (end is None):
+            raise ValueError('레이어 생성 시작 씬과 종료 씬을 함께 입력하세요.')
+        if start is not None and start > end:
+            raise ValueError('레이어 생성 시작 씬은 종료 씬보다 클 수 없습니다.')
+        return self
 
 
 class SourceRequest(BaseModel):
