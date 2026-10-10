@@ -1,0 +1,1165 @@
+﻿import os
+import json
+import shutil
+import zipfile
+import tempfile
+import time
+import glob
+import re
+import subprocess
+from pathlib import Path
+
+from config import config
+import database as db
+from app.modes import is_shorts_mode
+
+
+def _detect_nvenc(ffmpeg_exe: str) -> bool:
+    """Return True if h264_nvenc is available in the given FFmpeg binary."""
+    try:
+        result = subprocess.run(
+            [ffmpeg_exe, "-encoders"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return "h264_nvenc" in result.stdout
+    except Exception:
+        return False
+
+
+def _select_video_encoder(use_gpu: bool, ffmpeg_exe: str) -> str:
+    """Return h264_nvenc when GPU render is requested and NVENC is available,
+    otherwise return libx264.  Logs the decision for easy grep."""
+    if not use_gpu:
+        print("[Encoder] USE_GPU_RENDER=false | encoder=libx264")
+        return "libx264"
+    nvenc_available = _detect_nvenc(ffmpeg_exe)
+    if nvenc_available:
+        print("[Encoder] USE_GPU_RENDER=true | NVENC detected=true | encoder=h264_nvenc")
+        return "h264_nvenc"
+    print("[Encoder] USE_GPU_RENDER=true | NVENC detected=false | fallback_to_cpu=true | encoder=libx264")
+    return "libx264"
+
+
+def _run_ffmpeg_with_encoder_fallback(command: list, encoder: str, ffmpeg_exe: str, timeout: int = 3600) -> subprocess.CompletedProcess:
+    """Run an FFmpeg command.  If the encoder is h264_nvenc and it fails,
+    retry once with libx264 as a CPU fallback."""
+    result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0 and encoder == "h264_nvenc":
+        print(f"[Encoder] h264_nvenc failed (rc={result.returncode}) | fallback_to_cpu=true | encoder=libx264")
+        fallback_cmd = [arg.replace("h264_nvenc", "libx264") if arg == "h264_nvenc" else arg for arg in command]
+        result = subprocess.run(fallback_cmd, capture_output=True, text=True, timeout=timeout)
+    return result
+
+
+def _resolve_packaged_asset_path(asset_url_or_path: str):
+    """Resolve app asset URLs even when the logged-in user output dir lives in AppData."""
+    if not asset_url_or_path:
+        return None
+
+    candidate = asset_url_or_path
+    if os.path.isabs(candidate) and os.path.exists(candidate):
+        return candidate
+
+    rel = None
+    if candidate.startswith('/static/'):
+        rel = candidate.replace('/static/', '', 1).replace('/', os.sep)
+        static_path = os.path.join(config.STATIC_DIR, rel)
+        if os.path.exists(static_path):
+            return static_path
+        return None
+    if candidate.startswith('/output/'):
+        rel = candidate.replace('/output/', '', 1).replace('/', os.sep)
+    elif not candidate.startswith(('http://', 'https://')):
+        rel = candidate.replace('/', os.sep)
+
+    if not rel:
+        return None
+
+    output_path = os.path.join(config.OUTPUT_DIR, rel)
+    if os.path.exists(output_path):
+        return output_path
+
+    local_appdata = os.getenv('LOCALAPPDATA')
+    if local_appdata:
+        matches = glob.glob(os.path.join(local_appdata, 'picadilly', '*', 'output', rel))
+        for match in matches:
+            if os.path.exists(match):
+                return match
+
+    return None
+
+
+def _sanitize_subtitles_for_render(subtitles):
+    cleaned = []
+    for sub in subtitles or []:
+        if not isinstance(sub, dict):
+            continue
+        text_value = str(sub.get('text', '') or '')
+        text_value = re.sub(r'\[[^\]]*\]', '', text_value)
+        text_value = re.sub(r'\([^)]*\)', '', text_value)
+        text_value = re.sub(r'\s+', ' ', text_value).strip()
+        cleaned.append({
+            'text': text_value,
+            'dialogue_kind': 'dialogue' if sub.get('dialogue_kind') == 'dialogue' else 'narration',
+            'dialogue_speaker': sub.get('dialogue_speaker'),
+            'start': sub.get('start', 0),
+            'end': sub.get('end', 0),
+            **({'volume': sub['volume']} if sub.get('volume') is not None else {}),
+            **({'volume_ratio': sub['volume_ratio']} if sub.get('volume_ratio') is not None else {}),
+            **({'scene_number': sub.get('scene_number')} if sub.get('scene_number') is not None else {}),
+            **({'voice_id': sub.get('voice_id')} if sub.get('voice_id') else {}),
+            **({'voice_name': sub.get('voice_name')} if sub.get('voice_name') else {}),
+            **({'direction': sub.get('direction')} if sub.get('direction') else {}),
+        })
+    return cleaned
+
+
+def _sync_subtitle_timings_to_audio_duration(subtitles, audio_duration):
+    """Fallback retiming for subtitle payloads that do not carry real timings."""
+    if not subtitles or not isinstance(audio_duration, (int, float)) or audio_duration <= 0:
+        return subtitles
+
+    weights = [max(1, len(re.sub(r'\s+', '', str(subtitle.get('text', '') or '')))) for subtitle in subtitles]
+    total_weight = sum(weights)
+    if total_weight <= 0:
+        return subtitles
+
+    elapsed = 0.0
+    synced = []
+    for index, subtitle in enumerate(subtitles):
+        start = elapsed
+        elapsed = audio_duration if index == len(subtitles) - 1 else elapsed + (audio_duration * weights[index] / total_weight)
+        synced.append({
+            **subtitle,
+            'start': round(start, 3),
+            'end': round(elapsed, 3),
+        })
+    return synced
+
+
+def _voice_id_to_worker_preset(voice_id: str, language: str, speed: float, stability=0.62, similarity_boost=0.82, style=0.18):
+    voice_id = str(voice_id or '').strip()
+    if voice_id.startswith('gemini:'):
+        return {
+            'provider': 'vertex',
+            'voice': voice_id.split(':', 1)[1],
+            'model': 'gemini-2.5-flash-tts',
+            'language': language,
+            'direction': 'Read naturally as one continuous narration. Keep phrase endings connected unless punctuation clearly ends the sentence.',
+            'speed': speed,
+            'pause_ms': 0,
+        }
+    return {
+        'provider': 'elevenlabs',
+        'voice': voice_id,
+        'model': os.getenv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2'),
+        'language': language,
+        'direction': '',
+        'speed': speed,
+        'pause_ms': 0,
+        'stability': stability,
+        'similarity_boost': similarity_boost,
+        'style': style,
+    }
+
+
+def _subtitle_weight(text: str) -> int:
+    return max(1, len(re.sub(r'\s+', '', str(text or ''))))
+
+
+def _retime_subtitles_from_worker_tts(subtitles, tts_segments, timeline):
+    if not subtitles or not tts_segments or not timeline:
+        return subtitles
+    retimed = [dict(item) for item in subtitles]
+    timeline_by_id = {str(item.get('id')): item for item in timeline if isinstance(item, dict)}
+    covered = {}
+    for segment in tts_segments:
+        entry = timeline_by_id.get(str(segment.get('id')))
+        indices = [int(value) for value in segment.get('subtitle_indices') or [] if str(value).isdigit()]
+        if not entry or not indices:
+            continue
+        start = float(entry.get('start') or 0)
+        end = float(entry.get('end') or start)
+        if end <= start:
+            continue
+        if segment.get('subtitle_spans'):
+            length = max(1, len(segment['text']))
+            for part in segment['subtitle_spans']:
+                index = part['index']
+                if entry.get('alignment'):
+                    from services.speech_alignment import aligned_span
+                    measured = aligned_span(segment['text'], entry['alignment'], part['start'], part['end'],
+                                            start, entry.get('alignment_speed_ratio') or 1.0)
+                    if measured is None:
+                        continue
+                    a, b = measured
+                    a, b = min(end, a), min(end, b)
+                else:
+                    a = start + (end - start) * part['start'] / length
+                    b = start + (end - start) * part['end'] / length
+                old = covered.get(index, (a, b))
+                covered[index] = (min(a, old[0]), max(b, old[1]))
+            continue
+        weights = [_subtitle_weight(retimed[index].get('text', '')) for index in indices if 0 <= index < len(retimed)]
+        if not weights:
+            continue
+        cursor = start
+        span = end - start
+        total = sum(weights)
+        for position, index in enumerate(indices):
+            if index < 0 or index >= len(retimed):
+                continue
+            if position == len(indices) - 1:
+                next_cursor = end
+            else:
+                next_cursor = cursor + span * (weights[position] / total)
+            retimed[index]['start'] = round(cursor, 3)
+            retimed[index]['end'] = round(max(cursor + 0.08, next_cursor), 3)
+            cursor = next_cursor
+    for index, (start, end) in covered.items():
+        retimed[index].update(start=round(start, 3), end=round(end, 3))
+    return retimed
+
+
+def _scene_starts_from_subtitles(images_count: int, subtitles):
+    starts = []
+    cursor = 0.0
+    for index in range(images_count):
+        scene_number = index + 1
+        scene_subs = [
+            item for item in subtitles or []
+            if int(float(item.get('scene_number') or 0)) == scene_number
+        ]
+        if scene_subs:
+            start = min(float(item.get('start') or cursor) for item in scene_subs)
+            cursor = max(cursor, max(float(item.get('end') or start) for item in scene_subs))
+        else:
+            start = cursor
+        starts.append(round(max(0.0, start), 3))
+    return starts
+
+
+def _maybe_generate_worker_tts(metadata: dict, temp_dir: str, subtitles):
+    from services.narration_segments import sentence_segments
+    plan = metadata.get('worker_tts') or {}
+    if not isinstance(plan, dict) or not plan.get('enabled'):
+        return None
+    raw_segments = plan.get('segments') or []
+    if not raw_segments:
+        return None
+    raw_segments = sentence_segments(raw_segments, subtitles)
+    language_map = {'ko': 'ko-KR', 'en': 'en-US', 'ja': 'ja-JP', 'vi': 'vi-VN', 'th': 'th-TH'}
+    language = str(plan.get('language') or metadata.get('render_settings', {}).get('language') or 'ko')
+    language = language_map.get(language.lower(), language)
+    speed = float(plan.get('speed') or 1.0)
+    stability = float(plan.get('stability') if plan.get('stability') is not None else 0.7)
+    similarity_boost = float(plan.get('similarity_boost') if plan.get('similarity_boost') is not None else 0.82)
+    style = float(plan.get('style') if plan.get('style') is not None else 0.18)
+    complete_pause_ms = int(plan.get('pause_complete_ms') if plan.get('pause_complete_ms') is not None else 160)
+    incomplete_pause_ms = int(plan.get('pause_incomplete_ms') or 0)
+    presets = {}
+    segments = []
+    for raw in raw_segments:
+        text = re.sub(r'\s+', ' ', str(raw.get('text') or '')).strip()
+        voice_id = str(raw.get('voice_id') or '').strip()
+        if not text or not voice_id:
+            continue
+        preset_name = 'voice_' + re.sub(r'[^A-Za-z0-9_]+', '_', voice_id).strip('_')[:48]
+        if preset_name not in presets:
+            presets[preset_name] = _voice_id_to_worker_preset(voice_id, language, speed, stability, similarity_boost, style)
+        provider = presets[preset_name].get('provider')
+        segments.append({
+            'id': str(raw.get('id') or f'seg_{len(segments) + 1:04d}'),
+            'preset': preset_name,
+            'text': text,
+            'direction': str(raw.get('direction') or '') if provider == 'vertex' else '',
+            'subtitle_indices': raw.get('subtitle_indices') or [],
+            'subtitle_spans': raw.get('subtitle_spans') or [],
+        })
+    if not segments:
+        return None
+    for index, segment in enumerate(segments):
+        text = segment['text']
+        complete = bool(re.search(r'[.!?。！？…]["\'”’）)\]]*$', text.strip()))
+        segment['pause_ms'] = complete_pause_ms if complete else incomplete_pause_ms
+        # Context joins independently generated chunks without adding instructions
+        # to the spoken transcript or borrowing a different speaker's delivery.
+        if presets[segment['preset']]['provider'] == 'elevenlabs':
+            for key, neighbor in (('previous_text', index - 1), ('next_text', index + 1)):
+                if 0 <= neighbor < len(segments) and segments[neighbor]['preset'] == segment['preset']:
+                    segment[key] = segments[neighbor]['text']
+    from services.voice_studio import ElevenDialogue, VertexTTS, VoiceStudio
+    providers = {}
+    if any(value.get('provider') == 'vertex' for value in presets.values()):
+        providers['vertex'] = VertexTTS(os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCP_PROJECT') or 'secret-well-480907-a4')
+    if any(value.get('provider') == 'elevenlabs' for value in presets.values()):
+        providers['elevenlabs'] = ElevenDialogue()
+    output_dir = os.path.join(temp_dir, 'worker_tts')
+    result = VoiceStudio(presets, providers, limits={'vertex': 200000, 'elevenlabs': 200000}).run(segments, Path(output_dir))
+    retimed_subs = _retime_subtitles_from_worker_tts(subtitles, segments, result.get('timeline') or [])
+    return {
+        'audio_path': result.get('audio_path'),
+        'audio_duration': float(result.get('duration_seconds') or 0.0),
+        'subtitles': retimed_subs,
+        'image_timing_starts': _scene_starts_from_subtitles(len(metadata.get('images') or []), retimed_subs),
+        'manifest_path': result.get('manifest_path'),
+    }
+
+
+def _subtitles_have_explicit_timings(subtitles):
+    for subtitle in subtitles or []:
+        try:
+            start = float(subtitle.get('start', 0) or 0)
+            end = float(subtitle.get('end', 0) or 0)
+        except Exception:
+            continue
+        if end > start:
+            return True
+    return False
+
+
+def _probe_media_duration(ffmpeg_exe: str, media_path: str) -> float:
+    try:
+        result = subprocess.run(
+            [ffmpeg_exe, "-hide_banner", "-i", media_path],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        text = f"{result.stdout}\n{result.stderr}"
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", text)
+        if not match:
+            return 0.0
+        hours, minutes, seconds = match.groups()
+        return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+    except Exception:
+        return 0.0
+
+
+def _prepare_narration_audio_for_render(audio_path: str, temp_dir: str, ffmpeg_exe: str):
+    """Normalize narration without changing its timeline.
+
+    The subtitle page, scene durations, and final narration are authored on the
+    same clock.  Do not remove internal silence here; doing so shortens the
+    audio and desynchronizes every downstream render element.
+    """
+    if not audio_path or not os.path.exists(audio_path):
+        return audio_path, 0.0
+
+    processed_path = os.path.join(temp_dir, "audio", "narration_smooth.m4a")
+    filter_chain = ",".join([
+        "aresample=48000",
+        "afade=t=in:st=0:d=0.03",
+        "loudnorm=I=-16:TP=-1.5:LRA=11",
+    ])
+    command = [
+        ffmpeg_exe,
+        "-hide_banner",
+        "-y",
+        "-i",
+        audio_path,
+        "-vn",
+        "-af",
+        filter_chain,
+        "-c:a",
+        "aac",
+        "-b:a",
+        "160k",
+        processed_path,
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+        if result.returncode != 0 or not os.path.exists(processed_path) or os.path.getsize(processed_path) <= 0:
+            print(f"[Audio Smooth] skipped; ffmpeg failed: {result.stderr[-500:] if result else ''}")
+            return audio_path, _probe_media_duration(ffmpeg_exe, audio_path)
+        duration = _probe_media_duration(ffmpeg_exe, processed_path)
+        print(f"[Audio Smooth] narration normalized without timeline trim: {processed_path} duration={duration:.3f}s")
+        return processed_path, duration
+    except Exception as exc:
+        print(f"[Audio Smooth] skipped; {exc}")
+        return audio_path, _probe_media_duration(ffmpeg_exe, audio_path)
+
+
+def _render_std_template_overlay_png(render_settings, temp_dir: str, target_resolution):
+    if not isinstance(render_settings, dict) or not render_settings.get('std_image_template_enabled'):
+        return None
+
+    text_layers = render_settings.get('std_template_text_layers') or []
+    shape_layers = render_settings.get('std_template_shape_layers') or []
+    if not text_layers and not shape_layers:
+        return None
+
+    try:
+        from PIL import Image, ImageDraw
+        from services.thumbnail_service import thumbnail_service
+    except Exception as exc:
+        print(f"[STD Template] Failed to load overlay dependencies: {exc}")
+        return None
+
+    target_w = int(target_resolution[0])
+    target_h = int(target_resolution[1])
+    base_w, base_h = (1280, 720)
+    scale = target_h / base_h
+
+    overlay = Image.new('RGBA', (target_w, target_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    def hex_to_rgba(hex_color, opacity=1.0):
+        value = str(hex_color or '#000000').strip().lstrip('#')
+        if len(value) == 3:
+            value = ''.join(ch + ch for ch in value)
+        value = (value + '000000')[:6]
+        try:
+            red = int(value[0:2], 16)
+            green = int(value[2:4], 16)
+            blue = int(value[4:6], 16)
+        except Exception:
+            red, green, blue = 0, 0, 0
+        alpha = max(0, min(255, int(float(opacity) * 255)))
+        return (red, green, blue, alpha)
+
+    for shape in shape_layers:
+        if not isinstance(shape, dict):
+            continue
+        y = int((float(shape.get('y', 0) or 0) / 100.0) * target_h)
+        h = int((float(shape.get('height', 0) or 0) / 100.0) * target_h)
+        if h <= 0:
+            continue
+        draw.rectangle([(0, y), (target_w, y + h)], fill=hex_to_rgba(shape.get('color'), shape.get('opacity', 1.0)))
+
+    for layer in text_layers:
+        if not isinstance(layer, dict):
+            continue
+        text = str(layer.get('text') or '')
+        if not text:
+            continue
+        try:
+            font_size = max(1, int(float(layer.get('fontSize', layer.get('font_size', 28)) or 28) * scale))
+            stroke_width = max(0, int(float(layer.get('strokeWidth', layer.get('stroke_width', 0)) or 0) * scale))
+            x = (float(layer.get('x', 50) or 50) / 100.0) * target_w
+            y = (float(layer.get('y', 50) or 50) / 100.0) * target_h
+        except Exception:
+            continue
+
+        font_family = layer.get('fontFamily') or layer.get('font_family') or 'GmarketSansBold'
+        ttf_name = thumbnail_service.font_map.get(font_family, 'NotoSansKR-Bold.ttf')
+        font = thumbnail_service._load_font(ttf_name, font_size)
+        bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        text_x = x - text_w / 2
+        text_y = y - text_h / 2 - bbox[1]
+        draw.text(
+            (text_x, text_y),
+            text,
+            font=font,
+            fill=hex_to_rgba(layer.get('color', '#ffffff'), 1.0),
+            stroke_width=stroke_width,
+            stroke_fill=hex_to_rgba(layer.get('strokeColor', layer.get('stroke_color', '#000000')), 1.0),
+        )
+
+    overlays_dir = os.path.join(temp_dir, 'overlays')
+    os.makedirs(overlays_dir, exist_ok=True)
+    overlay_path = os.path.join(overlays_dir, 'std_template_overlay.png')
+    overlay.save(overlay_path)
+    print(f"[STD Template] Render overlay generated: {overlay_path}")
+    return overlay_path
+
+
+def _compute_image_durations(starts_or_durations, scene_count: int, audio_duration: float):
+    if scene_count <= 0:
+        return []
+
+    values = []
+    for raw in starts_or_durations or []:
+        try:
+            values.append(float(raw))
+        except Exception:
+            continue
+
+    if not values:
+        avg = audio_duration / scene_count if audio_duration and scene_count else 5.0
+        return [avg] * scene_count
+
+    if len(values) == scene_count and all(values[i] <= values[i + 1] for i in range(len(values) - 1)):
+        durations = []
+        for idx, start in enumerate(values):
+            if idx < len(values) - 1:
+                durations.append(max(0.1, values[idx + 1] - start))
+            else:
+                durations.append(max(2.0, audio_duration - start))
+        return durations
+
+    durations = values[:scene_count]
+    if len(durations) < scene_count:
+        remaining = max(0.0, audio_duration - sum(durations))
+        remaining_count = scene_count - len(durations)
+        avg = max(3.0, remaining / remaining_count) if remaining_count > 0 else 5.0
+        durations.extend([avg] * remaining_count)
+    total = sum(durations)
+    if audio_duration and durations and abs(total - audio_duration) > 0.25:
+        durations[-1] = max(0.1, durations[-1] + (audio_duration - total))
+    return durations
+
+
+def _copy_project_sfx_package(project_id: int, p_settings: dict, subs: list, image_timing_starts, temp_dir: str) -> list:
+    try:
+        from services.sfx_service import build_render_sfx_cues, package_sfx_cues
+
+        cues = build_render_sfx_cues(
+            p_settings,
+            subs,
+            project_id=project_id,
+            image_timing_starts=image_timing_starts if isinstance(image_timing_starts, list) else None,
+        )
+        return package_sfx_cues(cues, temp_dir)
+    except Exception as exc:
+        print(f"[SFX] Failed to prepare SFX package: {exc}")
+        return []
+
+
+def _build_project_upload_metadata(project_id: int, project_obj: dict, p_settings: dict):
+    metadata = db.get_project_metadata(project_id, p_settings.get("app_mode")) or {}
+    title = (
+        (metadata.get('titles') or [None])[0]
+        or p_settings.get('title')
+        or project_obj.get('name')
+        or f'Project {project_id}'
+    )
+    description = metadata.get('description') or p_settings.get('description') or ''
+    tags = metadata.get('tags') or []
+    hashtags = metadata.get('hashtags') or [
+        item.strip() for item in str(p_settings.get('hashtags') or '').split(',') if item.strip()
+    ]
+    return {
+        'project_id': project_id,
+        'project_name': project_obj.get('name') or f'Project {project_id}',
+        'topic': project_obj.get('topic') or '',
+        'title': title,
+        'description': description,
+        'tags': tags,
+        'hashtags': hashtags,
+        'status': 'ready_for_upload',
+    }
+
+
+def package_project_assets(project_id: int, use_subtitles: bool = True, resolution: str = '1080p') -> str:
+    """Package local render inputs for remote rendering."""
+    temp_dir = tempfile.mkdtemp(prefix=f'render_pkg_{project_id}_')
+
+    try:
+        images_dir = os.path.join(temp_dir, 'images')
+        audio_dir = os.path.join(temp_dir, 'audio')
+        os.makedirs(images_dir, exist_ok=True)
+        os.makedirs(audio_dir, exist_ok=True)
+
+        images_data = db.get_image_prompts(project_id) or []
+        tts_data = db.get_tts(project_id) or {}
+        p_settings = db.get_project_settings(project_id) or {}
+        global_settings = db.get_global_setting('app_mode', 'longform')
+
+        proj_mode = p_settings.get('app_mode', global_settings)
+        is_shorts_project = is_shorts_mode(proj_mode) or p_settings.get('is_shorts') is True
+        project_aspect = '9:16' if is_shorts_project else '16:9'
+
+        audio_path = tts_data.get('audio_path')
+        if not audio_path or not os.path.exists(audio_path):
+            # [FIX] This used to silently continue with audio_filename=None,
+            # producing a package that uploads fine and only fails ~10+
+            # minutes later on the remote worker with "TTS audio file was
+            # not found." Fail fast here instead, before any Drive upload.
+            raise RuntimeError(
+                f"TTS audio file is missing on disk for project {project_id} "
+                f"(expected at: {audio_path or '(no audio_path saved)'}). "
+                "Regenerate TTS before submitting for remote render."
+            )
+        audio_filename = os.path.basename(audio_path)
+        shutil.copy2(audio_path, os.path.join(audio_dir, audio_filename))
+
+        # [FIX] Live DB is now the primary source when packaging for remote
+        # render - the timeline snapshot used to take priority and permanently
+        # locked in whatever image_url/video_url existed at the time it was
+        # written, so scenes edited/cropped afterwards were packaged as blank
+        # slots. The snapshot is now only used to fill a slot the DB can't
+        # resolve.
+        images = []
+        for img in images_data:
+            target_url = img.get('image_url') or img.get('video_url')
+            fpath = _resolve_packaged_asset_path(target_url)
+            images.append(fpath if fpath and os.path.exists(fpath) else '')
+
+        timeline_path = p_settings.get('timeline_images_path')
+        if timeline_path and os.path.exists(timeline_path):
+            try:
+                with open(timeline_path, 'r', encoding='utf-8') as f:
+                    urls = json.load(f)
+                if len(urls) == len(images):
+                    for idx, url in enumerate(urls):
+                        if images[idx]:
+                            continue
+                        fpath = _resolve_packaged_asset_path(url)
+                        if fpath and os.path.exists(fpath):
+                            images[idx] = fpath
+            except Exception:
+                pass
+
+        img_to_video = {}
+        for prompt in images_data:
+            v_url = prompt.get('video_url')
+            i_url = prompt.get('image_url')
+            if i_url and v_url:
+                img_to_video[os.path.basename(i_url)] = v_url
+
+        final_images_filenames = []
+        for img_path in images:
+            if not img_path:
+                final_images_filenames.append(None)
+                continue
+
+            base_name = os.path.basename(img_path)
+            if base_name in img_to_video:
+                v_url = img_to_video[base_name]
+                v_path = _resolve_packaged_asset_path(v_url)
+                if v_path and os.path.exists(v_path):
+                    img_path = v_path
+                    base_name = os.path.basename(img_path)
+
+            dest_path = os.path.join(images_dir, base_name)
+            shutil.copy2(img_path, dest_path)
+            final_images_filenames.append(base_name)
+
+        subs = []
+        if use_subtitles:
+            db_sub_path = p_settings.get('subtitle_path')
+            if db_sub_path and os.path.exists(db_sub_path):
+                try:
+                    with open(db_sub_path, 'r', encoding='utf-8') as f:
+                        subs = json.load(f)
+                except Exception:
+                    pass
+            if not subs:
+                output_dir_local, _ = db.get_project_output_dir(project_id) if hasattr(db, 'get_project_output_dir') else (os.path.join(config.OUTPUT_DIR, f'project_{project_id}'), '')
+                saved_sub_path = os.path.join(output_dir_local, f'subtitles_{project_id}.json')
+                if os.path.exists(saved_sub_path):
+                    try:
+                        with open(saved_sub_path, 'r', encoding='utf-8') as f:
+                            subs = json.load(f)
+                    except Exception:
+                        pass
+        subs = _sanitize_subtitles_for_render(subs)
+
+        render_settings = dict(p_settings)
+        if render_settings.get('subtitle_bg_enabled') is None and render_settings.get('bg_enabled') is None:
+            render_settings['subtitle_bg_enabled'] = 1
+        elif render_settings.get('subtitle_bg_enabled') is None:
+            render_settings['subtitle_bg_enabled'] = render_settings.get('bg_enabled', 1)
+        if render_settings.get('bg_enabled') is None:
+            render_settings['bg_enabled'] = render_settings.get('subtitle_bg_enabled', 1)
+
+        stored_effects = []
+        effects_path = p_settings.get('image_effects_path')
+        if effects_path and os.path.exists(effects_path):
+            try:
+                with open(effects_path, 'r', encoding='utf-8') as f_eff:
+                    raw_effects = json.load(f_eff)
+                if isinstance(raw_effects, list):
+                    stored_effects = raw_effects
+            except Exception:
+                stored_effects = []
+
+        image_effects = []
+        focal_point_ys = []
+        for idx, img in enumerate(images_data):
+            scene_number = img.get('scene_number') or (idx + 1)
+            explicit_effect = p_settings.get(f'scene_{scene_number}_motion')
+            if explicit_effect:
+                image_effects.append(explicit_effect)
+            elif idx < len(stored_effects) and stored_effects[idx]:
+                image_effects.append(stored_effects[idx])
+            else:
+                image_effects.append('auto_classify')
+            try:
+                focal_point_ys.append(float(img.get('focal_point_y', 0.5) or 0.5))
+            except Exception:
+                focal_point_ys.append(0.5)
+
+        while len(image_effects) < len(final_images_filenames):
+            image_effects.append('auto_classify')
+        while len(focal_point_ys) < len(final_images_filenames):
+            focal_point_ys.append(0.5)
+
+        image_timing_starts = None
+        tm_path = p_settings.get('image_timings_path')
+        if tm_path and os.path.exists(tm_path):
+            try:
+                with open(tm_path, 'r', encoding='utf-8') as f_tm:
+                    image_timing_starts = json.load(f_tm)
+            except Exception:
+                pass
+
+        sfx_cues = _copy_project_sfx_package(project_id, p_settings, subs, image_timing_starts, temp_dir)
+
+        bg_video_url = p_settings.get('bg_video_url')
+        intro_video_path = p_settings.get('intro_video_path')
+        intro_filename = None
+        if intro_video_path and os.path.exists(intro_video_path):
+            intro_filename = os.path.basename(intro_video_path)
+            shutil.copy2(intro_video_path, os.path.join(temp_dir, intro_filename))
+
+        template_overlay_filename = None
+        preset_name = render_settings.get('shorts_template_preset')
+        if preset_name:
+            try:
+                all_presets = db.get_shorts_template_presets()
+                match = next((p for p in all_presets if p['name'] == preset_name), None)
+                image_path = match.get('image_path') if match else None
+                if image_path and os.path.exists(image_path):
+                    overlays_dir = os.path.join(temp_dir, 'overlays')
+                    os.makedirs(overlays_dir, exist_ok=True)
+                    template_overlay_filename = os.path.basename(image_path)
+                    shutil.copy2(image_path, os.path.join(overlays_dir, template_overlay_filename))
+            except Exception:
+                pass
+
+        from services.auth_service import auth_service
+        project_obj = db.get_project(project_id) or {}
+        project_name = project_obj.get('name', f'Project {project_id}')
+        project_upload_metadata = _build_project_upload_metadata(project_id, project_obj, p_settings)
+
+        thumbnail_filename = None
+        thumbnail_url = p_settings.get('thumbnail_url') or p_settings.get('thumbnail_path')
+        thumbnail_local_path = _resolve_packaged_asset_path(thumbnail_url) if thumbnail_url else None
+        if thumbnail_local_path and os.path.exists(thumbnail_local_path):
+            thumb_ext = os.path.splitext(thumbnail_local_path)[1] or '.png'
+            thumbnail_filename = f"thumbnail{thumb_ext.lower()}"
+            shutil.copy2(thumbnail_local_path, os.path.join(temp_dir, thumbnail_filename))
+
+        metadata = {
+            'project_id': project_id,
+            'project_name': project_name,
+            'email': auth_service.get_user_email() or 'unknown',
+            'use_subtitles': use_subtitles,
+            'resolution': resolution,
+            'aspect_ratio': project_aspect,
+            'audio_filename': audio_filename,
+            'audio_duration': tts_data.get('duration'),
+            'images': final_images_filenames,
+            'subtitles': subs,
+            'render_settings': render_settings,
+            'image_timing_starts': image_timing_starts,
+            'image_effects': image_effects,
+            'sfx_cues': sfx_cues,
+            'focal_point_ys': focal_point_ys,
+            'bg_video_url': bg_video_url,
+            'intro_filename': intro_filename,
+            'template_overlay_filename': template_overlay_filename,
+            'content_aspect_ratio': p_settings.get('aspect_ratio'),
+            'app_mode': proj_mode,
+            'thumbnail_filename': thumbnail_filename,
+            'project_upload_metadata': project_upload_metadata,
+        }
+
+        with open(os.path.join(temp_dir, 'config.json'), 'w', encoding='utf-8') as f_conf:
+            json.dump(metadata, f_conf, ensure_ascii=False, indent=4)
+
+        zip_output_dir = os.path.join(config.OUTPUT_DIR, f'project_{project_id}')
+        os.makedirs(zip_output_dir, exist_ok=True)
+        zip_path = os.path.join(zip_output_dir, f'remote_render_pkg_{project_id}.zip')
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, temp_dir)
+                    zipf.write(file_path, rel_path)
+
+        return zip_path
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def package_music_project_assets(project_id: int, track_file_paths, playlist_title: str = "", resolution: str = "1080p") -> str:
+    """Package longform-music playlist assets for remote rendering."""
+    temp_dir = tempfile.mkdtemp(prefix=f'music_render_pkg_{project_id}_')
+
+    try:
+        audio_dir = os.path.join(temp_dir, 'audio')
+        os.makedirs(audio_dir, exist_ok=True)
+
+        p_settings = db.get_project_settings(project_id) or {}
+        project_obj = db.get_project(project_id) or {}
+        output_title = (
+            playlist_title
+            or p_settings.get("title")
+            or p_settings.get("playlist_title")
+            or project_obj.get("topic")
+            or project_obj.get("name")
+            or f"Project {project_id}"
+        )
+
+        track_entries = []
+        for index, raw_path in enumerate(track_file_paths or []):
+            local_path = _resolve_packaged_asset_path(raw_path)
+            if not local_path or not os.path.exists(local_path):
+                continue
+            ext = os.path.splitext(local_path)[1].lower() or ".mp3"
+            filename = f"track_{index:02d}{ext}"
+            shutil.copy2(local_path, os.path.join(audio_dir, filename))
+            track_entries.append({
+                "filename": filename,
+                "source_path": raw_path,
+                "title": f"Track {index + 1:02d}",
+            })
+
+        if not track_entries:
+            raise RuntimeError("No generated music tracks were found for remote rendering.")
+
+        cover_filename = None
+        cover_path = _resolve_packaged_asset_path(p_settings.get("template_image_url") or p_settings.get("thumbnail_url"))
+        if cover_path and os.path.exists(cover_path):
+            cover_filename = f"cover{os.path.splitext(cover_path)[1].lower() or '.jpg'}"
+            shutil.copy2(cover_path, os.path.join(temp_dir, cover_filename))
+
+        background_filename = None
+        background_path = _resolve_packaged_asset_path(p_settings.get("background_video_url"))
+        if background_path and os.path.exists(background_path):
+            background_filename = f"background{os.path.splitext(background_path)[1].lower()}"
+            shutil.copy2(background_path, os.path.join(temp_dir, background_filename))
+
+        intro_filename = None
+        intro_path = p_settings.get("intro_video_path")
+        if intro_path and os.path.exists(intro_path):
+            intro_filename = f"intro{os.path.splitext(intro_path)[1].lower() or '.mp4'}"
+            shutil.copy2(intro_path, os.path.join(temp_dir, intro_filename))
+
+        intro_bgm_filename = None
+        intro_bgm_path = _resolve_packaged_asset_path(p_settings.get("intro_bgm_path"))
+        if intro_bgm_path and os.path.exists(intro_bgm_path):
+            intro_bgm_filename = f"intro_bgm{os.path.splitext(intro_bgm_path)[1].lower() or '.mp3'}"
+            shutil.copy2(intro_bgm_path, os.path.join(temp_dir, intro_bgm_filename))
+
+        thumbnail_filename = None
+        thumbnail_path = _resolve_packaged_asset_path(p_settings.get("thumbnail_url"))
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            thumbnail_filename = f"thumbnail{os.path.splitext(thumbnail_path)[1].lower() or '.jpg'}"
+            shutil.copy2(thumbnail_path, os.path.join(temp_dir, thumbnail_filename))
+
+        metadata = {
+            'project_id': project_id,
+            'project_name': project_obj.get('name') or f'Project {project_id}',
+            'playlist_title': output_title,
+            'resolution': resolution,
+            'aspect_ratio': '16:9',
+            'app_mode': 'longform_music',
+            'render_style': 'music_playlist',
+            'track_entries': track_entries,
+            'cover_filename': cover_filename,
+            'background_filename': background_filename,
+            'intro_filename': intro_filename,
+            'intro_bgm_filename': intro_bgm_filename,
+            'intro_bgm_prompt': p_settings.get("intro_bgm_prompt"),
+            'intro_video_prompt': p_settings.get("intro_video_prompt"),
+            'thumbnail_filename': thumbnail_filename,
+            'project_upload_metadata': _build_project_upload_metadata(project_id, project_obj, p_settings),
+        }
+
+        with open(os.path.join(temp_dir, 'config.json'), 'w', encoding='utf-8') as f_conf:
+            json.dump(metadata, f_conf, ensure_ascii=False, indent=4)
+
+        zip_output_dir = os.path.join(config.OUTPUT_DIR, f'project_{project_id}')
+        os.makedirs(zip_output_dir, exist_ok=True)
+        zip_path = os.path.join(zip_output_dir, f'remote_music_render_pkg_{project_id}.zip')
+
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, _dirs, files in os.walk(temp_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, temp_dir)
+                    zipf.write(file_path, rel_path)
+
+        return zip_path
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = False):
+    progress_file = os.path.join(temp_dir, 'progress.txt')
+
+    def update_progress(percent: int, message: str):
+        with open(progress_file, 'w', encoding='utf-8') as f_prog:
+            f_prog.write(json.dumps({'progress': percent, 'message': message, 'timestamp': time.time()}))
+
+    try:
+        update_progress(5, '렌더링 패키지 로딩 중...')
+        config_path = os.path.join(temp_dir, 'config.json')
+        with open(config_path, 'r', encoding='utf-8') as f_conf:
+            metadata = json.load(f_conf)
+
+        aspect_ratio = metadata.get('aspect_ratio', '16:9')
+        resolution = metadata.get('resolution', '1080p')
+        app_mode = metadata.get('app_mode', 'longform')
+        audio_filename = metadata.get('audio_filename')
+        images_filenames = metadata.get('images', [])
+        subs = _sanitize_subtitles_for_render(metadata.get('subtitles', []))
+        render_settings = metadata.get('render_settings', {})
+        image_timing_starts = metadata.get('image_timing_starts')
+        image_effects = metadata.get('image_effects') or []
+        transition_effects = metadata.get('transition_effects') or []
+        sfx_cues = metadata.get('sfx_cues') or []
+        focal_point_ys = metadata.get('focal_point_ys') or []
+
+        if aspect_ratio == '9:16':
+            target_resolution = (1080, 1920) if resolution == '1080p' else (720, 1280)
+        else:
+            target_resolution = (1920, 1080) if resolution == '1080p' else (1280, 720)
+
+        if app_mode == 'longform_music':
+            update_progress(20, '음악 플레이리스트 렌더링 준비 중...')
+            try:
+                import imageio_ffmpeg
+                ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            except Exception:
+                ffmpeg_exe = "ffmpeg"
+            encoder = _select_video_encoder(use_gpu, ffmpeg_exe)
+            track_entries = metadata.get('track_entries') or []
+            if not track_entries:
+                raise Exception('플레이리스트 트랙을 찾을 수 없습니다.')
+
+            concat_path = os.path.join(temp_dir, 'audio', 'concat.txt')
+            with open(concat_path, 'w', encoding='utf-8') as f_concat:
+                for track in track_entries:
+                    filename = track.get('filename')
+                    if filename:
+                        track_path = os.path.join(temp_dir, 'audio', filename).replace(os.sep, '/')
+                        f_concat.write(f"file '{track_path}'\n")
+
+            combined_audio = os.path.join(temp_dir, 'combined_audio.mp3')
+            concat_result = subprocess.run(
+                [ffmpeg_exe, "-f", "concat", "-safe", "0", "-i", concat_path, "-c", "copy", combined_audio, "-y"],
+                capture_output=True,
+                text=True,
+                timeout=1800,
+            )
+            if concat_result.returncode != 0:
+                raise Exception(f"음악 트랙 병합 실패: {concat_result.stderr}")
+
+            visual_filename = metadata.get('background_filename') or metadata.get('cover_filename')
+            if not visual_filename:
+                raise Exception('플레이리스트 렌더링용 커버 이미지 또는 배경 영상을 찾을 수 없습니다.')
+            visual_path = os.path.join(temp_dir, visual_filename)
+            if not os.path.exists(visual_path):
+                raise Exception('렌더링 패키지에서 플레이리스트 비주얼 에셋을 찾을 수 없습니다.')
+
+            output_file_path = os.path.join(temp_dir, 'output.mp4')
+            update_progress(55, '플레이리스트 영상 렌더링 중...')
+            is_video_background = os.path.splitext(visual_path)[1].lower() in {'.mp4', '.mov', '.webm', '.mkv'}
+            title_text = str(metadata.get('playlist_title') or metadata.get('project_name') or 'Playlist').replace("'", "")
+            if is_video_background:
+                command = [
+                    ffmpeg_exe,
+                    "-stream_loop", "-1",
+                    "-i", visual_path,
+                    "-i", combined_audio,
+                    "-vf", f"scale={target_resolution[0]}:{target_resolution[1]},fps=24",
+                    "-c:v", encoder,
+                    "-c:a", "aac",
+                    "-pix_fmt", "yuv420p",
+                    "-shortest",
+                    "-y",
+                    output_file_path,
+                ]
+            else:
+                drawtext = (
+                    f"drawtext=text='{title_text}':fontcolor=white:fontsize=48:"
+                    "x=(w-text_w)/2:y=h-120:box=1:boxcolor=black@0.35:boxborderw=18"
+                )
+                command = [
+                    ffmpeg_exe,
+                    "-loop", "1",
+                    "-i", visual_path,
+                    "-i", combined_audio,
+                    "-vf", f"scale={target_resolution[0]}:{target_resolution[1]},{drawtext}",
+                    "-c:v", encoder,
+                    "-c:a", "aac",
+                    "-pix_fmt", "yuv420p",
+                    "-shortest",
+                    "-y",
+                    output_file_path,
+                ]
+
+            render_result = _run_ffmpeg_with_encoder_fallback(command, encoder, ffmpeg_exe, timeout=3600)
+            if render_result.returncode != 0:
+                raise Exception(f"음악 플레이리스트 영상 렌더링 실패: {render_result.stderr}")
+
+            update_progress(100, '완료')
+            return
+
+        audio_path = os.path.join(temp_dir, 'audio', audio_filename) if audio_filename else None
+        if not audio_path or not os.path.exists(audio_path):
+            raise Exception('TTS 오디오 파일을 찾을 수 없습니다.')
+
+        try:
+            import imageio_ffmpeg as _audio_iio_ffmpeg
+            audio_ffmpeg_exe = _audio_iio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            audio_ffmpeg_exe = "ffmpeg"
+
+        worker_tts_result = None
+        if metadata.get('worker_tts'):
+            try:
+                update_progress(12, '렌더워커 연속 내레이션 TTS 생성 중...')
+                worker_tts_result = _maybe_generate_worker_tts(metadata, temp_dir, subs)
+                if worker_tts_result and worker_tts_result.get('audio_path') and os.path.exists(worker_tts_result['audio_path']):
+                    audio_path = worker_tts_result['audio_path']
+                    subs = worker_tts_result.get('subtitles') or subs
+                    image_timing_starts = worker_tts_result.get('image_timing_starts') or image_timing_starts
+                    metadata['worker_tts_used'] = True
+                    metadata['audio_duration'] = worker_tts_result.get('audio_duration') or metadata.get('audio_duration')
+                    print(f"[Worker TTS] Generated continuous narration: {audio_path}")
+            except Exception as worker_tts_error:
+                metadata['worker_tts_used'] = False
+                metadata['worker_tts_error'] = str(worker_tts_error)
+                print(f"[Worker TTS] Failed; falling back to submitted audio: {worker_tts_error}")
+
+        audio_provenance = {
+            'source': 'worker_tts' if metadata.get('worker_tts_used') else 'submitted_audio',
+            'worker_tts_requested': bool((metadata.get('worker_tts') or {}).get('enabled')),
+            'fallback': bool(metadata.get('worker_tts_error')),
+        }
+        if metadata.get('worker_tts_used') and worker_tts_result:
+            manifest_path = worker_tts_result.get('manifest_path')
+            if manifest_path and os.path.isfile(manifest_path):
+                with open(manifest_path, encoding='utf-8') as voice_manifest:
+                    voice_state = json.load(voice_manifest)
+                audio_provenance['segments'] = [
+                    {key: entry.get(key) for key in ('provider', 'voice', 'model', 'speed')}
+                    for entry in voice_state.get('segments', {}).values()
+                ]
+        with open(os.path.join(temp_dir, 'audio_provenance.json'), 'w', encoding='utf-8') as provenance_file:
+            json.dump(audio_provenance, provenance_file, ensure_ascii=False, indent=2)
+
+        update_progress(15, '내레이션 오디오 레벨 정리 중...')
+        if metadata.get('speech_gain_version') == 1:
+            from services.speech_gain import prepare_speech_audio
+            audio_path, smoothed_duration = prepare_speech_audio(audio_path, temp_dir, audio_ffmpeg_exe, subs)
+        else:
+            audio_path, smoothed_duration = _prepare_narration_audio_for_render(audio_path, temp_dir, audio_ffmpeg_exe)
+
+        update_progress(18, '오디오 메타데이터 읽는 중...')
+        audio_duration = float(metadata.get('audio_duration') or 0.0)
+        if smoothed_duration > 0 and (audio_duration <= 0 or abs(smoothed_duration - audio_duration) <= 1.0):
+            audio_duration = smoothed_duration
+        if audio_duration <= 0:
+            try:
+                from moviepy import AudioFileClip
+            except ImportError:
+                from moviepy.editor import AudioFileClip
+            audio_clip = AudioFileClip(audio_path)
+            audio_duration = float(audio_clip.duration)
+            audio_clip.close()
+
+        if str(metadata.get('subtitle_sync_mode') or '').lower() == 'audio_duration_weighted' and not _subtitles_have_explicit_timings(subs):
+            subs = _sync_subtitle_timings_to_audio_duration(subs, audio_duration)
+        from services.sfx_timing import retime_sfx_cues
+        sfx_cues = retime_sfx_cues(sfx_cues, subs)
+        update_progress(22, '저장된 자막 타이밍 적용 중...')
+
+        images = []
+        for fname in images_filenames:
+            if fname:
+                path_img = os.path.join(temp_dir, 'images', fname)
+                images.append(path_img if os.path.exists(path_img) else '')
+            else:
+                images.append('')
+
+        update_progress(30, '렌더링 입력 준비 중...')
+        if not any(images):
+            raise Exception('원격 렌더링에 사용할 이미지 리소스를 찾을 수 없습니다.')
+
+        durations = _compute_image_durations(image_timing_starts, len(images), audio_duration)
+        # Explicit opt-in: legacy projects continue through the original pipeline below.
+        comic_options = render_settings.get('comic') or {}
+        if isinstance(comic_options, dict) and comic_options.get('version') == 1 and comic_options.get('mode') in ('comic', 'moving_comic'):
+            from services.comic_render_service import render_comic
+            render_comic(temp_dir=temp_dir, images=images, durations=durations,
+                         audio_path=audio_path, subtitles=subs if metadata.get('use_subtitles') else [],
+                         settings=render_settings, resolution=target_resolution,
+                         scene_numbers=metadata.get('scene_numbers'), sfx_cues=sfx_cues,
+                         progress_callback=update_progress)
+            update_progress(100, '만화책 렌더링 완료')
+            return
+
+        template_overlay_filename = metadata.get('template_overlay_filename')
+        template_overlay_path = os.path.join(temp_dir, 'overlays', template_overlay_filename) if template_overlay_filename else None
+        if not template_overlay_path or not os.path.exists(template_overlay_path):
+            template_overlay_path = _render_std_template_overlay_png(render_settings, temp_dir, target_resolution)
+        intro_filename = metadata.get('intro_filename')
+        intro_video_path = os.path.join(temp_dir, intro_filename) if intro_filename else None
+
+        from services.ffmpeg_slideshow_service import FastRenderUnsupported, render_ffmpeg_slideshow
+
+        try:
+            rendered_path = render_ffmpeg_slideshow(
+                temp_dir=temp_dir,
+                images=images,
+                audio_path=audio_path,
+                durations=durations,
+                subtitles=subs if metadata.get('use_subtitles') else [],
+                subtitle_settings=render_settings,
+                image_effects=image_effects,
+                transition_effects=transition_effects,
+                resolution=target_resolution,
+                template_overlay_path=(
+                    template_overlay_path
+                    if template_overlay_path and os.path.exists(template_overlay_path)
+                    else None
+                ),
+                intro_video_path=(
+                    intro_video_path
+                    if intro_video_path and os.path.exists(intro_video_path)
+                    else None
+                ),
+                sfx_cues=sfx_cues,
+                use_gpu=use_gpu,
+                progress_callback=update_progress,
+            )
+        except FastRenderUnsupported as fast_render_error:
+            print(f"[Fast Render] unsupported={fast_render_error} | fallback=moviepy")
+            update_progress(50, '호환 렌더링 엔진으로 전환 중...')
+            from services.video_service import video_service
+
+            try:
+                import imageio_ffmpeg as _iio_ffmpeg
+                _slideshow_ffmpeg_exe = _iio_ffmpeg.get_ffmpeg_exe()
+            except Exception:
+                _slideshow_ffmpeg_exe = "ffmpeg"
+            slideshow_encoder = _select_video_encoder(use_gpu, _slideshow_ffmpeg_exe)
+            remote_output_name = f'remote_task_{task_id}.mp4'
+            rendered_path = video_service.create_slideshow(
+                images=images,
+                audio_path=audio_path,
+                output_filename=remote_output_name,
+                duration_per_image=durations,
+                fps=24,
+                resolution=target_resolution,
+                project_id=metadata.get('project_id'),
+                subtitles=subs if metadata.get('use_subtitles') else [],
+                subtitle_settings=render_settings,
+                template_overlay_path=template_overlay_path if template_overlay_path and os.path.exists(template_overlay_path) else None,
+                intro_video_path=intro_video_path if intro_video_path and os.path.exists(intro_video_path) else None,
+                focal_point_ys=focal_point_ys,
+                image_effects=image_effects,
+                transition_effects=transition_effects,
+                sfx_cues=sfx_cues,
+                content_aspect_ratio=metadata.get('content_aspect_ratio'),
+                codec=slideshow_encoder,
+            )
+
+        output_file_path = os.path.join(temp_dir, 'output.mp4')
+        update_progress(90, '최종 영상 복사 중...')
+        if rendered_path != output_file_path:
+            shutil.copy2(rendered_path, output_file_path)
+        update_progress(100, '완료')
+    except Exception as err:
+        update_progress(-1, f'오류: {str(err)}')
+        raise err

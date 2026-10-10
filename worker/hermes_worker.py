@@ -1,0 +1,9349 @@
+"""
+[AIR-0227E-P3] Real Hermes Worker Process - topic_research jobs only.
+
+Replaces hermes_worker_mock.py as the process the Manager actually spawns
+for the "hermes_worker" role (hermes_worker_mock.py is kept, unmodified, as
+a test-only fixture - _dev/ QA scripts that want a fast, API-key-free
+Hermes still import it directly; production execution never starts it,
+see air_worker_entry.py).
+
+Scope (explicitly limited by this Task): topic research only - given a
+keyword/category, call an AI provider and return a list of candidate
+topics. No agentic multi-step research, no content generation, no new
+Supabase tables/central API - this worker only ever talks to (a) the local
+job_store (same SQLite file render_worker.py already uses) and (b) an AI
+provider via services/ai_router.py, exactly like the rendering pipeline's
+own script-generation calls elsewhere in this codebase.
+
+Job source: worker/job_store.py, job_type='topic_research'. Submitted via
+the existing generic POST /jobs/submit on the Local API (job_type is
+already a free-form column - no schema change needed there).
+
+State machine reuse: job_store.TRANSITIONS is shaped for rendering
+(CLAIMED -> PREPARING -> RENDERING -> UPLOADING -> COMPLETED). Rather than
+extending that table (which render_worker.py also depends on - a change
+there is exactly the kind of "existing render contract" risk the task
+explicitly forbids), this worker walks the identical, unmodified state
+sequence with topic-research-appropriate progress messages:
+  CLAIMED -> PREPARING  ("프롬프트 준비")
+  PREPARING -> RENDERING ("AI 호출 중")
+  RENDERING -> UPLOADING ("결과 저장 중")
+  UPLOADING -> COMPLETED
+job_store.py itself is not touched by this Task.
+
+AI provider key: GEMINI_API_KEY / CLAUDE_API_KEY are read from the local
+process environment on the render PC (config.py's existing os.getenv
+fallback) - no web-admin fetch, no service_role on this machine. Model
+selection reuses the existing config.TOPIC_GENERATION_MODEL knob so an
+operator can point Hermes at Claude by setting that env var to a
+claude-prefixed model name; services/ai_router.py's Claude->Gemini fallback
+then applies unchanged.
+
+[AIR-0230] Added a second job_type: topic_benchmark_analyze. This is the
+"which real, high-performing YouTube video should inform this category's
+topics" step that used to only exist as a PRO-only manual feature in the
+desktop user app (templates/pages/topic.html: search -> sort by views-vs-
+subscribers -> pick one -> analyze). It runs here instead of in that app or
+in auth-web because (a) transcript extraction depends on
+youtube_transcript_api, a Python-only scraping library with no Next.js/
+Vercel equivalent, and (b) this worker process is already always-running on
+the render PC with a Python environment and network access. It reuses
+existing, unmodified app functions rather than reimplementing them:
+  - app/routers/youtube.py's search/videos/channels call shape (ported here
+    as plain httpx calls since those are FastAPI route handlers, not
+    importable service functions)
+  - services/source_service.py::extract_text_from_youtube() for transcripts
+  - services/gemini_service.py::analyze_comments() /
+    extract_success_strategy() for the analysis + generalized-pattern
+    extraction
+Result is still always written to the local RESULTS_DIR first (unconditionally,
+matching topic_research), and ADDITIONALLY reported to the central server via
+central_client.complete_job(..., result_payload=...) when
+AIRWORKER_CENTRAL_SERVER_URL is configured and this job came from a remote
+claim - see the REMOTE_ENABLED / _try_remote_claim() additions below, which
+mirror render_worker.py's dual local-vs-central job source pattern exactly
+(same central_client.py, same job_store.py remote-ack bookkeeping - nothing
+job-type-specific needed changing in either shared module). The web-admin
+trigger itself (creating remote_hermes_queue rows) is a separate, still-open
+"""
+from __future__ import annotations
+
+import datetime
+import asyncio
+import json
+import os
+import re
+import signal
+import sys
+import threading
+import time
+from collections import Counter
+from difflib import SequenceMatcher
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = lambda *args, **kwargs: None
+
+import central_client
+import job_store
+from logging_setup import get_job_logger, get_logger
+from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
+from worker_config import OUTPUT_DIR, PROJECT_ROOT, STATE_DIR, WORKER_ID, WORKER_INSTANCE_ID, ensure_project_root_on_path
+
+STATE_FILE = STATE_DIR / "hermes_worker.json"
+PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
+RESULTS_DIR = OUTPUT_DIR / "hermes_results"
+AUDIT_DIR = OUTPUT_DIR / "hermes_audit"
+logger = get_logger("hermes_worker")
+
+GENERATED_BY_TOPIC_FIELDS = {
+    "generated_by_worker_id",
+    "generated_by_worker_instance_id",
+    "generated_by_worker_job_id",
+    "generated_by_worker_at",
+}
+
+_hermes_mutex_handle = None
+_HERMES_MUTEX_NAME = "Global\\AIRWorker_HermesWorker_SingleInstance"
+
+
+def _acquire_hermes_single_instance_or_exit() -> None:
+    """Exit duplicate Hermes workers before they can race on the same queue."""
+    global _hermes_mutex_handle
+    if sys.platform != "win32":
+        return
+    try:
+        import win32api
+        import win32event
+        import winerror
+    except Exception as exc:
+        logger.warning(f"Hermes single-instance mutex unavailable; continuing without it: {exc}")
+        return
+
+    handle = win32event.CreateMutex(None, False, _HERMES_MUTEX_NAME)
+    if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+        logger.warning(
+            f"Another Hermes Worker already holds mutex '{_HERMES_MUTEX_NAME}' - "
+            "exiting duplicate before claiming jobs."
+        )
+        win32api.CloseHandle(handle)
+        sys.exit(0)
+    _hermes_mutex_handle = handle
+
+
+def _load_project_env() -> None:
+    """Load the repository .env even when Manager starts us with cwd=worker/."""
+    for env_path in (PROJECT_ROOT / ".env", Path.cwd() / ".env"):
+        try:
+            if env_path.exists():
+                load_dotenv(env_path, override=True)
+        except Exception as exc:
+            logger.warning(f"Failed to load Hermes env file at {env_path}: {exc}")
+
+
+_load_project_env()
+
+_shutdown_requested = False
+SUPPORTED_JOB_TYPES = [
+    "sfx_plan_generate",
+    "topic_research",
+    "topic_benchmark_analyze",
+    "music_trend_analyze",
+    "music_prompt_pack_generate",
+    "web_research",
+    "codex_topic_discover",
+    "script_plan_generate",
+    "script_generate",
+    "publish_metadata_generate",
+    "codex_content_generate",
+    "music_prompt_pack_generate",
+]
+DEFAULT_COUNT = 10
+MAX_COUNT = 30
+
+# [AIR-0230] Same dual-mode pattern as render_worker.py: local job_store is
+# always tried first (dev/test convenience, no service_role needed); central
+# claim only engages when this env var is set, and only for jobs that came
+# from a remote claim (job_store.create_from_remote_claim tags them with
+# source='central_server' + remote_job_id/lease_id - see _is_remote below).
+LEASE_RENEW_INTERVAL_SECONDS = 3.0
+REMOTE_ENABLED = bool(os.environ.get("AIRWORKER_CENTRAL_SERVER_URL"))
+REMOTE_HEARTBEAT_INTERVAL_SECONDS = 30.0
+REMOTE_CLAIM_RETRY_SECONDS = 60.0
+_next_remote_claim_at = 0.0
+
+# [AIR-0230] topic_benchmark_analyze tuning. Kept deliberately small - each
+# analyzed candidate costs one YouTube search + a videos.list/channels.list
+# call + (optional) transcript scrape + a comments.list call + two AI calls
+# (analyze_comments, extract_success_strategy), so this is far more
+# expensive per job than plain topic_research.
+DEFAULT_BENCHMARK_CANDIDATES = 1
+MAX_BENCHMARK_CANDIDATES = 3
+DEFAULT_SEARCH_POOL_SIZE = 15
+MAX_SEARCH_POOL_SIZE = 30
+DEFAULT_COMMENT_SAMPLE_SIZE = 50
+DEFAULT_RSS_VIDEOS_PER_CHANNEL = 15
+MAX_RSS_CHANNELS_PER_JOB = 30
+BENCHMARK_CHANNEL_POOL_PATHS = [
+    PROJECT_ROOT / "data" / "youtube_benchmark_channels.json",
+    PROJECT_ROOT / "worker" / "youtube_benchmark_channels.json",
+]
+MAX_AUDIT_TRANSCRIPT_CHARS = 40000
+MAX_AUDIT_COMMENT_CHARS = 3000
+
+
+def _clip_audit_text(value: str | None, max_chars: int) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + f"\n\n[truncated: {len(text) - max_chars} chars omitted]"
+
+
+def _write_audit_payload(job_id: str, payload: dict) -> str:
+    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
+    audit_path = AUDIT_DIR / f"{job_id}.benchmark_audit.json"
+    audit_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return str(audit_path)
+
+
+def _handle_signal(signum, frame):
+    global _shutdown_requested
+    logger.info(f"Received signal {signum}, requesting graceful shutdown")
+    _shutdown_requested = True
+
+
+def _should_stop() -> bool:
+    return _shutdown_requested or is_shutdown_requested("hermes_worker")
+
+
+def is_paused() -> bool:
+    return PAUSE_FLAG_FILE.exists()
+
+
+def _state_job_summary(current_job: dict | None) -> dict | None:
+    if not isinstance(current_job, dict):
+        return None
+    payload = current_job.get("payload") if isinstance(current_job.get("payload"), dict) else {}
+    project_name = (
+        current_job.get("project_name")
+        or payload.get("project_name")
+        or payload.get("upload_title")
+        or payload.get("topic")
+        or payload.get("category_name")
+        or payload.get("category")
+    )
+    return {
+        "job_id": current_job.get("job_id"),
+        "job_type": current_job.get("job_type"),
+        "source": current_job.get("source"),
+        "status": current_job.get("status"),
+        "project_name": project_name,
+        "progress_message": current_job.get("progress_message"),
+    }
+
+
+def write_state(status: str, current_job: dict | None, progress: int, job_id: str | None = None,
+                 last_success_at: float | None = None, last_error: str | None = None):
+    prev = {}
+    if STATE_FILE.exists():
+        try:
+            prev = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            prev = {}
+    STATE_FILE.write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "status": status,
+                "current_job": _state_job_summary(current_job),
+                "current_job_id": job_id,
+                "progress": progress,
+                "heartbeat_at": time.time(),
+                "last_success_at": last_success_at if last_success_at is not None else prev.get("last_success_at"),
+                "last_error": last_error if last_error is not None else prev.get("last_error", ""),
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _extract_json(text: str) -> dict:
+    """Extract JSON safely from AI output with markdown fence stripping and robust parsing."""
+    stripped = str(text or "").strip()
+    if not stripped:
+        raise ValueError("Empty AI response text")
+
+    fence = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", stripped)
+    if fence:
+        stripped = fence.group(1).strip()
+    else:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start >= 0 and end > start:
+            stripped = stripped[start : end + 1]
+
+    try:
+        decoder = json.JSONDecoder(strict=False)
+        value, _ = decoder.raw_decode(stripped)
+        if isinstance(value, dict):
+            return value
+    except Exception:
+        pass
+
+    try:
+        cleaned = re.sub(r",\s*([\]}])", r"\1", stripped)
+        decoder = json.JSONDecoder(strict=False)
+        value, _ = decoder.raw_decode(cleaned)
+        if isinstance(value, dict):
+            return value
+    except Exception:
+        pass
+
+    start = stripped.find("{")
+    if start >= 0:
+        return json.loads(stripped[start:], strict=False)
+
+    raise json.JSONDecodeError("JSON object not found", stripped, 0)
+
+
+def _metadata_language_name(language: str) -> str:
+    return {
+        "ko": "Korean",
+        "en": "English",
+        "ja": "Japanese",
+        "vi": "Vietnamese",
+        "th": "Thai",
+    }.get(str(language or "").lower(), "Korean")
+
+
+def _music_market_language_code(target_market: str) -> str:
+    market = str(target_market or "").strip().lower()
+    return {
+        "thailand": "th",
+        "thai": "th",
+        "japan": "ja",
+        "japanese": "ja",
+        "korea": "ko",
+        "south korea": "ko",
+        "global": "en",
+        "worldwide": "en",
+    }.get(market, "en")
+
+
+def _music_market_defaults(target_market: str) -> dict:
+    market = str(target_market or "").strip().lower()
+    if market in {"thailand", "thai"}:
+        return {
+            "playlist_concept": "Relaxing Thai cafe lofi for work and study",
+            "popular_genres": ["lofi", "thai pop ballad", "city pop", "ambient piano"],
+            "moods": ["calm", "rainy", "warm", "nostalgic"],
+            "title_tokens": ["Bangkok", "Cafe", "Rain", "Night Market", "River", "Lantern"],
+        }
+    if market in {"japan", "japanese"}:
+        return {
+            "playlist_concept": "Quiet Japanese city-pop and piano mix for late-night focus",
+            "popular_genres": ["city pop", "lofi", "ambient piano", "jazzhop"],
+            "moods": ["clean", "nostalgic", "night", "gentle"],
+            "title_tokens": ["Tokyo", "Midnight", "Neon", "Platform", "Window", "Rain"],
+        }
+    if market in {"korea", "south korea"}:
+        return {
+            "playlist_concept": "Warm Korean study cafe instrumental mix for 집중 and rest",
+            "popular_genres": ["lofi", "ambient piano", "city pop", "soft jazz"],
+            "moods": ["focused", "cozy", "gentle", "sentimental"],
+            "title_tokens": ["Seoul", "Han River", "Cafe", "Dawn", "Notebook", "Rain"],
+        }
+    return {
+        "playlist_concept": "Relaxing instrumental lofi and ambient mix for deep focus",
+        "popular_genres": ["lofi", "ambient piano", "city pop", "soft jazz"],
+        "moods": ["calm", "focused", "warm", "dreamy"],
+        "title_tokens": ["Midnight", "Rain", "Window", "Afterglow", "Cloud", "Quiet"],
+    }
+
+
+def _normalize_music_string_list(raw, fallback: list[str], *, limit: int = 8) -> list[str]:
+    values = raw if isinstance(raw, list) else str(raw or "").split(",")
+    normalized = []
+    seen = set()
+    for item in values:
+        text = " ".join(str(item or "").split()).strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(text)
+        if len(normalized) >= limit:
+            break
+    return normalized or list(fallback)
+
+
+def _coerce_music_positive_int(value, default: int, *, minimum: int, maximum: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(minimum, min(maximum, number))
+
+
+def _build_music_track_title(index: int, playlist_concept: str, title_tokens: list[str]) -> str:
+    token_a = title_tokens[(index - 1) % len(title_tokens)]
+    token_b = title_tokens[index % len(title_tokens)]
+    concept_hint = re.sub(r"[^A-Za-z0-9가-힣 ]+", " ", str(playlist_concept or "")).strip()
+    concept_words = [word for word in concept_hint.split() if 2 <= len(word) <= 14]
+    tail = concept_words[(index - 1) % len(concept_words)] if concept_words else "Session"
+    return f"{token_a} {token_b} {tail}".strip()
+
+
+def _default_music_negative_rules() -> list[str]:
+    return ["no artist imitation", "no copyrighted melody", "no watermark"]
+
+
+def _normalize_music_trend_result(
+    data: dict | None,
+    *,
+    target_market: str,
+    playlist_concept: str,
+    track_count: int,
+    track_duration_seconds: int,
+) -> dict:
+    defaults = _music_market_defaults(target_market)
+    result = dict(data or {})
+    genres = _normalize_music_string_list(
+        result.get("popular_genres"),
+        defaults["popular_genres"],
+        limit=6,
+    )
+    moods = _normalize_music_string_list(result.get("core_moods"), defaults["moods"], limit=6)
+    return {
+        "target_market": target_market,
+        "playlist_concept": str(result.get("playlist_concept") or playlist_concept or defaults["playlist_concept"]).strip(),
+        "popular_genres": genres,
+        "core_moods": moods,
+        "track_count": track_count,
+        "track_duration_seconds": track_duration_seconds,
+        "trend_summary": str(result.get("trend_summary") or "").strip() or (
+            f"{target_market} longform music demand leans toward {', '.join(genres[:3])} with a "
+            f"{', '.join(moods[:3])} listening mood."
+        ),
+        "title_pattern_notes": _normalize_music_string_list(
+            result.get("title_pattern_notes"),
+            [
+                "Use place + atmosphere + function wording",
+                "Prefer calm promise over hype language",
+                "Keep titles instrumental-safe and playlist-friendly",
+            ],
+            limit=5,
+        ),
+        "source_evidence_summary": result.get("source_evidence_summary") if isinstance(result.get("source_evidence_summary"), dict) else {},
+    }
+
+
+def _normalize_music_prompt_pack_result(
+    data: dict | None,
+    *,
+    target_market: str,
+    playlist_concept: str,
+    track_count: int,
+    track_duration_seconds: int,
+) -> dict:
+    trend = _normalize_music_trend_result(
+        data,
+        target_market=target_market,
+        playlist_concept=playlist_concept,
+        track_count=track_count,
+        track_duration_seconds=track_duration_seconds,
+    )
+    defaults = _music_market_defaults(target_market)
+    tracks = data.get("tracks") if isinstance(data, dict) and isinstance(data.get("tracks"), list) else []
+    normalized_tracks = []
+    for index in range(1, track_count + 1):
+        source = tracks[index - 1] if index - 1 < len(tracks) and isinstance(tracks[index - 1], dict) else {}
+        genre = str(source.get("genre") or trend["popular_genres"][(index - 1) % len(trend["popular_genres"])]).strip()
+        mood = str(source.get("mood") or ", ".join(trend["core_moods"][:3])).strip()
+        title = str(source.get("title") or "").strip() or _build_music_track_title(
+            index, trend["playlist_concept"], defaults["title_tokens"]
+        )
+        prompt = str(source.get("prompt") or "").strip()
+        if not prompt:
+            prompt = (
+                f"Original instrumental {genre} track with {mood} mood, {trend['playlist_concept']}, "
+                "loopable arrangement, clean intro and outro, no vocals, no copyrighted melody."
+            )
+        negative_rules = _normalize_music_string_list(
+            source.get("negative_rules"),
+            _default_music_negative_rules(),
+            limit=6,
+        )
+        normalized_tracks.append(
+            {
+                "title": title,
+                "genre": genre,
+                "mood": mood,
+                "duration_seconds": _coerce_music_positive_int(
+                    source.get("duration_seconds"),
+                    track_duration_seconds,
+                    minimum=60,
+                    maximum=900,
+                ),
+                "prompt": prompt,
+                "negative_rules": negative_rules,
+            }
+        )
+    return {
+        **trend,
+        "job_focus": "suno_prompt_pack",
+        "generation_language": _music_market_language_code(target_market),
+        "tracks": normalized_tracks,
+        "negative_rules_default": _default_music_negative_rules(),
+        "tag_candidates": _normalize_music_string_list(
+            data.get("tag_candidates") if isinstance(data, dict) else None,
+            trend["popular_genres"] + trend["core_moods"],
+            limit=12,
+        ),
+        "lyrics_direction": str((data or {}).get("lyrics_direction") or "Instrumental-first, no lead vocal, no copyrighted lyric fragments.").strip(),
+    }
+
+
+def _script_writer_role(language: str) -> str:
+    return {
+        "ko": "You are an expert Korean YouTube long-form narration writer.",
+        "en": "You are an expert English YouTube long-form narration writer.",
+        "ja": "You are an expert Japanese YouTube long-form narration writer.",
+    }.get(str(language or "").lower(), "You are an expert YouTube long-form narration writer.")
+
+
+def _script_output_rule(language: str) -> str:
+    return {
+        "ko": "Output Korean narration body only inside JSON.",
+        "en": "Output English narration body only inside JSON.",
+        "ja": "Output Japanese narration body only inside JSON.",
+    }.get(str(language or "").lower(), "Output narration body only inside JSON.")
+
+
+def _script_blueprint_role(language: str) -> str:
+    return {
+        "ko": "You are a senior story editor for retention-focused Korean YouTube longform narration.",
+        "en": "You are a senior story editor for retention-focused English YouTube longform narration.",
+        "ja": "You are a senior story editor for retention-focused Japanese YouTube longform narration.",
+    }.get(str(language or "").lower(), "You are a senior story editor for retention-focused YouTube longform narration.")
+
+
+def _script_qa_role(language: str) -> str:
+    return {
+        "ko": "You are a ruthless Korean YouTube story QA editor.",
+        "en": "You are a ruthless English YouTube story QA editor.",
+        "ja": "You are a ruthless Japanese YouTube story QA editor.",
+    }.get(str(language or "").lower(), "You are a ruthless YouTube story QA editor.")
+
+
+def _script_rewrite_role(language: str) -> str:
+    return {
+        "ko": "You are a senior Korean YouTube script doctor.",
+        "en": "You are a senior English YouTube script doctor.",
+        "ja": "You are a senior Japanese YouTube script doctor.",
+    }.get(str(language or "").lower(), "You are a senior YouTube script doctor.")
+
+
+def _u(text: str) -> str:
+    return text.encode("ascii").decode("unicode_escape")
+
+
+def _fallback_publish_metadata(topic: str, upload_title: str, script: str, language: str) -> dict:
+    title = (upload_title or topic or "Untitled").strip()
+    script_excerpt = re.sub(r"\s+", " ", (script or "")).strip()
+    if len(script_excerpt) > 260:
+        script_excerpt = script_excerpt[:260].rstrip() + "..."
+    if language == "ko":
+        description = "\n\n".join(
+            part for part in [
+                title,
+                script_excerpt,
+                _u(r"\ub05d\uae4c\uc9c0 \uc2dc\uccad\ud574 \uc8fc\uc154\uc11c \uac10\uc0ac\ud569\ub2c8\ub2e4."),
+            ] if part
+        )
+        compact_topic = re.sub(r"\s+", " ", (topic or title)).strip()
+        tags = [
+            tag for tag in [
+                compact_topic,
+                title[:24],
+                _u(r"\uc774\uc57c\uae30"),
+                _u(r"\uc0ac\uc5f0"),
+                _u(r"\ub4dc\ub77c\ub9c8"),
+            ] if tag
+        ]
+        hashtags = [
+            _u(r"#\uc774\uc57c\uae30"),
+            _u(r"#\uc0ac\uc5f0"),
+            _u(r"#\ub4dc\ub77c\ub9c8"),
+        ]
+    elif language == "ja":
+        description = "\n\n".join(
+            part for part in [
+                title,
+                script_excerpt,
+                "最後までご覧いただきありがとうございます。",
+            ] if part
+        )
+        compact_topic = re.sub(r"\s+", " ", (topic or title)).strip()
+        tags = [
+            tag for tag in [
+                compact_topic,
+                title[:24],
+                "昔話",
+                "民話",
+                "日本の伝承",
+                "朗読",
+                "怪談",
+            ] if tag
+        ]
+        hashtags = ["#昔話", "#民話", "#日本の伝承", "#朗読", "#怪談"]
+    else:
+        description = "\n\n".join(part for part in [title, script_excerpt] if part)
+        tags = [
+            tag for tag in [
+                topic,
+                title[:24],
+                "story",
+                "folktale",
+                "bedtime story",
+                "legend",
+                "myth",
+                "inspiration",
+            ] if tag
+        ]
+        hashtags = ["#story", "#folktale", "#legend", "#myth", "#bedtimestory"]
+    return {
+        "titles": [title],
+        "description": description,
+        "tags": tags[:12],
+        "hashtags": hashtags[:10],
+        "source": "worker_fallback",
+    }
+
+
+def _looks_corrupt_metadata_text(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if chr(0xFFFD) in text or re.search(r"\?{3,}", text):
+        return True
+    mojibake_markers = {0x5A9B, 0xF9DE, 0x0080, 0xAFC8, 0xBBC0, 0xB300, 0xC4F0}
+    return any(ord(ch) in mojibake_markers for ch in text)
+
+
+def _text_with_mojibake_repairs(*values) -> str:
+    parts: list[str] = []
+    for value in values:
+        text = str(value or "")
+        if not text:
+            continue
+        parts.append(text)
+        for encoding in ("latin1", "cp1252"):
+            try:
+                repaired = text.encode(encoding).decode("utf-8")
+            except Exception:
+                continue
+            if repaired and repaired != text:
+                parts.append(repaired)
+    return " ".join(parts).lower()
+
+
+def _clean_metadata_description(description: str, fallback: str) -> str:
+    paragraphs = []
+    for paragraph in re.split(r"\n{2,}", str(description or "").strip()):
+        normalized = paragraph.strip()
+        if normalized and not _looks_corrupt_metadata_text(normalized):
+            paragraphs.append(normalized)
+    cleaned = "\n\n".join(paragraphs).strip()
+    return cleaned or fallback
+
+
+def _clean_metadata_list(values: list, fallback: list[str], *, hashtag: bool = False) -> list[str]:
+    cleaned = []
+    seen = set()
+    for item in values:
+        value = str(item or "").strip()
+        if not value or _looks_corrupt_metadata_text(value):
+            continue
+        value = value if hashtag and value.startswith("#") else value.lstrip("#")
+        if hashtag and not value.startswith("#"):
+            value = f"#{value}"
+        key = value.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(value)
+    return cleaned or fallback
+
+
+_METADATA_INTERNAL_TERMS = (
+    "AI",
+    "worker",
+    "prompt",
+    "benchmark",
+    "QA",
+    "quality gate",
+    "learning_profile",
+    "scene plan",
+    "narrative_blueprint",
+    "script_quality_report",
+    "자동 생성",
+    "프롬프트",
+    "벤치마크",
+    "품질 게이트",
+    "작업자",
+)
+
+
+def _metadata_contains_internal_term(text: str) -> bool:
+    blob = str(text or "")
+    lowered = blob.lower()
+    for term in _METADATA_INTERNAL_TERMS:
+        normalized = str(term or "").strip()
+        if not normalized:
+            continue
+        term_lower = normalized.lower()
+        if re.fullmatch(r"[a-z0-9_ ]+", term_lower):
+            pattern = r"(?<![a-z0-9_])" + re.escape(term_lower) + r"(?![a-z0-9_])"
+            if re.search(pattern, lowered):
+                return True
+            continue
+        if term_lower in lowered:
+            return True
+    return False
+
+
+def _metadata_hangul_ratio(value: str) -> float:
+    text = str(value or "")
+    hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
+    latin = len(re.findall(r"[A-Za-z]", text))
+    if hangul + latin == 0:
+        return 0.0
+    return hangul / (hangul + latin)
+
+
+def _japanese_char_count(value: str) -> int:
+    text = str(value or "")
+    return len(re.findall(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff々〆ヵヶー]", text))
+
+
+def _is_japanese_visible_text(value: str, *, min_chars: int) -> bool:
+    text = str(value or "")
+    japanese = _japanese_char_count(text)
+    hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
+    return japanese >= min_chars and hangul == 0
+
+
+def _metadata_title_matches_script(title: str, script: str) -> bool:
+    def variants(token: str) -> set[str]:
+        result = {token}
+        for suffix in ("에서", "으로", "에게", "에게서", "부터", "까지", "은", "는", "이", "가", "을", "를", "과", "와", "도", "만"):
+            if token.endswith(suffix) and len(token) - len(suffix) >= 2:
+                result.add(token[: -len(suffix)])
+        return result
+
+    title_tokens = [
+        token for token in re.findall(r"[\uac00-\ud7a3A-Za-z0-9]{2,}", str(title or ""))
+        if token not in {"그리고", "하지만", "그런데", "이야기", "사연"}
+    ]
+    if not title_tokens:
+        return True
+    script_text = str(script or "")
+    matched = sum(1 for token in title_tokens[:8] if any(variant in script_text for variant in variants(token)))
+    return matched >= max(1, min(2, len(title_tokens[:8]) // 3))
+
+
+def _validate_publish_metadata_quality(metadata: dict, topic: str, upload_title: str, script: str, language: str) -> None:
+    if not isinstance(metadata, dict):
+        raise ValueError("publish_metadata must be an object")
+    title = str((metadata.get("titles") or [upload_title])[0] if isinstance(metadata.get("titles"), list) else upload_title).strip()
+    description = str(metadata.get("description") or "").strip()
+    tags = metadata.get("tags") if isinstance(metadata.get("tags"), list) else []
+    hashtags = metadata.get("hashtags") if isinstance(metadata.get("hashtags"), list) else []
+    blob = "\n".join([title, description, " ".join(map(str, tags)), " ".join(map(str, hashtags))])
+    if len(description) < 120:
+        raise ValueError("publish_metadata.description too short")
+    if language == "ko" and _metadata_hangul_ratio(description) < 0.8:
+        raise ValueError("publish_metadata.description is not Korean enough")
+    if language == "ja":
+        if not _is_japanese_visible_text(title, min_chars=2):
+            raise ValueError("publish_metadata title is not Japanese enough")
+        if not _is_japanese_visible_text(description, min_chars=24):
+            raise ValueError("publish_metadata.description is not Japanese enough")
+    if _metadata_contains_internal_term(blob):
+        raise ValueError("publish_metadata leaks internal production terms")
+    if not _metadata_title_matches_script(title or upload_title, script):
+        raise ValueError("publish_metadata title does not match script content")
+    clean_tags = [str(tag or "").strip() for tag in tags if str(tag or "").strip()]
+    clean_hashtags = [str(tag or "").strip() for tag in hashtags if str(tag or "").strip()]
+    if language == "ja":
+        if any(not _is_japanese_visible_text(tag.lstrip("#"), min_chars=1) for tag in clean_tags[:8]):
+            raise ValueError("publish_metadata tags are not Japanese enough")
+        if any(not _is_japanese_visible_text(tag.lstrip("#"), min_chars=1) for tag in clean_hashtags[:8]):
+            raise ValueError("publish_metadata hashtags are not Japanese enough")
+    if len(clean_tags) < 5:
+        raise ValueError("publish_metadata requires at least 5 tags")
+    if len(clean_hashtags) < 3:
+        raise ValueError("publish_metadata requires at least 3 hashtags")
+    if any(len(tag) > 30 for tag in clean_tags):
+        raise ValueError("publish_metadata contains overlong tag")
+    if any(not tag.startswith("#") for tag in clean_hashtags):
+        raise ValueError("publish_metadata hashtags must start with #")
+
+
+def _normalize_publish_metadata(data: dict, topic: str, upload_title: str, script: str, language: str) -> dict:
+    fallback = _fallback_publish_metadata(topic, upload_title, script, language)
+    if not isinstance(data, dict):
+        return fallback
+
+    titles = data.get("titles")
+    if not isinstance(titles, list):
+        titles = []
+    titles = [str(title).strip() for title in titles if str(title or "").strip()]
+    primary_title = str(data.get("title") or upload_title or "").strip()
+    if primary_title and primary_title not in titles:
+        titles.insert(0, primary_title)
+    if not titles:
+        titles = fallback["titles"]
+
+    tags = data.get("tags")
+    if not isinstance(tags, list):
+        tags = []
+    hashtags = data.get("hashtags")
+    if not isinstance(hashtags, list):
+        hashtags = []
+
+    description = _clean_metadata_description(str(data.get("description") or ""), fallback["description"])
+
+    cleaned_tags = _clean_metadata_list(tags, fallback["tags"])[:15]
+    cleaned_hashtags = _clean_metadata_list(hashtags, fallback["hashtags"], hashtag=True)[:10]
+    if len(cleaned_tags) < 5:
+        cleaned_tags = _clean_metadata_list(cleaned_tags + list(fallback["tags"]), fallback["tags"])[:15]
+    if len(cleaned_hashtags) < 3:
+        cleaned_hashtags = _clean_metadata_list(cleaned_hashtags + list(fallback["hashtags"]), fallback["hashtags"], hashtag=True)[:10]
+
+    return {
+        "titles": titles[:5],
+        "description": description,
+        "tags": cleaned_tags,
+        "hashtags": cleaned_hashtags,
+        "source": data.get("source") or "air_worker",
+    }
+
+
+async def _generate_publish_metadata(
+    ai_router, model: str, topic: str, upload_title: str, script: str,
+    language: str, narrative_blueprint: dict, structure: dict,
+) -> dict:
+    language_name = _metadata_language_name(language)
+    tag_language = {
+        "ko": "Korean",
+        "en": "English",
+        "ja": "Japanese",
+        "vi": "Vietnamese",
+        "th": "Thai",
+    }.get(str(language or "").lower(), language_name)
+    prompt = f"""
+You are a YouTube upload metadata editor.
+
+Create upload-ready metadata for this completed longform narration.
+
+Return ONLY JSON:
+{{
+  "titles": ["5 clickable upload title options"],
+  "description": "YouTube description text",
+  "tags": ["tag without #"],
+  "hashtags": ["#hashtag"]
+}}
+
+Rules:
+- Write in {language_name}.
+- Put the best title first.
+- The first title should normally be the PRIMARY TITLE unless the script clearly requires a more honest version.
+- Titles must fit YouTube title style and stay under 100 characters.
+- Description must be 2-4 natural paragraphs, useful for upload, and clearly match the script.
+- Description must not reveal spoilers too early, but it must honestly represent the title promise.
+- Do not mention AI, worker, prompt, benchmark, QA, learning, scene plan, quality gate, internal process, or generated assets.
+- Do not include markdown tables, production notes, JSON explanation, timestamps, scene numbers, or labels such as "Title:".
+- Tags should be topical {tag_language} search phrases, not sentences, no #.
+- Hashtags must start with # and be short.
+- Avoid unrelated category contamination. Metadata must stay inside the selected category and title promise.
+- Return at least 8 tags and at least 5 hashtags.
+- Keep every field in {language_name}. Do not switch to Korean when the requested language is English or Japanese.
+
+TOPIC: {topic}
+PRIMARY TITLE: {upload_title}
+STORY BLUEPRINT: {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+SCENE STRUCTURE: {json.dumps(structure or {}, ensure_ascii=False)}
+SCRIPT EXCERPT:
+{(script or "")[:6000]}
+"""
+    try:
+        last_error = None
+        for attempt in range(2):
+            retry_note = ""
+            if last_error:
+                retry_note = (
+                    "\n\n[PREVIOUS METADATA QA FAILURE]\n"
+                    f"{last_error}\n"
+                    "Regenerate all fields and fix this failure. Return JSON only.\n"
+                )
+            raw = await ai_router.generate_text(
+                prompt + retry_note,
+                model,
+                temperature=0.45 if attempt else 0.55,
+                max_tokens=2600,
+                task_type="hermes_publish_metadata",
+            )
+            metadata = _normalize_publish_metadata(_extract_json(raw), topic, upload_title, script, language)
+            try:
+                _validate_publish_metadata_quality(metadata, topic, upload_title, script, language)
+                return metadata
+            except Exception as qa_error:
+                last_error = str(qa_error)
+        raise ValueError(last_error or "publish metadata quality check failed")
+    except Exception as e:
+        fallback = _fallback_publish_metadata(topic, upload_title, script, language)
+        fallback["metadata_error"] = str(e)
+        return fallback
+
+
+def _build_prompt(
+    keyword: str,
+    language: str,
+    country: str,
+    count: int,
+    image_style: str = "",
+    character_context: dict | None = None,
+    writing_profile: str = "",
+) -> str:
+    sections = [
+        "You are an expert topic research and concept development director for a long-form YouTube channel.",
+        f"Research keyword/category: {keyword}",
+        f"Target language: {language}",
+        f"Target country/market: {country}",
+        f"Generate exactly {count} distinct, high-engagement video topic candidates.",
+    ]
+
+    if image_style:
+        sections.append(
+            f"\n[TARGET VISUAL ART STYLE: {image_style}]\n"
+            f"- Conceive video concepts that specifically leverage the strengths and aesthetic appeal of '{image_style}' style.\n"
+            "- Ensure the story situations, background settings, and visual atmosphere translate into visually striking scenes in this style."
+        )
+
+    if character_context and character_context.get("name"):
+        char_name = character_context["name"]
+        char_desc = character_context.get("description") or character_context.get("visual_dna_en") or ""
+        char_role = character_context.get("role") or "protagonist"
+        sections.append(
+            f"\n[PROTAGONIST / CHARACTER ANCHOR]\n"
+            f"- Main Character: {char_name} (Role: {char_role})\n"
+            f"- Visual & Concept: {char_desc}\n"
+            "- Every topic concept must be designed around this central character, their personality, unique premise, or episodic adventures.\n"
+            "- The title and story premise must allow this specific character to shine as the clear lead."
+        )
+
+    if writing_profile:
+        sections.append(
+            f"\n[WRITING & NARRATIVE TONE DIRECTIVE]\n"
+            f"{writing_profile}\n"
+            "- Ensure all topics align with this narrative voice, pacing, and dramatic contract."
+        )
+
+    sections.append(
+        "\nRespond with ONLY a JSON object, no markdown fences, no extra text, in this exact shape:\n"
+        '{"topics": [{"title": "string", "summary": "string", "sources": ["string", "..."], "visual_concept": "string", "suggested_character_role": "string"}]}\n'
+        "Guidelines:\n"
+        "- 'title': Compelling, high-CTR YouTube video title.\n"
+        "- 'summary': 2-3 sentence overview of the narrative hook, main conflict, and visual journey.\n"
+        "- 'sources': List of trend signals, angle rationale, or cultural/creative inspirations.\n"
+        "- 'visual_concept': Key visual scenes and cinematic/stylistic highlight of this topic.\n"
+        "- 'suggested_character_role': How the protagonist drives this episode's conflict and resolution."
+    )
+    return "\n".join(sections)
+
+
+def _validate_payload(payload: dict) -> tuple[str, str, str, int, str, dict | None, str]:
+    keyword = (payload.get("keyword") or payload.get("topic") or "").strip()
+    if not keyword:
+        raise ValueError("payload.keyword (or payload.topic) is required for topic_research")
+    language = (payload.get("language") or "ko").strip()
+    country = (payload.get("country") or payload.get("target_market") or "").strip() or "global"
+    count = payload.get("count", DEFAULT_COUNT)
+    try:
+        count = int(count)
+    except (TypeError, ValueError):
+        count = DEFAULT_COUNT
+    count = max(1, min(count, MAX_COUNT))
+
+    # Modular planning slots
+    image_style = str(payload.get("image_style") or "").strip()
+
+    raw_char = payload.get("character_context") or payload.get("main_character") or payload.get("character")
+    character_context: dict | None = None
+    if isinstance(raw_char, dict):
+        character_context = {
+            "name": str(raw_char.get("name") or raw_char.get("display_name") or "").strip(),
+            "role": str(raw_char.get("role") or "protagonist").strip(),
+            "description": str(raw_char.get("description") or raw_char.get("visual_dna_en") or "").strip(),
+            "visual_dna_en": str(raw_char.get("visual_dna_en") or raw_char.get("visual_dna") or raw_char.get("description") or "").strip(),
+            "wardrobe_en": str(raw_char.get("wardrobe_en") or raw_char.get("wardrobe") or "").strip(),
+            "traits": raw_char.get("traits") or raw_char.get("tags") or [],
+        }
+    elif isinstance(raw_char, str) and raw_char.strip():
+        character_context = {
+            "name": raw_char.strip().split(",")[0].strip(),
+            "role": "protagonist",
+            "description": raw_char.strip(),
+            "visual_dna_en": raw_char.strip(),
+            "wardrobe_en": "",
+            "traits": [],
+        }
+
+    raw_profile = payload.get("writing_profile") or payload.get("custom_writing_profile") or payload.get("category_writing_profile")
+    writing_profile = ""
+    if isinstance(raw_profile, str):
+        writing_profile = raw_profile.strip()
+    elif isinstance(raw_profile, dict):
+        try:
+            from services.category_writing_profiles import build_category_writing_profile
+            writing_profile = build_category_writing_profile(
+                str(raw_profile.get("name") or keyword or "Custom"),
+                voice=str(raw_profile.get("voice") or ""),
+                rhythm=str(raw_profile.get("rhythm") or ""),
+                drama=str(raw_profile.get("drama") or ""),
+                language=str(raw_profile.get("language") or ""),
+            )
+        except Exception:
+            writing_profile = json.dumps(raw_profile, ensure_ascii=False)
+
+    return keyword, language, country, count, image_style, character_context, writing_profile
+
+
+def _validate_benchmark_payload(payload: dict) -> tuple[str, str, str, int, int, list[str]]:
+    """[AIR-0230] category_id is deliberately NOT accepted here - the worker
+    has no Supabase access (by design, see docs/AIR_WORKER_ARCHITECTURE.md
+    §4's central/worker boundary), so whatever creates this job (web-admin,
+    manual or scheduled - see the design doc §2b) must resolve the
+    category's keywords/language/video_type itself and put the literal
+    values in the payload."""
+    keyword = (payload.get("keyword") or "").strip()
+    if not keyword:
+        raise ValueError("payload.keyword is required for topic_benchmark_analyze")
+    language = (payload.get("language") or "ko").strip()
+
+    video_type = (payload.get("video_type") or "longform").strip().lower()
+    if video_type not in ("longform", "shorts"):
+        video_type = "longform"
+
+    max_candidates = payload.get("max_candidates", DEFAULT_BENCHMARK_CANDIDATES)
+    try:
+        max_candidates = int(max_candidates)
+    except (TypeError, ValueError):
+        max_candidates = DEFAULT_BENCHMARK_CANDIDATES
+    max_candidates = max(1, min(max_candidates, MAX_BENCHMARK_CANDIDATES))
+
+    search_pool_size = payload.get("search_pool_size", DEFAULT_SEARCH_POOL_SIZE)
+    try:
+        search_pool_size = int(search_pool_size)
+    except (TypeError, ValueError):
+        search_pool_size = DEFAULT_SEARCH_POOL_SIZE
+    search_pool_size = max(max_candidates, min(search_pool_size, MAX_SEARCH_POOL_SIZE))
+
+    raw_keywords = payload.get("search_keywords") or []
+    if not isinstance(raw_keywords, list):
+        raw_keywords = []
+    search_keywords = []
+    for item in raw_keywords:
+        value = " ".join(str(item or "").split()).strip()
+        if value and value != keyword and value not in search_keywords:
+            search_keywords.append(value)
+    if not search_keywords:
+        search_keywords = [keyword]
+    return keyword, language, video_type, max_candidates, search_pool_size, search_keywords
+
+
+def _validate_music_trend_payload(payload: dict) -> tuple[str, str, int, int, dict]:
+    target_market = str(payload.get("target_market") or payload.get("market") or "Thailand").strip() or "Thailand"
+    defaults = _music_market_defaults(target_market)
+    playlist_concept = str(payload.get("playlist_concept") or defaults["playlist_concept"]).strip()
+    track_count = _coerce_music_positive_int(payload.get("track_count"), 60, minimum=1, maximum=200)
+    track_duration_seconds = _coerce_music_positive_int(
+        payload.get("track_duration_seconds"), 180, minimum=30, maximum=1800
+    )
+    source_summary = payload.get("source_evidence_summary") if isinstance(payload.get("source_evidence_summary"), dict) else {}
+    return target_market, playlist_concept, track_count, track_duration_seconds, source_summary
+
+
+def _validate_music_prompt_pack_payload(payload: dict) -> tuple[str, str, int, int, dict, dict]:
+    target_market, playlist_concept, track_count, track_duration_seconds, source_summary = _validate_music_trend_payload(payload)
+    trend_analysis = payload.get("trend_analysis") if isinstance(payload.get("trend_analysis"), dict) else {}
+    return target_market, playlist_concept, track_count, track_duration_seconds, source_summary, trend_analysis
+
+
+def _normalize_channel_ids(raw_value) -> list[str]:
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+            raw_value = parsed
+        except Exception:
+            raw_value = re.split(r"[\s,;]+", raw_value)
+    if not isinstance(raw_value, list):
+        return []
+    channel_ids = []
+    for item in raw_value:
+        value = str(item or "").strip()
+        if not value or value in channel_ids:
+            continue
+        channel_ids.append(value)
+    return channel_ids
+
+
+def _load_channel_pool_from_mapping(mapping: dict, keyword: str, category: str = "") -> list[str]:
+    keys = [
+        category,
+        keyword,
+        str(category or "").casefold(),
+        str(keyword or "").casefold(),
+        "default",
+        "*",
+    ]
+    for key in keys:
+        if not key:
+            continue
+        value = mapping.get(key)
+        channel_ids = _normalize_channel_ids(value)
+        if channel_ids:
+            return channel_ids
+    return []
+
+
+def _load_benchmark_channel_pool(payload: dict, keyword: str) -> tuple[list[str], dict]:
+    """Load benchmark seed channels without spending search.list quota.
+
+    Supported inputs, in priority order:
+    - job payload: benchmark_channel_ids/channel_ids
+    - env YOUTUBE_BENCHMARK_CHANNELS_JSON: list or {category: [ids]}
+    - data/youtube_benchmark_channels.json or worker/youtube_benchmark_channels.json
+    """
+    category = str(payload.get("category") or payload.get("category_name") or keyword or "").strip()
+    payload_ids = _normalize_channel_ids(payload.get("benchmark_channel_ids") or payload.get("channel_ids"))
+    if payload_ids:
+        return payload_ids[:MAX_RSS_CHANNELS_PER_JOB], {"source": "payload", "category": category, "count": len(payload_ids)}
+
+    env_value = os.environ.get("YOUTUBE_BENCHMARK_CHANNELS_JSON", "").strip()
+    if env_value:
+        try:
+            parsed = json.loads(env_value)
+            if isinstance(parsed, dict):
+                env_ids = _load_channel_pool_from_mapping(parsed, keyword, category)
+            else:
+                env_ids = _normalize_channel_ids(parsed)
+            if env_ids:
+                return env_ids[:MAX_RSS_CHANNELS_PER_JOB], {
+                    "source": "env:YOUTUBE_BENCHMARK_CHANNELS_JSON",
+                    "category": category,
+                    "count": len(env_ids),
+                }
+        except Exception as exc:
+            logger.warning("Invalid YOUTUBE_BENCHMARK_CHANNELS_JSON: %s", exc)
+
+    for path in BENCHMARK_CHANNEL_POOL_PATHS:
+        if not path.exists():
+            continue
+        try:
+            parsed = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                file_ids = _load_channel_pool_from_mapping(parsed, keyword, category)
+            else:
+                file_ids = _normalize_channel_ids(parsed)
+            if file_ids:
+                return file_ids[:MAX_RSS_CHANNELS_PER_JOB], {
+                    "source": str(path),
+                    "category": category,
+                    "count": len(file_ids),
+                }
+        except Exception as exc:
+            logger.warning("Could not read benchmark channel pool %s: %s", path, exc)
+    return [], {"source": "none", "category": category, "count": 0}
+
+
+RSS_RELEVANCE_TERMS_BY_CATEGORY = {
+    "옛날이야기": [
+        "옛날이야기",
+        "옛날 이야기",
+        "전래",
+        "전래동화",
+        "민담",
+        "설화",
+        "고전",
+        "마을",
+        "며느리",
+        "시어머니",
+        "보따리",
+        "한옥",
+        "이야기",
+    ],
+    "황혼19금": [
+        "황혼19금",
+        "황혼",
+        "황혼연애",
+        "황혼 연애",
+        "황혼사연",
+        "황혼 사연",
+        "중년",
+        "중년사랑",
+        "중년 사랑",
+        "노년",
+        "재혼",
+        "비밀",
+        "편지",
+        "인생사연",
+        "인생 사연",
+        "로맨스",
+    ],
+    "탈북사연": [
+        "탈북사연",
+        "탈북",
+        "탈북민",
+        "탈북자",
+        "북한",
+        "두만강",
+        "압록강",
+        "국경",
+        "브로커",
+        "보위부",
+        "북송",
+        "중국",
+        "탈출",
+        "생존",
+        "사연",
+        "증언",
+    ],
+    "무협": [
+        "무협",
+        "무림",
+        "강호",
+        "문파",
+        "검객",
+        "검",
+        "무공",
+        "비급",
+        "복수",
+        "협객",
+        "천마",
+        "마교",
+        "오디오북",
+        "소설",
+    ],
+    "English Folktales": [
+        "folktale",
+        "folklore",
+        "mythology",
+        "myth",
+        "fairy tale",
+        "legend",
+        "story",
+        "ancient",
+        "tales",
+        "bedtime",
+        "audiobook",
+    ],
+    "日本昔話": [
+        "昔話",
+        "昔ばなし",
+        "民話",
+        "朗読",
+        "神話",
+        "伝説",
+        "怪談",
+        "童話",
+        "眠れる",
+        "絵本",
+        "日本昔ばなし",
+        "寝かしつけ",
+    ],
+}
+
+
+RSS_STRONG_RELEVANCE_TERMS_BY_CATEGORY = {}
+
+
+RSS_HARD_NEGATIVE_TERMS_BY_CATEGORY = {}
+
+
+def _literal_category(value: str) -> str:
+    """Keep Korean category checks readable even in legacy mojibake files."""
+    return value
+
+
+RSS_STRONG_RELEVANCE_TERMS_BY_CATEGORY[_literal_category("옛날이야기")] = [
+    "옛날",
+    "전래",
+    "민담",
+    "설화",
+    "전설",
+    "고전",
+    "역사",
+    "조선",
+    "조선시대",
+    "고려",
+    "한양",
+    "유배",
+    "단종",
+    "왕비",
+    "선비",
+    "어사",
+    "사또",
+    "나무꾼",
+    "호랑이",
+    "저승",
+    "저승사자",
+    "도깨비",
+    "장승",
+    "스님",
+    "며느리",
+    "시어머니",
+    "보따리",
+    "마을",
+]
+
+
+RSS_HARD_NEGATIVE_TERMS_BY_CATEGORY[_literal_category("옛날이야기")] = [
+    "국정원",
+    "학교",
+    "전학생",
+    "권투",
+    "챔피언",
+    "회사",
+    "직장",
+    "아파트",
+    "재건축",
+    "삼성전자",
+    "코스피",
+    "주가",
+    "주식",
+    "금리",
+    "환율",
+    "국민연금",
+    "실버타운",
+    "부동산",
+    "분양",
+    "NIS",
+]
+
+
+def _normalize_relevance_text(value: str) -> str:
+    return re.sub(r"\s+", "", str(value or "").casefold())
+
+
+def _rss_relevance_terms(payload: dict, keyword: str) -> list[str]:
+    category = str(payload.get("category") or payload.get("category_name") or keyword or "").strip()
+    terms = list(RSS_RELEVANCE_TERMS_BY_CATEGORY.get(category, []))
+    for item in payload.get("search_keywords") or []:
+        text = str(item or "").strip()
+        if 2 <= len(text) <= 18:
+            terms.append(text)
+    terms.append(category)
+
+    normalized = []
+    seen = set()
+    for term in terms:
+        value = _normalize_relevance_text(term)
+        if len(value) < 2 or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _rss_strong_relevance_terms(payload: dict, keyword: str) -> list[str]:
+    category = str(payload.get("category") or payload.get("category_name") or keyword or "").strip()
+    terms = RSS_STRONG_RELEVANCE_TERMS_BY_CATEGORY.get(category, [])
+    normalized = []
+    seen = set()
+    for term in terms:
+        value = _normalize_relevance_text(term)
+        if len(value) < 2 or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _rss_hard_negative_terms(payload: dict, keyword: str) -> list[str]:
+    category = str(payload.get("category") or payload.get("category_name") or keyword or "").strip()
+    terms = RSS_HARD_NEGATIVE_TERMS_BY_CATEGORY.get(category, [])
+    normalized = []
+    seen = set()
+    for term in terms:
+        value = _normalize_relevance_text(term)
+        if len(value) < 2 or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return normalized
+
+
+def _is_relevant_rss_candidate(item: dict, payload: dict, keyword: str) -> bool:
+    terms = _rss_relevance_terms(payload, keyword)
+    strong_terms = _rss_strong_relevance_terms(payload, keyword)
+    negative_terms = _rss_hard_negative_terms(payload, keyword)
+    haystack = _normalize_relevance_text(
+        " ".join(
+            str(item.get(field) or "")
+            for field in ("title", "description", "channel_title")
+        )
+    )
+    title_haystack = _normalize_relevance_text(str(item.get("title") or ""))
+    if any(term in haystack for term in negative_terms):
+        return False
+    if strong_terms:
+        return any(term in title_haystack for term in strong_terms)
+    if not terms:
+        return True
+    return any(term in haystack for term in terms)
+
+
+async def _youtube_get(path: str, params: dict) -> dict:
+    """Same request shape as app/routers/youtube.py's endpoints, called
+    directly here rather than through FastAPI (this process has no HTTP
+    server of its own for the desktop app's routes, and importing FastAPI
+    route handlers as plain functions isn't a supported pattern in that
+    router - see its Request-bound signatures)."""
+    from services.youtube_data_api import async_youtube_get
+
+    data = await async_youtube_get(path, params)
+    if data.get("error"):
+        raise RuntimeError(f"YouTube API error ({path}): {data.get('message') or data.get('error')}")
+    if int(data.get("_youtube_key_index") or 1) > 1:
+        logger.info("YouTube API failover succeeded on backup key %s for %s", data.get("_youtube_key_index"), path)
+    return data
+
+
+async def _search_candidate_videos(
+    keyword: str,
+    language: str,
+    video_type: str,
+    max_results: int,
+    search_keywords: list[str] | None = None,
+) -> tuple[list[dict], dict]:
+    """Search several concrete queries and merge unique YouTube videos."""
+    queries = []
+    for item in [*(search_keywords or []), keyword]:
+        value = " ".join(str(item or "").split()).strip()
+        if value and value not in queries:
+            queries.append(value)
+    if str(os.environ.get("YOUTUBE_SEARCH_FALLBACK_ENABLED", "")).strip().lower() not in {"1", "true", "yes", "on"}:
+        raise RuntimeError(
+            "YouTube search fallback is disabled. Configure benchmark_channel_ids or "
+            "YOUTUBE_BENCHMARK_CHANNELS_JSON so the worker can use RSS + videos.list."
+        )
+    fallback_limit = os.environ.get("YOUTUBE_SEARCH_FALLBACK_MAX_CALLS_PER_RUN", "1")
+    try:
+        fallback_limit_int = int(fallback_limit)
+    except (TypeError, ValueError):
+        fallback_limit_int = 1
+    queries = queries[: max(0, min(10, fallback_limit_int))]
+    if not queries:
+        raise RuntimeError("YouTube search fallback call limit is 0")
+    candidates_by_id = {}
+    query_audits = []
+    per_query_limit = max(3, min(5, max_results))
+
+    for query in queries:
+        params = {
+            "part": "snippet",
+            "q": query,
+            "type": "video",
+            "maxResults": per_query_limit,
+            "order": "viewCount",
+            "relevanceLanguage": language,
+        }
+        params["videoDuration"] = "short" if video_type == "shorts" else "medium"
+        data = await _youtube_get("search", params)
+        items = data.get("items", [])
+        query_audits.append({"query": query, "params": params, "result_count": len(items)})
+        for index, item in enumerate(items, start=1):
+            video_id = (item.get("id") or {}).get("videoId")
+            snippet = item.get("snippet") or {}
+            channel_id = snippet.get("channelId")
+            if not video_id or not channel_id or video_id in candidates_by_id:
+                continue
+            candidates_by_id[video_id] = {
+                "search_rank": index,
+                "search_query": query,
+                "video_id": video_id,
+                "channel_id": channel_id,
+                "title": snippet.get("title", ""),
+                "channel_title": snippet.get("channelTitle", ""),
+                "published_at": snippet.get("publishedAt"),
+                "description": snippet.get("description", ""),
+                "thumbnail_url": ((snippet.get("thumbnails") or {}).get("high") or {}).get("url")
+                    or ((snippet.get("thumbnails") or {}).get("default") or {}).get("url"),
+            }
+
+    # Keep a bounded pool from every query. Truncating here would make the
+    # first query win before YouTube performance data has been compared.
+    pool_limit = min(50, max_results * max(1, len(queries)))
+    candidates = list(candidates_by_id.values())[:pool_limit]
+    return candidates, {
+        "endpoint": "search",
+        "quota_policy": {
+            "enabled_by": "YOUTUBE_SEARCH_FALLBACK_ENABLED",
+            "max_calls_per_run": fallback_limit_int,
+        },
+        "queries": query_audits,
+        "query_count": len(query_audits),
+        "result_count": sum(item["result_count"] for item in query_audits),
+    }
+
+
+async def _rss_candidate_videos(payload: dict, keyword: str, max_results: int) -> tuple[list[dict], dict]:
+    from services.youtube_data_api import async_fetch_channel_rss_videos
+
+    channel_ids, pool_audit = _load_benchmark_channel_pool(payload, keyword)
+    if not channel_ids:
+        return [], {
+            "endpoint": "youtube_channel_rss",
+            "quota_cost": 0,
+            "channel_pool": pool_audit,
+            "channels": [],
+            "result_count": 0,
+        }
+
+    per_channel = max(1, min(DEFAULT_RSS_VIDEOS_PER_CHANNEL, max_results))
+    candidates_by_id = {}
+    channel_audits = []
+    filtered_out = 0
+    for channel_index, channel_id in enumerate(channel_ids, start=1):
+        try:
+            items = await async_fetch_channel_rss_videos(channel_id, limit=per_channel)
+            channel_audits.append({"channel_id": channel_id, "result_count": len(items), "error": None})
+        except Exception as exc:
+            channel_audits.append({"channel_id": channel_id, "result_count": 0, "error": str(exc)})
+            continue
+        for item_index, item in enumerate(items, start=1):
+            video_id = item.get("video_id")
+            if not video_id or video_id in candidates_by_id:
+                continue
+            if not _is_relevant_rss_candidate(item, payload, keyword):
+                filtered_out += 1
+                continue
+            candidates_by_id[video_id] = {
+                **item,
+                "search_rank": len(candidates_by_id) + 1,
+                "search_query": keyword,
+                "rss_channel_rank": channel_index,
+                "rss_item_rank": item_index,
+            }
+
+    candidates = list(candidates_by_id.values())[: max(1, min(50, max_results * max(1, len(channel_ids))))]
+    return candidates, {
+        "endpoint": "youtube_channel_rss",
+        "quota_cost": 0,
+        "channel_pool": pool_audit,
+        "channels": channel_audits,
+        "filtered_out_by_category": filtered_out,
+        "result_count": len(candidates),
+    }
+
+
+async def _collect_candidate_videos(
+    payload: dict,
+    keyword: str,
+    language: str,
+    video_type: str,
+    max_results: int,
+    search_keywords: list[str] | None = None,
+) -> tuple[list[dict], dict]:
+    rss_candidates, rss_audit = await _rss_candidate_videos(payload, keyword, max_results)
+    if rss_candidates:
+        rss_audit["fallback_search_used"] = False
+        return rss_candidates, rss_audit
+
+    search_candidates, search_audit = await _search_candidate_videos(
+        keyword, language, video_type, max_results, search_keywords
+    )
+    search_audit["rss_attempt"] = rss_audit
+    search_audit["fallback_search_used"] = True
+    return search_candidates, search_audit
+
+
+async def _fetch_video_and_channel_stats(candidates: list[dict]) -> tuple[list[dict], dict]:
+    """Adds view_count/subscriber_count/performance_ratio to each candidate.
+    performance_ratio mirrors the "성과도(구독자 대비 조회수)" the desktop
+    app's topic.html computes client-side only (never sent to a server) -
+    here it's the actual ranking signal, not just a display column."""
+    if not candidates:
+        return [], {"video_ids": [], "channel_ids": [], "videos_response": {}, "channels_response": {}}
+
+    from services.youtube_data_api import async_youtube_list_by_ids, unique_nonempty
+
+    video_ids_list = unique_nonempty(c.get("video_id") for c in candidates)
+    channel_ids_list = unique_nonempty(c.get("channel_id") for c in candidates)
+    videos_data = await async_youtube_list_by_ids("videos", video_ids_list, part="statistics")
+    if videos_data.get("error"):
+        raise RuntimeError(f"YouTube API error (videos): {videos_data.get('message') or videos_data.get('error')}")
+    channels_data = await async_youtube_list_by_ids("channels", channel_ids_list, part="statistics")
+    if channels_data.get("error"):
+        raise RuntimeError(f"YouTube API error (channels): {channels_data.get('message') or channels_data.get('error')}")
+    stats_audit = {
+        "video_ids": video_ids_list,
+        "channel_ids": channel_ids_list,
+        "quota_policy": {
+            "videos_list_calls": videos_data.get("batch_count", 0),
+            "channels_list_calls": channels_data.get("batch_count", 0),
+            "max_ids_per_call": 50,
+        },
+        "videos_response": videos_data,
+        "channels_response": channels_data,
+    }
+
+    view_counts = {
+        item["id"]: int((item.get("statistics") or {}).get("viewCount", 0) or 0)
+        for item in videos_data.get("items", [])
+    }
+    subscriber_counts = {
+        item["id"]: int((item.get("statistics") or {}).get("subscriberCount", 0) or 0)
+        for item in channels_data.get("items", [])
+    }
+
+    enriched = []
+    for c in candidates:
+        views = view_counts.get(c["video_id"], 0)
+        subs = subscriber_counts.get(c["channel_id"], 0)
+        performance_ratio = round(views / subs, 2) if subs > 0 else 0.0
+        enriched.append({
+            **c,
+            "view_count": views,
+            "subscriber_count": subs,
+            "performance_ratio": performance_ratio,
+        })
+    return enriched, stats_audit
+
+
+def _rank_search_keywords(candidates: list[dict]) -> list[dict]:
+    """Rank concrete search phrases from real YouTube candidate performance.
+
+    YouTube Data API does not expose search-volume data. This ranking therefore
+    uses observable signals from the returned videos: channel-relative views,
+    absolute views, and recency. Log scaling prevents one giant channel from
+    overwhelming the other signals.
+    """
+    from datetime import datetime, timezone
+    from math import log1p
+
+    groups: dict[str, list[dict]] = {}
+    now = datetime.now(timezone.utc)
+    for candidate in candidates:
+        query = str(candidate.get("search_query") or "").strip()
+        if query:
+            groups.setdefault(query, []).append(candidate)
+
+    raw = []
+    for query, items in groups.items():
+        performance_values = sorted(
+            [float(item.get("performance_ratio") or 0) for item in items], reverse=True
+        )
+        view_values = sorted(
+            [int(item.get("view_count") or 0) for item in items], reverse=True
+        )
+        recent_values = []
+        for item in items:
+            try:
+                published = datetime.fromisoformat(str(item.get("published_at")).replace("Z", "+00:00"))
+                age_days = max(0.0, (now - published).total_seconds() / 86400.0)
+                recent_values.append(max(0.0, 1.0 - min(age_days, 730.0) / 730.0))
+            except (TypeError, ValueError):
+                recent_values.append(0.0)
+
+        top_count = min(3, len(items))
+        raw.append({
+            "query": query,
+            "candidate_count": len(items),
+            "top_performance_ratio": round(performance_values[0] if performance_values else 0.0, 2),
+            "top_view_count": view_values[0] if view_values else 0,
+            "recentness": round(sum(recent_values) / len(recent_values), 4) if recent_values else 0.0,
+            "_performance_signal": sum(log1p(v) for v in performance_values[:top_count]) / max(1, top_count),
+            "_view_signal": sum(log1p(v) for v in view_values[:top_count]) / max(1, top_count),
+            "_recent_signal": sum(recent_values) / max(1, len(recent_values)),
+        })
+
+    def normalize(values: list[float], value: float) -> float:
+        if not values or max(values) == min(values):
+            return 0.5
+        return (value - min(values)) / (max(values) - min(values))
+
+    performance_values = [item["_performance_signal"] for item in raw]
+    view_values = [item["_view_signal"] for item in raw]
+    recent_values = [item["_recent_signal"] for item in raw]
+    ranked = []
+    for item in raw:
+        score = (
+            normalize(performance_values, item["_performance_signal"]) * 0.50
+            + normalize(view_values, item["_view_signal"]) * 0.30
+            + normalize(recent_values, item["_recent_signal"]) * 0.20
+        )
+        ranked.append({
+            "query": item["query"],
+            "score": round(score * 100, 2),
+            "candidate_count": item["candidate_count"],
+            "top_performance_ratio": item["top_performance_ratio"],
+            "top_view_count": item["top_view_count"],
+            "recentness": item["recentness"],
+        })
+    return sorted(ranked, key=lambda item: item["score"], reverse=True)
+
+
+async def _fetch_comments_with_audit(video_id: str, max_results: int = DEFAULT_COMMENT_SAMPLE_SIZE) -> tuple[list[str], dict]:
+    """Best-effort: comments can be disabled on a video - that should not
+    fail the whole job (analyze_comments() already handles an empty list;
+    it just leans more on the transcript)."""
+    params = {"part": "snippet", "videoId": video_id, "maxResults": max_results, "order": "relevance"}
+    try:
+        data = await _youtube_get("commentThreads", params)
+    except Exception as e:
+        return [], {
+            "endpoint": "commentThreads",
+            "params": params,
+            "error": str(e),
+            "count": 0,
+            "items": [],
+        }
+
+    comments = []
+    comment_items = []
+    for item in data.get("items", []):
+        snippet = ((item.get("snippet") or {}).get("topLevelComment") or {}).get("snippet", {})
+        text = snippet.get("textDisplay", "")
+        if text:
+            comments.append(text)
+            comment_items.append({
+                "author_display_name": snippet.get("authorDisplayName"),
+                "like_count": snippet.get("likeCount"),
+                "published_at": snippet.get("publishedAt"),
+                "updated_at": snippet.get("updatedAt"),
+                "text": _clip_audit_text(text, MAX_AUDIT_COMMENT_CHARS),
+            })
+    return comments, {
+        "endpoint": "commentThreads",
+        "params": params,
+        "count": len(comments),
+        "items": comment_items,
+        "raw_response": data,
+    }
+
+
+async def _fetch_comments(video_id: str, max_results: int = DEFAULT_COMMENT_SAMPLE_SIZE) -> list[str]:
+    comments, _audit = await _fetch_comments_with_audit(video_id, max_results=max_results)
+    return comments
+
+
+def _is_remote(job: dict) -> bool:
+    return job.get("source") == "central_server" and bool(job.get("remote_job_id"))
+
+
+def _start_lease_renewal(job: dict, job_log) -> tuple[threading.Thread, threading.Event] | tuple[None, None]:
+    """[AIR-0230] Ported verbatim from render_worker.py - nothing here is
+    render-specific, it only touches job_store's generic remote-claim
+    fields (remote_job_id/lease_id/job_id) and central_client.renew_lease()
+    (job-type-agnostic)."""
+    if not _is_remote(job):
+        return None, None
+    stop_event = threading.Event()
+
+    def _loop():
+        while not stop_event.wait(LEASE_RENEW_INTERVAL_SECONDS):
+            try:
+                result = central_client.renew_lease(job["remote_job_id"], job["lease_id"], WORKER_INSTANCE_ID)
+                job_store.update_lease(job["job_id"], result["lease_expires_at"])
+                job_log.info(f"Lease renewed, expires_at={result['lease_expires_at']:.1f}")
+            except Exception as e:
+                job_log.warning(f"Lease renewal failed (non-fatal, will retry next interval): {e}")
+
+    t = threading.Thread(target=_loop, daemon=True, name=f"lease-renew-{job['job_id']}")
+    t.start()
+    return t, stop_event
+
+
+def _report_remote_outcome(job: dict, job_log, *, success: bool, output_ref: str = "",
+                            result_payload: dict | None = None, error_code: str = "", error_message: str = "") -> None:
+    """[AIR-0230] Ported verbatim from render_worker.py's
+    _report_remote_outcome (see that function's own comment for the exact
+    409-crash bug this structure avoids: central-reporting failure must
+    never be allowed to alter/interrupt a local outcome that already
+    succeeded or failed on its own terms). Only addition vs. the render
+    version: result_payload, forwarded to central_client.complete_job() so
+    topic_benchmark_analyze's compact analysis JSON lands in
+    remote_hermes_queue.result_payload without a second fetch."""
+    if not _is_remote(job):
+        return
+    idem_key = job["job_id"]
+    try:
+        if success:
+            central_client.complete_job(job["remote_job_id"], job["lease_id"], WORKER_INSTANCE_ID, idem_key, output_ref, result_payload=result_payload)
+        else:
+            central_client.fail_job(job["remote_job_id"], job["lease_id"], WORKER_INSTANCE_ID, idem_key, error_code, error_message)
+        job_store.mark_remote_acked(job["job_id"])
+        job_log.info(f"Central server acknowledged {'completion' if success else 'failure'}")
+    except central_client.LeaseConflict as e:
+        try:
+            job_store.mark_remote_ack_abandoned(job["job_id"])
+        except Exception:
+            pass
+        job_log.warning(f"Central server rejected this {'completion' if success else 'failure'} report as stale (lease no longer active) - giving up on this report, NOT retrying: {e}")
+    except Exception as e:
+        try:
+            job_store.mark_remote_ack_pending(job["job_id"])
+        except Exception:
+            pass
+        job_log.warning(f"Could not report {'completion' if success else 'failure'} to central server ({e}) - queued for retry, local status is final regardless")
+
+
+def _flush_pending_remote_acks() -> None:
+    """[AIR-0230] Ported verbatim from render_worker.py - job_store's
+    pending-ack bookkeeping is shared/generic, not render-specific."""
+    for job in job_store.list_pending_remote_acks():
+        job_log = get_job_logger(job["job_id"])
+        if job["status"] == job_store.COMPLETED:
+            _report_remote_outcome(job, job_log, success=True, output_ref=job.get("output_path") or "")
+        else:
+            _report_remote_outcome(job, job_log, success=False, error_code=job.get("error_code") or "", error_message=job.get("error_message") or "")
+
+
+def _try_remote_claim() -> dict | None:
+    """[AIR-0230] Ported verbatim from render_worker.py - central_client and
+    job_store.create_from_remote_claim are both already job-type-agnostic
+    (job_type/payload are passed straight through)."""
+    global _next_remote_claim_at
+    now = time.time()
+    if now < _next_remote_claim_at:
+        return None
+    try:
+        claimed = central_client.claim_job(WORKER_ID, WORKER_INSTANCE_ID, SUPPORTED_JOB_TYPES)
+    except central_client.AuthError as e:
+        logger.error(f"Central server rejected our worker token (not retrying this tick): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
+        return None
+    except central_client.CentralServerUnavailable as e:
+        logger.warning(f"Central server unreachable (will retry after {REMOTE_CLAIM_RETRY_SECONDS:.0f}s): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error during central server claim (will retry after {REMOTE_CLAIM_RETRY_SECONDS:.0f}s): {e}")
+        _next_remote_claim_at = now + REMOTE_CLAIM_RETRY_SECONDS
+        return None
+    if not claimed:
+        return None
+    local_job_id = job_store.create_from_remote_claim(
+        remote_job_id=claimed["job_id"], job_type=claimed["job_type"], payload=claimed["payload"],
+        priority=claimed["priority"], lease_id=claimed["lease_id"], worker_instance_id=WORKER_INSTANCE_ID,
+        lease_expires_at=claimed["lease_expires_at"],
+    )
+    return job_store.get_job(local_job_id)
+
+
+def _send_remote_heartbeat() -> None:
+    try:
+        central_client.heartbeat(WORKER_ID, WORKER_INSTANCE_ID)
+    except central_client.AuthError as e:
+        logger.error(f"Central server rejected heartbeat token (local queue will continue): {e}")
+    except central_client.CentralServerUnavailable as e:
+        logger.warning(f"Central heartbeat unavailable (local queue will continue): {e}")
+    except Exception as e:
+        logger.warning(f"Unexpected central heartbeat error (local queue will continue): {e}")
+
+
+def _process_topic_research(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    """Returns (output_ref, result_payload) - both are forwarded to
+    _report_remote_outcome() by process_one_job() when this job came from a
+    central claim; harmless/unused for a locally-submitted job."""
+    job_store.transition(job_id, job_store.PREPARING, reason="preparing prompt")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (building prompt)")
+
+    keyword, language, country, count, image_style, character_context, writing_profile = _validate_payload(job["payload"])
+    prompt = _build_prompt(
+        keyword=keyword,
+        language=language,
+        country=country,
+        count=count,
+        image_style=image_style,
+        character_context=character_context,
+        writing_profile=writing_profile,
+    )
+
+    job_store.transition(job_id, job_store.RENDERING, reason="calling AI provider")
+    write_state("running", job, 30, job_id)
+    job_log.info("-> RENDERING (calling AI provider for topic research)")
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+    import asyncio
+
+    Config.refresh_remote_keys_if_stale()
+
+    model = config.TOPIC_GENERATION_MODEL
+    raw_text = asyncio.run(
+        ai_router.generate_text(
+            prompt, model=model, temperature=0.9, max_tokens=4096,
+            task_type="hermes_topic_research",
+        )
+    )
+    parsed = _extract_json(raw_text)
+    topics = parsed.get("topics")
+    if not isinstance(topics, list) or not topics:
+        raise ValueError(f"AI response did not contain a non-empty 'topics' list: {raw_text[:300]}")
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
+    write_state("running", job, 90, job_id)
+    job_log.info(f"-> UPLOADING (saving {len(topics)} topic candidates)")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "topic_research",
+        "status": "COMPLETED",
+        "topics": topics,
+        "model": model,
+        "completed_at": completed_at,
+        "error": None,
+        "image_style": image_style,
+        "character_context": character_context,
+        "writing_profile": writing_profile,
+        "_payload_data": job.get("payload", {}),
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="topic research complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
+def _process_topic_benchmark_analyze(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    """Returns (output_ref, result_payload) - see _process_topic_research's
+    docstring."""
+    job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating payload)")
+
+    keyword, language, video_type, max_candidates, search_pool_size, search_keywords = _validate_benchmark_payload(job["payload"])
+
+    job_store.transition(job_id, job_store.RENDERING, reason="collecting YouTube benchmark candidates")
+    write_state("running", job, 10, job_id)
+    job_log.info(f"-> RENDERING (keyword={keyword!r}, video_type={video_type}, pool={search_pool_size}, pick={max_candidates})")
+
+    ensure_project_root_on_path()
+    from config import config
+    from services import ai_router
+    from services.prompts import prompts as prompt_templates
+    from services.source_service import source_service
+    import asyncio
+
+    # The Codex pipeline deliberately keeps discovery grounded in the YouTube
+    # Data API.  It must not silently hand the benchmark interpretation to a
+    # legacy router (Claude, DeepSeek, or Gemini): topic selection is done by
+    # ``codex_topic_discover`` immediately after this job completes.
+    codex_only = str(os.environ.get("CONTENT_GENERATION_ENGINE") or "").strip().lower() == "codex"
+
+    async def _run_analysis() -> tuple[list[dict], dict]:
+        async def _analyze_comments_with_router(comments: list[str], video_title: str, transcript: str | None) -> dict:
+            if codex_only:
+                return {
+                    "source": "youtube_data_api",
+                    "summary": f"YouTube benchmark reference: {video_title}",
+                    "comment_signals": comments[:12],
+                    "transcript_available": bool(transcript),
+                    "viewer_interest": [
+                        "title-level curiosity gap",
+                        "clear folk-story conflict",
+                        "a concrete late reveal",
+                    ],
+                    "retention_pattern": [
+                        "open with the disruptive event",
+                        "escalate the personal cost",
+                        "resolve with a specific moral turn",
+                    ],
+                }
+            script_section = ""
+            if transcript:
+                script_section = f"""
+[영상 스크립트 (앞부분 발췌)]
+{transcript[:5000]}
+... (후략)
+"""
+            prompt = prompt_templates.GEMINI_ANALYZE_COMMENTS.format(
+                script_indicator=("및 스크립트" if transcript else ""),
+                video_title=video_title,
+                script_section=script_section,
+                comments_text=chr(10).join(comments[:50]),
+            )
+            text = await ai_router.generate_text(
+                prompt,
+                config.SCRIPT_GENERATION_MODEL,
+                temperature=0.3,
+                max_tokens=4096,
+                task_type="benchmark_comment_analysis",
+            )
+            match = re.search(r"\{[\s\S]*\}", text or "")
+            if match:
+                return json.loads(match.group(), strict=False)
+            return {"error": "parse_failed", "raw": text}
+
+        async def _extract_success_strategy_with_router(analysis_data: dict) -> list[dict]:
+            if codex_only:
+                return [
+                    {
+                        "pattern": "API-observed high-performing folk-story reference",
+                        "application": "Use the reference only as a performance signal; Codex must create a distinct premise and title.",
+                    },
+                    {
+                        "pattern": "curiosity gap with emotional stakes",
+                        "application": "Start from one concrete disruption, build consequences, and reveal the decisive truth near the ending.",
+                    },
+                ]
+            prompt = prompt_templates.GEMINI_EXTRACT_STRATEGY.format(
+                analysis_json=json.dumps(analysis_data, ensure_ascii=False)
+            )
+            text = await ai_router.generate_text(
+                prompt,
+                config.SCRIPT_GENERATION_MODEL,
+                temperature=0.3,
+                max_tokens=2048,
+                task_type="benchmark_strategy_extraction",
+            )
+            match = re.search(r"\[[\s\S]*\]", text or "")
+            if match:
+                return json.loads(match.group(), strict=False)
+            return []
+
+        audit_payload = {
+            "job_id": job_id,
+            "job_type": "topic_benchmark_analyze",
+            "keyword": keyword,
+            "language": language,
+            "video_type": video_type,
+            "max_candidates": max_candidates,
+            "search_pool_size": search_pool_size,
+            "started_at": time.time(),
+            "search": None,
+            "stats": None,
+            "fallbacks": [],
+            "analyzed_candidates": [],
+        }
+
+        try:
+            candidates, search_audit = await _collect_candidate_videos(
+                job.get("payload") or {}, keyword, language, video_type, search_pool_size, search_keywords
+            )
+            audit_payload["search"] = search_audit
+            if not candidates:
+                raise ValueError("No candidates returned from YouTube RSS/channel pool")
+        except Exception as search_e:
+            raise RuntimeError(f"YouTube benchmark candidate collection unavailable; benchmark cannot continue: {search_e}") from search_e
+
+        try:
+            enriched, stats_audit = await _fetch_video_and_channel_stats(candidates)
+            audit_payload["stats"] = stats_audit
+            enriched = [candidate for candidate in enriched if int(candidate.get("view_count") or 0) > 0]
+            if not enriched:
+                raise ValueError("No candidates had public non-zero YouTube statistics")
+        except Exception as stats_e:
+            raise RuntimeError(f"YouTube statistics unavailable; benchmark cannot continue: {stats_e}") from stats_e
+
+        keyword_ranking = _rank_search_keywords(enriched)
+        audit_payload["search"]["keyword_ranking"] = keyword_ranking
+        keyword_scores = {item["query"]: item["score"] for item in keyword_ranking}
+        for candidate in enriched:
+            candidate.setdefault("performance_data_source", "youtube_api")
+            candidate["keyword_score"] = keyword_scores.get(candidate.get("search_query"), 0.0)
+        enriched.sort(
+            key=lambda c: (
+                c.get("keyword_score", 0.0),
+                c.get("performance_ratio", 0.0),
+                c.get("view_count", 0),
+            ),
+            reverse=True,
+        )
+
+        # Preserve keyword diversity when more than one reference video is
+        # requested, while still prioritizing the highest-scoring queries.
+        top_candidates = []
+        used_queries = set()
+        for candidate in enriched:
+            query = candidate.get("search_query") or ""
+            if query in used_queries:
+                continue
+            top_candidates.append(candidate)
+            used_queries.add(query)
+            if len(top_candidates) >= max_candidates:
+                break
+        if len(top_candidates) < max_candidates:
+            selected_ids = {candidate.get("video_id") for candidate in top_candidates}
+            for candidate in enriched:
+                if candidate.get("video_id") in selected_ids:
+                    continue
+                top_candidates.append(candidate)
+                if len(top_candidates) >= max_candidates:
+                    break
+
+        for index, candidate in enumerate(top_candidates, start=1):
+            video_id = str(candidate.get("video_id") or "")
+            if video_id.startswith("dummy_"):
+                job_log.warning("REFERENCE_VIDEO unavailable: YouTube search returned a fallback placeholder")
+                continue
+            job_log.info(
+                "REFERENCE_VIDEO #%s title=%r channel=%r views=%s ratio=%s source=%s url=https://www.youtube.com/watch?v=%s",
+                index,
+                candidate.get("title") or "",
+                candidate.get("channel_title") or "",
+                candidate.get("view_count") or 0,
+                candidate.get("performance_ratio") or 0,
+                candidate.get("performance_data_source"),
+                video_id,
+            )
+
+        results = []
+        total_candidates = max(1, len(top_candidates))
+        for candidate_index, candidate in enumerate(top_candidates, start=1):
+            video_id = candidate["video_id"]
+            candidate_progress_base = 20 + int(55 * (candidate_index - 1) / total_candidates)
+            job_store.update_progress(
+                job_id,
+                candidate_progress_base,
+                f"benchmark candidate {candidate_index}/{total_candidates}",
+            )
+            write_state("running", job, candidate_progress_base, job_id)
+            job_log.info(
+                "BENCHMARK_ANALYZE #%s/%s video_id=%s title=%r",
+                candidate_index,
+                total_candidates,
+                video_id,
+                candidate.get("title") or "",
+            )
+
+            transcript = None
+            transcript_error = None
+            try:
+                extracted = await asyncio.wait_for(
+                    source_service.extract_text_from_youtube(
+                        f"https://www.youtube.com/watch?v={video_id}"
+                    ),
+                    timeout=25.0,
+                )
+                transcript = extracted.get("content")
+            except Exception as e:
+                # Best-effort: plenty of high-performing videos have no captions.
+                job_log.warning(f"Transcript extraction failed for {video_id} (continuing without it): {e}")
+                transcript_error = str(e)
+
+            try:
+                comments, comments_audit = await asyncio.wait_for(_fetch_comments_with_audit(video_id), timeout=20.0)
+            except Exception as e:
+                job_log.warning(f"Comment fetch failed for {video_id} (continuing without comments): {e}")
+                comments = []
+                comments_audit = {"video_id": video_id, "count": 0, "error": str(e), "items": []}
+
+            try:
+                analysis = await asyncio.wait_for(
+                    _analyze_comments_with_router(
+                        comments=comments,
+                        video_title=candidate["title"],
+                        transcript=transcript,
+                    ),
+                    timeout=90.0,
+                )
+            except Exception as e:
+                job_log.warning(f"Comment/transcript analysis failed for {video_id} (using compact fallback): {e}")
+                analysis = {
+                    "error": "analysis_fallback",
+                    "reason": str(e),
+                    "summary": f"High-performing reference title: {candidate.get('title') or ''}",
+                    "viewer_interest": ["clear curiosity gap", "historical/folk-story stakes", "specific hidden truth"],
+                    "retention_pattern": ["open with unresolved event", "delay the true cause", "pay off with a concrete moral turn"],
+                }
+
+            success_strategies = []
+            if not analysis.get("error"):
+                try:
+                    success_strategies = await asyncio.wait_for(
+                        _extract_success_strategy_with_router(analysis),
+                        timeout=60.0,
+                    )
+                except Exception as e:
+                    job_log.warning(f"Success-strategy extraction failed for {video_id}: {e}")
+            if not success_strategies:
+                success_strategies = [
+                    {
+                        "pattern": "specific folk mystery title",
+                        "application": "Use one concrete impossible event, then reveal the cause only near the end.",
+                    },
+                    {
+                        "pattern": "emotion before explanation",
+                        "application": "Let shame, fear, debt, or devotion drive each scene before giving exposition.",
+                    },
+                ]
+
+            results.append({
+                **candidate,
+                "comment_count_analyzed": len(comments),
+                "has_transcript": bool(transcript),
+                "analysis": analysis,
+                "success_strategies": success_strategies,
+            })
+            audit_payload["analyzed_candidates"].append({
+                "candidate": candidate,
+                "transcript": {
+                    "has_transcript": bool(transcript),
+                    "char_count": len(transcript or ""),
+                    "error": transcript_error,
+                    "content": _clip_audit_text(transcript, MAX_AUDIT_TRANSCRIPT_CHARS),
+                },
+                "comments": comments_audit,
+                "gemini_analysis": analysis,
+                "success_strategies": success_strategies,
+                "analyzed_at": time.time(),
+            })
+
+        audit_payload["completed_at"] = time.time()
+        return results, audit_payload
+
+    results, audit_payload = asyncio.run(_run_analysis())
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
+    write_state("running", job, 90, job_id)
+    job_log.info(f"-> UPLOADING (saving benchmark analysis for {len(results)} video(s))")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    audit_path = _write_audit_payload(job_id, audit_payload)
+    analyzed_candidates = audit_payload.get("analyzed_candidates") or []
+    audit_summary = {
+        "audit_path": audit_path,
+        "search_result_count": ((audit_payload.get("search") or {}).get("result_count") or 0),
+        "analyzed_video_count": len(analyzed_candidates),
+        "stored_comment_count": sum(((c.get("comments") or {}).get("count") or 0) for c in analyzed_candidates),
+        "stored_transcript_chars": sum(((c.get("transcript") or {}).get("char_count") or 0) for c in analyzed_candidates),
+        "fallbacks": audit_payload.get("fallbacks") or [],
+    }
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "topic_benchmark_analyze",
+        "status": "COMPLETED",
+        "keyword": keyword,
+        "language": language,
+        "video_type": video_type,
+        "candidates": results,
+        "audit_path": audit_path,
+        "audit_summary": audit_summary,
+        "completed_at": completed_at,
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="benchmark analysis complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}; audit at {audit_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}; audit -> {audit_path}")
+    return str(result_path), result_payload
+
+
+def _process_music_trend_analyze(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating music trend payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating music trend payload)")
+
+    target_market, playlist_concept, track_count, track_duration_seconds, source_summary = _validate_music_trend_payload(
+        job["payload"]
+    )
+
+    job_store.transition(job_id, job_store.RENDERING, reason="analyzing music trend")
+    write_state("running", job, 30, job_id)
+    job_log.info(
+        "-> RENDERING (target_market=%r, concept=%r, tracks=%s)",
+        target_market,
+        playlist_concept,
+        track_count,
+    )
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+
+    Config.refresh_remote_keys_if_stale()
+    model = config.SCRIPT_PLANNING_MODEL or config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
+
+    prompt = f"""
+You are a music trend strategist for longform YouTube music videos.
+
+Return ONLY JSON:
+{{
+  "playlist_concept": "string",
+  "popular_genres": ["genre1", "genre2", "genre3", "genre4"],
+  "core_moods": ["mood1", "mood2", "mood3"],
+  "trend_summary": "short paragraph",
+  "title_pattern_notes": ["note1", "note2", "note3"],
+  "source_evidence_summary": {{"internal": "...", "youtube": "...", "notes": "..."}}
+}}
+
+Rules:
+- Target market: {target_market}
+- Playlist concept should suit 2-4 hour work/study/relax listening behavior.
+- Prefer instrumental-safe genres suitable for Suno or similar AI music generation.
+- Avoid artist names, copyrighted songs, brand names, and unsupported factual claims.
+- Track count target: {track_count}
+- Track duration target seconds: {track_duration_seconds}
+- If evidence is sparse, make a conservative recommendation rather than inventing specific charts.
+
+Optional evidence from caller:
+{json.dumps(source_summary, ensure_ascii=False)}
+
+Preferred starting concept: {playlist_concept}
+"""
+
+    try:
+        raw = asyncio.run(
+            ai_router.generate_text(
+                prompt,
+                model,
+                temperature=0.35,
+                max_tokens=1600,
+                task_type="music_trend_analyze",
+            )
+        )
+        analysis = _normalize_music_trend_result(
+            _extract_json(raw),
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+    except Exception as exc:
+        job_log.warning(f"Music trend AI analysis failed, using fallback: {exc}")
+        analysis = _normalize_music_trend_result(
+            {},
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving music trend result")
+    write_state("running", job, 90, job_id)
+    job_log.info("-> UPLOADING (saving music trend result)")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "music_trend_analyze",
+        "status": "COMPLETED",
+        **analysis,
+        "completed_at": time.time(),
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="music trend analysis complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
+def _process_music_prompt_pack_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating music prompt pack payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating music prompt pack payload)")
+
+    (
+        target_market,
+        playlist_concept,
+        track_count,
+        track_duration_seconds,
+        source_summary,
+        trend_analysis,
+    ) = _validate_music_prompt_pack_payload(job["payload"])
+
+    job_store.transition(job_id, job_store.RENDERING, reason="generating music prompt pack")
+    write_state("running", job, 30, job_id)
+    job_log.info(
+        "-> RENDERING (target_market=%r, concept=%r, tracks=%s)",
+        target_market,
+        playlist_concept,
+        track_count,
+    )
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+
+    Config.refresh_remote_keys_if_stale()
+    model = config.SCRIPT_PLANNING_MODEL or config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
+    trend_seed = _normalize_music_trend_result(
+        trend_analysis,
+        target_market=target_market,
+        playlist_concept=playlist_concept,
+        track_count=track_count,
+        track_duration_seconds=track_duration_seconds,
+    )
+    prompt = f"""
+You are creating a production-ready Suno prompt pack for a 3-hour-class YouTube music video.
+
+Return ONLY JSON:
+{{
+  "playlist_concept": "string",
+  "popular_genres": ["genre1", "genre2", "genre3", "genre4"],
+  "core_moods": ["mood1", "mood2", "mood3"],
+  "lyrics_direction": "short instruction",
+  "tag_candidates": ["tag1", "tag2", "tag3"],
+  "tracks": [
+    {{
+      "title": "track title",
+      "genre": "genre",
+      "mood": "comma separated moods",
+      "duration_seconds": {track_duration_seconds},
+      "prompt": "Suno-safe music prompt",
+      "negative_rules": ["no artist imitation", "no copyrighted melody", "no watermark"]
+    }}
+  ]
+}}
+
+Rules:
+- Market: {target_market}
+- Playlist concept: {trend_seed["playlist_concept"]}
+- Required track count: {track_count}
+- Default duration per track: {track_duration_seconds} seconds
+- Keep prompts original, instrumental-first, loopable, and YouTube-safe.
+- No artist imitation, no copyrighted melody, no watermark, no brand references.
+- Genres should stay close to: {", ".join(trend_seed["popular_genres"])}
+- Moods should stay close to: {", ".join(trend_seed["core_moods"])}
+- The result will be passed to a Thailand user queue, so make the pack practical rather than abstract.
+
+Trend seed:
+{json.dumps(trend_seed, ensure_ascii=False)}
+
+Optional source evidence:
+{json.dumps(source_summary, ensure_ascii=False)}
+"""
+
+    try:
+        raw = asyncio.run(
+            ai_router.generate_text(
+                prompt,
+                model,
+                temperature=0.45,
+                max_tokens=12000,
+                task_type="music_prompt_pack_generate",
+            )
+        )
+        pack = _normalize_music_prompt_pack_result(
+            _extract_json(raw),
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+    except Exception as exc:
+        job_log.warning(f"Music prompt-pack generation failed, using fallback: {exc}")
+        pack = _normalize_music_prompt_pack_result(
+            trend_seed,
+            target_market=target_market,
+            playlist_concept=playlist_concept,
+            track_count=track_count,
+            track_duration_seconds=track_duration_seconds,
+        )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving music prompt pack")
+    write_state("running", job, 90, job_id)
+    job_log.info("-> UPLOADING (saving music prompt pack)")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "music_prompt_pack_generate",
+        "status": "COMPLETED",
+        **pack,
+        "source_evidence_summary": source_summary,
+        "completed_at": time.time(),
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="music prompt pack complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+def _process_web_research(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    payload = job.get("payload") or {}
+    topic = str(payload.get("topic") or "").strip()
+    upload_title = str(payload.get("upload_title") or topic).strip()
+    category = str(payload.get("category") or "").strip()
+    benchmark_sources = [
+        source for source in (payload.get("benchmark_sources") or [])
+        if isinstance(source, dict) and source.get("url")
+    ]
+    if not topic:
+        raise ValueError("payload.topic is required for web_research")
+    job_store.transition(job_id, job_store.PREPARING, reason="preparing Gemini web research")
+    write_state("preparing", job, 0, job_id)
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services.gemini_service import gemini_service
+    Config.refresh_remote_keys_if_stale()
+    model = config.SCRIPT_PLANNING_MODEL or config.TOPIC_GENERATION_MODEL or "gemini-3.6-flash"
+    # Google Search grounding is a Gemini operation. A stale admin setting
+    # may contain a Claude model id, which Gemini rejects as "not found".
+    if str(model).lower().startswith("claude"):
+        model = "gemini-3.6-flash"
+    prompt = f"""Research factual material for a Korean YouTube script.
+CATEGORY: {category}
+UPLOAD TITLE: {upload_title}
+CATEGORY: {topic}
+
+Use Google Search to find reliable context relevant to the upload title and category. Do not invent events, statistics, quotes, people, or sources. For fictional/story categories, research only useful historical, cultural, or real-world context and clearly separate it from creative invention.
+Return JSON only:
+{{"research_brief":"short factual context", "verified_facts":[{{"claim":"a usable fact", "caution":"scope/date/uncertainty"}}], "story_material":"how these facts can enrich the script without claiming fiction is real", "risk_notes":["facts that must not be overstated"]}}
+"""
+    job_store.transition(job_id, job_store.RENDERING, reason="Gemini Google Search grounding")
+    write_state("running", job, 30, job_id)
+    try:
+        result = asyncio.run(
+            asyncio.wait_for(
+                gemini_service.generate_grounded_research(prompt, model=model),
+                timeout=75,
+            )
+        )
+    except Exception as exc:
+        # Search grounding can hang or be temporarily unavailable. Continue
+        # with the real benchmark URLs instead of blocking the whole video.
+        if not benchmark_sources:
+            raise
+        job_log.warning("WEB_RESEARCH fallback to benchmark sources: %s", exc)
+        result = {
+            "text": "외부 웹 조사는 일시적으로 사용할 수 없어 실제 벤치마크 영상의 제목과 공개 성과 데이터를 근거로 기획을 이어갑니다.",
+            "sources": benchmark_sources,
+            "search_queries": [],
+            "grounding_supports": [],
+        }
+    if not result.get("sources"):
+        # Some grounded answers can contain usable text but omit grounding
+        # metadata for a narrowly phrased creative title.  Retry once with a
+        # plain factual category query before rejecting Gemini research.
+        retry_prompt = f"""Use Google Search to research factual, reliable context for the Korean YouTube category '{category or topic}'.
+Find at least two reputable web sources. Focus on historical or cultural background that can safely inspire an original fictional story.
+Return a concise Korean JSON object with research_brief, verified_facts, story_material, and risk_notes."""
+        retry_result = asyncio.run(
+            asyncio.wait_for(
+                gemini_service.generate_grounded_research(retry_prompt, model=model),
+                timeout=75,
+            )
+        )
+        if retry_result.get("sources"):
+            result = retry_result
+            job_log.info("WEB_RESEARCH recovered with broad Gemini category query")
+        elif not benchmark_sources:
+            raise ValueError("Gemini 웹 조사에서 검증 가능한 출처를 받지 못했습니다.")
+        else:
+            result["sources"] = benchmark_sources
+    try:
+        research = _extract_json(result.get("text") or "{}")
+    except Exception:
+        research = {"research_brief": result.get("text") or "", "verified_facts": [], "story_material": "", "risk_notes": []}
+    bundle = {
+        "topic": topic, "upload_title": upload_title, "category": category,
+        "research_brief": research.get("research_brief") or "",
+        "verified_facts": research.get("verified_facts") or [],
+        "story_material": research.get("story_material") or "",
+        "risk_notes": research.get("risk_notes") or [],
+        "sources": result["sources"], "search_queries": result.get("search_queries") or [],
+        "grounding_supports": result.get("grounding_supports") or [], "researched_at": time.time(),
+    }
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    result_payload = {"job_id": job_id, "job_type": "web_research", "status": "COMPLETED", "research_bundle": bundle}
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving web research result")
+    job_store.transition(job_id, job_store.COMPLETED, reason="Gemini web research complete", output_path=str(result_path))
+    job_log.info("WEB_RESEARCH complete: %d sources; queries=%r", len(bundle["sources"]), bundle["search_queries"])
+    for source in bundle["sources"]:
+        job_log.info("WEB_SOURCE title=%r url=%s", source["title"], source["url"])
+    return str(result_path), result_payload
+
+
+def _normalize_music_prompt_tasks(data: dict, payload: dict) -> list[dict]:
+    raw_tracks = data.get("tracks")
+    if not isinstance(raw_tracks, list):
+        raw_tracks = []
+
+    target_market = str(payload.get("target_market") or data.get("target_market") or "th").strip().lower()
+    genre_fallback = str(payload.get("genre") or data.get("genre") or "lofi").strip() or "lofi"
+    duration = payload.get("duration_target_seconds") or payload.get("track_duration_seconds") or 180
+    try:
+        duration = max(30, min(900, int(duration)))
+    except Exception:
+        duration = 180
+    reward = payload.get("reward_usdt", data.get("reward_usdt", 0.5))
+    try:
+        reward = max(0, float(reward))
+    except Exception:
+        reward = 0.5
+
+    tasks: list[dict] = []
+    for index, item in enumerate(raw_tracks, start=1):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or f"Music Mission {index:02d}").strip()
+        prompt = str(item.get("prompt") or item.get("suno_prompt") or "").strip()
+        if not prompt:
+            continue
+        rules = item.get("negative_rules")
+        if not isinstance(rules, list):
+            rules = [
+                "Do not imitate a real artist",
+                "Do not use copyrighted lyrics or melodies",
+                "No watermark or voice tag",
+            ]
+        tasks.append({
+            "title": title[:300],
+            "target_market": target_market,
+            "genre": str(item.get("genre") or genre_fallback).strip()[:120],
+            "mood": str(item.get("mood") or item.get("description") or "").strip()[:1000],
+            "prompt": prompt[:12000],
+            "negative_rules": [str(rule).strip() for rule in rules if str(rule).strip()][:10],
+            "duration_target_seconds": duration,
+            "reward_usdt": reward,
+            "max_submissions": max(1, int(payload.get("max_submissions_per_task") or 1)),
+            "metadata": {
+                "playlist_concept": data.get("playlist_concept") or payload.get("playlist_concept") or "",
+                "trend_summary": data.get("trend_summary") or "",
+                "source": "hermes_worker",
+            },
+        })
+    return tasks
+
+
+def _fallback_music_prompt_tasks(payload: dict) -> list[dict]:
+    track_count = payload.get("track_count") or 10
+    try:
+        track_count = max(1, min(100, int(track_count)))
+    except Exception:
+        track_count = 10
+    target_market = str(payload.get("target_market") or "th").strip().lower()
+    genre = str(payload.get("genre") or "lofi").strip() or "lofi"
+    concept = str(payload.get("playlist_concept") or "Relaxing Thai cafe music for work and study").strip()
+    mood = str(payload.get("mood") or "calm, warm, loopable, late night").strip()
+    tasks = []
+    for index in range(1, track_count + 1):
+        tasks.append({
+            "title": f"{concept[:80]} #{index:02d}",
+            "target_market": target_market,
+            "genre": genre,
+            "mood": mood,
+            "prompt": (
+                f"Original instrumental {genre} track for {concept}. "
+                f"Mood: {mood}. Soft arrangement, clean mix, loopable structure, "
+                "no vocals, no copyrighted melody, no artist imitation, suitable for a long relaxing YouTube playlist."
+            ),
+            "negative_rules": [
+                "Do not imitate a real artist",
+                "Do not use copyrighted lyrics or melodies",
+                "No watermark or voice tag",
+            ],
+            "duration_target_seconds": int(payload.get("duration_target_seconds") or 180),
+            "reward_usdt": float(payload.get("reward_usdt") or 0.5),
+            "max_submissions": max(1, int(payload.get("max_submissions_per_task") or 1)),
+            "metadata": {"playlist_concept": concept, "source": "hermes_worker_fallback"},
+        })
+    return tasks
+
+
+def _process_music_prompt_pack_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    payload = job.get("payload") or {}
+    target_market = str(payload.get("target_market") or "th").strip().lower()
+    playlist_concept = str(payload.get("playlist_concept") or "Relaxing Thai cafe music for work and study").strip()
+    genre = str(payload.get("genre") or "lofi").strip()
+    track_count = payload.get("track_count") or 10
+    try:
+        track_count = max(1, min(100, int(track_count)))
+    except Exception:
+        track_count = 10
+    duration = payload.get("duration_target_seconds") or 180
+    try:
+        duration = max(30, min(900, int(duration)))
+    except Exception:
+        duration = 180
+
+    ensure_project_root_on_path()
+    from config import Config
+    from services import ai_router
+
+    model = str(payload.get("model") or Config.TOPIC_GENERATION_MODEL or "gemini-2.5-flash").strip()
+    market_label = {
+        "th": "Thailand",
+        "ko": "Korea",
+        "ja": "Japan",
+        "en": "global English-speaking",
+    }.get(target_market, target_market)
+    trend_context = payload.get("trend_context") or payload.get("benchmark_analysis") or {}
+    trend_context_text = json.dumps(trend_context, ensure_ascii=False)[:8000] if trend_context else "{}"
+    music_learning_rows: list[dict] = []
+    try:
+        import notion_learning
+
+        music_learning_rows = asyncio.run(notion_learning.fetch_music_learning_rows(target_market, genre, limit=20))
+        if music_learning_rows:
+            job_log.info("Notion music learning memory loaded: %d row(s)", len(music_learning_rows))
+    except Exception as exc:
+        job_log.warning("Notion music learning memory fetch failed (ignored): %s", exc)
+    music_learning_context = json.dumps(
+        [
+            {
+                "category": row.get("category"),
+                "source": row.get("source"),
+                "quality": row.get("quality"),
+                "learning_text": row.get("learning_text"),
+            }
+            for row in music_learning_rows[:20]
+        ],
+        ensure_ascii=False,
+    )[:10000]
+
+    prompt = f"""
+You are AIR Studio's music mission planner.
+Create contributor-ready AI music generation prompts for a long YouTube music video.
+
+Target market: {market_label}
+Playlist concept: {playlist_concept}
+Genre hint: {genre or "choose based on trend fit"}
+Track count: {track_count}
+Target duration per track: {duration} seconds
+Trend/context JSON: {trend_context_text}
+Notion music learning memory JSON: {music_learning_context or "[]"}
+
+Rules:
+- Apply Notion music learning memory as abstract taste and production guidance only.
+- Do not copy lyrics, melodies, titles, or exact prompt text from previous rows.
+- Prefer prompt patterns, genre/mood combinations, and negative rules that previous successful music rows indicate.
+
+Return JSON only:
+{{
+  "target_market": "{target_market}",
+  "playlist_concept": "clear playlist concept",
+  "trend_summary": "short explanation of why these genres/moods fit the market",
+  "tracks": [
+    {{
+      "title": "short original track title",
+      "genre": "specific genre",
+      "mood": "mood and use case",
+      "prompt": "complete English prompt for Suno-compatible music generation. Must request original music, no artist names, no copyrighted melodies, no copyrighted lyrics, clean mix, usable for commercial YouTube background or playlist.",
+      "negative_rules": ["no artist imitation", "no copyrighted melody", "no watermark"]
+    }}
+  ]
+}}
+"""
+    job_store.transition(job_id, job_store.RENDERING, reason="generating music prompt missions")
+    write_state("running", job, 45, job_id)
+
+    try:
+        raw = asyncio.run(
+            asyncio.wait_for(
+                ai_router.generate_text(
+                    prompt,
+                    model=model,
+                    temperature=0.75,
+                    task_type="music_prompt_pack_generate",
+                ),
+                timeout=120,
+            )
+        )
+        data = _extract_json(raw)
+        tasks = _normalize_music_prompt_tasks(data, payload)
+    except Exception as exc:
+        job_log.warning("Music prompt AI generation failed; using fallback prompts: %s", exc)
+        data = {"playlist_concept": playlist_concept, "trend_summary": "", "tracks": []}
+        tasks = _fallback_music_prompt_tasks(payload)
+
+    if not tasks:
+        tasks = _fallback_music_prompt_tasks(payload)
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.music_prompt_pack.json"
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "music_prompt_pack_generate",
+        "status": "COMPLETED",
+        "target_market": target_market,
+        "playlist_concept": data.get("playlist_concept") or playlist_concept,
+        "trend_summary": data.get("trend_summary") or "",
+        "notion_music_learning_count": len(music_learning_rows),
+        "tasks": tasks,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        import notion_learning
+
+        for task in tasks[:20]:
+            asyncio.run(
+                notion_learning.create_music_learning_row(
+                    {
+                        "source": "music_prompt_pack",
+                        "source_id": f"music-prompt-pack:{job_id}:{task.get('title') or ''}",
+                        "job_id": job_id,
+                        "target_market": target_market,
+                        "genre": task.get("genre") or genre,
+                        "mood": task.get("mood"),
+                        "title": task.get("title"),
+                        "prompt": task.get("prompt"),
+                        "negative_rules": task.get("negative_rules"),
+                        "outcome_quality": "generated",
+                        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        "metadata": {
+                            "playlist_concept": result_payload.get("playlist_concept"),
+                            "trend_summary": result_payload.get("trend_summary"),
+                        },
+                    }
+                )
+            )
+    except Exception as exc:
+        job_log.warning("Notion music prompt-pack sync failed (ignored): %s", exc)
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving music prompt mission pack")
+    job_store.transition(job_id, job_store.COMPLETED, reason="music prompt mission pack complete", output_path=str(result_path))
+    job_log.info("MUSIC_PROMPT_PACK complete: %d tasks", len(tasks))
+    return str(result_path), result_payload
+
+
+def _validate_script_plan_payload(payload: dict) -> tuple[str, str, int, str, str, str, dict | None, str, dict]:
+    """[AIR-0230 §2d] topic_queue_id is required (not optional) - unlike
+    topic_research/topic_benchmark_analyze, this job's whole purpose is to
+    write its result back onto a SPECIFIC topics_queue row (see
+    auth-web/app/api/internal/worker/jobs/[jobId]/complete/route.ts's
+    sync-back step) - a script plan with nowhere to land is pointless."""
+    topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
+    if not topic_queue_id:
+        raise ValueError("payload.topic_queue_id is required for script_plan_generate")
+    topic = str(payload.get("topic") or "").strip()
+    if not topic:
+        raise ValueError("payload.topic is required for script_plan_generate")
+    target_duration = payload.get("target_duration_seconds", 60)
+    try:
+        target_duration = max(15, int(target_duration))
+    except (TypeError, ValueError):
+        target_duration = 60
+    script_style = str(payload.get("script_style") or "default").strip()
+    image_style = str(payload.get("image_style") or "").strip()
+    language = str(payload.get("language") or "ko").strip()
+    benchmark_analysis = payload.get("benchmark_analysis") if isinstance(payload.get("benchmark_analysis"), dict) else None
+    title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
+    upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
+    return topic_queue_id, topic, target_duration, script_style, image_style, language, benchmark_analysis, upload_title, title_generation
+
+
+def _quality_feedback_instruction(payload: dict) -> str:
+    feedback = payload.get("quality_feedback") if isinstance(payload, dict) else None
+    if not isinstance(feedback, list):
+        return ""
+    items = [str(item or "").strip() for item in feedback if str(item or "").strip()]
+    if not items:
+        return ""
+    return (
+        "\n[PREVIOUS QUALITY GATE FAILURES - MUST FIX THIS RUN]\n"
+        + "\n".join(f"- {item}" for item in items[:20])
+        + "\nDo not repeat the failed patterns above. Generate fresh, specific, complete results.\n"
+    )
+
+
+def _learning_profile_instruction(payload: dict) -> str:
+    profile = payload.get("learning_profile") if isinstance(payload, dict) else None
+    if not isinstance(profile, dict) or not profile:
+        return ""
+
+    compact = {
+        "successful_script_patterns": (profile.get("successful_script_patterns") or [])[:8],
+        "failed_script_patterns": (profile.get("failed_script_patterns") or [])[:10],
+        "performance_lessons": (profile.get("performance_lessons") or [])[:6],
+        "script_generation_rules": profile.get("script_generation_rules") or {},
+    }
+    if not any(compact.values()):
+        return ""
+    return (
+        "\n[LEARNING MEMORY FOR THIS CATEGORY - APPLY CAREFULLY]\n"
+        "Use this as production learning from previous generated videos. "
+        "Extract abstract structure only; never copy titles, names, incidents, or sentences.\n"
+        f"{json.dumps(compact, ensure_ascii=False)}\n"
+        "Required application:\n"
+        "- Preserve successful hook/tension/reveal/payoff patterns when they fit this new title.\n"
+        "- Avoid failed patterns and QA issues listed above.\n"
+        "- If performance lessons conflict with generic style rules, prioritize the concrete category lesson.\n"
+        "- Still obey the current upload title and scene plan over memory.\n"
+    )
+
+
+def _resolve_image_style_directive(image_style: str, image_style_selection: dict | None = None) -> tuple[str, str]:
+    """Resolve an image style key into the concrete prompt directive used by
+    desktop image generation. Worker pre-generation must honor the same admin
+    style choice because STD users now see these prompts immediately."""
+    style_key = str(image_style or "realistic").strip().lower() or "realistic"
+    from services.japanese_folktale_style import STYLE_KEY, STYLE_PROMPT
+    if style_key == STYLE_KEY:
+        return style_key, STYLE_PROMPT
+    style_prompt = ""
+    try:
+        ensure_project_root_on_path()
+        import database as db
+        from app.utils import STYLE_PROMPTS
+
+        presets = db.get_style_presets()
+        style_data = presets.get(style_key, {}) if isinstance(presets, dict) else {}
+        style_prompt = (
+            str(style_data.get("prompt_value") or "").strip()
+            or str(STYLE_PROMPTS.get(style_key, "")).strip()
+        )
+    except Exception as e:
+        logger.warning(f"Image style resolution failed for {style_key}: {e}")
+
+    if not style_prompt:
+        style_prompt = style_key
+
+    # The selection rationale is internal metadata, not a visual instruction.
+    # Keeping it out of the generator directive prevents Korean decision text
+    # or administrative wording from leaking into the rendered image prompt.
+    return style_key, style_prompt
+
+
+def _select_worker_image_style_for_plan(
+    job: dict,
+    payload: dict,
+    topic: str,
+    upload_title: str,
+) -> tuple[str, dict | None]:
+    explicit_style = str(payload.get("image_style") or "").strip()
+    explicit_selection = payload.get("image_style_selection") if isinstance(payload.get("image_style_selection"), dict) else None
+    if explicit_style:
+        return explicit_style, explicit_selection
+
+    category_id = str(job.get("category_id") or payload.get("category_id") or "").strip()
+    category_name = str(payload.get("category") or payload.get("category_name") or "").strip()
+    category_default = "realistic"
+
+    if category_id or category_name:
+        try:
+            ensure_project_root_on_path()
+            from services.web_admin_client import web_admin_client
+
+            for category in web_admin_client.fetch_categories("id,name,default_image_style"):
+                row_id = str(category.get("id") or "")
+                row_name = str(category.get("name") or "").strip()
+                if (category_id and row_id == category_id) or (category_name and row_name == category_name):
+                    category_name = category_name or row_name
+                    category_default = str(category.get("default_image_style") or category_default).strip() or category_default
+                    break
+        except Exception as e:
+            logger.warning(f"Worker image style category lookup failed: {e}")
+
+    from services.japanese_folktale_style import category_style
+    category_default = category_style(category_name or ("日本昔話" if category_id == "13" else ""), category_default)
+
+    try:
+        ensure_project_root_on_path()
+        from hermes_autopilot import HermesAutopilotManager
+
+        manager = HermesAutopilotManager()
+        manual_override = None
+        if category_name:
+            manual_override = (manager.settings.get("category_image_style_overrides") or {}).get(category_name)
+        selection = asyncio.run(
+            manager._select_image_style(
+                category_name or "uncategorized",
+                upload_title,
+                category_default,
+                manual_override,
+            )
+        )
+        selected_style = str(selection.get("assigned_image_style") or category_default or "realistic").strip() or "realistic"
+        return selected_style, selection
+    except Exception as e:
+        logger.warning(f"Worker image style selection failed; using fallback {category_default}: {e}")
+        return category_default, {
+            "assigned_image_style": category_default,
+            "automatic_style": category_default,
+            "selection_source": "worker_fallback",
+            "reason": "Worker image style selection failed, so the category fallback style was used.",
+        }
+
+
+def _mostly_english(value: str) -> bool:
+    letters = re.findall(r"[A-Za-z]", value or "")
+    hangul = re.findall(r"[\uac00-\ud7a3]", value or "")
+    return len(letters) >= 40 and len(letters) >= len(hangul) * 2
+
+
+MEDIA_CAMERA_MOVEMENTS = (
+    "slow push-in",
+    "slow pull-back",
+    "gentle pan",
+    "gentle tilt",
+    "slow dolly",
+    "slow tracking shot",
+    "locked-off shot",
+    "subtle crane movement",
+    "slow drift",
+)
+MAX_VIDEO_PROMPT_SCENES = 18
+
+
+def _category_visual_grammar(topic: str, upload_title: str, structure: dict | None = None) -> str:
+    blob = json.dumps(
+        {
+            "topic": topic,
+            "upload_title": upload_title,
+            "category": (structure or {}).get("category") if isinstance(structure, dict) else "",
+            "global_mood": (structure or {}).get("global_mood") if isinstance(structure, dict) else "",
+        },
+        ensure_ascii=False,
+    ).lower()
+    if any(term in blob for term in ("옛날", "folk", "tale", "village", "hanok")):
+        return (
+            "Old Korean folk-tale visual grammar: tactile hanok courtyards, worn fabric, wooden gates, wells, "
+            "paper lanterns, mountain silhouettes, restrained gestures, warm dusk or moonlit blue lighting, "
+            "emotion readable through posture and hands, no modern objects, no typography."
+        )
+    if any(term in blob for term in ("무협", "martial", "jianghu", "sword", "sect")):
+        return (
+            "Martial-arts fiction visual grammar: readable silhouettes, robes and belts consistent across scenes, "
+            "courtyards, bamboo forests, mountain paths, training halls, precise weapon placement, controlled wind, "
+            "no chaotic limb duplication, no modern street objects."
+        )
+    return (
+        "Human documentary-story visual grammar: realistic lived-in spaces, expressive faces and hands, restrained camera, "
+        "clear foreground/midground/background, culturally coherent props, no text overlays, no logos."
+    )
+
+
+def _fallback_visual_direction_plan(
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    image_style_key: str,
+    image_style_directive: str,
+) -> dict:
+    return {
+        "visual_bible_version": "fallback_v1",
+        "overall_vision": f"Consistent longform visual sequence for {upload_title or topic}.",
+        "category_visual_grammar": _category_visual_grammar(topic, upload_title, structure),
+        "image_style_key": image_style_key,
+        "image_style_directive": image_style_directive,
+        "recurring_characters": [
+            "Keep every recurring person visually consistent: age range, face shape, hair, clothing color, body type, and key prop."
+        ],
+        "recurring_locations": [
+            "Keep recurring places consistent: architecture, time period, light direction, weather, and key background anchors."
+        ],
+        "continuity_anchors": [
+            "Opening keyframe of each video prompt must exactly match the image prompt.",
+            "Do not add modern objects, readable text, logos, captions, or unexpected extra people.",
+            "Vary composition and camera movement across neighboring scenes while preserving the same visual world.",
+        ],
+        "palette": "Restrained, category-appropriate palette with clear lighting continuity.",
+        "camera_language": list(MEDIA_CAMERA_MOVEMENTS),
+        "negative_prompt": (
+            "no text, no words, no letters, no labels, no watermarks, no captions, no logos, correct anatomy, "
+            "exactly two arms, exactly two hands, anatomically correct hands, no extra limbs, no fused fingers, "
+            "no duplicated people"
+        ),
+    }
+
+
+def _build_visual_direction_plan(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    image_style_key: str,
+    image_style_directive: str,
+    language: str,
+) -> dict:
+    import asyncio
+
+    scenes_preview = []
+    for scene in (structure.get("scenes") or [])[:12]:
+        if isinstance(scene, dict):
+            scenes_preview.append({
+                "scene_id": scene.get("scene_id"),
+                "scene_order": scene.get("scene_order"),
+                "scene_summary": scene.get("scene_summary"),
+                "scene_situation": scene.get("scene_situation"),
+                "visual_direction": scene.get("visual_direction"),
+                "scene_emotion": scene.get("scene_emotion"),
+            })
+    fallback = _fallback_visual_direction_plan(topic, upload_title, structure, image_style_key, image_style_directive)
+    prompt = f"""
+You are the visual showrunner for a longform AI video.
+
+Create a compact visual bible that will govern strict 2x2 image grid prompts and every single-shot video prompt.
+
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+LANGUAGE: {language}
+IMAGE STYLE KEY: {image_style_key}
+IMAGE STYLE DIRECTIVE:
+{image_style_directive}
+CATEGORY VISUAL GRAMMAR:
+{_category_visual_grammar(topic, upload_title, structure)}
+SCENE PREVIEW:
+{json.dumps(scenes_preview, ensure_ascii=False, indent=2)}
+
+Rules:
+- Preserve story facts and category tone.
+- Define recurring character continuity, recurring location continuity, palette, camera language, and negative prompt.
+- Keep it practical for image/video generation, not a prose essay.
+- Do not include Korean administrative explanation inside fields that will be reused in English prompts.
+- Return ONLY JSON.
+
+Schema:
+{{
+  "visual_bible_version": "v1",
+  "overall_vision": "English visual direction",
+  "category_visual_grammar": "English category-specific visual rules",
+  "recurring_characters": ["English continuity anchor"],
+  "recurring_locations": ["English continuity anchor"],
+  "continuity_anchors": ["English rule"],
+  "palette": "English palette and lighting rule",
+  "camera_language": ["allowed camera movement phrase"],
+  "negative_prompt": "English negative prompt"
+}}
+"""
+    try:
+        raw = asyncio.run(asyncio.wait_for(
+            ai_router.generate_text(
+                prompt,
+                model,
+                temperature=0.25,
+                max_tokens=2200,
+                task_type="scene_visual_direction_plan",
+            ),
+            timeout=45,
+        ))
+        plan = _extract_json(raw)
+        if not isinstance(plan, dict):
+            raise ValueError("visual direction plan is not an object")
+        for key, value in fallback.items():
+            plan.setdefault(key, value)
+        plan["image_style_key"] = image_style_key
+        plan["image_style_directive"] = image_style_directive
+        plan["camera_language"] = [
+            item for item in (plan.get("camera_language") or [])
+            if str(item).strip() in MEDIA_CAMERA_MOVEMENTS
+        ] or list(MEDIA_CAMERA_MOVEMENTS)
+        return plan
+    except Exception as exc:
+        fallback["error"] = str(exc)
+        return fallback
+
+
+def _validate_video_prompt_quality(media: dict, scene_label: str) -> None:
+    video_prompt = str(media.get("video_prompt") or "").strip()
+    if len(video_prompt) < 260:
+        raise ValueError(f"video_prompt too short for scene {scene_label}")
+    if not _mostly_english(video_prompt):
+        raise ValueError(f"video_prompt is not English enough for scene {scene_label}")
+    generic_terms = ("cinematic scene", "beautiful scene", "camera moves")
+    if any(term in video_prompt.lower() for term in generic_terms):
+        raise ValueError(f"video_prompt contains generic filler for scene {scene_label}")
+    movement_count = sum(1 for movement in MEDIA_CAMERA_MOVEMENTS if movement in video_prompt.lower())
+    if movement_count != 1:
+        raise ValueError(f"video_prompt must contain exactly one approved camera movement for scene {scene_label}")
+    video_lower = video_prompt.lower()
+    for required in ("no dialogue", "no narration", "no subtitles", "no captions", "no music", "no sound effects", "no audio"):
+        if required not in video_lower:
+            raise ValueError(f"video_prompt missing negative motion guardrail '{required}' for scene {scene_label}")
+    positive_audio_patterns = (
+        r"\b(with|include|add|generate|create|use)\s+(dialogue|narration|voice-over|voiceover|subtitles|captions|sound effects|music|audio)\b",
+        r"\b(dialogue|narration|voice-over|voiceover|subtitles|captions|sound effects|music|audio)\s+(plays|starts|rises|swells|is heard|can be heard)\b",
+    )
+    if any(re.search(pattern, video_prompt, re.I) for pattern in positive_audio_patterns):
+        raise ValueError(f"video_prompt contains positive audio/text instructions for scene {scene_label}")
+    discontinuous_positive_patterns = (
+        r"(?<!\bno\s)(?<!without\s)\bhard cuts?\b",
+        r"(?<!\bno\s)(?<!without\s)\bjump cuts?\b",
+        r"(?<!\bno\s)\bteleport(?:ation)?\b",
+    )
+    if any(re.search(pattern, video_prompt, re.I) for pattern in discontinuous_positive_patterns):
+        raise ValueError(f"video_prompt contains a discontinuous scene change for scene {scene_label}")
+
+
+def _normalize_video_prompt_camera_movement(video_prompt: str) -> str:
+    text = re.sub(r"\s+", " ", str(video_prompt or "")).strip()
+    if not text:
+        return text
+
+    matches: list[tuple[int, str]] = []
+    for movement in MEDIA_CAMERA_MOVEMENTS:
+        found = re.search(re.escape(movement), text, flags=re.I)
+        if found:
+            matches.append((found.start(), movement))
+    chosen = sorted(matches, key=lambda item: item[0])[0][1] if matches else "locked-off shot"
+
+    without_named_movements = text
+    for movement in MEDIA_CAMERA_MOVEMENTS:
+        without_named_movements = re.sub(re.escape(movement), "measured camera motion", without_named_movements, flags=re.I)
+    without_named_movements = re.sub(r"\b(measured camera motion)(?:\s*,?\s*and\s*measured camera motion)+\b", r"\1", without_named_movements)
+    without_named_movements = re.sub(r"\s+", " ", without_named_movements).strip()
+    without_named_movements = re.sub(r"^(?:the shot uses|camera uses)\s+(?:a\s+)?measured camera motion[:,]?\s*", "", without_named_movements, flags=re.I)
+    return f"The shot uses a {chosen}. {without_named_movements}".strip()
+
+
+def _sanitize_video_prompt_text(video_prompt: str) -> str:
+    text = re.sub(r"\s+", " ", str(video_prompt or "")).strip()
+    if not text:
+        return text
+    text = re.sub(r"\bcamera moves\b", "the shot continues", text, flags=re.I)
+    text = re.sub(r"\bcameras move\b", "the shot continues", text, flags=re.I)
+    required_guardrails = (
+        "no dialogue",
+        "no narration",
+        "no subtitles",
+        "no captions",
+        "no music",
+        "no sound effects",
+        "no audio",
+    )
+    missing_guardrails = [
+        phrase for phrase in required_guardrails
+        if phrase not in text.lower()
+    ]
+    if missing_guardrails:
+        suffix = ", ".join(missing_guardrails)
+        separator = "" if text.endswith((".", "!", "?")) else "."
+        text = f"{text}{separator} {suffix}."
+    return text
+
+
+def _align_generated_media_chunk(input_scenes: list[dict], generated_scenes: list[dict], chunk_label: str) -> list[dict]:
+    if len(generated_scenes) != len(input_scenes):
+        raise ValueError(
+            f"media prompt count mismatch for chunk {chunk_label}: expected {len(input_scenes)}, got "
+            f"{len(generated_scenes or [])}"
+        )
+    aligned = []
+    for index, (input_scene, generated_item) in enumerate(zip(input_scenes, generated_scenes), start=1):
+        if not isinstance(generated_item, dict):
+            raise ValueError(f"media prompt item {index} is not an object for chunk {chunk_label}")
+        item = dict(generated_item)
+        expected_order = input_scene.get("scene_order") or input_scene.get("order") or index
+        expected_id = str(input_scene.get("scene_id") or f"scene{int(expected_order):03d}")
+        item["scene_id"] = expected_id
+        item["scene_order"] = expected_order
+        aligned.append(item)
+    return aligned
+
+
+def _validate_unique_video_prompts(scenes: list[dict]) -> None:
+    seen_video_prompts: dict[str, str] = {}
+    normalized_videos: list[tuple[str, str]] = []
+    for index, scene in enumerate(scenes, start=1):
+        label = str(scene.get("scene_id") or scene.get("scene_order") or index)
+        video_prompt = str(scene.get("video_prompt") or "").strip()
+        if not video_prompt:
+            continue
+        if video_prompt in seen_video_prompts:
+            raise ValueError(f"duplicate video_prompt for scenes {seen_video_prompts[video_prompt]} and {label}")
+        seen_video_prompts[video_prompt] = label
+        normalized_videos.append((label, re.sub(r"\s+", " ", video_prompt.lower())))
+    for i, (left_label, left) in enumerate(normalized_videos):
+        for right_label, right in normalized_videos[i + 1:]:
+            if len(left) > 120 and len(right) > 120 and SequenceMatcher(None, left, right).ratio() >= 0.998:
+                raise ValueError(f"near-duplicate video_prompt for scenes {left_label} and {right_label}")
+
+
+def _split_script_into_scene_excerpts(script_text: str, scene_count: int, max_chars: int = 900) -> list[str]:
+    """Approximate final narration coverage for each planned scene."""
+    if scene_count <= 0:
+        return []
+    text = str(script_text or "").strip()
+    if not text:
+        return [""] * scene_count
+
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", text) if p.strip()]
+    if len(paragraphs) >= scene_count:
+        buckets = [[] for _ in range(scene_count)]
+        for index, paragraph in enumerate(paragraphs):
+            bucket_index = min(scene_count - 1, int(index * scene_count / len(paragraphs)))
+            buckets[bucket_index].append(paragraph)
+        return ["\n\n".join(bucket)[:max_chars].strip() for bucket in buckets]
+
+    chunk_size = max(1, len(text) // scene_count)
+    excerpts = []
+    for index in range(scene_count):
+        start = index * chunk_size
+        end = len(text) if index == scene_count - 1 else (index + 1) * chunk_size
+        excerpts.append(text[start:end][:max_chars].strip())
+    return excerpts
+
+
+def _attach_script_excerpts_to_scenes(
+    scenes: list[dict],
+    script_text: str,
+    scene_script_sections: list[str] | None = None,
+) -> list[dict]:
+    if scene_script_sections and len(scene_script_sections) == len(scenes):
+        excerpts = [
+            str(section or "").strip()[:900]
+            for section in scene_script_sections
+        ]
+    else:
+        excerpts = _split_script_into_scene_excerpts(script_text, len(scenes))
+    enriched = []
+    for index, scene in enumerate(scenes):
+        merged = dict(scene)
+        if index < len(excerpts) and excerpts[index]:
+            merged["script_excerpt"] = excerpts[index]
+        enriched.append(merged)
+    return enriched
+
+
+def _generate_direct_image_grid_prompts(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    scenes: list[dict],
+    visual_direction_plan: dict,
+    image_style_key: str,
+    image_style_directive: str,
+    job_log,
+    character_anchors_context: str = "",
+) -> list[dict]:
+    """Generate 2x2 prompts directly instead of concatenating per-scene prompts."""
+    from services.image_grid_prompts import (
+        build_compact_image_grid_prompts,
+        grid_windows,
+        validate_image_grid_prompt_readiness,
+    )
+
+    windows = grid_windows(len(scenes))
+    if not windows:
+        return []
+
+    grid_inputs = []
+    for grid_number, (start_index, end_index) in enumerate(windows, start=1):
+        panels = []
+        for panel_index, scene in enumerate(scenes[start_index:end_index], start=1):
+            scene_number = scene.get("scene_order") or scene.get("scene_number") or (start_index + panel_index)
+            panels.append({
+                "panel": panel_index,
+                "position": ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"][panel_index - 1],
+                "scene_id": scene.get("scene_id"),
+                "scene_number": scene_number,
+                "scene_summary": scene.get("scene_summary"),
+                "scene_situation": scene.get("scene_situation"),
+                "script_excerpt": scene.get("script_excerpt"),
+                "scene_emotion": scene.get("scene_emotion"),
+                "keyframe_subject": scene.get("keyframe_subject"),
+                "continuity_identity": scene.get("continuity_identity"),
+                "lighting_hint": scene.get("lighting_hint"),
+                "visual_style": scene.get("visual_style"),
+            })
+        grid_inputs.append({
+            "grid_number": grid_number,
+            "scene_numbers": [panel["scene_number"] for panel in panels],
+            "scene_ids": [panel["scene_id"] for panel in panels if panel.get("scene_id")],
+            "panels": panels,
+        })
+
+    def _fallback_grids(reason: str) -> list[dict]:
+        job_log.warning(
+            "Rebuilding compact 2x2 image grid prompts without AI JSON "
+            f"({reason}). grid_count={len(grid_inputs)}"
+        )
+        fallback = []
+        for grid_input in grid_inputs:
+            panels = []
+            for panel in grid_input["panels"]:
+                scene_number = panel.get("scene_number")
+                scene_id = panel.get("scene_id")
+                position = panel.get("position")
+                excerpt = str(panel.get("script_excerpt") or "").strip()
+                situation = str(panel.get("scene_situation") or panel.get("scene_summary") or "").strip()
+                emotion = str(panel.get("scene_emotion") or "").strip()
+                anchor = str(panel.get("keyframe_subject") or panel.get("continuity_identity") or "").strip()
+                panel_prompt = (
+                    f"Scene {scene_number}: visualize the final narration beat. "
+                    f"Story excerpt: {excerpt[:360] or situation[:360]}. "
+                    f"Emotion: {emotion or 'quiet dramatic tension'}. "
+                    f"Unique visual anchor: {anchor or situation[:160] or 'period location and character action'}."
+                )
+                panels.append({
+                    "scene_number": scene_number,
+                    "scene_id": scene_id,
+                    "position": position,
+                    "panel_prompt": panel_prompt,
+                })
+            fallback.append({
+                "grid_number": grid_input["grid_number"],
+                "scene_numbers": grid_input["scene_numbers"],
+                "scene_ids": grid_input["scene_ids"],
+                "shared_style": (
+                    f"{image_style_key}: {image_style_directive} "
+                    f"{character_anchors_context} "
+                    "Keep recurring characters, wardrobe, era, lighting, palette, and location logic consistent."
+                ),
+                "negative_prompt": (
+                    "no text, no words, no letters, no labels, no captions, no watermarks, "
+                    "No borders, NO grid lines, no dividers, correct anatomy, no extra limbs"
+                ),
+                "panels": panels,
+            })
+        return fallback
+
+    # Longform jobs can have dozens of 2x2 grid windows. Asking the model to
+    # return all windows as one JSON document is brittle and often truncates.
+    if len(grid_inputs) > 12:
+        grids = _fallback_grids("large grid batch")
+        compact_grids = build_compact_image_grid_prompts(grids)
+        validate_image_grid_prompt_readiness(scenes, compact_grids, status="ready", require_status="ready")
+        job_log.info(f"Prepared {len(compact_grids)} direct compact 2x2 image grid prompt(s)")
+        return compact_grids
+
+    prompt = f"""
+You are creating external image-generation prompts for a longform production workflow.
+
+Create one compact prompt per strict 2x2 image grid from the provided grid window fields.
+Each grid prompt must use a shared style block once, then four short panel briefs.
+
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+IMAGE STYLE KEY: {image_style_key}
+IMAGE STYLE DIRECTIVE:
+{image_style_directive}
+VISUAL BIBLE:
+{json.dumps(visual_direction_plan, ensure_ascii=False, indent=2)}
+CHARACTER DNA ANCHORS - TEXT ONLY, MUST PRESERVE WHEN EACH CHARACTER APPEARS:
+{character_anchors_context or "{}"}
+GRID INPUTS:
+{json.dumps(grid_inputs, ensure_ascii=False, indent=2)}
+
+Rules:
+1. Return exactly one grid object for every GRID INPUT, preserving grid_number, scene_numbers, and scene_ids.
+2. Each grid has exactly 4 panels in these positions: Top-Left, Top-Right, Bottom-Left, Bottom-Right.
+3. Write one shared_style per grid covering recurring characters, wardrobe, era/location logic, lighting direction, color palette, and selected image style. Include the relevant CHARACTER DNA ANCHORS in compact English when a named/recurring character appears in that grid.
+4. Write each panel_prompt as a concise English visual beat: subject, action, setting, composition, emotion, and one unique prop or background anchor. Keep each panel_prompt under 70 words.
+5. The final prompt must be compact: common layout rules once, shared_style once, then the four panel briefs. Avoid repeating negative guardrails inside every panel.
+6. Every final prompt must include: "No borders", "NO grid lines", "no text", "no words", "no letters", "no captions", and "no watermarks".
+7. Ground every panel in script_excerpt first, then use scene_situation and keyframe_subject only as supporting context. Do not contradict the final narration.
+8. Every 2x2 grid prompt MUST strictly enforce a 16:9 widescreen canvas aspect ratio (16:9 aspect ratio, widescreen horizontal format).
+9. No Korean administrative commentary. Return ONLY valid JSON.
+
+Schema:
+{{
+  "grids": [
+    {{
+      "grid_number": 1,
+      "scene_numbers": [1, 2, 3, 4],
+      "scene_ids": ["scene001", "scene002", "scene003", "scene004"],
+      "shared_style": "compact English continuity/style block",
+      "negative_prompt": "no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs",
+      "panels": [
+        {{"scene_number": 1, "scene_id": "scene001", "position": "Top-Left", "panel_prompt": "concise English panel brief"}}
+      ],
+      "prompt": "optional final compact 2x2 prompt; omit this if the fields above are enough"
+    }}
+  ]
+}}
+"""
+    raw = asyncio.run(asyncio.wait_for(
+        ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.35,
+            max_tokens=12000,
+            task_type="image_grid_prompt_generation",
+        ),
+        timeout=90,
+    ))
+    try:
+        generated = _extract_json(raw)
+        grids = generated.get("grids") if isinstance(generated, dict) else None
+    except Exception as exc:
+        grids = _fallback_grids(f"AI JSON parse failed: {exc}")
+    if not isinstance(grids, list) or len(grids) != len(grid_inputs):
+        got_count = len(grids) if isinstance(grids, list) else 0
+        job_log.warning(
+            "Image grid prompt count mismatch from AI; rebuilding compact 2x2 prompts "
+            f"from grid inputs. expected={len(grid_inputs)}, got={got_count}"
+        )
+        grids = _fallback_grids("AI grid count mismatch")
+
+    by_number = {int(spec["grid_number"]): spec for spec in grid_inputs}
+    for grid in grids:
+        try:
+            grid_number = int(grid.get("grid_number") or 0)
+        except (TypeError, ValueError):
+            grid_number = 0
+        expected = by_number.get(grid_number)
+        if expected:
+            grid["scene_numbers"] = expected["scene_numbers"]
+            grid["scene_ids"] = expected["scene_ids"]
+            grid["prompt"] = ""
+            panels = grid.get("panels") if isinstance(grid.get("panels"), list) else []
+            for index, panel in enumerate(panels[:4]):
+                if isinstance(panel, dict):
+                    panel["scene_number"] = expected["scene_numbers"][index]
+                    if index < len(expected["scene_ids"]):
+                        panel.setdefault("scene_id", expected["scene_ids"][index])
+                    panel["position"] = ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"][index]
+
+    compact_grids = build_compact_image_grid_prompts(grids)
+    validate_image_grid_prompt_readiness(scenes, compact_grids, status="ready", require_status="ready")
+    job_log.info(f"Prepared {len(compact_grids)} direct compact 2x2 image grid prompt(s)")
+    return compact_grids
+
+
+def _generate_scene_media_prompts(
+    structure: dict,
+    topic: str,
+    upload_title: str,
+    image_style: str,
+    image_style_selection: dict | None,
+    language: str,
+    job_log,
+    script_text: str = "",
+    scene_script_sections: list[str] | None = None,
+    main_character: dict | None = None,
+    supporting_characters: list[dict] | None = None,
+) -> dict:
+    """Attach image/video generation prompts without changing scene boundaries."""
+    scenes = structure.get("scenes") if isinstance(structure, dict) else None
+    if not isinstance(scenes, list) or not scenes:
+        raise ValueError("Cannot generate media prompts without planned scenes")
+
+    from config import Config, config
+    from services import ai_router
+    from services.image_grid_prompts import validate_image_grid_prompt_readiness
+
+    Config.refresh_remote_keys_if_stale()
+    model = config.IMAGE_PROMPT_MODEL or config.SCRIPT_PLANNING_MODEL or config.SCRIPT_GENERATION_MODEL
+    if str(model).lower().startswith("claude"):
+        model = "gemini-3.6-flash"
+    scenes = _attach_script_excerpts_to_scenes(scenes, script_text, scene_script_sections)
+    image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
+    visual_direction_plan = _build_visual_direction_plan(
+        ai_router,
+        model,
+        topic,
+        upload_title,
+        structure,
+        image_style_key,
+        image_style_directive,
+        language,
+    )
+    if main_character:
+        visual_direction_plan = dict(visual_direction_plan or {})
+        visual_direction_plan["main_character"] = main_character
+    if supporting_characters:
+        visual_direction_plan = dict(visual_direction_plan or {})
+        visual_direction_plan["supporting_characters"] = supporting_characters
+    character_anchors_context = _character_anchors_context(main_character, supporting_characters)
+
+    def _build_media_prompt(prompt_scenes: list, chunk_label: str, retry_note: str = "") -> str:
+        retry_instruction = ""
+        if retry_note:
+            retry_instruction = f"""
+PREVIOUS ATTEMPT FAILED QA:
+{retry_note}
+
+For this retry, fix the exact QA failure above. Every video_prompt in this chunk must be unique to its scene_id, with different subject action and camera movement from neighboring scenes. Do not reuse any full sentence from another scene prompt.
+"""
+        return f"""
+You are the visual director for a YouTube video production pipeline.
+Create production-ready AI-video prompts and visual continuity notes for every scene in this chunk.
+
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+LANGUAGE OF NARRATION: {language}
+CHUNK: {chunk_label}
+ADMIN-SELECTED IMAGE STYLE KEY: {image_style_key}
+ADMIN-SELECTED IMAGE STYLE DIRECTIVE:
+{image_style_directive}
+GLOBAL VISUAL BIBLE - MUST GOVERN EVERY SCENE:
+{json.dumps(visual_direction_plan, ensure_ascii=False, indent=2)}
+CHARACTER DNA ANCHORS - TEXT ONLY, MUST PRESERVE WHEN EACH CHARACTER APPEARS:
+{character_anchors_context or "{}"}
+SCENE PLAN:
+{json.dumps(prompt_scenes, ensure_ascii=False, indent=2)}
+{retry_instruction}
+
+Rules:
+1. Return exactly one result for every input scene, preserving scene_id and scene_order.
+2. Do not change scene boundaries, duration, story facts, or character identity.
+3. Treat script_excerpt as the most authoritative source for what appears in the scene. Use scene_summary/scene_situation only to clarify context; never contradict the final narration.
+4. Treat the admin-selected image style as the visual language for the whole video. Integrate it naturally into the continuity notes; do not mix incompatible art styles.
+5. keyframe_subject must describe the opening keyframe in one concise English sentence: primary subject, pose/action, location, lighting, and continuity anchors.
+6. For recurring characters, preserve the same age range, facial traits, hairstyle, clothing, accessories, body type, and dominant colors unless the scene explicitly changes them. Use CHARACTER DNA ANCHORS as the source of truth; do not invent contradictory faces or wardrobes.
+7. video_prompt must describe one continuous shot using this flow: opening keyframe, EXACTLY ONE named camera movement, subject motion, ambient/background motion, focus or depth response, and a stable end pose. The named camera movement MUST include exactly one of these literal phrases: "slow push-in", "slow pull-back", "gentle pan", "gentle tilt", "slow dolly", "slow tracking shot", "locked-off shot", "subtle crane movement", "slow drift". Do not introduce a new subject, location, outfit, or prop midway through the shot. Never write the generic phrase "camera moves"; name the exact approved movement instead.
+8. Use the scene's planned duration. Describe a natural beginning, middle motion, and end state that can fit inside that duration; do not compress multiple actions into a short clip.
+9. Keep motion physically plausible and restrained: no rubbery anatomy, duplicated limbs, teleportation, morphing faces, sudden object changes, impossible camera acceleration, or uncontrolled shaking.
+10. video_prompt must include these exact negative phrases: "no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio". It must describe visual motion only.
+12. Make each prompt specific to its scene. Vary shot size, composition, subject action, and approved camera movement from neighboring scenes. Do not use generic phrases such as "cinematic scene" without concrete visual details. Do not invent text, logos, brands, or historically impossible objects.
+13. Write video_prompt and continuity notes in English for generator compatibility. Keep administrative rationale out.
+14. Minimum length: video_prompt 260+ characters.
+
+Return ONLY valid JSON in this shape:
+{{
+  "director_notes": {{"overall_vision": "...", "error": false}},
+  "scenes": [
+    {{
+      "scene_id": "scene001",
+      "scene_order": 1,
+      "video_prompt": "detailed English single-shot visual motion prompt with timing, one camera movement, subject motion, ambient motion, focus response, and stable end pose",
+      "lighting_hint": "specific lighting",
+      "visual_style": "specific visual style",
+      "continuity_identity": "recurring character/location/prop continuity used in this scene",
+      "keyframe_subject": "opening keyframe subject and pose",
+      "motion_plan": "one camera movement plus subject/background motion",
+      "shot_hints": [
+        {{"camera": "close-up", "composition": "...", "movement": "slow push-in", "emotion": "...", "purpose": "..."}}
+      ]
+    }}
+  ]
+}}
+"""
+
+    try:
+        import asyncio
+        generated_scenes = []
+        director_notes = {"overall_vision": "chunked media prompt generation", "error": False, "chunks": []}
+        prompt_scenes = scenes[:MAX_VIDEO_PROMPT_SCENES]
+        chunk_size = 8
+        for offset in range(0, len(prompt_scenes), chunk_size):
+            chunk = prompt_scenes[offset:offset + chunk_size]
+            chunk_label = f"{offset + 1}-{offset + len(chunk)} of {len(prompt_scenes)}"
+            last_chunk_error = None
+            for attempt in range(2):
+                try:
+                    prompt = _build_media_prompt(
+                        chunk,
+                        chunk_label,
+                        str(last_chunk_error or "") if attempt else "",
+                    )
+                    raw = asyncio.run(asyncio.wait_for(
+                        ai_router.generate_text(
+                            prompt,
+                            model,
+                            temperature=0.35 if attempt else 0.45,
+                            max_tokens=8192,
+                            task_type="scene_media_prompt_generation",
+                        ),
+                        timeout=90,
+                    ))
+                    generated = _extract_json(raw)
+                    chunk_scenes = generated.get("scenes") if isinstance(generated, dict) else None
+                    if not isinstance(chunk_scenes, list):
+                        raise ValueError(f"media prompt scenes missing for chunk {chunk_label}")
+                    chunk_scenes = _align_generated_media_chunk(chunk, chunk_scenes, chunk_label)
+                    for generated_item in chunk_scenes:
+                        scene_label = str(
+                            generated_item.get("scene_id")
+                            or generated_item.get("scene_order")
+                            or chunk_label
+                        )
+                        generated_item["video_prompt"] = _normalize_video_prompt_camera_movement(
+                            str(generated_item.get("video_prompt") or "")
+                        )
+                        generated_item["video_prompt"] = _sanitize_video_prompt_text(generated_item["video_prompt"])
+                        _validate_video_prompt_quality(generated_item, scene_label)
+                    _validate_unique_video_prompts(chunk_scenes)
+                    break
+                except Exception as chunk_error:
+                    last_chunk_error = chunk_error
+                    job_log.warning(f"Media prompt chunk {chunk_label} attempt {attempt + 1}/2 failed: {chunk_error}")
+            else:
+                raise ValueError(
+                    f"media prompt chunk {chunk_label} failed after retry: {last_chunk_error}"
+                )
+            director_notes["chunks"].append({
+                "chunk": chunk_label,
+                "scene_count": len(chunk_scenes),
+                "director_notes": generated.get("director_notes") if isinstance(generated, dict) else {},
+            })
+            generated_scenes.extend(chunk_scenes)
+
+        by_key = {}
+        for item in generated_scenes:
+            key = (str(item.get("scene_id") or ""), str(item.get("scene_order") or ""))
+            by_key[key] = item
+
+        enriched_scenes = []
+        for index, scene in enumerate(scenes, start=1):
+            key = (str(scene.get("scene_id") or ""), str(scene.get("scene_order") or index))
+            media = by_key.get(key)
+            if index > MAX_VIDEO_PROMPT_SCENES:
+                merged = dict(scene)
+                for field in ("video_prompt", "motion_desc", "flow_prompt", "camera_motion"):
+                    merged.pop(field, None)
+                merged.pop("image_prompt", None)
+                merged.pop("prompt_en", None)
+                merged.pop("prompt_content", None)
+                merged.pop("prompt", None)
+                merged.pop("prompt_ko", None)
+                merged.pop("visual_prompt", None)
+                merged["image_style"] = image_style_key
+                merged["video_prompt_required"] = False
+                merged["media_prompt_status"] = "ready"
+                enriched_scenes.append(merged)
+                continue
+            if not media:
+                raise ValueError(f"media prompt missing for scene {key[0] or key[1]}")
+            if not str(media.get("video_prompt") or "").strip():
+                raise ValueError(f"video_prompt missing for scene {key[0] or key[1]}")
+            media["video_prompt"] = _sanitize_video_prompt_text(
+                _normalize_video_prompt_camera_movement(str(media.get("video_prompt") or ""))
+            )
+            _validate_video_prompt_quality(media, key[0] or key[1])
+
+            merged = dict(scene)
+            for field in (
+                "video_prompt", "lighting_hint", "visual_style",
+                "continuity_identity", "keyframe_subject", "motion_plan", "shot_hints",
+            ):
+                if media.get(field) is not None:
+                    merged[field] = media[field]
+            merged.pop("image_prompt", None)
+            merged.pop("prompt_en", None)
+            merged.pop("prompt_content", None)
+            merged.pop("prompt", None)
+            merged.pop("prompt_ko", None)
+            merged.pop("visual_prompt", None)
+            merged["image_style"] = image_style_key
+            merged["video_prompt_required"] = True
+            merged["media_prompt_status"] = "ready"
+            enriched_scenes.append(merged)
+
+        _validate_unique_video_prompts(enriched_scenes)
+        image_grid_prompts = _generate_direct_image_grid_prompts(
+            ai_router,
+            model,
+            topic,
+            upload_title,
+            enriched_scenes,
+            visual_direction_plan,
+            image_style_key,
+            image_style_directive,
+            job_log,
+            character_anchors_context=character_anchors_context,
+        )
+        image_prompt_by_scene: dict[str, str] = {}
+        for grid in image_grid_prompts:
+            panels = grid.get("panels") if isinstance(grid, dict) else None
+            if not isinstance(panels, list):
+                continue
+            shared_style = str(grid.get("shared_style") or "").strip()
+            for panel in panels:
+                if not isinstance(panel, dict):
+                    continue
+                scene_number = str(panel.get("scene_number") or "").strip()
+                panel_prompt = str(panel.get("panel_prompt") or panel.get("brief") or "").strip()
+                if scene_number and panel_prompt:
+                    image_prompt_by_scene[scene_number] = (
+                        f"{shared_style}\nPanel image prompt: {panel_prompt}".strip()
+                        if shared_style
+                        else panel_prompt
+                    )
+        if image_prompt_by_scene:
+            for scene in enriched_scenes:
+                scene_number = str(scene.get("scene_order") or scene.get("scene_number") or "").strip()
+                image_prompt = image_prompt_by_scene.get(scene_number)
+                if image_prompt:
+                    scene["image_prompt"] = image_prompt
+
+        image_grid_prompt_mode = "direct_2x2_only"
+        validate_image_grid_prompt_readiness(enriched_scenes, image_grid_prompts, status="ready", require_status="ready")
+        result = dict(structure)
+        result["scenes"] = enriched_scenes
+        result["image_style"] = image_style_key
+        result["image_style_directive"] = image_style_directive
+        result["image_style_selection"] = image_style_selection or {}
+        result["visual_direction_plan"] = visual_direction_plan
+        if main_character:
+            result["main_character"] = main_character
+        if supporting_characters:
+            result["supporting_characters"] = supporting_characters[:2]
+        result["image_grid_prompts"] = image_grid_prompts
+        result["image_grid_prompt_status"] = "ready" if image_grid_prompts else "not_applicable"
+        result["image_grid_prompt_mode"] = image_grid_prompt_mode
+        result["media_prompt_director"] = director_notes
+        result["media_prompt_status"] = "ready"
+        job_log.info(f"Prepared {len(image_grid_prompts)} strict 2x2 image grid prompt(s)")
+        return result
+    except Exception as e:
+        job_log.error(f"Scene media prompt generation failed; refusing fallback completion: {e}")
+        raise
+
+
+
+
+def _build_fallback_scene_plan(
+    topic: str,
+    upload_title: str,
+    target_duration: int,
+    script_style: str,
+    style_directive: str,
+    benchmark_analysis: dict | None,
+    title_generation: dict | None,
+    category: str = "",
+) -> dict:
+    """Create a deterministic scene plan when the AI planner returns no scenes."""
+    target_duration = max(60, int(target_duration or 900))
+    slots = []
+    cursor = 0
+    while cursor < target_duration:
+        if cursor < 60:
+            step = 5
+            phase = "opening"
+        elif cursor < 300:
+            step = 15
+            phase = "development"
+        elif cursor < 600:
+            step = 20
+            phase = "explanation"
+        elif cursor < 1200:
+            step = 30
+            phase = "steady"
+        else:
+            step = 40
+            phase = "closing"
+        end = min(cursor + step, target_duration)
+        slots.append((cursor, end, phase))
+        cursor = end
+
+    title = (upload_title or topic or "video topic").strip()
+    context = " ".join(str(part or "") for part in (category, script_style, style_directive, topic, title)).strip()
+    is_old_story_style = _is_old_story_plan_context(context, topic, title, "")
+    is_folktale_style = _is_folktale_plan_context(context, topic, title, "", category=category)
+    is_survival_style = _is_survival_story_plan_context(context, topic, title, "")
+    is_martial_style = _is_martial_plan_context(context, topic, title, "")
+    is_twilight_style = _is_twilight_plan_context(context, topic, title, "")
+    is_korean_drama_style = _is_korean_drama_plan_context(context, topic, title, "")
+    is_overseas_style = _is_overseas_touching_plan_context(context, topic, title, "")
+    benchmark_title = ""
+    if isinstance(benchmark_analysis, dict):
+        benchmark_title = str(benchmark_analysis.get("title") or "").strip()
+
+    if is_old_story_style:
+        profile = {
+            "opening": ("reveal the strange incident or object behind", "Create immediate mystery, place, and emotional stakes"),
+            "development": ("follow the villagers, family, or witness as the secret deepens", "Escalate suspicion through character choices and village consequences"),
+            "explanation": ("uncover one hidden motive, promise, betrayal, or supernatural clue behind", "Turn the mystery into an emotionally readable folk-tale revelation"),
+            "steady": ("resolve the secret and leave a lingering moral aftertaste", "Deliver the emotional consequence"),
+            "situation": "Show an old Korean village, a character decision, a mysterious object, a family conflict, a rumor, a night road, a well, a courtyard, or a hidden room.",
+            "emotion": "quiet suspense",
+            "retention": "Leave one story secret about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing a new clue, reaction, or consequence from {variation}.",
+            "visual": "Atmospheric Korean folk-tale visuals with village lanes, hanok courtyards, wells, lanterns, wooden doors, worn fabric, dusk shadows, restrained motion, and character-focused staging around {variation}.",
+            "tts": "Calm Korean storytelling narration with suspense, warmth, and clear emotional turns around {variation}.",
+            "promise": f"Reveal the secret behind '{title}' through character choices, village rumor, and emotional payoff.",
+            "hook": f"Start with the impossible incident inside '{title}' and make the viewer want the hidden truth.",
+            "payoff": "Resolve the mystery with a clear emotional reveal and a folk-tale moral aftertaste.",
+            "mood": "atmospheric Korean folk tale mystery",
+        }
+    elif is_folktale_style:
+        profile = {
+            "opening": ("reveal the omen, visitor, promise, or impossible incident behind", "Create immediate folklore mystery and human stakes"),
+            "development": ("follow the character's choice as the village rule, curse, or secret tightens", "Escalate through concrete choices and consequences"),
+            "explanation": ("uncover one hidden promise, betrayal, sacrifice, or supernatural clue behind", "Make the folklore turn emotionally legible"),
+            "steady": ("resolve the title promise and its human cost", "Deliver an earned traditional-story payoff"),
+            "situation": "Show a pre-modern folktale scene with a village, household, road, forest, shrine, meaningful object, family conflict, omen, or supernatural consequence.",
+            "emotion": "restrained folklore suspense",
+            "retention": "Leave one concrete mystery about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat through a new choice, clue, consequence, or revelation from {variation}.",
+            "visual": "Atmospheric traditional folktale visuals with period-appropriate homes, village paths, lantern light, weather, meaningful objects, and character-focused staging around {variation}.",
+            "tts": "Calm natural storytelling narration with suspense, emotional clarity, and no modern finance or policy exposition around {variation}.",
+            "promise": f"Reveal the folklore incident, choice, and consequence promised by '{title}'.",
+            "hook": f"Start with the impossible or fateful incident inside '{title}'.",
+            "payoff": "Resolve the central mystery through an earned character choice and emotional consequence.",
+            "mood": "traditional folktale mystery",
+        }
+    elif is_survival_style:
+        profile = {
+            "opening": ("show the concrete danger, choice, or separation behind", "Create immediate survival stakes through one person's memory"),
+            "development": ("follow the family pressure, border risk, broker threat, or hidden promise as the escape tightens", "Escalate the testimony through a specific decision and consequence"),
+            "explanation": ("reveal one withheld fact, betrayal, document, route, or sacrifice behind", "Make the survival logic emotionally clear without sensationalizing it"),
+            "steady": ("resolve the testimony through present-day confession, loss, or reunion", "Carry the story toward a restrained human payoff"),
+            "situation": "Show a concrete North Korean escape or testimony scene: family separation, border routes, safe houses, documents, whispered decisions, cold roads, or a present-day interview.",
+            "emotion": "restrained survival tension",
+            "retention": "Leave one human survival question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next risk, sacrifice, or memory from {variation}.",
+            "visual": "Restrained documentary survival-story visuals with cold border landscapes, sparse rooms, hidden documents, tense faces, family objects, and present-day testimony framing around {variation}.",
+            "tts": "Grounded Korean testimony narration with restrained emotion and clear human stakes around {variation}.",
+            "promise": f"Reveal the survival choice, sacrifice, and present-day truth behind '{title}'.",
+            "hook": f"Start with the dangerous human contradiction inside '{title}' and make the viewer understand the stakes.",
+            "payoff": "Resolve the testimony through the cost of escape, the person left behind, and the truth carried into the present.",
+            "mood": "restrained North Korean defector testimony",
+        }
+    elif is_martial_style:
+        profile = {
+            "opening": ("stage the oath, duel, betrayal, or forbidden technique behind", "Create immediate martial stakes through honor and danger"),
+            "development": ("follow the sect conflict, master-disciple bond, pursuit, or hidden manual as pressure rises", "Escalate through action, strategy, and loyalty"),
+            "explanation": ("reveal one secret lineage, technique, betrayal, or debt behind", "Make the martial conflict legible and emotionally charged"),
+            "steady": ("resolve the duel, sacrifice, or justice arc", "Carry the story toward a decisive martial payoff"),
+            "situation": "Show a martial-world scene: training hall, mountain path, inn, sect gate, battlefield, hidden manual, oath, pursuit, duel, or betrayal.",
+            "emotion": "tense martial resolve",
+            "retention": "Leave one martial question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat through the next clue, challenge, or duel from {variation}.",
+            "visual": "Cinematic martial arts visuals with mountain paths, rain, blades, robes, training halls, sect banners, restrained action, and character-focused staging around {variation}.",
+            "tts": "Epic but controlled Korean narration with honor, tension, and clear action around {variation}.",
+            "promise": f"Reveal the oath, betrayal, technique, and final justice behind '{title}'.",
+            "hook": f"Start with the martial contradiction inside '{title}' and make the first conflict unavoidable.",
+            "payoff": "Resolve the martial promise through sacrifice, truth, and a decisive final confrontation.",
+            "mood": "cinematic martial arts drama",
+        }
+    elif is_twilight_style:
+        profile = {
+            "opening": ("open the late-life reunion, diary, photograph, or confession behind", "Create mature emotional stakes through memory and regret"),
+            "development": ("follow the old promise, family reaction, hidden relationship, or delayed apology as tension grows", "Escalate through time, choice, and restrained emotion"),
+            "explanation": ("reveal one old misunderstanding, sacrifice, or secret behind", "Make the late-life truth emotionally readable"),
+            "steady": ("resolve the confession, reconciliation, or farewell", "Carry the story toward a dignified emotional payoff"),
+            "situation": "Show a late-life romance or memory scene: old diary, tea table, hospital room, reunion place, family home, letter, photograph, or quiet confession.",
+            "emotion": "mature longing",
+            "retention": "Leave one late-life emotional question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next memory, regret, or choice from {variation}.",
+            "visual": "Warm restrained twilight-story visuals with old letters, tea cups, dim rooms, autumn streets, family photos, and mature close-ups around {variation}.",
+            "tts": "Warm Korean narration with mature restraint, longing, and emotional clarity around {variation}.",
+            "promise": f"Reveal the old promise, regret, and late-life truth behind '{title}'.",
+            "hook": f"Start with the late-life emotional contradiction inside '{title}'.",
+            "payoff": "Resolve the story through confession, forgiveness, or a dignified farewell.",
+            "mood": "mature late-life emotional drama",
+        }
+    elif is_korean_drama_style:
+        profile = {
+            "opening": ("show the injustice, betrayal, family conflict, or workplace insult behind", "Create immediate empathy and anger through a concrete scene"),
+            "development": ("follow the evidence, humiliation, alliance, or reversal as pressure builds", "Escalate the drama through choices and consequences"),
+            "explanation": ("reveal one hidden motive, document, witness, or secret behind", "Turn the conflict toward a satisfying reversal"),
+            "steady": ("resolve the payback, apology, or restored dignity", "Carry the story toward a cathartic payoff"),
+            "situation": "Show a Korean real-life drama scene: family meeting, company office, hospital corridor, neighborhood dispute, legal document, recording, or public confrontation.",
+            "emotion": "grounded catharsis",
+            "retention": "Leave one dramatic question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat through the next evidence, insult, or reversal from {variation}.",
+            "visual": "Realistic Korean drama visuals with apartments, offices, family tables, documents, phones, tense faces, and restrained confrontation around {variation}.",
+            "tts": "Clear Korean narration with grounded anger, empathy, and cathartic pacing around {variation}.",
+            "promise": f"Reveal the conflict, evidence, and reversal behind '{title}'.",
+            "hook": f"Start with the unfair incident inside '{title}' and make the viewer want justice.",
+            "payoff": "Resolve the conflict through evidence, consequence, and restored dignity.",
+            "mood": "grounded Korean real-life drama",
+        }
+    elif is_overseas_style:
+        profile = {
+            "opening": ("show the foreign place, misunderstanding, kindness, or crisis behind", "Create immediate vulnerability and human warmth"),
+            "development": ("follow the cultural barrier, stranger's help, memory, or promise as emotion grows", "Escalate through human connection across distance"),
+            "explanation": ("reveal one hidden reason, past kindness, or sacrifice behind", "Make the touching turn feel earned"),
+            "steady": ("resolve the gratitude, reunion, or lasting promise", "Carry the story toward a warm emotional payoff"),
+            "situation": "Show an overseas touching-story scene: airport, foreign street, hospital, small shop, translation moment, stranger's home, old photo, or reunion.",
+            "emotion": "warm gratitude",
+            "retention": "Leave one touching human question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next kindness, memory, or connection from {variation}.",
+            "visual": "Warm documentary overseas-story visuals with foreign streets, airports, small shops, handwritten notes, gentle faces, and cultural contrast around {variation}.",
+            "tts": "Warm Korean narration with gratitude, curiosity, and restrained emotion around {variation}.",
+            "promise": f"Reveal the overseas encounter, kindness, and emotional reason behind '{title}'.",
+            "hook": f"Start with the unexpected human encounter inside '{title}'.",
+            "payoff": "Resolve the story through gratitude, connection, and a believable emotional reveal.",
+            "mood": "warm overseas human-interest story",
+        }
+    else:
+        profile = {
+            "opening": ("show the concrete human incident behind", "Create immediate curiosity and emotional stakes"),
+            "development": ("follow the person's choice, conflict, or hidden truth as pressure grows", "Escalate through specific actions and consequences"),
+            "explanation": ("reveal one motive, misunderstanding, sacrifice, or turning point behind", "Make the human truth emotionally clear"),
+            "steady": ("resolve the story promise with a clear emotional consequence", "Carry the story toward a satisfying payoff"),
+            "situation": "Show a grounded human-story scene with a specific place, object, choice, conflict, witness, and emotional consequence.",
+            "emotion": "grounded emotional tension",
+            "retention": "Leave one human story question about {variation} unresolved into the next beat.",
+            "bridge": "Move into the next beat by revealing the next choice, clue, or consequence from {variation}.",
+            "visual": "Realistic human-story visuals with specific locations, meaningful objects, restrained close-ups, and clear character staging around {variation}.",
+            "tts": "Grounded Korean narration with clear emotion, restraint, and narrative momentum around {variation}.",
+            "promise": f"Reveal the human choice, conflict, and emotional truth behind '{title}'.",
+            "hook": f"Start with the concrete contradiction inside '{title}' and make the viewer want the truth.",
+            "payoff": "Resolve the story through a clear emotional reveal and consequence.",
+            "mood": "grounded human story",
+        }
+
+    scenes = []
+    for index, (start, end, phase) in enumerate(slots, start=1):
+        duration = end - start
+        scene_id = f"scene{index:03d}"
+        variation = _scene_variation_label(index)
+        if phase == "opening":
+            summary = f"Opening beat {index} ({variation}): {profile['opening'][0]} '{title}'."
+            purpose = f"{profile['opening'][1]} through {variation}."
+        elif phase == "development":
+            summary = f"Development beat {index} ({variation}): {profile['development'][0]}."
+            purpose = f"{profile['development'][1]} tied to {variation}."
+        elif phase == "explanation":
+            summary = f"Revelation beat {index} ({variation}): {profile['explanation'][0]} '{title}'."
+            purpose = f"{profile['explanation'][1]} using {variation}."
+        else:
+            summary = f"Payoff beat {index} ({variation}): {profile['steady'][0]}."
+            purpose = f"{profile['steady'][1]} around {variation}."
+        scene_situation = (
+            f"Timed {phase} visual beat for '{title}'. {profile['situation']} "
+            f"Make this beat distinct with {variation}. "
+            f"Reference technique from benchmark '{benchmark_title}' without copying its content."
+        )
+        emotion = profile["emotion"]
+        retention = profile["retention"].format(variation=variation)
+        bridge = profile["bridge"].format(variation=variation)
+        visual_direction = profile["visual"].format(variation=variation)
+        tts_direction = profile["tts"].format(variation=variation)
+
+        scenes.append({
+            "scene_id": scene_id,
+            "scene_order": index,
+            "opening_micro_scene": phase == "opening",
+            "opening_time_range": f"{start}-{end}s" if phase == "opening" else None,
+            "time_range": f"{start}-{end}s",
+            "pacing_phase": phase,
+            "scene_summary": summary,
+            "scene_situation": scene_situation,
+            "scene_emotion": emotion,
+            "scene_purpose": purpose,
+            "retention_hook": retention,
+            "title_promise_link": f"This beat advances the viewer promise of '{title}'.",
+            "end_bridge": bridge,
+            "target_duration": duration,
+            "visual_direction": visual_direction,
+            "tts_direction": tts_direction,
+        })
+
+    title_promise = profile["promise"]
+    opening_hook = profile["hook"]
+    payoff = profile["payoff"]
+    global_mood = profile["mood"]
+
+    return {
+        "topic": topic,
+        "upload_title": title,
+        "title_promise": title_promise,
+        "opening_hook": opening_hook,
+        "payoff": payoff,
+        "scene_count": len(scenes),
+        "target_duration_seconds": target_duration,
+        "global_mood": global_mood,
+        "scenes": scenes,
+        "planner_notes": {
+            "strategy": "Fallback deterministic scene plan created because AI planner returned no usable scenes.",
+            "error": False,
+            "fallback": True,
+            "script_style": script_style,
+            "style_directive_present": bool(style_directive),
+            "title_generation": title_generation or {},
+        },
+    }
+
+
+def _fallback_narration_section(
+    topic: str,
+    upload_title: str,
+    scene: dict,
+    idx: int,
+    total: int,
+    min_chars: int,
+    language: str = "ko",
+) -> str:
+    title = (upload_title or topic or "이번 이야기").strip()
+    summary = str(scene.get("scene_summary") or scene.get("scene_situation") or title).strip()
+    purpose = str(scene.get("scene_purpose") or "").strip()
+    hook = str(scene.get("retention_hook") or "").strip()
+    scene_context = " ".join(
+        str(scene.get(key) or "")
+        for key in (
+            "scene_summary",
+            "scene_situation",
+            "scene_purpose",
+            "visual_direction",
+            "video_prompt",
+        )
+    ).lower()
+    is_story = any(
+        marker in scene_context
+        for marker in ("folk", "tale", "story", "village", "hanok", "well", "courtyard", "lantern", "황혼", "편지", "일기장", "사연", "찻집")
+    )
+    variation = _scene_variation_label(idx)
+    story_fillers = [
+        "오래 접힌 마음이 조심스럽게 펴지며, 말하지 못한 선택의 대가가 장면 안에 남습니다.",
+        "작은 물건 하나가 지난 세월의 침묵을 흔들고, 인물들은 서로 다른 기억 앞에서 멈춰 섭니다.",
+        "창밖의 빛과 낮은 목소리가 겹치며, 숨겨 둔 진심이 다음 고백으로 이어집니다.",
+        "누군가의 망설임이 또 다른 단서를 불러내고, 오래된 약속의 의미가 조금씩 달라집니다.",
+    ]
+    explainer_fillers = [
+        "숨은 맥락이 새 단서와 연결되며, 시청자가 다음 판단을 따라갈 수 있는 발판을 만듭니다.",
+        "앞선 장면과 다른 근거가 더해지고, 선택의 결과가 한층 구체적인 상황으로 좁혀집니다.",
+        "사람들의 반응과 주변 조건이 맞물리며, 표면 아래 있던 원인이 새 방향으로 드러납니다.",
+        "작은 변화가 다음 결정을 압박하고, 이야기는 이전과 다른 질문을 향해 움직입니다.",
+    ]
+    if language == "ja":
+        story_fillers = [
+            "長く折りたたまれていた感情がゆっくりほどけ、口にできなかった選択の代償が場面に残ります。",
+            "小さな品物ひとつが過ぎた歳月の沈黙を揺らし、登場人物たちは食い違う記憶の前で立ち止まります。",
+            "窓の外の光と低い声が重なり、隠していた本心が次の告白へとつながっていきます。",
+            "誰かのためらいが新しい手がかりを呼び込み、古い約束の意味が少しずつ変わっていきます。",
+        ]
+        explainer_fillers = [
+            "隠れていた文脈が新しい手がかりと結びつき、聞き手が次の判断を追える足場になります。",
+            "前の場面とは違う根拠が重なり、選択の結果がさらに具体的な状況へと絞られていきます。",
+            "人々の反応と周囲の条件がかみ合い、表面の下にあった原因が別の角度から姿を見せます。",
+            "小さな変化が次の決断を押し出し、物語はそれまでとは違う問いへと動き始めます。",
+        ]
+
+    if is_story:
+        if language == "ja":
+            purpose = purpose or "隠された事情と人々の絡み合った感情が、静かに場面の中へ広がっていきます。"
+            hook = hook or "次の瞬間、誰も予想しなかった真実がゆっくり姿を現し始めます。"
+            text = f"{summary}。{purpose} {hook}"
+        else:
+            purpose = purpose or "숨겨진 사연과 사람들의 얽힌 감정이 조용히 번져 나갑니다."
+            hook = hook or "이어지는 순간, 아무도 예상치 못한 뜻밖의 진실이 서서히 드러나기 시작합니다."
+            text = f"{variation}의 장면. {summary}. {purpose} {hook}"
+        filler_idx = 0
+        while len(text) < min_chars:
+            detail = _scene_variation_label(idx + (filler_idx + 1) * max(1, total))
+            if language == "ja":
+                text += f" {story_fillers[filler_idx % len(story_fillers)]}"
+            else:
+                text += f" {detail}의 {story_fillers[filler_idx % len(story_fillers)]}"
+            filler_idx += 1
+        return text
+
+    if language == "ja":
+        purpose = purpose or "この状況の本質と隠れていた文脈を、落ち着いた語りで一つずつたどっていきます。"
+        hook = hook or "そして次の瞬間、流れを大きく変えてしまう重要な転換点が訪れます。"
+        text = f"{summary}。{purpose} {hook}"
+    else:
+        purpose = purpose or "이 상황의 본질과 숨겨진 맥락을 차분히 짚어갑니다."
+        hook = hook or "그리고 다음 순간, 상황의 흐름을 완전히 바꾸어 놓을 중요한 전환점이 찾아옵니다."
+        text = f"{variation}의 장면. {summary}. {purpose} {hook}"
+    filler_idx = 0
+    while len(text) < min_chars:
+        detail = _scene_variation_label(idx + (filler_idx + 1) * max(1, total))
+        if language == "ja":
+            text += f" {explainer_fillers[filler_idx % len(explainer_fillers)]}"
+        else:
+            text += f" {detail}의 {explainer_fillers[filler_idx % len(explainer_fillers)]}"
+        filler_idx += 1
+    return text
+
+
+def _scene_plan_repetition_errors(structure: dict) -> list[str]:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list):
+        return ["structure.scenes must be a list"]
+    errors: list[str] = []
+    previous_key = ""
+    run_start = 0
+    run_count = 0
+    duplicate_counts: Counter[str] = Counter()
+    duplicate_summary_counts: Counter[str] = Counter()
+    duplicate_field_counts: dict[str, Counter[str]] = {
+        "scene_situation": Counter(),
+        "visual_direction": Counter(),
+        "tts_direction": Counter(),
+        "end_bridge": Counter(),
+    }
+    ordinal_middle_template_hits: list[int] = []
+    leaked_template_hits: list[str] = []
+
+    def _scene_plan_key(value: str) -> str:
+        value = re.sub(
+            r"\b(?:Opening\s+5-second\s+beat|First-minute\s+micro\s+beat|Development\s+beat|Timed\s+visual\s+beat|Scene)\s*\d+(?:/\d+)?\s*:?",
+            "",
+            value,
+            flags=re.IGNORECASE,
+        )
+        value = re.sub(
+            r"\b(?:Mandatory\s+\d+-second\s+(?:opening|development|climax|resolution)?\s*(?:phase\s+)?cut|Keep it separate(?: and advance the story)?|Use a distinct composition(?:, action, or camera beat)?|advance(?:s)? the story)\b",
+            "",
+            value,
+            flags=re.IGNORECASE,
+        )
+        value = re.sub(r"\([^)]*\d+\s*-\s*\d+s[^)]*\)", "", value, flags=re.IGNORECASE)
+        value = re.sub(r"\d+", "#", value)
+        return re.sub(r"\s+", " ", value).strip().lower()
+
+    for idx, scene in enumerate(scenes, start=1):
+        summary = str((scene or {}).get("scene_summary") or "").strip()
+        purpose = str((scene or {}).get("scene_purpose") or "").strip()
+        hook = str((scene or {}).get("retention_hook") or "").strip()
+        if re.search(r"\d+\s*번째\s*중반\s*전환", summary):
+            ordinal_middle_template_hits.append(idx)
+        key = " ".join([summary, purpose, hook])
+        key = _scene_plan_key(key)
+        if not key:
+            errors.append(f"scene {idx} has no summary/purpose/hook")
+            continue
+        summary_key = _scene_plan_key(summary)
+        summary_key = re.sub(r"^\s*\d+\s*(?:번|踰)\s*(?:장면|scene)?\s*:?\s*", "", summary_key, flags=re.IGNORECASE)
+        if summary_key:
+            duplicate_summary_counts[summary_key] += 1
+        for field, counts in duplicate_field_counts.items():
+            raw_value = str((scene or {}).get(field) or "").strip()
+            field_key = _scene_plan_key(raw_value)
+            if field_key:
+                counts[field_key] += 1
+            if re.search(
+                r"\b(?:Timed visual beat|Mandatory \d+-second|Keep it separate|Use a distinct composition|opening keyframe|development phase cut)\b",
+                raw_value,
+                flags=re.IGNORECASE,
+            ):
+                leaked_template_hits.append(f"scene {idx} {field}")
+        duplicate_counts[key] += 1
+        if key == previous_key:
+            run_count += 1
+            if run_count == 2:
+                errors.append(f"scenes {idx - 1}-{idx} duplicate the same beat")
+        else:
+            if run_count >= 3:
+                errors.append(f"scenes {run_start}-{idx - 1} repeat the same beat")
+            previous_key = key
+            run_start = idx
+            run_count = 1
+    if run_count >= 3:
+        errors.append(f"scenes {run_start}-{len(scenes)} repeat the same beat")
+    if len(ordinal_middle_template_hits) >= 2:
+        errors.append(
+            "scene plan uses ordinal middle-transition template scenes: "
+            f"{ordinal_middle_template_hits[:12]}"
+        )
+    for key, count in duplicate_counts.items():
+        if count >= 3:
+            errors.append(f"scene plan repeats one beat {count} times: {key[:120]}")
+    for key, count in duplicate_summary_counts.items():
+        if count >= 3:
+            errors.append(f"scene plan repeats one summary {count} times: {key[:120]}")
+    for field, counts in duplicate_field_counts.items():
+        for key, count in counts.items():
+            if count >= 3:
+                errors.append(f"scene plan repeats {field} {count} times: {key[:120]}")
+    if leaked_template_hits:
+        errors.append(f"scene plan leaked internal template text: {leaked_template_hits[:12]}")
+    return errors
+
+
+def _is_old_story_plan_context(
+    script_style: str,
+    topic: str,
+    upload_title: str,
+    image_style: str = "",
+    category: str = "",
+) -> bool:
+    normalized_category = str(category or "").strip()
+    if normalized_category:
+        if normalized_category == "옛날이야기":
+            return True
+        if normalized_category in {"English Folktales", "日本昔話"}:
+            return False
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return any(
+        term in blob
+        for term in (
+            "old_story",
+            "hanok",
+            "\uc61b\ub0a0\uc774\uc57c\uae30",
+            "\uc804\ub798",
+            "\ubbfc\ub2f4",
+            "무덤",
+            "묘",
+            "유언",
+            "며느리",
+            "시어머니",
+        )
+    )
+
+
+def _is_folktale_plan_context(
+    script_style: str,
+    topic: str,
+    upload_title: str,
+    image_style: str = "",
+    category: str = "",
+) -> bool:
+    normalized_category = str(category or "").strip()
+    if normalized_category in {"옛날이야기", "English Folktales", "日本昔話"}:
+        return True
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return _is_old_story_plan_context(script_style, topic, upload_title, image_style, category=category) or any(
+        term in blob
+        for term in (
+            "english folktales",
+            "folktale",
+            "folk tale",
+            "日本昔話",
+            "昔話",
+            "民話",
+        )
+    )
+
+
+def _is_survival_story_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return any(
+        term in blob
+        for term in (
+            "survival",
+            "testimony",
+            "defector",
+            "north korea",
+            "safehouse",
+            "border crossing",
+            "탈북사연",
+            "탈북",
+            "탈북민",
+            "탈북자",
+            "북한",
+            "두만강",
+            "압록강",
+            "국경",
+            "보위부",
+            "브로커",
+            "북송",
+            "도강",
+        )
+    )
+
+
+def _is_martial_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return any(
+        term in blob
+        for term in (
+            "martial",
+            "wuxia",
+            "jianghu",
+            "sword",
+            "\ubb34\ud611",
+            "\ubb34\ub9bc",
+            "\uac15\ud638",
+            "\ubb38\ud30c",
+            "\uac80\uac1d",
+            "\uac80\ubcf4",
+            "\ubb34\uacf5",
+            "\ub9c8\uad50",
+            "\ud3d0\ubb38",
+            "\uc81c\uc790",
+            "\uc0ac\ubd80",
+            "\ubc18\uc9c0",
+        )
+    )
+
+
+
+def _is_twilight_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return any(
+        term in blob
+        for term in (
+            "twilight", "mature", "late_life", "황혼19금", "황혼 19금", "황혼", "중년", "19금",
+            "재혼", "첫사랑", "졸혼", "비밀일기", "동창회", "재회", "황혼부부", "황혼이혼"
+        )
+    )
+
+
+def _is_korean_drama_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return any(
+        term in blob
+        for term in (
+            "korean_drama", "real_life_story", "family_drama", "한국사연", "사연", "시댁", "처가", "친정",
+            "상속", "시어머니", "올케", "시누이", "갑질", "폭로", "이웃", "층간소음", "유산", "가족사연"
+        )
+    )
+
+
+def _is_overseas_touching_plan_context(script_style: str, topic: str, upload_title: str, image_style: str = "") -> bool:
+    blob = _text_with_mojibake_repairs(script_style, topic, upload_title, image_style)
+    return any(
+        term in blob
+        for term in (
+            "overseas", "global", "touching_story", "kindness", "해외감동", "해외", "외국인", "외국",
+            "공항", "국제", "은인", "입양", "파독", "참전용사", "해외실화"
+        )
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def _korean_ordinal_label(number: int) -> str:
+    if number <= 0:
+        return "처음"
+    special = {
+        1: "첫",
+        2: "둘",
+        3: "셋",
+        4: "넷",
+        5: "다섯",
+        6: "여섯",
+        7: "일곱",
+        8: "여덟",
+        9: "아홉",
+        10: "열",
+    }
+    if number in special:
+        return special[number]
+    units = ["", "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱", "여덟", "아홉"]
+    tens = {1: "열", 2: "스물", 3: "서른", 4: "마흔", 5: "쉰"}
+    ten, unit = divmod(number, 10)
+    if ten in tens:
+        return f"{tens[ten]}{units[unit]}"
+    return f"{number}번"
+
+
+def _scene_variation_label(number: int) -> str:
+    """Return a non-numeric scene token so repetition QA does not collapse long plans."""
+    label = _korean_ordinal_label(number)
+    objects = [
+        "낡은 편지",
+        "찻잔",
+        "서랍 열쇠",
+        "흑백 사진",
+        "손수건",
+        "기차표",
+        "약속 반지",
+        "일기장",
+        "문간 불빛",
+        "빗물 자국",
+        "장롱 그림자",
+        "오래된 주소",
+        "봉투 봉인",
+        "마른 꽃잎",
+        "전화번호 메모",
+        "버려진 신발",
+        "창가 먼지",
+    ]
+    places = [
+        "부엌",
+        "마루",
+        "골목",
+        "찻집",
+        "장터",
+        "강둑",
+        "역전",
+        "병원 복도",
+        "빈집",
+        "작은 공원",
+        "버스 정류장",
+        "묘소 앞",
+        "다락",
+        "우체국",
+        "비 오는 처마",
+    ]
+    emotions = [
+        "망설임",
+        "후회",
+        "질투",
+        "용서",
+        "침묵",
+        "분노",
+        "그리움",
+        "의심",
+        "체념",
+        "결심",
+        "부끄러움",
+        "안도",
+        "서운함",
+    ]
+    idx = max(0, number - 1)
+    return f"{label} {objects[idx % len(objects)]} {places[(idx // len(objects)) % len(places)]} {emotions[(idx // (len(objects) * len(places))) % len(emotions)]}"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def _scene_plan_category_contamination_errors(
+    structure: dict,
+    *,
+    script_style: str,
+    topic: str,
+    upload_title: str,
+    image_style: str,
+    category: str = "",
+) -> list[str]:
+    if not _is_folktale_plan_context(
+        script_style, topic, upload_title, image_style, category=category
+    ):
+        return []
+    allowed_blob = _text_with_mojibake_repairs(topic, upload_title)
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list):
+        return []
+    banned_groups = {
+        "finance/pension": (
+            "\ud1b5\uc7a5",
+            "\uae08\uc561",
+            "\uc5f0\uae08",
+            "\uc0dd\ud65c\ube44",
+            "\uc608\uc0b0",
+            "\uc815\ucc45",
+            "\uc81c\ub3c4",
+            "\uc0c1\ub2f4",
+            "\uac00\uacc4\ubd80",
+            "\uace0\uc815\ube44",
+            "\uc790\ub3d9\uc774\uccb4",
+            "\uad6d\ubbfc\uc5f0\uae08",
+            "\ub178\ud6c4\uc790\uae08",
+            "finance",
+            "pension",
+            "budget",
+            "bankbook",
+            "年金",
+            "老後資金",
+            "家計簿",
+            "生活費",
+        ),
+        "survival/defector": (
+            "탈북",
+            "탈북민",
+            "탈북자",
+            "북한",
+            "두만강",
+            "압록강",
+            "국경",
+            "보위부",
+            "브로커",
+            "북송",
+            "도강",
+            "중국 공안",
+            "safehouse",
+            "north korea",
+            "defector",
+            "border crossing",
+        ),
+    }
+    allowed_terms = (
+        "\ud1b5\uc7a5",
+        "\uc5f0\uae08",
+        "\uc0dd\ud65c\ube44",
+        "\uc815\ucc45",
+        "\uc608\uc0b0",
+        "탈북",
+        "북한",
+        "두만강",
+        "압록강",
+        "국경",
+        "보위부",
+        "브로커",
+        "finance",
+        "money",
+        "north korea",
+        "defector",
+    )
+    if any(term in allowed_blob for term in allowed_terms):
+        return []
+    errors: list[str] = []
+    for group_name, banned_terms in banned_groups.items():
+        hits: list[str] = []
+        for idx, scene in enumerate(scenes, start=1):
+            blob = _text_with_mojibake_repairs(
+                *(
+                    (scene or {}).get(key) or ""
+                    for key in (
+                        "scene_summary",
+                        "scene_purpose",
+                        "retention_hook",
+                        "title_promise_link",
+                        "end_bridge",
+                        "visual_direction",
+                        "video_prompt",
+                    )
+                )
+            )
+            matched = [term for term in banned_terms if term in blob]
+            if matched:
+                hits.append(f"scene {idx}: {', '.join(matched[:3])}")
+        if len(hits) >= 2:
+            errors.append(f"old-story scene plan contains {group_name} contamination: {hits[:8]}")
+    if errors:
+        return errors
+    return []
+
+
+def _quality_stage_report(stage: str, errors: list[str]) -> dict:
+    return {
+        "stage": stage,
+        "status": "fail" if errors else "pass",
+        "errors": errors,
+        "checked_at": time.time(),
+    }
+
+
+def _raise_on_quality_stage_failure(stage: str, errors: list[str]) -> dict:
+    report = _quality_stage_report(stage, errors)
+    if errors:
+        raise RuntimeError(f"{stage} quality gate failed: {errors[:12]}")
+    return report
+
+
+def _script_language_stats(script: str) -> dict:
+    text = str(script or "")
+    hangul = len(re.findall(r"[\uac00-\ud7a3]", text))
+    latin = len(re.findall(r"[A-Za-z]", text))
+    return {
+        "hangul": hangul,
+        "latin": latin,
+        "chars": len(text),
+        "max_latin": max(80, int(hangul * 0.05)),
+    }
+
+
+def _script_has_excessive_latin(script: str) -> bool:
+    stats = _script_language_stats(script)
+    return bool(stats["latin"] > stats["max_latin"])
+
+
+def _validate_script_plan_stage(
+    structure: dict,
+    *,
+    script_style: str,
+    topic: str,
+    upload_title: str,
+    image_style: str,
+    category: str = "",
+) -> dict:
+    old_story_context = _is_old_story_plan_context(
+        script_style, topic, upload_title, image_style, category=category
+    )
+
+    errors: list[str] = []
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        errors.append("script_plan missing structure.scenes")
+    else:
+        for fallback_number, scene in enumerate(scenes, start=1):
+            if not isinstance(scene, dict):
+                errors.append(f"scene {fallback_number} is not an object")
+                continue
+    errors.extend(_scene_plan_repetition_errors(structure))
+    errors.extend(
+        _scene_plan_category_contamination_errors(
+            structure,
+            script_style=script_style,
+            topic=topic,
+            upload_title=upload_title,
+            image_style=image_style,
+            category=category,
+        )
+    )
+    return _raise_on_quality_stage_failure("script_plan", errors)
+
+
+def _validate_script_generate_stage(
+    payload: dict,
+    *,
+    category: str,
+    require_korean_script: bool = True,
+) -> dict:
+    errors: list[str] = []
+    structure = payload.get("structure") if isinstance(payload.get("structure"), dict) else {}
+    scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
+    script = str(payload.get("script") or "").strip()
+    script_quality = payload.get("script_quality_report") if isinstance(payload.get("script_quality_report"), dict) else {}
+    language = str(payload.get("language") or "ko").strip().lower()
+    require_korean_script = require_korean_script and language == "ko"
+
+    try:
+        score = int(float(script_quality.get("score") or 0))
+    except (TypeError, ValueError):
+        score = 0
+    verdict = str(script_quality.get("verdict") or "").strip().lower()
+    critical_issues = script_quality.get("critical_issues") or []
+    if verdict != "pass" or score < 78 or critical_issues:
+        errors.append(
+            "script quality report not passing: "
+            f"verdict={verdict or 'missing'}, score={score}, critical_issues={len(critical_issues)}"
+        )
+
+
+    if require_korean_script:
+        lang_stats = _script_language_stats(script)
+        if lang_stats["hangul"] < 1000:
+            errors.append(f"script too short or not Korean enough: hangul={lang_stats['hangul']}, chars={lang_stats['chars']}")
+        if lang_stats["latin"] > lang_stats["max_latin"]:
+            errors.append(f"script has too much Latin text: latin={lang_stats['latin']}")
+    elif language == "ja":
+        japanese_chars = _japanese_char_count(script)
+        hangul_chars = len(re.findall(r"[\uac00-\ud7a3]", script))
+        if japanese_chars < 800:
+            errors.append(f"script is not Japanese enough: japanese={japanese_chars}, chars={len(script)}")
+        if hangul_chars > 0:
+            errors.append(f"script contains Hangul for Japanese category: hangul={hangul_chars}")
+
+    if require_korean_script and any(marker in script for marker in ("At first", "One small clue", "As time passed", "Auto-generated longform", "intro scene", "development scene")):
+        errors.append("script contains fallback/scratch English template text")
+    repeated_sentences = _detect_repeated_script_sentences(script)
+    if repeated_sentences:
+        deduped = _deduplicate_script_text(script, repeated_sentences)
+        remaining = _detect_repeated_script_sentences(deduped)
+        if not remaining or len(remaining) <= 8:
+            payload["script"] = deduped
+            script = deduped
+        else:
+            payload["script"] = deduped
+            script = deduped
+    errors.extend(_script_emotion_cue_errors(script, language))
+
+    for fallback_number, scene in enumerate(scenes, start=1):
+        if not isinstance(scene, dict):
+            errors.append(f"scene {fallback_number} is not an object")
+            continue
+    try:
+        from services.image_grid_prompts import validate_image_grid_prompt_readiness
+
+        validate_image_grid_prompt_readiness(
+            scenes,
+            structure.get("image_grid_prompts"),
+            status=structure.get("image_grid_prompt_status"),
+            require_status="ready",
+            require_compact_template=True,
+        )
+    except Exception as exc:
+        errors.append(f"image_grid_prompts invalid: {exc}")
+
+    errors.extend(
+        _scene_plan_category_contamination_errors(
+            structure,
+            script_style=str(category or payload.get("script_style") or ""),
+            topic=str(payload.get("topic") or ""),
+            upload_title=str(payload.get("upload_title") or payload.get("generated_title") or ""),
+            image_style=str(payload.get("image_style") or ""),
+            category=category,
+        )
+    )
+    return _raise_on_quality_stage_failure("script_generate", errors)
+
+
+def _validate_publish_metadata_stage(payload: dict, *, category: str) -> dict:
+    errors: list[str] = []
+    try:
+        _validate_publish_metadata_quality(
+            payload.get("publish_metadata") if isinstance(payload.get("publish_metadata"), dict) else {},
+            str(payload.get("topic") or ""),
+            str(payload.get("upload_title") or payload.get("generated_title") or ""),
+            str(payload.get("script") or ""),
+            str(payload.get("language") or "ko"),
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+
+    if isinstance(payload.get("script_quality_report"), dict):
+        try:
+            from services.generation_quality_gate import validate_generation_package
+
+            errors.extend(
+                validate_generation_package(
+                    payload,
+                    category=category,
+                    require_korean_script=str(payload.get("language") or "ko").strip().lower() == "ko",
+                )
+            )
+        except Exception as exc:
+            errors.append(f"final package validation failed: {exc}")
+    elif payload.get("defer_ready_until_quality_gate"):
+        errors.append("missing script_quality_report for quality-gated publish metadata job")
+
+    return _raise_on_quality_stage_failure("publish_metadata", errors)
+
+
+def _repair_martial_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    """Rebuild a wuxia plan into unique story beats when the model loops."""
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "무협 이야기").strip()
+    beats = [
+        ("폐허가 된 산문 앞에 피 묻은 문패가 발견된다", "강호의 위기와 문파 몰락을 한 장면으로 연다", "누가 개파의 이름을 지우려 했을까?"),
+        ("사형이 눈먼 제자를 업고 금지된 약초길을 오른다", "주인공 관계와 희생의 출발점을 보여준다", "왜 그는 버려진 제자를 끝까지 데려갈까?"),
+        ("장문인의 마지막 유언이 찢어진 서찰로 남아 있다", "사건의 원인을 말이 아닌 증거로 제시한다", "서찰의 마지막 줄은 왜 칼로 잘렸을까?"),
+        ("제자의 끊어진 단전이 검은 침 독과 연결된다", "폐인이 된 이유를 구체적인 무협 사건으로 세운다", "독을 쓴 자는 문파 안에 있었을까?"),
+        ("사형이 십 년 내공을 옮기면 자신이 무공을 잃는다는 사실을 안다", "제목의 희생 약속을 분명히 건다", "그는 정말 자신의 검을 버릴 수 있을까?"),
+        ("적대 문파의 전령이 치료를 멈추라는 협박장을 놓고 간다", "외부 압박과 시간 제한을 만든다", "협박장은 왜 사형의 옛 이름을 알고 있을까?"),
+        ("사형은 전령을 죽이지 않고 뒤쫓아 숨은 접선지를 찾는다", "복수보다 단서를 택하는 인물성을 보여준다", "살려 보낸 적이 더 큰 진실을 열까?"),
+        ("폐객잔 지하에서 같은 독침을 맞은 시신 셋이 발견된다", "개인 사건을 강호 전체 음모로 확장한다", "세 시신은 왜 모두 왼손 검객일까?"),
+        ("제자는 의식을 잃은 채 사부의 검결 한 구절을 중얼거린다", "폐인 제자 안의 남은 가능성을 암시한다", "그가 기억한 검결은 누구도 배운 적이 없다"),
+        ("사형이 옛 사매에게 도움을 청하지만 그녀는 문파를 배신자라 부른다", "조력자를 쉽게 얻지 못하게 갈등을 넣는다", "그녀는 어떤 밤을 기억하고 있을까?"),
+        ("사매가 장문인의 봉인함을 열 조건으로 한 번의 비무를 요구한다", "정보를 얻기 위한 행동 장면을 배치한다", "무공을 아끼면 제자가 죽고, 쓰면 치료가 늦어진다"),
+        ("비무 중 사형의 검끝이 흔들리며 내공 손상이 처음 드러난다", "희생의 대가를 신체적으로 보여준다", "그의 검은 이미 무너지고 있는 걸까?"),
+        ("봉인함 안에서 개파 조사와 마교 의가의 거래 장부가 나온다", "오래된 비밀을 물증으로 연다", "정파의 조사도 금기를 빌렸다면?"),
+        ("장부의 이름 하나가 현재 무림맹 조사관과 일치한다", "권력층 연결고리로 판을 키운다", "심판자가 곧 공범이면 누구에게 말해야 할까?"),
+        ("무림맹 조사관은 보호를 약속하며 제자를 넘기라고 한다", "달콤한 제안 속 함정을 만든다", "보호라는 말이 감옥이 될 수도 있다"),
+        ("사형은 제자를 숨기고 자신만 조사관 앞에 나선다", "주인공의 선택과 책임을 강화한다", "혼자 간 그는 살아 돌아올 수 있을까?"),
+        ("조사관의 호위 검법이 죽은 사부의 금초와 똑같다", "배신의 증거를 대결 속에서 드러낸다", "사부를 죽인 검이 지금 다시 움직인다"),
+        ("사형은 패배한 척하며 호위의 검집에서 독침 통을 훔친다", "힘보다 계략으로 전진하는 변화를 준다", "패배가 사실은 첫 승리였다면?"),
+        ("독침 통 안쪽에 제자의 혈맥을 깨우는 해독 순서가 새겨져 있다", "치료 단서를 얻되 더 큰 위험을 붙인다", "해독법을 아는 자가 왜 독을 퍼뜨렸을까?"),
+        ("첫 내공 이전 중 제자의 몸에 마교 문양이 떠오른다", "제자가 단순 피해자가 아님을 반전시킨다", "그 문양은 저주일까, 봉인일까?"),
+        ("사매는 제자가 조사 혈통의 마지막 생존자라고 고백한다", "제목의 희생을 혈통 비밀과 연결한다", "그를 살리면 강호가 다시 불탈 수도 있다"),
+        ("사형은 살릴 가치가 아니라 함께한 시간을 이유로 치료를 계속한다", "인물의 도덕 기준을 선명하게 만든다", "강호보다 한 사람을 택해도 되는가?"),
+        ("마교 잔당이 치료 도중 산장을 습격한다", "정적인 치료를 행동 위기로 전환한다", "내공을 옮기는 손을 떼면 모든 것이 끝난다"),
+        ("제자는 움직이지 못한 채 손가락 하나로 검결의 방향을 바꾼다", "폐인 제자의 능동성을 처음 보여준다", "몸은 죽었어도 검의 눈은 살아 있다"),
+        ("사형은 내공 절반을 잃고도 습격자를 살려 보내 심문 대신 추적표를 붙인다", "잔혹한 복수 대신 장기전을 택한다", "그 추적표는 누구의 문 앞에서 멈출까?"),
+        ("추적표가 무림맹 회의장 뒤편 비밀 문고를 가리킨다", "진실의 장소를 권력 중심부로 옮긴다", "맹의 문고에 왜 마교 의술서가 있을까?"),
+        ("문고에서 사부가 제자를 죽이지 않고 봉인했다는 기록이 발견된다", "사부의 오명을 뒤집을 핵심 반전을 제시한다", "사부는 배신자가 아니라 방패였을까?"),
+        ("조사관은 기록을 태우며 사형에게 장문인 자리를 제안한다", "유혹과 침묵의 대가를 보여준다", "명예를 얻으면 진실은 영원히 사라진다"),
+        ("사형은 제안을 거절하고 불타는 기록 속 마지막 목판을 꺼낸다", "주인공 선택을 물리적 위험으로 표현한다", "한 장의 목판이 강호를 흔들 수 있을까?"),
+        ("목판에는 십 년 내공 이전이 치료가 아니라 봉인 해제라는 문구가 있다", "희생의 의미를 더 위험하게 뒤집는다", "살리는 순간 괴물이 깨어날 수도 있다"),
+        ("제자는 깨어나 자신을 죽여 달라고 부탁한다", "감정적 최저점과 선택의 잔혹함을 만든다", "살리고 싶던 사람이 죽음을 원한다면?"),
+        ("사형은 검을 내려놓고 제자의 기억을 하나씩 불러낸다", "무공보다 관계로 위기를 버티게 한다", "검결보다 강한 것은 무엇일까?"),
+        ("기억 속에서 어린 제자가 사부에게 받은 빈 검집의 의미가 드러난다", "초반 소품을 후반 복선으로 회수한다", "빈 검집은 패배가 아니라 약속이었다"),
+        ("조사관이 산문 앞 공개 재판을 열어 두 사람을 마교로 몰아간다", "사적인 진실을 대중 앞 갈등으로 키운다", "군중은 증거보다 소문을 믿을까?"),
+        ("사매가 불탄 목판의 일부를 들고 재판장에 나타난다", "조력자가 감정과 증거를 들고 돌아오게 한다", "그녀는 이번엔 도망치지 않을까?"),
+        ("호위 검객이 사부 살해의 진짜 동선을 검술로 재현하다가 모순을 드러낸다", "액션 장면으로 추리적 증명을 만든다", "검의 궤적은 거짓말을 못 한다"),
+        ("제자가 첫 걸음을 떼며 봉인된 검기를 밖으로 흘린다", "회복의 쾌감과 위험을 동시에 준다", "돌아온 힘은 누구의 편일까?"),
+        ("사형은 마지막 내공을 넘기기 전 제자에게 죽이지 않는 검을 약속시킨다", "최종 능력보다 선택 기준을 먼저 세운다", "힘을 얻은 자가 원한을 참을 수 있을까?"),
+        ("조사관이 마교 의술로 젊음을 유지해 온 사실이 얼굴 변화로 드러난다", "최종 악역의 추함을 시각적 반전으로 보여준다", "정의의 가면은 얼마나 오래 버틸까?"),
+        ("무림맹 호위들이 명령을 따를지 진실을 따를지 갈라진다", "대결을 개인전에서 집단 선택으로 확장한다", "강호는 한 사람의 검만으로 바뀌지 않는다"),
+        ("사형과 제자는 서로 다른 검초로 조사관의 방어를 열어젖힌다", "관계의 완성을 협공 액션으로 보여준다", "스승도 사형도 아닌 동료의 검이 된다"),
+        ("조사관은 제자의 폭주를 유도하려 사부의 죽음을 조롱한다", "클라이맥스 감정 시험을 만든다", "분노를 베면 이기고, 사람을 베면 진다"),
+        ("제자는 검을 멈추고 사형이 남긴 빈 검집에 칼을 꽂는다", "폭주 대신 절제를 선택하는 페이오프를 준다", "빈 검집의 약속이 여기서 완성된다"),
+        ("사형은 내공을 모두 잃고도 조사관의 마지막 독침을 몸으로 막는다", "제목의 희생을 최종 행동으로 완수한다", "십 년 내공보다 무거운 한 걸음이다"),
+        ("사매가 공개 재판의 증언을 강호 각 문파에 전달한다", "진실이 퍼지는 현실적 통로를 마련한다", "이제 소문은 누구 편에 설까?"),
+        ("조사관의 죄가 밝혀지지만 무림맹은 책임을 축소하려 한다", "완전한 승리 대신 현실의 씁쓸함을 남긴다", "악인을 베어도 제도는 곧장 바뀌지 않는다"),
+        ("제자는 무림맹주 자리를 거절하고 폐허 산문으로 돌아간다", "권력 대신 회복을 택하게 한다", "그가 원하는 것은 이름일까, 집일까?"),
+        ("사형은 검을 들 수 없는 손으로 새 문패의 첫 글자를 깎는다", "상실 이후의 새 시작을 작은 행동으로 보여준다", "검을 잃은 손도 길을 만들 수 있다"),
+        ("옛 제자들이 돌아와 폐허 마당에 조용히 검집을 걸어 둔다", "공동체 회복의 이미지를 만든다", "사라진 문파는 정말 끝난 게 아니었다"),
+        ("제자는 첫 제자에게 이기는 검보다 멈추는 검을 가르친다", "주제를 다음 세대로 넘긴다", "강한 검이 아니라 멈출 줄 아는 검"),
+        ("사매는 사부의 무덤 앞에 진짜 기록을 묻지 않고 낭독한다", "오명을 완전히 벗기는 감정 장면을 둔다", "죽은 자에게 필요한 것은 복수가 아니라 증언이다"),
+        ("사형은 빈 단전으로도 제자의 자세를 고쳐 주며 웃는다", "희생이 비극만이 아님을 보여준다", "잃은 내공보다 남은 사람이 더 크다"),
+        ("새벽 산문 위로 새 문패가 걸리고 빈 검집이 바람에 흔들린다", "여운 있는 마지막 이미지로 닫는다", "그들의 강호는 이제 어떤 이름으로 불릴까?"),
+    ]
+    repaired = dict(structure)
+    repaired_scenes = []
+    total = len(scenes)
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        summary, purpose, hook = beats[idx % len(beats)]
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene["scene_id"] = scene.get("scene_id") or f"scene{idx + 1:03d}"
+        scene["scene_summary"] = f"{idx + 1}번 장면: {summary}"
+        scene["scene_purpose"] = purpose
+        scene["retention_hook"] = hook
+        scene["title_promise_link"] = f"'{title}'의 약속을 사형의 희생, 제자의 회복, 강호의 진실 중 하나로 전진시킨다"
+        scene["end_bridge"] = hook
+        if not scene.get("duration_seconds"):
+            scene["duration_seconds"] = max(10, round(900 / max(total, 1)))
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "martial scene plan unique beat rebuild",
+    }
+    return repaired
+
+
+
+
+
+
+
+
+def _refresh_martial_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "무협 이야기").strip()
+    shot_motifs = [
+        "폐허가 된 산문 앞 부러진 현판과 빗물",
+        "비 내리는 대나무숲 속 검객의 삿갓과 눈빛",
+        "피 묻은 비급 목판과 떨리는 손가락",
+        "주막 탁자 위 깨진 사발과 녹슨 검집",
+        "절벽 끝 외딴 정자에서 타오르는 화로",
+        "달빛 아래 비무를 앞둔 두 검객의 그림자",
+        "무림맹 회의장 웅장한 목조 기둥과 촛불",
+        "깊은 산장 약초 솥에서 피어오르는 연기",
+        "눈 덮인 협곡을 건너는 고독한 뒷모습",
+        "동굴 벽에 새겨진 오래된 검결 문구",
+        "장문인의 봉인함과 끊어진 비단 끈",
+        "새벽 안개 속 서서히 드러나는 객잔의 등불",
+    ]
+    camera_beats = [
+        "긴장감 넘치는 로우 앵글로 검의 동선을 포착한다",
+        "인물의 날카로운 눈매와 손끝을 익스트림 클로즈업한다",
+        "안개 낀 광활한 강호 배경 속 고립된 구도를 잡는다",
+        "슬로우 모션으로 바람에 날리는 도포와 빗방울을 담는다",
+    ]
+    refreshed = dict(structure)
+    refreshed_scenes = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 무림 단서").strip()
+        purpose = str(scene.get("scene_purpose") or "강호의 은원과 비급의 비밀을 전진시킨다").strip()
+        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 장면에서 숨겨진 무공의 진실이 드러난다").strip()
+        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
+        camera = camera_beats[(idx - 1) % len(camera_beats)]
+        phase = "초반 강호 위기 발발" if idx <= 12 else ("중반 비급 추적과 대결" if idx <= 32 else "클라이맥스 결전과 전승")
+        unique_bridge = f"{hook} 다음 대결은 '{summary}'에서 격돌한다."
+        scene["scene_situation"] = f"{summary} {purpose}"
+        scene["visual_direction"] = (
+            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 비주얼로 삼고, "
+            f"{camera}. 시네마틱 무협 미장센으로 '{summary}'의 긴장감을 연출한다."
+        )
+        scene["tts_direction"] = f"비장하고 무게감 있는 서사 내레이션으로 '{summary}'를 전달한다."
+        scene["end_bridge"] = unique_bridge
+        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
+            scene.pop(field, None)
+        refreshed_scenes.append(scene)
+    refreshed["scenes"] = refreshed_scenes
+    refreshed["scene_count"] = len(refreshed_scenes)
+    return refreshed
+
+
+def _refresh_survival_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "탈북 사연").strip()
+    shot_motifs = [
+        "두만강 얼어붙은 강판과 눈보라 치는 제방",
+        "야간 국경 철조망 뒤편 초소의 서치라이트",
+        "어두운 은신처 창가에서 밖을 살피는 떨리는 눈",
+        "손때 묻은 위장 메모와 숨겨둔 몇 장의 지폐",
+        "비 내리는 낯선 국경 도로를 달리는 화물차 짐칸",
+        "국경 감시원의 거친 검문과 긴장된 숨소리",
+        "임시 보호소 침상에 놓인 낡은 신발 한 켤레",
+        "서울행 비행기 창밖으로 내려다보이는 구름",
+        "남한 임대아파트 거실에 홀로 켜진 형광등",
+        "첫 주민등록증을 손에 쥐고 눈물 흘리는 손",
+        "남겨진 고향 사진과 불 꺼진 식탁",
+        "새로운 일터에서 밤늦게 장갑을 벗는 모습",
+    ]
+    camera_beats = [
+        "어둠 속 핸드헬드 시점으로 극한의 긴박감을 전달한다",
+        "인물의 떨리는 입술과 손끝을 정밀 클로즈업한다",
+        "광활하고 차가운 국경 풍경에서 고립된 주인공을 잡는다",
+        "따뜻한 실내 조명과 차가운 기억의 대비를 연출한다",
+    ]
+    refreshed = dict(structure)
+    refreshed_scenes = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 생존 증언").strip()
+        purpose = str(scene.get("scene_purpose") or "탈출의 위험과 인간적 선택을 전진시킨다").strip()
+        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 고비에서 생사의 갈림길이 나타난다").strip()
+        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
+        camera = camera_beats[(idx - 1) % len(camera_beats)]
+        phase = "초반 탈출 결심과 국경선" if idx <= 12 else ("중반 제3국 은신과 위기" if idx <= 32 else "후반 정착과 새로운 희망")
+        unique_bridge = f"{hook} 다음 증언은 '{summary}'에서 이어진다."
+        scene["scene_situation"] = f"{summary} {purpose}"
+        scene["visual_direction"] = (
+            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 비주얼로 삼고, "
+            f"{camera}. 다큐멘터리적 리얼리즘으로 '{summary}'의 진실성을 담아낸다."
+        )
+        scene["tts_direction"] = f"진솔하고 절제된 감정의 목소리로 '{summary}'를 증언한다."
+        scene["end_bridge"] = unique_bridge
+        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
+            scene.pop(field, None)
+        refreshed_scenes.append(scene)
+    refreshed["scenes"] = refreshed_scenes
+    refreshed["scene_count"] = len(refreshed_scenes)
+    return refreshed
+
+
+def _refresh_twilight_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "황혼 이야기").strip()
+    shot_motifs = [
+        "조용한 전통 찻집 창가와 김이 피어오르는 찻잔",
+        "빛바랜 은반지와 서랍 속 오래된 흑백 사진",
+        "노을 지는 교외 호숫가 드라이브 도로",
+        "잠긴 원목 서재 서랍과 작은 열쇠",
+        "낙엽 쌓인 늦가을 공원 벤치에 나란히 앉은 두 그림자",
+        "동창회 명부 속 희미하게 밑줄 친 이름",
+        "어스름한 거실 식탁 위 놓인 두 개의 찻잔",
+        "비 내리는 창밖을 바라보는 중년 여인의 옆모습",
+        "오래된 편지 봉투와 번진 만년필 글씨",
+        "조용한 호텔 로비 카페의 부드러운 조명",
+        "산책길에 조심스럽게 마주 잡은 두 손",
+        "밤늦은 서재 스탠드 불빛 아래 쓰여진 일기장",
+    ]
+    camera_beats = [
+        "서정적인 미디엄 샷으로 인물 간의 은밀한 감정선을 포착한다",
+        "소품과 손짓을 부드러운 포커스로 잡아 여운을 남긴다",
+        "노을빛 백라이트로 성숙한 인생의 깊이를 표현한다",
+        "거울과 창문에 비친 중첩 구도로 내면의 갈등을 담는다",
+    ]
+    refreshed = dict(structure)
+    refreshed_scenes = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 감정선").strip()
+        purpose = str(scene.get("scene_purpose") or "황혼의 인연과 숨겨진 사연을 전진시킨다").strip()
+        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 순간에 감춰진 진심이 드러난다").strip()
+        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
+        camera = camera_beats[(idx - 1) % len(camera_beats)]
+        phase = "초반 예기치 못한 재회" if idx <= 12 else ("중반 깊어지는 감정과 현실 갈등" if idx <= 32 else "후반 성숙한 선택과 여운")
+        unique_bridge = f"{hook} 다음 사연은 '{summary}'에서 이어진다."
+        scene["scene_situation"] = f"{summary} {purpose}"
+        scene["visual_direction"] = (
+            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 비주얼로 삼고, "
+            f"{camera}. 품격 있는 멜로 드라마 구도로 '{summary}'의 감성을 연출한다."
+        )
+        scene["tts_direction"] = f"나지막하고 감미로운 톤으로 '{summary}'의 여운을 전달한다."
+        scene["end_bridge"] = unique_bridge
+        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
+            scene.pop(field, None)
+        refreshed_scenes.append(scene)
+    refreshed["scenes"] = refreshed_scenes
+    refreshed["scene_count"] = len(refreshed_scenes)
+    return refreshed
+
+
+def _refresh_korean_drama_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "한국 사연").strip()
+    shot_motifs = [
+        "아파트 엘리베이터 앞 CCTV와 굳게 닫힌 현관문",
+        "변호사 상담실 테이블 위에 놓인 서류 봉투와 녹음기",
+        "가족 단체 식당 룸의 어색한 침묵과 차가운 시선",
+        "법원 등기 우편물 봉투를 든 떨리는 손",
+        "병원 입원실 복도 끝에서 통화하는 남자의 뒷모습",
+        "시댁 제사실 병풍 뒤로 수군거리는 사람들",
+        "차 안에서 블랙박스 영상을 확인하는 결연한 표정",
+        "통장 계좌 이체 내역서와 붉은 형광펜 표시",
+        "카페 테이블 사이에 놓인 차가운 커피잔과 합의서",
+        "야간 주차장 차 문을 닫으며 결심하는 순간",
+        "공증 사무실 인감도장과 서명 날인",
+        "모든 갈등이 정리된 후 아파트 베란다에서 맞는 아침 햇살",
+    ]
+    camera_beats = [
+        "인물 간의 팽팽한 시선 교환을 오버 더 숄더 샷으로 포착한다",
+        "서류와 물증을 정확하게 보여주는 아이레벨 클로즈업을 쓴다",
+        "현대 도시 공간의 차가운 인공조명으로 갈등을 부각한다",
+        "정면 고정 앵글로 통쾌한 반전의 순간을 포착한다",
+    ]
+    refreshed = dict(structure)
+    refreshed_scenes = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 사건").strip()
+        purpose = str(scene.get("scene_purpose") or "갈등의 전개와 진실 규명을 전진시킨다").strip()
+        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 장면에서 숨겨진 전말이 밝혀진다").strip()
+        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
+        camera = camera_beats[(idx - 1) % len(camera_beats)]
+        phase = "초반 부당한 갈등 발생" if idx <= 12 else ("중반 결정적 증거 확보" if idx <= 32 else "후반 통쾌한 사이다 반전")
+        unique_bridge = f"{hook} 다음 진실은 '{summary}'에서 밝혀진다."
+        scene["scene_situation"] = f"{summary} {purpose}"
+        scene["visual_direction"] = (
+            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 비주얼로 삼고, "
+            f"{camera}. 사실적인 K-드라마 톤으로 '{summary}'의 긴장감을 연출한다."
+        )
+        scene["tts_direction"] = f"몰입감 넘치고 생생한 이야기 전달 톤으로 '{summary}'를 전달한다."
+        scene["end_bridge"] = unique_bridge
+        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
+            scene.pop(field, None)
+        refreshed_scenes.append(scene)
+    refreshed["scenes"] = refreshed_scenes
+    refreshed["scene_count"] = len(refreshed_scenes)
+    return refreshed
+
+
+def _refresh_overseas_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "해외 감동 실화").strip()
+    shot_motifs = [
+        "국제공항 입국장 게이트 앞에서 피켓을 든 사람들",
+        "손글씨로 삐뚤빼뚤 적힌 한글-영어 번역 메모",
+        "비 내리는 유럽 고풍스러운 거리의 노천 카페",
+        "낡은 흑백 사진 속 한국전쟁 참전용사와 아이",
+        "해외 병원 회복실 침상에서 맞잡은 두 손",
+        "국제 우편 봉투와 반환되지 않은 오랜 엽서",
+        "낯선 외국 기차역 분실물 센터 앞의 안도하는 표정",
+        "한국 전통 공예품 선물을 들고 웃는 외국인 가족",
+        "수십 년 만에 찾아간 옛 주소지의 허물어진 벽돌담",
+        "석양 비치는 이국적인 해변에서 나누는 포옹",
+        "감사 편지를 낭독하는 눈물 어린 눈동자",
+        "국경을 넘어 다시 만난 두 사람의 환한 미소",
+    ]
+    camera_beats = [
+        "따뜻한 내추럴 라이트로 국경을 초월한 온기를 담는다",
+        "언어가 통하지 않아도 전해지는 눈빛을 타이트하게 잡는다",
+        "광활한 이국의 풍경 속에서 피어난 기적을 와이드로 담는다",
+        "감동적인 재회의 순간을 부드러운 핸드헬드로 따라간다",
+    ]
+    refreshed = dict(structure)
+    refreshed_scenes = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 감동 순간").strip()
+        purpose = str(scene.get("scene_purpose") or "국경을 넘은 인연과 은혜를 전진시킨다").strip()
+        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 순간에 기적 같은 반전이 일어난다").strip()
+        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
+        camera = camera_beats[(idx - 1) % len(camera_beats)]
+        phase = "초반 낯선 타국에서의 위기" if idx <= 12 else ("중반 국경을 넘은 따뜻한 도움" if idx <= 32 else "후반 수십 년 만의 보은과 감동")
+        unique_bridge = f"{hook} 다음 감동은 '{summary}'에서 이어진다."
+        scene["scene_situation"] = f"{summary} {purpose}"
+        scene["visual_direction"] = (
+            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 비주얼로 삼고, "
+            f"{camera}. 따뜻하고 영화 같은 질감으로 '{summary}'의 감동을 연출한다."
+        )
+        scene["tts_direction"] = f"따뜻하고 깊은 울림을 주는 목소리로 '{summary}'를 전달한다."
+        scene["end_bridge"] = unique_bridge
+        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
+            scene.pop(field, None)
+        refreshed_scenes.append(scene)
+    refreshed["scenes"] = refreshed_scenes
+    refreshed["scene_count"] = len(refreshed_scenes)
+    return refreshed
+
+
+def _refresh_scene_visual_fields_for_category(category: str, structure: dict, topic: str, upload_title: str) -> dict:
+    cat = str(category or "").strip()
+    if cat == "무협":
+        return _refresh_martial_scene_visual_fields(structure, topic, upload_title)
+    if cat == "탈북사연":
+        return _refresh_survival_scene_visual_fields(structure, topic, upload_title)
+    if cat == "황혼19금":
+        return _refresh_twilight_scene_visual_fields(structure, topic, upload_title)
+    if cat == "한국사연":
+        return _refresh_korean_drama_scene_visual_fields(structure, topic, upload_title)
+    if cat == "해외감동":
+        return _refresh_overseas_scene_visual_fields(structure, topic, upload_title)
+    return _refresh_old_story_scene_visual_fields(structure, topic, upload_title)
+
+
+
+def _repair_twilight_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "황혼 이야기").strip()
+    beat_templates = [
+        ("조용한 찻집에서 30년 만에 마주 앉은 두 사람의 굳은 표정으로 연다", "황혼 재회의 팽팽한 긴장과 감춰진 사연을 시작한다", "수십 년 만에 두 사람은 왜 다시 만나야 했을까?"),
+        ("과거 헤어질 수밖에 없었던 청춘 시절의 결정을 짧게 제시한다", "인물들의 오랜 후회와 세월의 무게를 보여준다", "그때 그들은 왜 서로의 손을 놓쳤을까?"),
+        ("각자의 가정을 꾸리고 살아온 세월의 흔적을 대화 속에 담는다", "지나온 삶의 노고와 현재의 고독을 드러낸다", "평탄해 보였던 결혼 생활 뒤에 남은 것은 무엇이었을까?"),
+        ("서랍 속 낡은 편지와 흑백 사진이 발견된 계기를 밝힌다", "재회가 우연이 아닌 필연적 계기였음을 설명한다", "누가 이 오래된 편지를 세상 밖으로 꺼냈을까?"),
+        ("배우자가 떠난 뒤 혼자 남겨진 일상의 쓸쓸함을 보여준다", "황혼의 외로움과 진솔한 감정선을 세운다", "텅 빈 집에서 가장 견디기 힘들었던 순간은 언제였을까?"),
+        ("두 사람이 나눈 첫 번째 비밀 고백을 배치한다", "과거의 오해가 진실로 바뀌는 첫 반전을 만든다", "30년 동안 전하지 못했던 한마디는 무엇이었을까?"),
+        ("자식들의 시선과 주변의 평판에 대한 현실적 두려움을 다룬다", "황혼 연애가 마주하는 사회적/가족적 장벽을 세운다", "자식들은 부모의 새로운 인연을 받아들일 수 있을까?"),
+        ("유산과 재산 문제를 둘러싼 자식들의 오해와 갈등이 수면 위로 오른다", "현실적 가족 갈등으로 서사를 확장한다", "진심이 왜 돈 문제로 왜곡되었을까?"),
+        ("주인공이 모든 것을 정리하고 혼자 떠나려 결심하는 장면을 넣는다", "감정적 위기와 결단의 순간을 만든다", "그는 왜 다시 침묵을 택하려 했을까?"),
+        ("상대방이 달려와 남은 생을 함께하자고 붙잡는 감동적 전환을 만든다", "주인공의 결정을 바꾸는 진심의 힘을 보여준다", "남은 인생을 누구를 위해 살아야 할까?"),
+        ("자식들과 마주 앉아 부모의 인생과 행복에 대해 담담히 설득한다", "갈등의 봉합과 세대 간의 이해를 시도한다", "자식들은 부모의 진심 어린 눈빛을 보고 무엇을 느꼈을까?"),
+        ("법적 혼인 대신 서로를 지켜주는 동반자로서의 삶을 선언한다", "황혼만의 성숙하고 현실적인 선택을 제시한다", "형식보다 중요한 삶의 약속은 무엇일까?"),
+        ("노을 지는 호숫가를 함께 걸으며 지난 세월을 용서하고 보듬는다", "이야기를 따뜻한 감동과 인생의 여운으로 닫는다", "황혼의 사랑이 우리에게 남긴 질문은 무엇일까?"),
+    ]
+    repaired = dict(structure)
+    repaired_scenes = []
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        summary, purpose, hook = beat_templates[idx % len(beat_templates)]
+        variation = _scene_variation_label(idx + 1)
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene["scene_summary"] = f"{idx + 1}번 장면 {variation}: {summary}"
+        scene["scene_situation"] = f"{variation}의 구체적인 공간과 사물로 {summary}"
+        scene["scene_purpose"] = f"{purpose} {variation}의 단서로 장면을 구분한다"
+        hook_statement = hook.rstrip(" ?!.。")
+        scene["retention_hook"] = f"{variation} 때문에 {hook_statement}라는 의문이 남는다"
+        scene["title_promise_link"] = f"'{title}'의 황혼 서사를 {idx + 1}번째 감정선으로 전진시킨다"
+        scene["end_bridge"] = f"{variation}의 여운이 다음 선택을 밀어 올린다"
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "twilight scene plan repetition QA",
+    }
+    return repaired
+
+
+def _repair_korean_drama_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "한국 사연").strip()
+    beat_templates = [
+        ("부당한 갈등이 터져 나온 현장의 한 장면으로 즉시 시작한다", "시청자가 불의와 억울함에 깊이 분노하고 몰입하게 한다", "도대체 어떻게 이런 무리한 요구를 할 수 있었을까?"),
+        ("상대방의 오만한 태도와 적반하장식 언행을 사실적으로 보여준다", "갈등의 심각성과 주인공의 참담한 심경을 강조한다", "상대방은 왜 자기가 잘못했다는 걸 모를까?"),
+        ("주인공이 지금까지 가족이나 직장을 위해 헌신했던 지난날을 짧게 회상한다", "피해자의 도덕적 정당성과 인내의 한계를 세운다", "모든 희생을 당연하게 여긴 대가는 무엇이었을까?"),
+        ("상대방이 선을 넘는 결정적 요구(유산 강탈, 누명 씌우기, 막말 등)를 던진다", "사건을 돌이킬 수 없는 법적/도덕적 파국으로 밀어 넣는다", "이 한마디로 모든 인내는 끝났다"),
+        ("주인공이 감정적 싸움 대신 조용히 증거 수집에 착수한다", "수동적 피해자에서 능동적 응징자로의 전환을 만든다", "주인공이 몰래 확보한 첫 번째 결정적 물증은?"),
+        ("CCTV 영상, 계좌 이체 내역, 녹음 파일 등 스모킹 건을 확보한다", "반격의 기술적/법적 정당성을 꼼꼼하게 구축한다", "이 증거 앞에서 상대방은 어떤 핑계를 댈까?"),
+        ("변호사 상담 또는 전문가 조언을 통해 철저한 반격 플랜을 세운다", "감정적 폭언이 아닌 법적/원칙적 타격 준비를 보여준다", "합법적으로 완벽하게 정리하는 방법은 무엇일까?"),
+        ("상대방이 승리를 확신하고 모욕을 주는 공개적인 자리(가족 모임, 회사 회의)를 잡는다", "사이다 반전의 무대를 긴장감 넘치게 세운다", "상대방의 오만이 극에 달한 순간 무슨 일이 벌어질까?"),
+        ("주인공이 차분하게 서류 봉투를 꺼내며 상대방의 만행을 조목조목 낭독한다", "모든 진실이 만천하에 드러나며 판세가 뒤집힌다", "얼굴이 하얗게 질린 상대방의 첫 반응은?"),
+        ("상대방이 궤변으로 발뺌하려 하자 결정적 녹취 파일과 증거 영상을 재생한다", "완벽한 증거로 상대방의 도망갈 구멍을 완전히 차단한다", "물증 앞에서 쏟아지는 변명은 어떻게 무너졌을까?"),
+        ("주변 사람들(가족, 동료, 상사)이 상대방에게 등을 돌리고 비난을 쏟아낸다", "사회적/도덕적 단죄를 통해 통쾌한 카타르시스를 준다", "지금까지 침묵하던 사람들은 왜 태도를 바꿨을까?"),
+        ("법적 고소장 접수와 손해배상 청구, 부당이득 반환 처분을 집행한다", "실질적인 정의 구현과 현실적 피해 회복을 완료한다", "상대방이 치르게 된 처절한 죗값은 얼마일까?"),
+        ("주인공이 낡은 관계의 사슬을 끊어내고 당당하게 자기 인생의 주인이 된다", "통쾌한 사이다 결말과 함께 자존감 회복의 여운을 남긴다", "선한 사람이 끝내 승리한다는 사실이 남긴 교훈은?"),
+    ]
+    repaired = dict(structure)
+    repaired_scenes = []
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        summary, purpose, hook = beat_templates[idx % len(beat_templates)]
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene["scene_summary"] = f"{idx + 1}번 장면: {summary}"
+        scene["scene_purpose"] = purpose
+        scene["retention_hook"] = hook
+        scene["title_promise_link"] = f"'{title}'의 사연을 {idx + 1}번째 사이다 전개로 전진시킨다"
+        scene["end_bridge"] = hook
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "korean drama scene plan repetition QA",
+    }
+    return repaired
+
+
+def _repair_overseas_touching_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "해외 감동 실화").strip()
+    beat_templates = [
+        ("낯선 타국 땅에서 말이 통하지 않아 절체절명의 위기에 빠진 한국인의 모습으로 연다", "언어와 문화의 장벽 속에서 마주한 고립과 공포를 보여준다", "아무도 아는 이 없는 타국에서 무슨 일이 벌어졌을까?"),
+        ("지갑을 잃어버리거나 여권, 소지품을 도난당해 길거리에 주저앉은 상황을 제시한다", "주인공의 절박한 처지와 막막한 심정을 강조한다", "어두워지는 외국 거리에서 어디로 가야 했을까?"),
+        ("주변의 차가운 시선 속에 체념하려던 순간, 낯선 외국인이 다가온다", "첫 번째 친절의 손길과 의외의 만남을 만든다", "이 외국인은 왜 지나치지 않고 걸음을 멈췄을까?"),
+        ("서투른 손짓 발짓과 번역기로 상황을 파악하고 기꺼이 도움을 주는 장면을 담는다", "국경을 초월한 인간애와 소통의 온기를 전달한다", "말이 통하지 않는데 어떻게 마음이 먼저 닿았을까?"),
+        ("외국인이 자기 집으로 데려가 따뜻한 식사를 대접하고 차비를 쥐여준다", "조건 없는 선의와 따뜻한 보살핌을 구체화한다", "남을 돕는 일에 왜 자기 지갑을 아끼지 않았을까?"),
+        ("외국인이 한국인에게 남다른 애정과 은혜를 품게 된 과거 사연을 공개한다", "단순 친절이 아니라 역사적/인간적 인연의 반전을 만든다", "그는 왜 한국인이라는 말에 눈시울을 붉혔을까?"),
+        ("과거 한국전쟁 참전용사였거나 한국인 간호사/유학생에게 도움을 받았던 일화가 밝혀진다", "세대를 건너 이어진 은혜의 순환을 감동적으로 드러낸다", "수십 년 전 뿌려진 은혜의 씨앗이 어떻게 돌아왔을까?"),
+        ("주인공이 무사히 위기를 넘기고 귀국하며 반드시 다시 찾아오겠다고 약속한다", "약속과 기다림의 서사를 만든다", "이 소중한 인연은 여기서 끝나는 것일까?"),
+        ("세월이 흘러 주인공이 성공한 뒤 은인을 찾기 위해 다시 타국으로 떠난다", "보은(報恩)을 향한 능동적 행동을 시작한다", "수십 년이 지난 지금, 그 은인은 어디에 계실까?"),
+        ("옛 주소지가 바뀌고 흔적이 사라져 추적이 난관에 부딪히는 위기를 배치한다", "찾아가는 여정의 긴장감을 유지한다", "사진 한 장만으로 이 넓은 땅에서 찾을 수 있을까?"),
+        ("현지 방송사나 SNS의 도움으로 기적처럼 은인의 거처를 찾아낸다", "모두가 한마음으로 돕는 감동의 확장을 보여준다", "수소문 끝에 울린 전화 한 통의 목소리는?"),
+        ("노인이 된 은인과 중년이 된 주인공이 눈물의 재회를 나눈다", "클라이맥스 감동과 진정한 보은의 순간을 완성한다", "두 사람이 끌어안고 흘린 눈물의 의미는 무엇일까?"),
+        ("국경과 세대를 넘어 인간의 선의가 만들어낸 기적을 따뜻하게 정리하며 닫는다", "시청자에게 깊은 울림과 인류애의 메시지를 전한다", "우리가 베푼 작은 친절은 언젠가 어떻게 돌아올까?"),
+    ]
+    repaired = dict(structure)
+    repaired_scenes = []
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        summary, purpose, hook = beat_templates[idx % len(beat_templates)]
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene["scene_summary"] = f"{idx + 1}번 장면: {summary}"
+        scene["scene_purpose"] = purpose
+        scene["retention_hook"] = hook
+        scene["title_promise_link"] = f"'{title}'의 감동 실화를 {idx + 1}번째 감동 순간으로 전진시킨다"
+        scene["end_bridge"] = hook
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "overseas touching scene plan repetition QA",
+    }
+    return repaired
+
+
+def _refresh_old_story_scene_visual_fields(structure: dict, topic: str, upload_title: str) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "옛날이야기").strip()
+    shot_motifs = [
+        "마을 입구의 금줄과 젖은 흙길",
+        "초가 마당의 등잔불과 닫힌 문",
+        "우물가에 모인 사람들의 낮은 수군거림",
+        "달빛 아래 흔들리는 한복 소매",
+        "장독대 뒤로 사라지는 발자국",
+        "낡은 족자와 접힌 편지",
+        "비어 있는 혼례상과 꺼진 촛불",
+        "안개 낀 산길과 오래된 소나무",
+        "사당 앞에 놓인 붉은 실",
+        "새벽 논둑 위로 번지는 푸른 빛",
+        "마을 어른의 굳은 얼굴과 떨리는 손",
+        "문틈 사이로 비치는 희미한 등불",
+        "흙 묻은 신발과 젖은 치맛자락",
+        "바람에 흔들리는 대문 고리",
+        "빈 방 한가운데 남은 작은 보자기",
+        "흐린 창호지에 비친 사람 그림자",
+    ]
+    camera_beats = [
+        "낮은 시점에서 천천히 다가간다",
+        "정면 고정 구도로 숨 막히는 침묵을 잡는다",
+        "손과 물건을 가까이 잡아 단서를 강조한다",
+        "인물 뒤편에서 따라가며 불안을 만든다",
+        "넓은 마을 풍경에서 인물의 고립을 드러낸다",
+        "촛불 흔들림을 전경에 두고 얼굴을 흐리게 둔다",
+        "문이 열리는 순간을 느리게 보여준다",
+        "발자국과 시선의 방향을 이어 붙인다",
+    ]
+    refreshed = dict(structure)
+    refreshed_scenes = []
+    for idx, original in enumerate(scenes, start=1):
+        scene = dict(original or {})
+        summary = str(scene.get("scene_summary") or scene.get("scene_situation") or f"{title}의 {idx}번째 단서").strip()
+        purpose = str(scene.get("scene_purpose") or "제목의 비밀을 한 걸음 더 전진시킨다").strip()
+        hook = str(scene.get("retention_hook") or scene.get("end_bridge") or "다음 장면에서 감춰진 이유가 조금 더 드러난다").strip()
+        motif = shot_motifs[(idx - 1) % len(shot_motifs)]
+        camera = camera_beats[(idx - 1) % len(camera_beats)]
+        if idx <= 12:
+            phase = "첫 1분 빠른 훅 컷"
+        elif idx <= 32:
+            phase = "중반 단서 추적 컷"
+        elif idx <= 45:
+            phase = "후반 진실 접근 컷"
+        else:
+            phase = "결말 회수 컷"
+        unique_bridge = f"{hook} 다음 단서는 '{summary}' 장면에서 이어진다."
+        scene["scene_situation"] = f"{summary} {purpose}"
+        scene["visual_direction"] = (
+            f"{phase}. '{title}'의 {idx}번째 장면은 {motif}을 중심 이미지로 삼고, "
+            f"{camera}. 화면 안의 인물, 소품, 장소가 '{summary}'의 사건을 직접 보여주게 한다."
+        )
+        scene["tts_direction"] = (
+            f"할머니가 옛이야기를 들려주듯 낮고 선명하게 말한다. "
+            f"이 장면에서는 '{summary}'를 설명보다 사건으로 느끼게 하고, 끝은 '{unique_bridge}'의 여운으로 넘긴다."
+        )
+        scene["end_bridge"] = unique_bridge
+        for field in ("image_prompt", "prompt_en", "prompt_content", "prompt", "video_prompt"):
+            scene.pop(field, None)
+        refreshed_scenes.append(scene)
+    refreshed["scenes"] = refreshed_scenes
+    refreshed["scene_count"] = len(refreshed_scenes)
+    return refreshed
+
+
+
+
+def _repair_survival_story_scene_plan_repetition(structure: dict, topic: str, upload_title: str) -> dict:
+    """Rebuild survival/testimony stories when the planner loops repeated beats."""
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        return structure
+    title = (upload_title or topic or "생존 증언").strip()
+    beats = [
+        ("차가운 강가에 도착하기 전 마지막 집 안의 침묵을 보여준다", "가족이 왜 그 밤을 선택할 수밖에 없었는지 생활의 압박으로 연다", "문밖의 발소리는 정말 이 가족을 향해 오는 것일까?"),
+        ("어머니가 숨겨 둔 천 조각과 약봉지를 꺼낸다", "도강이 모험이 아니라 병든 가족을 살리기 위한 선택임을 세운다", "이 작은 약봉지가 국경보다 무거운 이유는 무엇일까?"),
+        ("주인공이 장마당에서 들은 단속 소문을 떠올린다", "위험이 막연한 공포가 아니라 오늘 밤 닥칠 사건임을 구체화한다", "소문은 과장이었을까, 마지막 경고였을까?"),
+        ("동생의 기침 소리를 이불로 막는 장면을 배치한다", "가족 내부의 연약함을 보여주며 보호 본능을 만든다", "숨소리 하나가 모두를 위험하게 만들 수 있을까?"),
+        ("아버지가 오래 숨긴 신분증과 돈을 나누어 쥔다", "탈출 계획이 이미 오래전부터 준비됐음을 암시한다", "왜 아버지는 이 사실을 끝까지 말하지 않았을까?"),
+        ("검문소 앞에서 이웃의 이름이 불리는 순간을 보여준다", "주인공 가족이 바로 다음 차례일 수 있다는 압박을 만든다", "이웃이 끌려간 이유가 우리 가족과도 연결되어 있을까?"),
+        ("안내자가 약속 장소에 늦어지며 첫 균열을 만든다", "돈을 낸다고 안전이 보장되지 않는 세계를 보여준다", "기다리는 시간이 길어질수록 누구를 의심해야 할까?"),
+        ("강으로 가는 길목에서 손전등 불빛이 논둑을 훑는다", "추격의 시각적 위협을 첫 행동 장애물로 만든다", "불빛이 한 번 더 돌아오면 숨을 곳이 남아 있을까?"),
+        ("어머니가 동생을 업고 얼어붙은 흙길에 주저앉는다", "가족 중 한 사람의 한계가 전체 선택을 흔들게 한다", "여기서 멈추면 살 수 있을까, 더 위험해질까?"),
+        ("주인공이 처음으로 가족 대신 거짓말을 하기로 결심한다", "수동적 피해자에서 행동하는 인물로 전환한다", "그 거짓말은 가족을 구할까, 더 큰 의심을 부를까?"),
+        ("국경 초소의 교대 시간을 맞추려 뛰는 장면을 넣는다", "시간 제한을 부여해 이야기를 앞으로 밀어낸다", "몇 분의 차이가 생사를 가를 수 있을까?"),
+        ("강가에 먼저 도착한 다른 가족의 흔적을 발견한다", "탈북의 길이 개인의 비극만이 아니라 반복되는 현실임을 넓힌다", "그 가족은 건넜을까, 붙잡혔을까?"),
+        ("얼음 아래 물소리가 들리며 첫 실제 도강이 시작된다", "제목의 강 장면을 구체적 감각으로 시작한다", "첫 발을 내딛는 순간 돌아갈 길은 사라진다"),
+        ("동생의 신발 한 짝이 물에 빠지는 사건을 만든다", "작은 물건 하나로 생존 난도를 높인다", "신발을 포기하면 동생은 끝까지 걸을 수 있을까?"),
+        ("뒤쪽에서 호루라기 소리가 들려 가족이 흩어질 위기에 놓인다", "추격 압박을 말이 아닌 소리와 행동으로 보여준다", "지금 흩어지면 다시 만날 방법이 있을까?"),
+        ("아버지가 일부러 다른 방향으로 발자국을 남긴다", "희생의 첫 실체를 행동으로 제시한다", "그 발자국은 시간을 벌어줄까, 마지막 이별이 될까?"),
+        ("중국 쪽 풀숲에 닿았지만 안내자가 사라진 사실을 알게 된다", "도강 이후에도 위험이 끝나지 않았음을 보여준다", "강을 건넜는데 왜 더 무서워졌을까?"),
+        ("낯선 창고에서 첫 밤을 보내며 말 한마디도 못 한다", "생존 후의 공포와 침묵을 정서적으로 쌓는다", "살아남았다는 사실이 왜 안도보다 두려움일까?"),
+        ("브로커가 약속과 다른 금액을 요구하며 가족을 압박한다", "새로운 착취 구조를 등장시켜 갈등을 확장한다", "돈이 없으면 다시 북으로 보내질까?"),
+        ("주인공이 어머니의 약을 구하려 처음 낯선 시장으로 나간다", "생존 공간을 강에서 도시 변두리로 이동시킨다", "말투 하나가 정체를 들키게 만들 수 있을까?"),
+        ("공안 단속 소식이 들리며 은신처를 옮겨야 한다", "정체 발각 위험을 중반부의 새 장애물로 전환한다", "가장 안전하던 방이 왜 가장 위험한 곳이 되었을까?"),
+        ("동생이 열이 올라 이동을 거부하는 순간을 배치한다", "가족을 버릴 수 없는 선택 딜레마를 만든다", "살기 위해 떠나야 하는데 누구를 두고 갈 수 있을까?"),
+        ("낯선 조선족 노인이 하루만 숨겨 주겠다고 한다", "불신 속에서 작은 도움의 가능성을 보여준다", "이 호의는 구원일까, 신고의 미끼일까?"),
+        ("노인의 집 벽에 붙은 오래된 가족사진을 통해 과거를 엿본다", "도움을 주는 인물에게도 상실의 이유가 있음을 만든다", "그는 왜 위험을 알면서 문을 열었을까?"),
+        ("전화 한 통으로 한국행 가능성을 처음 듣는다", "목표를 단순 도강에서 최종 안전지대로 확장한다", "한국이라는 단어가 왜 더 먼 공포처럼 들릴까?"),
+        ("아버지와 연락이 끊긴 사실을 확인한다", "희생의 대가를 중반부 감정 축으로 끌어올린다", "아버지는 시간을 번 것일까, 돌아오지 못한 것일까?"),
+        ("주인공이 아버지를 찾으러 돌아가겠다고 고집한다", "가족애와 생존 본능의 충돌을 만든다", "한 사람을 찾으려다 모두를 잃을 수도 있을까?"),
+        ("어머니가 처음으로 아버지의 마지막 부탁을 말한다", "숨겨진 정보를 공개해 선택의 방향을 바꾼다", "그 부탁은 왜 지금까지 숨겨졌을까?"),
+        ("두 번째 이동에서 기차역 검문을 통과해야 한다", "공간과 위험 방식을 바꿔 반복감을 줄인다", "표 한 장이 자유로 가는 문이 될 수 있을까?"),
+        ("동생이 무심코 북한식 단어를 말해 위기가 닥친다", "정체가 들킬 뻔한 구체적 실수를 만든다", "한 단어가 모든 계획을 무너뜨릴까?"),
+        ("주인공이 다른 사투리로 말을 돌려 위기를 넘긴다", "초반의 두려움이 생존 기술로 바뀌었음을 보여준다", "그는 언제 이렇게 빨리 어른이 되었을까?"),
+        ("브로커 일행 중 한 명이 가족을 팔아넘기려는 낌새를 보인다", "외부 적대자를 새로 세워 긴장을 높인다", "가장 가까운 안내자가 가장 위험한 사람이라면?"),
+        ("어머니가 숨겨 둔 돈 대신 결혼반지를 내민다", "물질보다 기억을 내놓는 감정적 비용을 보여준다", "그 반지는 가족에게 마지막으로 남은 과거였을까?"),
+        ("밤길에서 차량을 갈아타며 추격을 간신히 피한다", "중반 후반부를 정적인 대기에서 물리적 이동으로 전환한다", "뒤따라오는 헤드라이트는 누구의 차일까?"),
+        ("국경을 넘기 전 마지막 은신처에서 배신자의 정체가 드러난다", "후반 반전을 위한 인간 갈등을 명확히 한다", "왜 그는 처음부터 가족 곁에 붙어 있었을까?"),
+        ("주인공이 처음으로 어머니와 동생을 먼저 보내기로 한다", "보호받던 인물이 보호자가 되는 전환을 만든다", "뒤에 남는 선택은 용기일까, 포기일까?"),
+        ("추격자가 들이닥치기 직전 노인이 문을 막아선다", "조력자의 희생을 통해 연대의 감정을 세운다", "피가 섞이지 않은 사람도 가족이 될 수 있을까?"),
+        ("주인공이 아버지의 발자국과 같은 선택을 반복한다", "초반 희생 장면을 후반 성장으로 회수한다", "그는 아버지를 잃은 것이 아니라 배운 것일까?"),
+        ("마지막 차량 안에서 동생이 잃어버린 신발 이야기를 꺼낸다", "초반 소품을 감정의 회수 장치로 사용한다", "버린 신발 한 짝이 왜 아직 마음에 남았을까?"),
+        ("한국행 연락책이 가족 이름을 확인하는 장면을 넣는다", "목표가 실제 절차와 확인으로 다가왔음을 보여준다", "이름을 말하는 순간 정말 새 삶이 시작될까?"),
+        ("안전지대 직전 마지막 검문에서 가족이 다시 멈춰 선다", "클라이맥스 전 마지막 현실 장애물을 만든다", "여기서 잡히면 모든 희생은 어디로 가는가?"),
+        ("어머니가 떨리는 손으로 준비한 답을 말한다", "가족이 함께 준비한 생존 전략을 실행한다", "그 한 문장은 훈련이었을까, 진심이었을까?"),
+        ("검문관이 동생의 젖은 신발 자국을 바라본다", "작은 흔적이 마지막 위협으로 돌아오게 한다", "발자국 하나가 과거를 들춰낼까?"),
+        ("주인공이 동생 대신 모든 의심을 자신에게 돌린다", "최종 선택의 도덕적 무게를 만든다", "누군가를 살리려면 누군가는 죄인이 되어야 할까?"),
+        ("긴 침묵 뒤 차량 문이 열리며 통과 신호가 떨어진다", "긴장을 행동의 해소로 보여준다", "문이 열린 곳은 자유일까, 또 다른 시작일까?"),
+        ("처음 안전한 방에서 가족이 소리 없이 운다", "성공을 환호가 아니라 탈진과 슬픔으로 처리한다", "살아남은 사람은 왜 먼저 울게 될까?"),
+        ("아버지 소식을 끝내 듣지 못한 시간이 이어진다", "승리 뒤에도 남는 상실을 정직하게 남긴다", "자유는 모든 사람을 함께 데려오지 못한다"),
+        ("20년 후 인터뷰 자리에서 주인공이 그 밤을 다시 말한다", "제목의 고백 구조를 현재 시점으로 회수한다", "왜 그는 이제야 그 이야기를 꺼냈을까?"),
+        ("압록강 물소리를 들으면 아직도 몸이 굳는다고 고백한다", "트라우마를 과장 없이 신체 기억으로 표현한다", "시간은 지나도 몸은 그 밤을 기억할까?"),
+        ("동생이 자라 자신의 아이에게 그날의 신발을 이야기한다", "세대가 바뀌어도 기억이 이어지는 방식을 보여준다", "상처는 어떻게 가족의 언어가 될까?"),
+        ("어머니가 간직한 반지 없는 손을 조용히 비춘다", "잃어버린 물건을 통해 선택의 대가를 마무리한다", "그 빈손은 패배일까, 살아남은 증거일까?"),
+        ("주인공이 아버지에게 보내는 말로 마지막 고백을 정리한다", "상실과 감사, 생존의 의미를 한 사람에게 모은다", "듣지 못할 사람에게도 고백은 닿을까?"),
+        ("마지막 장면에서 강이 아니라 현재의 식탁을 보여준다", "이야기를 탈출담이 아닌 살아낸 삶의 증언으로 닫는다", "그 밤의 선택이 오늘의 가족을 만들었다"),
+    ]
+    repaired = dict(structure)
+    repaired_scenes = []
+    for idx, original in enumerate(scenes):
+        scene = dict(original or {})
+        summary, purpose, hook = beats[idx % len(beats)]
+        scene["scene_order"] = idx + 1
+        scene["scene_number"] = idx + 1
+        scene["scene_summary"] = f"{idx + 1}번 장면: {summary}"
+        scene["scene_purpose"] = purpose
+        scene["retention_hook"] = hook
+        scene["title_promise_link"] = f"'{title}'의 약속을 생존의 선택, 가족의 위험, 현재의 고백으로 한 단계 전진시킨다"
+        scene["end_bridge"] = hook
+        repaired_scenes.append(scene)
+    repaired["scenes"] = repaired_scenes
+    repaired["scene_count"] = len(repaired_scenes)
+    repaired["planner_notes"] = {
+        **(repaired.get("planner_notes") or {}),
+        "repaired_repeated_scene_beats": True,
+        "repair_reason": "survival story scene plan unique beat rebuild",
+    }
+    return repaired
+
+
+def _requires_strict_scene_planner_success(job: dict) -> bool:
+    payload = job.get("payload") or {}
+    return bool(payload.get("require_scene_planner_success"))
+
+
+def _process_script_plan_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    """[AIR-0230 §2d] Pre-bakes a scene structure for one topics_queue row
+    ahead of any user claiming it - reuses app/services/scene_planner.py's
+    plan_scenes() verbatim (same function the live claim-and-plan flow uses,
+    app/routers/gemini.py::generate_script_structure_api()), so a pre-baked
+    structure is indistinguishable in shape from one generated live."""
+    job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating payload)")
+
+    topic_queue_id, topic, target_duration, script_style, image_style, language, benchmark_analysis, upload_title, title_generation = _validate_script_plan_payload(job["payload"])
+    target_scene_count = None
+    try:
+        raw_target_scene_count = (job.get("payload") or {}).get("target_scene_count")
+        if raw_target_scene_count is not None:
+            target_scene_count = max(1, min(400, int(raw_target_scene_count)))
+    except (TypeError, ValueError):
+        target_scene_count = None
+    image_style, image_style_selection = _select_worker_image_style_for_plan(job, job["payload"], topic, upload_title)
+
+    job_store.transition(job_id, job_store.RENDERING, reason="planning scene structure")
+    write_state("running", job, 30, job_id)
+    job_log.info(f"-> RENDERING (planning scenes for topic_queue_id={topic_queue_id})")
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services.script_style_resolver import resolve_script_style_directive
+    from app.services.scene_planner import scene_planner_service
+    import asyncio
+
+    config.SCRIPT_PLANNING_MODEL = _prefer_gemini_text_model(config, config.SCRIPT_PLANNING_MODEL)
+    Config.SCRIPT_PLANNING_MODEL = config.SCRIPT_PLANNING_MODEL
+
+    # Relies on this worker PC's local script_style_presets being in sync
+    # with the web-admin (same assumption every other desktop install
+    # already depends on for this function - not new to this job type).
+    style_directive = resolve_script_style_directive(script_style)
+    learning_instruction = _learning_profile_instruction(job.get("payload") or {})
+    feedback_instruction = _quality_feedback_instruction(job.get("payload") or {})
+    repair_instruction = str((job.get("payload") or {}).get("repair_instruction") or "").strip()
+    repair_source_script = str((job.get("payload") or {}).get("repair_source_script") or "").strip()
+    if learning_instruction:
+        style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
+    if feedback_instruction:
+        style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
+    if repair_instruction:
+        style_directive = f"{style_directive}\n\nRepair instruction:\n{repair_instruction}".strip()
+    if repair_source_script:
+        style_directive = f"{style_directive}\n\nExisting incomplete draft to reuse, expand, and clean up:\n{repair_source_script[:8000]}".strip()
+    category_context = " ".join(
+        str((job.get("payload") or {}).get(key) or "")
+        for key in ("category", "category_name")
+    ).strip()
+    category_name = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    script_style_context = f"{script_style} {category_context}".strip()
+    if _is_old_story_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        str((job.get("payload") or {}).get("image_style") or ""),
+        category=category_name,
+    ):
+        old_story_script_guard = """
+
+Old-story script guard:
+- Stay inside a pre-modern Korean folk-tale world. Do not introduce modern objects, places, institutions, or disputes.
+- Forbidden modern drift: developer, redevelopment, excavator, museum, bus, phone, cellphone, Seoul trip, police report, court lawsuit, camera, broadcast, apartment, car, hospital, office.
+- Do not invent a new external subplot that is not in the scene plan. Expand only the characters, place, object, secret, and emotional promise already present in the upload title and scene_situation fields.
+- Never replace the title promise with a different family plot. The protagonist, central mystery, and final payoff must stay anchored to the upload title.
+- Do not narrate planning labels such as middle turn, scene purpose, hook, prompt, camera, shot, or visual direction.
+""".strip()
+        style_directive = f"{style_directive}\n\n{old_story_script_guard}".strip()
+    previous_error = str(job.get("error_message") or "").strip()
+    if previous_error:
+        hard_retry_rules = [
+            "Do not write camera, screen, subtitle, shot, or visual-direction narration in the script.",
+            "Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.",
+        ]
+        hard_retry_rules.extend(
+            [
+                "Do not introduce modern finance, pension, bankbook, budget, policy, or investment beats.",
+                "Keep the plan inside the selected category's narrative world, title promise, characters, conflict, and payoff.",
+            ]
+        )
+        retry_instruction = f"""
+
+Previous generation attempt failed QA. Fix these exact issues:
+{previous_error[:2400]}
+
+Hard retry rules:
+{chr(10).join(f"- {rule}" for rule in hard_retry_rules)}
+""".strip()
+        style_directive = f"{style_directive}\n\n{retry_instruction}".strip()
+    scene_plan_guard = """
+
+Scene planning guard:
+- Every scene must introduce a new action, fact, decision, consequence, objection, or emotional turn.
+- Do not create multiple consecutive scenes with the same summary, purpose, hook, or explanation.
+- Do not introduce finance, pension, policy, investment, or market-analysis material.
+- If the plan has 53 scenes, each scene must be a distinct beat; repeated development beats are invalid.
+- Never use numbered template labels such as "1번째 중반 전환", "2번째 중반 전환", or any scene summary where only the ordinal changes.
+""".strip()
+    style_directive = f"{style_directive}\n\n{scene_plan_guard}".strip()
+
+    structure = asyncio.run(
+        scene_planner_service.plan_scenes(
+            topic=topic,
+            target_duration=target_duration,
+            style_directive=style_directive,
+            benchmark_analysis=benchmark_analysis,
+            upload_title=upload_title,
+            title_generation=title_generation,
+            target_scene_count=target_scene_count,
+        )
+    )
+
+    category_context = " ".join(
+        str((job.get("payload") or {}).get(key) or "")
+        for key in ("category", "category_name")
+    ).strip()
+    script_style_context = f"{script_style} {category_context}".strip()
+    detected_cat = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+
+    planner_notes = structure.get("planner_notes") or {}
+    if planner_notes.get("error"):
+        planner_error = planner_notes.get("error_message") or "scene_planner_service.plan_scenes() failed"
+        job_log.warning(f"Scene planner fallback activated: {planner_error}")
+        if _requires_strict_scene_planner_success(job):
+            raise RuntimeError(f"scene planner failed before fallback: {planner_error}")
+        structure = _build_fallback_scene_plan(
+            topic=topic,
+            upload_title=upload_title,
+            target_duration=target_duration,
+            script_style=script_style,
+            style_directive=style_directive,
+            benchmark_analysis=benchmark_analysis,
+            title_generation=title_generation,
+            category=detected_cat,
+        )
+    research_bundle = (benchmark_analysis or {}).get("web_research")
+    if isinstance(research_bundle, dict):
+        structure["research_bundle"] = research_bundle
+    folktale_plan_context = _is_folktale_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        image_style,
+        category=detected_cat,
+    )
+    old_story_plan_context = _is_old_story_plan_context(script_style_context, topic, upload_title, image_style)
+    plan_errors = _scene_plan_repetition_errors(structure)
+    if plan_errors:
+        if _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
+            job_log.warning(f"Scene plan repetition QA requested martial rebuild: {plan_errors[:8]}")
+            structure = _repair_martial_scene_plan_repetition(structure, topic, upload_title)
+        elif old_story_plan_context:
+            raise RuntimeError(f"old-story scene plan repetition QA failed: {plan_errors[:8]}")
+        elif _is_survival_story_plan_context(script_style_context, topic, upload_title, image_style):
+            job_log.warning(f"Scene plan repetition QA requested survival-story rebuild: {plan_errors[:8]}")
+            structure = _repair_survival_story_scene_plan_repetition(structure, topic, upload_title)
+        elif _is_twilight_plan_context(script_style_context, topic, upload_title, image_style):
+            job_log.warning(f"Scene plan repetition QA requested twilight rebuild: {plan_errors[:8]}")
+            structure = _repair_twilight_scene_plan_repetition(structure, topic, upload_title)
+        elif _is_korean_drama_plan_context(script_style_context, topic, upload_title, image_style):
+            job_log.warning(f"Scene plan repetition QA requested korean drama rebuild: {plan_errors[:8]}")
+            structure = _repair_korean_drama_scene_plan_repetition(structure, topic, upload_title)
+        elif _is_overseas_touching_plan_context(script_style_context, topic, upload_title, image_style):
+            job_log.warning(f"Scene plan repetition QA requested overseas touching rebuild: {plan_errors[:8]}")
+            structure = _repair_overseas_touching_scene_plan_repetition(structure, topic, upload_title)
+        else:
+            job_log.warning(f"Scene plan repetition QA requested category-safe fallback rebuild: {plan_errors[:8]}")
+            structure = _build_fallback_scene_plan(
+                topic=topic,
+                upload_title=upload_title,
+                target_duration=target_duration,
+                script_style=script_style,
+                style_directive=style_directive,
+                benchmark_analysis=benchmark_analysis,
+                title_generation=title_generation,
+                category=detected_cat,
+            )
+
+        # Repair builders preserve the planner's original visual fields unless
+        # refreshed here. Those fields can contain internal template labels such
+        # as "Timed visual beat" and must be replaced before the second QA pass.
+        structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
+        plan_errors = _scene_plan_repetition_errors(structure)
+        if plan_errors:
+            job_log.warning(f"Scene plan repair still repeated; rebuilding deterministic fallback: {plan_errors[:8]}")
+            structure = _build_fallback_scene_plan(
+                topic=topic,
+                upload_title=upload_title,
+                target_duration=target_duration,
+                script_style=script_style,
+                style_directive=style_directive,
+                benchmark_analysis=benchmark_analysis,
+                title_generation=title_generation,
+                category=detected_cat,
+            )
+            structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
+            plan_errors = _scene_plan_repetition_errors(structure)
+            if plan_errors:
+                raise RuntimeError(f"scene plan repetition QA failed after fallback rebuild: {plan_errors[:8]}")
+
+    structure = _refresh_scene_visual_fields_for_category(detected_cat, structure, topic, upload_title)
+    category_errors = _scene_plan_category_contamination_errors(
+        structure,
+        script_style=script_style_context,
+        topic=topic,
+        upload_title=upload_title,
+        image_style=image_style,
+        category=detected_cat,
+    )
+    if category_errors:
+        raise RuntimeError(f"scene plan category QA failed: {category_errors[:8]}")
+    plan_quality_report = _validate_script_plan_stage(
+        structure,
+        script_style=script_style_context,
+        topic=topic,
+        upload_title=upload_title,
+        image_style=image_style,
+        category=category_name,
+    )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
+    write_state("running", job, 90, job_id)
+    job_log.info(f"-> UPLOADING (scene_count={structure.get('scene_count')})")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "script_plan_generate",
+        "status": "COMPLETED",
+        "topic_queue_id": topic_queue_id,
+        "upload_title": upload_title,
+        "title_generation": title_generation,
+        "generation_models": {
+            **(
+                title_generation.get("generation_models")
+                if isinstance(title_generation.get("generation_models"), dict)
+                else {}
+            ),
+            "script_planning": config.SCRIPT_PLANNING_MODEL,
+        },
+        "image_style": image_style,
+        "image_style_selection": image_style_selection or {},
+        "structure": structure,
+        "stage_quality_report": plan_quality_report,
+        "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
+        "completed_at": completed_at,
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="script plan complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
+# =====================================================================
+# [AIR-0230 §2d] script_generate - full narration text pre-generation.
+#
+# Ported from templates/pages/script_gen.html::generateScript() (client
+# JS), section by section, with ONE deliberate correction found while
+# porting: the live client reads section.title/section.key_points, but
+# scene_planner_service.plan_scenes() (the only structure source since
+# AIR-0209 "Scene Source of Truth") produces scene_summary/scene_situation/
+# scene_purpose/scene_emotion/tts_direction - there is no title/key_points
+# field anywhere in that schema, and no normalization step exists between
+# them (confirmed by exhaustive search of script_gen.html and the DB
+# round-trip in database.py::get_full_project). This means the LIVE app
+# has been sending "제목: undefined" / "주요 내용: 자유롭게 작성" into every
+# single section prompt since AIR-0209 - the detailed per-scene planning
+# scene_planner produces has never actually reached script generation.
+# This port uses the real scene fields instead (see _build_section_prompt).
+# The live script_gen.html itself is a separate, not-yet-done fix - see
+# docs/AIR_0230_HERMES_BENCHMARK_WORKER_ARCHITECTURE.md §2d.
+#
+# Also adds one thing script_gen.html never had at all: an explicit
+# language instruction (script_gen.html fetches project.language into an
+# unused variable and always writes Korean prompts regardless) - since
+# this path already threads topic language through from topics_queue, it
+# costs nothing to do this correctly here.
+# =====================================================================
+
+SCRIPT_GEN_LANGUAGE_INSTRUCTIONS = {
+    "ko": "반드시 자연스러운 한국어로 작성하세요.",
+    "en": "You MUST write the entire output in natural, fluent English.",
+    "ja": "必ず自然な日本語で作成してください。",
+}
+
+# Keep language instructions explicit. The legacy values above were corrupted
+# by an earlier encoding conversion and can cause the model to ignore Korean.
+SCRIPT_GEN_LANGUAGE_INSTRUCTIONS = {
+    "ko": "전체 대본을 자연스럽고 유창한 한국어로 작성하세요. 번역투와 어색한 직역을 피하세요.",
+    "en": "You MUST write the entire output in natural, fluent English.",
+    "ja": "出力全体を自然で流暢な日本語で書いてください。直訳調の不自然な表現は避けてください。",
+}
+
+# Regexes ported 1:1 from script_gen.html's inline JS (see module comment above).
+_CLEANUP_BRACKET_PATTERN = re.compile(r"\[[^\]]*\]")
+# Non-raw string so \uXXXX resolves to real Hangul-range characters before
+# re.compile sees them - a raw string would hand re the literal backslash-u
+# sequence instead, which Python's re engine does not reliably expand.
+_CLEANUP_ALLOWED_PATTERN = re.compile(
+    "[^\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318Fa-zA-Z0-9\\s,.\\?\\!\"'\\.:\\(\\)]"
+)
+_SPEAKER_STRIP_PATTERN = re.compile(r"^[가-힣\w\s]+[ \t]*:[ \t]*", re.MULTILINE)
+_SPEAKER_LINE_REGEX = re.compile(r"^\s*(?:([^\s:\[\]()]+)(?:\(.*\))?[:：]|([^\s:\[\]()]+)[)）\]])")
+_SPEAKER_NAME_STRIP_PATTERN = re.compile(r"[\*_#\[\]\{\}()]")
+
+
+def _clean_section_text(text: str, is_multi: bool) -> str:
+    text = _CLEANUP_BRACKET_PATTERN.sub("", text)
+    text = text.replace("*", "")
+    text = _CLEANUP_ALLOWED_PATTERN.sub("", text)
+    if not is_multi:
+        text = _SPEAKER_STRIP_PATTERN.sub("", text)
+    return text.strip()
+
+
+_SCRIPT_EMOTION_CUE_KEYWORDS = {
+    "ko": (
+        "차분", "조용", "나직", "잔잔", "덤덤", "낮게", "낮은 목소리", "속삭", "숨죽",
+        "슬프", "슬픔", "울먹", "눈물", "떨리는", "애절", "절망", "한숨", "탄식",
+        "진지", "단호", "엄숙", "묵직", "결연", "조심", "냉정", "경고",
+        "기쁘", "밝게", "따뜻", "웃으며", "설레", "희망",
+        "분노", "화가", "격앙", "거칠", "억울", "다급", "긴박", "놀라", "경악", "외치",
+    ),
+    "en": (
+        "calm", "quiet", "soft", "low voice", "whisper", "sad", "tearful", "trembling",
+        "serious", "firm", "solemn", "thoughtful", "warm", "bright", "hopeful", "angry",
+        "anger", "urgent", "shouting", "shocked", "frightened", "sigh",
+    ),
+    "ja": (
+        "静か", "低く", "落ち着", "ささや", "震え", "涙", "悲し", "切な", "真剣",
+        "きっぱり", "厳か", "重く", "優しく", "温か", "明るく", "喜び", "怒り",
+        "苛立", "緊迫", "驚き", "叫び", "ため息",
+    ),
+}
+_SCRIPT_EMOTION_CUE_PATTERN = re.compile(r"(?:\(([^()\n]{1,40})\)|（([^（）\n]{1,40})）)")
+_SCRIPT_QUOTED_DIALOGUE_PATTERN = re.compile(
+    r'(?:"[^"\n]{2,220}"|“[^”\n]{2,220}”|「[^」\n]{2,220}」|『[^』\n]{2,220}』)'
+)
+
+
+def _script_emotion_cue_instruction(language: str) -> str:
+    if language == "ja":
+        return (
+            "感情・話し方の指示は声優が読める丸括弧だけで表し、効果音・音楽・画面説明・人物名は括弧に入れないでください。"
+            "直接台詞の直前には必ず `(低く)`, `(震えながら)`, `(優しく)` のような指示を置き、"
+            "長いナレーションにも約1200字ごとに自然な感情転換を1つ入れてください。"
+        )
+    if language == "en":
+        return (
+            "Use parentheses only for voice emotion or acting tone, never for SFX, music, visuals, or speaker names. "
+            "Every direct quote must be immediately preceded by a cue such as `(quietly)`, `(tearfully)`, or `(firmly)`. "
+            "In long narration, add a natural vocal-emotion transition about once per 1,200 characters."
+        )
+    return (
+        "소괄호에는 성우가 표현할 목소리 감정/말투만 적고, 효과음·음악·화면 설명·화자 이름은 넣지 마세요. "
+        "모든 직접 대사 바로 앞에는 `(낮은 목소리로)`, `(울먹이며)`, `(단호하게)` 같은 감정 괄호를 반드시 붙이세요. "
+        "긴 나레이션에도 약 1,200자마다 한 번씩 자연스러운 감정 전환 괄호를 넣으세요. "
+        "금액을 한글로 읽을 때는 고유어 수사(스무·서른·마흔·쉰·예순·일흔·여든·아흔)를 쓰지 말고, "
+        "반드시 한자어 수사(이십·삼십·사십·오십·육십·칠십·팔십·구십)를 사용하세요. "
+        "예: `예순몇만 원`이 아니라 `육십몇만 원`."
+    )
+
+
+def _is_script_emotion_cue(content: str, language: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(content or "")).strip().casefold()
+    if not normalized:
+        return False
+    keywords = _SCRIPT_EMOTION_CUE_KEYWORDS.get(language, ())
+    return any(keyword.casefold() in normalized for keyword in keywords)
+
+
+def _script_emotion_cue_count(script: str, language: str) -> int:
+    count = 0
+    for match in _SCRIPT_EMOTION_CUE_PATTERN.finditer(str(script or "")):
+        if _is_script_emotion_cue(match.group(1) or match.group(2) or "", language):
+            count += 1
+    return count
+
+
+def _required_script_emotion_cue_count(script: str) -> int:
+    compact_length = len(re.sub(r"\s+", "", str(script or "")))
+    return max(1, min(8, (compact_length + 1199) // 1200))
+
+
+def _infer_script_emotion_cue(text: str, language: str) -> str:
+    value = str(text or "").casefold()
+    if language == "ja":
+        if any(token in value for token in ("泣", "涙", "悲", "別れ", "後悔")):
+            return "(涙をこらえて)"
+        if any(token in value for token in ("怒", "許さ", "裏切", "憤")):
+            return "(怒りを抑えて)"
+        if any(token in value for token in ("怖", "震", "不安", "驚")):
+            return "(震える声で)"
+        if any(token in value for token in ("決め", "誓", "拒", "真実")):
+            return "(きっぱりと)"
+        if any(token in value for token in ("笑", "感謝", "希望", "温か")):
+            return "(優しく)"
+        return "(静かに)"
+    if language == "en":
+        if any(token in value for token in ("cry", "tear", "sad", "grief", "regret")):
+            return "(tearfully)"
+        if any(token in value for token in ("angry", "furious", "betray", "never forgive")):
+            return "(controlling their anger)"
+        if any(token in value for token in ("fear", "trembl", "afraid", "shock")):
+            return "(in a trembling voice)"
+        if any(token in value for token in ("decide", "swear", "refuse", "truth")):
+            return "(firmly)"
+        if any(token in value for token in ("smile", "thank", "hope", "warm")):
+            return "(warmly)"
+        return "(calmly)"
+    if any(token in value for token in ("울", "눈물", "슬프", "이별", "후회", "애원")):
+        return "(울먹이며)"
+    if any(token in value for token in ("분노", "화가", "배신", "용서 못", "억울")):
+        return "(분노를 억누르며)"
+    if any(token in value for token in ("두려", "떨", "무서", "불안", "충격", "놀라")):
+        return "(떨리는 목소리로)"
+    if any(token in value for token in ("결심", "맹세", "거절", "진실", "결정")):
+        return "(단호하게)"
+    if any(token in value for token in ("웃", "감사", "희망", "따뜻", "기쁘")):
+        return "(따뜻하게)"
+    return "(차분하게)"
+
+
+def _has_trailing_script_emotion_cue(prefix: str, language: str) -> bool:
+    matches = list(_SCRIPT_EMOTION_CUE_PATTERN.finditer(prefix))
+    if not matches:
+        return False
+    match = matches[-1]
+    if prefix[match.end():].strip():
+        return False
+    return _is_script_emotion_cue(match.group(1) or match.group(2) or "", language)
+
+
+_KOREAN_MONEY_NATIVE_TENS = {
+    "열": "십",
+    "스물": "이십",
+    "스무": "이십",
+    "서른": "삼십",
+    "마흔": "사십",
+    "쉰": "오십",
+    "예순": "육십",
+    "일흔": "칠십",
+    "여든": "팔십",
+    "아흔": "구십",
+}
+_KOREAN_MONEY_NATIVE_ONES = {
+    "한": "일",
+    "두": "이",
+    "세": "삼",
+    "네": "사",
+    "다섯": "오",
+    "여섯": "육",
+    "일곱": "칠",
+    "여덟": "팔",
+    "아홉": "구",
+}
+_KOREAN_MONEY_NATIVE_TENS_PATTERN = re.compile(
+    r"(?P<tens>스물|스무|서른|마흔|예순|일흔|여든|아흔|열|쉰)"
+    r"\s*(?:(?P<approx>몇)|(?P<ones>다섯|여섯|일곱|여덟|아홉|한|두|세|네))?"
+    r"\s*(?P<scale>천|만|억|조)?\s*(?P<currency>원|달러|엔|유로)"
+)
+
+
+def _normalize_korean_money_expressions(script: str) -> str:
+    """Use Sino-Korean numerals for money while leaving ages and counters alone."""
+    value = str(script or "")
+
+    def replace_money(match) -> str:
+        tens = _KOREAN_MONEY_NATIVE_TENS[match.group("tens")]
+        approx = match.group("approx") or ""
+        ones = _KOREAN_MONEY_NATIVE_ONES.get(match.group("ones") or "", "")
+        scale = match.group("scale") or ""
+        currency = match.group("currency")
+        return f"{tens}{approx or ones}{scale} {currency}"
+
+    return _KOREAN_MONEY_NATIVE_TENS_PATTERN.sub(replace_money, value)
+
+
+def _ensure_script_emotion_cues(script: str, language: str = "ko") -> str:
+    value = str(script or "").strip()
+    if not value:
+        return ""
+    if language == "ko":
+        value = _normalize_korean_money_expressions(value)
+
+    def normalize_existing_cue(match) -> str:
+        content = (match.group(1) or match.group(2) or "").strip()
+        return f"({content})" if _is_script_emotion_cue(content, language) else ""
+
+    value = _SCRIPT_EMOTION_CUE_PATTERN.sub(normalize_existing_cue, value)
+
+    def add_dialogue_cue(match) -> str:
+        prefix = value[max(0, match.start() - 80):match.start()]
+        if _has_trailing_script_emotion_cue(prefix, language):
+            return match.group(0)
+        return f"{_infer_script_emotion_cue(match.group(0), language)} {match.group(0)}"
+
+    value = _SCRIPT_QUOTED_DIALOGUE_PATTERN.sub(add_dialogue_cue, value)
+    required = _required_script_emotion_cue_count(value)
+    current = _script_emotion_cue_count(value, language)
+    if current >= required:
+        return value
+
+    parts = re.split(r"(\n\s*\n)", value)
+    candidates = [
+        idx for idx in range(0, len(parts), 2)
+        if len(parts[idx].strip()) >= 20
+        and not _has_trailing_script_emotion_cue(parts[idx][:80].rstrip(), language)
+        and not _SCRIPT_EMOTION_CUE_PATTERN.match(parts[idx].lstrip())
+    ]
+    needed = required - current
+    preferred: list[int] = []
+    if candidates:
+        for offset in range(min(needed, len(candidates))):
+            position = round(offset * (len(candidates) - 1) / max(1, min(needed, len(candidates)) - 1))
+            candidate = candidates[position]
+            if candidate not in preferred:
+                preferred.append(candidate)
+        for candidate in candidates:
+            if len(preferred) >= needed:
+                break
+            if candidate not in preferred:
+                preferred.append(candidate)
+    for idx in preferred:
+        paragraph = parts[idx].lstrip()
+        parts[idx] = f"{_infer_script_emotion_cue(paragraph[:220], language)} {paragraph}"
+    value = "".join(parts)
+    current = _script_emotion_cue_count(value, language)
+
+    if current < required:
+        positions = [match.end() for match in re.finditer(r"[.!?。！？]\s+", value)]
+        needed = min(required - current, len(positions))
+        selected = []
+        for offset in range(needed):
+            position = round((offset + 1) * (len(positions) - 1) / (needed + 1))
+            selected.append(positions[position])
+        for position in sorted(set(selected), reverse=True):
+            following = value[position:position + 220].lstrip()
+            value = value[:position] + f"{_infer_script_emotion_cue(following, language)} " + value[position:]
+    return value.strip()
+
+
+def _script_emotion_cue_errors(script: str, language: str) -> list[str]:
+    value = str(script or "")
+    errors: list[str] = []
+    actual = _script_emotion_cue_count(value, language)
+    required = _required_script_emotion_cue_count(value)
+    if actual < required:
+        errors.append(f"script emotion cues missing: required={required}, actual={actual}")
+
+    uncued_dialogue = 0
+    for match in _SCRIPT_QUOTED_DIALOGUE_PATTERN.finditer(value):
+        prefix = value[max(0, match.start() - 80):match.start()]
+        if not _has_trailing_script_emotion_cue(prefix, language):
+            uncued_dialogue += 1
+    if uncued_dialogue:
+        errors.append(f"quoted dialogue missing immediate emotion cue: count={uncued_dialogue}")
+    return errors
+
+
+def _trim_section_to_limit(text: str, max_chars: int, *, strict: bool = False) -> str:
+    value = (text or "").strip()
+    hard_limit = max(20, int(max_chars)) if strict else max(180, int(max_chars * 1.4))
+    if len(value) <= hard_limit:
+        return value
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?。！？다요죠까니다습니까])\s+", value) if s.strip()]
+    kept: list[str] = []
+    total = 0
+    for sentence in sentences:
+        projected = total + (2 if kept else 0) + len(sentence)
+        if kept and projected > hard_limit:
+            break
+        kept.append(sentence)
+        total = projected
+        if total >= hard_limit:
+            break
+    if kept:
+        return " ".join(kept).strip()
+    return value[:hard_limit].rstrip()
+
+
+def _extract_speaker_names(text: str) -> list[str]:
+    names = []
+    seen = set()
+    for line in (text or "").split("\n"):
+        m = _SPEAKER_LINE_REGEX.match(line.strip())
+        if not m:
+            continue
+        raw = m.group(1) or m.group(2)
+        if not raw:
+            continue
+        clean = _SPEAKER_NAME_STRIP_PATTERN.sub("", raw).strip()
+        if clean and clean not in seen:
+            seen.add(clean)
+            names.append(clean)
+    return names
+
+
+def _script_gen_length_instruction(
+    duration_seconds: int,
+    is_shorts: bool,
+    narration_pace: str = "senior",
+    language: str = "ko",
+    tts_speed: float = 1.0,
+) -> tuple[float, str]:
+    from services.narration_policy import get_narration_policy, normalize_tts_speed
+
+    policy = get_narration_policy(narration_pace)
+    normalized_speed = normalize_tts_speed(tts_speed)
+    effective_chars_per_second = policy.chars_per_second * normalized_speed
+    effective_chars_per_minute = round(effective_chars_per_second * 60)
+    total_target_chars = duration_seconds * effective_chars_per_second
+    if language == "ja":
+        if is_shorts:
+            length_instruction = (
+                f"この台本は{duration_seconds}秒のShorts向けです。全体をかなり短く保ち、"
+                f"無駄なく核心だけを書いてください。読み上げ速度ポリシーは'{policy.label}'で、"
+                f"TTS速度は{normalized_speed:.2f}倍で、1秒あたり約{effective_chars_per_second:.1f}字、1分あたり約{effective_chars_per_minute}字です。"
+            )
+        else:
+            length_instruction = (
+                f"この動画は約{duration_seconds // 60}分{duration_seconds % 60}秒です。"
+                f"読み上げ速度ポリシーは'{policy.label}'、TTS速度は{normalized_speed:.2f}倍で、1秒あたり約{effective_chars_per_second:.1f}字、"
+                f"1分あたり約{effective_chars_per_minute}字の落ち着いた朗読になるように書いてください。"
+            )
+    elif language == "en":
+        if is_shorts:
+            length_instruction = (
+                f"This script is for a {duration_seconds}-second Shorts video. Keep it very short and focused. "
+                f"The narration pace policy is '{policy.label}' at {normalized_speed:.2f}x TTS speed, about {effective_chars_per_second:.1f} characters per second "
+                f"and {effective_chars_per_minute} characters per minute."
+            )
+        else:
+            length_instruction = (
+                f"This video runs about {duration_seconds // 60} minutes {duration_seconds % 60} seconds. "
+                f"The narration pace policy is '{policy.label}' at {normalized_speed:.2f}x TTS speed, about {effective_chars_per_second:.1f} characters per second "
+                f"and {effective_chars_per_minute} characters per minute, so write for a measured spoken pace."
+            )
+    else:
+        if is_shorts:
+            length_instruction = (
+                f"[매우 중요] 이 대본은 {duration_seconds}초 숏폼(Shorts) 영상용입니다. "
+                f"전체 대본이 매우 짧아야 합니다. 군더더기 없이 핵심만 전달하세요. "
+                f"읽기 속도 정책은 '{policy.label}', TTS 배속은 {normalized_speed:.2f}x이며 초당 약 {effective_chars_per_second:.1f}자, 분당 약 {effective_chars_per_minute}자 기준입니다."
+            )
+        else:
+            length_instruction = (
+                f"이 영상은 약 {duration_seconds // 60}분 {duration_seconds % 60}초 길이입니다. "
+                f"읽기 속도 정책은 '{policy.label}', TTS 배속은 {normalized_speed:.2f}x이며 초당 약 {effective_chars_per_second:.1f}자, "
+                f"분당 약 {effective_chars_per_minute}자 기준으로 천천히 들리게 작성하세요."
+            )
+    return total_target_chars, length_instruction
+
+
+def _parse_scene_duration_seconds(scene: dict, fallback: float) -> float:
+    for key in ("target_duration", "duration_seconds", "duration", "play_time", "seconds"):
+        raw = scene.get(key)
+        if raw is None:
+            continue
+        if isinstance(raw, (int, float)):
+            value = float(raw)
+        else:
+            match = re.search(r"\d+(?:\.\d+)?", str(raw))
+            if not match:
+                continue
+            value = float(match.group(0))
+        if value > 0:
+            return value
+    return max(1.0, float(fallback or 1.0))
+
+
+def _scene_duration_map(scenes: list[dict], duration_seconds: int) -> list[float]:
+    fallback = max(1.0, float(duration_seconds or 0) / max(1, len(scenes)))
+    durations = [_parse_scene_duration_seconds(scene, fallback) for scene in scenes]
+    total = sum(durations)
+    if total <= 0:
+        return [fallback for _ in scenes]
+    return durations
+
+
+def _scene_char_budgets(
+    scenes: list[dict],
+    duration_seconds: int,
+    total_target_chars: float,
+    is_shorts: bool,
+    narration_pace: str = "senior",
+) -> list[dict]:
+    from services.narration_policy import get_narration_policy
+
+    policy = get_narration_policy(narration_pace)
+    durations = _scene_duration_map(scenes, duration_seconds)
+    total_duration = max(1.0, sum(durations))
+    budgets: list[dict] = []
+    for idx, (scene, scene_duration) in enumerate(zip(scenes, durations), start=1):
+        target_chars = max(20.0, total_target_chars * (scene_duration / total_duration))
+        if is_shorts:
+            min_chars = max(14, round(target_chars * 0.65))
+            max_chars = max(min_chars + 8, round(target_chars * 1.15))
+        elif scene_duration <= 6:
+            min_chars = max(policy.short_scene_min_chars, round(target_chars * 0.65))
+            max_chars = min(policy.short_scene_max_chars, max(min_chars + 6, round(target_chars * 1.15)))
+        else:
+            min_chars = max(45, round(target_chars * 0.72))
+            max_chars = max(min_chars + 16, round(target_chars * 1.12))
+        budgets.append({
+            "scene_order": scene.get("scene_order") or scene.get("order") or idx,
+            "duration_seconds": round(scene_duration, 2),
+            "target_chars": round(target_chars),
+            "min_chars": min_chars,
+            "max_chars": max_chars,
+        })
+    return budgets
+
+
+def _chunk_scenes_for_script_generation(
+    scenes: list[dict],
+    budgets: list[dict],
+    *,
+    max_chunks: int = 5,
+) -> list[tuple[int, list[dict], list[dict]]]:
+    if not scenes:
+        return []
+    total_duration = sum(float(item.get("duration_seconds") or 0) for item in budgets) or float(len(scenes))
+    target_chunk_duration = max(90.0, total_duration / max(1, max_chunks))
+    chunks: list[tuple[int, list[dict], list[dict]]] = []
+    start_idx = 0
+    current_scenes: list[dict] = []
+    current_budgets: list[dict] = []
+    current_duration = 0.0
+
+    for idx, (scene, budget) in enumerate(zip(scenes, budgets)):
+        current_scenes.append(scene)
+        current_budgets.append(budget)
+        current_duration += float(budget.get("duration_seconds") or 0)
+        remaining_scenes = len(scenes) - idx - 1
+        remaining_chunks = max_chunks - len(chunks) - 1
+        can_close = remaining_scenes > 0 and remaining_chunks > 0
+        if can_close and current_duration >= target_chunk_duration:
+            chunks.append((start_idx, current_scenes, current_budgets))
+            start_idx = idx + 1
+            current_scenes = []
+            current_budgets = []
+            current_duration = 0.0
+
+    if current_scenes:
+        chunks.append((start_idx, current_scenes, current_budgets))
+    return chunks
+
+
+def _select_script_draft_model(config, final_model: str) -> str:
+    selected = (final_model or "").strip()
+    return selected
+
+
+def _clean_script_scene_text(value: str, upload_title: str = "") -> str:
+    """Remove planner/UI meta wording before it reaches narration generation."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return ""
+    if upload_title:
+        text = text.replace(str(upload_title).strip(), "").strip()
+    text = re.sub(r"'[^']{8,}'", "", text)
+    text = re.sub(r'"[^"]{8,}"', "", text)
+    text = re.sub(r"\b\d+\s*단계로\s*[^,，.。]*[,，.。]?\s*", "", text)
+    text = re.sub(r"\b\d+번(?:째)?\s*장면(?:은|에서)?\s*", "", text)
+    text = re.sub(r"(?:오프닝|중반|후반|결말)의 역할은[^.。]*[.。]?", "", text)
+    text = re.sub(r"다음 단서는[^.。]*[.。]?", "", text)
+    text = re.sub(r"[^.。]{0,40}때문에 마을 사람들의 숨겨진 관계가 한 겹 더 흔들린다[.。]?", "", text)
+    text = re.sub(r"설명보다 사건으로 느끼게 하고[^.。]*[.。]?", "", text)
+    text = re.sub(r"여운으로 넘긴다[.。]?", "", text)
+    text = re.sub(r"제목의 약속을[^,，.。]*[,，.。]?\s*", "", text)
+    text = re.sub(r"클릭(?:한|된)? 제목[^.。]*[.。]?", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" -—,，.。")
+    return text[:320].strip()
+
+
+def _scene_payload_for_script(scene: dict, budget: dict, upload_title: str = "") -> dict:
+    scene_order = scene.get("scene_order") or scene.get("order") or scene.get("scene_number")
+    situation = _clean_script_scene_text(scene.get("scene_situation") or "", upload_title)
+    summary = _clean_script_scene_text(scene.get("scene_summary") or "", upload_title)
+    purpose = _clean_script_scene_text(scene.get("scene_purpose") or "", upload_title)
+    hook = _clean_script_scene_text(scene.get("retention_hook") or "", upload_title)
+    if not situation:
+        situation = summary or purpose or hook
+    return {
+        "scene_order": scene_order,
+        "target_duration_seconds": budget.get("duration_seconds"),
+        "target_chars": budget.get("target_chars"),
+        "min_chars": budget.get("min_chars"),
+        "max_chars": budget.get("max_chars"),
+        "story_beat": situation,
+        "purpose": purpose,
+        "emotion": _clean_script_scene_text(scene.get("scene_emotion") or "", upload_title),
+        "turn_or_question": hook,
+        "dramatic_function": _clean_script_scene_text(scene.get("dramatic_function") or "", upload_title),
+        "character_choice": _clean_script_scene_text(scene.get("character_choice") or "", upload_title),
+        "emotional_shift": _clean_script_scene_text(scene.get("emotional_shift") or "", upload_title),
+        "reveal_or_question": _clean_script_scene_text(scene.get("reveal_or_question") or "", upload_title),
+    }
+
+
+def _prefer_gemini_text_model(config, selected: str = "") -> str:
+    """Respect user's configured model (Claude, DeepSeek, GLM, etc.) and fallback to Gemini only if empty."""
+    current = str(selected or "").strip()
+    if current:
+        if current.lower() in {"gemini-2.5-flash", "gemini-3-flash-preview"}:
+            return "gemini-3.6-flash"
+        return current
+    if (getattr(config, "GEMINI_API_KEY", "") or "").strip():
+        return "gemini-3.6-flash"
+    return "gemini-3.6-flash"
+
+
+
+def _script_gen_mode_instruction(
+    is_multi: bool,
+    known_characters: list[str],
+    language: str = "ko",
+    is_dramatic_single: bool = False,
+) -> str:
+    if is_multi:
+        if language == "ja":
+            known_chars_line = ""
+            if known_characters:
+                known_chars_line = (
+                    "\n[既に登場した人物。このパートで再登場する場合は同じ名前を再利用してください。"
+                    "新しい人物は物語上どうしても必要な場合だけ追加してください]\n"
+                    f"{', '.join(known_characters)}\n"
+                )
+            return f"""
+1. 基本はナレーター中心の叙述です。人物の行動や状況は、ナレーターが物語として語る形を優先してください。
+2. 人物の直接の発話が本当に必要な場面だけ、`話者: (感情/演技トーン) "台詞"` 形式を使ってください。
+3. ナレーター名を明示する必要がある場合だけ `ナレーター:` を使ってください。
+4. 台詞の前には必ず `(低く)`, `(震えながら)`, `(ささやくように)`, `(きっぱりと)` のような演技トーンを付けてください。
+5. 一言のために新しい人物名を乱発しないでください。重要度の低い発話はナレーターが要約して伝える方を優先してください。{known_chars_line}
+"""
+        known_chars_line = ""
+        if known_characters:
+            known_chars_line = (
+                "\n[이미 등장한 인물 - 이 파트에서 같은 인물이 다시 말하면 반드시 이 이름을 그대로 "
+                "재사용하세요. 새 인물은 스토리 전개상 꼭 필요할 때만 추가하세요]\n"
+                f"{', '.join(known_characters)}\n"
+            )
+        return f"""
+1. **기본은 나레이터의 서술**입니다. 인물의 행동이나 상황은 나레이터가 설명하듯 전달하세요 (예: "철수는 화를 내며 소리쳤다").
+2. 인물이 **직접 한 말을 그대로 전달할 필요가 있는 대목에서만** `화자: (감정/연기톤) "대사"` 형식으로 화자를 전환하세요. (예: `철수: (분노하며) "당장 나가!"`, `영희: (울먹이며) "가지 마세요..."`)
+3. 나레이터 화자 이름은 "나레이터:"로 표시하세요.
+4. 대사 앞에는 반드시 `(슬프게)`, `(분노하며)`, `(낮은 목소리로)`, `(속삭이듯)` 등의 연기 톤 지문을 부여하여 성우 연기력을 극대화하세요.
+5. 한 문장짜리 대사 때문에 새로운 이름을 남발하지 마세요. 비중이 작은 인물의 말은 나레이터가 요약해서 전달하는 쪽을 우선하세요.{known_chars_line}
+"""
+    if is_dramatic_single:
+        if language == "ja":
+            return """
+1. 単一の語り手によるドラマチックな朗読として書いてください。脚本形式にはしないでください。
+2. 短い直接台詞を入れる場合は "..." で囲み、その直前に `(低くささやいて)` や `(震えながら)` のような感情・演技トーンを置いてください。
+3. `太郎:` や `(太郎)` のような単独の話者ラベルは禁止です。誰が話したかは直前の地の文で自然に示してください。
+4. 台詞は少なく、意味のある場面にだけ使ってください。裏切り、告白、脅し、気づき、結末の回収に限って使う意識で書いてください。
+5. 語りの声は一貫させ、複数人の掛け合い脚本にしないでください。
+6. すべての台詞は人物理解を深めるか、緊張を高めるか、タイトルの約束を回収する役割を持たせてください。
+"""
+        return """
+1. Write as a single narrator-led dramatic narration. The narrator carries the story; do NOT write screenplay format.
+2. For short direct character dialogue, wrap speech in quotes "..." and prepend an expressive vocal/emotion tone in parentheses right before the quote: e.g. (낮게 속삭이며) "형수님도 여자예요.", (울먹이며) "제발 그만해요.", (단호하게) "더 이상은 안 됩니다."
+3. Do NOT use standalone speaker labels such as "철수:" or "(철수)" in the narration. Describe who speaks naturally in the preceding sentence: e.g. '시동생이 내 손을 잡으며 나직하게 속삭였다. (낮은 목소리로) "형수님..."'
+4. Keep dialogue sparse and purposeful: roughly 5-15% of the section. Use it only for betrayal, confession, threat, realization, or final payoff.
+5. Maintain one consistent narrative voice. Do not switch into a multi-character roleplay script.
+6. Make every quote reveal character, raise tension, or pay off the title promise. No casual filler dialogue.
+"""
+    return """
+1. 반드시 **독백(Monologue) 또는 1인 나레이션(Narration) 형식**으로 작성하세요.
+2. 인물의 직접 대사가 나올 때는 반드시 큰따옴표(`"..."`)로 감싸고, 대사 바로 앞에 감정/연기 톤을 괄호로 표기하세요 (예: `(낮게 읊조리며) "오늘 밤만은..."`, `(울먹이며) "제발..."`).
+3. 괄호 안에 화자 이름만 단독으로 적는 것(예: `(철수)`, `(영희)`)이나 `철수:` 형식의 화자 라벨 표기는 금지합니다. 누가 말하는지는 나레이션 문맥으로 자연스럽게 서술하세요.
+4. 화자는 **무조건 딱 1명(성우 1인)**으로 제한합니다.
+"""
+
+
+def _build_section_prompt(
+    topic: str, scene: dict, is_shorts: bool, is_multi: bool, known_characters: list[str],
+    length_instruction: str, min_chars: int, max_chars: int, language: str,
+    upload_title: str = "", structure_context: dict | None = None,
+    narrative_blueprint: dict | None = None, previous_context: dict | None = None,
+    narration_mode: str = "single",
+) -> str:
+    # [FIX][AIR-0230] scene_planner.py's actual schema - see module comment
+    # above for why this replaces script_gen.html's title/key_points reads.
+    scene_summary = scene.get("scene_summary") or "이 장면"
+    detail_lines = [v for v in (scene.get("scene_situation"), scene.get("scene_purpose")) if v]
+    key_points_text = ", ".join(detail_lines) if detail_lines else "자유롭게 작성"
+    emotion = scene.get("scene_emotion") or ""
+    tts_direction = scene.get("tts_direction") or ""
+    retention_hook = scene.get("retention_hook") or ""
+    title_promise_link = scene.get("title_promise_link") or ""
+    end_bridge = scene.get("end_bridge") or ""
+    structure_context = structure_context or {}
+    title_promise = structure_context.get("title_promise") or ""
+    opening_hook = structure_context.get("opening_hook") or ""
+    payoff = structure_context.get("payoff") or ""
+    narrative_blueprint = narrative_blueprint or {}
+    previous_context = previous_context or {}
+
+    is_dramatic_single = narration_mode == "dramatic_single"
+    mode_instruction = _script_gen_mode_instruction(
+        is_multi,
+        known_characters,
+        language=language,
+        is_dramatic_single=is_dramatic_single,
+    )
+    emotion_cue_instruction = _script_emotion_cue_instruction(language)
+    language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
+    extra_context = ""
+    if emotion:
+        extra_context += f"- 감정/분위기: {emotion}\n"
+    if tts_direction:
+        extra_context += f"- 성우 연기 지침: {tts_direction}\n"
+
+    for label, value in (
+        ("Retention hook", retention_hook),
+        ("Title promise link", title_promise_link),
+        ("End bridge to next scene", end_bridge),
+    ):
+        if value:
+            extra_context += f"- {label}: {value}\n"
+
+    title_contract = ""
+    if upload_title:
+        title_contract = f"""
+[UPLOAD TITLE CONTRACT]
+- Upload title: {upload_title}
+- Title promise: {title_promise or "infer it from the upload title and topic"}
+- Opening hook to honor: {opening_hook or "make the first section immediately prove the title is worth staying for"}
+- Final payoff required: {payoff or "the script must resolve the curiosity raised by the title"}
+- Every paragraph must serve the clicked title. Do not drift into meta commentary, content strategy, or storytelling lessons unless the title explicitly asks for that.
+"""
+
+    blueprint_section = ""
+    if narrative_blueprint:
+        scene_order = scene.get("scene_order") or scene.get("order")
+        beats = narrative_blueprint.get("scene_beats") or []
+        scene_beat = None
+        if isinstance(beats, list):
+            for beat in beats:
+                if str(beat.get("scene_order") or "") == str(scene_order or ""):
+                    scene_beat = beat
+                    break
+        blueprint_section = f"""
+[STORY BLUEPRINT]
+{json.dumps({
+    "logline": narrative_blueprint.get("logline"),
+    "protagonist": narrative_blueprint.get("protagonist"),
+    "desire": narrative_blueprint.get("desire"),
+    "central_conflict": narrative_blueprint.get("central_conflict"),
+    "stakes": narrative_blueprint.get("stakes"),
+    "hidden_information": narrative_blueprint.get("hidden_information"),
+    "turning_point": narrative_blueprint.get("turning_point"),
+    "final_payoff": narrative_blueprint.get("final_payoff"),
+    "current_scene_beat": scene_beat,
+}, ensure_ascii=False)}
+"""
+
+    research_section = ""
+    research_bundle = structure_context.get("research_bundle") or {}
+    if research_bundle:
+        facts = research_bundle.get("verified_facts") or []
+        research_section = f"""
+[GEMINI WEB RESEARCH]
+{research_bundle.get("research_brief") or ""}
+Verified facts: {json.dumps(facts[:8], ensure_ascii=False)}
+Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=False)}
+- Use a fact only when it is relevant to this scene. Do not invent facts, quotations, figures, or real people.
+- For fictional stories, use research as context only; never present invented plot events as factual.
+"""
+
+    continuity_section = ""
+    if previous_context:
+        continuity_section = f"""
+[CONTINUITY FROM PREVIOUS SCENES]
+{json.dumps(previous_context, ensure_ascii=False)}
+- Continue from this emotional state. Do not restart the story.
+- Carry unresolved questions forward unless this scene is explicitly paying one off.
+- Do not repeat any sentence, image, fact, spending item, or emotional beat already used in previous scenes.
+- This scene must add exactly one new concrete action, fact, decision, or consequence.
+"""
+
+    clean_prompt = f"""{_script_writer_role(language)} Write the body for this planned scene so a real viewer wants to keep listening.
+
+[TOPIC]
+{topic}
+{title_contract}
+{blueprint_section}
+{research_section}
+{continuity_section}
+
+[CURRENT SCENE]
+- Situation and purpose, authoritative: {key_points_text}
+- Summary, supporting only: {scene_summary}
+{extra_context}
+
+[WRITING RULES]
+0. {length_instruction}
+{mode_instruction}
+2a. {emotion_cue_instruction}
+3. {language_instruction}
+4. Output body text only. Do not output a scene title, scene number, headings, markdown, timecodes, camera directions, or sound-effect labels.
+5. Target {min_chars} to {max_chars} characters. Do not pad by repeating information.
+6. Build the scene around its retention hook, and end with the supplied end bridge as an unresolved question, reveal, or emotional turn that pulls into the next scene.
+7. Keep the title promise, story blueprint, character motivation, and current scene purpose aligned. Do not drift into meta commentary, content strategy, or a lesson about storytelling.
+8. Write for the ear: vary sentence length, use concrete details, and make each paragraph move the situation, emotion, or information forward.
+9. Strict anti-repetition rule: if the previous context already mentions the same money amount, worry, routine, or conclusion, do not explain it again. Advance to the next beat instead.
+10. Keep this section compact. If you need more space, choose the strongest two or three sentences only.
+11. If Summary conflicts with Situation and purpose, ignore Summary and follow Situation and purpose plus the upload title.
+
+Output only the narration body."""
+    return clean_prompt
+
+    return f"""당신은 {'유튜브 쇼츠(Shorts)' if is_shorts else '유튜브'} 대본 작가입니다. 아래 주제에 대한 "{scene_summary}" 파트를 작성해주세요.
+
+[영상 주제]
+{topic}
+{title_contract}
+{blueprint_section}
+{research_section}
+{continuity_section}
+
+[현재 섹션]
+- 제목: {scene_summary}
+- 주요 내용: {key_points_text}
+{extra_context}
+[작성 지침]
+0. {length_instruction}
+{mode_instruction}
+3. 자연스럽고 몰입감 있는 대본을 작성하세요. {language_instruction}
+4. 섹션 제목은 출력하지 말고, 본문만 작성하세요.
+5. 이 파트의 분량은 **약 {min_chars}자 ~ {max_chars}자** 내외로 작성하세요. (절대적으로 지킬 것)
+6. {'문장을 짧고 간결하게 끊어주세요. 호흡을 짧게 가져가세요.' if is_shorts else '문장을 자연스럽게 이어주세요.'}
+
+**[작성 및 감정/톤 지침]**
+1. 반드시 대본의 구문 앞이나 중간중간에 괄호를 사용하여 말의 톤이나 분위기를 표시하세요. (예: "(차분하게)", "(슬프게)", "(진지하게)")
+2. 음악, 효과음 등 상황 설명용 괄호(예: (음악), (상황), (웃음))는 금지합니다. 오직 성우의 목소리 톤/감정만 괄호로 표시하세요.
+3. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+4. 이모티콘 및 꾸밈 기호 금지 (예: 🤣, ✨, 🔥 등 특수문자 금지)
+
+본문만 출력하세요:"""
+
+
+def _build_script_chunk_prompt(
+    topic: str,
+    chunk_scenes: list[dict],
+    chunk_budgets: list[dict],
+    is_shorts: bool,
+    is_multi: bool,
+    known_characters: list[str],
+    length_instruction: str,
+    language: str,
+    upload_title: str = "",
+    structure_context: dict | None = None,
+    narrative_blueprint: dict | None = None,
+    previous_context: dict | None = None,
+    narration_mode: str = "single",
+    main_character: dict | None = None,
+) -> str:
+    structure_context = structure_context or {}
+    narrative_blueprint = narrative_blueprint or {}
+    previous_context = previous_context or {}
+    is_dramatic_single = narration_mode == "dramatic_single"
+    mode_instruction = _script_gen_mode_instruction(
+        is_multi,
+        known_characters,
+        language=language,
+        is_dramatic_single=is_dramatic_single,
+    )
+    emotion_cue_instruction = _script_emotion_cue_instruction(language)
+    language_instruction = SCRIPT_GEN_LANGUAGE_INSTRUCTIONS.get(language, SCRIPT_GEN_LANGUAGE_INSTRUCTIONS["ko"])
+    budget_by_order = {str(item.get("scene_order")): item for item in chunk_budgets}
+    scene_payload = []
+    for idx, scene in enumerate(chunk_scenes):
+        scene_order = scene.get("scene_order") or scene.get("order") or idx + 1
+        budget = budget_by_order.get(str(scene_order)) or chunk_budgets[idx]
+        clean_scene = dict(scene)
+        clean_scene["scene_order"] = scene_order
+        scene_payload.append(_scene_payload_for_script(clean_scene, budget, upload_title))
+
+    research_bundle = structure_context.get("research_bundle") or {}
+    research_section = ""
+    if research_bundle:
+        research_section = f"""
+[RESEARCH CONTEXT]
+{research_bundle.get("research_brief") or ""}
+Verified facts: {json.dumps((research_bundle.get("verified_facts") or [])[:10], ensure_ascii=False)}
+Risk notes: {json.dumps(research_bundle.get("risk_notes") or [], ensure_ascii=False)}
+"""
+
+    return f"""{_script_writer_role(language)} Write multiple planned scenes as one continuous script chunk.
+
+[TOPIC]
+{topic}
+
+[UPLOAD TITLE CONTRACT]
+- Upload title: {upload_title}
+- Title promise: {structure_context.get("title_promise") or "infer it from the upload title and topic"}
+- Opening hook: {structure_context.get("opening_hook") or ""}
+- Final payoff required: {structure_context.get("payoff") or ""}
+- Every scene must serve the clicked title. Do not drift into a different story, policy lecture, or meta commentary.
+
+[STORY BLUEPRINT]
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+- Use opening_incident before backstory in the first chunk.
+- Use personal_stake to make the protagonist's motive clear before the first act ends.
+- Use midpoint_reversal and final_payoff as hard story anchors, not optional suggestions.
+
+[MAIN PROTAGONIST DNA - WORKER GENERATED]
+{_main_character_context(main_character) or "{}"}
+- Keep this protagonist's identity, motive, age, and emotional baseline stable across every scene.
+- Do not print this JSON or describe it as metadata to viewers. Use it only to keep the story and later visuals consistent.
+
+{research_section}
+
+[CONTINUITY BEFORE THIS CHUNK]
+{json.dumps(previous_context or {}, ensure_ascii=False)}
+
+[SCENES TO WRITE]
+{json.dumps(scene_payload, ensure_ascii=False)}
+
+[WRITING RULES]
+0. {length_instruction}
+1. Respect target_duration_seconds and character budgets per scene. Do not make all scenes the same length.
+2. A 5-second scene is a short micro beat: one or two vivid sentences only. Longer scenes may carry more action, emotion, or explanation.
+{mode_instruction}
+3a. {emotion_cue_instruction}
+4. {language_instruction}
+5. {_script_output_rule(language)} No scene titles, headings, markdown, timecodes, camera directions, subtitle notes, or sound-effect labels.
+6. Use story_beat and purpose as the only scene instructions. Ignore any planning, visual, TTS, camera, or UI wording from prior stages.
+7. Every scene must add new action, information, decision, or consequence. Do not repeat the same sentence, fact, image, worry, or emotional beat.
+8. Preserve continuity across the scenes in this chunk and from previous_context.
+9. Use turn_or_question only as a guide. Do not copy it verbatim if it sounds repetitive or templated.
+10. For each output item, keep text between min_chars and max_chars as closely as possible. Never pad with repetition.
+11. Do not summarize the scene plan. Dramatize each beat as spoken narration with sensory detail, a concrete action, and a visible emotional reaction.
+12. Do not repeat the upload title or scene summary phrase inside each section. The title promise should be fulfilled through events, not copied as wording.
+13. Give the protagonist active choices. At least every 3-4 scenes, the main character must decide, hide, reveal, confront, refuse, or sacrifice something.
+14. If dramatic_function, character_choice, emotional_shift, or reveal_or_question are present, dramatize them in the scene text without printing those labels.
+15. Do not open with a lesson, summary, or village rumor if opening_incident is available. Start with a visible event, object, body movement, or discovery.
+16. Do not repeatedly open paragraphs or scenes with stock transitions such as "그런데 말이야", "글쎄", or "하지만 말이야". Use each transition family at most twice in the full script; normally begin with a concrete subject, action, or sensory detail.
+
+Return ONLY JSON in this exact shape:
+{{
+  "sections": [
+    {{"scene_order": 1, "text": "narration body for that scene"}}
+  ]
+}}"""
+
+
+def _parse_script_chunk_sections(
+    raw_text: str,
+    chunk_scenes: list[dict],
+    is_multi: bool,
+    fallback_factory,
+) -> list[str]:
+    by_order: dict[str, str] = {}
+    try:
+        data = _extract_json(raw_text)
+        sections = data.get("sections") if isinstance(data, dict) else None
+        if isinstance(sections, list):
+            for item in sections:
+                if isinstance(item, dict):
+                    order = str(item.get("scene_order") or "").strip()
+                    text = _clean_section_text(str(item.get("text") or "").strip(), is_multi)
+                    if order and text:
+                        by_order[order] = text
+    except Exception:
+        pass
+
+    # Regex recovery if JSON decode didn't catch all scenes
+    if len(by_order) < len(chunk_scenes):
+        for m in re.finditer(r'"scene_order"\s*:\s*(\d+)\s*,\s*"text"\s*:\s*"((?:\\.|[^"\\])*)"', raw_text):
+            order = m.group(1).strip()
+            if order not in by_order:
+                raw_s = m.group(2).encode().decode("unicode_escape", errors="ignore")
+                text = _clean_section_text(raw_s, is_multi)
+                if text:
+                    by_order[order] = text
+
+    result: list[str] = []
+    for local_idx, scene in enumerate(chunk_scenes):
+        scene_order = str(scene.get("scene_order") or scene.get("order") or "").strip()
+        text = by_order.get(scene_order)
+        if not text:
+            # Also try matching 1-based local index
+            text = by_order.get(str(local_idx + 1))
+        if not text:
+            text = fallback_factory(local_idx, scene)
+        result.append(text)
+    return result
+
+
+
+def _short_script_excerpt(text: str, max_chars: int = 1400) -> str:
+    value = (text or "").strip()
+    if len(value) <= max_chars:
+        return value
+    return value[-max_chars:]
+
+
+def _main_character_context(main_character: dict | None) -> str:
+    if not isinstance(main_character, dict) or not main_character:
+        return ""
+    return json.dumps({
+        "name": main_character.get("name") or main_character.get("display_name") or "주인공",
+        "gender": main_character.get("gender") or "",
+        "age_group": main_character.get("age_group") or "",
+        "role": main_character.get("role") or "protagonist",
+        "visual_dna_en": main_character.get("visual_dna_en") or "",
+        "wardrobe_en": main_character.get("wardrobe_en") or "",
+        "continuity_instruction": main_character.get("continuity_instruction") or "",
+        "tags": main_character.get("tags") or [],
+    }, ensure_ascii=False)
+
+
+def _character_anchor_name(character: dict | None) -> str:
+    if not isinstance(character, dict):
+        return ""
+    return str(
+        character.get("name")
+        or character.get("display_name")
+        or character.get("stable_label")
+        or ""
+    ).strip()
+
+
+def _character_anchor_key(character: dict | None, fallback: str) -> str:
+    import hashlib
+
+    name = _character_anchor_name(character) or fallback
+    key = re.sub(r"[^0-9A-Za-z_-]+", "-", name).strip("-").lower()
+    if not key:
+        key = f"{fallback}-{hashlib.sha1(name.encode('utf-8', errors='ignore')).hexdigest()[:10]}"
+    return key or fallback
+
+
+def _normalize_character_anchor(character: dict | None, *, fallback_name: str, role: str) -> dict:
+    source = character if isinstance(character, dict) else {}
+    name = _character_anchor_name(source) or fallback_name
+    visual_dna = str(
+        source.get("visual_dna_en")
+        or source.get("prompt_en")
+        or source.get("description_en")
+        or source.get("description")
+        or ""
+    ).strip()
+    wardrobe = str(source.get("wardrobe_en") or source.get("wardrobe") or "").strip()
+    continuity = str(source.get("continuity_instruction") or "").strip()
+    if not visual_dna:
+        visual_dna = (
+            f"ordinary Korean {role} with a consistent age range, face shape, hairstyle, "
+            "body type, natural skin texture, restrained expression, and stable wardrobe colors"
+        )
+    if not wardrobe:
+        wardrobe = "story-appropriate everyday clothing with consistent color and silhouette"
+    if not continuity:
+        continuity = (
+            "Preserve this character's age, face shape, hairstyle, wardrobe, body type, "
+            "and emotional baseline in every image and video prompt."
+        )
+    return {
+        "character_key": str(source.get("character_key") or _character_anchor_key(source, fallback_name)).strip(),
+        "name": name,
+        "gender": str(source.get("gender") or "unknown").strip() or "unknown",
+        "age_group": str(source.get("age_group") or "").strip(),
+        "role": str(source.get("role") or role).strip() or role,
+        "visual_dna_en": visual_dna,
+        "wardrobe_en": wardrobe,
+        "continuity_instruction": continuity,
+        "prompt_en": str(source.get("prompt_en") or visual_dna).strip(),
+        "image_prompt": str(source.get("image_prompt") or "").strip(),
+        "image_url": str(source.get("image_url") or "").strip(),
+        "storage_bucket": str(source.get("storage_bucket") or "").strip(),
+        "storage_object_path": str(source.get("storage_object_path") or "").strip(),
+        "image_generation_status": str(source.get("image_generation_status") or "").strip(),
+        "tags": source.get("tags") if isinstance(source.get("tags"), list) else [],
+        "source": source.get("source") or "worker_character_anchor",
+    }
+
+
+def _build_character_reference_image_prompt(character: dict, *, image_style_directive: str, topic: str, upload_title: str) -> str:
+    name = _character_anchor_name(character) or "story protagonist"
+    visual_dna = str(character.get("visual_dna_en") or character.get("prompt_en") or "").strip()
+    wardrobe = str(character.get("wardrobe_en") or "").strip()
+    continuity = str(character.get("continuity_instruction") or "").strip()
+    role = str(character.get("role") or "story character").strip()
+    return (
+        "Create a clean square reference portrait for one original recurring story character. "
+        f"Character name/label: {name}. Role: {role}. Topic: {topic}. Upload title: {upload_title}. "
+        f"Permanent visual DNA: {visual_dna}. Default wardrobe and color palette: {wardrobe}. "
+        f"Continuity rule: {continuity}. Style directive: {image_style_directive}. "
+        "Single character only, waist-up portrait, neutral readable pose, clear face, consistent hairstyle and clothing, "
+        "simple non-distracting background, no text, no captions, no logo, no watermark, no celebrity likeness."
+    )
+
+
+def _gcs_asset_api_url(bucket: str, object_path: str) -> str:
+    from urllib.parse import quote
+
+    return f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}&path={quote(object_path, safe='')}"
+
+
+def _upload_topic_character_image(topic_queue_id: str, character_key: str, image_bytes: bytes) -> tuple[str, str, str]:
+    import requests as _req
+    from urllib.parse import quote
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+
+    client_email = os.getenv("GCS_CLIENT_EMAIL") or os.getenv("GOOGLE_CLIENT_EMAIL") or ""
+    private_key = os.getenv("GCS_PRIVATE_KEY") or os.getenv("GOOGLE_PRIVATE_KEY") or ""
+    project_id = os.getenv("GCS_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or "air-studio-prod"
+    bucket = os.getenv("GCS_BUCKET_NAME") or "air-studio-prod"
+    if not (client_email and private_key and bucket):
+        raise RuntimeError("GCS credentials are required for character image storage")
+    creds = service_account.Credentials.from_service_account_info(
+        {
+            "type": "service_account",
+            "project_id": project_id,
+            "private_key": private_key.replace("\\n", "\n"),
+            "client_email": client_email,
+            "token_uri": "https://oauth2.googleapis.com/token",
+        },
+        scopes=["https://www.googleapis.com/auth/devstorage.read_write"],
+    )
+    creds.refresh(Request())
+    object_path = f"topics/{topic_queue_id}/characters/{character_key}.png"
+    response = _req.post(
+        f"https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket, safe='')}/o"
+        f"?uploadType=media&name={quote(object_path, safe='')}",
+        headers={"Authorization": f"Bearer {creds.token}", "Content-Type": "image/png"},
+        data=image_bytes,
+        timeout=300,
+    )
+    if response.status_code not in (200, 201):
+        raise RuntimeError(f"character image GCS upload failed: HTTP {response.status_code} {response.text[:300]}")
+    return bucket, object_path, _gcs_asset_api_url(bucket, object_path)
+
+
+def _save_topic_character_assets(
+    topic_queue_id: str,
+    *,
+    topic: str,
+    upload_title: str,
+    category: str,
+    script_style: str,
+    image_style: str,
+    story_style: str,
+    characters: list[dict],
+    generation_model: str,
+    job_log,
+) -> None:
+    if _is_topic_delivery_excluded(topic_queue_id):
+        return
+    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+    if not topic_queue_id or not supabase_url or not supabase_key or not characters:
+        return
+    import requests as _req
+
+    rows = []
+    for index, character in enumerate(characters, start=1):
+        if not isinstance(character, dict):
+            continue
+        character_key = str(character.get("character_key") or _character_anchor_key(character, f"character-{index}")).strip()
+        rows.append({
+            "topic_queue_id": int(topic_queue_id),
+            "character_key": character_key,
+            "name": _character_anchor_name(character),
+            "role": character.get("role"),
+            "gender": character.get("gender"),
+            "age_group": character.get("age_group"),
+            "category": category,
+            "script_style": script_style,
+            "image_style": image_style,
+            "story_style": story_style,
+            "visual_dna_en": character.get("visual_dna_en"),
+            "wardrobe_en": character.get("wardrobe_en"),
+            "continuity_instruction": character.get("continuity_instruction"),
+            "prompt_en": character.get("prompt_en") or character.get("visual_dna_en"),
+            "image_prompt": character.get("image_prompt"),
+            "image_url": character.get("image_url"),
+            "storage_bucket": character.get("storage_bucket") or os.getenv("GCS_BUCKET_NAME") or "air-studio-prod",
+            "storage_object_path": character.get("storage_object_path"),
+            "dna": {
+                "visual_dna_en": character.get("visual_dna_en"),
+                "wardrobe_en": character.get("wardrobe_en"),
+                "continuity_instruction": character.get("continuity_instruction"),
+                "tags": character.get("tags") or [],
+                "source": character.get("source"),
+            },
+            "usage_context": {
+                "topic": topic,
+                "upload_title": upload_title,
+                "topic_queue_id": topic_queue_id,
+            },
+            "generation_model": generation_model,
+            "generated_by_worker_id": WORKER_ID,
+            "source": character.get("source") or "hermes_worker",
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        })
+    if not rows:
+        return
+
+    response = _req.post(
+        f"{supabase_url}/rest/v1/topic_character_assets",
+        params={"on_conflict": "topic_queue_id,character_key"},
+        headers={
+            "apikey": supabase_key,
+            "Authorization": f"Bearer {supabase_key}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=minimal",
+        },
+        json=rows,
+        timeout=20,
+    )
+    if response.status_code not in (200, 201, 204):
+        job_log.warning(
+            "Supabase topic_character_assets upsert skipped/failed "
+            f"(apply AIR-0242 migration if table is missing): HTTP {response.status_code} {response.text[:200]}"
+        )
+
+
+def _character_anchors_context(
+    main_character: dict | None,
+    supporting_characters: list[dict] | None = None,
+) -> str:
+    main_anchor = _normalize_character_anchor(
+        main_character,
+        fallback_name="protagonist",
+        role="protagonist",
+    ) if isinstance(main_character, dict) and main_character else None
+    supporting = [
+        _normalize_character_anchor(item, fallback_name=f"supporting_character_{idx}", role="supporting")
+        for idx, item in enumerate((supporting_characters or [])[:2], start=1)
+        if isinstance(item, dict)
+    ]
+    payload = {
+        "max_character_anchors": 3,
+        "main_character": main_anchor,
+        "supporting_characters": supporting,
+        "image_reference_policy": (
+            "Use the character DNA and any image_url fields as the source of truth for "
+            "image-grid and video-prompt continuity."
+        ),
+    }
+    if not main_anchor and not supporting:
+        return ""
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def _fallback_main_character(topic: str, upload_title: str, structure: dict, narrative_blueprint: dict | None = None) -> dict:
+    blueprint = narrative_blueprint or {}
+    protagonist = str(blueprint.get("protagonist") or "").strip()
+    if not protagonist:
+        scenes = structure.get("scenes") if isinstance(structure, dict) else []
+        first_scene = scenes[0] if isinstance(scenes, list) and scenes else {}
+        protagonist = str(
+            first_scene.get("protagonist")
+            or first_scene.get("main_character")
+            or first_scene.get("character")
+            or "주인공"
+        ).strip()
+    title_hint = _text_with_mojibake_repairs(topic, upload_title)
+    if any(term in title_hint for term in ("할머니", "어머니", "아내", "여자", "며느리")):
+        gender = "female"
+    elif any(term in title_hint for term in ("할아버지", "아버지", "남편", "남자", "영감")):
+        gender = "male"
+    else:
+        gender = "unknown"
+    if any(term in title_hint for term in ("노인", "노후", "70", "80", "할머니", "할아버지", "영감")):
+        age_group = "70s"
+    elif any(term in title_hint for term in ("30", "40")):
+        age_group = "30s-40s"
+    else:
+        age_group = "middle-aged adult"
+    visual = (
+        f"a Korean {age_group} {gender if gender != 'unknown' else 'person'} with a grounded, realistic face, "
+        "natural skin texture, restrained emotional eyes, ordinary everyday clothing, consistent hairstyle, "
+        "consistent body type and wardrobe colors across every scene"
+    )
+    return {
+        "name": protagonist or "주인공",
+        "gender": gender,
+        "age_group": age_group,
+        "role": "주인공",
+        "visual_dna_en": visual,
+        "wardrobe_en": "simple, story-appropriate everyday clothing with consistent color and silhouette",
+        "continuity_instruction": "Keep the protagonist's age, face shape, hairstyle, clothing, body type, and emotional baseline consistent in every scene.",
+        "tags": [age_group, gender, "consistent protagonist"],
+        "source": "worker_fallback",
+    }
+
+
+async def _generate_main_character_anchor(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    language: str,
+    narrative_blueprint: dict | None,
+    job_log,
+    predefined_character: dict | None = None,
+) -> dict:
+    predefined = (
+        predefined_character
+        or structure.get("main_character")
+        or structure.get("character_context")
+        or (narrative_blueprint or {}).get("main_character")
+        or (narrative_blueprint or {}).get("character_context")
+    )
+    if isinstance(predefined, dict) and (predefined.get("name") or predefined.get("display_name")):
+        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        character = {**fallback, **{k: v for k, v in predefined.items() if v not in (None, "", [])}}
+        character["source"] = "initial_planning_slot"
+        character["created_at"] = time.time()
+        job_log.info(f"Main character anchor pre-set from initial planning slot: {character.get('name')}")
+        return character
+
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    scene_digest = []
+    if isinstance(scenes, list):
+        for scene in scenes[:12]:
+            if not isinstance(scene, dict):
+                continue
+            scene_digest.append({
+                "scene_order": scene.get("scene_order") or scene.get("order"),
+                "scene_summary": scene.get("scene_summary"),
+                "scene_situation": scene.get("scene_situation"),
+                "character_choice": scene.get("character_choice"),
+            })
+    prompt = f"""You are the worker-side visual continuity director for AIR Studio.
+Before writing the script, infer ONE main protagonist character DNA that should govern the narration, image-grid prompts, and video prompts.
+
+Return ONLY valid JSON.
+
+[TOPIC]
+{topic}
+
+[UPLOAD TITLE]
+{upload_title}
+
+[LANGUAGE]
+{language}
+
+[STORY BLUEPRINT]
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+
+[SCENE DIGEST]
+{json.dumps(scene_digest, ensure_ascii=False)}
+
+JSON shape:
+{{
+  "name": "Korean character name or stable label",
+  "gender": "male|female|unknown",
+  "age_group": "clear age range",
+  "role": "주인공 role in Korean",
+  "visual_dna_en": "precise English permanent visual identity: age, ethnicity, face shape, eyes, hair, body type, skin texture, expression baseline",
+  "wardrobe_en": "consistent default wardrobe and color palette",
+  "continuity_instruction": "one English sentence instructing image/video generators to preserve this protagonist across scenes",
+  "tags": ["short Korean/English tags"]
+}}
+
+Rules:
+- Do not invent a celebrity, brand, copyrighted character, or public figure likeness.
+- Make the character specific enough to keep consistent, but ordinary enough for generic AI generation.
+- The character must serve the title promise and story blueprint.
+- If the story is narration-only, create a representative protagonist only when the scene plan has a human subject; otherwise return an understated host/subject character."""
+    try:
+        raw = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.25,
+            max_tokens=2048,
+            task_type="hermes_main_character_anchor",
+        )
+        data = _extract_json(raw)
+        if not isinstance(data, dict):
+            raise ValueError("main character response was not an object")
+        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        character = {**fallback, **{k: v for k, v in data.items() if v not in (None, "", [])}}
+        character["source"] = "worker_ai"
+        character["created_at"] = time.time()
+        if not str(character.get("visual_dna_en") or "").strip():
+            character["visual_dna_en"] = fallback["visual_dna_en"]
+        job_log.info(f"Main character anchor ready: {character.get('name') or 'protagonist'}")
+        return character
+    except Exception as e:
+        job_log.warning(f"Main character anchor generation failed; using fallback: {e}")
+        fallback = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        fallback["created_at"] = time.time()
+        return fallback
+
+
+async def _generate_supporting_character_anchors(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    structure: dict,
+    final_script: str,
+    main_character: dict | None,
+    job_log,
+) -> list[dict]:
+    """Infer up to two non-image supporting character DNA anchors.
+
+    This deliberately creates text continuity only. Character portrait/image
+    generation is a later, opt-in stage because it costs more and can drift
+    from the final scene prompts.
+    """
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    scene_digest = []
+    if isinstance(scenes, list):
+        for scene in scenes[:16]:
+            if not isinstance(scene, dict):
+                continue
+            scene_digest.append({
+                "scene_order": scene.get("scene_order") or scene.get("order"),
+                "scene_summary": scene.get("scene_summary"),
+                "scene_situation": scene.get("scene_situation"),
+                "character_choice": scene.get("character_choice"),
+                "continuity_identity": scene.get("continuity_identity"),
+            })
+
+    prompt = f"""You are AIR Studio's worker-side character continuity director.
+Infer up to TWO supporting character DNA anchors from the final script and scene plan.
+
+Return ONLY valid JSON.
+
+[TOPIC]
+{topic}
+
+[UPLOAD TITLE]
+{upload_title}
+
+[MAIN CHARACTER - DO NOT DUPLICATE]
+{_main_character_context(main_character) or "{}"}
+
+[SCENE DIGEST]
+{json.dumps(scene_digest, ensure_ascii=False)}
+
+[FINAL SCRIPT EXCERPT]
+{str(final_script or "")[:6000]}
+
+JSON shape:
+{{
+  "supporting_characters": [
+    {{
+      "name": "stable Korean name or role label",
+      "gender": "male|female|unknown",
+      "age_group": "clear age range",
+      "role": "story role",
+      "visual_dna_en": "precise English permanent visual identity: age, ethnicity, face shape, eyes, hair, body type, skin texture, expression baseline",
+      "wardrobe_en": "consistent default wardrobe and color palette",
+      "continuity_instruction": "one English sentence for image/video prompt consistency",
+      "tags": ["short tags"]
+    }}
+  ]
+}}
+
+Rules:
+- Return 0, 1, or 2 supporting characters only.
+- Choose recurring or visually important characters, not one-off crowds.
+- Do not duplicate the main character.
+- Do not invent celebrities, brands, copyrighted characters, or public figures.
+- Use text DNA only; do not request or describe a generated portrait file."""
+    try:
+        raw = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.25,
+            max_tokens=2200,
+            task_type="hermes_supporting_character_anchors",
+        )
+        data = _extract_json(raw)
+        candidates = data.get("supporting_characters") if isinstance(data, dict) else []
+        if not isinstance(candidates, list):
+            raise ValueError("supporting_characters was not a list")
+        main_name = _character_anchor_name(main_character).casefold()
+        anchors = []
+        seen = {main_name} if main_name else set()
+        for index, candidate in enumerate(candidates, start=1):
+            if not isinstance(candidate, dict):
+                continue
+            anchor = _normalize_character_anchor(
+                candidate,
+                fallback_name=f"supporting_character_{index}",
+                role="supporting",
+            )
+            key = _character_anchor_name(anchor).casefold()
+            if key and key in seen:
+                continue
+            if key:
+                seen.add(key)
+            anchor["source"] = "worker_ai"
+            anchors.append(anchor)
+            if len(anchors) >= 2:
+                break
+        job_log.info(f"Supporting character anchors ready: {len(anchors)}")
+        return anchors
+    except Exception as e:
+        job_log.warning(f"Supporting character anchor generation failed; continuing without supporting anchors: {e}")
+        return []
+
+
+def _fallback_narrative_blueprint(topic: str, upload_title: str, structure: dict) -> dict:
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    story_core = structure.get("story_core") if isinstance(structure, dict) and isinstance(structure.get("story_core"), dict) else {}
+    scene_beats = []
+    for idx, scene in enumerate(scenes or [], start=1):
+        scene_beats.append({
+            "scene_order": scene.get("scene_order") or idx,
+            "act": scene.get("act"),
+            "dramatic_function": scene.get("dramatic_function") or "",
+            "beat": scene.get("scene_summary") or f"Scene {idx}",
+            "tension": scene.get("retention_hook") or scene.get("scene_purpose") or "",
+            "turn": scene.get("end_bridge") or "",
+            "character_choice": scene.get("character_choice") or "",
+            "emotional_shift": scene.get("emotional_shift") or "",
+            "reveal_or_question": scene.get("reveal_or_question") or "",
+        })
+    return {
+        "logline": story_core.get("logline") or upload_title or topic,
+        "protagonist": story_core.get("protagonist") or "the person at the center of the clicked story",
+        "desire": story_core.get("desire") or "resolve the promise raised by the title",
+        "opening_incident": story_core.get("opening_incident") or structure.get("opening_hook") or "",
+        "personal_stake": story_core.get("personal_stake") or "",
+        "central_conflict": story_core.get("central_conflict") or structure.get("title_promise") or topic,
+        "stakes": story_core.get("stakes") or structure.get("opening_hook") or "viewer curiosity must keep rising",
+        "hidden_information": story_core.get("hidden_information") or "reveal new information gradually instead of explaining everything upfront",
+        "turning_point": story_core.get("turning_point") or story_core.get("midpoint_reversal") or "a late middle reversal that changes what the viewer believes",
+        "midpoint_reversal": story_core.get("midpoint_reversal") or "",
+        "final_payoff": story_core.get("final_payoff") or structure.get("payoff") or "emotionally resolve the title promise",
+        "act_structure": story_core.get("acts") or [],
+        "scene_beats": scene_beats,
+        "fallback": True,
+    }
+
+
+async def _generate_narrative_blueprint(
+    ai_router, model: str, topic: str, upload_title: str, structure: dict,
+    title_generation: dict, language: str, style_directive: str,
+) -> dict:
+    prompt = f"""
+{_script_blueprint_role(language)}
+
+Before writing the script, create a STORY BLUEPRINT. This is not the script.
+It must force a real story arc: hook, character desire, conflict, rising tension,
+midpoint turn, withheld information, emotional payoff.
+
+LANGUAGE: {language}
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+TITLE GENERATION: {json.dumps(title_generation or {}, ensure_ascii=False)}
+SCENE STRUCTURE: {json.dumps(structure or {}, ensure_ascii=False)}
+STYLE DIRECTIVE: {style_directive or "none"}
+
+Return ONLY JSON:
+{{
+  "logline": "one-sentence story premise",
+  "protagonist": "who the viewer follows",
+  "desire": "what they want or need",
+  "central_conflict": "main obstacle or tension",
+  "stakes": "why it matters emotionally",
+  "hidden_information": "what must be delayed for curiosity",
+  "turning_point": "middle or late reversal",
+  "final_payoff": "what the ending must resolve",
+  "scene_beats": [
+    {{
+      "scene_order": 1,
+      "beat": "what changes in this scene",
+      "tension": "question or pressure held in this scene",
+      "turn": "new reveal or emotional move",
+      "must_include": ["specific story detail"],
+      "must_avoid": ["filler, explanation, meta commentary"]
+    }}
+  ]
+}}
+"""
+    try:
+        raw = await ai_router.generate_text(
+            prompt, model, temperature=0.45, max_tokens=4096,
+            task_type="hermes_script_blueprint",
+        )
+        parsed = _extract_json(raw)
+        if not isinstance(parsed.get("scene_beats"), list):
+            raise ValueError("blueprint.scene_beats missing")
+        return parsed
+    except Exception:
+        return _fallback_narrative_blueprint(topic, upload_title, structure)
+
+
+def _fallback_script_quality_report(script: str, upload_title: str) -> dict:
+    text = script or ""
+    issues = []
+    score = 70
+    if len(text) < 3500:
+        score -= 18
+        issues.append("script_too_short_for_longform")
+    if "섹션 생성 실패" in text or "generation failed" in text:
+        score -= 35
+        issues.append("failed_section_placeholder_present")
+    if upload_title and upload_title[:8] not in text:
+        score -= 4
+        issues.append("title_not_directly_echoed")
+    if any(term in text for term in ("스토리텔링 비법", "콘텐츠 전략", "조회수 분석")):
+        score -= 18
+        issues.append("meta_commentary_present")
+    return {
+        "score": max(0, min(100, score)),
+        "verdict": "pass" if score >= 72 and not issues else "revise",
+        "critical_issues": issues,
+        "strengths": [],
+        "revision_notes": issues,
+        "fallback": True,
+    }
+
+
+_PARAGRAPH_OPENER_PATTERNS = (
+    ("그런데", re.compile(r"그런데(?:\s+말(?:이야|입니다|이지)|요)?")),
+    ("글쎄", re.compile(r"글쎄(?:요)?")),
+    ("하지만", re.compile(r"하지만(?:\s+말이야)?")),
+    ("그러고 보니", re.compile(r"그러고\s+보니")),
+    ("그러던 어느 날", re.compile(r"그러던\s+어느\s+날")),
+    ("그때였어요", re.compile(r"그때였(?:어요|습니다)")),
+    ("자, 그런데", re.compile(r"자\s*[,，]\s*그런데")),
+)
+_PARAGRAPH_LEADING_CUES_RE = re.compile(r"^\s*(?:\([^()\n]{1,40}\)\s*)*")
+
+
+def _match_repetitive_paragraph_opener(paragraph: str):
+    cue_match = _PARAGRAPH_LEADING_CUES_RE.match(paragraph or "")
+    opener_start = cue_match.end() if cue_match else 0
+    candidate = (paragraph or "")[opener_start:]
+    for family, pattern in _PARAGRAPH_OPENER_PATTERNS:
+        match = pattern.match(candidate)
+        if match and re.match(r"(?:$|[\s,，.!?…:;~-])", candidate[match.end():]):
+            return family, opener_start, opener_start + match.end()
+    return None
+
+
+def _detect_repeated_paragraph_openers(script: str, *, max_allowed: int = 2) -> list[dict]:
+    counts = Counter()
+    examples: dict[str, str] = {}
+    for paragraph in re.split(r"\n\s*\n+", script or ""):
+        match = _match_repetitive_paragraph_opener(paragraph)
+        if not match:
+            continue
+        family, _, _ = match
+        counts[family] += 1
+        examples.setdefault(family, paragraph.strip()[:120])
+    findings = [
+        {
+            "opener": opener,
+            "count": count,
+            "max_allowed": max_allowed,
+            "excess": count - max_allowed,
+            "example": examples.get(opener, ""),
+        }
+        for opener, count in counts.items()
+        if count > max_allowed
+    ]
+    return sorted(findings, key=lambda item: (-int(item["count"]), str(item["opener"])))
+
+
+def _reduce_repeated_paragraph_openers(script: str, *, max_allowed: int = 2) -> str:
+    """Remove only excess stock openers while preserving cues and paragraph content."""
+    if not script:
+        return script
+    seen = Counter()
+    parts = re.split(r"(\n\s*\n+)", script)
+    for idx in range(0, len(parts), 2):
+        paragraph = parts[idx]
+        match = _match_repetitive_paragraph_opener(paragraph)
+        if not match:
+            continue
+        family, opener_start, opener_end = match
+        seen[family] += 1
+        if seen[family] <= max_allowed:
+            continue
+        remainder = re.sub(r"^[\s,，.!?…:;~-]+", "", paragraph[opener_end:])
+        if remainder.strip():
+            parts[idx] = paragraph[:opener_start] + remainder
+    cleaned = "".join(parts)
+    return cleaned if len(cleaned.strip()) >= max(100, int(len(script.strip()) * 0.85)) else script
+
+
+def _apply_paragraph_opener_quality(report: dict, script: str) -> dict:
+    normalized = dict(report or {})
+    findings = _detect_repeated_paragraph_openers(script)
+    normalized["paragraph_opener_repetitions"] = findings
+    if not findings:
+        return normalized
+    summary = ", ".join(f"{item['opener']} {item['count']}회" for item in findings)
+    issue = f"문단 시작 상투어 반복 초과: {summary} (각 계열 최대 2회)"
+    critical_issues = list(normalized.get("critical_issues") or [])
+    revision_notes = list(normalized.get("revision_notes") or [])
+    if issue not in critical_issues:
+        critical_issues.append(issue)
+    revision_instruction = (
+        "반복된 문단 시작 접속어를 삭제하거나 구체적인 인물, 행동, 감각 묘사로 바꾸세요. "
+        "같은 접속어 계열은 전체 대본에서 최대 2회만 사용하세요."
+    )
+    if revision_instruction not in revision_notes:
+        revision_notes.append(revision_instruction)
+    normalized["critical_issues"] = critical_issues
+    normalized["revision_notes"] = revision_notes
+    normalized["verdict"] = "revise"
+    normalized["score"] = min(int(normalized.get("score") or 0), 68)
+    return normalized
+
+
+async def _evaluate_script_quality(
+    ai_router, model: str, topic: str, upload_title: str, narrative_blueprint: dict,
+    structure: dict, script: str, language: str,
+) -> dict:
+    prompt = f"""
+{_script_qa_role(language)}
+
+Score this generated narration script for whether real viewers would keep watching/listening.
+
+Evaluate:
+1. first 30 seconds hook
+2. title promise fulfillment
+3. clear protagonist/central conflict
+4. rising tension and curiosity gaps
+5. scene-to-scene continuity
+6. midpoint turn or reveal
+7. emotional payoff
+8. absence of filler/meta commentary
+9. natural spoken narration
+10. valid parenthesized voice-emotion cues: every direct quote has one immediately before it, and long narration has a natural cue about every 1,200 characters
+11. paragraph-opening variety: stock transitions such as "그런데 말이야", "글쎄", and "하지만 말이야" must not repeatedly open paragraphs or scenes
+
+LANGUAGE: {language}
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+STORY BLUEPRINT: {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+SCENE STRUCTURE: {json.dumps(structure or {}, ensure_ascii=False)}
+SCRIPT:
+{script}
+
+Return ONLY JSON:
+{{
+  "score": 0,
+  "verdict": "pass|revise",
+  "hook_score": 0,
+  "structure_score": 0,
+  "retention_score": 0,
+  "payoff_score": 0,
+  "naturalness_score": 0,
+  "critical_issues": ["specific issue"],
+  "strengths": ["specific strength"],
+  "revision_notes": ["specific instruction for revision"]
+}}
+
+Rules:
+- If verdict is "pass", critical_issues MUST be an empty array. Put non-blocking improvement notes in revision_notes.
+- If any item is severe enough to be called a critical issue, verdict MUST be "revise".
+"""
+    try:
+        raw = await ai_router.generate_text(
+            prompt, model, temperature=0.2, max_tokens=3000,
+            task_type="hermes_script_quality_qa",
+        )
+        report = _extract_json(raw)
+        report["score"] = max(0, min(100, round(float(report.get("score") or 0))))
+        if report.get("score", 0) < 78 and report.get("verdict") == "pass":
+            report["verdict"] = "revise"
+        return _apply_paragraph_opener_quality(report, script)
+    except Exception as e:
+        report = _fallback_script_quality_report(script, upload_title)
+        report["qa_error"] = str(e)
+        return _apply_paragraph_opener_quality(report, script)
+
+
+def _script_needs_revision(report: dict) -> bool:
+    if not isinstance(report, dict):
+        return True
+    verdict = str(report.get("verdict") or "").strip().lower()
+    score = int(report.get("score") or 0)
+    return verdict != "pass" or score < 78 or bool(report.get("critical_issues"))
+
+
+
+def _detect_repeated_script_sentences(script: str, *, min_chars: int = 28, max_allowed: int = 8) -> list[dict]:
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?。！？다요죠까니다습니까])\s+", script or "")
+        if len(sentence.strip()) >= min_chars
+    ]
+    counts = Counter(sentences)
+    repeated = [
+        {"count": count, "sentence": sentence}
+        for sentence, count in counts.items()
+        if count > 1
+    ]
+    repeated.sort(key=lambda item: (-int(item["count"]), str(item["sentence"])))
+    if len(repeated) <= max_allowed:
+        return []
+    return repeated
+
+
+def _deduplicate_script_text(script: str, repeated_sentences: list[dict] | None = None) -> str:
+    """Intelligently removes duplicate/repeated sentences from the script while preserving paragraph structure."""
+    if not script:
+        return script
+    lines = script.split("\n")
+    cleaned_lines = []
+    seen_sentences = set()
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            cleaned_lines.append(line)
+            continue
+
+        parts = re.split(r"(?<=[.!?。！？다요죠까])\s+", stripped)
+        kept_parts = []
+        for part in parts:
+            p_strip = part.strip()
+            norm = re.sub(r'["\'\s]', '', p_strip)
+            if len(norm) >= 15 and norm in seen_sentences:
+                continue
+            if len(norm) >= 15:
+                seen_sentences.add(norm)
+            kept_parts.append(p_strip)
+
+        if kept_parts:
+            cleaned_lines.append(" ".join(kept_parts))
+
+    result = "\n".join(cleaned_lines)
+    return result if len(result.strip()) >= 500 else script
+
+
+async def _revise_full_script(
+    ai_router, model: str, topic: str, upload_title: str, narrative_blueprint: dict,
+    structure: dict, script: str, quality_report: dict, language: str,
+) -> str:
+    prompt = f"""
+{_script_rewrite_role(language)}
+
+Rewrite the FULL narration script once, using the QA report below.
+Keep the core story and scene order, but fix weak hook, filler, flat tension,
+unclear character motivation, missing payoff, and title-promise drift.
+
+Rules:
+- Output only the revised script body.
+- Do not add markdown headings.
+- Do not mention QA, strategy, content, algorithm, storytelling, or analysis.
+- Keep natural spoken narration.
+- {_script_emotion_cue_instruction(language)}
+- Preserve the upload title promise and final payoff.
+- Keep length within roughly +/-20% of the original.
+- Never repeatedly open paragraphs or scenes with stock transitions such as "그런데 말이야", "글쎄", or "하지만 말이야". Use each transition family at most twice in the full script; prefer a concrete subject, action, or sensory detail.
+
+LANGUAGE: {language}
+TOPIC: {topic}
+UPLOAD TITLE: {upload_title}
+STORY BLUEPRINT: {json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+SCENE STRUCTURE: {json.dumps(structure or {}, ensure_ascii=False)}
+QA REPORT: {json.dumps(quality_report or {}, ensure_ascii=False)}
+
+ORIGINAL SCRIPT:
+{script}
+"""
+    revised = await ai_router.generate_text(
+        prompt, model, temperature=0.55, max_tokens=12000,
+        task_type="hermes_script_rewrite",
+    )
+    return _ensure_script_emotion_cues(_clean_section_text(revised.strip(), False), language)
+
+
+def _script_rescue_scene_text(scene: dict, fallback_idx: int) -> str:
+    if not isinstance(scene, dict):
+        return f"{fallback_idx}번째 장면에서 주인공은 앞선 선택의 결과를 직접 마주하고, 숨겨져 있던 단서 하나를 확인합니다."
+    for key in (
+        "scene_situation",
+        "scene_summary",
+        "scene_purpose",
+        "character_choice",
+        "emotional_shift",
+        "reveal_or_question",
+        "retention_hook",
+    ):
+        value = str(scene.get(key) or "").strip()
+        if value:
+            return _clean_script_scene_text(value)
+    return f"{fallback_idx}번째 장면에서 주인공은 앞선 선택의 결과를 직접 마주하고, 숨겨져 있던 단서 하나를 확인합니다."
+
+
+def _build_korean_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    """Build a Korean-only safety script when the model drifts into English."""
+    title = (upload_title or topic or "오늘의 이야기").strip()
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        scenes = [{} for _ in range(8)]
+    paragraphs = [
+        f"{title}. 이 이야기는 제목이 약속한 장면에서 바로 시작됩니다. 주인공은 평소처럼 넘기려던 작은 이상함 앞에서 멈춰 서고, 그 순간부터 이미 돌이킬 수 없는 선택의 문턱에 서게 됩니다.",
+        "처음에는 누구도 큰일이라고 생각하지 않았습니다. 하지만 사소해 보였던 말 한마디와 눈에 밟히는 물건 하나가 겹치자, 주인공은 자신이 알고 있던 사실이 전부가 아니라는 것을 느낍니다.",
+    ]
+    for idx, scene in enumerate(scenes, start=1):
+        beat = _script_rescue_scene_text(scene, idx)
+        paragraphs.append(
+            f"{idx}번째 장면에서 핵심은 분명합니다. {beat} 주인공은 그 사실을 그냥 지나치지 않고, 직접 확인하기 위해 한 걸음 더 들어갑니다. "
+            "그 과정에서 주변 사람들의 말은 조금씩 엇갈리고, 처음에는 우연처럼 보였던 일이 점점 의도된 선택처럼 드러납니다. "
+            "그래서 이 장면은 단순한 설명이 아니라 다음 결정을 밀어붙이는 전환점이 됩니다."
+        )
+    paragraphs.append(
+        "마지막에 남는 것은 거창한 교훈이 아니라, 제목이 던졌던 질문에 대한 분명한 답입니다. "
+        "주인공은 끝까지 피하고 싶었던 진실을 마주하고, 그 진실 때문에 누군가는 후회하고 누군가는 뒤늦게 마음을 바꿉니다. "
+        "이야기는 처음의 작은 의심이 결국 모든 관계와 선택을 바꾸었다는 사실을 보여주며 마무리됩니다."
+    )
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += (
+            "\n\n주인공은 같은 걱정을 반복하지 않고, 방금 확인한 단서를 바탕으로 다음 행동을 선택합니다. "
+            "그 선택은 상황을 더 선명하게 만들고, 숨겨져 있던 마음과 책임을 하나씩 드러냅니다."
+        )
+    return script
+
+
+async def _rewrite_script_to_korean(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    narrative_blueprint: dict,
+    structure: dict,
+    script: str,
+    job_log,
+) -> str:
+    stats = _script_language_stats(script)
+    prompt = f"""
+You are a Korean long-form narration recovery editor.
+
+The script below failed because it contains too much Latin/English text.
+Rewrite the entire script into natural Korean narration while preserving the
+same scene order, title promise, protagonist, conflict, reveals, and payoff.
+
+Hard rules:
+- Output Korean narration body only.
+- Use Hangul for the narration. Do not leave English sentences, English labels, headings, markdown, JSON, camera directions, or analysis notes.
+- Proper nouns may remain only when unavoidable, but keep Latin letters extremely rare.
+- Keep the length roughly similar to the original. Do not summarize into a short outline.
+- Do not mention this QA failure or the rewrite process.
+- {_script_emotion_cue_instruction("ko")}
+
+LANGUAGE FAILURE STATS:
+{json.dumps(stats, ensure_ascii=False)}
+
+TOPIC:
+{topic}
+
+UPLOAD TITLE:
+{upload_title}
+
+STORY BLUEPRINT:
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+
+SCENE STRUCTURE:
+{json.dumps(structure or {}, ensure_ascii=False)}
+
+SCRIPT TO REWRITE:
+{script}
+"""
+    try:
+        rewritten = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.35,
+            max_tokens=16000,
+            task_type="hermes_script_korean_language_rewrite",
+        )
+        rewritten = _clean_section_text(str(rewritten or "").strip(), False)
+        if rewritten and not _script_has_excessive_latin(rewritten):
+            return _ensure_script_emotion_cues(rewritten, "ko")
+        job_log.warning(
+            "Korean language rewrite still had excessive Latin text; using deterministic rescue script "
+            f"(stats={_script_language_stats(rewritten)})"
+        )
+    except Exception as exc:
+        job_log.warning(f"Korean language rewrite failed; using deterministic rescue script: {exc}")
+    return _ensure_script_emotion_cues(
+        _build_korean_language_rescue_script(
+            topic,
+            upload_title,
+            structure,
+            min_total_chars=max(2600, int(len(script) * 0.55)),
+        ),
+        "ko",
+    )
+
+
+def _build_japanese_language_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    title = (upload_title or topic or "今夜の昔話").strip()
+    scenes = structure.get("scenes") if isinstance(structure, dict) else []
+    if not isinstance(scenes, list) or not scenes:
+        scenes = [{} for _ in range(8)]
+    paragraphs = [
+        f"{title}。物語は、ただの言い伝えだと思われていた一言が、ある夜に現実へ変わる瞬間から始まります。主人公は小さな違和感の前で足を止め、その場で引き返せば済んだはずの一歩を、つい踏み出してしまいます。",
+        "最初は取るに足らない出来事に見えました。けれど、同じ言葉を別々の人が口にし、何気ない道具が同じ夜に続けて現れたことで、主人公は自分の知っている世界がすべてではないと気づき始めます。",
+    ]
+    for idx, scene in enumerate(scenes, start=1):
+        beat = re.sub(r"[\uac00-\ud7a3]", "", _script_rescue_scene_text(scene, idx)).strip()
+        if not beat:
+            beat = f"{idx}番目の場面で、主人公は前の選択が残した結果を自分の目で確かめます。"
+        paragraphs.append(
+            f"{idx}番目の場面では、{beat} 主人公は見て見ぬふりをせず、確かめるべきことを自分で確かめに行きます。"
+            "そのたびに、周囲の人々の記憶は少しずつ食い違い、偶然に見えた出来事が誰かの沈黙と結びついていたことが明らかになります。"
+            "だからこの場面は説明では終わらず、次の決断を避けられないものへ変えていきます。"
+        )
+    paragraphs.append(
+        "最後に残るのは大げさな教訓ではありません。題名が最初に投げかけた問いに対する、逃げ場のない答えです。"
+        "主人公はとうとう避けたかった真実を受け入れ、その真実によって誰かは悔い、誰かは遅すぎる告白をします。"
+        "物語は、最初の小さな違和感が人の関係と選択の順番をすべて変えてしまったのだと示して静かに閉じます。"
+    )
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += (
+            "\n\n主人公は同じ不安を言い直すのではなく、直前に得た手がかりを頼りに次の行動を選びます。"
+            "その選択によって状況はさらに輪郭を帯び、隠れていた感情と責任の所在が一つずつ表へ出てきます。"
+        )
+    return script
+
+
+async def _rewrite_script_to_japanese(
+    ai_router,
+    model: str,
+    topic: str,
+    upload_title: str,
+    narrative_blueprint: dict,
+    structure: dict,
+    script: str,
+    job_log,
+) -> str:
+    prompt = f"""
+You are a Japanese long-form narration recovery editor.
+
+The script below failed because it drifted into Korean or mixed-language output.
+Rewrite the entire script into natural Japanese narration while preserving the
+same scene order, title promise, protagonist, conflict, reveals, and payoff.
+
+Hard rules:
+- Output Japanese narration body only.
+- Use natural Japanese throughout. Do not leave Korean sentences, Korean labels, headings, markdown, JSON, camera directions, or analysis notes.
+- Proper nouns may remain only when unavoidable.
+- Keep the length roughly similar to the original. Do not collapse it into a short outline.
+- Do not mention this QA failure or the rewrite process.
+- {_script_emotion_cue_instruction("ja")}
+
+TOPIC:
+{topic}
+
+UPLOAD TITLE:
+{upload_title}
+
+STORY BLUEPRINT:
+{json.dumps(narrative_blueprint or {}, ensure_ascii=False)}
+
+SCENE STRUCTURE:
+{json.dumps(structure or {}, ensure_ascii=False)}
+
+SCRIPT TO REWRITE:
+{script}
+"""
+    try:
+        rewritten = await ai_router.generate_text(
+            prompt,
+            model,
+            temperature=0.35,
+            max_tokens=16000,
+            task_type="hermes_script_japanese_language_rewrite",
+        )
+        rewritten = _clean_section_text(str(rewritten or "").strip(), False)
+        if rewritten and _japanese_char_count(rewritten) >= max(800, len(rewritten) // 6) and not re.search(r"[\uac00-\ud7a3]", rewritten):
+            return _ensure_script_emotion_cues(rewritten, "ja")
+        rewritten_hangul = len(re.findall(r"[\uac00-\ud7a3]", rewritten or ""))
+        job_log.warning(
+            "Japanese language rewrite still failed language validation; using deterministic rescue script "
+            f"(japanese={_japanese_char_count(rewritten)}, chars={len(rewritten)}, hangul={rewritten_hangul})"
+        )
+    except Exception as exc:
+        job_log.warning(f"Japanese language rewrite failed; using deterministic rescue script: {exc}")
+    return _ensure_script_emotion_cues(
+        _build_japanese_language_rescue_script(
+            topic,
+            upload_title,
+            structure,
+            min_total_chars=max(2600, int(len(script) * 0.55)),
+        ),
+        "ja",
+    )
+
+
+
+
+
+def _build_martial_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    title = (upload_title or topic or "무협 이야기").strip()
+    paragraphs = [
+        f"{title}. 비 내리는 대나무숲 끝, 폐허가 된 산문 앞에 피 묻은 현판 하나가 떨어져 있었습니다. 강호의 패권을 노리던 적대 문파의 기습으로 문파는 몰락했고, 살아남은 사형은 어린 사제를 업고 천 길 낭떠러지 협곡으로 몸을 숨겨야 했습니다.",
+        "사제가 품에 안고 있던 것은 문파 대대로 내려오던 전설의 비급 목판이었습니다. 적들이 문파를 멸문시키면서까지 빼앗으려 했던 것은 단순한 무공서가 아니라, 강호 전체를 뒤흔들 거대한 비밀이 봉인된 기록이었습니다.",
+        "십 년의 세월 동안 사형은 자신의 내공을 깎아가며 사제의 끊어진 단전을 치료했고, 사제는 피눈물을 삼키며 사부의 마지막 유언을 검결로 새겼습니다. 복수는 분노로 이루어지는 것이 아니라, 냉철한 실력과 진실의 규명으로 완성된다는 가르침이었습니다.",
+        "마침내 무림맹 공개 비무의 날, 정파의 가면을 쓴 채 암약하던 악역의 음모가 만천하에 드러났습니다. 사형의 검끝은 상대의 목을 베는 대신 사부의 결백을 증명하는 비급의 마지막 봉인을 갈라 열었습니다.",
+        "강호의 정의는 한 자루의 검만으로 세워지는 것이 아니었습니다. 복수를 넘어 약속을 지켜낸 두 사람의 발걸음 뒤로, 새로운 강호의 아침 햇살이 비추기 시작했습니다.",
+    ]
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += "\n\n강호의 비바람은 그치지 않겠지만, 의기를 품은 자의 길은 결코 꺾이지 않습니다. 두 사람이 남긴 무림의 전설은 오래도록 사람들의 가슴속에 깊은 울림으로 남았습니다."
+    return script
+
+
+def _build_survival_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    title = (upload_title or topic or "탈북 사연").strip()
+    paragraphs = [
+        f"{title}. 영하 20도의 매서운 칼바람이 몰아치던 밤, 꽁꽁 얼어붙은 두만강 강판 위에 한 청년의 발자국이 찍혔습니다. 뒤편 국경 초소의 서치라이트가 강판을 훑고 지나갈 때마다 숨을 죽인 채 눈밭에 엎드렸습니다. 자유를 향한 갈망이 공포를 이겨낸 순간이었습니다.",
+        "제3국 은신처에서의 하루하루는 살얼음판과 같았습니다. 신분증도 없이 낯선 언어의 틈바구니에서 숨어 지내야 했지만, 고향에 남겨진 가족들에게 언젠가 자유의 소식을 전하겠다는 희망 하나로 버텼습니다.",
+        "한국 대사관의 문을 두드리고 마침내 대한민국 땅에 첫발을 디뎠을 때, 가슴 속에서 뜨거운 눈물이 솟구쳤습니다. 태어나 처음으로 내 이름 석 자가 적힌 주민등록증을 받아 든 날, 비로소 인간으로서의 온전한 삶이 시작되었습니다.",
+        "남한 사회에서의 정착 역시 또 다른 도전이었습니다. 문화적 차이와 보이지 않는 편견에 부딪히기도 했지만, 정직하게 땀 흘려 일하며 당당한 사회의 일원으로 뿌리를 내렸습니다.",
+        "이 이야기는 단순한 탈출의 기록이 아닙니다. 자유라는 가장 소중한 가치를 지키기 위해 모든 것을 걸었던 한 인간의 존엄과 용기에 대한 증언입니다.",
+    ]
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += "\n\n어둠을 뚫고 찾아온 자유의 소중함은 매일의 평범한 일상 속에서 더욱 빛납니다. 스스로 선택하고 책임지는 삶의 가치를 되새기며, 새로운 내일을 향한 발걸음은 멈추지 않습니다."
+    return script
+
+
+def _build_twilight_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    title = (upload_title or topic or "황혼 이야기").strip()
+    paragraphs = [
+        f"{title}. 조용한 찻집 창가, 30년의 세월을 지나 다시 마주 앉은 두 사람의 찻잔 위로 하얀 김이 피어올랐습니다. 청춘 시절 피치 못할 사정으로 엇갈렸던 두 사람은 각자의 삶을 치열하게 살아낸 뒤, 황혼의 문턱에서 다시 마주했습니다.",
+        "지나온 세월은 얼굴에 깊은 주름을 남겼지만, 서로를 바라보는 눈빛 속에는 여전히 그 시절의 순수함과 미안함이 머물러 있었습니다. 자식들을 다 키워 독립시키고 홀로 남겨진 일상 속에서, 두 사람은 서로의 아픔을 보듬는 유일한 안식처가 되었습니다.",
+        "세상의 편견과 자식들의 오해라는 현실적 벽 앞에서도, 두 사람은 조급해하지 않았습니다. 형식적인 결합보다 서로의 곁을 묵묵히 지켜주는 동반자로서의 진심을 담담하게 증명해 보였습니다.",
+        "노을 지는 호숫가를 나란히 걸으며 두 사람은 비로소 깨달았습니다. 진정한 사랑은 젊은 날의 열정에만 머무는 것이 아니라, 남은 생을 서로의 온기로 따뜻하게 채워가는 성숙한 약속임을 말입니다.",
+    ]
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += "\n\n황혼의 길목에서 마주한 소중한 인연은 지나온 삶의 모든 상처를 보듬어주는 선물이었습니다. 남은 날들을 서로에게 가장 따뜻한 친구이자 버팀목이 되어주기로 한 두 사람의 발걸음은 평온했습니다."
+    return script
+
+
+def _build_korean_drama_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    title = (upload_title or topic or "한국 사연").strip()
+    paragraphs = [
+        f"{title}. 언제나 가족이라는 이름으로 모든 양보와 희생을 강요당했던 주인공이 있었습니다. 시댁의 무리한 요구와 막말 속에서도 가정을 지키기 위해 인내했지만, 돌아온 것은 재산 강탈과 파렴치한 누명이었습니다.",
+        "모든 참을성이 바닥난 순간, 주인공은 감정적인 싸움 대신 조용히 진실을 밝힐 증거를 수집하기 시작했습니다. 10년간의 계좌 이체 내역, 통화 녹취 파일, CCTV 영상을 하나하나 꼼꼼하게 정리하며 완벽한 반격의 무대를 준비했습니다.",
+        "가족들이 모두 모인 공개적인 자리에서, 주인공은 차분하게 서류 봉투를 열어 모든 진실을 낱낱이 공개했습니다. 완벽한 물증 앞에서 오만하던 상대방의 얼굴은 하얗게 질려갔고, 침묵하던 주변 사람들도 마침내 고개를 숙였습니다.",
+        "부당하게 빼앗겼던 모든 권리를 법적으로 완벽하게 되찾은 주인공은 마침내 유독했던 관계의 사슬을 끊어냈습니다. 선한 사람이 끝까지 참다가 내린 결단이 얼마나 강력한 정의를 만들어내는지 보여준 통쾌한 이야기입니다.",
+    ]
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += "\n\n더 이상 부당한 희생을 침묵으로 감내하지 않겠다는 단호한 결의는 스스로를 지키는 가장 큰 힘이었습니다. 진실을 마주하고 새로운 시작을 선택한 주인공의 앞날에는 당당한 희망이 가득했습니다."
+    return script
+
+
+def _build_overseas_rescue_script(topic: str, upload_title: str, structure: dict, min_total_chars: int = 2600) -> str:
+    title = (upload_title or topic or "해외 감동 실화").strip()
+    paragraphs = [
+        f"{title}. 낯선 유럽의 기차역에서 여권과 지갑을 잃어버리고 길거리에 주저앉았던 한국인 유학생이 있었습니다. 언어조차 통하지 않아 눈물만 흘리던 그 청년에게, 한 노신사가 다가와 따뜻한 손을 내밀었습니다.",
+        "노신사는 청년을 자신의 집으로 데려가 따뜻한 수프를 대접하고, 대사관에 연락할 수 있도록 차비와 숙소를 마련해 주었습니다. 아무런 대가 없이 베푼 그 친절 뒤에는, 수십 년 전 한국전쟁에 참전해 한국인들에게 받았던 따뜻한 보살핌을 잊지 못했던 노인의 오랜 약속이 있었습니다.",
+        "세월이 흘러 어엿한 기업가가 된 주인공은 수소문 끝에 백발의 노인이 된 은인을 다시 찾아갔습니다. 수십 년의 세월과 국경을 넘어 다시 만난 두 사람이 뜨거운 눈물로 끌어안았을 때, 현지 방송과 사람들도 아낌없는 박수를 보냈습니다.",
+        "국경과 인종을 초월해 이어진 이 아름다운 은혜의 순환은, 인간의 조건 없는 친절이 어떻게 세상을 따뜻하게 밝히는지 보여주는 진정한 감동의 증언입니다.",
+    ]
+    script = "\n\n".join(paragraphs).strip()
+    while len(script) < min_total_chars:
+        script += "\n\n마음에서 마음으로 전해진 온기는 국경을 넘어 더 큰 사랑으로 피어났습니다. 작은 친절 하나가 또 다른 기적을 낳는다는 믿음은 세상 모든 이들에게 잊지 못할 감동을 선물했습니다."
+    return script
+
+
+
+
+def _validate_script_generate_payload(payload: dict) -> tuple[str, str, list, dict, str, str, str, str, float, int, str, dict]:
+    topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
+    if not topic_queue_id:
+        raise ValueError("payload.topic_queue_id is required for script_generate")
+    topic = str(payload.get("topic") or "").strip()
+    if not topic:
+        raise ValueError("payload.topic is required for script_generate")
+
+    structure = payload.get("structure")
+    scenes = (structure or {}).get("scenes") if isinstance(structure, dict) else None
+    if not isinstance(scenes, list) or not scenes:
+        raise ValueError("payload.structure.scenes (non-empty list) is required for script_generate")
+
+    script_style = str(payload.get("script_style") or "default").strip()
+    language = str(payload.get("language") or "ko").strip()
+    if language not in SCRIPT_GEN_LANGUAGE_INSTRUCTIONS:
+        language = "ko"
+    narration_mode = str(payload.get("narration_mode") or "dramatic_single").strip().lower()
+    if narration_mode not in ("single", "dramatic_single", "multi"):
+        narration_mode = "dramatic_single"
+    from services.narration_policy import normalize_narration_pace
+
+    narration_pace = normalize_narration_pace(payload.get("narration_pace"))
+    from services.narration_policy import normalize_tts_speed
+    raw_tts_speed = payload.get("tts_speed")
+    if raw_tts_speed is None:
+        try:
+            autopilot_state = json.loads(
+                (STATE_DIR / "hermes_autopilot_state.json").read_text(encoding="utf-8")
+            )
+            raw_tts_speed = (autopilot_state.get("settings") or {}).get("tts_speed")
+        except (OSError, ValueError, TypeError):
+            raw_tts_speed = None
+    tts_speed = normalize_tts_speed(raw_tts_speed)
+
+    duration_seconds = payload.get("target_duration_seconds", 60)
+    try:
+        duration_seconds = max(15, int(duration_seconds))
+    except (TypeError, ValueError):
+        duration_seconds = 60
+
+    title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
+    upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
+
+    return topic_queue_id, topic, scenes, structure or {}, script_style, language, narration_mode, narration_pace, tts_speed, duration_seconds, upload_title, title_generation
+
+
+def _validate_publish_metadata_payload(payload: dict) -> tuple[str, str, str, str, dict, dict, str, dict]:
+    topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
+    if not topic_queue_id:
+        raise ValueError("payload.topic_queue_id is required for publish_metadata_generate")
+    topic = str(payload.get("topic") or "").strip()
+    if not topic:
+        raise ValueError("payload.topic is required for publish_metadata_generate")
+    script = str(payload.get("script") or "").strip()
+    if not script:
+        raise ValueError("payload.script is required for publish_metadata_generate")
+    title_generation = payload.get("title_generation") if isinstance(payload.get("title_generation"), dict) else {}
+    upload_title = str(payload.get("upload_title") or title_generation.get("generated_title") or "").strip()
+    structure = payload.get("structure") if isinstance(payload.get("structure"), dict) else {}
+    narrative_blueprint = payload.get("narrative_blueprint") if isinstance(payload.get("narrative_blueprint"), dict) else {}
+    script_quality_report = payload.get("script_quality_report") if isinstance(payload.get("script_quality_report"), dict) else {}
+    language = str(payload.get("language") or "ko").strip()
+    return topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language, script_quality_report
+
+
+def _process_script_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating payload)")
+
+    topic_queue_id, topic, scenes, structure, script_style, language, narration_mode, narration_pace, tts_speed, duration_seconds, upload_title, title_generation = _validate_script_generate_payload(job["payload"])
+    is_multi = narration_mode == "multi"
+    is_shorts = duration_seconds <= 60
+
+    job_store.transition(job_id, job_store.RENDERING, reason="generating duration-aware narration chunks")
+    write_state("running", job, 10, job_id)
+    job_log.info(f"-> RENDERING (topic_queue_id={topic_queue_id}, {len(scenes)} scenes, mode={narration_mode}, pace={narration_pace}, tts_speed={tts_speed:.2f}x)")
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+    from services.script_style_resolver import resolve_script_style_directive
+    from services.sfx_service import build_hermes_sfx_cues
+    import asyncio
+
+    Config.refresh_remote_keys_if_stale()
+    config.SCRIPT_GENERATION_MODEL = _prefer_gemini_text_model(config, config.SCRIPT_GENERATION_MODEL)
+    Config.SCRIPT_GENERATION_MODEL = config.SCRIPT_GENERATION_MODEL
+
+    # Mirrors /api/script/generate's own model selection
+    # (app/routers/gemini.py::script_generate) so pre-baked and live-generated
+    # narration use the same model choice.
+    model = config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    model = _prefer_gemini_text_model(config, model)
+    draft_model = _select_script_draft_model(config, model)
+    generation_models = {
+        **(
+            (job.get("payload") or {}).get("generation_models")
+            if isinstance((job.get("payload") or {}).get("generation_models"), dict)
+            else {}
+        ),
+        "script_draft": draft_model,
+        "script_generation": model,
+        "script_quality_qa": model,
+    }
+    if draft_model != model:
+        job_log.info(
+            f"Using {draft_model} for script draft/blueprint and reserving {model} for script QA/rewrite"
+        )
+    style_directive = resolve_script_style_directive(script_style)
+    learning_instruction = _learning_profile_instruction(job.get("payload") or {})
+    feedback_instruction = _quality_feedback_instruction(job.get("payload") or {})
+    repair_instruction = str((job.get("payload") or {}).get("repair_instruction") or "").strip()
+    repair_source_script = str((job.get("payload") or {}).get("repair_source_script") or "").strip()
+    if learning_instruction:
+        style_directive = f"{style_directive}\n\n{learning_instruction}".strip()
+    if feedback_instruction:
+        style_directive = f"{style_directive}\n\n{feedback_instruction}".strip()
+    if repair_instruction:
+        style_directive = f"{style_directive}\n\nRepair instruction:\n{repair_instruction}".strip()
+    if repair_source_script:
+        style_directive = f"{style_directive}\n\nExisting incomplete draft to reuse, expand, and clean up:\n{repair_source_script[:8000]}".strip()
+    category_context = " ".join(
+        str((job.get("payload") or {}).get(key) or "")
+        for key in ("category", "category_name")
+    ).strip()
+    category_name = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    script_style_context = f"{script_style} {category_context}".strip()
+    image_style = str((job.get("payload") or {}).get("image_style") or "realistic").strip()
+    image_style_selection = (
+        (job.get("payload") or {}).get("image_style_selection")
+        if isinstance((job.get("payload") or {}).get("image_style_selection"), dict)
+        else {}
+    )
+    if _is_old_story_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        image_style,
+        category=category_name,
+    ):
+        old_story_script_guard = """
+
+Old-story script guard:
+- Stay inside a pre-modern Korean folk-tale world. Do not introduce modern objects, places, institutions, or disputes.
+- Forbidden modern drift: developer, redevelopment, excavator, museum, bus, phone, cellphone, Seoul trip, police report, court lawsuit, camera, broadcast, apartment, car, hospital, office.
+- Do not invent a new external subplot that is not in the scene plan. Expand only the characters, place, object, secret, conflict, and promise already present in the upload title and scene_situation fields.
+- Never replace the title promise with a different family plot. The protagonist, central mystery, and payoff must stay anchored to the upload title.
+- Do not narrate planning labels such as middle turn, scene purpose, hook, prompt, camera, shot, or visual direction.
+""".strip()
+        style_directive = f"{style_directive}\n\n{old_story_script_guard}".strip()
+    previous_error = str(job.get("error_message") or "").strip()
+    if previous_error:
+        retry_instruction = f"""
+
+Previous generation attempt failed QA. Fix these exact issues:
+{previous_error[:2400]}
+
+Hard retry rules:
+- Do not write camera, screen, subtitle, shot, or visual-direction narration in the script.
+- Do not introduce finance, pension, bankbook, budget, policy, investment, or market-analysis material.
+- Keep every event anchored to the selected category, title promise, characters, conflict, and payoff.
+- Each scene must change the viewer's understanding; if it only restates prior information, replace it with a new concrete choice, obstacle, or consequence.
+""".strip()
+        style_directive = f"{style_directive}\n\n{retry_instruction}".strip()
+    old_story_context = _is_old_story_plan_context(
+        script_style_context,
+        topic,
+        upload_title,
+        image_style,
+        category=category_name,
+    )
+    if old_story_context:
+        # Script QA evaluates narration, not supplementary visual grids.
+        structure = dict(structure)
+        structure.pop("image_grid_prompts", None)
+        scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else scenes
+    total_target_chars, length_instruction = _script_gen_length_instruction(
+        duration_seconds,
+        is_shorts,
+        narration_pace,
+        language,
+        tts_speed,
+    )
+    scene_budgets = _scene_char_budgets(scenes, duration_seconds, total_target_chars, is_shorts, narration_pace)
+    script_chunks = _chunk_scenes_for_script_generation(scenes, scene_budgets, max_chunks=4)
+
+    async def _run_generation() -> tuple[str, dict, dict, dict, int, dict, list[str]]:
+        narrative_blueprint = _fallback_narrative_blueprint(topic, upload_title, structure)
+        main_character = await _generate_main_character_anchor(
+            ai_router, draft_model, topic, upload_title, structure, language, narrative_blueprint, job_log
+        )
+
+        final_parts = []
+        known_characters: list[str] = []
+        if isinstance(main_character, dict):
+            main_name = str(main_character.get("name") or "").strip()
+            if main_name:
+                known_characters.append(main_name)
+        unresolved_threads = [
+            narrative_blueprint.get("hidden_information"),
+            narrative_blueprint.get("central_conflict"),
+        ]
+        for chunk_idx, (start_idx, chunk_scenes, chunk_budgets) in enumerate(script_chunks):
+            previous_context = {}
+            if final_parts:
+                previous_context = {
+                    "previous_scene_count": len(final_parts),
+                    "previous_script_excerpt": _short_script_excerpt(final_parts[-1], 1200),
+                    "previous_scene_summaries": [
+                        str(item.get("scene_summary") or "").strip()
+                        for item in scenes[max(0, start_idx - 6):start_idx]
+                        if str(item.get("scene_summary") or "").strip()
+                    ],
+                    "known_characters": known_characters,
+                    "unresolved_threads": [t for t in unresolved_threads if t],
+                }
+            prompt = _build_script_chunk_prompt(
+                topic, chunk_scenes, chunk_budgets, is_shorts, is_multi, known_characters,
+                length_instruction, language,
+                upload_title=upload_title,
+                structure_context=structure,
+                narrative_blueprint=narrative_blueprint,
+                previous_context=previous_context,
+                narration_mode=narration_mode,
+                main_character=main_character,
+            )
+            if style_directive:
+                prompt = f"{prompt}\n\n{style_directive}"
+
+            try:
+                raw_text = await ai_router.generate_text(
+                    prompt, draft_model, temperature=0.65, max_tokens=16384,
+                    task_type="hermes_script_generate",
+                )
+                chunk_parts = _parse_script_chunk_sections(
+                    raw_text,
+                    chunk_scenes,
+                    is_multi,
+                    lambda local_idx, scene: _fallback_narration_section(
+                        topic,
+                        upload_title,
+                        scene,
+                        start_idx + local_idx,
+                        len(scenes),
+                        int(chunk_budgets[local_idx].get("min_chars") or 80),
+                        language=language,
+                    ),
+                )
+            except Exception as e:
+                job_log.warning(
+                    f"Script chunk {chunk_idx + 1}/{len(script_chunks)} generation fallback: {e}"
+                )
+                chunk_parts = [
+                    _fallback_narration_section(
+                        topic,
+                        upload_title,
+                        scene,
+                        start_idx + local_idx,
+                        len(scenes),
+                        int(chunk_budgets[local_idx].get("min_chars") or 80),
+                        language=language,
+                    )
+                    for local_idx, scene in enumerate(chunk_scenes)
+                ]
+
+            for local_idx, (scene, section_text) in enumerate(zip(chunk_scenes, chunk_parts)):
+                budget = chunk_budgets[local_idx]
+                section_text = _trim_section_to_limit(
+                    section_text,
+                    int(budget.get("max_chars") or 220),
+                    strict=float(budget.get("duration_seconds") or 0) <= 6,
+                )
+                if section_text:
+                    final_parts.append(section_text)
+                    if is_multi:
+                        for name in _extract_speaker_names(section_text):
+                            if name not in known_characters:
+                                known_characters.append(name)
+                if scene.get("end_bridge"):
+                    unresolved_threads.append(scene.get("end_bridge"))
+
+            processed_scene_count = min(len(scenes), start_idx + len(chunk_scenes))
+            progress = int(10 + 60 * processed_scene_count / len(scenes))
+            message = (
+                f"script chunk {chunk_idx + 1}/{len(script_chunks)} complete "
+                f"(scenes {start_idx + 1}-{processed_scene_count})"
+            )
+            job_store.update_progress(job_id, progress, message)
+            write_state("running", job, progress, job_id)
+
+            if chunk_idx < len(script_chunks) - 1:
+                await asyncio.sleep(0.5)
+
+        draft_script = _ensure_script_emotion_cues(
+            "\n\n".join(p for p in final_parts if p).strip(),
+            language,
+        )
+        job_store.update_progress(job_id, 78, "script QA")
+        write_state("running", job, 78, job_id)
+        initial_quality = await _evaluate_script_quality(
+            ai_router, model, topic, upload_title, narrative_blueprint, structure, draft_script, language
+        )
+        final_script = draft_script
+        final_quality = initial_quality
+        revision_count = 0
+        scene_script_sections = list(final_parts)
+
+        if _script_needs_revision(initial_quality):
+            job_log.info(
+                f"Script QA requested revision (score={initial_quality.get('score')}, verdict={initial_quality.get('verdict')})"
+            )
+            job_store.update_progress(job_id, 84, "script rewrite")
+            write_state("running", job, 84, job_id)
+            try:
+                revised = await _revise_full_script(
+                    ai_router, model, topic, upload_title, narrative_blueprint,
+                    structure, draft_script, initial_quality, language,
+                )
+                if revised and len(revised) >= max(500, int(len(draft_script) * 0.55)):
+                    revised_quality = await _evaluate_script_quality(
+                        ai_router, model, topic, upload_title, narrative_blueprint, structure, revised, language
+                    )
+                    revised_score = int(revised_quality.get("score") or 0)
+                    revised_passed = (
+                        revised_quality.get("verdict") == "pass"
+                        and not revised_quality.get("critical_issues")
+                        and revised_score >= 78
+                    )
+                    if revised_passed and revised_score >= int(initial_quality.get("score") or 0) - 3:
+                        final_script = revised
+                        final_quality = revised_quality
+                        revision_count = 1
+                        scene_script_sections = []
+            except Exception as e:
+                job_log.warning(f"Script rewrite failed (keeping draft): {e}")
+
+        opener_findings = _detect_repeated_paragraph_openers(final_script)
+        if opener_findings:
+            job_log.warning(
+                f"Script QA found repeated paragraph openers: {opener_findings}. "
+                "Applying deterministic opener cleanup before rescue selection."
+            )
+            cleaned_script = _reduce_repeated_paragraph_openers(final_script)
+            if cleaned_script != final_script:
+                final_script = _ensure_script_emotion_cues(cleaned_script, language)
+                final_quality = await _evaluate_script_quality(
+                    ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+                )
+                revision_count = max(revision_count, 1)
+                scene_script_sections = []
+
+        if _script_needs_revision(final_quality):
+            rescue_script = None
+            if _is_martial_plan_context(script_style_context, topic, upload_title, image_style):
+                job_log.info("Script QA still requested revision; trying martial rescue script")
+                rescue_script = _build_martial_rescue_script(topic, upload_title, structure)
+            elif _is_survival_story_plan_context(script_style_context, topic, upload_title, image_style):
+                job_log.info("Script QA still requested revision; trying survival rescue script")
+                rescue_script = _build_survival_rescue_script(topic, upload_title, structure)
+            elif _is_twilight_plan_context(script_style_context, topic, upload_title, image_style):
+                job_log.info("Script QA still requested revision; trying twilight rescue script")
+                rescue_script = _build_twilight_rescue_script(topic, upload_title, structure)
+            elif _is_korean_drama_plan_context(script_style_context, topic, upload_title, image_style):
+                job_log.info("Script QA still requested revision; trying korean drama rescue script")
+                rescue_script = _build_korean_drama_rescue_script(topic, upload_title, structure)
+            elif _is_overseas_touching_plan_context(script_style_context, topic, upload_title, image_style):
+                job_log.info("Script QA still requested revision; trying overseas touching rescue script")
+                rescue_script = _build_overseas_rescue_script(topic, upload_title, structure)
+            elif language == "ja":
+                job_log.info("Script QA still requested revision; trying Japanese rescue script")
+                rescue_script = _build_japanese_language_rescue_script(topic, upload_title, structure)
+
+            if rescue_script:
+                rescue_script = _ensure_script_emotion_cues(rescue_script, language)
+                rescue_quality = await _evaluate_script_quality(
+                    ai_router, model, topic, upload_title, narrative_blueprint, structure, rescue_script, language
+                )
+                if not _script_needs_revision(rescue_quality):
+                    final_script = rescue_script
+                    final_quality = rescue_quality
+                    revision_count = max(revision_count, 1)
+                    scene_script_sections = []
+
+        if language == "ko" and _script_has_excessive_latin(final_script):
+            job_log.warning(
+                "Script contains excessive Latin text after normal rewrite/rescue; forcing Korean rewrite "
+                f"(stats={_script_language_stats(final_script)})"
+            )
+            job_store.update_progress(job_id, 86, "Korean language rewrite")
+            write_state("running", job, 86, job_id)
+            final_script = await _rewrite_script_to_korean(
+                ai_router,
+                model,
+                topic,
+                upload_title,
+                narrative_blueprint,
+                structure,
+                final_script,
+                job_log,
+            )
+            final_quality = await _evaluate_script_quality(
+                ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+            )
+            revision_count = max(revision_count, 1)
+            scene_script_sections = []
+        elif language == "ja" and (
+            _japanese_char_count(final_script) < 800 or re.search(r"[\uac00-\ud7a3]", final_script)
+        ):
+            final_script_hangul = len(re.findall(r"[\uac00-\ud7a3]", final_script))
+            job_log.warning(
+                "Script failed Japanese language validation after normal rewrite/rescue; forcing Japanese rewrite "
+                f"(japanese={_japanese_char_count(final_script)}, chars={len(final_script)}, hangul={final_script_hangul})"
+            )
+            job_store.update_progress(job_id, 86, "Japanese language rewrite")
+            write_state("running", job, 86, job_id)
+            final_script = await _rewrite_script_to_japanese(
+                ai_router,
+                model,
+                topic,
+                upload_title,
+                narrative_blueprint,
+                structure,
+                final_script,
+                job_log,
+            )
+            final_quality = await _evaluate_script_quality(
+                ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+            )
+            revision_count = max(revision_count, 1)
+            scene_script_sections = []
+
+        final_opener_findings = _detect_repeated_paragraph_openers(final_script)
+        if final_opener_findings:
+            job_log.warning(
+                f"Final language/rewrite pass reintroduced repeated paragraph openers: {final_opener_findings}."
+            )
+            cleaned_script = _reduce_repeated_paragraph_openers(final_script)
+            if cleaned_script != final_script:
+                final_script = _ensure_script_emotion_cues(cleaned_script, language)
+                final_quality = await _evaluate_script_quality(
+                    ai_router, model, topic, upload_title, narrative_blueprint, structure, final_script, language
+                )
+                revision_count = max(revision_count, 1)
+                scene_script_sections = []
+
+        return final_script, narrative_blueprint, initial_quality, final_quality, revision_count, main_character, scene_script_sections
+
+    (
+        final_script,
+        narrative_blueprint,
+        initial_quality,
+        final_quality,
+        revision_count,
+        main_character,
+        scene_script_sections,
+    ) = asyncio.run(_run_generation())
+    if not final_script:
+        raise ValueError("Generated script was empty after all sections were processed")
+    if _script_needs_revision(final_quality):
+        issues = final_quality.get("critical_issues") or final_quality.get("revision_notes") or []
+        raise RuntimeError(
+            "script quality gate failed after rewrite/rescue: "
+            f"verdict={final_quality.get('verdict')}, score={final_quality.get('score')}, issues={issues[:8]}"
+        )
+
+    repeated_sentences = _detect_repeated_script_sentences(final_script)
+    if repeated_sentences:
+        job_log.warning(
+            f"Script contains {len(repeated_sentences)} repeated sentence groups. Running automatic deduplication pass..."
+        )
+        deduped = _deduplicate_script_text(final_script, repeated_sentences)
+        remaining = _detect_repeated_script_sentences(deduped)
+        if not remaining or len(remaining) <= 8:
+            final_script = deduped
+            job_log.info("Automatic script deduplication successfully resolved repeated sentences.")
+        else:
+            final_script = deduped
+            job_log.warning(
+                f"Script deduplicated ({len(remaining)} residual minor repetitions allowed for continuity)."
+            )
+    final_script = _ensure_script_emotion_cues(final_script, language)
+    if not isinstance(main_character, dict) or not main_character:
+        main_character = _fallback_main_character(topic, upload_title, structure, narrative_blueprint)
+        main_character["source"] = "worker_required_fallback"
+    main_character = _normalize_character_anchor(
+        main_character,
+        fallback_name="protagonist",
+        role="protagonist",
+    )
+    supporting_characters = asyncio.run(
+        _generate_supporting_character_anchors(
+            ai_router,
+            draft_model,
+            topic,
+            upload_title,
+            structure,
+            final_script,
+            main_character,
+            job_log,
+        )
+    )[:2]
+    image_style_key, image_style_directive = _resolve_image_style_directive(image_style, image_style_selection)
+    _save_topic_character_assets(
+        str(topic_queue_id),
+        topic=topic,
+        upload_title=upload_title,
+        category=category_name,
+        script_style=script_style_context,
+        image_style=image_style_key,
+        story_style=script_style,
+        characters=[main_character] + supporting_characters[:2],
+        generation_model="text_visual_dna_only",
+        job_log=job_log,
+    )
+    character_anchors = {
+        "main_character": main_character,
+        "supporting_characters": supporting_characters,
+        "max_character_anchors": 3,
+        "character_image_generation": {
+            "enabled": False,
+            "status": "deferred_to_codex_image_workflow",
+            "reason": "Automatic Gemini image generation is disabled; use the Codex built-in image generation workflow.",
+            "stage": "after_script_before_media_prompts",
+            "storage_bucket": os.getenv("GCS_BUCKET_NAME") or "air-studio-prod",
+            "registry_table": "topic_character_assets",
+        },
+    }
+
+    job_store.update_progress(job_id, 90, "generating media prompts from final script")
+    write_state("running", job, 90, job_id)
+    job_log.info(
+        f"-> GENERATING MEDIA PROMPTS FROM FINAL SCRIPT "
+        f"(scene_count={len(scenes)}, script_chars={len(final_script)})"
+    )
+    structure = _generate_scene_media_prompts(
+        structure=structure,
+        topic=topic,
+        upload_title=upload_title,
+        image_style=image_style,
+        image_style_selection=image_style_selection,
+        language=language,
+        job_log=job_log,
+        script_text=final_script,
+        scene_script_sections=scene_script_sections,
+        main_character=main_character,
+        supporting_characters=supporting_characters,
+    )
+    category_errors = _scene_plan_category_contamination_errors(
+        structure,
+        script_style=script_style_context,
+        topic=topic,
+        upload_title=upload_title,
+        image_style=image_style,
+        category=str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip(),
+    )
+    if category_errors:
+        raise RuntimeError(f"scene media prompt category QA failed: {category_errors[:8]}")
+    from codex_content_runner import CodexStagedContentRunner
+    from worker.codex_sfx import plan_package_sfx
+    sfx_package = {"script": final_script, "structure": structure}
+    plan_package_sfx(CodexStagedContentRunner(), job_id, sfx_package)
+    from worker.codex_bgm import plan_package_bgm
+    bgm_plan = plan_package_bgm(CodexStagedContentRunner(), job_id, sfx_package,
+                                enabled=(job.get('payload') or {}).get('generate_bgm_prompt') is True)
+    job_log.info(f"-> BGM PROMPT {bgm_plan['status']} (no audio generation)")
+    sfx_cues = sfx_package["sfx_cues"]
+    sfx_cues_json = sfx_package["sfx_cues_json"]
+    job_log.info(f"-> CODEX SFX PLANNED ({len(sfx_cues)} cues)")
+    category_for_gate = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    script_stage_payload = {
+        "topic_queue_id": topic_queue_id,
+        "category": category_for_gate,
+        "topic": topic,
+        "generated_title": upload_title,
+        "upload_title": upload_title,
+        "language": language,
+        "script": final_script,
+        "structure": structure,
+        "script_quality_report": final_quality,
+        "script_style": script_style_context,
+        "image_style": image_style,
+        "main_character": main_character,
+        "supporting_characters": supporting_characters,
+        "character_anchors": character_anchors,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
+    }
+    script_stage_report = _validate_script_generate_stage(
+        script_stage_payload,
+        category=category_for_gate,
+    )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving result")
+    write_state("running", job, 95, job_id)
+    char_count = len(final_script)
+    job_log.info(f"-> UPLOADING (char_count={char_count})")
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "script_generate",
+        "status": "COMPLETED",
+        "topic_queue_id": topic_queue_id,
+        "topic": topic,
+        "language": language,
+        "script": final_script,
+        "structure": structure,
+        "upload_title": upload_title,
+        "title_generation": title_generation,
+        "generation_models": generation_models,
+        "image_style": image_style,
+        "image_style_selection": image_style_selection,
+        "learning_profile": (job.get("payload") or {}).get("learning_profile") or {},
+        "narrative_blueprint": narrative_blueprint,
+        "main_character": main_character,
+        "supporting_characters": supporting_characters,
+        "character_anchors": character_anchors,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
+        "initial_script_quality_report": initial_quality,
+        "script_quality_report": final_quality,
+        "stage_quality_report": script_stage_report,
+        "revision_count": revision_count,
+        "char_count": char_count,
+        "read_time_seconds": (char_count + 414) // 415,  # matches script_gen.html's Math.ceil(charCount / 415)
+        "narration_mode": narration_mode,
+        "narration_pace": narration_pace,
+        "tts_speed": tts_speed,
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
+        "completed_at": completed_at,
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="script generation complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
+def _process_publish_metadata_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    job_store.transition(job_id, job_store.PREPARING, reason="validating payload")
+    write_state("preparing", job, 0, job_id)
+    job_log.info("-> PREPARING (validating publish metadata payload)")
+
+    topic_queue_id, topic, script, upload_title, structure, narrative_blueprint, language, script_quality_report = _validate_publish_metadata_payload(job["payload"])
+
+    job_store.transition(job_id, job_store.RENDERING, reason="generating publish metadata")
+    write_state("running", job, 30, job_id)
+
+    ensure_project_root_on_path()
+    from config import Config, config
+    from services import ai_router
+    import asyncio
+
+    Config.refresh_remote_keys_if_stale()
+    model = config.TITLE_GENERATION_MODEL or config.SCRIPT_GENERATION_MODEL or config.SCRIPT_PLANNING_MODEL
+    generation_models = {
+        **(
+            (job.get("payload") or {}).get("generation_models")
+            if isinstance((job.get("payload") or {}).get("generation_models"), dict)
+            else {}
+        ),
+        "publish_metadata": model,
+    }
+
+    publish_metadata = asyncio.run(
+        _generate_publish_metadata(
+            ai_router,
+            model,
+            topic,
+            upload_title,
+            script,
+            language,
+            narrative_blueprint,
+            structure,
+        )
+    )
+    _validate_publish_metadata_quality(publish_metadata, topic, upload_title, script, language)
+    category_for_gate = str((job.get("payload") or {}).get("category") or (job.get("payload") or {}).get("category_name") or "").strip()
+    sfx_cues = (job.get("payload") or {}).get("sfx_cues") or []
+    sfx_cues_json = (job.get("payload") or {}).get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
+    metadata_stage_payload = {
+        "topic_queue_id": topic_queue_id,
+        "category": category_for_gate,
+        "topic": topic,
+        "generated_title": upload_title,
+        "upload_title": upload_title,
+        "script": script,
+        "structure": structure,
+        "narrative_blueprint": narrative_blueprint,
+        "script_quality_report": script_quality_report,
+        "generation_models": generation_models,
+        "publish_metadata": publish_metadata,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
+        "language": language,
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
+    }
+    metadata_stage_report = _validate_publish_metadata_stage(
+        metadata_stage_payload,
+        category=category_for_gate,
+    )
+
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving publish metadata")
+    write_state("running", job, 90, job_id)
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    completed_at = time.time()
+    main_character = structure.get("main_character") if isinstance(structure, dict) else None
+    supporting_characters = (
+        structure.get("supporting_characters")
+        if isinstance(structure, dict) and isinstance(structure.get("supporting_characters"), list)
+        else []
+    )
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "publish_metadata_generate",
+        "status": "COMPLETED",
+        "topic_queue_id": topic_queue_id,
+        "topic": topic,
+        "generated_title": upload_title,
+        "upload_title": upload_title,
+        "script": script,
+        "structure": structure,
+        "narrative_blueprint": narrative_blueprint,
+        "main_character": main_character,
+        "supporting_characters": supporting_characters[:2],
+        "character_anchors": {
+            "main_character": main_character,
+            "supporting_characters": supporting_characters[:2],
+            "max_character_anchors": 3,
+            "character_image_generation": {
+                "enabled": False,
+                "reason": "Worker pre-generation uses text DNA anchors first; portrait image generation remains opt-in.",
+            },
+        },
+        "publish_metadata": publish_metadata,
+        "sfx_cues": sfx_cues,
+        "sfx_cues_json": sfx_cues_json,
+        "language": language,
+        "script_quality_report": script_quality_report,
+        "generation_models": generation_models,
+        "stage_quality_report": metadata_stage_report,
+        "defer_ready_until_quality_gate": bool((job.get("payload") or {}).get("defer_ready_until_quality_gate")),
+        "completed_at": completed_at,
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    job_store.transition(job_id, job_store.COMPLETED, reason="publish metadata complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, result at {result_path}")
+    logger.info(f"Completed job {job_id} -> {result_path}")
+    return str(result_path), result_payload
+
+
+def _process_codex_topic_discover(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    payload = job.get("payload") or {}
+    category = str(payload.get("category") or "").strip()
+    candidates = (payload.get("benchmark_analysis") or {}).get("candidates") or []
+    if not category or not candidates:
+        raise ValueError("codex_topic_discover requires category and real YouTube benchmark candidates")
+    job_store.transition(job_id, job_store.PREPARING, reason="validating YouTube evidence for Codex topic discovery")
+    job_store.transition(job_id, job_store.RENDERING, reason="Codex selecting original topic from YouTube evidence")
+    from codex_content_runner import CodexTopicDiscoveryRunner
+    result = CodexTopicDiscoveryRunner().generate(job_id, payload)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    result_payload = {"job_id": job_id, "job_type": "codex_topic_discover", "status": "COMPLETED", **result}
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving Codex topic discovery result")
+    job_store.transition(job_id, job_store.COMPLETED, reason="Codex topic discovery complete", output_path=str(result_path))
+    job_log.info("-> COMPLETED, Codex topic discovery produced %d candidates", len(result.get("candidates") or []))
+    return str(result_path), result_payload
+
+
+def _process_sfx_plan_generate(job, job_id, job_log):
+    from codex_content_runner import CodexStagedContentRunner
+    from worker.codex_sfx import plan_sfx
+    payload = job.get("payload") or {}
+    job_store.transition(job_id, job_store.PREPARING, reason="Validating SFX plan inputs")
+    job_store.transition(job_id, job_store.RENDERING, reason="Planning subtitle SFX")
+    result = plan_sfx(CodexStagedContentRunner(), job_id, payload.get("units") or [],
+                      payload.get("catalog") or [], payload.get("existing_cues") or [])
+    result["snapshot"] = payload.get("snapshot")
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = RESULTS_DIR / f"{job_id}.json"
+    path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    job_store.transition(job_id, job_store.UPLOADING, reason="Saving SFX plan")
+    job_store.transition(job_id, job_store.COMPLETED, reason="SFX plan ready", output_path=str(path))
+    return str(path), result
+
+
+def _process_codex_content_generate(job: dict, job_id: str, job_log) -> tuple[str, dict]:
+    """Run Codex through the legacy plan → script → media → metadata contracts.
+
+    It remains one queue job for operational convenience, but each stage has
+    its own Codex request/result file and downstream input.  Media prompts are
+    therefore derived from finalized per-scene narration, never from a single
+    all-in-one content response.
+    """
+    payload = dict(job.get("payload") or {})
+    topic_queue_id = str(payload.get("topic_queue_id") or "").strip()
+    category = str(payload.get("category") or payload.get("category_name") or "").strip()
+    language = str(payload.get("language") or "ko").strip()
+    if not topic_queue_id:
+        raise ValueError("payload.topic_queue_id is required for codex_content_generate")
+    if not category:
+        raise ValueError("payload.category is required for codex_content_generate")
+
+    # Carry the legacy style, learning, and feedback directives into every
+    # staged Codex request.
+    from services.script_style_resolver import resolve_script_style_directive
+    from services.category_writing_profiles import resolve_category_writing_profile
+    from services.content_safety import reject_finance_content
+
+    script_style = str(payload.get("script_style") or "default").strip()
+    directives = [resolve_script_style_directive(script_style)]
+    category_profile = resolve_category_writing_profile(category)
+    if category_profile:
+        directives.append(category_profile)
+    style_key, style_prompt = _resolve_image_style_directive(
+        str(payload.get("image_style") or "realistic"),
+        payload.get("image_style_selection") if isinstance(payload.get("image_style_selection"), dict) else None,
+    )
+    payload["image_style"] = style_key
+    payload["image_style_directive"] = style_prompt
+    directives.append(
+        "Visual-style contract: use this exact existing image-style directive in every image prompt and image-grid prompt; do not substitute another style.\n"
+        + style_prompt
+    )
+    for instruction in (_learning_profile_instruction(payload), _quality_feedback_instruction(payload)):
+        if instruction:
+            directives.append(instruction)
+    if _is_old_story_plan_context(
+        f"{script_style} {category}",
+        str(payload.get("topic") or ""),
+        str(payload.get("upload_title") or ""),
+        str(payload.get("image_style") or "realistic"),
+        category=category,
+    ):
+        directives.append(
+            "Old-story guard: stay in a pre-modern Korean folk-tale world; no modern objects, "
+            "institutions, finance, or external subplot. Keep the title promise, protagonist, "
+            "central object, conflict, reveal, and payoff connected throughout every scene."
+        )
+    payload["legacy_stage_directives"] = "\n\n".join(item for item in directives if item).strip()
+    payload["legacy_quality_contract"] = {
+        "title": "Original title only; it must be represented in title_candidates and match the completed script.",
+        "plan": "Every scene needs a distinct beat; avoid category contamination and repetitive scene purpose.",
+        "script": "Pass Korean/language, repetition, emotion-cue, continuity, and script-quality checks.",
+        "metadata": "Pass the legacy publish-metadata validator; never expose internal production terms.",
+    }
+    # The legacy worker rejects this category contamination before any creative
+    # provider call.  Keep the same boundary for Codex rather than relying on
+    # a post-generation score alone.
+    reject_finance_content(
+        "codex_content_generate payload",
+        category,
+        payload.get("topic"),
+        payload.get("upload_title"),
+        payload.get("research_bundle"),
+    )
+
+    job_store.transition(job_id, job_store.PREPARING, reason="validating Codex content payload")
+    write_state("preparing", job, 0, job_id)
+    job_store.transition(job_id, job_store.RENDERING, reason="Codex generating content package")
+    write_state("running", job, 20, job_id)
+    job_log.info("-> RENDERING (Codex content package: plan, script, prompts, metadata)")
+
+    from codex_content_runner import CodexStagedContentRunner
+    from services.generation_quality_gate import validate_generation_package
+    from services.sfx_service import build_hermes_sfx_cues
+
+    package = CodexStagedContentRunner().generate(job_id, payload)
+    # The legacy script path always adds concrete emotion cues before its
+    # quality gate.  Apply the same deterministic finishing pass to Codex
+    # narration so the shared gate evaluates equivalent output contracts.
+    package["script"] = _ensure_script_emotion_cues(
+        str(package.get("script") or ""), language
+    )
+    generated_title = str(package.get("generated_title") or "").strip()
+    package["topic_queue_id"] = topic_queue_id
+    package["source_job_id"] = job_id
+    package["category_id"] = payload.get("category_id") or package.get("category_id") or ""
+    package["topic"] = generated_title or str(payload.get("topic") or "").strip()
+    package["upload_title"] = generated_title
+    package["generated_title"] = generated_title
+    package["category"] = category
+    package["language"] = language
+    # Match the legacy metadata path: normalize model-produced lists and
+    # description against the selected title and final narration before the
+    # shared quality gate evaluates them.  The selected upload title remains
+    # first so metadata cannot silently advertise a different story.
+    normalized_metadata = _normalize_publish_metadata(
+        package.get("publish_metadata") if isinstance(package.get("publish_metadata"), dict) else {},
+        package["topic"],
+        generated_title,
+        str(package.get("script") or ""),
+        language,
+    )
+    normalized_metadata["titles"] = [generated_title] + [
+        title for title in normalized_metadata.get("titles", [])
+        if str(title or "").strip() and str(title).strip() != generated_title
+    ]
+    package["publish_metadata"] = normalized_metadata
+    reject_finance_content(
+        "codex_content_generate result",
+        package.get("generated_title"),
+        package.get("script"),
+        package.get("structure"),
+        package.get("publish_metadata"),
+    )
+    package["image_style"] = package.get("image_style") or payload.get("image_style") or "realistic"
+    package["image_style_selection"] = package.get("image_style_selection") or payload.get("image_style_selection") or {}
+    from worker.codex_sfx import plan_package_sfx
+    plan_package_sfx(CodexStagedContentRunner(), job_id, package)
+    from worker.codex_bgm import plan_package_bgm
+    bgm_plan = plan_package_bgm(CodexStagedContentRunner(), job_id, package,
+                                enabled=payload.get('generate_bgm_prompt') is True)
+    job_log.info(f"-> BGM PROMPT {bgm_plan['status']} (no audio generation)")
+    package["generation_models"] = {
+        **(payload.get("generation_models") if isinstance(payload.get("generation_models"), dict) else {}),
+        "content_package": "codex-cli",
+        "script_planning": "codex-cli",
+        "script_generation": "gpt-6-astra",
+        "dialogue_annotation": "gpt-6-astra",
+        "scene_media_prompt_generation": "codex-cli",
+        "publish_metadata": "codex-cli",
+    }
+    package["defer_ready_until_quality_gate"] = bool(payload.get("defer_ready_until_quality_gate"))
+
+    title_candidates = (package.get("title_generation") or {}).get("title_candidates") or []
+    candidate_titles = {
+        str(item.get("title") or "").strip()
+        for item in title_candidates if isinstance(item, dict)
+    }
+    # Directly commissioned packages can begin from a user-approved title,
+    # rather than a preceding discovery job.  Preserve that title as the
+    # explicit candidate so the same title integrity check remains meaningful.
+    if not candidate_titles and generated_title:
+        package["title_generation"] = {
+            **(package.get("title_generation") or {}),
+            "generated_title": generated_title,
+            "title_candidates": [{"title": generated_title, "source": "direct_user_request"}],
+        }
+        candidate_titles = {generated_title}
+    if generated_title not in candidate_titles:
+        raise RuntimeError("Codex title stage failed: final title is missing from title_candidates")
+
+    # Run the old plan, script, and metadata gates in their original order.
+    plan_report = _validate_script_plan_stage(
+        package["structure"], script_style=script_style, topic=package["topic"],
+        upload_title=generated_title, image_style=package["image_style"], category=category,
+    )
+    script_report = _validate_script_generate_stage(package, category=category)
+    metadata_report = _validate_publish_metadata_stage(package, category=category)
+    package["stage_quality_report"] = {
+        "script_plan": plan_report,
+        "script": script_report,
+        "publish_metadata": metadata_report,
+    }
+
+    quality_errors = validate_generation_package(package, category=category)
+    if quality_errors:
+        raise RuntimeError("Codex content package failed quality gate: " + "; ".join(quality_errors[:12]))
+
+    # Recheck after finishing/normalization, immediately before any completed artifact is saved.
+    from senior_script_guard import text_issues, review_issues
+    senior_errors = text_issues([
+        {"scene_order": 1, "text": package.get("script")},
+    ], payload) + review_issues(package.get("script_quality_report"))
+    senior_errors += text_issues([
+        {"scene_order": index, "text": scene.get("scene_text") or scene.get("narration")}
+        if isinstance(scene, dict) else {}
+        for index, scene in enumerate(package["structure"]["scenes"], 1)
+    ], payload)
+    if senior_errors:
+        raise RuntimeError("Codex senior listening gate rejected save: " + "; ".join(senior_errors[:12]))
+    package["generation_models"]["script_senior_review"] = "codex-cli"
+    # Official project-billed Voice Studio supersedes the browser prototype.
+    # A requested audio failure propagates before package completion.
+    from worker.voice_studio_runner import maybe_generate_voice_studio
+    maybe_generate_voice_studio(package, payload, OUTPUT_DIR / "voice_studio" / job_id)
+    job_store.transition(job_id, job_store.UPLOADING, reason="saving Codex content package")
+    write_state("running", job, 90, job_id)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    result_path = RESULTS_DIR / f"{job_id}.json"
+    result_payload = {
+        "job_id": job_id,
+        "job_type": "codex_content_generate",
+        "status": "COMPLETED",
+        **package,
+        "char_count": len(str(package.get("script") or "")),
+        "completed_at": time.time(),
+        "error": None,
+    }
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        import notion_learning
+        notion_saved = asyncio.run(notion_learning.create_content_learning_row(result_payload))
+    except Exception as exc:
+        raise RuntimeError(f"Notion learning save failed: {exc}") from exc
+    if not notion_saved:
+        raise RuntimeError("Notion learning save failed: Notion key/database is unavailable or rejected the write")
+    result_payload["notion_learning_saved"] = True
+    result_path.write_text(json.dumps(result_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    # A Codex package is not complete until the actual queue row contains it.
+    # Do this before marking the local job completed so a cloud write cannot be
+    # mistaken for a successful local-only run.
+    _save_result_to_supabase("codex_content_generate", result_payload, job_log, strict=True)
+    from codex_character_assets import CharacterAssetStore
+    CharacterAssetStore().sync_matching_projects(
+        int(topic_queue_id), package["script"], package["character_anchors"], OUTPUT_DIR / "character_link_backups")
+    job_store.transition(job_id, job_store.COMPLETED, reason="Codex content package complete", output_path=str(result_path))
+    job_log.info(f"-> COMPLETED, Codex content package at {result_path}")
+    return str(result_path), result_payload
+
+
+def _save_result_to_supabase(job_type: str, result_payload: dict, job_log, *, strict: bool = False) -> None:
+    """Save generated content to Supabase topics_queue table.
+
+    Uses the same direct REST pattern as dispatcher_service.py — service_role
+    key gives full PostgREST access.  Failures are logged but never propagated
+    (the local result file is already the authoritative copy).
+    """
+    supabase_url = (os.getenv("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+    if not supabase_url or not supabase_key:
+        if strict:
+            raise RuntimeError("Supabase is not configured")
+        job_log.info("Supabase not configured — skipping cloud save")
+        return
+
+    import requests as _req
+
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal",
+    }
+
+    try:
+        if result_payload.get("defer_ready_until_quality_gate") and job_type in {
+            "script_plan_generate",
+            "script_generate",
+        }:
+            job_log.info(
+                "Quality-gated autopilot job complete locally; deferring Supabase ready sync "
+                "until the full package passes final validation."
+            )
+            return
+
+        if job_type == "topic_research":
+            topics = result_payload.get("topics", [])
+            payload_data = result_payload.get("_payload_data") or {}
+            if not topics:
+                job_log.warning("No topics in result_payload — skipping Supabase insert")
+                return
+            # Insert each topic as a pending row (mirrors dispatcher_service.py)
+            category_id = payload_data.get("category_id")
+            language = payload_data.get("language", "ko")
+            assigned_email = payload_data.get("assigned_employee_email", "")
+            if not assigned_email:
+                # Derive a fallback so the NOT NULL column is satisfied
+                assigned_email = "hermes_worker@local"
+
+            image_style = str(payload_data.get("image_style") or result_payload.get("image_style") or "").strip()
+            character_context = payload_data.get("character_context") or result_payload.get("character_context")
+            writing_profile = payload_data.get("writing_profile") or result_payload.get("writing_profile")
+
+            for topic_item in topics:
+                title = topic_item.get("title", "") if isinstance(topic_item, dict) else str(topic_item)
+                if not title:
+                    continue
+                summary = topic_item.get("summary", "") if isinstance(topic_item, dict) else ""
+                visual_concept = topic_item.get("visual_concept", "") if isinstance(topic_item, dict) else ""
+                suggested_role = topic_item.get("suggested_character_role", "") if isinstance(topic_item, dict) else ""
+                sources = topic_item.get("sources", []) if isinstance(topic_item, dict) else []
+
+                progress_payload = {
+                    "topic_summary": summary,
+                    "visual_concept": visual_concept,
+                    "suggested_character_role": suggested_role,
+                    "sources": sources,
+                }
+                if image_style:
+                    progress_payload["image_style"] = image_style
+                if character_context:
+                    progress_payload["character_context"] = character_context
+                if writing_profile:
+                    progress_payload["writing_profile"] = writing_profile
+
+                row = {
+                    "topic": title,
+                    "assigned_employee_email": assigned_email,
+                    "language": language,
+                    "status": "pending",
+                    "is_auto_generated": True,
+                    "generated_by_worker_id": WORKER_ID,
+                    "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                    "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "progress_payload": progress_payload,
+                }
+                if category_id:
+                    row["category_id"] = category_id
+                if image_style:
+                    row["image_style"] = image_style
+                r = _req.post(
+                    f"{supabase_url}/rest/v1/topics_queue",
+                    json=row, headers=headers, timeout=10,
+                )
+                if r.status_code not in (200, 201) and "Could not find" in r.text:
+                    fallback_row = {
+                        key: value for key, value in row.items()
+                        if key not in GENERATED_BY_TOPIC_FIELDS and key != "image_style"
+                    }
+                    r = _req.post(
+                        f"{supabase_url}/rest/v1/topics_queue",
+                        json=fallback_row, headers=headers, timeout=10,
+                    )
+                if r.status_code in (200, 201):
+                    job_log.info(f"Supabase: inserted topic '{title[:60]}'")
+                else:
+                    job_log.warning(f"Supabase insert failed: {r.status_code} {r.text[:200]}")
+
+        elif job_type in {"script_generate", "codex_content_generate"}:
+            tq_id = result_payload.get("topic_queue_id")
+            if not tq_id:
+                job_log.info("No topic_queue_id in script result - skipping Supabase update")
+                return
+            sfx_cues = result_payload.get("sfx_cues") or []
+            sfx_cues_json = result_payload.get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
+            structure = result_payload.get("structure") if isinstance(result_payload.get("structure"), dict) else {}
+            patch_data = {
+                # Keep pre-generated topics claimable. The queue row becomes
+                # completed only when the user claims it.
+                "status": "pending",
+                "pregenerated_script": result_payload.get("script"),
+                "pregenerated_script_status": "ready",
+                "pregenerated_structure": result_payload.get("structure"),
+                "pregenerated_structure_status": "ready",
+                "total_scenes": structure.get("scene_count") or len(structure.get("scenes") or []),
+                "publish_metadata": result_payload.get("publish_metadata"),
+                "publish_metadata_status": "ready",
+                "progress_payload": {
+                    "publish_metadata": result_payload.get("publish_metadata"),
+                    "main_character": result_payload.get("main_character"),
+                    "supporting_characters": result_payload.get("supporting_characters") or [],
+                    "character_anchors": result_payload.get("character_anchors") or {},
+                    "sfx_cues": sfx_cues,
+                    "sfx_cues_json": sfx_cues_json,
+                    "thumbnail_hook_texts": result_payload.get("thumbnail_hook_texts") or [],
+                    "thumbnail_hook_reasoning": result_payload.get("thumbnail_hook_reasoning") or "",
+                    "thumbnail_image_prompt": result_payload.get("thumbnail_image_prompt") or "",
+                    "thumbnail_copy_source": result_payload.get("thumbnail_copy_source") or "",
+                    "thumbnail_design": result_payload.get("thumbnail_design") or {},
+                    "thumbnail_completed": False,
+                    "thumbnail_url": None,
+                    "thumbnail_render_status": "awaiting_background",
+                    "thumbnail_generation_status": "ready_for_cowork" if result_payload.get("thumbnail_image_prompt") else "not_ready",
+                    "pregenerated_script_status": "ready",
+                    "prepared_topic_ready": True,
+                    "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                },
+                "narrative_blueprint": result_payload.get("narrative_blueprint"),
+                "script_quality_report": result_payload.get("script_quality_report"),
+                "generated_by_worker_id": WORKER_ID,
+                "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }
+            r = _req.patch(
+                f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                headers={**headers, "Prefer": "return=minimal"},
+                json=patch_data,
+                timeout=10,
+            )
+            if r.status_code not in (200, 204):
+                fallback = {
+                    k: v for k, v in patch_data.items()
+                    if k not in ("narrative_blueprint", "script_quality_report", "publish_metadata_status") and k not in GENERATED_BY_TOPIC_FIELDS
+                }
+                r = _req.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    json=fallback,
+                    timeout=10,
+                )
+            if r.status_code in (200, 204):
+                job_log.info(f"Supabase: marked topics_queue#{tq_id} as completed")
+            else:
+                job_log.warning(f"Supabase patch failed: {r.status_code} {r.text[:200]}")
+                if strict:
+                    raise RuntimeError(f"Supabase final package patch failed: {r.status_code} {r.text[:200]}")
+
+        elif job_type == "script_plan_generate":
+            tq_id = result_payload.get("topic_queue_id")
+            if not tq_id:
+                job_log.info("No topic_queue_id in plan result — skipping Supabase update")
+                return
+            structure = result_payload.get("structure", {})
+            scene_count = structure.get("scene_count")
+            patch_data = {
+                "pregenerated_structure": structure,
+                "pregenerated_structure_status": "ready",
+                "generated_by_worker_id": WORKER_ID,
+                "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }
+            if scene_count:
+                patch_data["total_scenes"] = scene_count
+            if patch_data:
+                r = _req.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    json=patch_data,
+                    timeout=10,
+                )
+                if r.status_code not in (200, 204):
+                    # Older deployments may not yet have the optional plan
+                    # metadata columns. Preserve the scene count at minimum.
+                    fallback = {"total_scenes": scene_count} if scene_count else {}
+                    if fallback:
+                        r = _req.patch(
+                            f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                            headers={**headers, "Prefer": "return=minimal"},
+                            json=fallback,
+                            timeout=10,
+                        )
+                if r.status_code in (200, 204):
+                    job_log.info(f"Supabase: updated topics_queue#{tq_id} with plan data")
+                else:
+                    job_log.warning(f"Supabase patch failed: {r.status_code} {r.text[:200]}")
+
+        elif job_type == "publish_metadata_generate":
+            tq_id = result_payload.get("topic_queue_id")
+            if not tq_id:
+                job_log.info("No topic_queue_id in publish metadata result - skipping Supabase update")
+                return
+            structure = result_payload.get("structure") if isinstance(result_payload.get("structure"), dict) else {}
+            scene_count = (
+                structure.get("scene_count")
+                or len(structure.get("scenes") or [])
+                or result_payload.get("total_scenes")
+            )
+            sfx_cues = result_payload.get("sfx_cues") or []
+            sfx_cues_json = result_payload.get("sfx_cues_json") or json.dumps(sfx_cues, ensure_ascii=False)
+            progress_payload = {
+                "publish_metadata": result_payload.get("publish_metadata"),
+                "main_character": result_payload.get("main_character") or structure.get("main_character"),
+                "supporting_characters": result_payload.get("supporting_characters") or structure.get("supporting_characters") or [],
+                "character_anchors": result_payload.get("character_anchors") or {
+                    "main_character": result_payload.get("main_character") or structure.get("main_character"),
+                    "supporting_characters": result_payload.get("supporting_characters") or structure.get("supporting_characters") or [],
+                    "max_character_anchors": 3,
+                },
+                "sfx_cues": sfx_cues,
+                "sfx_cues_json": sfx_cues_json,
+                "pregenerated_script_status": "ready",
+                "pregenerated_structure_status": "ready",
+                "prepared_topic_ready": True,
+                "prepared_topic_ready_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }
+            patch_data = {
+                "status": "pending",
+                "publish_metadata": result_payload.get("publish_metadata"),
+                "progress_payload": progress_payload,
+                "pregenerated_script_status": "ready",
+                "pregenerated_structure_status": "ready",
+                "generated_by_worker_id": WORKER_ID,
+                "generated_by_worker_instance_id": WORKER_INSTANCE_ID,
+                "generated_by_worker_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }
+            if result_payload.get("script"):
+                patch_data["pregenerated_script"] = result_payload.get("script")
+            if structure:
+                patch_data["pregenerated_structure"] = structure
+            if result_payload.get("generated_title") or result_payload.get("upload_title"):
+                patch_data["generated_title"] = result_payload.get("generated_title") or result_payload.get("upload_title")
+            if scene_count:
+                patch_data["total_scenes"] = scene_count
+            if result_payload.get("narrative_blueprint"):
+                patch_data["narrative_blueprint"] = result_payload.get("narrative_blueprint")
+            if result_payload.get("script_quality_report"):
+                patch_data["script_quality_report"] = result_payload.get("script_quality_report")
+            r = _req.patch(
+                f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                headers={**headers, "Prefer": "return=minimal"},
+                json=patch_data,
+                timeout=10,
+            )
+            if r.status_code not in (200, 204):
+                fallback = {
+                    key: value for key, value in patch_data.items()
+                    if key not in ("narrative_blueprint", "script_quality_report") and key not in GENERATED_BY_TOPIC_FIELDS
+                }
+                r = _req.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    json=fallback,
+                    timeout=10,
+                )
+            if r.status_code not in (200, 204):
+                metadata_only = {
+                    "publish_metadata": result_payload.get("publish_metadata"),
+                    "progress_payload": progress_payload,
+                }
+                r = _req.patch(
+                    f"{supabase_url}/rest/v1/topics_queue?id=eq.{tq_id}",
+                    headers={**headers, "Prefer": "return=minimal"},
+                    json=metadata_only,
+                    timeout=10,
+                )
+            if r.status_code in (200, 204):
+                job_log.info(f"Supabase: updated topics_queue#{tq_id} with final prepared topic package")
+            else:
+                job_log.warning(f"Supabase patch failed: {r.status_code} {r.text[:200]}")
+
+        # topic_benchmark_analyze — no Supabase table to write to; results are
+        # consumed by subsequent script_plan_generate / script_generate jobs.
+        elif job_type == "music_prompt_pack_generate":
+            tasks = result_payload.get("tasks") if isinstance(result_payload.get("tasks"), list) else []
+            if not tasks:
+                job_log.warning("No music prompt tasks in result_payload - skipping Supabase insert")
+                return
+            inserted = 0
+            for task in tasks:
+                if not isinstance(task, dict) or not task.get("prompt"):
+                    continue
+                row = {
+                    "title": str(task.get("title") or "Music Mission")[:300],
+                    "target_market": str(task.get("target_market") or result_payload.get("target_market") or "th")[:40],
+                    "genre": str(task.get("genre") or "lofi")[:120],
+                    "mood": str(task.get("mood") or "")[:1000],
+                    "prompt": str(task.get("prompt") or "")[:12000],
+                    "negative_rules": task.get("negative_rules") if isinstance(task.get("negative_rules"), list) else [],
+                    "duration_target_seconds": int(task.get("duration_target_seconds") or 180),
+                    "reward_usdt": float(task.get("reward_usdt") or 0),
+                    "max_submissions": int(task.get("max_submissions") or 1),
+                    "status": "open",
+                    "metadata": task.get("metadata") if isinstance(task.get("metadata"), dict) else {},
+                    "created_by_worker_id": WORKER_ID,
+                }
+                r = _req.post(
+                    f"{supabase_url}/rest/v1/music_prompt_tasks",
+                    json=row,
+                    headers=headers,
+                    timeout=10,
+                )
+                if r.status_code in (200, 201):
+                    inserted += 1
+                else:
+                    job_log.warning(f"Supabase music task insert failed: {r.status_code} {r.text[:200]}")
+            job_log.info("Supabase: inserted %d music prompt tasks", inserted)
+
+    except Exception as e:
+        if strict:
+            raise
+        job_log.warning(f"Supabase save failed (non-fatal): {e}")
+
+
+def process_one_job(job: dict) -> None:
+    job_id = job["job_id"]
+    job_type = job.get("job_type") or "topic_research"
+    job_log = get_job_logger(job_id)
+    job_log.info(f"Claimed {job_type} job (source={job.get('source')}, remote_job_id={job.get('remote_job_id')}), payload={job['payload']}")
+    logger.info(f"Claimed job {job_id} ({job_type})")
+
+    # [AIR-0230] Lease renewal + central outcome reporting, ported from
+    # render_worker.py's process_one_job - see _start_lease_renewal /
+    # _report_remote_outcome docstrings for why this wraps the whole
+    # dispatch rather than living inside each _process_topic_* function.
+    renew_thread, renew_stop = _start_lease_renewal(job, job_log)
+    _last_success_at = None
+    _last_error = None
+    try:
+        # A running worker must not keep a stale model choice after an
+        # operator changes the web-admin setting. Keep this inside the job
+        # boundary so a bad setting is recorded, retried, and reported rather
+        # than leaving a claimed job stranded.
+        ensure_project_root_on_path()
+        from config import Config
+
+        Config.refresh_remote_keys_if_stale()
+        invalid_models = Config.validate_generation_models()
+        if invalid_models:
+            raise RuntimeError(f"Invalid generation model settings: {', '.join(invalid_models)}")
+
+        if job_type == "sfx_plan_generate":
+            output_ref, result_payload = _process_sfx_plan_generate(job, job_id, job_log)
+        elif job_type == "topic_benchmark_analyze":
+            output_ref, result_payload = _process_topic_benchmark_analyze(job, job_id, job_log)
+        elif job_type == "music_trend_analyze":
+            output_ref, result_payload = _process_music_trend_analyze(job, job_id, job_log)
+        elif job_type == "music_prompt_pack_generate":
+            output_ref, result_payload = _process_music_prompt_pack_generate(job, job_id, job_log)
+        elif job_type == "web_research":
+            output_ref, result_payload = _process_web_research(job, job_id, job_log)
+        elif job_type == "codex_topic_discover":
+            output_ref, result_payload = _process_codex_topic_discover(job, job_id, job_log)
+        elif job_type == "script_plan_generate":
+            output_ref, result_payload = _process_script_plan_generate(job, job_id, job_log)
+        elif job_type == "script_generate":
+            output_ref, result_payload = _process_script_generate(job, job_id, job_log)
+        elif job_type == "publish_metadata_generate":
+            output_ref, result_payload = _process_publish_metadata_generate(job, job_id, job_log)
+        elif job_type == "codex_content_generate":
+            output_ref, result_payload = _process_codex_content_generate(job, job_id, job_log)
+        elif job_type == "music_prompt_pack_generate":
+            output_ref, result_payload = _process_music_prompt_pack_generate(job, job_id, job_log)
+        else:
+            output_ref, result_payload = _process_topic_research(job, job_id, job_log)
+
+        _report_remote_outcome(job, job_log, success=True, output_ref=output_ref, result_payload=result_payload)
+        _save_result_to_supabase(job_type, result_payload, job_log)
+        _last_success_at = time.time()
+
+    except job_store.InvalidTransitionError as e:
+        logger.warning(f"Job {job_id} state changed externally mid-run, aborting our own processing: {e}")
+        job_log.warning(f"Aborted: externally transitioned ({e})")
+    except Exception as e:
+        error_message = str(e)
+        job_store.transition(job_id, job_store.FAILED, reason=error_message, error_code="HERMES_EXCEPTION", error_message=error_message)
+        job_log.error(f"FAILED: [HERMES_EXCEPTION] {error_message}")
+        refreshed = job_store.get_job(job_id)
+        if refreshed["retry_count"] < refreshed["max_retries"]:
+            job_store.transition(job_id, job_store.QUEUED, reason=f"auto-retry after failure ({refreshed['retry_count'] + 1}/{refreshed['max_retries']})")
+            job_log.info(f"Re-queued for retry {refreshed['retry_count'] + 1}/{refreshed['max_retries']}")
+        _report_remote_outcome(job, job_log, success=False, error_code="HERMES_EXCEPTION", error_message=error_message)
+        _last_error = error_message
+    finally:
+        if renew_stop:
+            renew_stop.set()
+        # Clear last_error if the job completed successfully (last_success_at is set)
+        _last_err_val = _last_error if _last_error is not None else ("" if _last_success_at is not None else None)
+        write_state("idle", None, 0, last_success_at=_last_success_at, last_error=_last_err_val)
+
+
+def run_forever():
+    clear_shutdown_flag("hermes_worker")
+    logger.info(f"Hermes Worker (real) starting, pid={os.getpid()}, worker_instance_id={WORKER_INSTANCE_ID}, remote_enabled={REMOTE_ENABLED}")
+    # A fresh process start is a recovery boundary. Do not surface the
+    # previous process's failure as if it were a current error.
+    write_state("idle", None, 0, last_error="")
+    next_remote_heartbeat_at = 0.0
+
+    try:
+        if REMOTE_ENABLED:
+            try:
+                central_client.register(WORKER_ID, WORKER_INSTANCE_ID, SUPPORTED_JOB_TYPES)
+            except Exception as exc:
+                logger.warning(f"Central worker registration failed; claims will retry: {exc}")
+        while not _should_stop():
+            try:
+                # Checkpoint: don't even start a new job while the render
+                # priority policy has paused us (docs/AIR_WORKER_RESOURCE_POLICY.md
+                # §2, manager.py::_apply_resource_policy) - a job already in
+                # flight is never interrupted mid-call, only the NEXT claim
+                # is held back.
+                while is_paused() and not _should_stop():
+                    write_state("paused", None, 0)
+                    time.sleep(1)
+                if _should_stop():
+                    break
+
+                # [AIR-0230] Local job_store is tried first (dev/test, no
+                # service_role needed); central claim only engages when
+                # AIRWORKER_CENTRAL_SERVER_URL is set - mirrors
+                # render_worker.py's run_forever() exactly.
+                _flush_pending_remote_acks()
+
+                if REMOTE_ENABLED and time.time() >= next_remote_heartbeat_at:
+                    _send_remote_heartbeat()
+                    next_remote_heartbeat_at = time.time() + REMOTE_HEARTBEAT_INTERVAL_SECONDS
+
+                # Production Hermes must service the central queue first.
+                # Local jobs are retained for development/offline recovery,
+                # but must not starve user-facing pre-generation work.
+                job = _try_remote_claim() if REMOTE_ENABLED else None
+                if not job:
+                    job = job_store.claim_next_job(SUPPORTED_JOB_TYPES, os.getpid())
+                if not job:
+                    write_state("idle", None, 0)
+                    time.sleep(1.0)
+                    continue
+                process_one_job(job)
+            except Exception as e:
+                logger.error(f"Unexpected error in main loop iteration (non-fatal, continuing): {e}")
+                write_state("idle", None, 0, last_error=str(e))
+                time.sleep(1.0)
+    finally:
+        write_state("stopped", None, 0)
+        logger.info("Hermes Worker stopped")
+
+
+def main():
+    _acquire_hermes_single_instance_or_exit()
+    signal.signal(signal.SIGINT, _handle_signal)
+    try:
+        signal.signal(signal.SIGTERM, _handle_signal)
+    except (AttributeError, ValueError):
+        pass
+    run_forever()
+
+
+if __name__ == "__main__":
+    if "--crash-now" in sys.argv:
+        logger.info("--crash-now flag set, exiting with non-zero status immediately")
+        sys.exit(1)
+    main()

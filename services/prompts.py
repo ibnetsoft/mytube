@@ -1,0 +1,710 @@
+"""
+AI 프롬프트 템플릿 관리
+"""
+import json
+
+class Prompts:
+    # --- AutoPilot 관련 프롬프트 ---
+    AUTOPILOT_ANALYZE_VIDEO = """
+        유튜브 쇼츠 영상(ID: {video_id})을 벤치마킹하여 새로운 영상을 만들려 합니다.
+        대중들이 좋아할만한 '반전 매력'이나 '공감 포인트'를 3가지만 분석해서 JSON으로 주세요.
+        
+        JSON 포맷:
+        {{
+            "sentiment": "positive",
+            "topics": ["topic1", "topic2"],
+            "viewer_needs": "viewers want..."
+        }}
+    """
+
+    # [FIX] 이 템플릿은 원래 "1분 이내 쇼츠, 300자 내외"로 하드코딩돼 있었다.
+    # 실제 호출부(services/autopilot_service.py._generate_script)는 롱폼
+    # 프로젝트가 기획(structure)이 없는 예외 상황에 빠지면 이 템플릿으로
+    # 대본을 생성하는데, 그 경우 목표 재생 시간(수십 분)과 무관하게 항상
+    # 300자짜리 쇼츠 대본이 나와버렸다 - "롱폼인데 대본이 왜 이렇게 짧냐"는
+    # 사고의 직접 원인. duration_minutes/target_chars_*를 실제 목표 길이에서
+    # 계산해 채워 넣도록 바꿨다 (호출부 기준: 1분 ≈ 300자, 이 앱이 이미
+    # 써오던 환산 비율을 그대로 실제 길이에 비례 적용한 것뿐).
+    AUTOPILOT_GENERATE_SCRIPT = """
+        분석 내용: {analysis_json}
+
+        위 분석을 바탕으로 약 {duration_minutes}분 분량의 유튜브 영상 대본을 작성해줘.
+        - 전체 길이는 {target_chars_min}~{target_chars_max}자 내외로, 목표 재생 시간에 맞는 실제 분량을 채운다. 짧게 요약하고 끝내지 마라.
+        - 도입부(훅)는 전체 분량의 8~10%를 넘지 않는다. 첫 문장부터 구체적인 사건·인물·숫자로 시작하고, "안녕하세요", "오늘은", "이 영상에서는" 같은 자기소개성 문장으로 열지 않는다.
+        - 훅이 끝나면 곧바로 본론(구체적 사건 전개, 핵심 정보)으로 들어간다. 모든 문장은 새로운 정보나 사건 진행을 담아야 하며, 이미 말한 내용을 다른 표현으로 반복하지 않는다.
+        - 독백 또는 나레이션 형식으로 작성 (대화체 절대 금지)
+        - 화자는 무조건 딱 1명으로 제한
+        - **[언어 규칙]**: {language_instruction}
+
+        **[절대 금지 사항 - TTS 읽기 오류 방지]**
+        1. 대화 형식(A:, B: 등 가상 대화) 금지
+        2. 시간 표시 금지 (예: [0-5초], ** 등 타임스탬프 금지)
+        3. 이모티콘 및 기호 금지 (예: 🤣, ✨ 등 특수문자 금지)
+        4. 화자(이름) 표시 금지 (예: 나:, 상사: 처럼 누가 말하는지 적지 말 것)
+        
+        **[감정/톤 표시 필수]**
+        대본의 문장이나 구문 사이사이에 반드시 괄호를 사용하여 말의 톤이나 분위기를 표시하세요. (예: "(신나고 힘차게) 와 방학이다.")
+        
+        오직 '읽을 대사'와 '감정 태그(괄호)'만 출력해. 설명 제외.
+    """
+
+    # --- Gemini Service 관련 프롬프트 ---
+    GEMINI_ANALYZE_COMMENTS = """당신은 유튜브 콘텐츠 분석 전문가입니다.
+아래 영상의 댓글{script_indicator}를 분석해주세요.
+
+[영상 제목]
+{video_title}
+{script_section}
+[댓글 목록]
+{comments_text}
+
+다음 JSON 형식으로 반환해주세요:
+{{
+    "sentiment": {{
+        "positive": 비율,
+        "negative": 비율,
+        "neutral": 비율
+    }},
+    "main_topics": ["주요 토픽 1", "주요 토픽 2", ...],
+    "viewer_needs": ["시청자 니즈 1", "시청자 니즈 2", ...],
+    "content_suggestions": ["콘텐츠 제안 1", "콘텐츠 제안 2", ...],
+    "script_analysis": {{
+        "structure": "서론-본론-결론 구조 요약",
+        "hooks": "초반 몰입을 유도한 요소 (Hooks)",
+        "pacing": "영상 전개 속도 및 톤앤매너",
+        "key_message": "영상이 전달하고자 하는 핵심 메시지"
+    }},
+    "summary": "전체 요약 (2-3문장)"
+}}
+
+JSON만 반환하세요."""
+
+    GEMINI_EXTRACT_STRATEGY = """당신은 유튜브 알고리즘과 시청자 심리를 꿰뚫어 보는 세계 최고의 컨설턴트입니다.
+제시된 영상 분석 데이터를 바탕으로, 다른 영상에도 범용적으로 적용 가능한 **'일반화된 성공 공식(Strategy Logic)'**을 3~5개 추출하세요.
+
+[분석 데이터]
+{analysis_json}
+
+**[지침]**
+1. 특정 영상의 내용에 국한되지 않고, '구조', '심리', '데이터' 측면에서 성공 원인을 일반화하세요.
+2. 유튜브 알고리즘(노출, 클릭률, 시청 지속 시간)에 어떻게 기여하는지 구체적으로 기술하세요.
+3. 결과는 반드시 한국어로 작성하세요.
+
+다음 JSON 리스트 형식으로만 답변하세요:
+[
+    {{
+        "category": "hook/structure/emotion/thumbnail/interaction 중 하나",
+        "pattern": "일반화된 패턴 제목 (예: 초반 3초 시각적 반전 후킹)",
+        "insight": "성공 원인 상세 (알고리즘 및 심리적 근거)",
+        "script_style": "어울리는 스타일 (story/informational/all)"
+    }}
+]
+JSON만 반환하세요."""
+
+    GEMINI_SCRIPT_STRUCTURE = """당신은 세계 최고의 유튜브 콘텐츠 기획자이자 스토리텔러입니다.
+당신의 임무는 주어진 **키워드(주제)**를 바탕으로, **분석된 성공 전략**과 **누적된 학습 지식**을 적용하여 폭발적인 조회수를 기록할 대본 기획안을 작성하는 것입니다.
+
+### 1. 주제 (Subject Content) - 반드시 이 내용을 다루어야 함
+- **핵심 키워드:** {topic_keyword}
+- **추가 요청사항:** {user_notes}
+
+### 2. 스타일 및 구조 지침
+{specialized_instruction}
+- **목표 길이:** {duration_seconds}초 (최소 {min_sections}개 섹션 필요)
+{custom_prompt_section}
+
+{knowledge_instruction}
+
+### 4. 벤치마킹 분석 데이터 (Current Success Strategy) - 형식/기법 참고용
+- **분석 데이터:** {success_strategy_json}
+
+### 5. 제약 사항
+- **언어:** {target_language_context}
+- **콘텐츠 분리(CRITICAL):** 벤치마킹 데이터의 줄거리나 고유명사(인물, 채널명 등)를 절대 복제하지 마십시오.
+- **창작성:** 주제 키워드({topic_keyword})를 바탕으로 완전히 새로운 인물과 상황을 창조하십시오.
+- **중복 방지:** {history_instruction}
+- **[기획안 작성 절대 규칙 - 위반 시 실패]**
+  * 대화체(다중 화자 간의 대화) 금지 -> 반드시 독백이나 나레이션 형식의 구조로 기획
+  * 화자는 무조건 딱 1명(성우 1인)으로 제한
+  * [0-5초] 같은 시간대/타임스탬프 표시 절대 금지
+  * 이모티콘(🤣, ✨ 등) 및 별표(**) 같은 꾸밈 기호 절대 금지
+  * "나:", "상사:" 처럼 화자를 구분하는 이름과 콜론 표시 절대 금지
+---
+다음 JSON 형식으로 기획안을 작성해주세요:
+{{
+    "hook": "강렬한 멘트 (분석된 기법 적용)",
+    "sections": [
+        {{
+            "title": "섹션 제목",
+            "key_points": ["상세 묘사 1", "상세 묘사 2"]
+        }}
+    ],
+    "cta": "구독과 좋아요 멘트",
+    "style": "영상 분위기",
+    "duration": {duration_seconds}
+}}
+JSON만 반환하세요."""
+
+    GEMINI_TRENDING_KEYWORDS = """
+        Act as a Local Trend Analyst and YouTube SEO Expert for the specific region: {lang_name}.
+        
+        **OBJECTIVE:**
+        Generate a list of 20-30 CURRENT trending search keywords/topics on YouTube specifically for:
+        - Region/Language: {lang_name}
+        - Time Period: {period_text}
+        - Target Age Group: {age_text}
+
+        **STRICT LANGUAGE RULES:**
+        1. **"keyword"**: MUST be in the target language ({language}). NOT English (unless it's an English region), NOT Korean.
+           - If target is Japanese (ja), keyword MUST be in Japanese (Kanji/Kana).
+           - If target is Spanish (es), keyword MUST be in Spanish.
+        2. **"translation"**: MUST be the meaning in KOREAN (Hangul).
+
+        **DISTRIBUTION RULES:**
+        - Assign a 'volume' score (1-100) using a Power Law distribution.
+        - 1-2 keywords: 95-100 (Viral)
+        - 3-5 keywords: 70-90 (High)
+        - Rest: 20-60 (Moderate)
+
+        **OUTPUT FORMAT (JSON List):**
+        [
+            {{"keyword": "Keyword in Target Language", "translation": "한국어 뜻 설명", "volume": 98, "category": "Gaming"}},
+            ...
+        ]
+
+        **EXAMPLES:**
+        - If lang=ja: {{"keyword": "猫", "translation": "고양이", "volume": 85, "category": "Pets"}}
+        - If lang=es: {{"keyword": "Fútbol", "translation": "축구", "volume": 92, "category": "Sports"}}
+        - If lang=en: {{"keyword": "Super Bowl", "translation": "슈퍼볼", "volume": 99, "category": "Sports"}}
+        
+        RETURN ONLY THE JSON LIST. NO MARKDOWN.
+    """
+
+    GEMINI_CHARACTER_PROMPTS = """당신은 영상 캐릭터 디자인 전문가이자 일관성 관리 전문가입니다.
+아래 대본을 분석하여 등장인물(캐릭터)을 추출하고, 피카디리 [캐릭터 일관성(Character Consistency) 지침]에 따라 각 캐릭터의 영구적인 DNA 스키마를 작성해주세요.
+
+[대본]
+{script}
+
+[비주얼 스타일 및 배경 지침]
+현재 프로젝트 스타일은 **"{visual_style}"** 입니다. 모든 캐릭터 디자인은 이 스타일의 세계관 안에서 정의되어야 합니다.
+
+[📐 지침 1. 캐릭터 일관성 (Character Consistency) 적용]
+1. **불변 속성 (Immutable)**: 연령, 인종, 얼굴형, 눈/코/입 형태, 헤어스타일 등 최소 11개 항목을 영어로 상세히 서술하세요. "젊은 여성" 같은 모호한 표현 대신 "25-year-old East Asian female"과 같은 구체적 정보를 사용하세요.
+2. **고유 마커 (Distinctive Marks)**: 점, 흉터, 주근깨 등 캐릭터를 구분할 수 있는 고유 마커를 1~2개 반드시 포함하세요.
+3. **가변 속성 (Mutable)**: 대본의 맥락에 맞는 의상 세트(Wardrobe sets)를 정의하세요.
+4. **실명 및 브랜드 금지**: 이미지 AI 보안 필터를 피하기 위해 실존 유명인이나 브랜드명은 절대 사용하지 마세요.
+
+다음 JSON 형식으로 출력해주세요:
+{{
+    "characters": [
+        {{
+            "character_id": "고유ID (영문)",
+            "display_name": "캐릭터 이름",
+            "dna_yaml": "아래 구조의 YAML 문자열:
+                immutable:
+                  age: ...
+                  gender: ...
+                  ethnicity: ...
+                  face_shape: ...
+                  skin: ...
+                  eyes: ...
+                  eyebrows: ...
+                  nose: ...
+                  mouth: ...
+                  hair: ...
+                  build: ...
+                  distinctive_marks: ...
+                wardrobe_sets:
+                  - set_id: default
+                    context: ...
+                    top: ...
+                    bottom: ...
+                demeanor:
+                  default_expression: ...
+                  posture: ...",
+            "description_ko": "지정된 스타일에 맞는 외형 묘사 (한글 요약)",
+            "prompt_en": "Detailed English prompt for Character Sheet. Focusing on permanent physical identity."
+        }}
+    ]
+}}
+JSON만 반환하세요."""
+
+    GEMINI_IMAGE_PROMPTS = """당신은 세계 최고의 영화 감독이자 프롬프트 엔지니어입니다.
+[피카디리 프롬프트 지침 보강안]에 따라, 대본을 분석하여 '6블록 조립 원칙'과 '4층 레이어 네거티브'가 적용된 장면 리스트를 작성해주세요.
+
+[대본]
+{script}
+
+{style_instruction}
+{character_instruction}
+{ethnicity_instruction}
+{limit_instruction}
+
+[📐 지침 1. 씬별 프롬프트 조립 순서 (Block 1~6)]
+모든 `prompt_en`은 반드시 아래 순서로 조립되어야 합니다:
+- [BLOCK 1] STYLE: {style_prefix} + 매체 키워드
+- [BLOCK 2] CHARACTER DNA: 제공된 캐릭터의 DNA 정보 (Immutable + Wardrobe)
+- [BLOCK 3] SCENE CONTEXT: action, expression, location, time, weather, props
+- [BLOCK 4] CINEMATIC FINISH: lighting, camera angle, quality tags
+- [BLOCK 5] NEGATIVE: 아래 4층 레이어 구조 적용
+- [BLOCK 6] TECHNICAL: aspect ratio, seed (자동 주입용 예약어)
+
+[🚫 지침 2. 네거티브 프롬프트 (Negative Prompt) 레이어]
+각 장면의 `negative_prompt`는 아래 4개 레이어를 병합하여 작성하세요:
+1. Layer 1 (BASE): 해부학적 오류, 품질 저하 방지 (extra limbs, bad anatomy, blurry 등)
+2. Layer 2 (SAFETY): 저작권, 유명인, 브랜드 로직 차단
+3. Layer 3 (SCENE TYPE): 씬 성격(Portrait/Wide/Action)에 따른 품질 보강 토큰
+4. Layer 4 (STYLE EXCLUSION): 현재 스타일과 반대되는 톤 배제 (예: 실사면 cartoon 배제)
+
+[🎬 지침 3. 씬 전환 효과 (Transition Effect)]
+이전 씬에서 현재 씬으로 넘어올 때 가장 잘 어울리는 화면 전환 효과를 다음 24가지 중 하나로 선택하세요. (1번 씬도 아래 값 중 하나를 사용)
+1. "diagonal_wipe": 대각선 닦아내기
+2. "morph": 모프
+3. "darken": 어두워지기
+4. "brighten": 밝아지기
+5. "color_blend": 색상 섞기
+6. "grayscale_fade": 흑백 페이드
+7. "wipe_down": 아래로 닦아내기
+8. "focus": 초점 맞추기
+9. "ripple": 물결
+10. "clockwise": 시계 방향
+11. "blinds": 블라인드
+12. "circle_spread": 원형 퍼지기
+13. "horizontal_lines": 가로 실선
+14. "push": 밀어내기
+15. "zoom": 확대
+16. "wipe_left": 왼쪽으로 닦아내기
+17. "wipe_right": 오른쪽으로 닦아내기
+18. "wipe_up": 위로 닦아내기
+19. "none": 없음
+20. "dissolve": 디졸브
+21. "blur": 흐려지기
+22. "directional_warp": 디렉셔널 워프
+23. "static": 지지직
+24. "mosaic": 모자이크
+
+장르별 자동 선택 가이드:
+- 감성/로맨스/휴먼: dissolve, blur, brighten, focus
+- 미스터리/공포/스릴러: darken, static, directional_warp, mosaic
+- 액션/추격/긴박한 전개: push, diagonal_wipe, zoom, wipe_left
+- 뉴스/다큐/설명/비교: wipe_left, wipe_right, blinds, dissolve
+- 판타지/동화/복고: circle_spread, morph, color_blend, dissolve
+- 여행/브이로그/일상: wipe_up, wipe_down, ripple, zoom
+
+[출력 형식 (JSON)]
+{{
+    "scenes": [
+        {{
+            "scene_number": 1,
+            "scene_title": "장면 요약",
+            "scene_text": "원본 대본 내용 (원문 그대로)",
+            "is_dual": false,
+            "start_frame": {{
+                "action": "시작 시점의 동작 (영어)",
+                "expression": "시작 시점의 표정 (영어)",
+                "location": "시작 시점의 배경 (영어)",
+                "props": "시작 시점의 소품 (영어)"
+            }},
+            "end_frame": {{
+                "action": "종료 시점의 동작 (영어)",
+                "expression": "종료 시점의 표정 (영어)",
+                "location": "종료 시점의 배경 (영어)",
+                "props": "종료 시점의 소품 (영어)"
+            }},
+            "visual_analysis": {{
+                "scene_type": "Portrait | Environment | Action",
+                "character_dna_applied": "적용된 캐릭터 ID (없으면 null)",
+                "wardrobe_id": "의상 세트 ID (DNA에 정의된 세트, 없으면 null)",
+                "action": "주요 행동 (영어)",
+                "expression": "표정/감정 (영어)",
+                "location": "장소 (영어)",
+                "time": "시간대 (영어)",
+                "weather": "날씨/분위기 (영어)",
+                "props": "주요 소품 (영어)",
+                "cinematic_tags": "lighting, camera angle, quality tags (영어)"
+            }},
+            "prompt_ko": "이미지 묘사 (한글)",
+            "prompt_en": "Gemini가 작성한 기본 영어 프롬프트 (참고용)",
+            "negative_prompt": "Gemini가 작성한 기본 네거티브 프롬프트 (참고용)",
+            "flow_prompt": "[Google Veo용 5-Layer Cinematic Framework 적용 영어 단락]",
+            "transition_effect": "diagonal_wipe | morph | darken | brighten | color_blend | grayscale_fade | wipe_down | focus | ripple | clockwise | blinds | circle_spread | horizontal_lines | push | zoom | wipe_left | wipe_right | wipe_up | none | dissolve | blur | directional_warp | static | mosaic",
+            "estimated_seconds": 15
+        }}
+    ]
+}}
+
+[📐 지침 4. 듀얼 키프레임 (Dual Keyframe) 생성 규칙]
+- **is_dual**: 기본적으로 항상 비활성(`false`)이 기본값입니다. 특별히 역동적인 움직임이나 장면 전환(A에서 B로)이 명시적으로 필요한 경우를 제외하고는 항상 `false`로 설정하십시오.
+- **start_frame / end_frame**: `is_dual`이 `true`일 때만 작성하세요. 
+  - `start_frame`은 영상의 0초 시점 상태, `end_frame`은 영상의 마지막 시점 상태를 묘사합니다.
+  - 두 프레임 사이에는 명확한 **동작의 변화(Movement)**나 **상태의 변화(Transformation)**가 있어야 합니다.
+  - `visual_analysis`의 `action` 등은 이 두 프레임을 통합한 대표적인 정보를 담아야 합니다.
+- **Prompt Consistency**: `start_frame`과 `end_frame` 사이의 캐릭터와 배경은 반드시 동일해야 하며, 오직 동작/표정/소품의 위치 등만 변해야 합니다.
+
+
+[flow_prompt 작성 규칙 - 5-Layer Framework]
+1. [OPENING FRAME], 2. [CAMERA MOVEMENT], 3. [SUBJECT MOTION], 4. [AMBIENT LIFE], 5. [CINEMATIC FINISH] 구조를 따르는 3-5문장의 영문 단락.
+
+[주의사항]
+- **No Text**: 명시적 요청이 없는 한 이미지 내 텍스트 포함은 절대 금지.
+- **Natural Segmentation**: 한국어의 자연스러운 호흡 단위(Sense group)로 장면을 분절.
+- **JSON Only**: 설명 없이 오직 JSON 데이터만 반환.
+"""
+
+    GEMINI_SUCCESS_ANALYSIS = """당신은 유튜브 콘텐츠 및 바이럴 마케팅 전문가입니다.
+제시된 유튜브 영상 정보를 바탕으로, 이 영상이 성공(높은 조회수)한 원인을 분석하고, 이를 벤치마킹한 새로운 콘텐츠를 기획해주세요.
+
+[분석 대상 영상]
+- 제목: {title}
+- 채널: {channel}
+- 조회수: {views}
+- 좋아요: {likes}
+- 시청자 니즈(댓글 분석 추정): {top_comment}
+
+[요청 사항]
+1. **성공 요인 분석 (Success Factor)**: 이 영상이 왜 사람들의 이목을 끌었는지, 제목/썸네일/소재 측면에서 1문장으로 핵심을 뚫어주세요.
+2. **벤치마킹 제목 (Pattern Title)**: 원본의 성공 패턴(어그로 포인트)을 유지하되, 약간 다른 각도로 비틀어 새로운 제목을 창작하세요. (너무 똑같으면 안됨)
+3. **시놉시스 (Synopsis)**: 해당 제목으로 영상을 만든다면 어떤 내용으로 구성해야 할지 2-3문장으로 요약하세요.
+
+다음 JSON 형식으로만 응답하세요:
+{{
+    "original_title": "{title}",
+    "success_factor": "분석 내용",
+    "benchmarked_title": "제안 제목",
+    "synopsis": "기획 요약"
+}}
+JSON만 반환하세요."""
+
+    GEMINI_THUMBNAIL_HOOK_TEXT = """당신은 유튜브 썸네일 카피라이팅 전문가입니다.
+아래 영상 대본을 분석하여 클릭률을 극대화하는 썸네일 문구를 생성해주세요.
+
+[영상 대본]
+{script}
+
+[스타일 가이드]
+- 썸네일 스타일: {thumbnail_style}
+- 이미지 스타일: {image_style}
+- 타겟 언어: {target_language}
+
+[문구 생성 원칙]
+1. **후킹 (Hook)**: 호기심을 자극하는 질문이나 충격적인 진술
+2. **간결성**: 3-7단어 (한글 기준 10-20자)
+3. **감정 유발**: 놀람, 궁금증, 공감 중 하나 이상
+4. **가독성**: 큰 글씨로 읽기 쉬운 단어 선택
+5. **스타일 매칭**: 
+   - face/dramatic: 감정적, 충격적 ("믿을 수 없는 진실", "충격적인 반전")
+   - text/minimal: 정보성, 명확한 ("TOP 5", "핵심 정리")
+   - mystery: 질문형, 미스터리 ("진짜 이유는?", "숨겨진 비밀")
+   - contrast: 대비, 변화 ("Before vs After", "과거 vs 현재")
+   - wimpy: 유머러스, 일상적, 일기 형식 ("나의 처절한 실패기", "절대 하면 안되는 일")
+
+[출력 형식]
+JSON 형식으로 3개의 후보 문구를 생성하세요:
+{{
+    "texts": [
+        "후보 문구 1 (가장 강력한 후킹)",
+        "후보 문구 2 (감정 유발 또는 질문형)",
+        "후보 문구 3 (숫자 또는 대비형)"
+    ],
+    "reasoning": "선택 이유 (1-2문장)"
+}}
+
+**중요**: 대본의 핵심 메시지를 왜곡하지 말고, 클릭베이트가 아닌 진정성 있는 후킹을 만드세요.
+JSON만 반환하세요."""
+
+    THUMBNAIL_IDEA_PROMPT = """
+        Topic: {topic}
+        Script Summary: {script_summary}
+        Language: {language_instruction}
+        
+        Suggest a high Click-Through-Rate (CTR) Thumbnail Plan.
+        JSON Output:
+        {{
+            "hook_text": "Short shocking text (max 5 words)",
+            "image_prompt": "Visual description for AI image generator (English, detailed, 16:9)"
+        }}
+    """
+
+    AUTOPILOT_GENERATE_METADATA = """
+        당신은 유튜브 SEO 및 마케팅 전문가입니다.
+        다음 영상 대본을 바탕으로 클릭률(CTR)과 검색 최적화(SEO)가 뛰어난 제목, 영상 설명, 태그를 생성해주세요.
+
+        [영상 대본]
+        {script_text}
+
+        [언어 규칙]
+        {language_instruction}
+
+        [요구사항]
+        1. 제목: 호기심을 유발하고 클릭을 부르는 강렬한 제목 (50자 이내)
+        2. 설명: 영상의 내용을 요약하고 관련 키워드를 자연스럽게 포함 (300자 내외). 해시태그 3개 포함.
+        3. 태그: 연관도가 높은 검색 키워드 10개 내외 (배열 형식)
+
+        반드시 다음 JSON 형식으로만 반환하세요:
+        {{
+            "title": "여기에 제목",
+            "description": "여기에 설명",
+            "tags": ["태그1", "태그2", ...]
+        }}
+    """
+
+    GEMINI_DEEP_DIVE_SCRIPT = """당신은 '노트북LM'과 같은 지능을 가진 세계 최고의 콘텐츠 분석가이자 유튜브 다큐멘터리 작가입니다.
+제공된 **참고 자료(Sources)**들을 깊이 있게 학습하고, 이를 바탕으로 시청자를 몰입시키는 고품질 '딥다이브' 롱폼 영상 대본을 작성하는 것이 당신의 임무입니다.
+
+### 1. 참고 자료 (Learning Sources)
+{sources_text}
+
+### 2. 기획 목표
+- **주제:** {topic_keyword}
+- **목표 길이:** {duration_seconds}초
+- **타겟 언어:** {target_language_context}
+- **추가 요청:** {user_notes}
+
+### 3. 대본 작성 지침 (NotebookLM Style)
+- **정보의 입체적 재구성**: 단순히 자료를 나열하지 마세요. 여러 자료 사이의 연결고리를 찾고, 시청자가 흥미를 느낄만한 '서사(Narrative)'를 만드세요.
+- **전문성과 대중성의 조화**: 역사, 밀리터리, 정치 등 복잡한 주제라도 중학생이 이해할 수 있을 만큼 쉽게 풀어서 설명하되, 깊이 있는 통찰(Insight)을 담으세요.
+- **감정적 연결**: 옛날 이야기나 개인 사연의 경우, 자료에 담긴 감정적 디테일을 살려 시청자의 공감을 이끌어내세요.
+- **나레이션 스타일**: 차분하면서도 몰입감 있는 다큐멘터리 톤으로 작성하세요.
+
+### 4. 대본 구성 규칙 (Critical)
+- **독백/나레이션 형식**: 반드시 1인의 나레이터가 읽는 형식으로 작성하세요.
+- **감정/톤 표시 필수**: 대본의 구문 앞이나 사이사이에 반드시 괄호를 사용하여 말의 톤이나 분위기를 표시하세요. (예: "(차분하게)", "(강조하며)")
+- **클린 텍스트**: 타임스탬프, 화자 이름 표시, 특수문자, 이모티콘을 절대 포함하지 마세요. (감정 표시용 괄호는 제외)
+- **흐름 중심**: 섹션 구분 없이 하나의 완성된 이야기 흐름으로 텍스트를 구성하세요.
+
+---
+다음 JSON 형식으로만 응답하세요:
+{{
+    "title": "추천 영상 제목",
+    "full_script": "나레이션 전체 텍스트 (성우가 바로 읽을 수 있는 상태)",
+    "key_insights": ["학습한 자료에서 도출한 핵심 포인트 1", "2", ...],
+    "style_recommendation": "영상에 어울리는 시각적 스타일 추천"
+}}
+JSON만 반환하세요."""
+
+    GEMINI_DEEP_DIVE_DIALOGUE = """당신은 '노트북LM'과 같은 지능을 가진 세계 최고의 콘텐츠 분석가이자 유튜브 전문 팟캐스트 작가입니다.
+제공된 **참고 자료(Sources)**들을 깊이 있게 학습하고, 두 명의 진행자가 실제 팟캐스트를 진행하는 것처럼 생생하고 지적인 대화형 대본을 작성하는 것이 당신의 임무입니다.
+
+### 1. 참고 자료 (Learning Sources)
+{sources_text}
+
+### 2. 기획 목표
+- **주제:** {topic_keyword}
+- **목표 길이:** {duration_seconds}초
+- **타겟 언어:** {target_language_context}
+- **추가 요청:** {user_notes}
+
+### 3. 진행자 설정 (Characters)
+1. **진행자 A (정원)**: 호기심이 많고 질문을 던지며 시청자의 입장을 대변합니다. 활기차고 공감을 잘 합니다.
+2. **진행자 B (전문가 민호)**: 제공된 자료를 완벽히 숙지한 전문가입니다. 복잡한 내용을 쉽게 풀어서 설명하며 깊은 통찰력을 제공합니다.
+
+### 4. 대화 작성 지침 (NotebookLM Podcast Style)
+- **자연스러운 티키타카**: 고정된 대본을 읽는 것이 아니라, 실제 대화처럼 추임새("아~ 그렇군요!", "와, 그건 몰랐는데요?")와 리액션을 적절히 섞으세요.
+- **정보의 스토리텔링**: 정보를 그냥 나열하지 말고, 질문과 답변을 통해 하나의 흥미로운 이야기를 완성해 나가세요.
+- **몰입도 높은 시작**: 첫 10초 안에 시청자의 호기심을 자극하는 강렬한 후크로 시작하세요.
+
+### 5. 대본 구성 규칙 (Critical)
+- **화자 표시 필수**: 반드시 `정원:`, `민호:` 형식으로 화자를 구분하여 작성하세요.
+- **감정/톤 표시 필수**: 대사 앞이나 사이사이에 괄호를 사용하여 말의 톤이나 분위기를 표시하세요. (예: "(신나게)", "(진지하게)")
+- **클린 텍스트**: 타임스탬프, 지문(예: 웃음, 박수), 특수문자, 이모티콘을 절대 포함하지 마세요. (감정 표시용 괄호는 제외)
+- **흐름 중심**: 섹션 구분 없이 하나의 완성된 대화 흐름으로 구성하세요.
+
+---
+다음 JSON 형식으로만 응답하세요:
+{{
+    "title": "추천 팟캐스트 제목",
+    "full_script": "정원: 안녕하세요! 오늘은... \n민호: 네, 오늘은 정말 놀라운 이야기를... (이런 형식의 전체 대본)",
+    "key_insights": ["학습한 자료에서 도출한 핵심 포인트 1", "2", ...],
+    "style_recommendation": "영상에 어울리는 시각적 스타일 추천"
+}}
+JSON만 반환하세요."""
+
+    GEMINI_GENERATE_BLOG = """당신은 세계 최고의 전문 블로거이자 마케터입니다. 특히 데이터 분석 기반의 스포츠 경기 예측 및 전략 분석에 정통합니다.
+제공된 참고 자료를 바탕으로, 가독성이 높고 SEO(검색 엔진 최적화)에 최적화된 고품질 블로그 포스팅을 작성하는 것이 당신의 임무입니다.
+
+### 1. 참고 자료
+{source_content}
+
+### 2. 블로그 설정
+- **플랫폼:** {platform} (Naver Blog 또는 Tistory/WordPress 스타일)
+- **블로그 스타일:** {blog_style} (Information, Review, Storytelling 등)
+- **목표 언어:** {target_language}
+- **추가 요청:** {user_notes}
+
+### 3. 블로그 작성 지침 (SEO 최적화 전략)
+- **SEO 최적화 제목**: 타겟 키워드({user_notes} 포함)가 앞쪽에 위치한 강렬한 제목을 만드세요.
+- **H2/H3 태그 활용**: 본문 내 소주제는 반드시 <h2>, <h3> 태그를 사용하여 구조화하세요. (워드프레스 최적화)
+- **핵심 정보 요약 표(Table)**: 경기 데이터, 배당률, 또는 예상 스코어 등은 HTML <table> 태그를 사용하여 한눈에 들어오게 정리하세요.
+- **가독성 향상**: 리스트(Bullet points), 강조(<strong>), 적절한 문단 나누기를 활용하세요.
+- **결론 및 CTA**: 마지막에 독자의 의견을 묻거나 다른 글을 추천하는 문구(Call to Action)를 포함하세요.
+
+### 4. 일본 시장 특화 지침 (일본 스포츠 예측 전문)
+- **필수 키워드**: J리그(Jリーグ), toto(トト), WINNER(ウィナー), 予想(예측), 考察(고찰), 傾向(경향) 등을 적재적소에 배치하세요.
+- **분석적 톤**: "철저 분석(徹底分析)", "독점 데이터(独占データ)" 등 전문적인 표현을 활용하세요.
+- **정보성 가치**: 리그 상황이나 부상자 정보 등 구체적인 이유를 제시하여 신뢰도를 높이세요.
+
+### 5. HTML 스타일 규칙 (중요)
+- **인라인 스타일에 색상(color)을 절대 지정하지 마세요.** font-color, color, background-color 등 색상 관련 CSS를 인라인으로 넣지 마세요.
+- 워드프레스/구글 블로그의 테마가 자동으로 색상을 처리합니다.
+- 허용되는 인라인 스타일: text-align, margin, padding, border 정도만 사용하세요.
+- <blockquote>, <table>, <strong>, <h2>, <h3> 등 시맨틱 태그는 자유롭게 사용하세요.
+
+---
+다음 JSON 형식으로만 응답하세요:
+{{
+    "title": "블로그 포스팅 제목",
+    "content": "HTML 형식 블로그 본문 (인라인 color 스타일 금지)",
+    "tags": ["태그1", "태그2", ...],
+    "summary": "포스팅 1줄 요약"
+}}
+JSON만 반환하세요."""
+
+
+    # --- Nursery Rhyme (동요) 관련 프롬프트 ---
+    GEMINI_NURSERY_RHYME_IDEAS = """당신은 전 세계 아이들에게 사랑받는 최고의 동요 작곡가이자 아동 교육 전문가입니다.
+2~6세 아이들이 즐겁게 부를 수 있고, 교육적인 가치가 있는 '동요 아이디어' 10가지를 제안해주세요.
+
+[주제 가이드]
+아이들의 일상 루틴(양치질, 손 씻기, 잠자기, 나누기 등), 색상, 알파벳, 동물, 감정 등을 주제로 하세요.
+가사는 단순하고 캐치하며 반복적이어야 합니다.
+
+[작성 형식]
+- 각 아이디어는 '제목'과 '한 줄 요약'으로 구성합니다.
+- 총 10개를 작성하세요.
+
+다음 JSON 형식으로만 답변하세요:
+{
+    "ideas": [
+        {
+            "id": 1,
+            "title": "제목 1",
+            "summary": "한 줄 요약 1"
+        },
+        ...
+    ]
+}
+JSON만 반환하세요."""
+
+    GEMINI_NURSERY_RHYME_DEVELOP = """당신은 전 세계 아이들에게 사랑받는 최고의 동요 작곡가입니다. 
+제시된 아이디어를 바탕으로 2~6세 아이들을 위한 완성된 동요 가사를 작성해주세요.
+
+[아이디어]
+제목: {title}
+요약: {summary}
+
+[작성 지침]
+- 대상: 2~6세 유아
+- 구성: 짧은 절(Verse) 2개, 반복되는 후렴구(Chorus), 짧고 행복한 마무리(Ending)
+- 스타일: 매우 단순한 단어와 짧은 문장 사용
+- 재미 요소: 가사에 '칙칙폭폭', '반짝반짝' 같은 의성어/의태어를 섞어 아이들이 즐겁게 따라 부를 수 있게 하세요.
+- 톤: 긍정적이고, 재미있고, 교육적이어야 합니다.
+
+[작성 규칙 - TTS 및 영상 제작용]
+- 독백(나레이션) 형식이 아닌 '노래 가사' 형식으로 작성하세요.
+- 괄호, 지문, 타임스탬프를 절대 포함하지 마세요.
+- 오직 노래로 불릴 '가사 텍스트'만 포함하세요.
+
+다음 JSON 형식으로만 응답하세요:
+{
+    "title": "{title}",
+    "lyrics": "전체 가사 텍스트",
+    "structure": {
+        "verse1": "1절 내용",
+        "chorus": "후렴구 내용",
+        "verse2": "2절 내용",
+        "ending": "마무리 내용"
+    }
+}
+JSON만 반환하세요."""
+
+    GEMINI_NURSERY_RHYME_IMAGE_PROMPTS = """당신은 디즈니나 픽사 스타일의 3D 애니메이션을 제작하는 세계 최고의 아트 디렉터입니다.
+제시된 동요 가사([TITLE]: {title})를 바탕으로, 각 섹션별로 최적화된 이미지 생성 프롬프트를 작성해주세요.
+
+[가사 정보]
+{lyrics}
+
+[비주얼 스타일 지정 (STRICT)]
+- **Style**: High-quality 3D animation style, Pixar/Disney inspired.
+- **Atmosphere**: Bright, vibrant colors, soft volumetric lighting, magical and kid-friendly environment.
+- **Characters**: Cute, expressive characters with big eyes and friendly smiles.
+- **Constraint**: NO TEXT in images. Anatomically correct limbs (strictly 2 arms, 2 hands).
+- **Natural Segmentation (Korean)**: 문장을 나누어 장면을 구성할 때, 한국어의 자연스러운 의미 단위(Sense group)를 유지하세요. 관형어와 체언(예: "작은" + "별") 사이를 끊지 말고, 아이들이 따라 부르기 편한 호흡 단위로 자막 텍스트를 구성하십시오.
+- **Subtitles Layout Preference**: 자막은 억지로 2줄로 채우지 마십시오. 한 레이아웃에 한 줄(약 12~18자 내외)이 들어가는 것이 아이들의 가독성에 가장 좋으며, 짧고 명확한 한 줄 단위의 구성을 강력히 지향하십시오.
+
+[프롬프트 구성 지침]
+- 각 섹션(Verse 1, Chorus, Verse 2, Ending)에 대해 하나씩, 총 4개 이상의 이미지 프롬프트를 작성하세요.
+- 가사의 내용을 시각적으로 풍부하게 묘사하세요.
+- 일관된 캐릭터 디자인(주인공이 있다면 동일한 특징 유지)을 유지하세요.
+
+다음 JSON 형식으로 응답하세요:
+{
+    "scenes": [
+        {
+            "scene_number": 1,
+            "section": "Verse 1",
+            "scene_text": "해당 구간 가사",
+            "prompt_ko": "장면 묘사 (한글)",
+            "prompt_en": "3D Pixar style, [Visual details], vibrant colors, soft lighting, no text, no words, strictly two arms and two hands",
+            "flow_prompt": "A cinematic Pixar-style 3D animation of [Subject] [Action] in a [Environment]... smooth camera motion, magical atmosphere."
+        },
+        ...
+    ]
+}
+JSON만 반환하세요."""
+
+
+    GEMINI_RANDOM_COOKING_PLAN = """당신은 세계적인 미식가이자 영상 연출가입니다.
+    오늘의 '랜덤 요리'를 선정하고, 해당 요리의 조리 과정을 {count}단계의 짧은 영상(각 5초)으로 기획해주세요.
+
+    [기획 지침]
+    1. **랜덤성**: 매번 다른 요리를 선정하세요. 대중적인 요리부터 이국적인 요리까지 다양하게 선택하세요.
+    2. **조리 과정**: 요리의 시작부터 완성까지 {count}단계로 자연스럽게 이어지도록 구성하세요.
+    3. **비주얼 중심**: Veo와 같은 비디오 생성 AI가 사용하기 좋은 상세한 영어 묘사를 작성하세요.
+    4. **No Humans (CRITICAL)**: 사람의 얼굴이나 상체가 절대 나오면 안 됩니다. 오직 요리 과정에 참여하는 '손(hands)'이나 주방 기구(프라이팬, 그릇, 칼 등)와 '음식'에만 수퍼 클로즈업(Super Close-up)으로 포커싱하세요. 
+    5. **Cinematic**: 전문 영상미가 느껴지도록 조명, 구도, 카메라 무빙을 포함하세요.
+
+    [출력 형식 (JSON)]
+    {{
+        "dish_name": "선정된 요리 이름",
+        "description": "요리에 대한 짧은 설명",
+        "steps": [
+            {{
+                "step_number": 1,
+                "action": "조리 동작 (한글)",
+                "video_prompt": "Detailed English prompt for Veo video generation. Focused ONLY on food and tools. NO FACES, NO HUMAN BODIES. Include the action, ingredients, cinematic lighting, and camera movement. Example: 'Macro close up of sizzling garlic in a hot iron pan, olive oil splattering, steam rising, professional food cinematography, cinematic warm lighting, slow motion'."
+            }}
+        ]
+    }}
+    JSON만 반환하세요."""
+
+    # --- [NEW] Negative Prompt Definitions (for system Use) ---
+    NEGATIVE_LAYERS = {
+        "BASE": "deformed, disfigured, mutated, poorly drawn, bad anatomy, wrong anatomy, extra limbs, missing limbs, floating limbs, disconnected limbs, malformed hands, extra fingers, missing fingers, fused fingers, too many fingers, mutated hands, poorly drawn hands, extra arms, three arms, extra legs, three legs, asymmetric eyes, crossed eyes, misaligned eyes, extra eyes, poorly drawn face, distorted face, duplicate face, blurry, out of focus, low resolution, pixelated, jpeg artifacts, watermark, signature, username, logo, text artifacts, copyright mark, trademark symbol, duplicate characters, cloned face, multiple identical subjects, frame, border, cropped awkwardly",
+        "SAFETY": "celebrity face, real person likeness, recognizable public figure, famous actor, famous singer, famous athlete, branded logo, corporate logo, trademark symbol, sports team logo, product label with brand name, copyrighted character, cartoon franchise character, mascot of existing brand, nudity, explicit content, suggestive pose, revealing clothing inappropriate to context, graphic violence, gore, blood splatter, graphic injury, weapons pointed at camera, political symbols, religious symbols used inappropriately, offensive gestures, hate symbols, propaganda imagery",
+        "SCENE_TYPE": {
+            "Portrait": "uneven skin texture, plastic skin, waxy skin, unnatural skin smoothing, airbrushed, oversaturated skin, lazy eye, wall-eyed, pupils of different sizes, crooked teeth, yellow teeth, missing teeth, extra teeth, unnatural facial proportions, elongated face, squashed face, hair clipping through face, unnatural hairline, asymmetric earrings, mismatched accessories, unnatural neck length, floating head",
+            "Environment": "warped perspective, impossible architecture, floating objects, objects clipping through walls, repeating patterns tiled obviously, visible seams, unnatural lighting direction, multiple inconsistent light sources, overly busy composition, cluttered foreground blocking subject, depth inconsistency, flat lighting in outdoor scene, unnatural horizon line, distorted scale",
+            "Action": "static pose, stiff posture, mannequin pose, frozen motion without context, physics-defying movement, broken joints, dislocated limbs, awkward hand gesture, unnatural grip, motion blur on wrong elements, objects held incorrectly, floating props instead of held, unnatural weight distribution, impossible balance"
+        },
+        "STYLE_EXCLUSION": {
+            "Cinematic": "cartoon, anime, manga, illustration, painting, drawing, sketch, cel-shaded, flat colors, hard outlines, hand-drawn, watercolor, oil painting style, stylized, exaggerated features, chibi proportions, 2d flat shading",
+            "Anime": "photorealistic, photograph, realistic skin pores, real skin texture, 3d render, cgi, octane render, hyperrealistic, DSLR, film grain, realistic shadows, skin imperfections, stock photo aesthetic",
+            "Webtoon": "photorealistic, 3d render, realistic lighting, film grain, DSLR photo, hyperdetailed skin, western comic style, manga screen tone, grayscale, heavy shading",
+            "3DRender": "flat 2d, hand-drawn, sketch, watercolor, oil painting, ink wash, cel-shaded anime, manga style, photographic grain, film aesthetic",
+            "Sketch": "photorealistic, 3d render, cgi, digital smooth shading, airbrushed, stock photo, film photography, hyperdetailed texture"
+        }
+    }
+
+
+prompts = Prompts()
+
+
+def get_language_instruction(lang: str) -> str:
+    lang = (str(lang or 'ko').strip().lower() or 'ko')
+    if lang.startswith('ja') or lang.startswith('jp'):
+        return '重要: 本文・タイトル・説明文・テキスト等のすべての出力は必ず自然な日本語で作成してください。'
+    elif lang.startswith('en'):
+        return 'IMPORTANT: You MUST write the entire output (script, title, description, text, etc.) in natural English.'
+    else:
+        return '중요: 본문, 제목, 설명, 텍스트 등 모든 출력은 반드시 자연스러운 한국어로 작성하세요.'

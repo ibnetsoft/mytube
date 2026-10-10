@@ -1,0 +1,11 @@
+worker/connection.env
+.env
+.env.*
+!.env.example
+.venv*/
+__pycache__/
+*.pyc
+output/
+logs/
+cache/
+state/

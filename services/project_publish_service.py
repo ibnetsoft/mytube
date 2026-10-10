@@ -1,0 +1,425 @@
+import json
+import os
+import shutil
+from typing import Any, Dict, Optional
+
+import database as db
+from config import config
+from services.drive_bundle_service import drive_bundle_service
+from services.sync_service import upsert_web_admin_publishing_request
+from services.youtube_upload_service import youtube_upload_service
+from services import learning_service
+
+
+def _resolve_local_output_asset_path(asset_url_or_path: Optional[str]) -> Optional[str]:
+    if not asset_url_or_path:
+        return None
+    if os.path.isabs(asset_url_or_path) and os.path.exists(asset_url_or_path):
+        return asset_url_or_path
+    if asset_url_or_path.startswith("/output/"):
+        rel = asset_url_or_path.replace("/output/", "", 1).replace("/", os.sep)
+        path = os.path.join(config.OUTPUT_DIR, rel)
+        return path if os.path.exists(path) else None
+    if asset_url_or_path.startswith("/static/"):
+        rel = asset_url_or_path.replace("/static/", "", 1).replace("/", os.sep)
+        path = os.path.join(config.STATIC_DIR, rel)
+        return path if os.path.exists(path) else None
+    if os.path.exists(asset_url_or_path):
+        return asset_url_or_path
+    return None
+
+
+def _resolve_youtube_token_path(
+    settings: Dict[str, Any],
+    requested_channel_id: Optional[int] = None,
+) -> Optional[str]:
+    token_path = None
+    preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
+    try:
+        target_chan_id = requested_channel_id or settings.get("youtube_channel_id")
+        if not target_chan_id:
+            if preferred_handle:
+                preferred_channel = db.get_channel_by_handle(preferred_handle)
+                if preferred_channel and preferred_channel.get("id"):
+                    target_chan_id = preferred_channel["id"]
+        if target_chan_id:
+            channel = db.get_channel(target_chan_id)
+            if channel and channel.get("credentials_path"):
+                cand_path = channel["credentials_path"]
+                if not os.path.isabs(cand_path):
+                    cand_path = os.path.join(config.BASE_DIR, cand_path)
+                if os.path.exists(cand_path):
+                    token_path = cand_path
+                else:
+                    rec_filename = f"token_{target_chan_id}.pickle"
+                    rec_path = os.path.join(config.BASE_DIR, "tokens", rec_filename)
+                    if os.path.exists(rec_path):
+                        token_path = rec_path
+                        print(f"[YouTube] Recovered token path from tokens directory: {token_path}")
+
+        if not token_path and not preferred_handle:
+            channels = db.get_all_channels()
+            for ch in channels or []:
+                c_path = ch.get("credentials_path")
+                if not c_path:
+                    continue
+                if not os.path.isabs(c_path):
+                    c_path = os.path.join(config.BASE_DIR, c_path)
+                if os.path.exists(c_path):
+                    token_path = c_path
+                    break
+    except Exception as e:
+        print(f"[YouTube] Channel resolution error: {e}")
+        token_path = None
+    return token_path
+
+
+def _resolve_project_thumbnail_path(settings: Dict[str, Any]) -> Optional[str]:
+    thumb_candidate = settings.get("thumbnail_path") or settings.get("thumbnail_url")
+    return _resolve_local_output_asset_path(thumb_candidate)
+
+
+def release_project_to_public(project_id: int, requested_channel_id: Optional[int] = None) -> Dict[str, Any]:
+    """Flip an already-uploaded (private) video to public on YouTube.
+
+    Videos are uploaded private by default so a human can watch the actual
+    rendered output before it goes live - this is the second, explicit step
+    that makes it public once someone has reviewed it.
+    """
+    project = db.get_project(project_id)
+    if not project:
+        raise FileNotFoundError(f"Project not found: {project_id}")
+
+    settings = db.get_project_settings(project_id) or {}
+    video_id = settings.get("youtube_video_id")
+    if not video_id:
+        raise RuntimeError(f"No youtube_video_id recorded for project {project_id} - was it ever uploaded?")
+
+    token_path = _resolve_youtube_token_path(settings, requested_channel_id)
+    youtube_upload_service.update_video_privacy(video_id, "public", token_path=token_path)
+
+    db.update_project_setting(project_id, "admin_publish_status", "public")
+    learning_service.log_event(project_id, "made_public", "upload", {
+        "youtube_video_id": video_id,
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+        "source": "project_publish_service",
+    }, source="system")
+
+    return {
+        "status": "ok",
+        "project_id": project_id,
+        "video_id": video_id,
+        "url": f"https://www.youtube.com/watch?v={video_id}",
+    }
+
+
+def publish_project_to_youtube(
+    project_id: int,
+    *,
+    requested_privacy: str = "private",
+    requested_publish_at: Optional[str] = None,
+    requested_channel_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    temp_dir_to_cleanup = None
+    try:
+        project = db.get_project(project_id)
+        if not project:
+            raise FileNotFoundError(f"Project not found: {project_id}")
+
+        settings = db.get_project_settings(project_id) or {}
+        metadata = db.get_project_metadata(project_id, settings.get("app_mode")) or {}
+
+        video_path = _resolve_local_output_asset_path(settings.get("external_video_path"))
+        upload_source = "external"
+
+        if not video_path:
+            video_path = _resolve_local_output_asset_path(settings.get("video_path"))
+            if video_path:
+                upload_source = "rendered_local"
+
+        drive_assets = None
+        if not video_path:
+            drive_assets = drive_bundle_service.prepare_youtube_upload_assets(project_id)
+            temp_dir_to_cleanup = drive_assets.get("temp_dir")
+            video_path = drive_assets.get("video_path")
+            upload_source = "drive_bundle"
+
+        if not video_path or not os.path.exists(video_path):
+            raise FileNotFoundError(f"Uploadable video file not found for project {project_id}")
+
+        from services.qa_service import is_upload_blocked, resolve_upload_video_path
+        learning_service.snapshot_project(project_id, "pre_upload", {"upload": {
+            "privacy": requested_privacy,
+            "publish_at": requested_publish_at,
+            "requested_channel_id": requested_channel_id,
+            "upload_source": upload_source,
+            "source": "project_publish_service",
+        }})
+        qa_blocked, qa_result = is_upload_blocked(project_id)
+        if qa_blocked:
+            db.update_project_setting(project_id, "admin_publish_status", "qa_hold")
+            learning_service.log_event(project_id, "qa_hold", "qa", {"qa_result": qa_result, "source": "project_publish_service"}, source="qa")
+            return {
+                "status": "qa_hold",
+                "project_id": project_id,
+                "message": "QA 경고로 유튜브 발행이 보류되었습니다.",
+                "qa_result": qa_result,
+            }
+        video_path = resolve_upload_video_path(project_id, video_path)
+
+        if drive_assets:
+            title = drive_assets.get("title") or project.get("name") or f"Project {project_id}"
+            description = drive_assets.get("description") or ""
+            tags = list(drive_assets.get("tags") or [])
+            hashtags = list(drive_assets.get("hashtags") or [])
+            thumbnail_path = drive_assets.get("thumbnail_path")
+        else:
+            title = (metadata.get("titles") or [project.get("name")])[0]
+            description = metadata.get("description") or settings.get("description") or ""
+            tags = list(metadata.get("tags") or [])
+            hashtags = list(metadata.get("hashtags") or [])
+            thumbnail_path = _resolve_project_thumbnail_path(settings)
+
+        merged_tags = []
+        for item in tags + hashtags:
+            cleaned = str(item or "").strip()
+            if cleaned and cleaned not in merged_tags:
+                merged_tags.append(cleaned)
+
+        token_path = _resolve_youtube_token_path(settings, requested_channel_id)
+        preferred_handle = (settings.get("preferred_youtube_channel_handle") or "").strip()
+        if preferred_handle and not token_path:
+            preferred_name = settings.get("preferred_youtube_channel_name") or preferred_handle
+            raise RuntimeError(f"Fixed upload channel is not connected locally: {preferred_name}")
+        result = youtube_upload_service.upload_video(
+            file_path=video_path,
+            title=title,
+            description=description,
+            tags=merged_tags[:15],
+            category_id="22",
+            privacy_status=requested_privacy,
+            publish_at=requested_publish_at,
+            token_path=token_path,
+        )
+
+        if not result or not result.get("id"):
+            raise RuntimeError((result or {}).get("error", "YouTube upload failed"))
+
+        video_id = result["id"]
+
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            try:
+                youtube_upload_service.set_thumbnail(
+                    video_id=video_id,
+                    thumbnail_path=thumbnail_path,
+                    token_path=token_path,
+                )
+            except Exception as thumb_err:
+                print(f"[YouTube] Thumbnail set skipped: {thumb_err}")
+
+        db.update_project_setting(project_id, "youtube_video_id", video_id)
+        db.update_project_setting(project_id, "is_published", 1)
+        db.update_project_setting(project_id, "is_uploaded", 1)
+        db.update_project_setting(project_id, "upload_source", upload_source)
+        db.update_project_setting(project_id, "admin_publish_status", "published")
+        db.update_project_setting(project_id, "admin_publish_ready", "1")
+        learning_service.log_event(project_id, "upload_completed", "upload", {
+            "youtube_video_id": video_id,
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "title": title,
+            "privacy": requested_privacy,
+            "publish_at": requested_publish_at,
+            "upload_source": upload_source,
+            "source": "project_publish_service",
+        }, source="system")
+        learning_service.snapshot_project(project_id, "post_upload", {"upload": {
+            "youtube_video_id": video_id,
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "title": title,
+            "privacy": requested_privacy,
+            "publish_at": requested_publish_at,
+            "upload_source": upload_source,
+            "source": "project_publish_service",
+        }})
+
+        return {
+            "status": "ok",
+            "project_id": project_id,
+            "video_id": video_id,
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "upload_source": upload_source,
+            "title": title,
+            "description": description,
+            "tags": merged_tags[:15],
+        }
+    finally:
+        if temp_dir_to_cleanup and os.path.isdir(temp_dir_to_cleanup):
+            try:
+                shutil.rmtree(temp_dir_to_cleanup, ignore_errors=True)
+            except Exception:
+                pass
+
+
+def check_project_submit_readiness(project_id: int) -> Dict[str, Any]:
+    """제출(구글 드라이브 업로드) 전 필수 에셋이 모두 준비됐는지 확인한다."""
+    settings = db.get_project_settings(project_id) or {}
+    project_mode = str(settings.get("app_mode") or "longform").strip().lower()
+
+    script = db.get_script(project_id)
+    tts = db.get_tts(project_id)
+    thumbnails = db.get_thumbnails(project_id)
+    # [FIX] get_metadata() only reads the legacy `metadata` table, but the
+    # current title-desc save flow (POST /api/projects/{id}/metadata) writes
+    # into project_settings.metadata_{app_mode} instead. Using the legacy-only
+    # reader here made this check report "description missing" for every
+    # project saved through the current UI, even though the header progress
+    # bar (which already reads mode-scoped metadata) showed it as complete.
+    metadata = db.get_project_metadata(project_id, project_mode)
+
+    missing_scene_numbers = []
+    if project_mode == "longform":
+        from services.longform_asset_readiness import sync_project_asset_readiness
+        scene_readiness = sync_project_asset_readiness(project_id)
+        scenes_ok = bool(scene_readiness.get("assets_ready"))
+        missing_scene_numbers = scene_readiness.get("missing_asset_scenes") or []
+    else:
+        images = db.get_image_prompts(project_id) or []
+        scenes_ok = bool(images) and all(
+            (img.get("image_url") or img.get("video_url")) for img in images
+        )
+
+    # [FIX] bool(tts) only proved a tts_audio DB row exists, not that its
+    # audio_path file is still on disk - a project could pass this check
+    # with a stale/deleted path, then silently ship without audio through
+    # package_project_assets() (which only soft-skips missing audio) and
+    # fail 10+ minutes later on the remote worker with
+    # "TTS audio file was not found."
+    voice_ok = bool(tts) and bool(tts.get("audio_path")) and os.path.exists(tts.get("audio_path"))
+
+    checks = {
+        "scenes": scenes_ok,
+        "script": bool(script),
+        "voice": voice_ok,
+        "subtitles": bool(settings.get("subtitle_path")) or bool(tts and settings.get("subtitle_style_enum")),
+        "thumbnail": bool(thumbnails),
+        "title": bool(settings.get("title")),
+        "description": bool(metadata and metadata.get("description")),
+    }
+    missing = [key for key, ok in checks.items() if not ok]
+    return {
+        "ready": not missing,
+        "checks": checks,
+        "missing": missing,
+        "missing_scene_numbers": missing_scene_numbers,
+    }
+
+
+def queue_project_for_admin_publish(
+    project_id: int,
+    *,
+    requested_privacy: str = "private",
+    requested_publish_at: Optional[str] = None,
+    requested_channel_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    project = db.get_project(project_id)
+    if not project:
+        raise FileNotFoundError(f"Project not found: {project_id}")
+
+    settings = db.get_project_settings(project_id) or {}
+    bundle = drive_bundle_service.get_project_bundle(project_id)
+    video_file = bundle.get("video_file") or {}
+    folder = bundle.get("folder") or {}
+    thumbnail_file = bundle.get("thumbnail_file") or {}
+    metadata_file = bundle.get("metadata_file") or {}
+
+    if not video_file.get("id"):
+        raise FileNotFoundError("Google Drive bundle video not found for this project.")
+
+    title = bundle.get("title") or project.get("name") or f"Project {project_id}"
+    description = bundle.get("description") or ""
+    tags = list(bundle.get("tags") or [])
+    hashtags = list(bundle.get("hashtags") or [])
+    metadata_json = bundle.get("metadata_json") or {}
+    track_count = metadata_json.get("track_count")
+    total_duration_seconds = metadata_json.get("total_duration_seconds")
+    track_durations = metadata_json.get("track_durations") or []
+    if not track_count or not track_durations or not total_duration_seconds:
+        try:
+            queue_payload = json.loads(settings.get("remote_render_queue_payload") or "{}")
+        except Exception:
+            queue_payload = {}
+        queue_metadata = queue_payload.get("metadata") or {}
+        track_count = track_count or queue_metadata.get("track_count")
+        track_durations = track_durations or queue_metadata.get("track_durations") or []
+        total_duration_seconds = total_duration_seconds or queue_metadata.get("total_duration_seconds")
+    if total_duration_seconds in (None, "", 0) and isinstance(track_durations, list):
+        try:
+            total_duration_seconds = sum(int(item or 0) for item in track_durations)
+        except Exception:
+            total_duration_seconds = None
+
+    db.update_project_setting(project_id, "upload_privacy", requested_privacy or "private")
+    db.update_project_setting(project_id, "upload_schedule_at", requested_publish_at)
+    if requested_channel_id is not None:
+        db.update_project_setting(project_id, "youtube_channel_id", requested_channel_id)
+
+    payload_metadata = {
+        "title": title,
+        "description": description,
+        "tags": tags,
+        "hashtags": hashtags,
+        "drive_folder_id": folder.get("id"),
+        "drive_video_file_id": video_file.get("id"),
+        "drive_thumbnail_file_id": thumbnail_file.get("id"),
+        "drive_metadata_file_id": metadata_file.get("id"),
+        "channel_id": requested_channel_id or settings.get("youtube_channel_id"),
+        "preferred_channel_handle": settings.get("preferred_youtube_channel_handle"),
+        "preferred_channel_name": settings.get("preferred_youtube_channel_name"),
+        "privacy_status": requested_privacy or "private",
+        "publish_at": requested_publish_at,
+        "track_count": track_count,
+        "track_durations": track_durations,
+        "total_duration_seconds": total_duration_seconds,
+        "app_mode": settings.get("app_mode") or "longform_music",
+    }
+    from services.qa_service import is_upload_blocked
+    qa_blocked, qa_result = is_upload_blocked(project_id)
+    queue_status = "qa_hold" if qa_blocked else "pending"
+    if qa_blocked:
+        payload_metadata["qa_result"] = qa_result
+
+    response = upsert_web_admin_publishing_request(
+        project_id,
+        video_url=video_file.get("webViewLink"),
+        status=queue_status,
+        metadata_payload=payload_metadata,
+    )
+    if response is None or response.status_code not in (200, 201, 204):
+        raise RuntimeError("Failed to register project in web-admin publishing queue.")
+
+    admin_status = "qa_hold" if qa_blocked else "pending_review"
+    db.update_project_setting(project_id, "admin_publish_ready", "1")
+    db.update_project_setting(project_id, "admin_publish_status", admin_status)
+    db.update_project_setting(project_id, "is_uploaded", 1)
+    learning_service.log_event(project_id, "admin_publish_queued" if not qa_blocked else "qa_hold", "upload", {
+        "queue_status": admin_status,
+        "video_url": video_file.get("webViewLink"),
+        "title": title,
+        "privacy": requested_privacy or "private",
+        "publish_at": requested_publish_at,
+        "qa_result": qa_result if qa_blocked else {},
+        "source": "web_admin_queue",
+    }, source="system" if not qa_blocked else "qa")
+    learning_service.snapshot_project(project_id, "pre_upload", {"upload": payload_metadata})
+
+    return {
+        "status": "qa_hold" if qa_blocked else "ok",
+        "project_id": project_id,
+        "queue_status": admin_status,
+        "video_url": video_file.get("webViewLink"),
+        "url": video_file.get("webViewLink"),
+        "title": title,
+        "description": description,
+        "hashtags": hashtags,
+        "publish_at": requested_publish_at,
+    }

@@ -1,0 +1,2 @@
+# Optional worker browser stage; uses the installed Chrome channel.
+playwright==1.62.0
