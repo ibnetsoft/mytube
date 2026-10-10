@@ -28,6 +28,16 @@ test('replacement images never inherit coordinates; failed generation remains vi
  const info=overview.speakerCoordinateOverview(f.project,assets)
  assert.equal(info.completed,0);assert.equal(info.failed,1);assert.equal(info.scenes[0].error,'Occluded mouth')
 })
+test('validated directed blink becomes a source-bound virtual confirmation asset',()=>{
+ const f=fixture();f.receipt.eye_blink={state:'ready',character:'Mother',reason:'reaction pause',
+  left_eye_box:[.2,.2,.24,.23],right_eye_box:[.3,.2,.34,.23],
+  cues:[{at_seconds:2.4,duration_seconds:.11,type:'single'}]}
+ const assets=generated.generatedSpeakerAssets(f.project,f.structure,[f.image])
+ const blink=assets.find(a=>a.metadata.kind==='eye_blink_confirmation')
+ assert.equal(blink.id,'generated-eye-blink:i:receipt');assert.equal(blink.metadata.version,2)
+ assert.equal(blink.metadata.character,'Mother');assert.deepEqual(blink.metadata.cues,f.receipt.eye_blink.cues)
+ assert.equal(blink.metadata.image_id,'i');assert.equal(blink.metadata.source_path,'19.png')
+})
 test('submission and coordinate loaders read latest topic receipts for existing projects',async()=>{
  const f=fixture(),queries=[]
  const db={from(table){queries.push(table);const data=table==='std_projects'?[f.project]:table==='topics_queue'?[{id:3373,pregenerated_structure:f.structure}]:[f.image];const q={select:()=>q,eq:()=>q,in:()=>q,or:()=>q,order:()=>q,range:()=>q,then:(a,b)=>Promise.resolve({data,error:null}).then(a,b)};return q}}

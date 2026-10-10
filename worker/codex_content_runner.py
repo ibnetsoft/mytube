@@ -2535,11 +2535,14 @@ class CodexStagedContentRunner:
             **script_context,
             "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
             "script": script,
-            "scenes": [{key: scene.get(key) for key in (
-                "scene_number", "duration_seconds", "scene_summary", "scene_situation",
-                "scene_purpose", "scene_emotion", "character_choice", "emotional_shift",
-                "reveal_or_question", "scene_text", "narration",
-            )} for scene in scenes],
+            "scenes": [{
+                **{key: scene.get(key) for key in (
+                    "scene_number", "duration_seconds", "scene_summary", "scene_situation",
+                    "scene_purpose", "scene_emotion", "character_choice", "emotional_shift",
+                    "reveal_or_question", "scene_text", "narration",
+                )},
+                "eligible_for_eye_blink": int(scene.get("scene_number") or scene.get("scene_order") or 0) >= 19,
+            } for scene in scenes],
         }
         visual_result = self._stage(
             job_id, "02f_scene_visual_director", visual_context,
@@ -2555,6 +2558,14 @@ class CodexStagedContentRunner:
             "normalized focus_target {type, layer, x, y, reason}, effect_limits {intensity, speed, "
             "max_scale_delta, max_move_ratio, max_rotation_degrees}, and fallback. Every selected effect must "
             "also appear in ae_operations. Use hold as the primary effect when motion does not improve the story. "
+            "Also return eye_blink_plan for every scene. It must be {enabled, character, reason, cues, fallback}. "
+            "For eligible_for_eye_blink=true still scenes, enable it selectively only when a visible named "
+            "character blinking supports a listening reaction, post-dialogue breath, or emotional release. "
+            "Each cue is {at_seconds, duration_seconds, type:'single|double'}; use at most two irregular cues, "
+            "clear of scene boundaries. Disable it with an explicit reason for shock, fixed stare, action, short "
+            "shots, likely hidden eyes, and scenes where blinking adds nothing. Never use a periodic interval, "
+            "never enable every eligible scene, and never enable scenes marked ineligible. Final image analysis "
+            "will verify the character and eyes, so uncertainty must fall back to skip_blink. "
             "Avoid repeating the same conspicuous primary effect in adjacent scenes. Set "
             "source_video_reviewed=true only when actual uploaded-clip keyframes are supplied. Use only the "
             "persona's operation allowlist and these layer roles: background, foreground, "

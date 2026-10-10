@@ -10,9 +10,12 @@ const canonical = (v: any): any => Array.isArray(v) ? v.map(canonical) : v && ty
 
 function eyeBlinkPlan(assets: any[], number: number, image: any) {
     if (!image) return null
-    const asset = assets.find(a => active(a) && a.metadata?.kind === 'eye_blink_confirmation'
+    const candidates = assets.filter(a => active(a) && a.metadata?.kind === 'eye_blink_confirmation'
         && Number(a.scene_number) === number && a.metadata?.state === 'confirmed'
         && a.metadata?.image_id === image.id)
+    // A user's explicit confirmation always wins over generation-time direction,
+    // even if the topic receipt was republished later.
+    const asset = candidates.find(a => !String(a.id || '').startsWith('generated-eye-blink:')) || candidates[0]
     if (!asset) return null
     const metadata = asset.metadata || {}
     return {
@@ -20,7 +23,8 @@ function eyeBlinkPlan(assets: any[], number: number, image: any) {
         image_id: metadata.image_id, source_bucket: metadata.source_bucket,
         source_path: metadata.source_path, source_sha256: metadata.source_sha256,
         left_eye_box: metadata.left_eye_box, right_eye_box: metadata.right_eye_box,
-        interval_seconds: metadata.interval_seconds, confirmed_by: metadata.confirmed_by,
+        interval_seconds: metadata.interval_seconds, cues: metadata.cues, reason: metadata.reason,
+        confirmed_by: metadata.confirmed_by,
         confirmed_at: metadata.confirmed_at,
     }
 }

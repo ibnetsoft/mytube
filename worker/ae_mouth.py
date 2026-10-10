@@ -118,6 +118,55 @@ def locate_speakers(runner, identity: str, scene: dict, image: Path, rows: list[
     return visible_speakers(response, speakers)
 
 
+def visible_blink_eyes(response: dict, character: str) -> dict:
+    row = response.get('eye_blink') if isinstance(response, dict) else None
+    if not isinstance(row, dict) or row.get('character') != character:
+        raise ValueError('Eye blink assessment changed or omitted the planned character')
+    if row.get('status') not in ('visible', 'offscreen', 'uncertain'):
+        raise ValueError('Eye blink visibility is invalid')
+    confidence = row.get('confidence')
+    if not isinstance(confidence, (int, float)) or not math.isfinite(confidence) or confidence < .9:
+        raise ValueError('Eye blink confidence needs review')
+    if row['status'] != 'visible' or not str(row.get('reason') or '').strip():
+        raise ValueError('Planned character eyes are not safely visible')
+    boxes = []
+    for key in ('left_eye_box', 'right_eye_box'):
+        box = row.get(key)
+        if not isinstance(box, list) or len(box) != 4 or any(
+                isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in box):
+            raise ValueError('Both eye boxes are required')
+        left, top, right, bottom = box
+        if not (0 <= left < right <= 1 and 0 <= top < bottom <= 1
+                and .005 <= right - left <= .14 and .004 <= bottom - top <= .10):
+            raise ValueError('Eye boxes must tightly cover only the visible eyes')
+        boxes.append(box)
+    left, right = boxes
+    if left[0] < right[2] and left[2] > right[0] and left[1] < right[3] and left[3] > right[1]:
+        raise ValueError('Left and right eye boxes overlap')
+    return row
+
+
+def locate_blink_eyes(runner, identity: str, scene: dict, image: Path, plan: dict, cast: dict) -> dict:
+    character = str(plan.get('character') or '').strip()
+    if not character:
+        raise ValueError('Eye blink plan has no character')
+    response = runner._stage(identity, '03_ae_eye_visibility', {
+        '_local_image_paths': [str(image.resolve())], 'source_sha256': digest(image),
+        'scene_text': scene.get('scene_text') or scene.get('narration') or scene.get('text') or '',
+        'cast': cast, 'character': character, 'eye_blink_plan': plan,
+    }, (
+        "Inspect the attached ORIGINAL final scene image. Find only the exact planned character using the "
+        "supplied cast and story. Return {eye_blink:{character:'exact supplied name',"
+        "status:'visible|offscreen|uncertain',confidence:0.0,left_eye_box:[left,top,right,bottom],"
+        "right_eye_box:[left,top,right,bottom],reason:'specific visual evidence'}}. Coordinates are normalized "
+        "to the original image and each box must tightly enclose one complete visible eye with minimal skin. "
+        "Use visible only when both eyes are unobscured, large enough for a clean closed-eye patch, and the "
+        "identity is certain. Side profile, hair occlusion, tiny eyes, closed eyes, or ambiguous identity must "
+        "be uncertain. Offscreen means the planned character is absent. Never select a different character."
+    ))
+    return visible_blink_eyes(response, character)
+
+
 def normalize_patch(source: Path, target: Path, reference: Path, box: list[float]) -> None:
     """Fit generated replacement art only into its verified region; preserve all other pixels."""
     with Image.open(reference) as base, Image.open(source) as patch:
@@ -249,6 +298,42 @@ def blink_cues(duration: float, interval: float, close_seconds: float = .12) -> 
             {'at_seconds': round(min(duration, at + close_seconds), 6), 'opacity': 0},
         ])
         at += interval
+    if cues[-1]['at_seconds'] != round(duration, 6):
+        cues.append({'at_seconds': round(duration, 6), 'opacity': 0})
+    return cues
+
+
+def resolved_blink_cues(duration: float, blink: dict) -> list[dict]:
+    """Resolve directed exact cues first; retain the manual interval editor as an override/fallback."""
+    planned = blink.get('cues') if isinstance(blink, dict) else None
+    if planned is None:
+        return blink_cues(duration, float(blink['interval_seconds']))
+    if not isinstance(planned, list) or not planned:
+        raise ValueError('Directed eye blink cues are missing')
+    cues = [{'at_seconds': 0, 'opacity': 0}]
+    last = -1.0
+    for number, cue in enumerate(planned, 1):
+        if not isinstance(cue, dict):
+            raise ValueError(f'Directed eye blink cue {number} is invalid')
+        try:
+            at = float(cue.get('at_seconds'))
+            close = float(cue.get('duration_seconds', .12))
+        except (TypeError, ValueError):
+            raise ValueError(f'Directed eye blink cue {number} needs numeric timing')
+        kind = str(cue.get('type') or 'single')
+        if (not math.isfinite(at) or not math.isfinite(close) or kind not in ('single', 'double')
+                or not .08 <= close <= .2 or at < .25 or at + close > duration - .2 or at <= last):
+            raise ValueError(f'Directed eye blink cue {number} is outside the safe scene range')
+        starts = [at] if kind == 'single' else [at, at + close + .085]
+        if starts[-1] + close > duration - .2:
+            raise ValueError(f'Directed double blink cue {number} is too close to the scene end')
+        for start in starts:
+            cues.extend([
+                {'at_seconds': round(max(0, start - .055), 6), 'opacity': 0},
+                {'at_seconds': round(start, 6), 'opacity': 100},
+                {'at_seconds': round(start + close, 6), 'opacity': 0},
+            ])
+        last = starts[-1]
     if cues[-1]['at_seconds'] != round(duration, 6):
         cues.append({'at_seconds': round(duration, 6), 'opacity': 0})
     return cues

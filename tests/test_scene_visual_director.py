@@ -80,3 +80,42 @@ def test_director_normalizes_explicit_script_stage_direction_contract():
     assert plan["focus_target"]["x"] == 1.0
     assert plan["focus_target"]["y"] == 0.0
     assert plan["effect_limits"]["max_scale_delta"] == 0.03
+
+
+def test_director_schedules_selective_character_blink_with_exact_acting_cue():
+    scene = {"scene_number": 19, "duration_seconds": 6, "eligible_for_eye_blink": True}
+    plan = validate_directorial_plans([scene], {"scene_directions": [{
+        "scene_role": "reaction",
+        "dramatic_intent": "Let O-Suzu absorb the warning before answering.",
+        "visual_strategy": "Hold her face and use one restrained blink on the pause.",
+        "timed_beats": [{"start_seconds": 0, "end_seconds": 6, "action": "hold", "target": "O-Suzu"}],
+        "ae_operations": ["hold"],
+        "required_layers": [], "additional_keyframes": [],
+        "qa_assertions": ["The blink occurs only once and does not change identity."],
+        "eye_blink_plan": {"enabled": True, "character": "お鈴",
+                           "reason": "A natural reaction on the pause before her reply.",
+                           "cues": [{"at_seconds": 3.15, "duration_seconds": .12, "type": "single"}]},
+    }]})[0]
+
+    assert plan["eye_blink_plan"] == {
+        "enabled": True, "character": "お鈴",
+        "reason": "A natural reaction on the pause before her reply.",
+        "cues": [{"at_seconds": 3.15, "duration_seconds": .12, "type": "single"}],
+        "source": "scene_visual_director", "validation": "pending_final_image",
+        "fallback": "skip_blink",
+    }
+
+
+def test_director_never_auto_blinks_uploaded_video_scenes():
+    scene = {"scene_number": 12, "duration_seconds": 6, "eligible_for_eye_blink": False}
+    plan = validate_directorial_plans([scene], {"scene_directions": [{
+        "dramatic_intent": "Preserve the uploaded performance.",
+        "visual_strategy": "Hold the submitted clip.",
+        "timed_beats": [{"start_seconds": 0, "end_seconds": 6, "action": "hold", "target": "clip"}],
+        "ae_operations": ["hold"], "required_layers": [], "additional_keyframes": [],
+        "qa_assertions": ["Do not overlay a synthetic blink on the submitted clip."],
+        "eye_blink_plan": {"enabled": True, "character": "お鈴", "reason": "reaction",
+                           "cues": [{"at_seconds": 3, "duration_seconds": .12, "type": "single"}]},
+    }]})[0]
+    assert plan["eye_blink_plan"]["enabled"] is False
+    assert plan["eye_blink_plan"]["cues"] == []

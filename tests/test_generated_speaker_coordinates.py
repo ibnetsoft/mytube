@@ -67,6 +67,27 @@ def test_low_confidence_and_missing_face_are_review_not_ready(tmp_path):
         assert geometry.analyze_scene(structure, scene, image, 'bucket', '19.png', runner=runner)['state'] == 'needs_review'
 
 
+def test_directed_blink_is_verified_against_final_image_and_saved(tmp_path):
+    image, scene, structure = fixture(tmp_path)
+    scene['scene_direction_plan'] = {'eye_blink_plan': {
+        'enabled': True, 'character': 'Mother', 'reason': 'reaction pause',
+        'cues': [{'at_seconds': 2.4, 'duration_seconds': .11, 'type': 'single'}],
+    }}
+    class BlinkRunner:
+        def _stage(self, identity, stage, context, task):
+            if stage == '03_ae_eye_visibility':
+                return {'eye_blink': {'character': 'Mother', 'status': 'visible', 'confidence': .98,
+                    'left_eye_box': [.2,.2,.24,.23], 'right_eye_box': [.3,.2,.34,.23],
+                    'reason': 'Both eyes are unobscured on Mother.'}}
+            return {'speakers': [{'speaker': 'Mother', 'status': 'visible', 'confidence': .98,
+                'face_box': [.1,.1,.5,.6], 'mouth_box': [.25,.4,.32,.44], 'reason': 'Visible lips'}]}
+    result = geometry.analyze_scene(structure, scene, image, 'bucket', '19.png', runner=BlinkRunner())
+    assert result['state'] == 'ready'
+    assert result['eye_blink']['state'] == 'ready'
+    assert result['eye_blink']['character'] == 'Mother'
+    assert result['eye_blink']['cues'][0]['at_seconds'] == 2.4
+
+
 def test_each_scene_checkpoint_failure_continues_and_early_video_skips(tmp_path, monkeypatch):
     image, scene, structure = fixture(tmp_path)
     _, scene20, _ = fixture(tmp_path, 20)

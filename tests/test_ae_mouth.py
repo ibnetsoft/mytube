@@ -70,6 +70,17 @@ def test_user_selected_eye_blink_is_brief_bounded_and_composited_inside_source()
     assert jsx.index('var runtimeBlinks') < jsx.index('footage = mouthComp')
 
 
+def test_directed_eye_blink_uses_exact_irregular_acting_cues():
+    cues = mouth.resolved_blink_cues(8, {'cues': [
+        {'at_seconds': 2.4, 'duration_seconds': .11, 'type': 'single'},
+        {'at_seconds': 6.1, 'duration_seconds': .1, 'type': 'double'},
+    ]})
+    closed = [c['at_seconds'] for c in cues if c['opacity'] == 100]
+    assert closed == [2.4, 6.1, 6.285]
+    assert cues[0] == {'at_seconds': 0, 'opacity': 0}
+    assert cues[-1] == {'at_seconds': 8, 'opacity': 0}
+
+
 def test_ae_source_precomp_keeps_lips_attached_to_existing_camera_and_effects(tmp_path):
     scene = {'ae_motion_plan': {'enabled': True}, 'ae_mouth_runtime': {'enabled': True, 'speakers': [
         {'mouth_box': [.4, .4, .45, .43], 'layers': {p: str(tmp_path / f'{p}.png') for p in mouth.POSES},
@@ -120,6 +131,31 @@ def test_snapshot_requires_the_same_confirmed_eye_plan():
     assert worker.input_matches(snapshot,project,[blink,image,audio],scenes)
     changed=copy.deepcopy(blink);changed['id']='blink2';changed['metadata']['interval_seconds']=6
     assert not worker.input_matches(snapshot,project,[changed,image,audio],scenes)
+
+
+def test_snapshot_rebuilds_automatic_blink_from_final_image_receipt():
+    receipt = {'source':'local-codex-image-publish','fingerprint':'receipt','source_bucket':'bucket',
+               'source_path':'19.png','source_sha256':'a'*64,'updated_at':'2026-10-10T00:00:00Z',
+               'eye_blink':{'state':'ready','character':'girl','reason':'reaction pause',
+                            'left_eye_box':[.2,.2,.24,.23],'right_eye_box':[.3,.2,.34,.23],
+                            'cues':[{'at_seconds':.4,'duration_seconds':.1,'type':'single'}]}}
+    source = {'scene_number':19,'scene_text':'still','metadata':{'cowork_image_asset':{'speaker_geometry':receipt}}}
+    project = {'project_payload':{'subtitles':[{'text':'still','scene_number':19,'start':0,'end':1,'voice_id':'n'}],
+                                  'structure':{'scenes':[source]}}}
+    image = {'id':'image','asset_type':'image','status':'uploaded','scene_number':19,
+             'metadata':{'gcs_bucket':'bucket','gcs_path':'19.png'}}
+    audio = {'id':'audio','asset_type':'audio','status':'uploaded','metadata':{}}
+    plan = worker.generated_blink_plan(source,image)
+    snapshot = {'audio':{'id':'audio','metadata':{}},'cast':{'main':{},'supporting':[],'scene_cast':[]},'annotations':{},
+                'subtitles':[{'index':0,'text':'still','scene_number':19,'start':0,'end':1,'voice_id':'n','kind':'','speaker':'','direction':''}],
+                'scenes':[{'number':19,'text':'still','image':{'id':'image','metadata':image['metadata']},
+                           'original_video':None,'eye_blink':plan,
+                           'direction':{'ae_motion_plan':None,'ae_effect_plan':None,'ae_directorial_plan':None,
+                                        'scene_direction_plan':None,'image_prompt':''}}]}
+    assert worker.input_matches(snapshot,project,[image,audio],[{'scene_number':19,'scene_text':'still'}])
+    changed=copy.deepcopy(project)
+    changed['project_payload']['structure']['scenes'][0]['metadata']['cowork_image_asset']['speaker_geometry']['fingerprint']='new'
+    assert not worker.input_matches(snapshot,changed,[image,audio],[{'scene_number':19,'scene_text':'still'}])
 
 
 @pytest.mark.parametrize('video_scene,auto_video', [(False,False),(True,False),(True,True)])

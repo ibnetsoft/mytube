@@ -14,17 +14,32 @@ export function generatedSpeakerAssets(project: any, structure: any, assets: any
         const ref = coordinateSource(image)
         if (ref.path !== receipt.source_path || ref.bucket !== receipt.source_bucket
             || !/^[a-f0-9]{64}$/.test(receipt.source_sha256 || '')) return []
+        const generated: any[] = []
         // The consumer also validates current cast, speakers, bounds and confidence.
         const result = { number, image_id: image.id, source_path: ref.path,
             source_sha256: receipt.source_sha256, speakers: receipt.speakers }
-        return [{ id: `generated-speakers:${image.id}:${receipt.fingerprint}`, project_id: project.id,
+        generated.push({ id: `generated-speakers:${image.id}:${receipt.fingerprint}`, project_id: project.id,
             asset_type: 'other', status: 'uploaded', scene_number: number,
             created_at: receipt.updated_at, updated_at: receipt.updated_at,
             metadata: { kind: 'ae_speaker_coordinates', state: receipt.state,
                 fingerprint: receipt.fingerprint, source: receipt.source,
                 input: { cast_key: JSON.stringify({ main: receipt.cast?.main || {}, supporting: receipt.cast?.supporting || [], scene_cast: receipt.cast?.scene_cast || [] }), scenes: [{ number, image: { id: image.id } }] },
                 results: receipt.state === 'ready' ? [result] : [],
-                failures: receipt.state === 'needs_review' ? [{ number, error: receipt.error || 'Speaker coordinates need review' }] : [] } }]
+                failures: receipt.state === 'needs_review' ? [{ number, error: receipt.error || 'Speaker coordinates need review' }] : [] } })
+        const blink = receipt.eye_blink
+        if (blink?.state === 'ready' && blink.character && Array.isArray(blink.cues)
+            && Array.isArray(blink.left_eye_box) && Array.isArray(blink.right_eye_box)) {
+            generated.push({ id: `generated-eye-blink:${image.id}:${receipt.fingerprint}`, project_id: project.id,
+                asset_type: 'other', status: 'uploaded', scene_number: number,
+                created_at: receipt.updated_at, updated_at: receipt.updated_at,
+                metadata: { kind: 'eye_blink_confirmation', version: 2, state: 'confirmed', scene_number: number,
+                    image_id: image.id, source_bucket: ref.bucket, source_path: ref.path,
+                    source_sha256: receipt.source_sha256, character: blink.character,
+                    left_eye_box: blink.left_eye_box, right_eye_box: blink.right_eye_box,
+                    cues: blink.cues, reason: blink.reason, confirmed_by: 'scene_visual_director+local_codex_image',
+                    confirmed_at: receipt.updated_at } })
+        }
+        return generated
     })
 }
 

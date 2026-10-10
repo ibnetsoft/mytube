@@ -45,7 +45,18 @@ Keep effects restrained and culturally/period appropriate. Prefer preserving
 the input clip over adding synthetic content. Every plan must include
 observable QA assertions for timing, identity, continuity, and unintended
 motion. A missing layer must be reported as a dependency; do not silently
-replace the intended direction with a generic zoom."""
+replace the intended direction with a generic zoom.
+
+For still-image scenes that explicitly set eligible_for_eye_blink=true, also
+direct whether one visible character should blink. Eye blinks are acting beats,
+not a decoration or a periodic loop. Use them selectively across the sequence:
+prefer a listening reaction, a breath after dialogue, or an emotional release;
+suppress them during shock, an intense stare, fast action, a very short shot,
+or whenever the eyes may be hidden or too small. Do not enable blinking in
+every eligible scene, and do not make adjacent characters blink together.
+Return exact irregular cue times, never a repeating interval. The final image
+analyzer must still verify the named character and both eye boxes; uncertainty
+skips only the blink effect."""
 
 
 ALLOWED_OPERATIONS = {
@@ -115,6 +126,42 @@ def _effect_selection(raw: dict[str, Any], operations: list[str]) -> tuple[str, 
     return primary, secondary
 
 
+def _eye_blink_plan(raw: Any, duration: float, eligible: bool) -> dict[str, Any]:
+    candidate = raw if isinstance(raw, dict) else {}
+    enabled = bool(candidate.get("enabled")) and eligible and duration >= 2.5
+    reason = str(candidate.get("reason") or candidate.get("suppress_reason") or "").strip()[:300]
+    character = str(candidate.get("character") or "").strip()[:100]
+    clean_cues: list[dict[str, Any]] = []
+    if enabled:
+        cues = candidate.get("cues")
+        if not character or not reason or not isinstance(cues, list) or not cues:
+            raise ValueError("enabled eye_blink_plan needs character, reason, and cues")
+        if len(cues) > 2:
+            raise ValueError("eye_blink_plan allows at most two acting cues per scene")
+        last = -1.0
+        for cue_number, cue in enumerate(cues, 1):
+            if not isinstance(cue, dict):
+                raise ValueError(f"eye blink cue {cue_number} must be an object")
+            at = _number(cue.get("at_seconds"), -1, -1, max(duration, 0))
+            close = _number(cue.get("duration_seconds"), 0.12, 0.08, 0.2)
+            kind = str(cue.get("type") or "single").strip()
+            if kind not in {"single", "double"}:
+                raise ValueError("eye blink cue type must be single or double")
+            if at < 0.25 or at + close > duration - 0.2 or at <= last:
+                raise ValueError("eye blink cues must be ordered and clear of scene boundaries")
+            clean_cues.append({"at_seconds": round(at, 3), "duration_seconds": close, "type": kind})
+            last = at
+    return {
+        "enabled": enabled,
+        "character": character if enabled else "",
+        "reason": reason or ("not selected by scene direction" if eligible else "scene is not an eligible still image"),
+        "cues": clean_cues,
+        "source": "scene_visual_director",
+        "validation": "pending_final_image" if enabled else "not_required",
+        "fallback": "skip_blink",
+    }
+
+
 def validate_directorial_plans(
     scenes: list[dict[str, Any]], result: Any, *, direction_profile: str = "standard",
 ) -> list[dict[str, Any]]:
@@ -132,6 +179,7 @@ def validate_directorial_plans(
         "prop_focus", "mouth_closed", "mouth_half", "mouth_open",
         "hair_cloth", "atmosphere", "light_overlay",
     }
+    consecutive_blinks = 0
     for index, (scene, raw) in enumerate(zip(scenes, plans), 1):
         if not isinstance(raw, dict):
             raise ValueError(f"visual direction {index} must be an object")
@@ -190,6 +238,18 @@ def validate_directorial_plans(
             raise ValueError(f"visual direction {index} has unsupported scene_role: {scene_role}")
         focus_target = _focus_target(raw.get("focus_target"), clean_beats)
         limits = raw.get("effect_limits") if isinstance(raw.get("effect_limits"), dict) else {}
+        scene_number = int(scene.get("scene_number") or scene.get("scene_order") or 0)
+        eye_blink_plan = _eye_blink_plan(
+            raw.get("eye_blink_plan"), duration,
+            bool(scene.get("eligible_for_eye_blink")) or scene_number >= 19,
+        )
+        if eye_blink_plan["enabled"] and consecutive_blinks >= 2:
+            eye_blink_plan = {
+                **eye_blink_plan, "enabled": False, "character": "", "cues": [],
+                "reason": "suppressed to avoid blinking in three adjacent scenes",
+                "validation": "not_required",
+            }
+        consecutive_blinks = consecutive_blinks + 1 if eye_blink_plan["enabled"] else 0
         direction = {
             "contract": "scene_direction_plan/v1",
             "status": "planned",
@@ -208,6 +268,7 @@ def validate_directorial_plans(
                 "max_move_ratio": _number(limits.get("max_move_ratio"), 0.025, 0.0, 0.06),
                 "max_rotation_degrees": _number(limits.get("max_rotation_degrees"), 0.5, 0.0, 1.5),
             },
+            "eye_blink_plan": eye_blink_plan,
             "source_video_review_status": "reviewed" if raw.get("source_video_reviewed") is True else "pending_upload_review",
             "timed_beats": clean_beats,
             "additional_keyframes": clean_keyframes,

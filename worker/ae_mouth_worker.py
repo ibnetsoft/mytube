@@ -20,7 +20,7 @@ import ae_highlight_worker as ae
 from ae_mouth import (assess_dialogue, locate_speakers, mouth_layers, amplitude_cues,
                       audio_reactive_light_cues, decode_scene_audio, review_layers,
                       digest, direction_text, visible_speakers, eye_layers,
-                      review_eye_layers, blink_cues)
+                      review_eye_layers, resolved_blink_cues)
 from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
 from ae_video_tracking import track_video
@@ -38,6 +38,34 @@ class LeaseLost(RuntimeError):
 
 class Obsolete(RuntimeError):
     pass
+
+
+def generated_blink_plan(source: dict, image: dict | None) -> dict | None:
+    """Rebuild the web adapter's virtual blink asset from the immutable topic receipt."""
+    if not image:
+        return None
+    receipt = (((source.get('metadata') or {}).get('cowork_image_asset') or {}).get('speaker_geometry') or {})
+    blink = receipt.get('eye_blink') or {}
+    try:
+        bucket, path = ref(image)
+    except ValueError:
+        return None
+    if (receipt.get('source') != 'local-codex-image-publish'
+            or receipt.get('source_bucket') != bucket or receipt.get('source_path') != path
+            or blink.get('state') != 'ready' or not blink.get('character')
+            or not isinstance(blink.get('cues'), list) or not blink['cues']
+            or not isinstance(blink.get('left_eye_box'), list)
+            or not isinstance(blink.get('right_eye_box'), list)):
+        return None
+    asset_id = f"generated-eye-blink:{image['id']}:{receipt.get('fingerprint')}"
+    return {key: value for key, value in {
+        'id': asset_id, 'version': 2, 'character': blink.get('character'),
+        'image_id': image['id'], 'source_bucket': bucket, 'source_path': path,
+        'source_sha256': receipt.get('source_sha256'), 'left_eye_box': blink.get('left_eye_box'),
+        'right_eye_box': blink.get('right_eye_box'), 'cues': blink.get('cues'),
+        'reason': blink.get('reason'), 'confirmed_by': 'scene_visual_director+local_codex_image',
+        'confirmed_at': receipt.get('updated_at'),
+    }.items() if value is not None}
 
 
 def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: list[dict]) -> bool:
@@ -106,8 +134,11 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
                 'source_bucket': metadata.get('source_bucket'), 'source_path': metadata.get('source_path'),
                 'source_sha256': metadata.get('source_sha256'), 'left_eye_box': metadata.get('left_eye_box'),
                 'right_eye_box': metadata.get('right_eye_box'), 'interval_seconds': metadata.get('interval_seconds'),
+                'cues': metadata.get('cues'), 'reason': metadata.get('reason'),
                 'confirmed_by': metadata.get('confirmed_by'), 'confirmed_at': metadata.get('confirmed_at'),
             }.items() if value is not None}
+        if blink is None:
+            blink = generated_blink_plan(source, image)
         if original.get('eye_blink') != blink:
             return False
         layered = ((source.get('metadata') or {}).get('psd_layer_asset')
@@ -122,7 +153,8 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
             return False
         direction = {k: source.get(k) for k in ('ae_motion_plan', 'ae_effect_plan', 'ae_directorial_plan', 'scene_direction_plan')}
         direction['image_prompt'] = source.get('image_prompt') or s.get('image_prompt') or ''
-        if direction != original['direction'] or str(s.get('scene_text') or source.get('scene_text') or source.get('narration') or '') != original['text']:
+        original_direction = {k: original['direction'].get(k) for k in direction}
+        if direction != original_direction or str(s.get('scene_text') or source.get('scene_text') or source.get('narration') or '') != original['text']:
             return False
     return True
 
@@ -310,8 +342,13 @@ def process_one(report=None, should_stop=None) -> bool:
                             image, speakers, tracking = track_video(video,image,speakers,scene_dir/'tracking',duration)
                         direction = direction_text(speakers, dialogue, scene['start']) if speakers else ''
                         if blink:
-                            direction += (' 사용자가 지정한 ' + str(blink['character']) + '의 양쪽 눈 좌표에만 '
-                                          + str(blink['interval_seconds']) + '초 간격의 자연스러운 눈 깜빡임을 적용합니다.')
+                            if blink.get('cues'):
+                                cue_text = ', '.join(str(cue.get('at_seconds')) + '초' for cue in blink['cues'])
+                                direction += (' 검증된 ' + str(blink['character']) + '의 양쪽 눈 좌표에만 연출에서 '
+                                              + '지정한 ' + cue_text + ' 시점의 자연스러운 눈 깜빡임을 적용합니다.')
+                            else:
+                                direction += (' 사용자가 지정한 ' + str(blink['character']) + '의 양쪽 눈 좌표에만 '
+                                              + str(blink['interval_seconds']) + '초 간격의 자연스러운 눈 깜빡임을 적용합니다.')
                         if tracking:
                             direction += ' 원본 영상은 1배속으로 유지하고 얼굴·입의 이동·크기·회전을 추적합니다. 영상 종료 후 입 움직임은 확정된 대사 끝까지 유지하며 마지막 화면에 6% 줌인을 적용합니다.'
                         if not render_phase:
@@ -331,7 +368,7 @@ def process_one(report=None, should_stop=None) -> bool:
                                 raise ValueError('눈 좌표를 지정한 원본 이미지가 변경되었습니다. 다시 지정해 주세요.')
                             blink['layers'] = eye_layers(CurrentGenerator(), image, blink, scene_dir / 'eye-blink')
                             blink['layer_sha256'] = {side: digest(Path(path)) for side, path in blink['layers'].items()}
-                            blink['cues'] = blink_cues(duration, float(blink['interval_seconds']))
+                            blink['cues'] = resolved_blink_cues(duration, blink)
                             review_eye_layers(runner, f'{identity}-{number}', image, blink, scene_dir / 'eye-blink')
                             runtime_blinks.append(blink)
                         fresh()

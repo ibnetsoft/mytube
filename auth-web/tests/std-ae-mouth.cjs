@@ -129,6 +129,28 @@ test('generation-time coordinates reach AE submission with original asset metada
  assert.deepEqual(input.scenes[0].speaker_regions.speakers,speakers);
  assert.deepEqual(input.scenes[0].image,{id:image.id,metadata:image.metadata});
 });
+test('generation-time directed blink reaches AE with exact cues',()=>{
+ const f=fixture(),geometry=load('stdSpeakerGeometry'),generated=load('stdGeneratedSpeakerGeometry');
+ f.assets.forEach(a=>a.project_id='p');const image=f.assets.find(a=>a.scene_number===19)
+ const receipt={source:'local-codex-image-publish',number:19,state:'ready',fingerprint:'blink-ready',
+  cast:geometry.coordinateCast(f.project),source_bucket:'air-studio-prod',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[],
+  eye_blink:{state:'ready',character:'소녀',reason:'대답 전 반응',left_eye_box:[.3,.3,.34,.33],right_eye_box:[.4,.3,.44,.33],
+   cues:[{at_seconds:1.4,duration_seconds:.11,type:'single'}]}}
+ const structure={scenes:[{scene_number:19,metadata:{cowork_image_asset:{speaker_geometry:receipt}}}]}
+ const assets=[...f.assets,...generated.generatedSpeakerAssets(f.project,structure,f.assets)]
+ const blink=lib.aeMouthInput(f.project,f.scenes,assets).input.scenes[0].eye_blink
+ assert.equal(blink.character,'소녀');assert.deepEqual(blink.cues,receipt.eye_blink.cues);assert.equal(blink.interval_seconds,undefined)
+ assert.equal(blink.image_id,image.id)
+});
+test('manual blink confirmation overrides a newer generated plan',()=>{
+ const f=fixture(),generatedPlan={id:'generated-eye-blink:image19:r',asset_type:'other',status:'uploaded',scene_number:19,created_at:'2026-10-11',metadata:{
+  kind:'eye_blink_confirmation',state:'confirmed',version:2,image_id:'image19',character:'자동',left_eye_box:[.2,.2,.24,.23],right_eye_box:[.3,.2,.34,.23],
+  cues:[{at_seconds:1,duration_seconds:.1,type:'single'}]}},manual={id:'manual-blink',asset_type:'other',status:'uploaded',scene_number:19,created_at:'2026-10-10',metadata:{
+  kind:'eye_blink_confirmation',state:'confirmed',version:1,image_id:'image19',character:'소녀',left_eye_box:[.3,.3,.34,.33],right_eye_box:[.4,.3,.44,.33],interval_seconds:5,confirmed_by:'user'}}
+ f.assets.push(generatedPlan,manual)
+ const blink=lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].eye_blink
+ assert.equal(blink.id,'manual-blink');assert.equal(blink.character,'소녀');assert.equal(blink.interval_seconds,5)
+});
 test('confirmed eye blink plan is source-bound and invalidates stale AE work',()=>{
  const f=fixture(),plan={id:'blink',asset_type:'other',status:'uploaded',scene_number:19,created_at:'2026-10-10',metadata:{
   kind:'eye_blink_confirmation',state:'confirmed',version:1,image_id:'image19',source_bucket:'b',source_path:'image.png',source_sha256:'a'.repeat(64),
