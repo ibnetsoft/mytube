@@ -1,4 +1,5 @@
 import { loadSpeakerCoordinateAssets } from '@/lib/stdSpeakerCoordinateAssets'
+import { loadStdProjectStatusContext } from '@/lib/stdProjectStatusContext'
 import { speakerCoordinateOverview } from '@/lib/stdSpeakerCoordinateOverview'
 import { NextResponse } from 'next/server'
 import { createHash, randomUUID } from 'crypto'
@@ -19,17 +20,12 @@ export const maxDuration = 300
 async function context(req: Request, projectId: string) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return { response: auth.response }
-    const p = await db
-        .from('std_projects')
-        .select('*')
-        .eq('id', projectId)
-        .eq('employee_email', auth.requester.email)
-        .maybeSingle()
-    if (p.error) throw p.error
-    if (!p.data || p.data.status === 'canceled')
+    const projects = await loadStdProjectStatusContext(db, [projectId])
+    const project = projects.find((p: any) => p.id === projectId && p.employee_email === auth.requester.email)
+    if (!project || project.status === 'canceled')
         return { response: NextResponse.json({ error: 'Project not available' }, { status: 404 }) }
-    const assets = await loadSpeakerCoordinateAssets(db, [projectId])
-    return { project: p.data, assets, email: auth.requester.email }
+    const assets = await loadSpeakerCoordinateAssets(db, [projectId], false, [project])
+    return { project, assets, email: auth.requester.email }
 }
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
     try {

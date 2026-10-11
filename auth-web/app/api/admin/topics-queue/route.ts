@@ -47,6 +47,7 @@ const TOPICS_QUEUE_LIST_SELECT = `
     assigned_employee_email,
     status,
     created_at,
+    assigned_at,
     is_auto_generated,
     assigned_script_style,
     assigned_image_style,
@@ -69,10 +70,6 @@ const TOPICS_QUEUE_LIST_SELECT = `
     pregenerated_structure_status,
     pregenerated_script_status,
     generated_title,
-    generated_by_worker_id,
-    generated_by_worker_instance_id,
-    generated_by_worker_job_id,
-    generated_by_worker_at,
     translation_status,
     categories(id,name,language,default_script_style,default_image_style,upload_channel_id,upload_channel_name,upload_channel_handle)
 `
@@ -601,7 +598,7 @@ export async function GET(req: Request) {
 
         let { data, error, count } = await buildQuery(TOPICS_QUEUE_LIST_SELECT)
         if (isMissingColumnError(error)) {
-            const retry = await buildQuery('*, categories(*)')
+            const retry = await buildQuery('id,topic,generated_title,category_id,status,assigned_at,assigned_employee_email,created_at,pregenerated_structure_status,pregenerated_script_status,total_scenes,publish_metadata,categories(id,name,language)')
             data = retry.data
             error = retry.error
             count = retry.count

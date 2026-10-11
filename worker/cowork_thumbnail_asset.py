@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import mimetypes
 import os
 import sys
 import hashlib
@@ -25,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from worker.thumbnail_contract import background_ready, can_sync_background
 from worker import image_recovery
-BUCKET = "content-assets"
+from worker.gcs_media_storage import _upload_gcs_file
 WIDTH, HEIGHT = 1920, 1080
 
 
@@ -83,22 +82,6 @@ def export_prompt(topic_id: str, output_path: Path) -> Path:
     )
     image_recovery.ensure_state(output_path)
     return output_path
-
-
-def _ensure_bucket(base_url: str, headers: dict[str, str]) -> None:
-    check = requests.get(f"{base_url}/storage/v1/bucket/{BUCKET}", headers=headers, timeout=60)
-    if check.status_code == 200:
-        return
-    if check.status_code not in (400, 404):
-        raise RuntimeError(f"Storage bucket lookup failed: {check.status_code} {check.text[:300]}")
-    create = requests.post(
-        f"{base_url}/storage/v1/bucket",
-        headers={**headers, "Content-Type": "application/json"},
-        json={"id": BUCKET, "name": BUCKET, "public": True},
-        timeout=60,
-    )
-    if create.status_code not in (200, 201, 409):
-        raise RuntimeError(f"Storage bucket creation failed: {create.status_code} {create.text[:300]}")
 
 
 def _thumbnail_metadata(progress: dict[str, Any], public_url: str) -> dict[str, Any]:
@@ -186,8 +169,6 @@ def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False, ma
     if not source_path.is_file():
         raise FileNotFoundError(source_path)
     row, base_url, headers = _topic(topic_id)
-    if create_bucket:
-        _ensure_bucket(base_url, headers)
     with Image.open(source_path) as original:
         image = ImageOps.exif_transpose(original).convert("RGB")
         source_ratio = image.width / image.height
@@ -207,16 +188,7 @@ def publish(topic_id: str, source_path: Path, *, create_bucket: bool = False, ma
     prepared.save(output_path, format="PNG", optimize=True)
     fingerprint = hashlib.sha256(output_path.read_bytes()).hexdigest()[:20]
     object_path = f"topics/{row['id']}/thumbnail/background-{fingerprint}.png"
-    with output_path.open("rb") as handle:
-        upload = requests.post(
-            f"{base_url}/storage/v1/object/{BUCKET}/{quote(object_path, safe='/')}",
-            headers={**headers, "Content-Type": mimetypes.guess_type(output_path.name)[0] or "image/png", "x-upsert": "true"},
-            data=handle,
-            timeout=120,
-        )
-    if upload.status_code not in (200, 201):
-        raise RuntimeError(f"thumbnail upload failed: {upload.status_code} {upload.text[:300]}")
-    public_url = f"{base_url}/storage/v1/object/public/{BUCKET}/{object_path}"
+    _, _, public_url = _upload_gcs_file(output_path, object_path, "image/png")
     progress = row.get("progress_payload") if isinstance(row.get("progress_payload"), dict) else {}
     patch = _thumbnail_metadata(progress, public_url)
     update = requests.patch(
@@ -240,7 +212,7 @@ def main() -> None:
     publish_cmd = commands.add_parser("publish")
     publish_cmd.add_argument("--topic-id", required=True)
     publish_cmd.add_argument("--image", required=True, type=Path)
-    publish_cmd.add_argument("--create-bucket", action="store_true")
+    publish_cmd.add_argument("--create-bucket", action="store_true", help="Legacy compatibility flag; binary uploads now require an existing GCS bucket")
     publish_cmd.add_argument("--manifest", required=True, type=Path)
     args = parser.parse_args()
     if args.command == "export":

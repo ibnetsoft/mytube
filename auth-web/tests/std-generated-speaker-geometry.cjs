@@ -40,8 +40,17 @@ test('validated directed blink becomes a source-bound virtual confirmation asset
 })
 test('submission and coordinate loaders read latest topic receipts for existing projects',async()=>{
  const f=fixture(),queries=[]
- const db={from(table){queries.push(table);const data=table==='std_projects'?[f.project]:table==='topics_queue'?[{id:3373,pregenerated_structure:f.structure}]:[f.image];const q={select:()=>q,eq:()=>q,in:()=>q,or:()=>q,order:()=>q,range:()=>q,then:(a,b)=>Promise.resolve({data,error:null}).then(a,b)};return q}}
+ const db={rpc:async()=>{queries.push('compact-context');return{data:[{...f.project,generated_structure:f.structure}],error:null}},from(table){queries.push(table);const data=table==='std_projects'?[f.project]:table==='topics_queue'?[{id:3373,pregenerated_structure:f.structure}]:[f.image];const q={select:()=>q,eq:()=>q,in:()=>q,or:()=>q,order:()=>q,range:()=>q,then:(a,b)=>Promise.resolve({data,error:null}).then(a,b)};return q}}
  const full=await load('lib/stdProjectAssets.ts').loadStdProjectAssets(db,'p','*')
  const status=await load('lib/stdSpeakerCoordinateAssets.ts').loadSpeakerCoordinateAssets(db,['p'])
- assert.deepEqual(full.data,status);assert.equal(full.data.length,2);assert(queries.includes('topics_queue'))
+ assert.deepEqual(full.data,status);assert.equal(full.data.length,2);assert(queries.includes('compact-context'));assert(!queries.includes('topics_queue'));assert(!queries.includes('std_projects'))
+})
+
+test('compact receipts retain current-cast validation without repeating the cast',()=>{
+ const f=fixture();delete f.receipt.cast;f.receipt.cast_matches=true
+ const assets=[f.image,...generated.generatedSpeakerAssets(f.project,f.structure,[f.image])]
+ assert.equal(overview.speakerCoordinateOverview(f.project,assets).completed,1)
+ f.receipt.cast_matches=false
+ const stale=[f.image,...generated.generatedSpeakerAssets(f.project,f.structure,[f.image])]
+ assert.equal(overview.speakerCoordinateOverview(f.project,stale).completed,0)
 })

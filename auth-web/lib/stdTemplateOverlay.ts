@@ -43,6 +43,7 @@ export async function templateOverlaySettings(settings: Record<string, any>) {
     const clean = { ...settings, std_image_template_bg_url: null, std_image_template_bg_color: 'transparent',
         std_template_shape_layers: [], std_template_contract: TEMPLATE_OVERLAY_CONTRACT,
         std_template_reference_width: TEMPLATE_REFERENCE_WIDTH, std_template_overlay_png_data_url: null,
+        std_template_overlay_gcs: null,
         std_template_overlay_layers: layers }
     // Preserve explicit background choices from the current editor; legacy text-only
     // presets still discard their old default background and shape settings.

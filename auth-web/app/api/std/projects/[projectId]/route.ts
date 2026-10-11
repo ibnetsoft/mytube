@@ -1,4 +1,5 @@
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
+import { persistTemplateOverlay } from '@/lib/stdTemplateOverlayPng'
 import { dialogueSceneIndex } from '@/lib/stdDialogueSceneIndex'
 import { normalizeSubtitleFragments } from '@/lib/stdSubtitleFragments'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
@@ -633,6 +634,13 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     }
     if (updatePayload.project_payload) {
         updatePayload.project_payload.dialogue_scene_index = dialogueSceneIndex(updatePayload.project_payload.subtitles || [])
+        if (updatePayload.project_payload.render_settings) {
+            try {
+                updatePayload.project_payload.render_settings = await persistTemplateOverlay(project.id, updatePayload.project_payload.render_settings)
+            } catch (error: any) {
+                return NextResponse.json({ success: false, error: error.message }, { status: 503 })
+            }
+        }
     }
     if (titlePatch) updatePayload.title = titlePatch
 

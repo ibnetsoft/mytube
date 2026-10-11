@@ -131,17 +131,22 @@ export default function StdSpeakerCoordinates({
     }, [projectId])
     useEffect(() => {
         const controller = new AbortController()
+        let polling = false
         const refresh = () => {
-            if (!saving.current)
+            if (!saving.current && !polling && document.visibilityState !== 'hidden') {
+                polling = true
                 void load({}, controller.signal).catch((e) => {
                     if (!controller.signal.aborted) setError(e.message)
-                })
+                }).finally(() => { polling = false })
+            }
         }
         refresh()
-        const timer = setInterval(refresh, 20000)
+        const timer = setInterval(refresh, 60000)
+        document.addEventListener('visibilitychange', refresh)
         return () => {
             controller.abort()
             clearInterval(timer)
+            document.removeEventListener('visibilitychange', refresh)
             request.current++
         }
     }, [load, revision])
