@@ -5,8 +5,9 @@ type CacheEntry = {
 
 const memoryCache = new Map<string, CacheEntry>()
 
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
+// Vercel Marketplace provisions KV_*; direct Upstash connections use UPSTASH_*.
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
 
 function isRedisEnabled() {
     return Boolean(redisUrl && redisToken)

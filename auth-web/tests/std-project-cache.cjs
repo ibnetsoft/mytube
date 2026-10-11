@@ -49,3 +49,25 @@ test('project list calculates badges from projected status without downloading f
  const payload=await(await ex.GET(new Request('https://studio.test/projects'))).json()
  assert.equal(payload.projects[0].step_status.isSubtitlesDone,true);assert.equal(payload.projects[0].project_payload,undefined)
 })
+test('Vercel Marketplace KV credentials support reads across separate instances',async()=>{
+ const original={url:process.env.KV_REST_API_URL,token:process.env.KV_REST_API_TOKEN,upUrl:process.env.UPSTASH_REDIS_REST_URL,upToken:process.env.UPSTASH_REDIS_REST_TOKEN,fetch:global.fetch}
+ delete process.env.UPSTASH_REDIS_REST_URL;delete process.env.UPSTASH_REDIS_REST_TOKEN
+ process.env.KV_REST_API_URL='https://redis.test';process.env.KV_REST_API_TOKEN='test-secret'
+ const stored=new Map()
+ global.fetch=async(url,options)=>{
+  assert.equal(url,'https://redis.test/pipeline');assert.equal(options.headers.Authorization,'Bearer test-secret')
+  const [command]=JSON.parse(options.body);let result
+  if(command[0]==='SET'){assert.equal(command[3],'EX');assert.equal(command[4],60);stored.set(command[1],command[2]);result='OK'}
+  if(command[0]==='GET')result=stored.get(command[1])||null
+  if(command[0]==='DEL')result=Number(stored.delete(command[1]))
+  return Response.json([{result}])
+ }
+ try{
+  const writer=load('lib/server-cache.ts'),reader=load('lib/server-cache.ts')
+  await writer.setServerCache('key',{saved:true},60);assert.deepEqual(await reader.getServerCache('key'),{saved:true})
+  await reader.deleteServerCache('key');assert.equal(await load('lib/server-cache.ts').getServerCache('key'),null)
+ }finally{
+  for(const [key,value] of [['KV_REST_API_URL',original.url],['KV_REST_API_TOKEN',original.token],['UPSTASH_REDIS_REST_URL',original.upUrl],['UPSTASH_REDIS_REST_TOKEN',original.upToken]]){if(value===undefined)delete process.env[key];else process.env[key]=value}
+  global.fetch=original.fetch
+ }
+})

@@ -96,3 +96,19 @@ to measure the actual total egress reduction; past billed usage is unchanged.
   its expected object omits existing `subtitle_tts_completed` fields. Neither
   that module nor its fixture is changed by this work; targeted cache, ownership,
   coordinate, template and worker tests pass.
+
+## Redis connected after terms acceptance
+
+The user accepted Upstash Marketplace terms. Provisioned `air-studio-cache`
+(`store_woytmeH9c17skeE8`) with the Free plan, Tokyo primary region, eviction
+enabled and automatic plan upgrade disabled, connected to `mytube` production.
+Vercel provisions `KV_REST_API_URL` and `KV_REST_API_TOKEN`; server cache now
+accepts these names as well as the existing direct-Upstash environment names.
+No Redis credentials are exposed in client code.
+
+Verified the actual Redis service with the application cache implementation:
+SET followed by GET in a separately instantiated server-cache module succeeded,
+TTL was 60 seconds, and DEL followed by GET returned null. Test data was removed.
+The resource inspection confirms Available, Free and production connection.
+The Marketplace environment compatibility regression test and production build
+pass. This supersedes the earlier pending-provisioning note.
