@@ -1,4 +1,5 @@
 import { summarizeStdProject } from '@/lib/stdProjectStepStatus'
+import { loadStdProjectStatusContext } from '@/lib/stdProjectStatusContext'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -12,12 +13,16 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('std_projects')
-        .select('id,title,status,language,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at,progress_payload,project_payload')
+        .select('id,title,status,language,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at')
         .eq('employee_email', auth.requester.email)
         .order('updated_at', { ascending: false })
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     const projects = data || []
+    let contexts: any[] = []
+    try { contexts = projects.length ? await loadStdProjectStatusContext(supabaseAdmin, projects.map(project => project.id)) : [] }
+    catch { return NextResponse.json({ error: 'Could not load project completion status' }, { status: 503 }) }
+    const contextById = new Map(contexts.map(context => [context.id, context]))
     const assets: any[] = []
     const ids = projects.map(project => project.id)
     if (ids.length) {
@@ -54,11 +59,12 @@ export async function GET(req: Request) {
         success: true,
         projects: projects.map((project: any) => {
             const sharedSubmission = submissionByTopic.get(Number(project.topic_queue_id))
-            const { project_payload, ...summary } = project
+            const summary = project
+            const context = contextById.get(project.id)
             return {
                 ...summary,
-                progress_payload: protectCharacterReferenceUrls(summary.progress_payload, project.id),
-                step_status: summarizeStdProject(project, assets.filter(asset => asset.project_id === project.id)),
+                progress_payload: protectCharacterReferenceUrls(context?.progress_payload, project.id),
+                step_status: summarizeStdProject(context || project, assets.filter(asset => asset.project_id === project.id)),
                 shared_submission: sharedSubmission && sharedSubmission.id !== project.id
                     ? { project_id: sharedSubmission.id, submitted_at: sharedSubmission.submitted_at }
                     : null,

@@ -90,3 +90,9 @@ to measure the actual total egress reduction; past billed usage is unchanged.
   Worker cache and GCS upload regression tests pass. Production build passes;
   full TypeScript check still has pre-existing unrelated errors, with no errors
   in the new cache libraries or changed project route.
+- Project list reads now use the same compact server-only status context instead
+  of downloading full project payloads merely to calculate completion badges.
+- A separately run legacy `tests/std_tts_completion.cjs` currently fails because
+  its expected object omits existing `subtitle_tts_completed` fields. Neither
+  that module nor its fixture is changed by this work; targeted cache, ownership,
+  coordinate, template and worker tests pass.

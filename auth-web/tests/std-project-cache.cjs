@@ -32,3 +32,20 @@ test('project reads authenticate and check ownership before Redis or conditional
  authOk=false;assert.equal((await ex.GET(request(),{params:{projectId:'p'}})).status,401);assert.equal(reads,0)
  authOk=true;email=owner;assert.equal((await ex.GET(new Request('https://studio.test/p'),{params:{projectId:'p'}})).status,200);assert.equal(reads,1)
 })
+test('project list calculates badges from projected status without downloading full payloads',async()=>{
+ const context={id:'p',progress_payload:{subtitle_tts_completed:true},project_payload:{script:'saved'}}
+ const db={from:table=>{
+  const query={select:columns=>{assert.ok(!columns.includes('project_payload'));return query},eq:()=>query,order:()=>query,in:()=>query,range:async()=>({data:[]}),then:resolve=>Promise.resolve({data:[{id:'p',title:'Project'}]}).then(resolve)}
+  return query
+ }}
+ const mocks={
+  '@/lib/stdProjectStatusContext':{loadStdProjectStatusContext:async()=>[context]},
+  '@/lib/stdProjectStepStatus':{summarizeStdProject:project=>{assert.equal(project,context);return{isSubtitlesDone:true}}},
+  '@/lib/stdCharacterProtection':{protectCharacterReferenceUrls:value=>value},
+  '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'owner'}})},
+  '@/lib/supabaseAdmin':{supabaseAdmin:db},'next/server':{NextResponse:Response},
+ }
+ const ex={};new Function('exports','require',ts.transpileModule(fs.readFileSync(path.join(__dirname,'../app/api/std/projects/route.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(ex,n=>mocks[n]||require(n))
+ const payload=await(await ex.GET(new Request('https://studio.test/projects'))).json()
+ assert.equal(payload.projects[0].step_status.isSubtitlesDone,true);assert.equal(payload.projects[0].project_payload,undefined)
+})
