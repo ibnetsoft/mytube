@@ -216,7 +216,7 @@ function syncNonverbalMode(){
  if(enabled){
   if(Number(form.elements.duration.value)>10)form.elements.duration.value='3';
   $('new-style').value='애니메이션';$('new-script-style').value='nonverbal_preschool';
-  $('image-layer-mode').value='full_psd';form.elements.required_video_scene_count.value='0';
+  $('image-layer-mode').value='full_psd';form.elements.required_video_scene_count.value='18';
  }else if($('new-script-style').value==='nonverbal_preschool'){$('new-script-style').value='story';}
  let help=$('nonverbal-help');if(!help){help=element('p','대사·나레이션 없이 행동 이야기와 재사용 부품, 시간별 관절 연출을 만듭니다. 실제 원화·음악·효과음·AE 결과 검수는 후속 단계입니다.','callout');help.id='nonverbal-help';form.prepend(help)}
  help.hidden=!enabled;window.updateNewSettingSummary();
@@ -243,7 +243,7 @@ $('new-form').onsubmit=e=>{
   if(!confirm('AI 신규 대본 생성기를 실행할까요? CLI 사용량이 발생하며 결과는 Database에 저장합니다.'))return;
   start({
     mode:'new',
-    production_mode:form.get('production_mode')||'standard',
+    production_mode:form.get('production_mode')||'standard',youtube_url:form.get('youtube_url')||'',
     direction_profile:form.get('direction_profile')||'auto',
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
     image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
@@ -306,9 +306,9 @@ if ($('new-script-style')) $('new-script-style').onchange = () => {
 
   if ($('new-script-style').value === 'japanese_domestic_drama') {
     $('new-language').value='ja';$('new-country').value='일본';$('new-custom-country').style.display='none';
-    $('new-form').elements.duration.value='15';$('production-mode').value='standard';
+    $('production-mode').value='standard';
     $('direction-profile').value='standard';$('new-style').value='jp_domestic_watercolor';
-    $('new-era').value='현대 일본 · 도쿄 근교 주거지역';$('new-form').elements.required_video_scene_count.value='0';$('new-form').elements.generate_bgm_prompt.checked=true;
+    $('new-era').value='현대 일본 · 도쿄 근교 주거지역';$('new-form').elements.required_video_scene_count.value='18';$('new-form').elements.generate_bgm_prompt.checked=true;
     window.categoriesReady.then(()=>{$('category').value='일본사건'});
   } else if ($('new-script-style').value === 'japanese_historical_documentary') {
     $('new-language').value = 'ja';

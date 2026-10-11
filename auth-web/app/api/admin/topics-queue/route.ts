@@ -893,7 +893,7 @@ export async function POST(req: Request) {
             )
             const assignedEmployeeEmail = worker?.email || null
 
-            const assignedDuration = assignedScriptStyle === 'japanese_domestic_drama' ? 15 : assignedScriptStyle === 'japanese_historical_documentary' ? 30 : (isLongformCategory && geminiDuration != null)
+            const assignedDuration = assignedScriptStyle === 'japanese_historical_documentary' ? 30 : (isLongformCategory && geminiDuration != null)
                 ? adjustToBucket(geminiDuration, worker?.preferredVideoLength || '', minDurationMinutes)
                 : geminiDuration
             const estimatedPayout = isLongformCategory ? payoutForScenes(53) : null
@@ -905,7 +905,7 @@ export async function POST(req: Request) {
                 assigned_employee_email: assignedEmployeeEmail,
                 assigned_script_style: assignedScriptStyle,
                 assigned_image_style: assignedImageStyle,
-                ...(assignedScriptStyle === 'japanese_domestic_drama' ? {video_scenes:0} : {}),
+                ...(assignedScriptStyle === 'japanese_domestic_drama' ? {video_scenes:18} : {}),
                 language: ['japanese_historical_documentary', 'japanese_domestic_drama'].includes(assignedScriptStyle) ? 'ja' : targetLang,
                 status: 'pending',
                 translation_status: 'pending',

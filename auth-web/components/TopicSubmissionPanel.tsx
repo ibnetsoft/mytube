@@ -6,7 +6,7 @@ import TopicYoutubeExplorer from './TopicYoutubeExplorer'
 
 const imageStyles = [
     { key: 'jidaigeki_cel', name: '일본 옛날이야기 · 시대극 애니메이션' },
-    { key: 'jp_domestic_watercolor', name: '일본사건 · 수라장/스캇토' },
+    { key: 'jp_domestic_watercolor', name: '일본사건 · 현대 애니메이션' },
     { key: 'sumi_e_ukiyo_e', name: '다큐멘터리 · 수묵화/우키요에' },
     { key: 'realistic', name: '실사' },
     { key: 'cinematic', name: '시네마틱' },
@@ -95,7 +95,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                 <p className="text-sm text-gray-400">{ui('입력 내용은 태국어·베트남어로 작성할 수 있습니다. 최종 대본은 선택한 대본 언어로 각색합니다.')}</p>
                 <label className="block">{ui('토픽 제목 *')}<input name="title" required maxLength={200} className={input} placeholder={ui('이야기의 제목')} /></label>
                 <label className="block">{ui('유튜브 URL')}<input name="youtube_url" type="url" maxLength={2048} className={input} placeholder="https://www.youtube.com/watch?v=..." /></label>
-                <label className="block">{ui('스토리 개략적인 내용 *')}<textarea name="story" required maxLength={2500} rows={5} className={input} placeholder={ui('주요 사건, 갈등, 반전과 원하는 결말을 적어주세요.')} /></label>
+                <label className="block">{ui('스토리 개략적인 내용 *')}<textarea name="story" maxLength={2500} rows={5} className={input} placeholder={ui('주요 사건, 갈등, 반전과 원하는 결말을 적어주세요.')} /></label>
                 <div className="grid gap-4 sm:grid-cols-2">
                     <label>{ui('캐릭터 설명')}<textarea name="character_notes" maxLength={1500} rows={4} className={input} placeholder={ui('이름, 성격, 관계, 말투와 이미지별 캐릭터 이름')} /></label>
                     <label>{ui('캐릭터 이미지')}<input name="images" type="file" multiple accept="image/png,image/jpeg,image/webp" className={input} disabled={reading} onChange={e => void selectImages(e.target.files)} /><span className="block mt-2 text-gray-400">{ui('최대 3장 · 장당 500KB · PNG/JPEG/WebP')}</span></label>
@@ -106,7 +106,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                         if(event.target.value!=='일본사건' || nonverbal || !topicForm.current)return
                         const form=topicForm.current
                         const set=(name:string,value:string)=>{const el=form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;if(el)el.value=value}
-                        set('language','ja');set('setting_country',ui('일본'));set('duration_minutes','15');set('production_mode','standard');set('era_region',ui('현대 일본 · 도쿄 근교 주거지역'))
+                        set('language','ja');set('setting_country',ui('일본'));set('production_mode','standard');set('era_region',ui('현대 일본 · 도쿄 근교 주거지역'))
                         const radio=form.querySelector<HTMLInputElement>('input[value="jp_domestic_watercolor"]');if(radio)radio.checked=true
                     }}><option value="" disabled>{categories.length ? ui('카테고리를 선택하세요') : ui('카테고리 불러오는 중…')}</option>{categories.map(category => <option key={category.id} value={category.name}>{ui(category.name)}</option>)}</select></label>
                     <label>{ui('분량 (분)')}<input name="duration_minutes" type="number" required min={1} max={nonverbal ? 10 : 60} defaultValue={15} className={input} /></label>
@@ -144,7 +144,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                                 const set = (name: string, value: string) => { const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null; if (el) el.value = value }
                                 set('language', 'ja'); set('setting_country', ui('일본')); set('production_mode', 'standard')
                                 if (style.key === 'jp_domestic_watercolor') {
-                                    set('duration_minutes','15'); set('era_region',ui('현대 일본 · 도쿄 근교 주거지역'))
+                                     set('era_region',ui('현대 일본 · 도쿄 근교 주거지역'))
                                     const category=categories.find(c=>c.name==='일본사건'); if(category)set('category',category.name)
                                 } else if (style.key === 'sumi_e_ukiyo_e') {
                                     set('duration_minutes', '30'); set('era_region', ui('주제 인물의 실제 생존 시대·지역'))
@@ -156,7 +156,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                             }} aria-label={ui(style.name)} className="peer sr-only" />
                             <span className="block overflow-hidden rounded-xl border-2 border-white/10 bg-[#11141a] transition peer-checked:border-indigo-400 peer-checked:bg-indigo-500/15 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-indigo-300 peer-disabled:opacity-50 hover:border-white/40">
                                 <span className="relative block aspect-[4/3]">
-                                    <Image src={`/img/styles/style_${style.key === 'jp_domestic_watercolor' ? 'webtoon' : style.key}.png`} alt={`${ui(style.name)} ${ui('스타일 예시')}`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className="object-cover" />
+                                    <Image src={`/img/styles/style_${style.key}.png`} alt={`${ui(style.name)} ${ui('스타일 예시')}`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className={style.key === 'jp_domestic_watercolor' ? 'object-cover object-[center_30%]' : 'object-cover'} />
                                 </span>
                                 <span className="block px-1 py-1.5 text-center text-xs font-medium">{ui(style.name)}</span>
                             </span>

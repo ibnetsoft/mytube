@@ -308,6 +308,7 @@ class StartRequest(BaseModel):
     ae_scene_delivery: Literal['local', 'gcs'] = 'local'
     generate_bgm_prompt: bool = Field(default=False, strict=True)
     notes: str = Field(default='', max_length=4000)
+    youtube_url: str = Field(default='', max_length=2048)
     web_topic_id: str = Field(default='', max_length=36)
     web_brief: dict = Field(default_factory=dict)
     source_ids: list[str] = Field(default_factory=list, max_length=12)

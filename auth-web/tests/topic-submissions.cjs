@@ -27,10 +27,11 @@ const route = {}
 new Function('exports', 'require', compile(path.join(__dirname, '../app/api/std/topic-submissions/route.ts')))(route, id => {
     if (id === 'next/server') return { NextResponse: { json: (body, opts = {}) => ({ body, status: opts.status || 200 }) } }
     if (id === 'crypto') return require('node:crypto')
+    if (id.endsWith('youtubeSourceDuration')) return {fetchYoutubeSourceDuration: async()=>({source_video_id:'abcdefghijk',source_duration_seconds:1007,source_duration_verified:true})}
     if (id.endsWith('topicSubmission')) return lib
     if (id.endsWith('stdWeb')) return { requireStdUser: async () => authorized ? { ok: true, requester: { email: 'Owner@Test.invalid' } } : { ok: false, response: { status: 401 } } }
     if (id.endsWith('supabaseAdmin')) return { supabaseAdmin: { from: table => ({
-        select() { return this }, eq(k, v) { filters.push([k, v]); return this }, order() { return table === 'categories' ? Promise.resolve({ data: [{ id: 2, name: '옛날이야기' }, { id: 13, name: '日本昔話' }] }) : this },
+        select() { return this }, in() { return Promise.resolve({data:[]}) }, eq(k, v) { filters.push([k, v]); return this }, order() { return table === 'categories' ? Promise.resolve({ data: [{ id: 2, name: '옛날이야기' }, { id: 13, name: '日本昔話' }] }) : this },
         async limit() { return { data: getRows } }, async insert(row) { inserted++; insertedRows.push(row); assert.equal(row.owner_email, 'owner@test.invalid'); assert(!row.status); return {} },
     }) } }
     throw Error(id)
@@ -43,6 +44,9 @@ const call = body => route.POST(new Request('https://test.invalid', { method: 'P
     assert.equal(insertedRows[0].request_data.ae_scene_delivery, 'gcs')
     assert.equal((await call({ ...valid, ae_scene_delivery: 'gcs' })).status, 201)
     assert.equal(insertedRows[1].request_data.ae_scene_delivery, 'gcs')
+    assert.equal((await call({...valid,image_style:'jp_domestic_watercolor',youtube_url:'https://youtu.be/abcdefghijk',duration_minutes:22,duration_seconds:1})).status,201)
+    assert.equal(insertedRows.at(-1).request_data.duration_seconds,1007)
+    assert.equal(insertedRows.at(-1).request_data.duration_mode,'source_video')
     getRows = [{ id: 'one', title: '토픽', status: 'pending', job_id: null, review_note: '', created_at: '2026-09-26', request_data: { ae_scene_delivery: 'gcs', character_images: [{ data: 'private-base64' }] } }]
     const listed = await route.GET(new Request('https://test.invalid'))
     assert.equal(listed.body.items[0].ae_scene_delivery, 'gcs')
@@ -73,7 +77,7 @@ assert.throws(() => lib.validateTopicSubmission({ ...silent, image_style: 'reali
 
 const domestic = lib.validateTopicSubmission({ ...valid, category:'옛날이야기', image_style:'jp_domestic_watercolor', language:'ko', duration_minutes:30 })
 assert.equal(domestic.category, '일본사건')
-assert.equal(domestic.duration_minutes, 15)
+assert.equal(domestic.duration_minutes, 30)
 assert.equal(domestic.language, 'ja')
 assert.equal(domestic.setting_country, '일본')
 assert.equal(domestic.script_style, 'japanese_domestic_drama')

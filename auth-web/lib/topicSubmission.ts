@@ -60,9 +60,9 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     const documentary = image_style === documentaryStyle.image_style
     const domestic = image_style === domesticStyle.image_style
     const folktale = image_style === 'jidaigeki_cel'
-    return { title: text('title', 200, true), youtube_url, story: text('story', 2500, true),
+    return { title: text('title', 200, true), youtube_url, story: text('story', 2500, !(domestic && youtube_url)) || '입력한 한국 영상의 사건 흐름을 일본 현지 사정에 맞게 각색',
         character_notes: text('character_notes', 1500), requirements: text('requirements', 1000),
-        category: domestic ? domesticStyle.category : text('category', 80, true), duration_minutes: domestic ? (duration_minutes >= 13 && duration_minutes <= 15 ? duration_minutes : 15) : documentary ? 30 : duration_minutes, language: domestic || documentary || folktale ? 'ja' : language, input_language, production_mode: domestic || documentary ? 'standard' : production_mode, ae_scene_delivery,
+        category: domestic ? domesticStyle.category : text('category', 80, true), duration_minutes: documentary ? 30 : duration_minutes, language: domestic || documentary || folktale ? 'ja' : language, input_language, production_mode: domestic || documentary ? 'standard' : production_mode, ae_scene_delivery,
         script_style: nonverbal ? NONVERBAL_MODE : domestic ? domesticStyle.key : documentary ? documentaryStyle.key : 'story',
         setting_country: domestic || documentary || folktale ? '일본' : text('setting_country', 80, true), era_region: domestic ? '현대 일본 · 도쿄 근교 주거지역' : text('era_region', 120, true),
         image_style, transcript: text('transcript', 40000), character_images }

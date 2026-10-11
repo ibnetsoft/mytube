@@ -1,3 +1,4 @@
+import { fetchYoutubeSourceDuration } from '@/lib/youtubeSourceDuration'
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -5,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { validateTopicSubmission } from '@/lib/topicSubmission'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 export async function GET(req: Request) {
     const auth = await requireStdUser(req)
@@ -49,6 +51,15 @@ export async function POST(req: Request) {
         payload = validateTopicSubmission(JSON.parse(Buffer.concat(chunks).toString('utf8')))
     } catch (error) {
         return NextResponse.json({ error: error instanceof Error ? error.message : '입력을 확인하세요.' }, { status: 400 })
+    }
+    if (payload.script_style === 'japanese_domestic_drama' && payload.youtube_url) {
+        try {
+            const settings=await supabaseAdmin.from('global_settings').select('key,value').in('key',['sys_api_youtube','sys_api_youtube_keys'])
+            const split=(v:unknown)=>String(v||'').split(/[\s,;]+/).filter(Boolean)
+            const keys=[...split(process.env.YOUTUBE_API_KEY),...split(process.env.YOUTUBE_API_KEYS),...(settings.data||[]).flatMap((r:any)=>split(r.value))]
+            const source=await fetchYoutubeSourceDuration(payload.youtube_url,keys)
+            payload={...payload,...source,duration_seconds:source.source_duration_seconds,duration_minutes:Math.ceil(source.source_duration_seconds/60),duration_mode:'source_video'}
+        } catch { return NextResponse.json({error:'원본 YouTube 영상의 실제 길이를 확인하지 못했습니다. 공개 녹화 영상과 API 연결을 확인하세요.'},{status:422}) }
     }
     const key = req.headers.get('idempotency-key') || ''
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key)) return NextResponse.json({ error: '등록 ID가 올바르지 않습니다.' }, { status: 400 })

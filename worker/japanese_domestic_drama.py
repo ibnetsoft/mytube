@@ -8,19 +8,20 @@ def applies(payload):
 
 def prepare_request(request):
     if not applies(request):return request
-    minutes=request.get('duration_minutes',15)
-    minutes=minutes if isinstance(minutes,int) and not isinstance(minutes,bool) and 13<=minutes<=15 else 15
+    seconds=request.get('source_duration_seconds') or request.get('duration_seconds') or request.get('target_duration_seconds') or request.get('duration_minutes',15)*60
+    if request.get('youtube_url') and not request.get('source_duration_verified'):
+        raise ValueError('원본 YouTube 영상 길이 확인이 필요합니다.')
+    if not isinstance(seconds,(int,float)) or isinstance(seconds,bool) or seconds!=int(seconds) or not 60<=seconds<=3600:
+        raise ValueError('일본사건 영상 길이는 1~60분 범위에서 정확한 초 단위로 설정하세요.')
     return {**request,'language':'ja','setting_country':'일본','category':PROFILE['category'],
-        'duration_minutes':minutes,'duration_seconds':minutes*60,'target_duration_seconds':minutes*60,
-        'image_style':PROFILE['image_style'],'production_mode':'standard','required_video_scene_count':0,'generate_bgm_prompt':True,
-        'era_region':'현대 일본 · 도쿄 근교 주거지역',
+        'duration_minutes':(int(seconds)+59)//60,'duration_seconds':int(seconds),'target_duration_seconds':int(seconds),
+        'image_style':PROFILE['image_style'],'production_mode':'standard','required_video_scene_count':18,'generate_bgm_prompt':True,
+        'era_region':'현대 일본 · 원본 사건에 대응하는 현지 지역',
         'notes':str(request.get('notes') or '')+'\n\n'+PROFILE['narration_directive']+'\nRequired opening: '+PROFILE['fiction_disclaimer']}
 
 def schedule(seconds):
-    seconds=int(seconds)
-    if not 780<=seconds<=900:raise ValueError('일본사건 드라마는 13~15분입니다.')
-    base,extra=divmod(seconds,PROFILE['scene_count'])
-    return [{'scene_number':i+1,'scene_order':i+1,'duration_seconds':base+(i<extra)} for i in range(PROFILE['scene_count'])]
+    from services.scene_pacing import pacing_schedule
+    return pacing_schedule(seconds)
 
 def apply_visual_base(prompt):
     prompt=str(prompt or '')
@@ -47,13 +48,20 @@ def enforce_package(package,payload):
     if not desc.startswith(disclaimer):meta['description']=disclaimer+'\n\n'+desc
     structure=package.setdefault('structure',{})
     scenes=structure.get('scenes') or []
-    if len(scenes)!=PROFILE['scene_count']:raise ValueError('일본사건 드라마는 36개 정지 장면이 필요합니다.')
-    for scene in scenes:
-        scene.update(video_prompt_required=False,visual_type='image',video_generation_mode='image')
-        scene.pop('video_prompt',None)
-    structure.update(script_style=PROFILE['key'],required_video_scene_count=0,video_scenes=0,
-        fiction_disclaimer=disclaimer,visual_format='illustrated_domestic_drama',
+    if not scenes:raise ValueError('일본사건 장면 계획이 없습니다.')
+    clip_count=min(18,len(scenes))
+    for i,scene in enumerate(scenes,1):
+        if i<=clip_count:
+            if not payload.get('script_only') and structure.get('media_prompt_status')=='ready' and not scene.get('video_prompt'):
+                raise ValueError(f'일본사건 {i}씬 영상 연출 프롬프트가 필요합니다.')
+            scene.update(video_prompt_required=True,visual_type='video',video_generation_mode='user_upload')
+        else:
+            scene.update(video_prompt_required=False,visual_type='image',video_generation_mode='image')
+            scene.pop('video_prompt',None)
+    structure.update(script_style=PROFILE['key'],required_video_scene_count=clip_count,video_scenes=clip_count,
+        source_reference=payload.get('source_reference') or structure.get('source_reference') or {},source_localization_map=payload.get('source_localization_map') or structure.get('source_localization_map') or [],
+        fiction_disclaimer=disclaimer,visual_format='anime_event_adaptation',
         music_direction='Instrumental: restrained tense piano, warmer strings at the earned reversal, quiet hopeful ending. No vocals.',
         caption_direction='Editable finalized Japanese lower subtitles or optional balloons; no baked text in generated images.')
-    package.update(script_style=PROFILE['key'],image_style=PROFILE['image_style'],required_video_scene_count=0,video_scenes=0)
+    package.update(script_style=PROFILE['key'],image_style=PROFILE['image_style'],required_video_scene_count=clip_count,video_scenes=clip_count)
     return package

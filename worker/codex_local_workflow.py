@@ -63,9 +63,12 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     # The script/review/dialogue runner itself pins Astra; general model config
     # remains untouched for other existing content stages.
     runner = ReportingRunner(config)
+    if request.get('youtube_url') and request.get('script_style')=='japanese_domestic_drama' and not request.get('web_brief'):
+        request={**request,'web_topic_id':identity,'web_brief':{**request,'story':request.get('notes') or request.get('title','')}}
     if request.get('web_brief'):
         from worker.web_topic_submissions import prepare_brief
-        request = {**request, 'notes': prepare_brief(request, output, runner, notify)}
+        prepared_notes = prepare_brief(request, output, runner, notify)
+        request = {**request, 'notes': prepared_notes}
     if request.get('_approved_guidance'):
         request = {**request, 'notes': request.get('notes', '') + '\n\n' + request['_approved_guidance']}
         notify('승인된 개선 지침 적용 · 작성 및 검수')
@@ -125,7 +128,9 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'legacy_stage_directives': 'Use the current category narration and senior listening contracts. '
                                               f"Use the selected image style ({setting['image_style']}) for the category and era.",
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
-                   'user_direction': request['notes']}
+                   'user_direction': request['notes'],
+                   'source_reference':{k:request.get('web_brief',{}).get(k) for k in ('youtube_url','source_video_id','source_duration_seconds','source_duration_verified')},
+                   'source_localization_map':request.get('source_localization_map',[])}
         package = runner.generate('local-' + identity, payload, script_only=True)
         package['language'] = setting['language']
         package['setting_country'] = setting['setting_country']
@@ -166,7 +171,9 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                'language': row.get('language') or 'ko', 'topic': snapshot['summary']['title'],
                'upload_title': snapshot['summary']['title'],
                'target_duration_seconds': _duration_seconds(row, scenes),
-               'user_direction': request['notes']}
+               'user_direction': request['notes'],
+               'source_reference':snapshot['structure'].get('source_reference') or {},
+               'source_localization_map':snapshot['structure'].get('source_localization_map') or []}
     budgets = _repair_scene_budgets(scenes, payload, [
         {**section, 'current_text': section['text']} for section in sections])
     stage = lambda name, context, task: runner._stage('local-' + identity, name, context, task)
