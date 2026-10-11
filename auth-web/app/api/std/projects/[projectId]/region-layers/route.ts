@@ -63,6 +63,13 @@ export async function GET(
         const query = new URL(req.url).searchParams,
             id = query.get('id'),
             role = query.get('role')
+        const uploadId = query.get('upload')
+        if (uploadId) {
+            const asset = ctx.assets!.find((a) => a.id === uploadId && a.metadata?.kind === 'region_layer_upload' && a.metadata?.role === 'foreground')
+            if (!asset) throw new Error('보완 부위 파일이 없습니다.')
+            const bytes = await downloadGcsObject({bucket: asset.metadata.gcs_bucket, objectPath: asset.metadata.gcs_path})
+            return new NextResponse(new Uint8Array(bytes), {headers: {'Content-Type': 'image/png', 'Cache-Control': 'private, no-store'}})
+        }
         if (id && role) {
             const pack = ctx.assets!.find(
                 (a) =>

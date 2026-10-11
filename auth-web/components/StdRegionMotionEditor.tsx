@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import StdRegionLayers from './StdRegionLayers'
 import { regionMotionText } from '@/lib/stdRegionMotionCopy'
 import {
-    motionPhase,
+    regionTransform,
     parseRegionMotionCommand,
     regionMotionLabels,
     validateRegionMotions,
@@ -55,6 +55,7 @@ export default function StdRegionMotionEditor({
         [dirty, setDirty] = useState(false)
     const [layerPackageId, setLayerPackageId] = useState(''),
         [backgroundAssetId, setBackgroundAssetId] = useState('')
+    const [layerUrls, setLayerUrls] = useState<Record<string, string>>({})
     const [layerBusy, setLayerBusy] = useState(false)
     const busy = requestBusy || layerBusy
     const drag = useRef<MotionPoint | null>(null),
@@ -159,8 +160,8 @@ export default function StdRegionMotionEditor({
     }
     function finish(polygon: MotionPoint[]) {
         if (!scene || polygon.length < 3) return
-        if (regions.length >= 8) {
-            setNotice(tr("영역은 최대 8개입니다."))
+        if (regions.length >= 32) {
+            setNotice(tr("영역은 최대 32개입니다."))
             return
         }
         const xs = polygon.map((p) => p[0]),
@@ -173,7 +174,8 @@ export default function StdRegionMotionEditor({
                 (Math.min(...xs) + Math.max(...xs)) / 2,
                 (Math.min(...ys) + Math.max(...ys)) / 2,
             ],
-            action: 'horizontal',
+            contour: 'exact',
+            action: 'hold',
             amplitude: 2,
             period: Math.min(2, scene.duration),
             cycles: 1,
@@ -316,7 +318,7 @@ export default function StdRegionMotionEditor({
                                     {dirty ? tr(" · 저장 전 변경 있음") : ''}
                                 </span>
                             </div>
-                            <p className="mb-3 text-sm text-gray-300">{tr("움직일 부위를 외곽선으로 지정하고 고정점을 찍으세요. 팔 흔들기는 고정점을 중심으로 회전합니다. 관절을 구부리는 동작은 아직 지원하지 않습니다.")}</p>
+                            <p className="mb-3 text-sm text-gray-300">{tr("몸통·위팔·아래팔·다리를 나누고 고정점을 관절에 찍으세요. 아래팔은 위팔에, 종아리는 허벅지에 연결합니다. 가려진 부분과 관절 겹침은 부위 그리기로 보완하세요.")}</p>
                             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                                 <div>
                                     <div className="mb-2 flex flex-wrap gap-2">
@@ -459,34 +461,18 @@ export default function StdRegionMotionEditor({
                                                 ))}
                                             </defs>
                                             <image
-                                                href={image}
+                                                href={layerUrls.background || image}
                                                 width={size[0]}
                                                 height={size[1]}
                                                 mask={
-                                                    playing || time > 0
+                                                    !layerUrls.background && (playing || time > 0)
                                                         ? 'url(#motion-base-mask)'
                                                         : undefined
                                                 }
                                             />
                                             {regions.map((r, i) => {
-                                                const v =
-                                                        motionPhase(r, time) *
-                                                        r.amplitude,
-                                                    a = [
-                                                        r.anchor[0] * size[0],
-                                                        r.anchor[1] * size[1],
-                                                    ],
-                                                    transform =
-                                                        r.action ===
-                                                        'horizontal'
-                                                            ? `translate(${(v * size[0]) / 100} 0)`
-                                                            : r.action ===
-                                                                'vertical'
-                                                              ? `translate(0 ${(v * size[1]) / 100})`
-                                                              : r.action ===
-                                                                  'rotate'
-                                                                ? `rotate(${v} ${a[0]} ${a[1]})`
-                                                                : `translate(${a[0]} ${a[1]}) scale(${1 + v / 100}) translate(${-a[0]} ${-a[1]})`
+                                                const a = [r.anchor[0] * size[0], r.anchor[1] * size[1]]
+                                                const transform = `matrix(${regionTransform(regions, r.id, time, size).join(' ')})`
                                                 return (
                                                     <g key={r.id}>
                                                         <g
@@ -495,10 +481,10 @@ export default function StdRegionMotionEditor({
                                                             }
                                                         >
                                                             <image
-                                                                href={image}
+                                                                href={layerUrls['region:' + r.id] || image}
                                                                 width={size[0]}
                                                                 height={size[1]}
-                                                                clipPath={`url(#region-${r.id})`}
+                                                                clipPath={layerUrls['region:' + r.id] ? undefined : `url(#region-${r.id})`}
                                                             />
                                                         </g>
                                                         {!playing && (
@@ -622,6 +608,7 @@ export default function StdRegionMotionEditor({
                                                 setVideo('')
                                             }}
                                             onReady={setLayerPackageId}
+                                            onPreview={setLayerUrls}
                                             locked={requestBusy}
                                             onBusy={setLayerBusy}
                                         />
@@ -666,6 +653,46 @@ export default function StdRegionMotionEditor({
                                                     }
                                                 />
                                             </label>
+                                            <label className="block">{tr("부모 관절")}
+                                                <select aria-label={tr("부모 관절")} className={input} value={region.parentId || ''}
+                                                    onChange={(e) => patch({ parentId: e.target.value })}>
+                                                    <option value="">{tr("연결 없음 · 몸통")}</option>
+                                                    {regions.filter((r) => r.id !== region.id).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                                </select>
+                                            </label>
+                                            <label className="block">{tr("기본 관절 각도 (도)")}
+                                                <input aria-label={tr("기본 관절 각도 (도)")} type="number" min="-180" max="180" className={input}
+                                                    value={region.restAngle || 0} onChange={(e) => patch({restAngle: Number(e.target.value)})} />
+                                            </label>
+                                            <label className="block">{tr("굽히는 방향")}
+                                                <select aria-label={tr("굽히는 방향")} className={input} value={region.direction || 1}
+                                                    onChange={(e) => patch({direction: Number(e.target.value) as 1 | -1})}>
+                                                    <option value="1">{tr("시계 방향")}</option><option value="-1">{tr("반시계 방향")}</option>
+                                                </select>
+                                            </label>
+                                            <label className="block">{tr("좌우 동작 위상")}
+                                                <select aria-label={tr("좌우 동작 위상")} className={input} value={region.phaseOffset || 0}
+                                                    onChange={(e) => patch({phaseOffset: Number(e.target.value)})}>
+                                                    <option value="0">{tr("왼쪽 · 기본")}</option><option value="0.5">{tr("오른쪽 · 반대")}</option>
+                                                </select>
+                                            </label>
+                                            {region.action === 'walk' && <label className="block">{tr("보행 부위")}
+                                                <select aria-label={tr("보행 부위")} className={input} value={region.walkPart || 'upper'}
+                                                    onChange={(e) => patch({walkPart: e.target.value as 'upper' | 'lower'})}>
+                                                    <option value="upper">{tr("허벅지·위팔 · 앞뒤 흔들기")}</option>
+                                                    <option value="lower">{tr("종아리 · 무릎 굽히기")}</option>
+                                                </select>
+                                            </label>}
+                                            <div className="flex gap-2">
+                                                <button className={button} disabled={selected === 0} onClick={() => {
+                                                    const next = [...regions]; [next[selected-1], next[selected]] = [next[selected], next[selected-1]];
+                                                    setRegions(next); setSelected(selected-1); setDirty(true); setVideo('')
+                                                }}>{tr("뒤로 보내기")}</button>
+                                                <button className={button} disabled={selected === regions.length-1} onClick={() => {
+                                                    const next = [...regions]; [next[selected+1], next[selected]] = [next[selected], next[selected+1]];
+                                                    setRegions(next); setSelected(selected+1); setDirty(true); setVideo('')
+                                                }}>{tr("앞으로 가져오기")}</button>
+                                            </div>
                                             <label>{tr("동작")}<select
                                                     aria-label={tr("동작 종류")}
                                                     className={input}
@@ -674,7 +701,7 @@ export default function StdRegionMotionEditor({
                                                         patch({
                                                             action: e.target
                                                                 .value as RegionMotion['action'],
-                                                            amplitude: 2,
+                                                            amplitude: ['bend', 'walk', 'rotate'].includes(e.target.value) ? 25 : 2,
                                                         })
                                                     }
                                                 >
@@ -690,7 +717,7 @@ export default function StdRegionMotionEditor({
                                                     ))}
                                                 </select>
                                             </label>
-                                            <label>{tr("세기 (")}{region.action === 'rotate'
+                                            <label>{tr("세기 (")}{['rotate', 'bend', 'walk'].includes(region.action)
                                                     ? tr("도")
                                                     : '%'}
                                                 )
@@ -700,9 +727,8 @@ export default function StdRegionMotionEditor({
                                                     type="number"
                                                     min="0.1"
                                                     max={
-                                                        region.action ===
-                                                        'rotate'
-                                                            ? 30
+                                                        ['rotate', 'bend', 'walk'].includes(region.action)
+                                                            ? 120
                                                             : 15
                                                     }
                                                     step="0.1"
@@ -818,9 +844,8 @@ export default function StdRegionMotionEditor({
                                                 onClick={() => {
                                                     setRegions(
                                                         regions.filter(
-                                                            (_, i) =>
-                                                                i !== selected,
-                                                        ),
+                                                            (_, i) => i !== selected,
+                                                        ).map((r) => r.parentId === region.id ? { ...r, parentId: '', action: 'hold' as const } : r),
                                                     )
                                                     setSelected(0)
                                                     setDirty(true)
@@ -829,7 +854,8 @@ export default function StdRegionMotionEditor({
                                             >{tr("이 영역 삭제")}</button>
                                         </>
                                     )}
-                                    <p className="text-xs text-gray-400">{tr("영역은 최대 8개입니다. 정지 이미지의 선택 부위를 움직이며, 기존 영상이나 립싱크와 자동 합성하지 않습니다.")}</p>
+                                    <p className="text-xs text-gray-400">{tr("배열 뒤쪽 부위가 앞에 표시됩니다. 걷기는 제자리 보행이며 몸통 이동은 별도로 지정하세요.")}</p>
+                                    <p className="text-xs text-gray-400">{tr("영역은 최대 32개입니다. 정지 이미지의 선택 부위를 움직이며, 기존 영상이나 립싱크와 자동 합성하지 않습니다.")}</p>
                                 </fieldset>
                             </div>
                             <footer className="mt-4 space-y-3">

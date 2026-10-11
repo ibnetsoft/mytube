@@ -17,6 +17,7 @@ type Props = {
   backgroundAssetId: string;
   onBackground: (id: string) => void;
   onReady: (id: string) => void;
+  onPreview: (urls: Record<string, string>) => void;
   onBusy: (busy: boolean) => void;
   locked: boolean;
 };
@@ -33,9 +34,13 @@ export default function StdRegionLayers(p: Props) {
     [editing, setEditing] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null),
     restore = useRef<HTMLImageElement | null>(null),
-    drawing = useRef(false);
+    drawing = useRef(false),
+    lastPoint = useRef<[number, number] | null>(null),
+    history = useRef<ImageData[]>([]),
+    editRegionId = useRef("");
   const [brush, setBrush] = useState(12),
-    [mode, setMode] = useState<"erase" | "restore">("erase"),
+    [mode, setMode] = useState<"erase" | "restore" | "paint" | "sample">("erase"),
+    [color, setColor] = useState("#ffd39b"),
     [zoom, setZoom] = useState(1);
   useEffect(() => {
     p.onBusy(busy);
@@ -47,6 +52,7 @@ export default function StdRegionLayers(p: Props) {
     if (p.sha && p.regions.length)
       key = regionLayerKey(p.imageId, p.sha, p.regions, p.backgroundAssetId);
   } catch {}
+  useEffect(() => { p.onPreview(urls); }, [urls, p.onPreview]);
   async function refresh() {
     const r = await fetch(api, { headers: p.headers }),
       data = await r.json();
@@ -165,7 +171,7 @@ export default function StdRegionLayers(p: Props) {
         d = await r.json();
       if (!r.ok) throw new Error(d.error);
       if (role === "background") p.onBackground(d.asset.id);
-      else p.patch({ replacementAssetId: d.asset.id });
+      else p.patch({ replacementAssetId: d.asset.id, contour: "exact" });
       setEditing(false);
       setNotice(
         tr("보완 이미지를 저장했습니다. 레이어 준비를 눌러 합성 결과를 확인해 주세요."),
@@ -177,7 +183,9 @@ export default function StdRegionLayers(p: Props) {
     }
   }
   async function edit() {
-    if (!region || !urls["region:" + region.id]) return;
+    if (!region || !p.image) return;
+    editRegionId.current = region.id;
+    history.current = [];
     setEditing(true);
     setMode("erase");
     setZoom(1);
@@ -189,18 +197,31 @@ export default function StdRegionLayers(p: Props) {
         im.src = url;
       });
     try {
-      const [layer, source] = await Promise.all([
-        load(urls["region:" + region.id]),
-        load(region.replacementAssetId ? urls["region:" + region.id] : p.image),
-      ]);
-      restore.current = source;
-      requestAnimationFrame(() => {
+      const layerUrl = urls["region:" + region.id];
+      let replacementUrl = '';
+      try {
+        // A saved replacement must survive package invalidation and subsequent edits.
+        if (!layerUrl && region.replacementAssetId) {
+          const r = await fetch(`${api}?upload=${encodeURIComponent(region.replacementAssetId)}`, {headers: p.headers});
+          if (!r.ok) throw new Error('보완 부위를 불러오지 못했습니다.');
+          replacementUrl = URL.createObjectURL(await r.blob());
+        }
+        const [source, layer] = await Promise.all([load(p.image), layerUrl || replacementUrl ? load(layerUrl || replacementUrl) : Promise.resolve(null)]);
+        if (editRegionId.current !== region.id) return;
+        restore.current = source;
         const c = canvas.current;
         if (!c) return;
-        c.width = layer.naturalWidth;
-        c.height = layer.naturalHeight;
-        c.getContext("2d")!.drawImage(layer, 0, 0);
-      });
+        const ratio = Math.min(1, 1920 / Math.max(source.naturalWidth, source.naturalHeight));
+        c.width = Math.max(2, Math.floor(source.naturalWidth * ratio / 2) * 2);
+        c.height = Math.max(2, Math.floor(source.naturalHeight * ratio / 2) * 2);
+        const ctx = c.getContext('2d')!;
+        if (layer) ctx.drawImage(layer, 0, 0, c.width, c.height);
+        else {
+          ctx.save(); ctx.beginPath();
+          region.polygon.forEach(([x,y],i) => i ? ctx.lineTo(x*c.width,y*c.height) : ctx.moveTo(x*c.width,y*c.height));
+          ctx.closePath(); ctx.clip(); ctx.drawImage(source,0,0,c.width,c.height); ctx.restore();
+        }
+      } finally { if (replacementUrl) URL.revokeObjectURL(replacementUrl); }
     } catch {
       setNotice(tr("브러시 편집 이미지를 불러오지 못했습니다."));
       setEditing(false);
@@ -212,14 +233,36 @@ export default function StdRegionLayers(p: Props) {
       x = ((e.clientX - b.left) * c.width) / b.width,
       y = ((e.clientY - b.top) * c.height) / b.height,
       ctx = c.getContext("2d")!;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(x, y, brush, 0, Math.PI * 2);
-    ctx.clip();
-    if (mode === "erase") ctx.clearRect(0, 0, c.width, c.height);
-    else if (restore.current)
-      ctx.drawImage(restore.current, 0, 0, c.width, c.height);
-    ctx.restore();
+    if (mode === 'sample') {
+      const pixel = ctx.getImageData(Math.min(c.width-1, Math.max(0,Math.floor(x))),Math.min(c.height-1,Math.max(0,Math.floor(y))),1,1).data;
+      if (pixel[3]) setColor('#'+Array.from(pixel.slice(0,3), n => n.toString(16).padStart(2,'0')).join(''));
+      return;
+    }
+    const previous = lastPoint.current || [x,y];
+    ctx.save(); ctx.beginPath();
+    ctx.lineWidth = brush*2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.moveTo(previous[0],previous[1]); ctx.lineTo(x,y);
+    if (mode === 'restore') {
+      // A continuous capsule clip restores original pixels, including the hidden overlap margin.
+      const dx=x-previous[0], dy=y-previous[1], len=Math.hypot(dx,dy);
+      ctx.beginPath(); ctx.arc(previous[0],previous[1],brush,0,Math.PI*2);
+      ctx.arc(x,y,brush,0,Math.PI*2);
+      if (len) {
+        const nx=-dy/len*brush, ny=dx/len*brush;
+        ctx.moveTo(previous[0]+nx,previous[1]+ny);ctx.lineTo(x+nx,y+ny);
+        ctx.lineTo(x-nx,y-ny);ctx.lineTo(previous[0]-nx,previous[1]-ny);ctx.closePath();
+      }
+      ctx.clip(); if (restore.current) ctx.drawImage(restore.current,0,0,c.width,c.height);
+    } else {
+      ctx.globalCompositeOperation=mode==='erase'?'destination-out':'source-over';
+      ctx.strokeStyle=color;ctx.stroke();
+      ctx.beginPath();ctx.arc(x,y,brush,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+    }
+    ctx.restore(); lastPoint.current=[x,y];
+  }
+  function checkpoint() {
+    const c=canvas.current;
+    if (c) { history.current.push(c.getContext('2d')!.getImageData(0,0,c.width,c.height)); if(history.current.length>12)history.current.shift(); }
   }
   const disabled = busy || p.locked;
   return (
@@ -249,7 +292,7 @@ export default function StdRegionLayers(p: Props) {
               onChange={(e) => p.patch({ occluded: e.target.checked })}
             />{" "}{tr("이 부위가 가려졌거나 이미지 밖으로 잘려 있음")}</label>
           {region.occluded && (
-            <p className="text-amber-200">{tr("보이지 않는 형태는 자동으로 확정하지 않습니다. 완성된 부위 PNG를 추가하거나 이미지 페이지에서 원본을 수정한 뒤 다시 지정해 주세요.")}</p>
+            <p className="text-amber-200">{tr("보이지 않는 형태는 자동으로 확정하지 않습니다. 부위 그리기에서 가려진 형태와 관절 겹침을 그려 저장하거나 완성된 투명 PNG를 추가하세요.")}</p>
           )}
           <label className="block">{tr("완성·수정한 부위 추가 (투명 PNG)")}{" "}
             <input
@@ -287,6 +330,7 @@ export default function StdRegionLayers(p: Props) {
           <p className="text-xs text-gray-400">{tr("추가 이미지는 원본 전체 캔버스와 같은 크기·위치로 맞춰 주세요. 준비된 레이어를 내려받아 수정 후 다시 올릴 수도 있습니다. 최대 4MB.")}</p>
         </fieldset>
       )}
+      <button className={button} disabled={disabled || !region || !p.image} onClick={() => void edit()}>{tr("부위 그리기 · 가려진 부분·관절 겹침 보완")}</button>
       <div className="flex flex-wrap gap-2 items-center">
         <button
           className={button}
@@ -393,7 +437,17 @@ export default function StdRegionLayers(p: Props) {
       </p>
       {editing && (
         <div className="fixed inset-0 z-[195] bg-black/95 p-4 flex flex-col">
+          <p className="text-sm mb-2">{tr("관절 중심에 둥근 겹침 부분을 그려 틈을 덮으세요. 가려진 팔·다리는 색칠로 완성합니다. 저장 후 레이어 준비·확정과 동작 검토가 필요합니다.")}</p>
           <div className="flex flex-wrap gap-2 mb-2">
+            <button className={button} onClick={() => setMode('paint')}>{tr("색칠")}{mode === 'paint' ? '✓' : ''}</button>
+            <button className={button} onClick={() => setMode('sample')}>{tr("색 추출")}{mode === 'sample' ? '✓' : ''}</button>
+            <input aria-label={tr("부위 색상")} type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+            <button className={button} onClick={() => {
+              const c=canvas.current; if(!c || !region)return; checkpoint();
+              const ctx=c.getContext('2d')!;ctx.fillStyle=color;ctx.beginPath();
+              ctx.arc(region.anchor[0]*c.width,region.anchor[1]*c.height,brush,0,Math.PI*2);ctx.fill();
+            }}>{tr("관절 겹침 원 그리기")}</button>
+            <button className={button} onClick={() => {const prev=history.current.pop(); if(prev)canvas.current?.getContext('2d')?.putImageData(prev,0,0)}}>{tr("되돌리기")}</button>
             <button className={button} onClick={() => setMode("erase")}>{tr("지우기")}{mode === "erase" ? "✓" : ""}
             </button>
             <button className={button} onClick={() => setMode("restore")}>{tr("원본에서 복원")}{mode === "restore" ? "✓" : ""}
@@ -402,7 +456,7 @@ export default function StdRegionLayers(p: Props) {
               <input
                 type="range"
                 min="1"
-                max="40"
+                max="120"
                 value={brush}
                 onChange={(e) => setBrush(Number(e.target.value))}
               />
@@ -445,6 +499,7 @@ export default function StdRegionLayers(p: Props) {
               }}
               onPointerDown={(e) => {
                 if (disabled) return;
+                checkpoint(); lastPoint.current = null;
                 drawing.current = true;
                 e.currentTarget.setPointerCapture(e.pointerId);
                 paint(e);
@@ -453,10 +508,10 @@ export default function StdRegionLayers(p: Props) {
                 if (drawing.current && !disabled) paint(e);
               }}
               onPointerUp={() => {
-                drawing.current = false;
+                drawing.current = false; lastPoint.current = null;
               }}
               onPointerCancel={() => {
-                drawing.current = false;
+                drawing.current = false; lastPoint.current = null;
               }}
             />
           </div>

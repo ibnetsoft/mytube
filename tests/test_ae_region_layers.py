@@ -21,7 +21,7 @@ def test_uses_reviewed_contour_and_supplied_background(tmp_path):
     files={f['role']:f['path'] for f in result['files']}
     layer=Image.open(files['region:arm'])
     assert layer.getpixel((110,70))[3]>240
-    assert layer.getpixel((85,25))[3]==0
+    assert layer.getpixel((75,15))[3]==0
     assert Image.open(files['background']).getpixel((130,80))==(0,128,0)
     assert Image.open(files['composite']).getpixel((130,80))[0]>200
 

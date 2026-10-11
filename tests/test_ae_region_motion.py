@@ -43,3 +43,35 @@ def test_resolves_native_output_module_extension(tmp_path):
     requested.write_bytes(b"ambiguous")
     with pytest.raises(RuntimeError):
         rendered_media(requested)
+
+
+def rig():
+    d = fixture()
+    root = {**d['regions'][0], 'id': 'body', 'action': 'hold'}
+    upper = {**root, 'id': 'thigh', 'parentId': 'body', 'action': 'walk', 'amplitude': 25, 'phaseOffset': .5}
+    lower = {**upper, 'id': 'calf', 'parentId': 'thigh', 'walkPart': 'lower', 'amplitude': 60}
+    d['regions'] = [lower, root, upper]
+    return d
+
+
+def test_joint_rig_validates_unordered_hierarchy():
+    assert validate_input(rig())['regions'][0]['parentId'] == 'thigh'
+
+
+@pytest.mark.parametrize('patch', [{'parentId': 'missing'}, {'parentId': 'calf'}, {'phaseOffset': 2}, {'restAngle': 181}, {'walkPart': 'script'}])
+def test_rejects_invalid_joint_graph_and_gait(patch):
+    data = rig(); data['regions'][0].update(patch)
+    with pytest.raises(ValueError): validate_input(data)
+
+
+def test_emitted_ae_script_parents_before_animation_and_preserves_rig_data(tmp_path):
+    data = rig();runtime = {'width': 320, 'height': 200, 'duration': 5, 'background': 'plate.png', 'regions': [{**r, 'path': r['id']+'.png'} for r in data['regions']]}
+    script = tmp_path/'rig.jsx'
+    write_jsx(runtime, tmp_path/'rig.aep', tmp_path/'out.avi', script)
+    text = script.read_text()
+    assert text.index("l.parent=layers['region:'+r.parentId]") < text.index('prop.setValueAtTime')
+    assert "bases['region:'+r.id]" in text and 'Math.max(0,wave)' in text
+    payload = json.loads(text.split('var D=',1)[1].split(';\n',1)[0])
+    assert payload['regions'][0]['walkPart'] == 'lower'
+    assert payload['regions'][0]['parentId'] == 'thigh'
+    assert payload['regions'][0]['phaseOffset'] == .5
