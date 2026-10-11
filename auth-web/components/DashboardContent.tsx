@@ -332,6 +332,7 @@ export default function DashboardContent() {
     const [editingTopicDraft, setEditingTopicDraft] = useState('')
     const [topicQueueCategoryFilter, setTopicQueueCategoryFilter] = useState<string>('all')
     const [topicQueueStatusFilter, setTopicQueueStatusFilter] = useState<'working' | 'pending' | 'preparing' | 'hidden' | 'completed'>('working')
+    const [topicQueueWorkFilter, setTopicQueueWorkFilter] = useState<'all' | 'active' | 'review' | 'stale' | 'legacy'>('all')
     const [topicQueueEmployeeFilter, setTopicQueueEmployeeFilter] = useState<string>('all')
     const [topicQueuePage, setTopicQueuePage] = useState(1)
     const [topicStyleAssigningType, setTopicStyleAssigningType] = useState<'script' | null>(null)
@@ -2759,7 +2760,7 @@ export default function DashboardContent() {
 
     useEffect(() => {
         setTopicQueuePage(1);
-    }, [topicQueueStatusFilter, topicQueueCategoryFilter, topicQueueEmployeeFilter]);
+    }, [topicQueueStatusFilter, topicQueueWorkFilter, topicQueueCategoryFilter, topicQueueEmployeeFilter]);
 
     useEffect(() => {
         setRenderQueuePage(1);
@@ -4196,6 +4197,16 @@ export default function DashboardContent() {
                             const isPreparingTopic = (item: any) => item.status === 'pending' && !getTopicPreparation(item).ready;
                             const isHiddenTopic = (item: any) => item.status === 'excluded';
                             const isQueueVisibleTopic = (item: any) => item.status === 'pending' || item.status === 'assigned' || item.status === 'excluded';
+                            const topicWorkGroup = (item: any): 'active' | 'review' | 'stale' | 'legacy' => {
+                                if (!item.work_info || item.work_info.error) return 'legacy';
+                                if (item.work_info.projectStatus === 'review_requested') return 'review';
+                                const updated = item.work_info.projectUpdatedAt || item.progress_updated_at || item.assigned_at;
+                                const updatedAt = updated ? new Date(updated).getTime() : 0;
+                                return !updatedAt || Date.now() - updatedAt >= 14 * 24 * 60 * 60 * 1000 ? 'stale' : 'active';
+                            };
+                            const matchesWorkFilter = (item: any) => topicQueueStatusFilter !== 'working'
+                                || topicQueueWorkFilter === 'all'
+                                || topicWorkGroup(item) === topicQueueWorkFilter;
                             const matchesTopicQueueStatus = (item: any) => topicQueueStatusFilter === 'working'
                                 ? isWorkingTopic(item)
                                 : topicQueueStatusFilter === 'preparing'
@@ -4220,14 +4231,14 @@ export default function DashboardContent() {
                                 return `SCENES ${video}V ${image}I / ${total}`;
                             };
                             const queueCategories = [...categories].sort((a, b) => {
-                                const aActive = topicQueueSource.filter(t => String(t.category_id) === String(a.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
-                                const bActive = topicQueueSource.filter(t => String(t.category_id) === String(b.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
+                                const aActive = topicQueueSource.filter(t => String(t.category_id) === String(a.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t) && matchesWorkFilter(t)).length;
+                                const bActive = topicQueueSource.filter(t => String(t.category_id) === String(b.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t) && matchesWorkFilter(t)).length;
                                 if (bActive !== aActive) return bActive - aActive;
                                 return String(a.name || '').localeCompare(String(b.name || ''), 'ko');
                             });
                             const statusFilteredTopics = topicQueueCategoryFilter === 'all'
-                                ? topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t))
-                                : topicQueueSource.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t));
+                                ? topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t) && matchesWorkFilter(t))
+                                : topicQueueSource.filter(t => String(t.category_id) === topicQueueCategoryFilter && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t) && matchesWorkFilter(t));
                             const availableTopicQueueEmployees = Array.from(
                                 new Set(
                                     users
@@ -4259,7 +4270,7 @@ export default function DashboardContent() {
                                         ? '준비중'
                                         : topicQueueStatusFilter === 'hidden'
                                             ? '가림'
-                                            : '완료';
+                                            : '렌더 완료';
                             const TOPIC_QUEUE_PAGE_SIZE = 20;
                             const topicQueueTotalPages = Math.max(1, Math.ceil(filteredTopics.length / TOPIC_QUEUE_PAGE_SIZE));
                             const topicQueueCurrentPage = Math.min(topicQueuePage, topicQueueTotalPages);
@@ -4278,7 +4289,7 @@ export default function DashboardContent() {
                                         </h2>
                                         <p className="mt-2 text-xs font-bold text-gray-500">
                                             {topicQueueStatusFilter === 'completed'
-                                                ? '리모트 렌더링 큐와 동일한 내용을 표시 중'
+                                                ? '완료된 렌더 작업 수입니다. 완료된 주제 수와 다를 수 있습니다.'
                                                 : (selectedCategory ? `${selectedCategory.name} 카테고리 · ${activeStatusLabel}만 표시 중` : `전체 카테고리 · ${activeStatusLabel}만 표시 중`)}
                                         </p>
                                     </div>
@@ -4298,7 +4309,7 @@ export default function DashboardContent() {
                                             { key: 'working', label: '작업중' },
                                             { key: 'pending', label: '대기중' },
                                             { key: 'hidden', label: '가림' },
-                                            { key: 'completed', label: '완료' },
+                                            { key: 'completed', label: '렌더 완료' },
                                         ].map(item => {
                                             const count = item.key === 'completed'
                                                 ? completedRenderQueue.length
@@ -4353,6 +4364,31 @@ export default function DashboardContent() {
                                             </span>
                                         </div>
 
+                                        {topicQueueStatusFilter === 'working' && (
+                                            <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="작업중 주제 상태별 보기">
+                                                {([
+                                                    { key: 'all', label: '전체 배정' },
+                                                    { key: 'active', label: '최근 작업' },
+                                                    { key: 'review', label: '검토 대기' },
+                                                    { key: 'stale', label: '14일 이상 중단' },
+                                                    { key: 'legacy', label: '프로젝트 확인 필요' },
+                                                ] as const).map(group => {
+                                                    const count = topics.filter(item => isWorkingTopic(item) && (group.key === 'all' || topicWorkGroup(item) === group.key)).length;
+                                                    return (
+                                                        <button
+                                                            key={group.key}
+                                                            type="button"
+                                                            onClick={() => setTopicQueueWorkFilter(group.key)}
+                                                            aria-pressed={topicQueueWorkFilter === group.key}
+                                                            className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold ${topicQueueWorkFilter === group.key ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}
+                                                        >
+                                                            {group.label} {count}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+
                                         <div className="mt-6 flex flex-wrap gap-2">
                                             <button
                                                 type="button"
@@ -4363,10 +4399,10 @@ export default function DashboardContent() {
                                                         : 'bg-white/5 text-gray-400 border-white/10 hover:text-white hover:border-blue-500/40'
                                                 }`}
                                             >
-                                                전체 <span className="ml-1 text-[10px] opacity-70">{topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length}</span>
+                                                전체 <span className="ml-1 text-[10px] opacity-70">{topicQueueSource.filter(t => isQueueVisibleTopic(t) && matchesTopicQueueStatus(t) && matchesWorkFilter(t)).length}</span>
                                             </button>
                                             {queueCategories.map(cat => {
-                                                const activeCount = topicQueueSource.filter(t => String(t.category_id) === String(cat.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t)).length;
+                                                const activeCount = topicQueueSource.filter(t => String(t.category_id) === String(cat.id) && isQueueVisibleTopic(t) && matchesTopicQueueStatus(t) && matchesWorkFilter(t)).length;
                                                 return (
                                                     <button
                                                         type="button"
@@ -4416,6 +4452,11 @@ export default function DashboardContent() {
                                             const isEditingOrDeletingTopic = topicActionLoadingId === topicId
                                             const isVisibilityUpdating = topicActionLoadingId === `visibility-${topicId}`
                                             const isConfirmingRepair = topicRepairConfirmId === topicId
+                                            const workGroup = isWorkingTopic(item) ? topicWorkGroup(item) : null
+                                            const workGroupLabel = workGroup === 'review' ? '제출됨 · 검토 대기'
+                                                : workGroup === 'stale' ? '14일 이상 작업 기록 없음'
+                                                : workGroup === 'legacy' ? '웹 프로젝트 연결 확인 필요'
+                                                : '최근 작업'
                                             return (
                                             <tr
                                                 key={item.id}
@@ -4424,7 +4465,7 @@ export default function DashboardContent() {
                                                         ? 'bg-blue-500/10 ring-1 ring-inset ring-blue-400/30'
                                                         : isHiddenTopic(item)
                                                             ? 'bg-gray-500/[0.06] opacity-75 hover:opacity-100'
-                                                            : prep.ready
+                                                            : isWorkingTopic(item) || prep.ready
                                                                 ? 'hover:bg-white/[0.03]'
                                                                 : 'bg-orange-500/[0.03] hover:bg-orange-500/[0.06]'
                                                 }`}
@@ -4471,17 +4512,28 @@ export default function DashboardContent() {
                                                                     <div className="flex flex-wrap gap-1.5">
                                                                         {isHiddenTopic(item) && (
                                                                             <span className="rounded-full border border-gray-400/20 bg-gray-400/10 px-2 py-1 text-[10px] font-black text-gray-300">
-                                                                                유저웹 가림
+                                                                                {item.progress_payload?.admin_hidden_previous_status === 'assigned' ? '작업중에서 가림 · 해제 시 복구' : '유저웹 가림'}
                                                                             </span>
                                                                         )}
-                                                                        <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${
-                                                                            prep.ready
-                                                                                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-                                                                                : 'border-orange-500/20 bg-orange-500/10 text-orange-300'
-                                                                        }`}>
-                                                                            {prep.ready ? '준비완료' : `필요: ${prep.missing.join(', ') || '확인'}`}
-                                                                        </span>
-                                                                        {!prep.ready && (
+                                                                        {isWorkingTopic(item) ? (
+                                                                            <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${workGroup === 'review' ? 'border-violet-500/30 bg-violet-500/10 text-violet-300' : workGroup === 'stale' || workGroup === 'legacy' ? 'border-amber-500/30 bg-amber-500/10 text-amber-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}>
+                                                                                {workGroupLabel}
+                                                                            </span>
+                                                                        ) : item.status === 'pending' ? (
+                                                                            <span className={`rounded-full border px-2 py-1 text-[10px] font-black ${
+                                                                                prep.ready
+                                                                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                                                                                    : 'border-orange-500/20 bg-orange-500/10 text-orange-300'
+                                                                            }`}>
+                                                                                {prep.ready ? '준비완료' : `필요: ${prep.missing.join(', ') || '확인'}`}
+                                                                            </span>
+                                                                        ) : null}
+                                                                        {isWorkingTopic(item) && item.work_info?.projectUpdatedAt && (
+                                                                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold text-gray-400">
+                                                                                최근 저장 {new Date(item.work_info.projectUpdatedAt).toLocaleDateString('ko-KR')}
+                                                                            </span>
+                                                                        )}
+                                                                        {item.status === 'pending' && !prep.ready && (
                                                                             <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-black text-gray-300">
                                                                                 기획 {prep.structureStatus} · 대본 {prep.scriptStatus} · 프롬프트 {prep.mediaStatus}
                                                                             </span>
