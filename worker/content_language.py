@@ -1,6 +1,8 @@
 """Language and unified setting choices shared by the local topic and script workflows."""
 from __future__ import annotations
 from typing import Any
+import json
+from pathlib import Path
 from worker.japanese_historical_documentary import PROFILE as DOCUMENTARY_PROFILE
 
 
@@ -34,6 +36,7 @@ DEFAULT_ERA_REGION = '현대 지방 소도시'
 DEFAULT_IMAGE_STYLE = '실사'
 
 IMAGE_STYLE_MAP_EN = {
+    'jidaigeki_cel': json.loads((Path(__file__).resolve().parents[1] / 'auth-web/lib/japaneseFolktaleStyle.json').read_text(encoding='utf-8'))['prompt'],
     'sumi_e_ukiyo_e': DOCUMENTARY_PROFILE['prompt'],
     '실사': 'realistic',
     'realistic': 'realistic',

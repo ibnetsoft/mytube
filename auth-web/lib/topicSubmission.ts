@@ -53,10 +53,11 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     })
     const image_style = text('image_style', 80, true)
     const documentary = image_style === documentaryStyle.image_style
+    const folktale = image_style === 'jidaigeki_cel'
     return { title: text('title', 200, true), youtube_url, story: text('story', 2500, true),
         character_notes: text('character_notes', 1500), requirements: text('requirements', 1000),
-        category: text('category', 80, true), duration_minutes: documentary ? 30 : duration_minutes, language: documentary ? 'ja' : language, input_language, production_mode: documentary ? 'standard' : production_mode, ae_scene_delivery,
+        category: text('category', 80, true), duration_minutes: documentary ? 30 : duration_minutes, language: documentary || folktale ? 'ja' : language, input_language, production_mode: documentary ? 'standard' : production_mode, ae_scene_delivery,
         script_style: documentary ? documentaryStyle.key : 'story',
-        setting_country: documentary ? '일본' : text('setting_country', 80, true), era_region: text('era_region', 120, true),
+        setting_country: documentary || folktale ? '일본' : text('setting_country', 80, true), era_region: text('era_region', 120, true),
         image_style, transcript: text('transcript', 40000), character_images }
 }
