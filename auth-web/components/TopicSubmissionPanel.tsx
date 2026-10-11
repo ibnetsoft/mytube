@@ -5,6 +5,7 @@ import Image from 'next/image'
 import TopicYoutubeExplorer from './TopicYoutubeExplorer'
 
 const imageStyles = [
+    { key: 'sumi_e_ukiyo_e', name: '다큐멘터리 · 수묵화/우키요에' },
     { key: 'realistic', name: '실사' },
     { key: 'cinematic', name: '시네마틱' },
     { key: 'anime', name: '애니메이션' },
@@ -117,7 +118,14 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                     <p className="mt-1 text-sm text-gray-400">{ui('원하는 분위기의 썸네일을 선택하세요.')}</p>
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
                         {imageStyles.map(style => <label key={style.key} className="relative cursor-pointer">
-                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} required aria-label={ui(style.name)} className="peer sr-only" />
+                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} required onChange={() => {
+                                if (style.key !== 'sumi_e_ukiyo_e') return
+                                const form = topicForm.current
+                                if (!form) return
+                                const set = (name: string, value: string) => { const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null; if (el) el.value = value }
+                                set('language', 'ja'); set('duration_minutes', '30'); set('setting_country', ui('일본'))
+                                set('era_region', ui('주제 인물의 실제 생존 시대·지역')); set('production_mode', 'standard')
+                            }} aria-label={ui(style.name)} className="peer sr-only" />
                             <span className="block overflow-hidden rounded-xl border-2 border-white/10 bg-[#11141a] transition peer-checked:border-indigo-400 peer-checked:bg-indigo-500/15 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-indigo-300 peer-disabled:opacity-50 hover:border-white/40">
                                 <span className="relative block aspect-[4/3]">
                                     <Image src={`/img/styles/style_${style.key}.png`} alt={`${ui(style.name)} ${ui('스타일 예시')}`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className="object-cover" />

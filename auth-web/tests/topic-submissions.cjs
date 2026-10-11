@@ -2,9 +2,9 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const ts = require('typescript')
 const path = require('node:path')
-const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
+const compile = file => ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2022 } }).outputText
 const lib = {}
-new Function('exports', compile(path.join(__dirname, '../lib/topicSubmission.ts')))(lib)
+new Function('exports', 'require', compile(path.join(__dirname, '../lib/topicSubmission.ts')))(lib, require('node:module').createRequire(path.join(__dirname, '../lib/topicSubmission.ts')))
 const valid = { title: '토픽', story: '줄거리', category: '이야기', duration_minutes: 15, language: 'ko', production_mode: 'standard', setting_country: '한국', era_region: '현대', image_style: '실사' }
 assert.equal(lib.validateTopicSubmission(valid).title, '토픽')
 assert.equal(lib.validateTopicSubmission(valid).ae_scene_delivery, 'gcs')
@@ -50,3 +50,10 @@ const call = body => route.POST(new Request('https://test.invalid', { method: 'P
     assert(filters.some(([key, value]) => key === 'owner_email' && value === 'owner@test.invalid'))
     console.log('PASS: topic validation, authentication, ownership filtering, and pending-only insertion')
 })().catch(error => { console.error(error); process.exitCode = 1 })
+
+const documentary = lib.validateTopicSubmission({ ...valid, image_style: 'sumi_e_ukiyo_e' })
+assert.equal(documentary.script_style, 'japanese_historical_documentary')
+assert.equal(documentary.language, 'ja')
+assert.equal(documentary.duration_minutes, 30)
+assert.equal(documentary.setting_country, '일본')
+assert.equal(lib.validateTopicSubmission(valid).script_style, 'story')

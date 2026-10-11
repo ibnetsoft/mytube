@@ -1,8 +1,9 @@
+import documentaryStyle from './japaneseHistoricalDocumentaryStyle.json'
 export type TopicSubmission = {
     title: string; youtube_url: string; story: string; character_notes: string;
     requirements: string; category: string; duration_minutes: number;
     language: string; input_language: string; setting_country: string; era_region: string; image_style: string;
-    production_mode: string; ae_scene_delivery: 'gcs'; transcript: string;
+    script_style: string; production_mode: string; ae_scene_delivery: 'gcs'; transcript: string;
     character_images: { name: string; data: string }[];
 }
 
@@ -50,9 +51,12 @@ export function validateTopicSubmission(input: any): TopicSubmission {
         if (!signature || bytes.length > 512000) throw new Error('이미지 형식 또는 크기가 올바르지 않습니다.')
         return { name: image.name.trim(), data: image.data }
     })
+    const image_style = text('image_style', 80, true)
+    const documentary = image_style === documentaryStyle.image_style
     return { title: text('title', 200, true), youtube_url, story: text('story', 2500, true),
         character_notes: text('character_notes', 1500), requirements: text('requirements', 1000),
-        category: text('category', 80, true), duration_minutes, language, input_language, production_mode, ae_scene_delivery,
-        setting_country: text('setting_country', 80, true), era_region: text('era_region', 120, true),
-        image_style: text('image_style', 80, true), transcript: text('transcript', 40000), character_images }
+        category: text('category', 80, true), duration_minutes: documentary ? 30 : duration_minutes, language: documentary ? 'ja' : language, input_language, production_mode: documentary ? 'standard' : production_mode, ae_scene_delivery,
+        script_style: documentary ? documentaryStyle.key : 'story',
+        setting_country: documentary ? '일본' : text('setting_country', 80, true), era_region: text('era_region', 120, true),
+        image_style, transcript: text('transcript', 40000), character_images }
 }
