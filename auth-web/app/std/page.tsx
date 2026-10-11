@@ -3719,6 +3719,9 @@ export default function StdPortalPage() {
         if (hasSavedNarration && !localSubtitles.some((item: any) => isVoiceStudioVoice(item?.voice_id))) return
         const subtitle = localSubtitles[index]
         if (!subtitle) return
+        // Missing Google clips are created when playback reaches them; speculative cache reads would mark them as errors.
+        const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
+        if (voiceId.startsWith('google_') && !hasStoredSegment(subtitle)) return
         const cacheKey = vrewSegmentCacheKey(subtitle, index)
         if (vrewAudioCacheRef.current[cacheKey] || vrewSegmentStatus[cacheKey] === 'generating' || vrewSegmentStatus[cacheKey] === 'loading') return
         void getOrCreateVrewSegmentAudioUrl(subtitle, index).catch((error: any) => {
@@ -3851,7 +3854,9 @@ export default function StdPortalPage() {
 
             let audioUrl = ''
             try {
-                audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index)
+                const voiceId = String(subtitle?.voice_id || selectedVoice || '').trim()
+                // Google free TTS can be generated on first playback; paid voices keep the saved-audio requirement.
+                audioUrl = await getOrCreateVrewSegmentAudioUrl(subtitle, index, undefined, !voiceId.startsWith('google_'))
             } catch (err: any) {
                 if (vrewPlaybackCancelRef.current !== cancelToken) return
                 const isDriveError = err?.code === 'legacy_drive_auth_failed'
@@ -9617,7 +9622,9 @@ export default function StdPortalPage() {
                                                     ? ui("음성 확인·준비 중")
                                                     : segmentStatus === 'stale'
                                                     ? ui("재생성 필요")
-                                                    : ui("오류")
+                                                    : segmentStatus === 'error'
+                                                    ? ui("오류")
+                                                    : ui("음성 생성 전")
                                                 return (
                                                     <div
                                                         key={`scene-group-card-${sNum}`}

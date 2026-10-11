@@ -47,24 +47,25 @@ test('volume edits save metadata, preserve recordings and compose with the lates
     assert.deepEqual(saves[0][0], { ...original[0], volume: 65, volume_ratio: 0.65 })
 })
 
-function audioHarness({ missing = false, respond } = {}) {
+function audioHarness({ missing = false, respond, voice = 'saved-voice', stopBeforePlayback } = {}) {
     const requests = [], state = { messages: [], playing: false, highlights: [], errors: [] }
-    const subtitles = [{ ...row('existing recording'), start_num: 0, end_num: 1 }]
+    const subtitles = [{ ...row('existing recording'), voice_id: voice, start_num: 0, end_num: 1 }]
     const project = { project: { id: 'project' }, assets: [{ id: 'full', asset_type: 'audio', status: 'uploaded', metadata: {
         subtitle_timeline: [{ text: 'a different saved timeline', voice_id: 'saved-voice', start: 0, end: 1 }],
     } }] }
     const context = {
-        ...preview, selectedProject: project, localSubtitles: subtitles, selectedVoice: 'saved-voice',
+        ...preview, selectedProject: project, localSubtitles: subtitles, selectedVoice: voice,
         legacyStorageErrorPattern: /invalid_grant|drive_credentials_not_configured/,
         ttsSpeed: '1', elStability: '0.7', elStyle: '0.45', currentLocale: 'ko',
         vrewAudioCacheRef: { current: {} }, vrewAudioPromiseRef: { current: new Map() },
         vrewFinalNarrationAudioRef: { current: null }, vrewPlaybackCancelRef: { current: 0 },
         speechContextRef: { current: { resume: async () => {} } },
-        setVrewSegmentStatus() {}, isVoiceStudioVoice: () => false,
+        vrewSegmentStatus: {}, setVrewSegmentStatus() {}, isVoiceStudioVoice: () => false,
         setIsPlayingPreview: value => { state.playing = value }, setIsNarrationPlaying() {},
         setPreviewAudioError: value => state.errors.push(value),
         setHighlightSaveTts: value => state.highlights.push(value),
         setSelectedSubIndex() {}, setPlaybackTime() {}, stopPreviewBgm() {},
+        prepareSpeechPlayback: async () => { if (stopBeforePlayback) throw stopBeforePlayback },
         setMessage: value => state.messages.push(value), authedJsonHeaders: {},
         fetch: async (url, options) => {
             const body = JSON.parse(options.body)
@@ -78,6 +79,8 @@ function audioHarness({ missing = false, respond } = {}) {
     context.vrewSegmentCacheKey = extract('    const vrewSegmentCacheKey =', '    const vrewTextTokens =', 'vrewSegmentCacheKey', context)
     context.getSavedNarrationAudioUrl = extract('    const getSavedNarrationAudioUrl =', '    const hasStoredSegment =', 'getSavedNarrationAudioUrl', context)
     context.getOrCreateVrewSegmentAudioUrl = extract('    const getOrCreateVrewSegmentAudioUrl =', '    const prefetchVrewSegment =', 'getOrCreateVrewSegmentAudioUrl', context)
+    context.hasStoredSegment = () => false
+    context.prefetchVrewSegment = extract('    const prefetchVrewSegment =', '    const playVrewSegmentsFrom =', 'prefetchVrewSegment', context)
     context.playVrewSegmentsFrom = extract('    const playVrewSegmentsFrom =', '    const handleToggleVrewPlayback =', 'playVrewSegmentsFrom', context)
     return { context, requests, state, subtitles }
 }
@@ -103,6 +106,22 @@ test('mismatched full narration falls back to cache-only preview and prompts for
     assert.equal(h.state.highlights.at(-1), true)
     assert.match(h.state.messages.at(-1), /저장\+TTS/)
     assert(h.state.errors.every(message => !message), 'Missing audio is guidance, not a provider error')
+})
+
+test('Google free preview generates a missing clip, then reuses the saved recording', async () => {
+    const stopBeforeMediaPlayback = new Error('stop after generation')
+    const h = audioHarness({ voice: 'google_kr', stopBeforePlayback: stopBeforeMediaPlayback, respond: body => {
+        assert.equal(body.cache_only, false)
+        return Response.json({ success: true, cached: false, audio_url: 'blob:generated-google-clip' })
+    } })
+    h.context.prefetchVrewSegment(0)
+    assert.equal(h.requests.length, 0, 'An uncached Google clip is not marked as a speculative cache failure')
+    await assert.rejects(h.context.playVrewSegmentsFrom(0), stopBeforeMediaPlayback)
+    assert.equal(h.requests.length, 1)
+    assert.equal(h.requests[0].voice_id, 'google_kr')
+    assert.equal(h.requests[0].provider, 'google_free')
+    assert.equal(await h.context.getOrCreateVrewSegmentAudioUrl(h.subtitles[0], 0), 'blob:generated-google-clip')
+    assert.equal(h.requests.length, 1, 'Replay must use the generated clip without another TTS request')
 })
 
 test('the explicit timing correction action can still prepare audio when requested', async () => {

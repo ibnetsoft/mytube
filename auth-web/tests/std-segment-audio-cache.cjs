@@ -3,6 +3,7 @@ function load(file,deps={}){const exports={};new Function('require','exports',ts
 const gcs={isGcsConfiguredAsync:async()=>true,uploadGcsBuffer:async({objectPath,buffer})=>{if(failUpload)throw Error('GCS upload failed');stored.set(objectPath,buffer);uploads++;return {bucket:'air-studio-prod',path:objectPath}},downloadGcsObject:async({objectPath})=>{if(failDownload)throw Error('offline');return stored.get(objectPath)}};
 const helper=load('auth-web/lib/stdSegmentAudioCache.ts',{'@/lib/gcsStorage':gcs});
 const batches=load('auth-web/lib/stdNarrationBatch.ts');
+const mp3=load('auth-web/lib/stdJoinMp3.ts');
 const stored=new Map(); let failDownload=false; const claims=new Set();const assets=[];let generated=0,uploads=0,failUpload=false,providerHook=null;const removedClaims=[];
 const project={id:'10b3d223-1457-415a-ba40-7b947c6c1b3d',language:'ko'};
 const db={storage:{from:()=>({
@@ -21,9 +22,10 @@ const db={storage:{from:()=>({
     }
 })},from(table){let filters=[],inserted;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(k,v){if(k==='metadata->>cache_key')filters.push([k,v]);return q},neq(){return q},update(){return q},then(resolve){return Promise.resolve({data:table==='std_project_assets'?assets.filter(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v))):[],error:null}).then(resolve)},order(){return q},limit(){return q},insert(v){inserted=v;return q},async single(){const a={...inserted,id:String(assets.length+1)};assets.push(a);return {data:a}},async maybeSingle(){return {data:table==='std_projects'?project:assets.find(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v)))||null}}};return q}};
 function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts',{
+    '@/lib/stdRecordedSubtitleTiming':load('auth-web/lib/stdRecordedSubtitleTiming.ts'),
     '@/lib/gcsStorage':gcs,'@/lib/stdNarrationBatch':batches,
     'next/server':{NextResponse:{json:(data,options)=>({data,status:options?.status||200,ok:!options?.status||options.status<400,json:async()=>data})}},
-    '@/lib/stdStoredNarration':load('auth-web/lib/stdStoredNarration.ts',{'./stdJoinMp3':load('auth-web/lib/stdJoinMp3.ts')}),'@/lib/stdSegmentAudioCache':helper,'@/lib/supabaseAdmin':{supabaseAdmin:db},
+    '@/lib/stdStoredNarration':load('auth-web/lib/stdStoredNarration.ts',{'./stdNarrationMp3':{finalizeNarrationMp3:async clips=>({audioBuffer:mp3.joinMp3Segments(clips),durations:clips.map(mp3.mp3FrameDuration)})}}),'@/lib/stdSegmentAudioCache':helper,'@/lib/supabaseAdmin':{supabaseAdmin:db},
     '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'test@example.com',user:{id:'test'}}})},
     '@/lib/stdGoogleDrive':{driveFileLink:()=>'',ensureStdProjectDriveFolders:()=>{throw Error('Must not use Drive')}},
     '@/lib/stdVoiceStudio':{generateVoiceStudioMp3:async(input)=>{generated++;if(providerHook)await providerHook(input);const frame=Buffer.alloc(417);frame.set([0xff,0xfb,0x90,0x00]);return frame}},
@@ -140,6 +142,25 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  assert.equal(mixedFailure.status,500);assert.match(mixedFailure.data.error,/ElevenLabs API key/);
  assert.equal(mixedFailure.data.provider,'elevenlabs','Early failures without provider metadata inherit the failed subtitle provider, not the overall Google batch');
  assert.equal(mixedFailure.data.model_id,'eleven_multilingual_v2');
+ const originalFetch=global.fetch;const originalLanguage=project.language;let googleCalls=0;
+ try {
+   project.language='ja';
+   global.fetch=async url=>{
+     const request=new URL(url);assert.equal(request.hostname,'translate.google.com');assert.equal(request.searchParams.get('tl'),'ja');
+     googleCalls++;
+     const frame=Buffer.alloc(417);frame.set([0xff,0xfb,0x90,0x00]);
+     return new Response(frame,{headers:{'Content-Type':'audio/mpeg'}});
+   };
+   const googleBody={...body,text:'伏せろ！',voice_id:'google_kr',provider:'google_free',cache_only:false};
+   const firstGoogle=await call(route(),googleBody);
+   assert.equal(firstGoogle.status,200);assert.equal(firstGoogle.data.cached,false);assert.match(firstGoogle.data.audio_url,/assets\/file\?assetId=/);
+   assert.equal(googleCalls,1,'A missing Google preview generates one recording');
+   const savedGoogle=await call(route(),{...googleBody,cache_only:true});
+   assert.equal(savedGoogle.status,200);assert.equal(savedGoogle.data.cached,true);
+   assert.equal(savedGoogle.data.asset.id,firstGoogle.data.asset.id);
+   assert.equal(googleCalls,1,'The next preview uses the saved Google recording');
+ } finally {global.fetch=originalFetch;project.language=originalLanguage}
+ console.log('PASS: a missing Google free preview generates and persists one Japanese clip, then reuses it');
  console.log('PASS: definite Google rejection releases only its owned claim; timeout/failed storage retain duplicate-spend protection; batch errors identify the global subtitle and preserve successful clips');
  console.log('PASS: full narration reuses preview clips; unchanged repeat makes zero provider calls; text/voice change generates only one; unreadable cache fails before spending');
  console.log('PASS: cache bypass ignored; uncertain failure cannot spend credits again; persistent reuse across reload, Drive-only legacy regeneration, Korean/voice invalidation, save failure, no selection auto-generation');
