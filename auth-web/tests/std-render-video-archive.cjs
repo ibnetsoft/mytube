@@ -6,6 +6,7 @@ test('recovered video is archived before registration',async()=>{
  new Function('exports','require',ts.transpile(fs.readFileSync(path.join(root,'lib/stdComic.ts'),'utf8'),{module:1,target:7,esModuleInterop:true}))(comic,()=>require('../public/comic/layouts.json'));
  const db={storage:{from:()=>({download:async()=>({data:{arrayBuffer:async()=>Buffer.from('video')},error:null}),getPublicUrl:()=>({data:{publicUrl:'https://example.test/video'}})})},from:()=>({insert:row=>({select:()=>({single:async()=>{assert.equal(uploaded,true);return {data:{id:'asset',...row},error:null}}})})})};
  vm.runInNewContext(ts.transpile(fs.readFileSync(path.join(root,'lib/stdRenderQueue.ts'),'utf8'),{module:1,target:7}),{exports,Buffer,URL,console,require:name=>{
+ if (name.includes('stdNonverbal')) { const ex = {}; new Function('exports', ts.transpile(fs.readFileSync('lib/stdNonverbal.ts','utf8'),{module:1,target:7}))(ex); return ex }
  if(name==='crypto')return require('crypto');
  if(name.includes('supabaseAdmin'))return {supabaseAdmin:db};
  if(name.includes('stdComic'))return comic;

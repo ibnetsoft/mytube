@@ -1,3 +1,4 @@
+import { isNonverbalProject } from './stdNonverbal'
 import { savedSpeakerGeometry, coordinateCast, coordinateImage, coordinateVideo } from './stdSpeakerGeometry'
 import { dialogueSceneIndex, subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
 import { createHash } from 'crypto'
@@ -41,7 +42,7 @@ function approvedLayeredSource(source: any) {
 }
 
 export function aeMouthApplicable(project: any, scenes: any[]) {
-    return !isComicProject(project) && scenes.some(s => Number(s.scene_number) >= 19 || (project.project_payload?.subtitles || []).some((r: any) => Number(r.scene_number) === Number(s.scene_number) && r.dialogue_kind === 'dialogue'))
+    return !isNonverbalProject(project) && !isComicProject(project) && scenes.some(s => Number(s.scene_number) >= 19 || (project.project_payload?.subtitles || []).some((r: any) => Number(r.scene_number) === Number(s.scene_number) && r.dialogue_kind === 'dialogue'))
 }
 
 export function aeMouthInput(project: any, scenes: any[], assets: any[]) {

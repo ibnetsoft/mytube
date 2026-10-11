@@ -1,3 +1,4 @@
+import { NONVERBAL_MODE } from './stdNonverbal'
 import documentaryStyle from './japaneseHistoricalDocumentaryStyle.json'
 export type TopicSubmission = {
     title: string; youtube_url: string; story: string; character_notes: string;
@@ -35,7 +36,7 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     const language = text('language', 2, true)
     if (!['ko', 'en', 'ja', 'es'].includes(language)) throw new Error('대본 언어를 선택하세요.')
     const production_mode = text('production_mode', 20, true)
-    if (!['standard', 'moving_comic'].includes(production_mode)) throw new Error('제작 모드를 선택하세요.')
+    if (!['standard', 'moving_comic', NONVERBAL_MODE].includes(production_mode)) throw new Error('제작 모드를 선택하세요.')
     const ae_scene_delivery = input.ae_scene_delivery == null ? 'gcs' : text('ae_scene_delivery', 5, true)
     if (ae_scene_delivery !== 'gcs') throw new Error('AE 씬 영상은 GCS로만 전달할 수 있습니다.')
     const images = input.character_images || []
@@ -52,12 +53,15 @@ export function validateTopicSubmission(input: any): TopicSubmission {
         return { name: image.name.trim(), data: image.data }
     })
     const image_style = text('image_style', 80, true)
+    const nonverbal = production_mode === NONVERBAL_MODE
+    if (nonverbal && duration_minutes > 10) throw new Error('논버벌 유아 애니메이션은 1~10분입니다.')
+    if (nonverbal && ['sumi_e_ukiyo_e', 'jidaigeki_cel', 'realistic', 'cinematic', '3d'].includes(image_style)) throw new Error('논버벌 관절 애니메이션은 2D 애니메이션·일러스트 스타일을 선택하세요.')
     const documentary = image_style === documentaryStyle.image_style
     const folktale = image_style === 'jidaigeki_cel'
     return { title: text('title', 200, true), youtube_url, story: text('story', 2500, true),
         character_notes: text('character_notes', 1500), requirements: text('requirements', 1000),
         category: text('category', 80, true), duration_minutes: documentary ? 30 : duration_minutes, language: documentary || folktale ? 'ja' : language, input_language, production_mode: documentary ? 'standard' : production_mode, ae_scene_delivery,
-        script_style: documentary ? documentaryStyle.key : 'story',
+        script_style: nonverbal ? NONVERBAL_MODE : documentary ? documentaryStyle.key : 'story',
         setting_country: documentary || folktale ? '일본' : text('setting_country', 80, true), era_region: text('era_region', 120, true),
         image_style, transcript: text('transcript', 40000), character_images }
 }

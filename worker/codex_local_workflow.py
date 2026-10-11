@@ -71,6 +71,21 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
         notify('승인된 개선 지침 적용 · 작성 및 검수')
     from worker.japanese_historical_documentary import prepare_request
     request = prepare_request(request)
+    from worker.nonverbal_preschool import applies, MODE
+    source_nonverbal = bool(snapshot and applies(snapshot.get('structure') or {}))
+    if applies(request) or source_nonverbal:
+        if request['mode'] not in ('new','repair'):
+            raise ValueError('논버벌 모드는 신규 생성·논버벌 기획 수정에서 사용하세요.')
+        source = snapshot or {}
+        old = source.get('structure') or {}
+        seconds = request.get('duration_seconds') or (old.get('target_duration_seconds') if source_nonverbal else None) or request['duration_minutes'] * 60
+        payload = {**request,'production_mode':MODE,'topic':request.get('title') or source.get('summary',{}).get('title',''),
+                   'target_duration_seconds':seconds,'user_direction':request.get('notes',''),
+                   'existing_nonverbal_plan':old if source_nonverbal else {}}
+        package = runner.generate('local-' + identity, payload, script_only=True)
+        package['script_style'] = MODE
+        if source.get('fingerprint'): package['source_fingerprint'] = source['fingerprint']
+        return package
     moving = request.get('production_mode') == 'moving_comic'
     if moving:
         from worker.comic_plan import DIRECTIVE, plan_comic

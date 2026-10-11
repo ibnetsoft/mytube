@@ -1,3 +1,4 @@
+import { isNonverbalProject } from '@/lib/stdNonverbal'
 import { attachSfxAssets, sharedSfxCatalog } from '@/lib/stdAiSfx'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
@@ -190,6 +191,8 @@ export async function POST(req: Request, { params }: { params: { topicId: string
             image_style: summary.image_style,
             source_payload: topic,
             project_payload: {
+                production_mode: isNonverbalProject(topic) ? 'nonverbal_preschool' : (topic.pregenerated_structure?.production_mode || 'standard'),
+                action_script: topic.progress_payload?.action_script || '',
                 script: firstText(topic.pregenerated_script),
                 original_worker_script: firstText(topic.pregenerated_script),
                 structure: projectStructure,
@@ -211,7 +214,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
                 thumbnail_hook_reasoning: topic.progress_payload?.thumbnail_hook_reasoning || '',
                 thumbnail_image_prompt: topic.progress_payload?.thumbnail_image_prompt || '',
                 thumbnail_bg_url: topic.progress_payload?.thumbnail_bg_url || '',
-                render_settings: { ...subtitleDefaults, ae_scene_delivery: aeSceneDelivery },
+                render_settings: { ...subtitleDefaults, ae_scene_delivery: aeSceneDelivery, ...(isNonverbalProject(topic) ? { speech_enabled:false, subtitles_enabled:false, worker_tts_enabled:false } : {}) },
             },
             progress_payload: {
                 scene_count: summary.scene_count,

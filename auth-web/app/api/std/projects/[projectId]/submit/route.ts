@@ -1,3 +1,4 @@
+import { isNonverbalProject, hasReadyNonverbalPlan } from '@/lib/stdNonverbal'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
@@ -152,7 +153,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             error: 'Project has no scenes to render',
         }, { status: 409 })
     }
-    if (project.progress_payload?.script_changed_requires_audio_regeneration) {
+    if (!isNonverbalProject(project) && project.progress_payload?.script_changed_requires_audio_regeneration) {
         return NextResponse.json({
             success: false,
             error: '대본이 변경되었습니다. 새 대본으로 TTS를 다시 생성한 뒤 렌더링해 주세요.',
@@ -162,7 +163,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     let assets = loadedAssets || []
     try {
         assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
-        assets = await recoverStoredTtsAsset(project, assets)
+        if (!isNonverbalProject(project)) assets = await recoverStoredTtsAsset(project, assets)
     } catch (archiveError: any) {
         return NextResponse.json({
             success: false,
@@ -180,6 +181,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     )
     const missingScenes = (scenes || []).filter((scene: any) => {
         const sceneNumber = Number(scene.scene_number)
+        if (isNonverbalProject(project)) return !hasReadyNonverbalPlan(project) || !visualAssets.some((a: any) =>
+            Number(a.scene_number) === sceneNumber && a.asset_type === 'video' && hasStoredAssetFile(a)
+            && a.metadata?.postprocess_mode === 'region_motion' && a.metadata?.reviewed_by_user === true)
         return isStdVideoPromptScene(sceneNumber, project)
             ? !activeVideoSceneNumbers.has(sceneNumber)
             : !activeSceneNumbers.has(sceneNumber)
@@ -199,7 +203,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         String(asset.asset_type || '').toLowerCase() === 'audio'
         && hasStoredAssetFile(asset)
     )
-    if (!hasAudioAsset) {
+    if (!isNonverbalProject(project) && !hasAudioAsset) {
         return NextResponse.json({
             success: false,
             error: 'TTS audio is required before submitting for render',

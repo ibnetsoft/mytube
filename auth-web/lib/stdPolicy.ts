@@ -1,3 +1,4 @@
+import { isNonverbalProject } from './stdNonverbal'
 import { isComicProject } from './stdComic'
 
 // Legacy projects were authored with 18 required video scenes. New script-worker
@@ -18,7 +19,7 @@ function structureFrom(value: any): any {
 }
 
 export function stdRequiredVideoSceneCount(projectOrTopic?: any): number {
-    if (isComicProject(projectOrTopic)) return 0
+    if (isComicProject(projectOrTopic) || isNonverbalProject(projectOrTopic)) return 0
     const projectPayload = projectOrTopic?.project_payload || {}
     const sourcePayload = projectOrTopic?.source_payload || {}
     const progressPayload = projectOrTopic?.progress_payload || {}

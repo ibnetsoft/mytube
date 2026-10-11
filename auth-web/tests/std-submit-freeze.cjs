@@ -13,7 +13,8 @@ test('first submission is frozen before asynchronous AE work is accepted',async(
   then(resolve){if(table==='std_project_scenes')resolve({data:scenes,error:null});else if(table==='std_projects'&&patch){Object.assign(project,patch);resolve({data:[project],error:null})}else resolve({data:[],error:null})},
  };return q}};
  const ex={};new Function('exports','require',ts.transpile(fs.readFileSync('app/api/std/projects/[projectId]/submit/route.ts','utf8'),{module:1,target:7}))(ex,name=>{
-  if(name==='next/server')return {NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
+  if (name.includes('stdNonverbal')) { const ex = {}; new Function('exports', ts.transpile(fs.readFileSync('lib/stdNonverbal.ts','utf8'),{module:1,target:7}))(ex); return ex }
+ if(name==='next/server')return {NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:db};
   if(name.includes('stdProjectAssets'))return {loadStdProjectAssets:async()=>({data:assets,error:null})};
   if(name.includes('stdWeb'))return {requireStdUser:async()=>({ok:true,requester:{email:'owner@test',user:{id:'user'}}})};

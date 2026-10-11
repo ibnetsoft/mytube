@@ -6,7 +6,8 @@ function fixture({ready=false,applicable=true,closed=false,queueError='',largePr
  if(largeProject){assets.push(...Array.from({length:1100},(_,id)=>({id:`audio-${id}`,asset_type:'audio'})),{id:'original-5',asset_type:'video',scene_number:5,metadata:{gcs_path:'clip.mp4'}});}
  const db={from(table){calls.push(table);let updating=false;const q={select:()=>q,eq:()=>q,in:()=>q,order:()=>q,range:(start,end)=>Promise.resolve({data:assets.slice(start,end+1),error:null}),update:()=>{updating=true;return q;},maybeSingle:async()=>({data:updating?{id:'p'}:project}),then(resolve){resolve({data:table==='std_project_scenes'?[{scene_number:19}]:assets});}};return q;}};
  const ex={};new Function('exports','require',ts.transpile(fs.readFileSync('app/api/std/projects/[projectId]/submit/route.ts','utf8'),{module:1,target:7}))(ex,name=>{
-  if(name==='next/server')return {NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
+  if (name.includes('stdNonverbal')) { const ex = {}; new Function('exports', ts.transpile(fs.readFileSync('lib/stdNonverbal.ts','utf8'),{module:1,target:7}))(ex); return ex }
+ if(name==='next/server')return {NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:db};
   if(name.includes('stdProjectAssets')){const helper={};new Function('exports','require',ts.transpile(fs.readFileSync('lib/stdProjectAssets.ts','utf8'),{module:1,target:7}))(helper,dep=>{
    if(dep.includes('stdGeneratedSpeakerGeometry'))return {appendGeneratedSpeakerAssets:async(db,ids,assets)=>assets};throw Error(dep);

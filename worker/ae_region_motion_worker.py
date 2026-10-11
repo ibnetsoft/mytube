@@ -20,6 +20,12 @@ from ae_region_motion import render, validate_input
 
 
 def timeline(project, number):
+    structure=(project.get('project_payload') or {}).get('structure') or {}
+    if structure.get('production_mode') == 'nonverbal_preschool':
+        scene=next((s for s in structure.get('scenes',[]) if s.get('scene_number')==number),None)
+        if scene and scene.get('joint_motion_plan',{}).get('contract')=='ae_joint_rig/v1':
+            t=scene['scene_timeline']
+            return {'duration':t['duration'],'subtitles':t['cues']}
     rows=[]
     for i,r in enumerate((project.get('project_payload') or {}).get('subtitles',[])):
         if int(r.get('scene_number') or 0)!=number:continue

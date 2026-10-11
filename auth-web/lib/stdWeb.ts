@@ -1,3 +1,4 @@
+import { isNonverbalProject } from './stdNonverbal'
 import { NextResponse } from 'next/server'
 import { createClient, type User } from '@supabase/supabase-js'
 import { isPreparedUserTopic } from './preparedTopic'
@@ -315,7 +316,7 @@ export function buildStdScenes(topic: any) {
             return {
                 scene_number: normalizedSceneNumber,
                 scene_title: firstText(scene?.scene_title, scene?.title, `Scene ${index + 1}`),
-                scene_text: sceneText,
+                scene_text: isNonverbalProject(topic) ? '' : sceneText,
                 duration_seconds: Number(scene?.duration_seconds || scene?.target_duration)
                     || (durationSchedule.length === sceneCount
                         ? durationSchedule[normalizedSceneNumber - 1]?.duration_seconds
@@ -324,7 +325,7 @@ export function buildStdScenes(topic: any) {
                 video_prompt: videoPrompt,
                 visual_type: requiresVideoPrompt ? 'video' : 'image',
                 video_prompt_required: requiresVideoPrompt,
-                video_generation_mode: requiresVideoPrompt ? 'user_upload' : 'image',
+                video_generation_mode: isNonverbalProject(topic) ? 'ae_joint_rig' : requiresVideoPrompt ? 'user_upload' : 'image',
                 transition_to_next: requiresVideoPrompt
                     ? firstText(scene?.transition_to_next, scene?.video_keyframe_plan?.mode, 'cut')
                     : '',

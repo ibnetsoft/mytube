@@ -6,6 +6,8 @@ import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
+import StdNonverbalPlan from '@/components/StdNonverbalPlan'
+import { isNonverbalProject } from '@/lib/stdNonverbal'
 import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
 import { isComicProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
@@ -8931,7 +8933,8 @@ export default function StdPortalPage() {
                         </div>
                     )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
-                    {currentNav === 'subtitle_vrew' && selectedProject && (() => {
+                    {selectedProject && isNonverbalProject(selectedProject.project) && ['script_plan','script_gen','tts','subtitle_vrew'].includes(currentNav) && <StdNonverbalPlan project={selectedProject.project} headers={authedJsonHeaders} locale={currentLocale} onApplied={() => void openProject(selectedProject.project.id, undefined, undefined, true)} />}
+                    {currentNav === 'subtitle_vrew' && selectedProject && !isNonverbalProject(selectedProject.project) && (() => {
                         const isVrewSubtitleMode = true
                         const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
                             id: 'sub-0',
@@ -10430,7 +10433,7 @@ export default function StdPortalPage() {
                     })()}
 
                     {/* [TTS 음성 생성 탭] */}
-                    {currentNav === 'tts' && selectedProject && (
+                    {currentNav === 'tts' && selectedProject && !isNonverbalProject(selectedProject.project) && (
                         <div className="space-y-4 max-w-7xl mx-auto w-full flex flex-col h-full">
                             <div className="bg-[#181d26] border border-white/10 rounded-xl p-3 shadow-md flex flex-wrap items-center justify-between gap-3 shrink-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -12527,7 +12530,7 @@ export default function StdPortalPage() {
                     {/* [설정 탭 (유저앱 settings.html과 100% 동일 구현)] */}
                     
                     {/* [기획 탭 (유저앱 script_plan.html 완벽 대응)] */}
-                    {currentNav === 'script_plan' && selectedProject && (
+                    {currentNav === 'script_plan' && selectedProject && !isNonverbalProject(selectedProject.project) && (
                         <div className="space-y-5 max-w-7xl mx-auto w-full flex flex-col h-full pb-10">
                             {/* 상단 툴바 */}
                             <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 shrink-0">
@@ -12613,7 +12616,7 @@ export default function StdPortalPage() {
 
 
                     {/* [대본 탭 (유저앱 script_gen.html 완벽 대응)] */}
-                    {currentNav === 'script_gen' && selectedProject && (
+                    {currentNav === 'script_gen' && selectedProject && !isNonverbalProject(selectedProject.project) && (
                         <div className="space-y-5 max-w-7xl mx-auto w-full flex flex-col h-full pb-10">
                             {/* 상단 툴바 */}
                             <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4 shrink-0">

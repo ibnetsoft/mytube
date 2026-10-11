@@ -210,7 +210,18 @@ if ($('new-language')) {
   $('new-style').onchange = window.updateNewSettingSummary;
   window.updateNewSettingSummary();
 }
-$('production-mode').onchange=()=>{if($('production-mode').value==='moving_comic'&&$('new-style').value==='실사'){$('new-style').value='웹툰';window.updateNewSettingSummary();}};
+function syncNonverbalMode(){
+ const enabled=$('production-mode').value==='nonverbal_preschool',form=$('new-form');
+ form.elements.duration.max=enabled?'10':'60';
+ if(enabled){
+  if(Number(form.elements.duration.value)>10)form.elements.duration.value='3';
+  $('new-style').value='애니메이션';$('new-script-style').value='nonverbal_preschool';
+  $('image-layer-mode').value='full_psd';form.elements.required_video_scene_count.value='0';
+ }else if($('new-script-style').value==='nonverbal_preschool'){$('new-script-style').value='story';}
+ let help=$('nonverbal-help');if(!help){help=element('p','대사·나레이션 없이 행동 이야기와 재사용 부품, 시간별 관절 연출을 만듭니다. 실제 원화·음악·효과음·AE 결과 검수는 후속 단계입니다.','callout');help.id='nonverbal-help';form.prepend(help)}
+ help.hidden=!enabled;window.updateNewSettingSummary();
+}
+$('production-mode').onchange=()=>{syncNonverbalMode();if($('production-mode').value==='moving_comic'&&$('new-style').value==='실사'){$('new-style').value='웹툰';window.updateNewSettingSummary();}};
 if($('image-layer-mode')){
   const grid=$('image-layer-mode').closest('.form-grid');
   const makeRangeInput=(name,text,placeholder)=>{
@@ -237,7 +248,7 @@ $('new-form').onsubmit=e=>{
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
     image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
     image_layer_scene_end:form.get('image_layer_scene_end')?Number(form.get('image_layer_scene_end')):null,
-    required_video_scene_count:Number(form.get('required_video_scene_count')||18),
+    required_video_scene_count:Number(form.get('required_video_scene_count')??18),
     title:form.get('title'),
     category,
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',
@@ -263,6 +274,7 @@ async function showJob(id,origin='dedicated'){const revision=++resultRevision;tr
   $('result').hidden=false;
   $('result-title').textContent=data.job.title;
   let statusText = (labels[data.job.status]||data.job.status)+' · '+data.job.stage+(data.job.error?' · '+data.job.error:'');
+  if(data.result_data?.production_mode==='nonverbal_preschool')statusText+=' · 논버벌 행동 기획 · 발화 없음';
   const directionProfile=data.result_data?.structure?.direction_profile;
   if(directionProfile?.label)statusText+=' · 연출 '+directionProfile.label;
   if(data.sfx_summary&&data.sfx_summary.status!=='not_run') statusText+=' · 효과음 '+data.sfx_summary.status+' / '+data.sfx_summary.count+'개 / 재검토 '+data.sfx_summary.review_count+'개';
@@ -289,6 +301,9 @@ window.categoriesReady=api('categories').then(data=>{const options=data.items.ma
 refresh();setInterval(()=>{if(document.hidden)return;refresh();if(selectedJob&&!$('view-jobs').hidden)showJob(selectedJob.id,selectedJob.origin);},10000);
 
 if ($('new-script-style')) $('new-script-style').onchange = () => {
+  if($('new-script-style').value==='nonverbal_preschool'){$('production-mode').value='nonverbal_preschool';syncNonverbalMode();return;}
+  if($('production-mode').value==='nonverbal_preschool'){$('production-mode').value='standard';syncNonverbalMode();}
+
   if ($('new-script-style').value === 'japanese_historical_documentary') {
     $('new-language').value = 'ja';
     $('new-country').value = '일본';

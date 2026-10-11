@@ -35,7 +35,15 @@ const finite = (value: unknown, min: number, max: number) =>
     value <= max
 const point = (p: any): p is MotionPoint =>
     Array.isArray(p) && p.length === 2 && p.every((n) => finite(n, 0, 1))
-export function motionSceneTimeline(subtitles: any[], number: number) {
+export function motionSceneTimeline(subtitles: any[], number: number, nonverbalScene?: any) {
+    if (nonverbalScene?.joint_motion_plan?.contract === 'ae_joint_rig/v1' && nonverbalScene?.scene_timeline) {
+        const t = nonverbalScene.scene_timeline
+        if (!finite(t.duration, .1, 300) || !Array.isArray(t.cues)) throw new Error('행동 타임라인을 확인해 주세요.')
+        return { duration: t.duration as number, subtitles: t.cues.map((c: any) => {
+            if (typeof c.id !== 'string' || !finite(c.start,0,t.duration) || !finite(c.end,c.start,t.duration)) throw new Error('행동 시작점이 올바르지 않습니다.')
+            return {id:c.id, text:String(c.text || '행동 시작'), start:c.start as number, end:c.end as number}
+        }) }
+    }
     const rows = subtitles
         .map((r, i) => ({
             id: String(r.id || `index-${i}`),

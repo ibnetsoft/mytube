@@ -17,7 +17,8 @@ function load(relativePath, dependencies = {}, cache = new Map()) {
         compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
     }).outputText
     new Function('exports', 'require', compiled)(exports, name => {
-        if (name in dependencies) return dependencies[name]
+        if (name.includes('stdNonverbal')) { const ex = {}; new Function('exports', ts.transpile(fs.readFileSync('lib/stdNonverbal.ts','utf8'),{module:1,target:7}))(ex); return ex }
+ if (name in dependencies) return dependencies[name]
         if (name === 'crypto') return require('node:crypto')
         if (name.endsWith('stdGeneratedSceneStorage') || name.endsWith('stdPolicy') || name.endsWith('stdComic')) {
             return load(`lib/${name.split('/').pop()}.ts`, dependencies, cache)

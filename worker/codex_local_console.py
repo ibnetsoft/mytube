@@ -298,8 +298,8 @@ class StartRequest(BaseModel):
     setting_country: str = Field(default='', max_length=80)
     era_region: str = Field(default='현대 지방 소도시', max_length=120)
     image_style: str = Field(default='실사', max_length=80)
-    script_style: Literal['story', 'japanese_historical_documentary'] = 'story'
-    production_mode: Literal['standard', 'moving_comic'] = 'standard'
+    script_style: Literal['story', 'japanese_historical_documentary', 'nonverbal_preschool'] = 'story'
+    production_mode: Literal['standard', 'moving_comic', 'nonverbal_preschool'] = 'standard'
     direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
@@ -318,6 +318,12 @@ class StartRequest(BaseModel):
 
     @model_validator(mode='after')
     def validate_image_layer_scene_range(self):
+        if self.production_mode == 'nonverbal_preschool':
+            if self.duration_minutes > 10 or (self.duration_seconds and self.duration_seconds > 600):
+                raise ValueError('논버벌 유아 애니메이션은 1~10분으로 설정하세요.')
+            self.script_style = 'nonverbal_preschool'
+            self.required_video_scene_count = 0
+            self.image_layer_mode = 'full_psd'
         start, end = self.image_layer_scene_start, self.image_layer_scene_end
         if (start is None) != (end is None):
             raise ValueError('레이어 생성 시작 씬과 종료 씬을 함께 입력하세요.')
@@ -507,7 +513,7 @@ class Jobs:
             write_json(self.root / identity / 'candidate.json', candidate)
             if candidate.get('sfx_plan'):
                 write_json(self.root / identity / 'sfx-plan.json', candidate['sfx_plan'])
-            (self.root / identity / 'candidate.md').write_text(candidate['script'], encoding='utf-8')
+            (self.root / identity / 'candidate.md').write_text(candidate.get('action_script') or candidate['script'], encoding='utf-8')
             self.update(identity, status='completed' if request.mode == 'topics' else 'awaiting_approval',
                         stage='토픽 후보 저장 · 선택 가능' if request.mode == 'topics' else '초안 저장 · 검토 대기',
                         candidate_hash=digest(candidate), remaining=candidate.get('remaining', []))
@@ -920,7 +926,7 @@ def job_detail(bundle):
         'label': '배경 설정 저장 완료 (실제 이미지 생성은 후속 단계에서 적용)',
         'summary': content_setting.get('summary_label') if content_setting else '',
     }
-    return {'job': job_row, 'script': candidate.get('script', ''),
+    return {'job': job_row, 'script': candidate.get('action_script') or candidate.get('script', ''),
             'content_setting': content_setting, 'image_stage_info': image_stage_info,
             'sfx_summary': {'status': (candidate.get('sfx_plan') or {}).get('status', 'not_run'),
                             'count': len(candidate.get('sfx_cues') or []),

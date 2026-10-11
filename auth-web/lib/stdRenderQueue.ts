@@ -1,3 +1,4 @@
+import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from './stdNonverbal'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
 import { reviewedAeMouthAssets } from './stdAeMouth'
@@ -525,11 +526,36 @@ async function downloadRenderAudio(asset: any): Promise<Buffer> {
     throw new Error('렌더용 오디오 파일의 GCS 저장 정보가 없습니다.')
 }
 
+function nonverbalTiming(project: any, scenes: any[]) {
+    if (!hasReadyNonverbalPlan(project)) throw new Error('논버벌 장면 기획 검증이 필요합니다.')
+    const plan = nonverbalStructure(project).scenes
+    if (scenes.length !== plan.length || scenes.some((s: any, i: number) => Number(s.scene_number) !== plan[i].scene_number)) throw new Error('논버벌 장면 순서가 기획과 다릅니다.')
+    let duration = 0
+    const starts = plan.map((s: any) => { const start = duration; duration += s.duration_seconds; return start })
+    if (duration < 60 || duration > 600) throw new Error('논버벌 영상 길이는 1~10분이어야 합니다.')
+    return { starts, duration }
+}
+async function renderAudioAsset(project: any, scenes: any[], assets: any[]) {
+    if (!isNonverbalProject(project)) return assets.find(isAudioAsset)
+    const { duration } = nonverbalTiming(project, scenes)
+    // Explicit silence supplies the renderer's audio clock without generating speech.
+    const bytes = duration * 16000 * 2
+    const wav = Buffer.alloc(44 + bytes)
+    wav.write('RIFF', 0); wav.writeUInt32LE(36 + bytes, 4); wav.write('WAVEfmt ', 8)
+    wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22)
+    wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34)
+    wav.write('data', 36); wav.writeUInt32LE(bytes, 40)
+    const path = `std-projects/${project.id}/nonverbal/silence-${duration}.wav`
+    await uploadGcsBuffer({ objectPath: path, data: wav, contentType: 'audio/wav' })
+    return { file_name: 'nonverbal-silence.wav', mime_type: 'audio/wav', file_size: wav.length,
+        metadata: { gcs_bucket: gcsBucketName(), gcs_path: path, storage_provider: 'gcs', duration_seconds: duration } }
+}
+
 async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
     const entries: ZipEntry[] = []
     const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
-    const audioAsset = activeAssets.find(isAudioAsset)
+    const audioAsset = await renderAudioAsset(project, scenes, activeAssets)
 
     if (!storageSourceForAsset(audioAsset)) {
         throw new Error('렌더용 오디오 파일이 없습니다. GCS 저장 정보가 필요합니다.')
@@ -569,11 +595,11 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         images.push(filename)
     }
 
-    const subtitles = buildRenderSubtitles(project, scenes)
-    const imageTimingStarts = isComicProject(project)
+    const subtitles = isNonverbalProject(project) ? [] : buildRenderSubtitles(project, scenes)
+    const imageTimingStarts = isNonverbalProject(project) ? nonverbalTiming(project, scenes).starts : isComicProject(project)
         ? comicSceneTimings(scenes, subtitles).map(scene => scene.start)
         : buildSceneTimingStarts(scenes, subtitles)
-    const workerTts = buildWorkerTtsPlan(project, subtitles)
+    const workerTts = isNonverbalProject(project) ? null : buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -628,21 +654,21 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         project_id: pseudoProjectId,
         project_name: project.title || `Project ${pseudoProjectId}`,
         email: project.employee_email || 'unknown',
-        use_subtitles: true,
+        use_subtitles: !isNonverbalProject(project),
         resolution: '1080p',
         aspect_ratio: '16:9',
         speech_gain_version: 1,
         audio_filename: audioFilename,
-        audio_duration: project.progress_payload?.audio_duration || null,
+        audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : project.progress_payload?.audio_duration || null,
         images,
         subtitles,
         worker_tts: workerTts,
         subtitle_sync_mode: 'preserve_subtitle_timings',
-        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed) },
+        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed), ...(isNonverbalProject(project) ? {timing_locked_indices: scenes.map((_: any, i: number) => i)} : {}) },
         image_timing_starts: imageTimingStarts,
         scene_numbers: scenes.map((scene: any) => Number(scene.scene_number)),
         image_effects: scenes.map(sceneMotion),
-        transition_effects: scenes.map((scene: any) => String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
+        transition_effects: scenes.map((scene: any) => isNonverbalProject(project) ? 'none' : String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),
         bg_video_url: null,
         intro_filename: null,
@@ -669,11 +695,11 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
 }
 
 async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
-    const lipAssets = new Map([...reviewedLipSyncAssets(project, scenes, assets), ...reviewedAeMouthAssets(project, scenes, assets)])
-    const recordedTiming = lipSyncEnabled(project) || Boolean(project.project_payload?.ae_mouth?.enabled)
+    const lipAssets = isNonverbalProject(project) ? new Map<number, any>() : new Map([...reviewedLipSyncAssets(project, scenes, assets), ...reviewedAeMouthAssets(project, scenes, assets)])
+    const recordedTiming = !isNonverbalProject(project) && (lipSyncEnabled(project) || Boolean(project.project_payload?.ae_mouth?.enabled))
     const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
-    const audioAsset = activeAssets.find(isAudioAsset)
+    const audioAsset = await renderAudioAsset(project, scenes, activeAssets)
 
     if (!storageSourceForAsset(audioAsset)) {
         throw new Error('렌더용 오디오 파일이 없습니다. GCS 저장 정보가 필요합니다.')
@@ -681,7 +707,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
 
     const manifestFiles: any[] = []
     const templateSettings = { ...project.project_payload?.settings, ...project.project_payload?.render_settings }
-    const overlayPng = await templateOverlayPng(templateSettings)
+    const overlayPng = isNonverbalProject(project) ? null : await templateOverlayPng(templateSettings)
     let templateOverlayFilename: string | null = null
     if (overlayPng) {
         templateOverlayFilename = 'std_template_overlay.png'
@@ -737,11 +763,11 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         })
     }
 
-    const subtitles = buildRenderSubtitles(project, scenes)
-    const imageTimingStarts = recordedTiming ? lipSyncSceneStarts(project, scenes, audioAsset) : isComicProject(project)
+    const subtitles = isNonverbalProject(project) ? [] : buildRenderSubtitles(project, scenes)
+    const imageTimingStarts = isNonverbalProject(project) ? nonverbalTiming(project, scenes).starts : recordedTiming ? lipSyncSceneStarts(project, scenes, audioAsset) : isComicProject(project)
         ? comicSceneTimings(scenes, subtitles).map(scene => scene.start)
         : buildSceneTimingStarts(scenes, subtitles)
-    const workerTts = recordedTiming ? null : buildWorkerTtsPlan(project, subtitles)
+    const workerTts = isNonverbalProject(project) || recordedTiming ? null : buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -784,7 +810,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         })
     }
 
-    if ((project.project_payload?.subtitles || []).some((subtitle: any) => subtitle.restored_audio_pending)) {
+    if (!isNonverbalProject(project) && (project.project_payload?.subtitles || []).some((subtitle: any) => subtitle.restored_audio_pending)) {
         throw new Error('복구된 씬의 음성이 아직 없습니다. 음성 복구와 타이밍 확인 후 렌더링해 주세요.')
     }
     const savedSfxCues = Array.isArray(projectRenderSettings.sfx_cues)
@@ -883,23 +909,23 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         project_id: pseudoProjectId,
         project_name: project.title || `Project ${pseudoProjectId}`,
         email: project.employee_email || 'unknown',
-        use_subtitles: true,
+        use_subtitles: !isNonverbalProject(project),
         resolution: '1080p',
         aspect_ratio: '16:9',
         speech_gain_version: 1,
         audio_filename: audioFilename,
-        audio_duration: recordedTiming
+        audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : recordedTiming
             ? Number(audioAsset.metadata.subtitle_timeline[audioAsset.metadata.subtitle_timeline.length - 1].end)
             : project.progress_payload?.audio_duration || null,
         images,
         subtitles,
         worker_tts: workerTts,
         subtitle_sync_mode: 'preserve_subtitle_timings',
-        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed), timing_locked_indices: scenes.flatMap((s: any, i: number) => lipAssets.has(Number(s.scene_number)) ? [i] : []) },
+        render_settings: { ...renderSettings, scene_motion_speeds: scenes.map(sceneMotionSpeed), timing_locked_indices: scenes.flatMap((s: any, i: number) => isNonverbalProject(project) || lipAssets.has(Number(s.scene_number)) ? [i] : []) },
         image_timing_starts: imageTimingStarts,
         scene_numbers: scenes.map((scene: any) => Number(scene.scene_number)),
         image_effects: scenes.map(sceneMotion),
-        transition_effects: scenes.map((scene: any, i: number) => lipAssets.has(Number(scene.scene_number)) || (i > 0 && lipAssets.has(Number(scenes[i - 1].scene_number))) ? 'none' : String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
+        transition_effects: scenes.map((scene: any, i: number) => isNonverbalProject(project) || lipAssets.has(Number(scene.scene_number)) || (i > 0 && lipAssets.has(Number(scenes[i - 1].scene_number))) ? 'none' : String(scene?.metadata?.transition_effect || scene?.transition_effect || '')),
         focal_point_ys: images.map(() => 0.5),
         bg_video_url: null,
         intro_filename: null,

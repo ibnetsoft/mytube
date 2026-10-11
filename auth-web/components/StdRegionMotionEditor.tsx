@@ -16,6 +16,7 @@ type Scene = {
     imageId: string
     duration: number
     subtitles: { id: string; text: string; start: number; end: number }[]
+    rigRegions?: RegionMotion[]
     plan?: any
     layerDraft?: any
 }
@@ -78,7 +79,7 @@ export default function StdRegionMotionEditor({
             s.layerDraft?.editorRegions ||
                 (s.plan?.input?.image?.id === s.imageId
                     ? s.plan.input.regions
-                    : []),
+                    : s.rigRegions || []),
         )
         setLayerPackageId('')
         setBackgroundAssetId(

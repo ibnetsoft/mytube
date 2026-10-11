@@ -1,3 +1,4 @@
+import { isNonverbalProject, hasReadyNonverbalPlan } from './stdNonverbal'
 import { stdRequiredVideoSceneCount } from './stdPolicy'
 
 export type PreparedTopicLike = {
@@ -16,6 +17,7 @@ export type PreparedTopicLike = {
 }
 
 export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
+    if (isNonverbalProject(topic)) return topic?.pregenerated_structure_status === 'ready' && hasReadyNonverbalPlan(topic)
     const structure = topic?.pregenerated_structure
     const scenes = Array.isArray(structure?.scenes) ? structure.scenes : []
     if (topic?.pregenerated_structure_status !== 'ready' || !structure || scenes.length === 0) return false
@@ -75,7 +77,7 @@ export function hasPublishDescription(topic: PreparedTopicLike): boolean {
 
 export function isPreparedUserTopic(topic: PreparedTopicLike): boolean {
     const scriptReady = topic?.pregenerated_script_status === 'ready'
-        && String(topic?.pregenerated_script || '').trim().length > 0
+        && (isNonverbalProject(topic) ? hasReadyNonverbalPlan(topic) && !String(topic?.pregenerated_script || '').trim() : String(topic?.pregenerated_script || '').trim().length > 0)
     const structureReady = topic?.pregenerated_structure_status === 'ready'
         && Boolean(topic?.pregenerated_structure)
 

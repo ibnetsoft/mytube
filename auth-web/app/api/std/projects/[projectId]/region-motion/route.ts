@@ -11,6 +11,12 @@ import {
 } from '@/lib/stdRegionMotion'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
+function sceneTimeline(project: any, number: number) {
+    const structure = project.project_payload?.structure || {}
+    const nonverbal = structure.production_mode === 'nonverbal_preschool'
+    const scene = nonverbal ? structure.scenes?.find((s: any) => Number(s.scene_number) === number) : undefined
+    return motionSceneTimeline(project.project_payload?.subtitles || [], number, scene)
+}
 async function context(req: Request, id: string) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return { response: auth.response }
@@ -70,10 +76,8 @@ function scenes(ctx: any) {
                     ? layerDraft.metadata
                     : null,
             imageId: image.id,
-            ...motionSceneTimeline(
-                ctx.project.project_payload?.subtitles || [],
-                number,
-            ),
+            rigRegions: ctx.project.project_payload?.structure?.production_mode === 'nonverbal_preschool' ? ctx.project.project_payload.structure.scenes?.find((s: any) => Number(s.scene_number) === number)?.joint_motion_plan?.regions : undefined,
+            ...sceneTimeline(ctx.project, number),
             plan: plan
                 ? { id: plan.id, updatedAt: plan.updated_at, ...plan.metadata }
                 : null,
@@ -187,10 +191,7 @@ export async function POST(
                 latest.plan?.id !== plan.id ||
                 latest.imageId !== saved.image.id ||
                 JSON.stringify(
-                    motionSceneTimeline(
-                        fresh.project.project_payload?.subtitles || [],
-                        number,
-                    ),
+                    sceneTimeline(fresh.project, number),
                 ) !== JSON.stringify(saved.timeline)
             )
                 throw new Error(
@@ -229,10 +230,7 @@ export async function POST(
             throw new Error('지원하지 않는 작업입니다.')
         if (body.imageId !== image.id)
             throw new Error('원본 이미지가 변경됐습니다. 다시 불러와 주세요.')
-        const timeline = motionSceneTimeline(
-            ctx.project.project_payload?.subtitles || [],
-            number,
-        )
+        const timeline = sceneTimeline(ctx.project, number)
         const regions =
             body.action === 'save' &&
             Array.isArray(body.regions) &&

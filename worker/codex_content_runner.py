@@ -1976,6 +1976,10 @@ def _parse_json(text: str) -> dict[str, Any]:
 
 
 def _validate_package(package: dict[str, Any], payload: dict[str, Any] | None = None) -> None:
+    from worker.nonverbal_preschool import applies, validate_package
+    if applies(package) or applies(payload):
+        validate_package(package)
+        return
     required = _schema()["required"]
     missing = [key for key in required if package.get(key) in (None, "")]
     if missing:
@@ -2038,6 +2042,9 @@ def _validate_title_uniqueness(package: dict[str, Any], payload: dict[str, Any])
 
 def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Accept the concise content-director shape and map it to Hermes fields."""
+    from worker.nonverbal_preschool import applies
+    if applies(package):
+        return package
     if package.get("generated_title"):
         structure = package.get("structure") if isinstance(package.get("structure"), dict) else {}
         scenes = structure.get("scenes") if isinstance(structure.get("scenes"), list) else []
@@ -2463,6 +2470,9 @@ class CodexStagedContentRunner:
         return identity
 
     def generate(self, job_id: str, payload: dict[str, Any], *, script_only: bool = False) -> dict[str, Any]:
+        from worker.nonverbal_preschool import applies, generate
+        if applies(payload):
+            return generate(self, job_id, payload)
         from worker.japanese_historical_documentary import prepare_request
         payload = prepare_request(payload)
         if payload.get('script_style') == 'japanese_historical_documentary' or payload.get('assigned_script_style') == 'japanese_historical_documentary':

@@ -25,6 +25,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
     const [items, setItems] = useState<Item[]>([])
     const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
     const [images, setImages] = useState<{ name: string; data: string }[]>([])
+    const [nonverbal, setNonverbal] = useState(false)
     const [busy, setBusy] = useState(false)
     const [reading, setReading] = useState(false)
     const [error, setError] = useState('')
@@ -84,7 +85,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
             try {
                 const res = await fetch('/api/std/topic-submissions', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Idempotency-Key': submission.current.key }, body })
                 const result = await res.json(); if (!res.ok) throw new Error(result.error)
-                form.reset(); setImages([]); submission.current = { key: '', body: '' }
+                form.reset(); setImages([]); setNonverbal(false); submission.current = { key: '', body: '' }
                 setNotice(ui('토픽을 등록했습니다. 로컬 대본워커의 승인 대기열에 표시됩니다.')); await load()
             } catch (e) { setError(e instanceof Error ? e.message : '등록 실패') }
             finally { inFlight.current = false; setBusy(false) }
@@ -101,8 +102,8 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                 {images.length > 0 && <div className="flex gap-3 flex-wrap">{images.map((image, i) => <figure key={i}><img src={image.data} alt={image.name} className="h-28 w-28 rounded-lg object-contain bg-black/20" /><figcaption className="max-w-28 truncate mt-1">{image.name}</figcaption></figure>)}</div>}
                 <div className="grid gap-4 sm:grid-cols-3">
                     <label>{ui('카테고리 *')}<select name="category" required defaultValue="" className={input}><option value="" disabled>{categories.length ? ui('카테고리를 선택하세요') : ui('카테고리 불러오는 중…')}</option>{categories.map(category => <option key={category.id} value={category.name}>{ui(category.name)}</option>)}</select></label>
-                    <label>{ui('분량 (분)')}<input name="duration_minutes" type="number" required min={1} max={60} defaultValue={15} className={input} /></label>
-                    <label>{ui('대본 언어')}<select name="language" className={input} onChange={event => {
+                    <label>{ui('분량 (분)')}<input name="duration_minutes" type="number" required min={1} max={nonverbal ? 10 : 60} defaultValue={15} className={input} /></label>
+                    <label>{ui(nonverbal ? '기획 설명 언어' : '대본 언어')}<select name="language" className={input} onChange={event => {
                         if (event.currentTarget.value !== 'ja') return
                         const form = event.currentTarget.form
                         const country = form?.elements.namedItem('setting_country') as HTMLInputElement | null
@@ -112,14 +113,24 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                     }}><option value="ko">{ui('한국어')}</option><option value="en">{ui('영어')}</option><option value="ja">{ui('일본어')}</option><option value="es">{ui('스페인어')}</option></select></label>
                     <label>{ui('배경 국가 *')}<input name="setting_country" required defaultValue={ui('한국')} maxLength={80} className={input} /></label>
                     <label>{ui('시대·지역 *')}<input name="era_region" required defaultValue={ui('현대 지방 소도시')} maxLength={120} className={input} /></label>
-                    <label>{ui('제작 모드')}<select name="production_mode" className={input}><option value="standard">{ui('기존 영상')}</option><option value="moving_comic">{ui('무빙툰')}</option></select></label>
+                    <label>{ui('제작 모드')}<select name="production_mode" className={input} onChange={event => {
+                        const enabled = event.target.value === 'nonverbal_preschool'; setNonverbal(enabled)
+                        if (enabled && topicForm.current) {
+                            const form=topicForm.current
+                            const duration=form.elements.namedItem('duration_minutes') as HTMLInputElement
+                            if (Number(duration.value)>10) duration.value='3'
+                            const anime=form.querySelector<HTMLInputElement>('input[name="image_style"][value="anime"]')
+                            if(anime)anime.checked=true
+                        }
+                    }}><option value="standard">{ui('기존 영상')}</option><option value="moving_comic">{ui('무빙툰')}</option><option value="nonverbal_preschool">{ui('논버벌 유아 애니메이션')}</option></select></label>
                 </div>
+                {nonverbal && <p role="status" className="rounded-lg bg-cyan-500/10 p-3 text-cyan-200">{ui('대사·나레이션 없이 행동 이야기, 이미지·부품 프롬프트와 시간별 관절 연출을 만듭니다. 권장 3분, 최대 10분입니다.')}</p>}
                 <fieldset>
                     <legend className="font-semibold">{ui('이미지 스타일 *')}</legend>
                     <p className="mt-1 text-sm text-gray-400">{ui('원하는 분위기의 썸네일을 선택하세요.')}</p>
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
                         {imageStyles.map(style => <label key={style.key} className="relative cursor-pointer">
-                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} required onChange={() => {
+                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} disabled={nonverbal && ['sumi_e_ukiyo_e','jidaigeki_cel','realistic','cinematic','3d'].includes(style.key)} required onChange={() => {
                                 if (!['sumi_e_ukiyo_e', 'jidaigeki_cel'].includes(style.key)) return
                                 const form = topicForm.current
                                 if (!form) return
