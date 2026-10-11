@@ -1,6 +1,7 @@
 """Language and unified setting choices shared by the local topic and script workflows."""
 from __future__ import annotations
 from typing import Any
+from worker.japanese_historical_documentary import PROFILE as DOCUMENTARY_PROFILE
 
 
 LANGUAGE_NAMES = {'ko': 'Korean', 'en': 'English', 'ja': 'Japanese', 'es': 'Spanish'}
@@ -33,6 +34,7 @@ DEFAULT_ERA_REGION = '현대 지방 소도시'
 DEFAULT_IMAGE_STYLE = '실사'
 
 IMAGE_STYLE_MAP_EN = {
+    'sumi_e_ukiyo_e': DOCUMENTARY_PROFILE['prompt'],
     '실사': 'realistic',
     'realistic': 'realistic',
     '시네마틱': 'cinematic',

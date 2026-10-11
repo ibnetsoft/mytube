@@ -1592,6 +1592,9 @@ def _text_blob(*parts: Any) -> str:
 
 def _resolve_script_style_directive(script_style: Any) -> str:
     """Load the same script-style preset layer used by the legacy worker."""
+    from worker.japanese_historical_documentary import PROFILE
+    if script_style == PROFILE['key']:
+        return PROFILE['narration_directive']
     try:
         from services.script_style_resolver import resolve_script_style_directive
         return str(resolve_script_style_directive(str(script_style or "").strip()) or "").strip()
@@ -1600,6 +1603,9 @@ def _resolve_script_style_directive(script_style: Any) -> str:
 
 
 def _category_narration_voice(payload: dict[str, Any]) -> str:
+    from worker.japanese_historical_documentary import applies, PROFILE
+    if applies(payload):
+        return PROFILE['narration_directive']
     """Category-specific spoken narration contract for Codex script stages.
 
     The staged Codex runner intentionally replaced Gemini research/writing, but
@@ -1706,6 +1712,9 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
 
 
 def _script_rhythm_contract(payload: dict[str, Any]) -> str:
+    from worker.japanese_historical_documentary import applies, PROFILE
+    if applies(payload):
+        return PROFILE['narration_directive']
     schedule = payload.get("repair_scene_schedule") or _pacing_schedule(payload.get("target_duration_seconds"))
     first_hook_count = 0
     for scene in schedule[:12]:
@@ -1730,6 +1739,9 @@ def _script_rhythm_contract(payload: dict[str, Any]) -> str:
 
 
 def _story_spine_contract(payload: dict[str, Any]) -> str:
+    from worker.japanese_historical_documentary import applies, PROFILE
+    if applies(payload):
+        return PROFILE['narration_directive']
     notes = str(payload.get("notes") or payload.get("user_direction") or "").strip()
     source_based = any(token in notes for token in ("고정 story_spine", "주인공이 원하는 것", "첫 원인 사건", "구체적 해결", "마지막에 달라진 행동"))
     authority = (
@@ -2451,6 +2463,10 @@ class CodexStagedContentRunner:
         return identity
 
     def generate(self, job_id: str, payload: dict[str, Any], *, script_only: bool = False) -> dict[str, Any]:
+        from worker.japanese_historical_documentary import prepare_request
+        payload = prepare_request(payload)
+        if payload.get('script_style') == 'japanese_historical_documentary' or payload.get('assigned_script_style') == 'japanese_historical_documentary':
+            payload['target_duration_seconds'] = 1800
         schedule = _pacing_schedule(payload.get("target_duration_seconds"))
         if not schedule:
             raise CodexContentError("target_duration_seconds is required")
@@ -2732,7 +2748,8 @@ class CodexStagedContentRunner:
                 "ae_motion_scene_count": len(draft_motion_plans),
                 "ae_motion_plans": draft_motion_plans,
             })
-            return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""),
+            from worker.japanese_historical_documentary import enforce_package
+            return enforce_package({"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""),
                     "language": setting["language"],
                     "setting_country": setting["setting_country"],
                     "era_region": setting["era_region"],
@@ -2743,7 +2760,7 @@ class CodexStagedContentRunner:
                     "character_anchors": pending_anchors, "scene_cast": identity["scene_cast"],
                     "narrative_blueprint": script_context["narrative_blueprint"],
                     "script_quality_report": qa.get("script_quality_report") or {},
-                    "script_model": ASTRA_MODEL, "production_ready": False}
+                    "script_model": ASTRA_MODEL, "production_ready": False}, payload)
         from codex_character_assets import generate_character_references
         anchors = generate_character_references(
             {**character_context, **identity}, {**payload, **setting, "content_setting": setting}, self.config, OUTPUT_DIR / "codex_character_images")
@@ -2798,6 +2815,9 @@ class CodexStagedContentRunner:
             if len(image) < 120:
                 raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
             lock = scene_continuity_prompt(anchors, [index])
+            from worker.japanese_historical_documentary import applies, apply_visual_base
+            if applies(payload):
+                image = apply_visual_base(image)
             scenes[index - 1].update({"image_prompt": image + ("\n" + lock if lock else ""), "media_prompt_status": "ready"})
             if index <= required_video_scene_count:
                 video = str(item.get("video_prompt") or "").strip()
@@ -2976,7 +2996,8 @@ class CodexStagedContentRunner:
         design['style'] = setting['image_style_en']
         design['setting_country'] = setting['setting_country']
         design['era_region'] = setting['era_region']
-        return {"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "required_video_scene_count": required_video_scene_count, "video_scenes": required_video_scene_count, "script": script, "language": setting["language"], "setting_country": setting["setting_country"], "era_region": setting["era_region"], "image_style": setting["image_style"], "content_setting": setting, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_design": design, "thumbnail_completed": False, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}
+        from worker.japanese_historical_documentary import enforce_package
+        return enforce_package({"generated_title": str(payload.get("upload_title") or payload.get("topic") or ""), "title_generation": payload.get("title_generation") or {}, "structure": structure, "required_video_scene_count": required_video_scene_count, "video_scenes": required_video_scene_count, "script": script, "language": setting["language"], "setting_country": setting["setting_country"], "era_region": setting["era_region"], "image_style": setting["image_style"], "content_setting": setting, "narrative_blueprint": script_context["narrative_blueprint"], "script_quality_report": qa.get("script_quality_report") or {}, "publish_metadata": metadata, "thumbnail_hook_texts": thumbnail_hook_texts, "thumbnail_hook_reasoning": thumbnail_hook_reasoning, "thumbnail_image_prompt": thumbnail_image_prompt, "thumbnail_design": design, "thumbnail_completed": False, "thumbnail_copy_source": "codex-cli", "main_character": main, "supporting_characters": supporting, "character_anchors": anchors, "sfx_cues": [], "stage_artifacts": {"plan": plan, "script_draft": written, "script_qa": qa, "character_identity": identity, "media": media, "thumbnail_copy": thumbnail_stage}}, payload)
 
 
 class CodexTopicDiscoveryRunner:

@@ -1,4 +1,5 @@
 import japaneseFolktaleStyle from './japaneseFolktaleStyle.json'
+import documentaryStyle from './japaneseHistoricalDocumentaryStyle.json'
 
 const LEGACY_AUTOMATIC_IMAGE_STYLES = new Set(['', 'realistic', 'cinematic'])
 
@@ -27,5 +28,5 @@ export function resolveCategoryImageStyle(categoryName: unknown, configuredStyle
 
 export function imageStyleLabelForPrompt(styleKey: unknown): string {
     const style = String(styleKey || '').trim() || 'realistic'
-    return `Selected image style: ${style}.` + (style.toLowerCase() === japaneseFolktaleStyle.key ? `\n${japaneseFolktaleStyle.prompt}` : '')
+    return `Selected image style: ${style}.` + (style.toLowerCase() === japaneseFolktaleStyle.key ? `\n${japaneseFolktaleStyle.prompt}` : style.toLowerCase() === documentaryStyle.image_style ? `\n${documentaryStyle.prompt}` : '')
 }

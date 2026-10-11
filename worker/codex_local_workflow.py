@@ -69,6 +69,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     if request.get('_approved_guidance'):
         request = {**request, 'notes': request.get('notes', '') + '\n\n' + request['_approved_guidance']}
         notify('승인된 개선 지침 적용 · 작성 및 검수')
+    from worker.japanese_historical_documentary import prepare_request
+    request = prepare_request(request)
     moving = request.get('production_mode') == 'moving_comic'
     if moving:
         from worker.comic_plan import DIRECTIVE, plan_comic
@@ -76,7 +78,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     def finish(package, source=None):
         if moving:
             package = plan_comic(runner, identity, package, notify)
-        return finalize_sfx(runner, identity, package, notify, source)
+        from worker.japanese_historical_documentary import enforce_package
+        return enforce_package(finalize_sfx(runner, identity, package, notify, source), request)
     if request['mode'] == 'topics':
         from worker.source_topics import produce_topics
         return produce_topics(identity, request, sources or [], runner, notify)
@@ -102,7 +105,7 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'image_layer_scene_end': request.get('image_layer_scene_end'),
                    'required_video_scene_count': request.get('required_video_scene_count', 18),
                    'ae_scene_delivery': request.get('ae_scene_delivery') or 'local',
-                   'script_style': 'story',
+                   'script_style': request.get('script_style') or 'story',
                    'target_duration_seconds': request.get('duration_seconds') or request['duration_minutes'] * 60,
                    'legacy_stage_directives': 'Use the current category narration and senior listening contracts. '
                                               f"Use the selected image style ({setting['image_style']}) for the category and era.",
@@ -113,6 +116,7 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
         package['setting_country'] = setting['setting_country']
         package['era_region'] = setting['era_region']
         package['image_style'] = setting['image_style']
+        package['script_style'] = payload['script_style']
         package['content_setting'] = setting
         package['direction_profile'] = package.get('structure', {}).get('direction_profile')
         package['ae_scene_delivery'] = payload['ae_scene_delivery']

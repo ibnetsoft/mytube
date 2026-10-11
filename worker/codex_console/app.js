@@ -241,6 +241,7 @@ $('new-form').onsubmit=e=>{
     title:form.get('title'),
     category,
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',
+    script_style:form.get('script_style')||'story',
     duration_minutes:Number(form.get('duration')),
     language:setting.language,
     setting_country:setting.setting_country,
@@ -286,3 +287,17 @@ async function showJob(id,origin='dedicated'){const revision=++resultRevision;tr
 $('approve').onclick=async()=>{if(!selectedJob||!confirm('표시된 대본 버전에 승인 기록을 남길까요? 운영 대본 적용은 실행하지 않습니다.'))return;try{await api('jobs/'+selectedJob.id+'/approve',{candidate_hash:selectedJob.candidate_hash});notice('승인 기록을 저장했습니다. 연관 자료 검증과 운영 적용은 남아 있습니다.');await showJob(selectedJob.id,selectedJob.origin);refresh();}catch(e){error(e.message);}};
 window.categoriesReady=api('categories').then(data=>{const options=data.items.map(c=>{const o=element('option',c.name);o.value=c.name;o.dataset.id=c.id;return o;});const custom=element('option','직접 입력');custom.value='';$('category').replaceChildren(...options,custom);}).catch(e=>error(e.message));
 refresh();setInterval(()=>{if(document.hidden)return;refresh();if(selectedJob&&!$('view-jobs').hidden)showJob(selectedJob.id,selectedJob.origin);},10000);
+
+if ($('new-script-style')) $('new-script-style').onchange = () => {
+  if ($('new-script-style').value === 'japanese_historical_documentary') {
+    $('new-language').value = 'ja';
+    $('new-country').value = '일본';
+    $('new-custom-country').style.display = 'none';
+    $('new-form').elements.duration.value = '30';
+    $('production-mode').value = 'standard';
+    $('direction-profile').value = 'standard';
+    $('new-style').value = 'sumi_e_ukiyo_e';
+    if ($('new-era').value === '현대 지방 소도시') $('new-era').value = '주제 인물의 실제 생존 시대·지역';
+  }
+  window.updateNewSettingSummary();
+};
