@@ -9611,7 +9611,7 @@ export default function StdPortalPage() {
                                                 const workerVideo = isWorkerSceneVideo(sceneVideos.get(Number(sNum)))
                                                 const originalVideo = Boolean(sceneVideos.get(Number(sNum)) || group.video_url) && !workerVideo
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
-                                                const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : undefined)
+                                                const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : 'missing')
                                                 const segmentStatusLabel = group.subtitles.some((item: any) => item.restored_audio_pending)
                                                     ? '음성 복구 필요'
                                                     : segmentStatus === 'ready'
@@ -9769,6 +9769,8 @@ export default function StdPortalPage() {
                                                                             ? 'bg-cyan-500/15 text-cyan-300'
                                                                             : segmentStatus === 'stale'
                                                                             ? 'bg-amber-500/15 text-amber-300'
+                                                                            : segmentStatus === 'missing'
+                                                                            ? 'bg-slate-500/15 text-slate-300'
                                                                             : 'bg-red-500/15 text-red-300'
                                                                     }`}>
                                                                         {segmentStatusLabel}
