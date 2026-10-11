@@ -6,6 +6,7 @@ import TopicYoutubeExplorer from './TopicYoutubeExplorer'
 
 const imageStyles = [
     { key: 'jidaigeki_cel', name: '일본 옛날이야기 · 시대극 애니메이션' },
+    { key: 'jp_domestic_watercolor', name: '일본사건 · 수라장/스캇토' },
     { key: 'sumi_e_ukiyo_e', name: '다큐멘터리 · 수묵화/우키요에' },
     { key: 'realistic', name: '실사' },
     { key: 'cinematic', name: '시네마틱' },
@@ -101,7 +102,13 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                 </div>
                 {images.length > 0 && <div className="flex gap-3 flex-wrap">{images.map((image, i) => <figure key={i}><img src={image.data} alt={image.name} className="h-28 w-28 rounded-lg object-contain bg-black/20" /><figcaption className="max-w-28 truncate mt-1">{image.name}</figcaption></figure>)}</div>}
                 <div className="grid gap-4 sm:grid-cols-3">
-                    <label>{ui('카테고리 *')}<select name="category" required defaultValue="" className={input}><option value="" disabled>{categories.length ? ui('카테고리를 선택하세요') : ui('카테고리 불러오는 중…')}</option>{categories.map(category => <option key={category.id} value={category.name}>{ui(category.name)}</option>)}</select></label>
+                    <label>{ui('카테고리 *')}<select name="category" required defaultValue="" className={input} onChange={event=>{
+                        if(event.target.value!=='일본사건' || nonverbal || !topicForm.current)return
+                        const form=topicForm.current
+                        const set=(name:string,value:string)=>{const el=form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;if(el)el.value=value}
+                        set('language','ja');set('setting_country',ui('일본'));set('duration_minutes','15');set('production_mode','standard');set('era_region',ui('현대 일본 · 도쿄 근교 주거지역'))
+                        const radio=form.querySelector<HTMLInputElement>('input[value="jp_domestic_watercolor"]');if(radio)radio.checked=true
+                    }}><option value="" disabled>{categories.length ? ui('카테고리를 선택하세요') : ui('카테고리 불러오는 중…')}</option>{categories.map(category => <option key={category.id} value={category.name}>{ui(category.name)}</option>)}</select></label>
                     <label>{ui('분량 (분)')}<input name="duration_minutes" type="number" required min={1} max={nonverbal ? 10 : 60} defaultValue={15} className={input} /></label>
                     <label>{ui(nonverbal ? '기획 설명 언어' : '대본 언어')}<select name="language" className={input} onChange={event => {
                         if (event.currentTarget.value !== 'ja') return
@@ -130,13 +137,16 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                     <p className="mt-1 text-sm text-gray-400">{ui('원하는 분위기의 썸네일을 선택하세요.')}</p>
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
                         {imageStyles.map(style => <label key={style.key} className="relative cursor-pointer">
-                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} disabled={nonverbal && ['sumi_e_ukiyo_e','jidaigeki_cel','realistic','cinematic','3d'].includes(style.key)} required onChange={() => {
-                                if (!['sumi_e_ukiyo_e', 'jidaigeki_cel'].includes(style.key)) return
+                            <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} disabled={nonverbal && ['jp_domestic_watercolor','sumi_e_ukiyo_e','jidaigeki_cel','realistic','cinematic','3d'].includes(style.key)} required onChange={() => {
+                                if (!['jp_domestic_watercolor', 'sumi_e_ukiyo_e', 'jidaigeki_cel'].includes(style.key)) return
                                 const form = topicForm.current
                                 if (!form) return
                                 const set = (name: string, value: string) => { const el = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null; if (el) el.value = value }
                                 set('language', 'ja'); set('setting_country', ui('일본')); set('production_mode', 'standard')
-                                if (style.key === 'sumi_e_ukiyo_e') {
+                                if (style.key === 'jp_domestic_watercolor') {
+                                    set('duration_minutes','15'); set('era_region',ui('현대 일본 · 도쿄 근교 주거지역'))
+                                    const category=categories.find(c=>c.name==='일본사건'); if(category)set('category',category.name)
+                                } else if (style.key === 'sumi_e_ukiyo_e') {
                                     set('duration_minutes', '30'); set('era_region', ui('주제 인물의 실제 생존 시대·지역'))
                                 } else {
                                     set('era_region', ui('시대 미상 · 자막·원전 근거 우선'))
@@ -146,7 +156,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                             }} aria-label={ui(style.name)} className="peer sr-only" />
                             <span className="block overflow-hidden rounded-xl border-2 border-white/10 bg-[#11141a] transition peer-checked:border-indigo-400 peer-checked:bg-indigo-500/15 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-4 peer-focus-visible:outline-indigo-300 peer-disabled:opacity-50 hover:border-white/40">
                                 <span className="relative block aspect-[4/3]">
-                                    <Image src={`/img/styles/style_${style.key}.png`} alt={`${ui(style.name)} ${ui('스타일 예시')}`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className="object-cover" />
+                                    <Image src={`/img/styles/style_${style.key === 'jp_domestic_watercolor' ? 'webtoon' : style.key}.png`} alt={`${ui(style.name)} ${ui('스타일 예시')}`} fill sizes="(max-width: 639px) 22vw, (max-width: 1023px) 15vw, 90px" className="object-cover" />
                                 </span>
                                 <span className="block px-1 py-1.5 text-center text-xs font-medium">{ui(style.name)}</span>
                             </span>

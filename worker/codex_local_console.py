@@ -298,7 +298,7 @@ class StartRequest(BaseModel):
     setting_country: str = Field(default='', max_length=80)
     era_region: str = Field(default='현대 지방 소도시', max_length=120)
     image_style: str = Field(default='실사', max_length=80)
-    script_style: Literal['story', 'japanese_historical_documentary', 'nonverbal_preschool'] = 'story'
+    script_style: Literal['story', 'japanese_historical_documentary', 'japanese_domestic_drama', 'nonverbal_preschool'] = 'story'
     production_mode: Literal['standard', 'moving_comic', 'nonverbal_preschool'] = 'standard'
     direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'

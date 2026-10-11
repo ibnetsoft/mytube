@@ -22,7 +22,8 @@ def files(root=ROOT):
     for name in ['config.py', 'db.py', 'database.py', 'remote_drive_worker.py',
                  'worker/connection.env.example', 'docs/리페어프로세스.md',
                  'docs/신규생성프로세스.md', 'docs/worker-installation.md',
-                 'scripts/install_script_worker.ps1', 'worker/codex_console/modern_japan_watercolor.json']:
+                 'scripts/install_script_worker.ps1', 'auth-web/lib/japaneseDomesticDramaStyle.json',
+                 'auth-web/lib/japaneseHistoricalDocumentaryStyle.json', 'auth-web/lib/japaneseFolktaleStyle.json', 'worker/codex_console/modern_japan_watercolor.json']:
         path = root / name
         if path.is_file():
             yield path

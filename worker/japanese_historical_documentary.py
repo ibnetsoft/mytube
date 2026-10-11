@@ -8,6 +8,8 @@ def applies(payload):
     return (payload.get('assigned_script_style') or payload.get('script_style')) == PROFILE['key']
 
 def prepare_request(request):
+    from worker.japanese_domestic_drama import applies as domestic, prepare_request as prepare_domestic
+    if domestic(request): return prepare_domestic(request)
     if not applies(request):
         return request
     return {**request, 'language': 'ja', 'setting_country': '일본',
@@ -22,6 +24,8 @@ def apply_visual_base(prompt):
 
 
 def enforce_package(package, payload):
+    from worker.japanese_domestic_drama import applies as domestic, enforce_package as enforce_domestic
+    if domestic(payload): return enforce_domestic(package, payload)
     if not applies(payload):
         return package
     def visit(value):

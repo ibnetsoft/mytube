@@ -4,6 +4,7 @@ from typing import Any
 import json
 from pathlib import Path
 from worker.japanese_historical_documentary import PROFILE as DOCUMENTARY_PROFILE
+from worker.japanese_domestic_drama import PROFILE as DOMESTIC_PROFILE
 
 
 LANGUAGE_NAMES = {'ko': 'Korean', 'en': 'English', 'ja': 'Japanese', 'es': 'Spanish'}
@@ -38,6 +39,7 @@ DEFAULT_IMAGE_STYLE = '실사'
 IMAGE_STYLE_MAP_EN = {
     'jidaigeki_cel': json.loads((Path(__file__).resolve().parents[1] / 'auth-web/lib/japaneseFolktaleStyle.json').read_text(encoding='utf-8'))['prompt'],
     'sumi_e_ukiyo_e': DOCUMENTARY_PROFILE['prompt'],
+    'jp_domestic_watercolor': DOMESTIC_PROFILE['prompt'],
     '실사': 'realistic',
     'realistic': 'realistic',
     '시네마틱': 'cinematic',

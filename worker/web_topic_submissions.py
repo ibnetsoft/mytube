@@ -54,7 +54,7 @@ def generation_request(row):
     return {key: data[key] for key in ('title', 'category', 'duration_minutes', 'language',
         'setting_country', 'era_region', 'image_style', 'production_mode')} | {
         'script_style': data.get('script_style') or ('japanese_historical_documentary' if data.get('image_style') == 'sumi_e_ukiyo_e' else 'story'),
-        'required_video_scene_count': 0 if data.get('production_mode') == 'nonverbal_preschool' else 18,
+        'required_video_scene_count': 0 if data.get('production_mode') == 'nonverbal_preschool' or data.get('script_style') == 'japanese_domestic_drama' else 18,
         'mode': 'new', 'notes': data['story'], 'web_topic_id': row['id'],
         'web_brief': data, 'ae_scene_delivery': ae_scene_delivery,
     }

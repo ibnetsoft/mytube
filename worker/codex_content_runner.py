@@ -1592,6 +1592,8 @@ def _text_blob(*parts: Any) -> str:
 
 def _resolve_script_style_directive(script_style: Any) -> str:
     """Load the same script-style preset layer used by the legacy worker."""
+    from worker.japanese_domestic_drama import PROFILE as DOMESTIC
+    if script_style == DOMESTIC['key']: return DOMESTIC['narration_directive'] + '\nRequired opening: ' + DOMESTIC['fiction_disclaimer']
     from worker.japanese_historical_documentary import PROFILE
     if script_style == PROFILE['key']:
         return PROFILE['narration_directive']
@@ -1603,6 +1605,8 @@ def _resolve_script_style_directive(script_style: Any) -> str:
 
 
 def _category_narration_voice(payload: dict[str, Any]) -> str:
+    from worker.japanese_domestic_drama import applies as domestic, PROFILE as DOMESTIC
+    if domestic(payload): return DOMESTIC['narration_directive'] + '\nRequired opening: ' + DOMESTIC['fiction_disclaimer']
     from worker.japanese_historical_documentary import applies, PROFILE
     if applies(payload):
         return PROFILE['narration_directive']
@@ -1712,6 +1716,8 @@ def _category_narration_voice(payload: dict[str, Any]) -> str:
 
 
 def _script_rhythm_contract(payload: dict[str, Any]) -> str:
+    from worker.japanese_domestic_drama import applies as domestic, PROFILE as DOMESTIC
+    if domestic(payload): return DOMESTIC['narration_directive'] + '\nRequired opening: ' + DOMESTIC['fiction_disclaimer']
     from worker.japanese_historical_documentary import applies, PROFILE
     if applies(payload):
         return PROFILE['narration_directive']
@@ -1739,6 +1745,8 @@ def _script_rhythm_contract(payload: dict[str, Any]) -> str:
 
 
 def _story_spine_contract(payload: dict[str, Any]) -> str:
+    from worker.japanese_domestic_drama import applies as domestic, PROFILE as DOMESTIC
+    if domestic(payload): return DOMESTIC['narration_directive'] + '\nRequired opening: ' + DOMESTIC['fiction_disclaimer']
     from worker.japanese_historical_documentary import applies, PROFILE
     if applies(payload):
         return PROFILE['narration_directive']
@@ -2477,7 +2485,8 @@ class CodexStagedContentRunner:
         payload = prepare_request(payload)
         if payload.get('script_style') == 'japanese_historical_documentary' or payload.get('assigned_script_style') == 'japanese_historical_documentary':
             payload['target_duration_seconds'] = 1800
-        schedule = _pacing_schedule(payload.get("target_duration_seconds"))
+        from worker.japanese_domestic_drama import applies as domestic, schedule as domestic_schedule
+        schedule = domestic_schedule(payload.get("target_duration_seconds")) if domestic(payload) else _pacing_schedule(payload.get("target_duration_seconds"))
         if not schedule:
             raise CodexContentError("target_duration_seconds is required")
         required_video_scene_count = _required_video_scene_count(payload, len(schedule))
@@ -2825,6 +2834,8 @@ class CodexStagedContentRunner:
             if len(image) < 120:
                 raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
             lock = scene_continuity_prompt(anchors, [index])
+            from worker.japanese_domestic_drama import applies as domestic, apply_visual_base as domestic_visual
+            if domestic(payload): image = domestic_visual(image)
             from worker.japanese_historical_documentary import applies, apply_visual_base
             if applies(payload):
                 image = apply_visual_base(image)

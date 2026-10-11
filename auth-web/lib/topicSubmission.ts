@@ -1,3 +1,4 @@
+import domesticStyle from './japaneseDomesticDramaStyle.json'
 import { NONVERBAL_MODE } from './stdNonverbal'
 import documentaryStyle from './japaneseHistoricalDocumentaryStyle.json'
 export type TopicSubmission = {
@@ -55,13 +56,14 @@ export function validateTopicSubmission(input: any): TopicSubmission {
     const image_style = text('image_style', 80, true)
     const nonverbal = production_mode === NONVERBAL_MODE
     if (nonverbal && duration_minutes > 10) throw new Error('논버벌 유아 애니메이션은 1~10분입니다.')
-    if (nonverbal && ['sumi_e_ukiyo_e', 'jidaigeki_cel', 'realistic', 'cinematic', '3d'].includes(image_style)) throw new Error('논버벌 관절 애니메이션은 2D 애니메이션·일러스트 스타일을 선택하세요.')
+    if (nonverbal && ['jp_domestic_watercolor', 'sumi_e_ukiyo_e', 'jidaigeki_cel', 'realistic', 'cinematic', '3d'].includes(image_style)) throw new Error('논버벌 관절 애니메이션은 2D 애니메이션·일러스트 스타일을 선택하세요.')
     const documentary = image_style === documentaryStyle.image_style
+    const domestic = image_style === domesticStyle.image_style
     const folktale = image_style === 'jidaigeki_cel'
     return { title: text('title', 200, true), youtube_url, story: text('story', 2500, true),
         character_notes: text('character_notes', 1500), requirements: text('requirements', 1000),
-        category: text('category', 80, true), duration_minutes: documentary ? 30 : duration_minutes, language: documentary || folktale ? 'ja' : language, input_language, production_mode: documentary ? 'standard' : production_mode, ae_scene_delivery,
-        script_style: nonverbal ? NONVERBAL_MODE : documentary ? documentaryStyle.key : 'story',
-        setting_country: documentary || folktale ? '일본' : text('setting_country', 80, true), era_region: text('era_region', 120, true),
+        category: domestic ? domesticStyle.category : text('category', 80, true), duration_minutes: domestic ? (duration_minutes >= 13 && duration_minutes <= 15 ? duration_minutes : 15) : documentary ? 30 : duration_minutes, language: domestic || documentary || folktale ? 'ja' : language, input_language, production_mode: domestic || documentary ? 'standard' : production_mode, ae_scene_delivery,
+        script_style: nonverbal ? NONVERBAL_MODE : domestic ? domesticStyle.key : documentary ? documentaryStyle.key : 'story',
+        setting_country: domestic || documentary || folktale ? '일본' : text('setting_country', 80, true), era_region: domestic ? '현대 일본 · 도쿄 근교 주거지역' : text('era_region', 120, true),
         image_style, transcript: text('transcript', 40000), character_images }
 }

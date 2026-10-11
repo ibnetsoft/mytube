@@ -304,7 +304,13 @@ if ($('new-script-style')) $('new-script-style').onchange = () => {
   if($('new-script-style').value==='nonverbal_preschool'){$('production-mode').value='nonverbal_preschool';syncNonverbalMode();return;}
   if($('production-mode').value==='nonverbal_preschool'){$('production-mode').value='standard';syncNonverbalMode();}
 
-  if ($('new-script-style').value === 'japanese_historical_documentary') {
+  if ($('new-script-style').value === 'japanese_domestic_drama') {
+    $('new-language').value='ja';$('new-country').value='일본';$('new-custom-country').style.display='none';
+    $('new-form').elements.duration.value='15';$('production-mode').value='standard';
+    $('direction-profile').value='standard';$('new-style').value='jp_domestic_watercolor';
+    $('new-era').value='현대 일본 · 도쿄 근교 주거지역';$('new-form').elements.required_video_scene_count.value='0';$('new-form').elements.generate_bgm_prompt.checked=true;
+    window.categoriesReady.then(()=>{$('category').value='일본사건'});
+  } else if ($('new-script-style').value === 'japanese_historical_documentary') {
     $('new-language').value = 'ja';
     $('new-country').value = '일본';
     $('new-custom-country').style.display = 'none';

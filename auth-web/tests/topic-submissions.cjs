@@ -70,3 +70,12 @@ const silent = lib.validateTopicSubmission({ ...valid, production_mode: 'nonverb
 assert.equal(silent.script_style, 'nonverbal_preschool')
 assert.throws(() => lib.validateTopicSubmission({ ...silent, duration_minutes: 11 }))
 assert.throws(() => lib.validateTopicSubmission({ ...silent, image_style: 'realistic' }))
+
+const domestic = lib.validateTopicSubmission({ ...valid, category:'옛날이야기', image_style:'jp_domestic_watercolor', language:'ko', duration_minutes:30 })
+assert.equal(domestic.category, '일본사건')
+assert.equal(domestic.duration_minutes, 15)
+assert.equal(domestic.language, 'ja')
+assert.equal(domestic.setting_country, '일본')
+assert.equal(domestic.script_style, 'japanese_domestic_drama')
+assert.equal(lib.validateTopicSubmission({...domestic,duration_minutes:13}).duration_minutes,13)
+assert.throws(()=>lib.validateTopicSubmission({...domestic,production_mode:'nonverbal_preschool',duration_minutes:3}))

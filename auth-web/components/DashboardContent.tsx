@@ -3820,7 +3820,7 @@ export default function DashboardContent() {
                                             >
                                                 <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
                                                 <option value="story" className="bg-[#111] text-white">옛날 이야기 (구연 동화)</option>
-                                                <option value="japanese_historical_documentary" className="bg-[#111] text-white">일본 역사 다큐멘터리 · 수묵화/우키요에</option>
+                                                <option value="japanese_domestic_drama" className="bg-[#111] text-white">일본사건 · 수라장/스캇토</option><option value="japanese_historical_documentary" className="bg-[#111] text-white">일본 역사 다큐멘터리 · 수묵화/우키요에</option>
                                     <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
                                                 <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
                                                 <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>
@@ -6790,7 +6790,7 @@ export default function DashboardContent() {
                                 >
                                     <option value="default" className="bg-[#111] text-white">기본 설정 (자연스럽고 선명한 스타일)</option>
                                     <option value="story" className="bg-[#111] text-white">예난 이야기 (구연 동화)</option>
-                                    <option value="japanese_historical_documentary" className="bg-[#111] text-white">일본 역사 다큐멘터리 · 수묵화/우키요에</option>
+                                    <option value="japanese_domestic_drama" className="bg-[#111] text-white">일본사건 · 수라장/스캇토</option><option value="japanese_historical_documentary" className="bg-[#111] text-white">일본 역사 다큐멘터리 · 수묵화/우키요에</option>
                                     <option value="senior_story" className="bg-[#111] text-white">시니어 이야기 (회상/감성)</option>
                                     <option value="news" className="bg-[#111] text-white">뉴스 (정보 전달)</option>
                                     <option value="mystery_thriller" className="bg-[#111] text-white">미스터리 스릴러 (긴장감)</option>

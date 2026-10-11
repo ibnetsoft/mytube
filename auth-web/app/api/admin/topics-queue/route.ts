@@ -26,7 +26,7 @@ function toInt(value: any, fallback: number) {
 // Next.js 라우트는 Supabase만 접근하므로 로컬 DB를 직접 읽을 수 없어 여기에 하드코딩한다.
 // script_plan.html / image_gen.html 의 스타일 옵션이 바뀌면 이 목록도 함께 갱신해야 한다.
 const SCRIPT_STYLE_KEYS = [
-    'default', 'news', 'story', 'senior_story', 'japanese_historical_documentary', 'bgm',
+    'default', 'news', 'story', 'senior_story', 'japanese_historical_documentary', 'japanese_domestic_drama', 'bgm',
     'classic_50s', 'joseon_sageuk', 'north_korean_drama', 'silent_20s', 'camcorder_90s', 'modern_drama',
     'mystery_thriller', 'horror_suspense', 'melodrama', 'crime_drama', 'cyberpunk_neon',
     'k_manhwa', 'watercolor_analog', 'k_webtoon', 'graphite_sketch', 'joseon_2d_anime',
@@ -873,14 +873,14 @@ export async function POST(req: Request) {
                 : null
 
             // AI가 주제에 맞게 고른 대본 스타일 (허용 목록 검증 + 기본값 fallback)
-            const assignedScriptStyle = category.default_script_style === 'japanese_historical_documentary' ? 'japanese_historical_documentary' : pickValidStyle(
+            const assignedScriptStyle = category.default_script_style === 'japanese_domestic_drama' ? 'japanese_domestic_drama' : category.default_script_style === 'japanese_historical_documentary' ? 'japanese_historical_documentary' : pickValidStyle(
                 typeof item === 'string' ? null : item?.script_style,
                 SCRIPT_STYLE_KEYS,
                 DEFAULT_SCRIPT_STYLE
             )
             // Image style is owned by the category/Worker setting. Persist it on the topic
             // so pregeneration, claim, and CoWork all use the same locked style.
-            const assignedImageStyle = assignedScriptStyle === 'japanese_historical_documentary' ? 'sumi_e_ukiyo_e' : resolveCategoryImageStyle(category.name, category.default_image_style)
+            const assignedImageStyle = assignedScriptStyle === 'japanese_domestic_drama' ? 'jp_domestic_watercolor' : assignedScriptStyle === 'japanese_historical_documentary' ? 'sumi_e_ukiyo_e' : resolveCategoryImageStyle(category.name, category.default_image_style)
 
             // 배정 대상 워커를 먼저 결정한 뒤, 그 워커의 선호 영상 길이에 맞게 duration을 보정한다.
             const worker = pickPreferredWorker(
@@ -893,7 +893,7 @@ export async function POST(req: Request) {
             )
             const assignedEmployeeEmail = worker?.email || null
 
-            const assignedDuration = assignedScriptStyle === 'japanese_historical_documentary' ? 30 : (isLongformCategory && geminiDuration != null)
+            const assignedDuration = assignedScriptStyle === 'japanese_domestic_drama' ? 15 : assignedScriptStyle === 'japanese_historical_documentary' ? 30 : (isLongformCategory && geminiDuration != null)
                 ? adjustToBucket(geminiDuration, worker?.preferredVideoLength || '', minDurationMinutes)
                 : geminiDuration
             const estimatedPayout = isLongformCategory ? payoutForScenes(53) : null
@@ -905,7 +905,8 @@ export async function POST(req: Request) {
                 assigned_employee_email: assignedEmployeeEmail,
                 assigned_script_style: assignedScriptStyle,
                 assigned_image_style: assignedImageStyle,
-                language: assignedScriptStyle === 'japanese_historical_documentary' ? 'ja' : targetLang,
+                ...(assignedScriptStyle === 'japanese_domestic_drama' ? {video_scenes:0} : {}),
+                language: ['japanese_historical_documentary', 'japanese_domestic_drama'].includes(assignedScriptStyle) ? 'ja' : targetLang,
                 status: 'pending',
                 translation_status: 'pending',
                 // [AIR-0230] 이 카테고리의 실제 고성과 영상 분석이 있으면 주제마다 실어서
