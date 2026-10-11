@@ -3356,8 +3356,7 @@ export default function DashboardContent() {
                             {title:'사용자 운영',tabs:[
                                 {id:'users',label:ui.users,superOnly:false},
                                 {id:'subscription-verifications',label:'구독 인증',superOnly:false},
-                                {id:'support',label:'문의 Inbox',superOnly:false},
-                                {id:'announcements',label:'공지사항',superOnly:false}]},
+                                {id:'support',label:'문의·공지사항',superOnly:false}]},
                             {title:'설정·모니터링',tabs:[
                                 {id:'api',label:ui.api,superOnly:true},
                                 {id:'error-logs',label:'에러 로그',superOnly:false},
@@ -3379,9 +3378,9 @@ export default function DashboardContent() {
                                     disabled={locked}
                                     title={locked ? '최고 관리자 전용 기능입니다.' : undefined}
                                     onClick={() => !locked && setActiveTab(tab.id as any)}
-                                    aria-current={activeTab === tab.id ? 'page' : undefined}
+                                    aria-current={(activeTab === tab.id || (tab.id === 'support' && activeTab === 'announcements')) ? 'page' : undefined}
                                     className={`shrink-0 px-3 py-2 rounded-lg text-xs font-black transition-all uppercase tracking-tight whitespace-nowrap ${
-                                        activeTab === tab.id
+                                        (activeTab === tab.id || (tab.id === 'support' && activeTab === 'announcements'))
                                             ? 'bg-blue-600 text-white shadow-xl'
                                             : locked
                                                 ? 'text-gray-700 opacity-30 cursor-not-allowed'
@@ -6470,12 +6469,35 @@ export default function DashboardContent() {
                     <SubscriptionVerificationsPanel />
                 )}
 
-                {activeTab === 'support' && (
-                    <SupportInboxPanel />
-                )}
-
-                {activeTab === 'announcements' && (
-                    <AnnouncementsAdminPanel />
+                {(activeTab === 'support' || activeTab === 'announcements') && (
+                    <section className="space-y-5" aria-label="문의·공지사항">
+                        <h1 className="text-2xl font-black text-white">문의·공지사항</h1>
+                        <div role="tablist" aria-label="문의와 공지사항 구분" className="flex gap-2">
+                            {([{ id: 'support', label: '문의' }, { id: 'announcements', label: '공지사항' }] as const).map(tab => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    id={`communications-${tab.id}-tab`}
+                                    aria-selected={activeTab === tab.id}
+                                    aria-controls={`communications-${tab.id}-panel`}
+                                    tabIndex={activeTab === tab.id ? 0 : -1}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    onKeyDown={event => {
+                                        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+                                        event.preventDefault()
+                                        const next = event.key === 'Home' ? 'support' : event.key === 'End' ? 'announcements' : activeTab === 'support' ? 'announcements' : 'support'
+                                        setActiveTab(next)
+                                        document.getElementById(`communications-${next}-tab`)?.focus()
+                                    }}
+                                    className={`rounded-xl border px-5 py-2.5 text-sm font-bold transition ${activeTab === tab.id ? 'border-blue-500 bg-blue-600 text-white' : 'border-white/10 bg-white/5 text-gray-400 hover:text-white'}`}
+                                >{tab.label}</button>
+                            ))}
+                        </div>
+                        <div role="tabpanel" id={`communications-${activeTab}-panel`} aria-labelledby={`communications-${activeTab}-tab`}>
+                            {activeTab === 'support' ? <SupportInboxPanel /> : <AnnouncementsAdminPanel />}
+                        </div>
+                    </section>
                 )}
 
                 {activeTab === 'error-logs' && (
