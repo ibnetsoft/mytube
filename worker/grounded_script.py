@@ -83,6 +83,11 @@ def produce_grounded(identity, request, sources, runner, notify):
     duration = request['duration_minutes'] * 60
     schedule = _pacing_schedule(duration)
     budgets = _scene_char_budgets(schedule, {'target_duration_seconds': duration, 'language': language})
+    # Long sermons reserve prose for measured speech variability, never silent padding.
+    factor = request.get('_sermon_char_factor', 1.)
+    if factor != 1.:
+        budgets = [{**b, 'min_chars': round(b['min_chars'] * factor),
+                    'max_chars': round(b['max_chars'] * factor)} for b in budgets]
     def stage(name, context, task):
         notify(name)
         return runner._stage('grounded-' + identity, name, {**context, 'language': language, 'content_setting': setting},

@@ -6,7 +6,8 @@ export async function GET(req: Request) {
  const auth=await requireAdmin(req);if(isAuthResponse(auth))return auth
  const [recent,active]=await Promise.all([
   supabaseAdmin.from('script_worker_jobs').select('id,title,mode,status,created_at,updated_at,job_record').order('created_at',{ascending:false}).limit(50),
-  supabaseAdmin.from('script_worker_jobs').select('id,title,mode,status,created_at,updated_at,job_record').in('status',['queued','running'])])
+  supabaseAdmin.from('script_worker_jobs').select('id,title,mode,status,created_at,updated_at,job_record')
+    .or('status.in.(queued,running),job_record->sermon_media->>status.in.(queued,audio,video,assembling)')])
  if(recent.error || active.error)return NextResponse.json({error:'대본워커 조회 실패'},{status:503})
  const jobs=Array.from(new Map([...(active.data || []),...(recent.data || [])].map(row=>[row.id,row])).values())
  return NextResponse.json({source:'script_worker_jobs',jobs,active_count:(active.data || []).length,generated_at:new Date().toISOString()})

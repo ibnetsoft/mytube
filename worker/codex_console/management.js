@@ -78,8 +78,8 @@ window.renderManagementResult=(data,origin)=>{
 $('result-source').onclick=async()=>{if(!resultSource)return;const item={...resultSource};view('repair');await readSource(item);};
 $('sync-job').onclick=async()=>{if(!selectedJob)return;const id=selectedJob.id;$('sync-job').disabled=true;try{await api('jobs/'+id+'/sync',{});notice('Database에 요청·결과·승인 기록을 저장했습니다.');await showJob(id);await refresh();}catch(e){error(e.message);}finally{$('sync-job').disabled=false;}};
 $('retry-job').onclick=async()=>{
-  if(!selectedJob||busy||!confirm('같은 요청으로 새 작업을 실행할까요? AI 사용량이 발생하며 이전 실패 기록은 유지됩니다.'))return;
+  if(!selectedJob||busy)return;
   $('retry-job').disabled=true;
-  try{const job=await api('jobs/'+selectedJob.id+'/retry',{});await refresh();await showJob(job.id);notice('새 작업을 시작했습니다. 이전 작업과 연결해 기록합니다.');}catch(e){error(e.message);}finally{$('retry-job').disabled=busy;}
+  try{const job=await api('jobs/'+selectedJob.id+'/retry',{});await refresh();await showJob(job.id);notice(job.id===selectedJob.id?'완료한 설교 장을 보존하고 이어서 작업합니다.':'재시도 작업을 시작했습니다.');}catch(e){error(e.message);}finally{$('retry-job').disabled=busy;}
 };
 refresh();

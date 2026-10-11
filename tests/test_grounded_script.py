@@ -82,15 +82,17 @@ def test_grounded_stages_pin_astra(monkeypatch,tmp_path):
     import subprocess,json
     monkeypatch.setattr(runner,'OUTPUT_DIR',tmp_path)
     calls=[]
+    prompts=[]
     def fake(command,**kwargs):
         calls.append(command)
+        prompts.append(kwargs['stdin'].read().decode('utf-8') if kwargs.get('stdin') else (kwargs.get('input') or command[-1]))
         Path(command[command.index('--output-last-message')+1]).write_text('{}',encoding='utf-8')
         return subprocess.CompletedProcess(command,0,'','')
     monkeypatch.setattr(runner.subprocess,'run',fake)
     runner.CodexStagedContentRunner(runner.CodexContentConfig('codex','other-model',60))._stage('test','02_grounded_write',{},'Write from sources')
     assert calls[0][calls[0].index('--model')+1]=='gpt-6-astra'
-    assert 'untrusted data' in calls[0][-1]
-    assert 'supplied YouTube' not in calls[0][-1]
+    assert 'untrusted data' in prompts[0]
+    assert 'supplied YouTube' not in prompts[0]
 
 
 @pytest.mark.parametrize('bad',[False,True])

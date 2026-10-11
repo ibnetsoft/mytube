@@ -292,7 +292,7 @@ class StartRequest(BaseModel):
     title: str = Field(default='', max_length=200)
     category: str = Field(default='', max_length=80)
     category_id: str = Field(default='', max_length=16)
-    duration_minutes: int = Field(default=15, ge=1, le=60)
+    duration_minutes: int = Field(default=15, ge=1, le=360)
     duration_seconds: int | None = Field(default=None, ge=60, le=3600)
     language: Literal['ko', 'en', 'ja', 'es'] = 'ko'
     setting_country: str = Field(default='', max_length=80)
@@ -311,14 +311,20 @@ class StartRequest(BaseModel):
     youtube_url: str = Field(default='', max_length=2048)
     web_topic_id: str = Field(default='', max_length=36)
     web_brief: dict = Field(default_factory=dict)
-    source_ids: list[str] = Field(default_factory=list, max_length=12)
+    source_ids: list[str] = Field(default_factory=list, max_length=256)
     grounded_type: Literal['sermon', 'education'] = 'sermon'
     audience: str = Field(default='시니어 성도', max_length=200)
     perspective: str = Field(default='', max_length=500)
     passage: str = Field(default='', max_length=200)
+    chapter_minutes: int = Field(default=15, ge=5, le=20)
+    sermon_voice_id: str = Field(default='', max_length=100, pattern=r'^[A-Za-z0-9_-]*$')
+    sermon_voice_speed: float = Field(default=1., ge=.85, le=1.15)
 
     @model_validator(mode='after')
     def validate_image_layer_scene_range(self):
+        long_sermon = self.mode == 'grounded' and self.grounded_type == 'sermon'
+        if not long_sermon and (self.duration_minutes > 60 or len(self.source_ids) > 12):
+            raise ValueError('설교 외 모드는 최대 60분·자료 12개입니다.')
         if self.production_mode == 'nonverbal_preschool':
             if self.duration_minutes > 10 or (self.duration_seconds and self.duration_seconds > 600):
                 raise ValueError('논버벌 유아 애니메이션은 1~10분으로 설정하세요.')
@@ -340,9 +346,22 @@ class SourceRequest(BaseModel):
     translation: str = Field(default='', max_length=100)
     permission_notes: str = Field(min_length=1, max_length=500)
     text: str = Field(min_length=1, max_length=40000)
+    book: str = Field(default='', max_length=80)
+    chapter: int | None = Field(default=None, ge=1, le=150)
+    verse_start: int | None = Field(default=None, ge=1, le=176)
+    verse_end: int | None = Field(default=None, ge=1, le=176)
+
+    @model_validator(mode='after')
+    def scripture_index(self):
+        if any((self.book, self.chapter, self.verse_start, self.verse_end)):
+            if self.kind != 'scripture' or not all((self.book.strip(), self.chapter, self.verse_start, self.verse_end)):
+                raise ValueError('성경 색인은 책·장·시작절·끝절을 모두 입력하세요.')
+            if self.verse_end < self.verse_start:
+                raise ValueError('끝절은 시작절보다 작을 수 없습니다.')
+        return self
 
 
-def load_sources(identities):
+def load_sources(identities, *, sermon=False):
     from worker.grounded_script import MAX_PACKET_CHARS
     if not identities or len(set(identities)) != len(identities):
         raise ValueError('중복 없이 자료를 선택하세요.')
@@ -354,7 +373,7 @@ def load_sources(identities):
         if not path.is_file():
             raise ValueError('등록 자료를 찾을 수 없습니다.')
         rows.append(json.loads(path.read_text(encoding='utf-8')))
-    if sum(len(s['text']) for s in rows) > MAX_PACKET_CHARS:
+    if not sermon and sum(len(s['text']) for s in rows) > MAX_PACKET_CHARS:
         raise ValueError('선택 원문은 합계 80,000자 이하로 나눠 작업하세요. 자동 절단하지 않습니다.')
     return rows
 
@@ -555,11 +574,14 @@ jobs = Jobs(OUT, store)
 def start_subtitle_translations():
     from worker.codex_subtitle_translation import start_translation_loop
     app.state.subtitle_translation_stop = start_translation_loop(jobs)
+    from worker.sermon_queue import start_media_loop
+    app.state.sermon_media_stop = start_media_loop(jobs)
 
 
 @app.on_event('shutdown')
 def stop_subtitle_translations():
     app.state.subtitle_translation_stop.set()
+    app.state.sermon_media_stop.set()
 
 
 @app.middleware('http')
@@ -571,12 +593,15 @@ async def local_boundary(request: Request, call_next):
     origin = request.headers.get('origin')
     if origin and origin != ORIGIN:
         return JSONResponse({'error': 'Origin denied'}, status_code=403)
-    if request.url.path.startswith('/api/') and not secrets.compare_digest(request.headers.get('x-codex-local', ''), TOKEN):
+    media_file = (request.method == 'GET' and re.fullmatch(r'/api/jobs/[a-f0-9]{32}/sermon-media', request.url.path)
+                  and secrets.compare_digest(request.query_params.get('token', ''), TOKEN))
+    if request.url.path.startswith('/api/') and not media_file and not secrets.compare_digest(request.headers.get('x-codex-local', ''), TOKEN):
         return JSONResponse({'error': '로컬 화면을 새로고침하세요.'}, status_code=401)
     response = await call_next(request)
     response.headers['Cache-Control'] = 'no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'no-referrer'
     response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     return response
 
@@ -889,7 +914,7 @@ def start(request: StartRequest):
         elif request.mode == 'grounded':
             if not request.title.strip() or not request.perspective.strip() or not request.passage.strip():
                 raise ValueError('제목·본문 범위·해석 관점을 입력하세요.')
-            references = load_sources(request.source_ids)
+            references = load_sources(request.source_ids, sermon=request.grounded_type == 'sermon')
             if request.grounded_type == 'sermon' and not any(s['kind'] == 'scripture' for s in references):
                 raise ValueError('설교에는 성경 원문 자료가 필요합니다.')
         elif not request.title.strip() or not request.category.strip():
@@ -1019,6 +1044,9 @@ def retry_job(identity: str):
             current = source(request.kind, request.source_id)
             if not snapshot or snapshot['fingerprint'] != current['fingerprint']:
                 raise ValueError('원본이 변경됐습니다. 대본 보관함에서 새 수정 작업을 시작하세요.')
+        if request.mode == 'grounded' and request.grounded_type == 'sermon':
+            # Resume in the SAME directory: chapter files and fingerprints stay intact.
+            return jobs.start(request, snapshot, bundle['references'], retry_of=identity, identity=identity)
         return jobs.start(request, snapshot, bundle['references'], retry_of=identity)
     except ValueError as exc:
         raise HTTPException(409, str(exc))
@@ -1044,9 +1072,13 @@ def youtube_transcript(request: YouTubeRequest):
 
 
 @app.get('/api/references')
-def references():
-    rows = [json.loads(p.read_text(encoding='utf-8')) for p in (OUT / 'sources').glob('*.json')]
-    return {'items': [{k:v for k,v in row.items() if k != 'text'} | {'characters':len(row['text'])} for row in rows]}
+def references(q: str = '', translation: str = '', book: str = '', chapter: int | None = None, verse: int | None = None):
+    from worker.bible_library import BibleLibrary
+    library = BibleLibrary(OUT / 'sources')
+    try:
+        return library.search(q, translation, book, chapter, verse)
+    finally:
+        library.close()
 
 
 @app.post('/api/references')
@@ -1058,6 +1090,12 @@ def add_reference(request: SourceRequest):
         raise HTTPException(400, str(exc))
     row.update(id=uuid.uuid4().hex, created_at=time.time())
     write_json(OUT / 'sources' / (row['id'] + '.json'), row)
+    from worker.bible_library import BibleLibrary
+    library = BibleLibrary(OUT / 'sources')
+    try:
+        library.put(row)
+    finally:
+        library.close()
     return {'id':row['id'], 'title':row['title'], 'sha256':row['sha256']}
 
 
@@ -1069,12 +1107,97 @@ def reference(identity: str):
         raise HTTPException(404, str(exc))
 
 
+class BibleImportRequest(BaseModel):
+    translation: str = Field(min_length=1, max_length=100)
+    permission_notes: str = Field(min_length=1, max_length=500)
+    verses: list[dict] = Field(min_length=1, max_length=2000)
+
+
+@app.post('/api/bible/import')
+def import_bible(request: BibleImportRequest):
+    """Structured, exact verse library. No scraping or silently substituted translation."""
+    try:
+        prepared = []
+        for verse in request.verses:
+            item = SourceRequest(title=f"{verse.get('book', '')} {verse.get('chapter', '')}:{verse.get('verse', '')}",
+                kind='scripture', book=verse.get('book'), chapter=verse.get('chapter'),
+                verse_start=verse.get('verse'), verse_end=verse.get('verse'), text=verse.get('text'),
+                translation=request.translation, permission_notes=request.permission_notes,
+                locator=f"{verse.get('book', '')} {verse.get('chapter', '')}:{verse.get('verse', '')}")
+            from worker.grounded_script import validate_source
+            row = validate_source(item.model_dump())
+            # Same exact verse/translation/conditions import is idempotent; revisions get separate IDs.
+            row['id'] = digest(row)[:32]
+            prepared.append(row)
+        if len({(r['book'], r['chapter'], r['verse_start']) for r in prepared}) != len(prepared):
+            raise ValueError('동일 번역본·장절이 중복되었습니다.')
+        for row in prepared:
+            path = OUT / 'sources' / (row['id'] + '.json')
+            if not path.exists():
+                write_json(path, {**row, 'created_at': time.time()})
+        from worker.bible_library import BibleLibrary
+        library = BibleLibrary(OUT / 'sources')
+        try:
+            for row in prepared:
+                library.put(json.loads((OUT / 'sources' / (row['id'] + '.json')).read_text(encoding='utf-8')), commit=False)
+            library.db.commit()
+        finally:
+            library.close()
+        return {'count': len(prepared), 'source_ids': [r['id'] for r in prepared]}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+class SermonMediaRequest(BaseModel):
+    voice_id: str = Field(default='', max_length=100, pattern=r'^[A-Za-z0-9_-]*$')
+
+
+@app.post('/api/jobs/{identity}/sermon-media')
+def resume_sermon_media(identity: str, request: SermonMediaRequest):
+    try:
+        from worker.sermon_queue import enqueue
+        return enqueue(jobs, identity, request.voice_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
+
+
+@app.get('/api/jobs/{identity}/sermon-media')
+def sermon_media_file(identity: str, chapter: int | None = None, image: str = ''):
+    try:
+        bundle = jobs.load(identity)
+        if not bundle['candidate'].get('sermon_plan'):
+            raise ValueError('설교 작업이 아닙니다.')
+        root = jobs.root / identity / 'sermon-media'
+        if image:
+            if not re.fullmatch(r'ch[0-9]{3}-s[0-9]{4}', image):
+                raise ValueError('잘못된 설교 화면 번호입니다.')
+            name = image + '.png'
+        elif chapter is not None:
+            if not 1 <= chapter <= len(bundle['candidate']['sermon_plan']['chapters']):
+                raise ValueError('잘못된 설교 장 번호입니다.')
+            name = f'chapter-{chapter:03d}.mp4'
+        else:
+            name = 'sermon-final.mp4'
+        path = root / name
+        if not path.is_file():
+            raise ValueError('제작 완료된 파일이 없습니다.')
+        return FileResponse(path, media_type='image/png' if image else 'video/mp4', filename=name)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+
 @app.post('/api/jobs/{identity}/approve')
 def approve(identity: str, request: ApproveRequest):
     try:
         item = jobs.load(identity)['job']
         current = source(item['kind'], item['source_id']) if item['mode'] == 'repair' else None
         jobs.approve(identity, request.candidate_hash, current)
+        bundle = jobs.load(identity)
+        if bundle['candidate'].get('sermon_plan') and bundle['request'].get('sermon_voice_id'):
+            from worker.sermon_queue import enqueue
+            enqueue(jobs, identity)
         return {'status': 'approved_pending_repair', 'published': False}
     except ValueError as exc:
         raise HTTPException(409, str(exc))

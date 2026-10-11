@@ -102,6 +102,9 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
         from worker.source_topics import produce_topics
         return produce_topics(identity, request, sources or [], runner, notify)
     if request['mode'] == 'grounded':
+        if request.get('grounded_type') == 'sermon':
+            from worker.sermon_chapters import produce_sermon
+            return produce_sermon(identity, request, sources or [], runner, notify, output)
         from worker.grounded_script import produce_grounded
         return produce_grounded(identity, request, sources or [], runner, notify)
     if request['mode'] == 'new':

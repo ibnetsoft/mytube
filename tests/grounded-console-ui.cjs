@@ -7,7 +7,7 @@ const fs = require('fs');
   const page=await browser.newPage({viewport:{width:1440,height:1000}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const refs=[];let jobPosts=0;
-  await page.route('**/api/references',async route=>{
+  await page.route('**/api/references*',async route=>{
     if(route.request().method()==='POST'){
       const row=route.request().postDataJSON();row.id='a'.repeat(32);row.characters=row.text.length;refs.push(row);
       return route.fulfill({json:{id:row.id}});
@@ -16,7 +16,7 @@ const fs = require('fs');
   });
   await page.route('**/api/jobs',async route=>{jobPosts++;return route.fulfill({status:409,json:{detail:'test only'}});});
   await page.goto('http://127.0.0.1:3003');
-  await page.getByRole('button',{name:'▤   자료 기반 생성',exact:true}).click();
+  await page.getByRole('button',{name:'▤   기독교 설교 · 자료실',exact:true}).click();
   await page.locator('#reference-form').waitFor({state:'visible'});
   await page.locator('#reference-form [name=title]').fill('합성 테스트 원문');
   await page.locator('#reference-form [name=locator]').fill('테스트 1:1');
@@ -28,6 +28,19 @@ const fs = require('fs');
   await page.locator('#reference-list input').check();
   if(refs.length!==1)throw new Error('Registration not wired');
   if(jobPosts)throw new Error('Unexpected generation');
+  const form=page.locator('#grounded-form');
+  if(await form.locator('[name=duration_minutes]').inputValue()!=='135')throw Error('Long sermon default missing');
+  await form.locator('[name=grounded_type]').selectOption('education');
+  if(await form.locator('[name=duration_minutes]').getAttribute('max')!=='60')throw Error('Education limit changed');
+  await form.locator('[name=grounded_type]').selectOption('sermon');
+  if(await form.locator('[name=duration_minutes]').getAttribute('max')!=='360')throw Error('Long sermon limit missing');
+  await form.locator('[name=duration_minutes]').fill('135');
+  await form.locator('[name=title]').fill('인공 설교 테스트');
+  await form.locator('[name=passage]').fill('테스트 1:1');
+  await form.locator('[name=perspective]').fill('인공 테스트');
+  await form.locator('button[type=submit]').click();
+  await page.waitForTimeout(150);
+  if(jobPosts!==1)throw Error('Long sermon submission not wired');
   fs.mkdirSync('output/codex-local-console/qa',{recursive:true});
   await page.screenshot({path:'output/codex-local-console/qa/grounded.png',fullPage:true});
   if(errors.length)throw new Error(errors.join('\n'));
