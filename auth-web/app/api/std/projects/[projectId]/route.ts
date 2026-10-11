@@ -1,3 +1,4 @@
+import { projectReadCacheKey, readProjectResponse, cacheProjectResponse } from '@/lib/stdProjectReadCache'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { persistTemplateOverlay } from '@/lib/stdTemplateOverlayPng'
 import { dialogueSceneIndex } from '@/lib/stdDialogueSceneIndex'
@@ -253,6 +254,27 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     const url = new URL(req.url)
     const impersonateTarget = (req.headers.get('x-impersonate-email') || url.searchParams.get('impersonate') || url.searchParams.get('email') || '').trim().toLowerCase()
+    const fingerprint = async () => {
+        const { data, error } = await supabaseAdmin.rpc('std_project_read_fingerprint', { p_project_id: params.projectId })
+        if (error) throw new Error(error.message)
+        return data
+    }
+    let initialVersion: any
+    try { initialVersion = await fingerprint() }
+    catch { return NextResponse.json({ error: 'Project version unavailable' }, { status: 503 }) }
+    const requesterEmail = String(auth.requester.email || '').toLowerCase()
+    if (!initialVersion || (!requesterEmail.startsWith('admin') && !requesterEmail.startsWith('worker') && requesterEmail !== String(initialVersion.employee_email || '').toLowerCase())) {
+        return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
+    }
+    const etag = `"std-read-v1-${initialVersion.version}"`
+    const readHeaders = { 'Cache-Control': 'private, no-cache', ETag: etag, Vary: 'Authorization, x-impersonate-email' }
+    const forceRefresh = req.headers.get('x-std-refresh') === '1'
+    if (!forceRefresh && req.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: readHeaders })
+    const cacheKey = projectReadCacheKey(requesterEmail, params.projectId, initialVersion.version)
+    if (!forceRefresh) {
+        const cached = await readProjectResponse(cacheKey)
+        if (cached) return NextResponse.json(cached, { headers: readHeaders })
+    }
     let query = supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId)
     if (auth.requester.email && !auth.requester.email.startsWith('admin') && !auth.requester.email.startsWith('worker')) {
         query = query.eq('employee_email', auth.requester.email)
@@ -358,7 +380,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         progress_payload: protectCharacterReferenceUrls(project.progress_payload, project.id),
     }
 
-    return NextResponse.json({
+    const responsePayload = {
         success: true,
         project: protectedProject,
         scenes: (scenes || []).map((scene, index) => hydrateSceneMedia(
@@ -368,7 +390,14 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         )),
         assets: enrichedAssets,
         render_history: renderHistory,
-    })
+    }
+    // Do not label a response with a version that changed while assembling it.
+    const finalVersion = await fingerprint().catch(() => null)
+    if (finalVersion?.version === initialVersion.version) {
+        await cacheProjectResponse(cacheKey, responsePayload)
+        return NextResponse.json(responsePayload, { headers: readHeaders })
+    }
+    return NextResponse.json(responsePayload, { headers: { "Cache-Control": "no-store" } })
 }
 
 export async function PATCH(req: Request, { params }: { params: { projectId: string } }) {

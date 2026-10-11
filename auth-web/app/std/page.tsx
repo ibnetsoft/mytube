@@ -1,4 +1,5 @@
 'use client'
+import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
@@ -4471,7 +4472,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const loadStdData = async (accessToken: string, options: { showLoading?: boolean } = {}) => {
+    const loadStdData = async (accessToken: string, options: { showLoading?: boolean; forceRefresh?: boolean } = {}) => {
         if (!accessToken) return
         const showLoading = options.showLoading !== false
         if (showLoading) setLoading(true)
@@ -4562,17 +4563,17 @@ export default function StdPortalPage() {
             }
 
             if (preferredProjectId) {
-                const openedProject = await openProject(preferredProjectId, accessToken).catch(() => null)
+                const openedProject = await openProject(preferredProjectId, accessToken, undefined, options.forceRefresh).catch(() => null)
                 if (openedProject?.project?.id) {
                     setProjects(prev => [
                         openedProject.project,
                         ...prev.filter(p => p.id !== openedProject.project.id),
                     ])
                 } else if (!urlProjectId && loadedProjects.length > 0 && loadedProjects[0].id !== preferredProjectId) {
-                    await openProject(loadedProjects[0].id, accessToken).catch(() => {})
+                    await openProject(loadedProjects[0].id, accessToken, undefined, options.forceRefresh).catch(() => {})
                 }
             } else if (loadedProjects.length > 0) {
-                await openProject(loadedProjects[0].id, accessToken).catch(() => {})
+                await openProject(loadedProjects[0].id, accessToken, undefined, options.forceRefresh).catch(() => {})
             } else if (savedProjectStateRaw) {
                 try {
                     const parsed = JSON.parse(savedProjectStateRaw)
@@ -5543,7 +5544,7 @@ export default function StdPortalPage() {
         }
     }
 
-    const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string): Promise<SelectedProjectPayload | null> => {
+    const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string, forceRefresh = false): Promise<SelectedProjectPayload | null> => {
         const requestedProjectId = String(projectId || '').trim()
         if (!requestedProjectId) return null
         if (subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current || ['dirty', 'saving', 'error'].includes(subtitleSaveState)) {
@@ -5563,10 +5564,7 @@ export default function StdPortalPage() {
         try {
             stopVrewPlayback()
 
-            const res = await fetch(`/api/std/projects/${requestedProjectId}${impQuery}`, {
-                headers: fetchHeaders,
-                signal: AbortSignal.timeout(60000),
-            })
+            const res = await fetchCachedProject(`/api/std/projects/${requestedProjectId}${impQuery}`, fetchHeaders, forceRefresh)
             const payload = await safeParseJson(res, '작업 조회 실패')
             if (!isLatestOpen()) return null
             if (res.ok && payload?.project) {
@@ -11289,7 +11287,7 @@ export default function StdPortalPage() {
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => loadStdData(token)}
+                                        onClick={() => loadStdData(token, { forceRefresh: true })}
                                         className="px-4 py-2 bg-[#202632] hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition border border-white/10"
                                     >
                                         새로고침
@@ -11308,7 +11306,7 @@ export default function StdPortalPage() {
                                         <option value="long">긴 영상 (30분 이상)</option>
                                     </select>
                                     <button
-                                        onClick={() => loadStdData(token)}
+                                        onClick={() => loadStdData(token, { forceRefresh: true })}
                                         className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl transition-all font-bold shadow flex items-center gap-1.5"
                                     >
                                         <span>🔄</span> 주제 새로고침

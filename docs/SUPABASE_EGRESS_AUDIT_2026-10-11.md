@@ -57,3 +57,36 @@ The status RPC is executable only by `service_role`, with a fixed empty search
 path and no security-definer privileges. SQL checks verify the deployed response
 sizes, grants and bucket MIME restriction. Subsequent billing usage is required
 to measure the actual total egress reduction; past billed usage is unchanged.
+
+## Browser/server/worker cache follow-up
+
+- The September 25 KST log window had 267,329 database requests. Ready-topic
+  structure polling accounted for tens of thousands of requests (28,587 for
+  limit 40, another 4,058 for limit 20), matching the local AE worker path.
+- AE polling now reads small candidate manifests containing DB-computed payload
+  fingerprints. Only new/changed payloads are downloaded and saved atomically to
+  a per-Supabase-project disk cache, surviving `--once` worker restarts.
+- Project GET authenticates and checks ownership before conditional reads or
+  server cache. A server-only DB fingerprint includes project, scenes, assets,
+  topic generation data and render history. Unchanged browser requests receive
+  HTTP 304 without reloading full project rows. Concurrent changes during response
+  assembly prevent cache tagging. Explicit refresh bypasses both caches.
+- Browser IndexedDB stores at most 20 project responses for one hour, scoped by
+  a hash of session identity and impersonation (credentials are never stored).
+  Reopening validates permissions and the latest fingerprint before using cached
+  data. Cache/quota failures fall back to normal live requests.
+- Server responses are gzip-compressed with version/owner scoped keys and a
+  60-second TTL. Redis command size is capped at 900KB, network timeout at 2s,
+  and per-instance memory at 64 entries. Text remains in Supabase; no project
+  JSON was moved to GCS. GCS media already has private browser cache headers.
+- Production has no Redis credentials or Marketplace installation. Attempted
+  Upstash free plan, Tokyo region, eviction on, automatic paid upgrade off.
+  Vercel requires the human user's Marketplace terms acceptance; no resource
+  was created. Until acceptance/provisioning, server memory and browser caching
+  operate normally. Redis cannot yet be described as active.
+- Verified actual browser IndexedDB persistence across reload, changed versions,
+  separate sessions, explicit refresh and revoked access; unit-tested compressed
+  cache corruption, unavailable IndexedDB, and authorization before cache access.
+  Worker cache and GCS upload regression tests pass. Production build passes;
+  full TypeScript check still has pre-existing unrelated errors, with no errors
+  in the new cache libraries or changed project route.

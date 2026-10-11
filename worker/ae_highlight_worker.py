@@ -34,6 +34,7 @@ from manga_scene_qa import validate_scene_plan, validate_render
 from media_checkpoint import Checkpoint, fingerprint, valid_file, valid_mp4, verified_local_mp4
 from ae_mouth import mouth_jsx
 from ae_video_tail import VIDEO_TAIL_POLICY, recorded_scene_duration, video_tail_jsx, pending_video_tail
+from ae_candidate_cache import load_candidates
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -489,30 +490,12 @@ def _find_scene_jobs(rows: list[dict[str, Any]], force: bool = False) -> list[Sc
 
 def fetch_candidate_topics(limit: int) -> list[dict[str, Any]]:
     base_url, headers = _supabase()
-    response = _request(
-        "GET",
-        f"{base_url}/rest/v1/topics_queue",
-        headers,
-        params={
-            "select": "id,topic,generated_title,pregenerated_structure,pregenerated_structure_status,created_at",
-            "pregenerated_structure_status": "eq.ready",
-            "order": "created_at.desc",
-            "limit": str(limit),
-        },
-    )
-    rows = response.json()
-    return rows if isinstance(rows, list) else []
+    return load_candidates(_request, base_url, headers, 'topic', limit, STATE_DIR / 'candidate_cache')
 
 
 def fetch_candidate_projects(limit: int) -> list[dict[str, Any]]:
     base_url, headers = _supabase()
-    response = _request(
-        "GET", f"{base_url}/rest/v1/std_projects", headers,
-        params={"select": "id,title,submitted_at,project_payload,updated_at",
-                "or": "(submitted_at.not.is.null,project_payload->ae_mouth->>enabled.eq.true)",
-                "status": "not.in.(approved,canceled)", "order": "updated_at.desc", "limit": str(limit)},
-    )
-    rows = response.json()
+    rows = load_candidates(_request, base_url, headers, 'project', limit, STATE_DIR / 'candidate_cache')
     return [{**row, "__source_type": "project"} for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
 
 

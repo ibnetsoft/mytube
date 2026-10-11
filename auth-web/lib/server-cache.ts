@@ -24,6 +24,7 @@ async function redisCommand(args: unknown[]) {
             },
             body: JSON.stringify([args]),
             cache: 'no-store',
+            signal: AbortSignal.timeout(2000),
         })
 
         if (!res.ok) return null
@@ -53,6 +54,11 @@ export async function getServerCache<T>(key: string): Promise<T | null> {
 }
 
 export async function setServerCache<T>(key: string, value: T, ttlSeconds: number) {
+    for (const [entryKey, entry] of memoryCache) {
+        if (entry.expiresAt <= Date.now()) memoryCache.delete(entryKey)
+    }
+    // Bound per-instance memory even when many versions/users are active.
+    if (memoryCache.size >= 64) memoryCache.delete(memoryCache.keys().next().value!)
     const expiresAt = Date.now() + ttlSeconds * 1000
     memoryCache.set(key, { value, expiresAt })
 
