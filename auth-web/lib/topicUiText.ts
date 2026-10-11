@@ -1,4 +1,5 @@
 // Translate UI labels only; never translate user input, API identifiers or source data.
+import { STD_WORKSPACE_COPY } from './stdWorkspaceLocale'
 const thai: Record<string, string> = {
     "일본사건 · 현대 애니메이션": "เรื่องราวเหตุการณ์ญี่ปุ่น · แอนิเมชันยุคปัจจุบัน",
     "일본사건: 한국 영상 URL을 입력하면 원본 길이에 맞춰 일본 이름·지명·생활 배경으로 각색합니다. 초반 18씬은 영상, 이후는 이미지입니다.": "เหตุการณ์ญี่ปุ่น: ใส่ URL วิดีโอเกาหลีเพื่อดัดแปลงชื่อ สถานที่ และวิถีชีวิตเป็นญี่ปุ่นตามความยาวต้นฉบับ 18 ฉากแรกใช้วิดีโอ หลังจากนั้นใช้ภาพ",
@@ -362,7 +363,8 @@ const korean: Record<string, string> = {
 }
 
 export function topicUiText(locale: string, text: string, values: Record<string, string | number> = {}): string {
-    const translated = (locale === 'th' ? thai[text] : locale === 'vi' ? vietnamese[text] : locale === 'en' ? english[text] : korean[text]) ?? text
+    const translated = (locale === 'th' ? thai[text] : locale === 'vi' ? vietnamese[text] : locale === 'en' ? english[text] : korean[text])
+        ?? STD_WORKSPACE_COPY[locale]?.[text] ?? text
     return translated.replace(/\{(\w+)\}/g, (placeholder, key) =>
         Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : placeholder)
 }

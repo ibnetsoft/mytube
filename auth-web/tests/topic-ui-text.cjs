@@ -3,10 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const ts = require('typescript')
 
-const source = fs.readFileSync(path.join(__dirname, '../lib/topicUiText.ts'), 'utf8')
-const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText
-const copy = {}
-new Function('exports', compiled)(copy)
+const copy = require('./load-ts-module.cjs')(path.join(__dirname, '../lib/topicUiText.ts'))
 
 assert.equal(copy.topicUiText('ko', '日本昔話'), '일본 옛날이야기')
 assert.equal(copy.topicUiText('en', '총 {count}개 씬 구조', { count: 100 }), '100 scenes total')

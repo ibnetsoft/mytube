@@ -93,11 +93,11 @@ assert.deepEqual(buildPersistentProjectState(selectedProject).project.project_pa
 // Save+TTS is unavailable, and it must invoke persistence rather than an alert.
 const jsx = { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
 const saveButton = find(ast, node => ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'button'
-    && node.openingElement.getText(ast).includes('TTS를 생성하지 않고 수정 내용을 저장합니다'));
+    && node.openingElement.getText(ast).includes('ttsNoticeCopy(currentLocale).subtitleSaveHint'));
 assert(saveButton, 'A standalone subtitle save control exists');
 let saves = 0;
 for (const state of ['idle', 'dirty', 'error', 'saved']) {
-    const button = evaluate(saveButton, { require: () => jsx, Save: () => null, RefreshCw: () => null, currentLocale: 'ko', subtitleSaveState: state,
+    const button = evaluate(saveButton, { require: () => jsx, Save: () => null, RefreshCw: () => null, currentLocale: 'ko', ttsNoticeCopy: () => ({subtitleSaveHint:'Save edits without generating speech',subtitleSaveLabel:'Save subtitles'}), subtitleSaveState: state,
         localSubtitles: saved, canFinalizeSubtitlesAndTts: false, handleSaveSubtitles: async () => { saves++; } });
     assert.equal(button.type, 'button');
     assert.equal(button.props.type, 'button');

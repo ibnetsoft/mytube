@@ -21,7 +21,7 @@ test('read failures are explicit instead of showing a false zero or removing the
  const original=console.error;console.error=()=>{};try{const rows=await attachTopicWorkInfo(dbMock([],[],true),[{id:1,topic:'keep'}]);assert.equal(rows[0].topic,'keep');assert.equal(rows[0].work_info.error,true)}finally{console.error=original}
 })
 test('shared status display supports Korean and Thai without raw AE labels',()=>{
- const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),component=load('components/StdSpeakerWorkInfo.tsx').default
+ const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),component=require('./load-ts-module.cjs')(path.join(root,'components/StdSpeakerWorkInfo.tsx')).default
  for(const locale of ['ko','th']){const html=renderToStaticMarkup(React.createElement(component,{locale,data:{count:60,workerCompleted:6,completed:47,confirmed:0,failed:9,pending:4,speakerProgress:{total:183,confirmed:183}}}));assert.match(html,/47\/60/);assert.match(html,/183\/183/);assert.match(html,/AIR/);assert.match(html,/6\/60/);assert.match(html,/54/);assert.doesNotMatch(html,/\bAE\b/);if(locale==='th')assert.doesNotMatch(html,/[가-힣]/)}
 })
 

@@ -1,4 +1,7 @@
 import type { SupportedLocale } from './i18n'
+import { I18N_DICTIONARY } from './i18n'
+import { STD_WORKSPACE_COPY } from './stdWorkspaceLocale'
+import { topicUiText } from './topicUiText'
 
 // UI labels only. Never apply this to scripts, filenames, or saved model output.
 const thai: Record<string, string> = {
@@ -354,8 +357,18 @@ const thai: Record<string, string> = {
     "이미지 {count}개 다운로드를 시작합니다...": "กำลังเริ่มดาวน์โหลดภาพ {count} ภาพ…"
 }
 
+const existingCopy: Record<string, Record<string, string>> = { en: {}, vi: {}, th: {} }
+for (const [key, korean] of Object.entries(I18N_DICTIONARY.ko)) {
+    for (const locale of ['en', 'vi', 'th'] as const) {
+        const translated = I18N_DICTIONARY[locale][key]
+        if (translated && translated !== korean) existingCopy[locale][korean] ??= translated
+    }
+}
+
 export function stdUiText(locale: SupportedLocale, text: string, values: Record<string, string | number> = {}): string {
-    const translated = locale === 'th' ? (thai[text] ?? text) : text
+    const translated = locale === 'ko' ? (STD_WORKSPACE_COPY.ko?.[text] ?? text) : (
+        (locale === 'th' ? thai[text] : undefined) ?? STD_WORKSPACE_COPY[locale]?.[text]
+        ?? existingCopy[locale]?.[text] ?? topicUiText(locale, text))
     return translated.replace(/\{(\w+)\}/g, (placeholder, key) =>
         Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : placeholder)
 }

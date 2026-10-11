@@ -1,15 +1,20 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { drawThumbnail, loadThumbnailBackground, ThumbnailLayer } from '@/lib/stdThumbnailRender'
+import { stdUiText } from '@/lib/stdUiText'
+import type { SupportedLocale } from '@/lib/i18n'
 
-export default function StdThumbnailPreview({ background, layers, headers }: {
-    background: string; layers: ThumbnailLayer[]; headers?: HeadersInit
+export default function StdThumbnailPreview({ background, layers, headers, locale = 'ko' }: {
+    background: string; layers: ThumbnailLayer[]; headers?: HeadersInit; locale?: SupportedLocale
 }) {
     const canvas = useRef<HTMLCanvasElement>(null)
     const [image, setImage] = useState<HTMLImageElement | null>(null)
     const [error, setError] = useState('')
     const headerKey = JSON.stringify(headers || {})
     const revision = useRef(0)
+    const ui = (text: string, values?: Record<string, string | number>) => stdUiText(locale, text, values)
+    const statusError = /^썸네일 배경을 불러오지 못했습니다\. \((\d+)\)$/.exec(error)
+    const errorLabel = statusError ? ui('썸네일 배경을 불러오지 못했습니다. ({status})', {status: statusError[1]}) : ui(error)
     useEffect(() => {
         let active = true
         setImage(null); setError('')
@@ -33,9 +38,9 @@ export default function StdThumbnailPreview({ background, layers, headers }: {
         return () => { ++revision.current }
     }, [image, layers])
     return <div className="relative aspect-video bg-black overflow-hidden select-none">
-        <canvas ref={canvas} width={1280} height={720} className="w-full h-full" aria-label="편집 가능한 썸네일 합성 미리보기" />
+        <canvas ref={canvas} width={1280} height={720} className="w-full h-full" aria-label={ui('편집 가능한 썸네일 합성 미리보기')} />
         {(!background || error) && <p className="absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-gray-300">
-            {error || '글자 없는 배경 이미지를 생성하거나 업로드해 주세요.'}
+            {errorLabel || ui('글자 없는 배경 이미지를 생성하거나 업로드해 주세요.')}
         </p>}
     </div>
 }

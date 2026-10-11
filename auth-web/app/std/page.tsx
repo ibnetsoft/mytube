@@ -775,7 +775,7 @@ export default function StdPortalPage() {
     const ui = (text: string, values?: Record<string, string | number>) => stdUiText(currentLocale, text, values)
     const topicUi = (text: string, values?: Record<string, string | number>) => topicUiText(currentLocale, text, values)
     const voiceCopy = voiceDialogCopy(currentLocale)
-    const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback)
+    const t = (key: string, fallback?: string) => getTranslation(currentLocale, key, fallback ? ui(fallback) : fallback)
     const subtitleReviewLocale = isSubtitleTranslationLanguage(currentLocale)
         && (subtitleTranslationScope === 'all' || currentLocale === 'th' || currentLocale === 'ko') ? currentLocale : null
     const subtitleReviewCopy = subtitleReviewLocale ? SUBTITLE_REVIEW_COPY[subtitleReviewLocale] : null
@@ -1337,7 +1337,7 @@ export default function StdPortalPage() {
             ...shape,
             id: shape.id || `shape-${Date.now()}-${index}`,
         })))
-        setMessage(`'${preset.name}' 템플릿이 적용되었습니다.`)
+        setMessage(ui("'{name}' 템플릿이 적용되었습니다.", {name: preset.name}))
     }
 
     const saveTemplatePreset = () => {
@@ -1362,7 +1362,7 @@ export default function StdPortalPage() {
         setSelectedTemplatePreset(preset.id)
         localStorage.setItem('std_thumbnail_template_presets', JSON.stringify(customPresets))
         setTemplatePresetName('')
-        setMessage(`'${name}' 템플릿 프리셋이 저장되었습니다.`)
+        setMessage(ui("'{name}' 템플릿 프리셋이 저장되었습니다.", {name}))
     }
 
     const handleTemplateBgFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1374,7 +1374,7 @@ export default function StdPortalPage() {
             return
         }
         setTemplateBgUrl(URL.createObjectURL(file))
-        setMessage(`템플릿 배경 이미지 (${file.name})가 적용되었습니다.`)
+        setMessage(ui('템플릿 배경 이미지 ({name})가 적용되었습니다.', {name: file.name}))
         event.target.value = ''
     }
 
@@ -3169,7 +3169,7 @@ export default function StdPortalPage() {
                     {options.buttonLabel && <span>{options.buttonLabel}</span>}
                 </button>
                 {speakerEditorIndex !== null && pickerKey === `block-${speakerEditorIndex}` && <SubtitleSpeakerEditor
-                    key={`${selectedProject?.project?.id}:${speakerEditorIndex}:${currentLocale}`}
+                    key={`${selectedProject?.project?.id}:${speakerEditorIndex}`}
                     speaker={subtitleSpeakers[speakerEditorIndex]} names={speakerNames} characters={speakerCharacters}
                     locale={currentLocale} translations={speakerNameTranslations} projectId={selectedProject?.project?.id}
                     headers={authedJsonHeaders} onTranslations={rememberSpeakerNameTranslations}
@@ -8298,6 +8298,7 @@ export default function StdPortalPage() {
     })()
     const sidebarTtsReadiness = (closeMobileMenu = false) => currentNav === 'subtitle_vrew' ? (
         <StdTtsReadinessNotice
+            locale={currentLocale}
             compact
             subtitles={localSubtitles}
             busy={generatingTts}
@@ -8991,12 +8992,12 @@ export default function StdPortalPage() {
                                         {mobileSubtitlePanelOpen ? (
                                             <>
                                                 <span className="text-xs">▼</span>
-                                                <span>숨김</span>
+                                                <span>{ui("숨김")}</span>
                                             </>
                                         ) : (
                                             <>
                                                 <span className="text-xs">▲</span>
-                                                <span>펼침</span>
+                                                <span>{ui("펼침")}</span>
                                             </>
                                         )}
                                     </button>
@@ -9054,7 +9055,7 @@ export default function StdPortalPage() {
                                                 type="button"
                                                 onClick={loadTemplatePresetsFromStorage}
                                                 className="h-7 w-7 inline-flex items-center justify-center text-gray-400 hover:text-white border border-gray-700 hover:bg-[#0a0f1d] rounded transition-all shrink-0"
-                                                title="새로고침"
+                                                title={ui("새로고침")}
                                             >
                                                 <RefreshCw size={12} />
                                             </button>
@@ -9117,7 +9118,7 @@ export default function StdPortalPage() {
                                                         persistSubtitleRenderSettings({ subTextColor: value })
                                                     }}
                                                     className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
-                                                    title="글자색"
+                                                    title={ui("글자색")}
                                                 />
                                                 <span className="text-[9px] text-gray-400">{t('sub_text_color_short')}</span>
                                             </div>
@@ -9131,7 +9132,7 @@ export default function StdPortalPage() {
                                                         persistSubtitleRenderSettings({ subStrokeColor: value })
                                                     }}
                                                     className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
-                                                    title="테두리색"
+                                                    title={ui("테두리색")}
                                                 />
                                                 <span className="text-[9px] text-gray-400">{t('sub_outline_short')}</span>
                                             </div>
@@ -9209,7 +9210,7 @@ export default function StdPortalPage() {
                                                     step="0.05"
                                                     min="-0.5"
                                                     max="1.5"
-                                                    title="자간/행간 비율"
+                                                    title={ui("자간/행간 비율")}
                                                 />
                                                 <span className="text-[9px] text-gray-500 ml-0.5">{ui("줄간격")}</span>
                                             </div>
@@ -9225,7 +9226,7 @@ export default function StdPortalPage() {
                                                     className="w-8 text-center text-[11px] bg-transparent text-white focus:outline-none"
                                                     min="20"
                                                     max="40"
-                                                    title="한 자막 최대 글자 수 (롱폼)"
+                                                    title={ui("한 자막 최대 글자 수 (롱폼)")}
                                                 />
                                                 <span className="text-[9px] text-gray-500 ml-0.5">{ui("최대글자수")}</span>
                                             </div>
@@ -9245,7 +9246,7 @@ export default function StdPortalPage() {
                                                         persistSubtitleRenderSettings({ subPosY: value })
                                                     }}
                                                     className="w-4 h-4 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
-                                                    title="위로 (Y위치 증가)"
+                                                    title={ui("위로 (Y위치 증가)")}
                                                 >
                                                     ▲
                                                 </button>
@@ -9260,7 +9261,7 @@ export default function StdPortalPage() {
                                                         persistSubtitleRenderSettings({ subPosY: value })
                                                     }}
                                                     className="w-4 h-4 flex items-center justify-center rounded-sm bg-gray-700 hover:bg-gray-600 text-white text-[9px] leading-none"
-                                                    title="아래로 (Y위치 감소)"
+                                                    title={ui("아래로 (Y위치 감소)")}
                                                 >
                                                     ▼
                                                 </button>
@@ -9296,7 +9297,7 @@ export default function StdPortalPage() {
                                                     persistSubtitleRenderSettings({ subBgColor: value })
                                                 }}
                                                 className="w-5 h-5 p-0 bg-transparent border-0 rounded cursor-pointer"
-                                                title="배경색"
+                                                title={ui("배경색")}
                                             />
                                             <div className="flex items-center gap-0.5 bg-[#14181f] px-1 py-0.5 rounded border border-gray-600/50">
                                                 <input
@@ -9311,7 +9312,7 @@ export default function StdPortalPage() {
                                                     min="0"
                                                     max="1"
                                                     className="w-8 text-center text-[10px] bg-transparent text-white focus:outline-none"
-                                                    title="불투명도 (0~1)"
+                                                    title={ui("불투명도 (0~1)")}
                                                 />
                                                 <span className="text-[10px] text-gray-500">:</span>
                                                 <input
@@ -9324,7 +9325,7 @@ export default function StdPortalPage() {
                                                     }}
                                                     step="1"
                                                     className="w-7 text-center text-[10px] bg-transparent text-white focus:outline-none"
-                                                    title="세로 여백/오프셋"
+                                                    title={ui("세로 여백/오프셋")}
                                                 />
                                             </div>
                                         </div>
@@ -9387,7 +9388,7 @@ export default function StdPortalPage() {
                                                         <button
                                                             type="button"
                                                             disabled={selectedSubtitleBlockIndexes.length < 2}
-                                                            title="첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기"
+                                                            title={ui("첫 자막 클릭 → Shift를 누른 채 마지막 자막 클릭 → 합치기")}
                                                             onClick={() => void mergeSelectedSubtitleBlocks()}
                                                             className="ml-0.5 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 sm:px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
                                                         >
@@ -9479,7 +9480,7 @@ export default function StdPortalPage() {
                                                 onClick={() => void syncSubtitleTimingsToNarration()}
                                                 disabled={isSubtitleSyncing || localSubtitles.length === 0}
                                                 className="text-[10px] font-bold px-3 py-1.5 rounded-md border border-white/10 bg-transparent hover:bg-[#232832] text-white transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                                                title="줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다."
+                                                title={ui("줄별 TTS를 생성해 길이를 합산합니다. 저장된 전체 음성을 분석하는 정밀 싱크는 아닙니다.")}
                                             >
                                                 {isSubtitleSyncing ? ui("음성 길이 보정 중...") : ui("음성 길이 보정")}
                                             </button>
@@ -9649,7 +9650,7 @@ export default function StdPortalPage() {
                                                                         className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
                                                                         {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
                                                                     </select>
-                                                                    <span className="flex items-center gap-1">속도
+                                                                    <span className="flex items-center gap-1">{ui("속도")}
                                                                         <select aria-label={`씬 ${sNum} 모션 속도`} value={sceneMotionSpeed(sceneRecord)}
                                                                             disabled={originalVideo || motionEffect === 'none' || isSceneEffectSaving}
                                                                             onChange={event => void applySelectedSceneTransition(event.target.value, 'motion_speed', [Number(sNum)])}
@@ -9770,7 +9771,7 @@ export default function StdPortalPage() {
                                                                                     selectSubtitleBlock(item.subtitleIndex, event.shiftKey)
                                                                                 }}
                                                                                 onMouseDown={event => { if (event.shiftKey) event.preventDefault() }}
-                                                                                title="클릭하여 선택 · Shift+클릭으로 연속된 자막 선택"
+                                                                                title={ui("클릭하여 선택 · Shift+클릭으로 연속된 자막 선택")}
                                                                                 className={`grid grid-cols-[1.25rem_minmax(0,1fr)] sm:grid-cols-[1.5rem_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 rounded-md border px-1.5 sm:px-2 py-0 ${
                                                                                     isBlockSelected
                                                                                         ? 'border-cyan-400/60 bg-cyan-500/10'
@@ -9786,7 +9787,7 @@ export default function StdPortalPage() {
                                                                                         selectSubtitleBlock(item.subtitleIndex, event.shiftKey)
                                                                                     }}
                                                                                     aria-pressed={isBlockSelected}
-                                                                                    title="클릭하여 선택, Shift+클릭하여 범위 선택"
+                                                                                    title={ui("클릭하여 선택, Shift+클릭하여 범위 선택")}
                                                                                     className={`h-5 rounded border text-[9px] font-bold transition-all ${
                                                                                         isBlockSelected
                                                                                             ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
@@ -9798,7 +9799,7 @@ export default function StdPortalPage() {
                                                                                 <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
                                                                                     {sfxSubtitleIndexes.has(item.subtitleIndex) && <span role="img" aria-label={ui("효과음 있음")} title={ui("효과음이 배치된 자막")} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/50 bg-purple-500/10 text-[11px] leading-none text-purple-100">★</span>}
                                                                                     <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
-                                                                                        {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={currentLocale === 'th' ? 'แก้ไขข้อมูลผู้พูด (ไม่อ่านออกเสียง)' : '화자 정보 편집 (TTS·영상 자막 제외)'} className={`mr-2 shrink-0 rounded border px-1.5 py-1 text-[10px] ${speakerInfo?.gender === 'female' ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : speakerInfo?.gender === 'male' ? 'border-sky-200 bg-sky-300/90 text-sky-950' : 'border-amber-300/30 text-amber-200'}`}>{speakerInfo?.label || (currentLocale === 'th' ? 'ยืนยันผู้พูด' : '화자 확인 필요')}{speakerInfo?.gender !== 'male' && speakerInfo?.gender !== 'female' ? ' · ?' : ''}</button>}
+                                                                                        {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={ui('화자 정보 편집 (TTS·영상 자막 제외)')} className={`mr-2 shrink-0 rounded border px-1.5 py-1 text-[10px] ${speakerInfo?.gender === 'female' ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : speakerInfo?.gender === 'male' ? 'border-sky-200 bg-sky-300/90 text-sky-950' : 'border-amber-300/30 text-amber-200'}`}>{speakerInfo?.label || ui('화자 확인 필요')}{speakerInfo?.gender !== 'male' && speakerInfo?.gender !== 'female' ? ' · ?' : ''}</button>}
                                                                                         <span className="min-w-0 truncate" title={String(item.text || '')}>
                                                                                             {candidates.length ? (() => {
                                                                                                 const parts: React.ReactNode[] = []
@@ -9819,7 +9820,7 @@ export default function StdPortalPage() {
                                                                                                 (nextVoiceId, allSpeaker) => applySubtitleSpeakerVoice(item.subtitleIndex, nextVoiceId, allSpeaker),
                                                                                                 `ElevenLabs · ${subtitleReviewCopy
                                                                                                     ? (isDialogueBlock ? subtitleReviewCopy.dialogueVoice : subtitleReviewCopy.narrationVoice)
-                                                                                                    : `${isDialogueBlock ? '대사' : '내레이션'} 성우`}`,
+                                                                                                    : `${isDialogueBlock ? ui("대사") : ui("내레이션")} 성우`}`,
                                                                                                 isDialogueBlock ? 'dialogue' : 'default',
                                                                                                 'left',
                                                                                                 false,
@@ -9863,15 +9864,15 @@ export default function StdPortalPage() {
                                                                                     )}
                                                                                     {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
                                                                                         <span className="inline-flex shrink-0 items-center gap-2 text-[10px]">
-                                                                                            {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>{subtitleReviewCopy?.candidate || '대사 후보'}</span>}
-                                                                                            <button type="button" className="text-emerald-300 underline" title="이 자막 줄 전체를 대사로 지정합니다. 목소리는 대사 일괄 적용으로 선택하세요." onClick={() => {
+                                                                                            {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>{subtitleReviewCopy?.candidate || ui("대사 후보")}</span>}
+                                                                                            <button type="button" className="text-emerald-300 underline" title={ui("이 자막 줄 전체를 대사로 지정합니다. 목소리는 대사 일괄 적용으로 선택하세요.")} onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: true } : sub)
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>{subtitleReviewCopy?.markDialogue || '대사로 지정'}</button>
+                                                                                            }}>{subtitleReviewCopy?.markDialogue || ui("대사로 지정")}</button>
                                                                                             <button type="button" className="text-gray-400 underline" onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: false } : sub)
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>{subtitleReviewCopy?.markNarration || '내레이션'}</button>
+                                                                                            }}>{subtitleReviewCopy?.markNarration || ui("내레이션")}</button>
                                                                                             {typeof item.dialogue_override === 'boolean' && <button type="button" className="text-amber-300 underline" onClick={() => {
                                                                                                 const updated = localSubtitles.map((sub, index) => {
                                                                                                     if (index !== item.subtitleIndex) return sub
@@ -9879,7 +9880,7 @@ export default function StdPortalPage() {
                                                                                                     return rest
                                                                                                 })
                                                                                                 void persistVrewVoiceSubtitles(updated)
-                                                                                            }}>{subtitleReviewCopy?.automatic || '자동 판별'}</button>}
+                                                                                            }}>{subtitleReviewCopy?.automatic || ui("자동 판별")}</button>}
                                                                                         </span>
                                                                                     )}
                                                                                 {!hasSingleGroupVoice && (
@@ -9938,7 +9939,7 @@ export default function StdPortalPage() {
                                                             onClick={(event) => event.stopPropagation()}
                                                         >
                                                             <label className="block text-[9px] text-gray-500 mb-1 whitespace-nowrap">
-                                                                {isVrewSubtitleMode ? '씬 나레이션 성우' : '나레이션 성우'}
+                                                                {isVrewSubtitleMode ? ui("씬 나레이션 성우") : ui("나레이션 성우")}
                                                             </label>
                                                             {renderVoicePicker(
                                                                 `scene-${sNum}`,
@@ -10032,9 +10033,9 @@ export default function StdPortalPage() {
                                                 <div role="status" className="absolute top-2 left-2 z-20 rounded bg-black/80 px-3 py-2 text-xs text-white">
                                                     {resolvedPreviewVideo?.key === previewVideoKey && resolvedPreviewVideo.error ? (
                                                         <button onClick={() => setPreviewVideoRetry(value => value + 1)}>
-                                                            {{ ko: '영상 로딩 실패 · 다시 시도', en: 'Video loading failed · Retry', vi: 'Tải video thất bại · Thử lại', th: 'โหลดวิดีโอไม่สำเร็จ · ลองอีกครั้ง' }[currentLocale]}
+                                                            {{ ko: ui("영상 로딩 실패 · 다시 시도"), en: 'Video loading failed · Retry', vi: 'Tải video thất bại · Thử lại', th: 'โหลดวิดีโอไม่สำเร็จ · ลองอีกครั้ง' }[currentLocale]}
                                                         </button>
-                                                    ) : ({ ko: '영상 준비 중…', en: 'Preparing video…', vi: 'Đang chuẩn bị video…', th: 'กำลังเตรียมวิดีโอ…' }[currentLocale])}
+                                                    ) : ({ ko: ui("영상 준비 중…"), en: 'Preparing video…', vi: 'Đang chuẩn bị video…', th: 'กำลังเตรียมวิดีโอ…' }[currentLocale])}
                                                 </div>
                                             )}
                                             {previewTransition && (previewTransition.videoUrl || previewTransition.imageUrl) && (
@@ -10063,7 +10064,7 @@ export default function StdPortalPage() {
                                                     )}
                                                 </div>
                                             )}
-                                            {selectedImageTemplatePreset && <StdTemplateOverlay layers={textLayers}
+                                            {selectedImageTemplatePreset && <StdTemplateOverlay locale={currentLocale} layers={textLayers}
                                                 savedImage={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_png_data_url}
                                                 savedLayers={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_layers} />}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
@@ -10137,7 +10138,7 @@ export default function StdPortalPage() {
                                                     </span>
                                                     {currentSub.is_hook_zone && (
                                                         <span className="text-[9px] bg-orange-600/30 text-orange-400 px-1.5 py-0.5 rounded font-bold border border-orange-500/30">
-                                                            🎬 {currentLocale === "th" ? "ช่วงเปิด 5 วินาที ฉาก" : "5초 훅 씬"} #{currentSub.scene_number}
+                                                            🎬 {currentLocale === "th" ? "ช่วงเปิด 5 วินาที ฉาก" : ui("5초 훅 씬")} #{currentSub.scene_number}
                                                         </span>
                                                     )}
                                                 </div>
@@ -11097,10 +11098,10 @@ export default function StdPortalPage() {
                                         <span className="text-xl">🔥</span>
                                         <div>
                                             <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                                                <span>실시간 트렌드 키워드 & AI 주제 분석</span>
+                                                <span>{ui("실시간 트렌드 키워드 & AI 주제 분석")}</span>
                                                 <span className="text-[10px] px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full font-bold border border-red-500/30 animate-pulse">LIVE</span>
                                             </h2>
-                                            <p className="text-[11px] text-gray-400">유튜브 및 글로벌 트렌드 빅데이터를 기반으로 실시간 급상승 키워드를 추출합니다.</p>
+                                            <p className="text-[11px] text-gray-400">{ui("유튜브 및 글로벌 트렌드 빅데이터를 기반으로 실시간 급상승 키워드를 추출합니다.")}</p>
                                         </div>
                                     </div>
 
@@ -11109,7 +11110,7 @@ export default function StdPortalPage() {
                                         {/* 국가 */}
                                         <div className="flex bg-[#14181f] p-1 rounded-lg border border-white/10 text-xs">
                                             {[
-                                                { code: 'ko', label: '🇰🇷 한국' },
+                                                { code: 'ko', label: ui("🇰🇷 한국") },
                                                 { code: 'ja', label: '🇯🇵 日本' },
                                                 { code: 'en', label: '🇺🇸 Global' },
                                             ].map(item => (
@@ -11129,9 +11130,9 @@ export default function StdPortalPage() {
                                         {/* 기간 */}
                                         <div className="flex bg-[#14181f] p-1 rounded-lg border border-white/10 text-xs">
                                             {[
-                                                { id: 'now', label: '지금' },
-                                                { id: 'week', label: '이번 주' },
-                                                { id: 'month', label: '이번 달' },
+                                                { id: 'now', label: ui("지금") },
+                                                { id: 'week', label: ui("이번 주") },
+                                                { id: 'month', label: ui("이번 달") },
                                             ].map(item => (
                                                 <button
                                                     key={item.id}
@@ -11149,9 +11150,9 @@ export default function StdPortalPage() {
                                         {/* 연령대 */}
                                         <div className="flex bg-[#14181f] p-1 rounded-lg border border-white/10 text-xs">
                                             {[
-                                                { id: 'all', label: '전체' },
+                                                { id: 'all', label: ui("전체") },
                                                 { id: '30s', label: '3040' },
-                                                { id: '50s', label: '5060 시니어' },
+                                                { id: '50s', label: ui("5060 시니어") },
                                             ].map(item => (
                                                 <button
                                                     key={item.id}
@@ -11171,13 +11172,13 @@ export default function StdPortalPage() {
                                 {/* 트렌드 버블 키워드 클라우드 */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between text-[11px] text-gray-400">
-                                        <span>현재 대기열 기반 추천 키워드 (클릭 시 주제 필터 적용)</span>
-                                        <span className="font-mono text-blue-400">{trendKeywordChips.length}개 키워드 감지됨</span>
+                                        <span>{ui("현재 대기열 기반 추천 키워드 (클릭 시 주제 필터 적용)")}</span>
+                                        <span className="font-mono text-blue-400">{trendKeywordChips.length}{ui("개 키워드 감지됨")}</span>
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {trendKeywordChips.length === 0 && (
                                             <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#14181f] text-gray-500 border border-white/10">
-                                                조건에 맞는 대기 주제가 없습니다.
+                                                {ui("조건에 맞는 대기 주제가 없습니다.")}
                                             </span>
                                         )}
                                         {trendKeywordChips.map((kw, idx) => (
@@ -11211,7 +11212,7 @@ export default function StdPortalPage() {
                                             type="text"
                                             value={topicSearchQuery}
                                             onChange={e => setTopicSearchQuery(e.target.value)}
-                                            placeholder="주제 키워드 또는 카테고리 검색..."
+                                            placeholder={ui("주제 키워드 또는 카테고리 검색...")}
                                             className="w-full bg-[#14181f] border border-white/10 rounded-xl px-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                                         />
                                         {topicSearchQuery && (
@@ -11229,7 +11230,7 @@ export default function StdPortalPage() {
                                         onClick={() => loadStdData(token, { forceRefresh: true })}
                                         className="px-4 py-2 bg-[#202632] hover:bg-blue-600 text-white rounded-xl text-xs font-bold transition border border-white/10"
                                     >
-                                        새로고침
+                                        {ui("새로고침")}
                                     </button>
                                 </div>
 
@@ -11239,16 +11240,16 @@ export default function StdPortalPage() {
                                         onChange={e => setTopicLengthFilter(e.target.value)}
                                         className="text-xs bg-[#14181f] border border-white/10 rounded-xl px-3 py-2 text-white outline-none cursor-pointer"
                                     >
-                                        <option value="">전체 영상길이</option>
-                                        <option value="short">짧은 영상 (15분 미만)</option>
-                                        <option value="medium">중간 영상 (15-30분)</option>
-                                        <option value="long">긴 영상 (30분 이상)</option>
+                                        <option value="">{ui("전체 영상길이")}</option>
+                                        <option value="short">{ui("짧은 영상 (15분 미만)")}</option>
+                                        <option value="medium">{ui("중간 영상 (15-30분)")}</option>
+                                        <option value="long">{ui("긴 영상 (30분 이상)")}</option>
                                     </select>
                                     <button
                                         onClick={() => loadStdData(token, { forceRefresh: true })}
                                         className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl transition-all font-bold shadow flex items-center gap-1.5"
                                     >
-                                        <span>🔄</span> 주제 새로고침
+                                        <span>🔄</span> {ui("주제 새로고침")}
                                     </button>
                                 </div>
                             </div>
@@ -11257,10 +11258,10 @@ export default function StdPortalPage() {
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                                        <span>✨ AI 추천 작업 주제 큐</span>
-                                        <span className="text-xs text-indigo-400 font-mono">({displayedTopics.length}개 대기 중)</span>
+                                        <span>{ui("✨ AI 추천 작업 주제 큐")}</span>
+                                        <span className="text-xs text-indigo-400 font-mono">({displayedTopics.length}{ui("개 대기 중)")}</span>
                                     </h3>
-                                    <span className="text-xs text-gray-400">주제 카드를 클릭하면 상세 기획 프리뷰 및 작업 시작 모달이 나타납니다.</span>
+                                    <span className="text-xs text-gray-400">{ui("주제 카드를 클릭하면 상세 기획 프리뷰 및 작업 시작 모달이 나타납니다.")}</span>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -11279,7 +11280,7 @@ export default function StdPortalPage() {
                                                 {/* 상단 뱃지 & 수당 */}
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 truncate max-w-[65%]">
-                                                        {topicUi(topic.category_name || '옛날이야기')}
+                                                        {topicUi(topic.category_name || ui("옛날이야기"))}
                                                     </span>
                                                     <span className="text-xs font-bold text-amber-400 font-mono bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
                                                         {formatTopicPayout(topic)}
@@ -11341,7 +11342,7 @@ export default function StdPortalPage() {
                                         <div className="space-y-1.5 border-b border-white/10 pb-4">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-bold px-3 py-1 bg-indigo-600 text-white rounded-full">
-                                                    {topicUi(selectedTopicForModal.category_name || '옛날이야기')}
+                                                    {topicUi(selectedTopicForModal.category_name || ui("옛날이야기"))}
                                                 </span>
                                                 <span className="text-xs font-bold px-2.5 py-1 bg-amber-500/20 text-amber-300 rounded-full border border-amber-500/30 font-mono">
                                                     {topicUi('정산 수당')}: {formatTopicPayoutDetail(selectedTopicForModal)}
@@ -11427,9 +11428,9 @@ export default function StdPortalPage() {
                                 <div className="flex items-center justify-between border-b border-white/5 pb-3">
                                     <h3 className="font-bold text-sm text-white flex items-center gap-2">
                                         <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-blue-500/30">1</span>
-                                        1단계: 제목 및 스타일 설정
+                                        {ui("1단계: 제목 및 스타일 설정")}
                                     </h3>
-                                    <span className="text-[10px] text-gray-400 font-mono tracking-wider uppercase">Thumbnail Configuration</span>
+                                    <span className="text-[10px] text-gray-400 font-mono tracking-wider uppercase">{ui("Thumbnail Configuration")}</span>
                                 </div>
 
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -11437,12 +11438,12 @@ export default function StdPortalPage() {
                                     <div className="lg:col-span-4 flex flex-col gap-3">
                                         <div>
                                             <label className="block text-[11px] font-bold text-gray-400 mb-1.5 uppercase tracking-wider">
-                                                영상 제목 및 기획 의도
+                                                {ui("영상 제목 및 기획 의도")}
                                             </label>
                                             <textarea
                                                 value={thumbTitle}
                                                 onChange={e => syncProjectTitle(e.target.value)}
-                                                placeholder="영상의 주요 내용이나 기획 의도를 입력하세요."
+                                                placeholder={ui("영상의 주요 내용이나 기획 의도를 입력하세요.")}
                                                 className="w-full bg-[#14181f] border border-white/10 rounded-xl p-3 text-xs text-white resize-none h-[110px] focus:outline-none focus:border-blue-500 leading-relaxed"
                                             />
                                         </div>
@@ -11450,7 +11451,7 @@ export default function StdPortalPage() {
                                             type="button"
                                             onClick={() => {
                                                 if (!thumbnailIdeas.length) {
-                                                    alert('이 프로젝트에는 아직 Codex 워커가 생성한 썸네일 문구가 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요.')
+                                                    alert(ui("이 프로젝트에는 아직 Codex 워커가 생성한 썸네일 문구가 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요."))
                                                     return
                                                 }
                                                 setThumbTextLayers(thumbnailIdeas.slice(0, 2).map((idea, index) => ({
@@ -11465,11 +11466,11 @@ export default function StdPortalPage() {
                                                     y: index === 0 ? 35 : 65,
                                                 })))
                                                 setThumbStep(2)
-                                                alert('Codex 워커가 대본과 함께 생성한 썸네일 문구를 적용했습니다.')
+                                                alert(ui("Codex 워커가 대본과 함께 생성한 썸네일 문구를 적용했습니다."))
                                             }}
                                             className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all"
                                         >
-                                            ✨ 썸네일 기획안 통합 생성
+                                            {ui("✨ 썸네일 기획안 통합 생성")}
                                         </button>
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
@@ -11477,30 +11478,30 @@ export default function StdPortalPage() {
                                                 onClick={() => {
                                                     const hook = codexThumbnailData.hookTexts[0]
                                                     if (!hook) {
-                                                        alert('Codex 워커가 생성한 문구가 아직 없습니다.')
+                                                        alert(ui("Codex 워커가 생성한 문구가 아직 없습니다."))
                                                         return
                                                     }
                                                     setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: `${hook.replace(/[!?]+$/, '')}!?` } : l))
-                                                    alert('더 자극적인(Clicky) 후킹 문구로 변경되었습니다.')
+                                                    alert(ui("더 자극적인(Clicky) 후킹 문구로 변경되었습니다."))
                                                 }}
                                                 className="py-1.5 border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-lg text-[11px] font-bold transition"
                                             >
-                                                🔥 더 어그로성 (Clicky)
+                                                {ui("🔥 더 어그로성 (Clicky)")}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     const hook = codexThumbnailData.hookTexts[0]
                                                     if (!hook) {
-                                                        alert('Codex 워커가 생성한 문구가 아직 없습니다.')
+                                                        alert(ui("Codex 워커가 생성한 문구가 아직 없습니다."))
                                                         return
                                                     }
                                                     setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: hook.replace(/[!?]+$/, '') } : l))
-                                                    alert('더 깔끔하고 신뢰감 있는(Clean) 문구로 변경되었습니다.')
+                                                    alert(ui("더 깔끔하고 신뢰감 있는(Clean) 문구로 변경되었습니다."))
                                                 }}
                                                 className="py-1.5 border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 rounded-lg text-[11px] font-bold transition"
                                             >
-                                                ✨ 더 깔끔하게 (Clean)
+                                                {ui("✨ 더 깔끔하게 (Clean)")}
                                             </button>
                                         </div>
                                     </div>
@@ -11508,16 +11509,16 @@ export default function StdPortalPage() {
                                     {/* 중간: 레이아웃 스타일 갤러리 */}
                                     <div className="lg:col-span-4 border-l border-white/5 lg:pl-6 space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">레이아웃 스타일</label>
+                                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{ui("레이아웃 스타일")}</label>
                                             <span className="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-bold border border-blue-500/30 uppercase">{thumbLayout}</span>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2">
                                             {[
-                                                { id: 'face', name: 'Face (얼굴/인물)' },
-                                                { id: 'split', name: 'Split (좌우 분할)' },
-                                                { id: 'viral', name: 'Viral (바이럴)' },
-                                                { id: 'text_heavy', name: 'Text (대형 텍스트)' },
-                                                { id: 'question', name: 'Question (의문형)' },
+                                                { id: 'face', name: ui("Face (얼굴/인물)") },
+                                                { id: 'split', name: ui("Split (좌우 분할)") },
+                                                { id: 'viral', name: ui("Viral (바이럴)") },
+                                                { id: 'text_heavy', name: ui("Text (대형 텍스트)") },
+                                                { id: 'question', name: ui("Question (의문형)") },
                                             ].map(item => (
                                                 <button
                                                     key={item.id}
@@ -11539,15 +11540,15 @@ export default function StdPortalPage() {
                                     {/* 오른쪽: 이미지 화풍 갤러리 */}
                                     <div className="lg:col-span-4 border-l border-white/5 lg:pl-6 space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">이미지 화풍</label>
+                                            <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{ui("이미지 화풍")}</label>
                                             <span className="text-[10px] bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded-full font-bold border border-purple-500/30 uppercase">{thumbStyle}</span>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             {[
-                                                { id: 'realistic', name: 'Realistic (실사)' },
-                                                { id: 'cinematic', name: 'Cinematic (영화풍)' },
-                                                { id: 'webtoon', name: 'Webtoon (웹툰풍)' },
-                                                { id: 'anime', name: 'Anime (애니)' },
+                                                { id: 'realistic', name: ui("Realistic (실사)") },
+                                                { id: 'cinematic', name: ui("Cinematic (영화풍)") },
+                                                { id: 'webtoon', name: ui("Webtoon (웹툰풍)") },
+                                                { id: 'anime', name: ui("Anime (애니)") },
                                             ].map(item => (
                                                 <button
                                                     key={item.id}
@@ -11573,9 +11574,9 @@ export default function StdPortalPage() {
                                 <div className="flex items-center justify-between border-b border-white/5 pb-3">
                                     <h3 className="font-bold text-sm text-white flex items-center gap-2">
                                         <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-indigo-500/30">2</span>
-                                        2단계: AI 썸네일 기획안 선택
+                                        {ui("2단계: AI 썸네일 기획안 선택")}
                                     </h3>
-                                    <span className="text-xs text-indigo-400 font-medium">클릭 시 3단계 캔버스에 즉시 반영됩니다.</span>
+                                    <span className="text-xs text-indigo-400 font-medium">{ui("클릭 시 3단계 캔버스에 즉시 반영됩니다.")}</span>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -11616,7 +11617,7 @@ export default function StdPortalPage() {
                                                     <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-600/30 text-indigo-300 rounded border border-indigo-500/30">
                                                         {idea.badge}
                                                     </span>
-                                                    <span className="text-[10px] text-gray-500">기획안 #{idx + 1}</span>
+                                                    <span className="text-[10px] text-gray-500">{ui("기획안 #")}{idx + 1}</span>
                                                 </div>
                                                 <h4 className="text-xs font-bold text-white group-hover:text-indigo-400 transition-colors pt-1">
                                                     {idea.headline}
@@ -11632,13 +11633,13 @@ export default function StdPortalPage() {
                                                 type="button"
                                                 className="w-full mt-3 py-1.5 bg-[#202632] group-hover:bg-indigo-600 text-gray-300 group-hover:text-white rounded-lg text-[11px] font-bold transition-all shadow"
                                             >
-                                                선택 및 디자인 적용
+                                                {ui("선택 및 디자인 적용")}
                                             </button>
                                         </div>
                                     ))}
                                     {!thumbnailIdeas.length && (
                                         <div className="md:col-span-3 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-5 text-center text-xs text-amber-200">
-                                            이 프로젝트에는 Codex 워커가 생성한 썸네일 문구가 아직 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요.
+                                            {ui("이 프로젝트에는 Codex 워커가 생성한 썸네일 문구가 아직 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요.")}
                                         </div>
                                     )}
                                 </div>
@@ -11647,7 +11648,7 @@ export default function StdPortalPage() {
                                 <div className="bg-[#14181f] border-l-4 border-blue-500 rounded-xl p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
                                     <div className="flex items-center gap-2">
                                         <span className="text-base">🎯</span>
-                                        <span className="text-xs font-bold text-blue-300">AI 추천 훅 문구:</span>
+                                        <span className="text-xs font-bold text-blue-300">{ui("AI 추천 훅 문구:")}</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 flex-1">
                                         {codexThumbnailData.hookTexts.map((hook, hIdx) => (
@@ -11674,7 +11675,7 @@ export default function StdPortalPage() {
                                             </button>
                                         ))}
                                         {!codexThumbnailData.hookTexts.length && (
-                                            <span className="text-[11px] text-gray-500">Codex 워커가 생성한 추천 문구가 아직 없습니다.</span>
+                                            <span className="text-[11px] text-gray-500">{ui("Codex 워커가 생성한 추천 문구가 아직 없습니다.")}</span>
                                         )}
                                     </div>
                                 </div>
@@ -11685,7 +11686,7 @@ export default function StdPortalPage() {
                                 <div className="flex items-center justify-between border-b border-white/5 pb-3">
                                     <h3 className="font-bold text-sm text-white flex items-center gap-2">
                                         <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-emerald-500/30">3</span>
-                                        3단계: 텍스트 추가 및 16:9 실시간 캔버스
+                                        {ui("3단계: 텍스트 추가 및 16:9 실시간 캔버스")}
                                     </h3>
                                     <button
                                         type="button"
@@ -11714,9 +11715,9 @@ export default function StdPortalPage() {
                                                     if (!isCurrentMediaScope(saveScope, mediaScopeRef.current)) throw new Error('프로젝트가 변경되어 저장을 중단했습니다.')
                                                     await markThumbnailConfirmed(persistedThumbnailUrl, editorBackgroundUrl)
                                                     setMessage('최종 썸네일 이미지와 편집 디자인이 저장되었습니다.')
-                                                    alert('현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!')
+                                                    alert(ui("현재 썸네일 디자인이 프로젝트 대표 썸네일로 최종 저장되었습니다!"))
                                             } catch (error: any) {
-                                                alert(error.message || '썸네일 이미지 업로드에 실패했습니다.')
+                                                alert(error.message || ui("썸네일 이미지 업로드에 실패했습니다."))
                                             } finally {
                                                 thumbnailSaveLock.current = false
                                                 setThumbnailSaving(false)
@@ -11725,7 +11726,7 @@ export default function StdPortalPage() {
                                         disabled={thumbnailSaving || uploadingKey === 'thumbnail-upload' || !thumbBgUrl}
                                         className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow transition disabled:opacity-60"
                                     >
-                                        {thumbnailSaving ? '합성·저장 중...' : '💾 최종 썸네일 확정 저장'}
+                                        {thumbnailSaving ? ui("합성·저장 중...") : ui("💾 최종 썸네일 확정 저장")}
                                     </button>
                                 </div>
 
@@ -11733,7 +11734,7 @@ export default function StdPortalPage() {
                                     {/* 좌측: 텍스트 레이어 관리 */}
                                     <div className="lg:col-span-6 space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-xs font-bold text-gray-300">텍스트 레이어 목록 ({thumbTextLayers.length}개)</span>
+                                            <span className="text-xs font-bold text-gray-300">{ui("텍스트 레이어 목록 (")}{thumbTextLayers.length}{ui("개)")}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -11752,7 +11753,7 @@ export default function StdPortalPage() {
                                                 }}
                                                 className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold transition shadow"
                                             >
-                                                + 텍스트 추가
+                                                {ui("+ 텍스트 추가")}
                                             </button>
                                         </div>
 
@@ -11760,13 +11761,13 @@ export default function StdPortalPage() {
                                             {thumbTextLayers.map((layer, index) => (
                                                 <div key={layer.id} className="bg-[#14181f] border border-white/5 rounded-xl p-3 space-y-2.5">
                                                     <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-bold text-gray-400">레이어 #{index + 1}</span>
+                                                        <span className="text-[10px] font-bold text-gray-400">{ui("레이어 #")}{index + 1}</span>
                                                         <button
                                                             type="button"
                                                             onClick={() => setThumbTextLayers(prev => prev.filter(l => l.id !== layer.id))}
                                                             className="text-[10px] text-red-400 hover:text-red-300 font-bold px-2 py-0.5 bg-red-950/30 rounded border border-red-500/20"
                                                         >
-                                                            삭제
+                                                            {ui("삭제")}
                                                         </button>
                                                     </div>
 
@@ -11778,12 +11779,12 @@ export default function StdPortalPage() {
                                                             setThumbTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, text: val } : l))
                                                         }}
                                                         className="w-full bg-[#1c2027] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                                                        placeholder="썸네일 텍스트 입력"
+                                                        placeholder={ui("썸네일 텍스트 입력")}
                                                     />
 
                                                     <div className="grid grid-cols-3 gap-2 text-[10px]">
                                                         <div>
-                                                            <label className="text-gray-500 block mb-1">폰트</label>
+                                                            <label className="text-gray-500 block mb-1">{ui("폰트")}</label>
                                                             <select
                                                                 value={layer.fontFamily}
                                                                 onChange={e => {
@@ -11795,11 +11796,11 @@ export default function StdPortalPage() {
                                                                 <option value="GmarketSansBold">GmarketSansBold</option>
                                                                 <option value="Pretendard">Pretendard</option>
                                                                 <option value="BlackHanSans">BlackHanSans</option>
-                                                                <option value="ChosunCentennial">조선100년체</option>
+                                                                <option value="ChosunCentennial">{ui("조선100년체")}</option>
                                                             </select>
                                                         </div>
                                                         <div>
-                                                            <label className="text-gray-500 block mb-1">크기 ({layer.fontSize}px)</label>
+                                                            <label className="text-gray-500 block mb-1">{ui("크기 (")}{layer.fontSize}px)</label>
                                                             <input
                                                                 type="range"
                                                                 min="6"
@@ -11813,7 +11814,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="text-gray-500 block mb-1">위치 Y ({layer.y}%)</label>
+                                                            <label className="text-gray-500 block mb-1">{ui("위치 Y (")}{layer.y}%)</label>
                                                             <input
                                                                 type="range"
                                                                 min="0"
@@ -11825,7 +11826,7 @@ export default function StdPortalPage() {
                                                                 }}
                                                                 className="w-full accent-purple-500 cursor-pointer"
                                                             />
-                                                            <label className="text-gray-500 block mb-1 mt-2">위치 X ({layer.x}%)</label>
+                                                            <label className="text-gray-500 block mb-1 mt-2">{ui("위치 X (")}{layer.x}%)</label>
                                                             <input type="range" min="0" max="100" value={layer.x}
                                                                 onChange={e => {
                                                                     const x = Number(e.target.value)
@@ -11836,7 +11837,7 @@ export default function StdPortalPage() {
 
                                                     <div className="flex items-center gap-3 text-[10px]">
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="text-gray-400">글자색:</span>
+                                                            <span className="text-gray-400">{ui("글자색:")}</span>
                                                             <input
                                                                 type="color"
                                                                 value={layer.color}
@@ -11848,7 +11849,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="text-gray-400">외곽선색:</span>
+                                                            <span className="text-gray-400">{ui("외곽선색:")}</span>
                                                             <input
                                                                 type="color"
                                                                 value={layer.strokeColor}
@@ -11860,7 +11861,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="text-gray-400">두께:</span>
+                                                            <span className="text-gray-400">{ui("두께:")}</span>
                                                             <input
                                                                 type="number"
                                                                 min="0"
@@ -11883,10 +11884,10 @@ export default function StdPortalPage() {
                                     <div className="lg:col-span-6 space-y-3">
                                         <div className="bg-[#14181f] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                             <div className="p-2.5 border-b border-white/5 flex items-center justify-between text-xs font-bold text-gray-200">
-                                                <span>📺 16:9 썸네일 미리보기</span>
+                                                <span>{ui("📺 16:9 썸네일 미리보기")}</span>
                                                 <span className="text-[10px] text-gray-500 font-mono">1280 x 720 (HD)</span>
                                             </div>
-                                            <StdThumbnailPreview background={thumbBgUrl} layers={thumbTextLayers}
+                                            <StdThumbnailPreview locale={currentLocale} background={thumbBgUrl} layers={thumbTextLayers}
                                                 headers={isSameOriginApiAudioUrl(thumbBgUrl) ? authedJsonHeaders : undefined} />
                                         </div>
 
@@ -11909,19 +11910,19 @@ export default function StdPortalPage() {
                                                 }}
                                                 className="py-2 bg-[#202632] hover:bg-white/10 rounded-lg font-bold text-gray-200 border border-white/10 transition"
                                             >
-                                                🖼️ 1번 씬 이미지 적용
+                                                {ui("🖼️ 1번 씬 이미지 적용")}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => document.getElementById('thumbnail-bg-upload-input')?.click()}
                                                 className="py-2 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-lg font-bold border border-emerald-500/30 transition"
                                             >
-                                                ⬆️ 이미지 파일 업로드
+                                                {ui("⬆️ 이미지 파일 업로드")}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    const newUrl = prompt('썸네일 배경 이미지 URL을 입력하세요:', thumbBgUrl)
+                                                    const newUrl = prompt(ui("썸네일 배경 이미지 URL을 입력하세요:"), thumbBgUrl)
                                                     if (newUrl) {
                                                         setThumbBgUrl(newUrl)
                                                         setThumbBgUploadFile(null)
@@ -11929,7 +11930,7 @@ export default function StdPortalPage() {
                                                 }}
                                                 className="py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg font-bold border border-blue-500/30 transition"
                                             >
-                                                🔗 외부 URL로 배경 교체
+                                                {ui("🔗 외부 URL로 배경 교체")}
                                             </button>
                                         </div>
                                     </div>
@@ -12145,7 +12146,7 @@ export default function StdPortalPage() {
                                     <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
                                         <div className="flex items-center justify-between border-b border-white/5 pb-2">
                                             <h4 className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
-                                                <span>✏️ 텍스트 레이어 ({textLayers.length}개)</span>
+                                                <span>{ui("✏️ 텍스트 레이어 (")}{textLayers.length}{ui("개)")}</span>
                                             </h4>
                                             <button
                                                 type="button"
@@ -12165,7 +12166,7 @@ export default function StdPortalPage() {
                                                 }}
                                                 className="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-bold text-white transition shadow"
                                             >
-                                                + 텍스트 추가
+                                                {ui("+ 텍스트 추가")}
                                             </button>
                                         </div>
 
@@ -12173,13 +12174,13 @@ export default function StdPortalPage() {
                                             {textLayers.map((layer, index) => (
                                                 <div key={layer.id} className="bg-[#14181f] border border-white/5 rounded-xl p-3 space-y-2.5">
                                                     <div className="flex items-center justify-between gap-2">
-                                                        <span className="text-[10px] font-bold text-gray-400">레이어 #{index + 1}</span>
+                                                        <span className="text-[10px] font-bold text-gray-400">{ui("레이어 #")}{index + 1}</span>
                                                         <button
                                                             type="button"
                                                             onClick={() => setTextLayers(prev => prev.filter(l => l.id !== layer.id))}
                                                             className="text-[10px] text-red-400 hover:text-red-300 font-bold px-2 py-0.5 bg-red-950/30 rounded border border-red-500/20"
                                                         >
-                                                            삭제
+                                                            {ui("삭제")}
                                                         </button>
                                                     </div>
 
@@ -12191,12 +12192,12 @@ export default function StdPortalPage() {
                                                             setTextLayers(prev => prev.map(l => l.id === layer.id ? { ...l, text: val } : l))
                                                         }}
                                                         className="w-full bg-[#1c2027] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                                                        placeholder="텍스트 입력"
+                                                        placeholder={ui("텍스트 입력")}
                                                     />
 
                                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px]">
                                                         <div>
-                                                            <label className="text-gray-500 block mb-1">폰트</label>
+                                                            <label className="text-gray-500 block mb-1">{ui("폰트")}</label>
                                                             <select
                                                                 value={layer.fontFamily}
                                                                 onChange={e => {
@@ -12208,11 +12209,11 @@ export default function StdPortalPage() {
                                                                 <option value="GmarketSansBold">GmarketSansBold</option>
                                                                 <option value="Pretendard">Pretendard</option>
                                                                 <option value="BlackHanSans">BlackHanSans</option>
-                                                                <option value="ChosunCentennial">조선100년체</option>
+                                                                <option value="ChosunCentennial">{ui("조선100년체")}</option>
                                                             </select>
                                                         </div>
                                                         <div>
-                                                            <label className="text-gray-500 block mb-1">글자 크기 ({layer.fontSize}px)</label>
+                                                            <label className="text-gray-500 block mb-1">{ui("글자 크기 (")}{layer.fontSize}px)</label>
                                                             <input
                                                                 type="range"
                                                                 min="6"
@@ -12226,7 +12227,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="text-gray-500 block mb-1">가로 위치 X ({layer.x}%)</label>
+                                                            <label className="text-gray-500 block mb-1">{ui("가로 위치 X (")}{layer.x}%)</label>
                                                             <input
                                                                 type="range"
                                                                 min="0"
@@ -12240,7 +12241,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <label className="text-gray-500 block mb-1">세로 위치 Y ({layer.y}%)</label>
+                                                            <label className="text-gray-500 block mb-1">{ui("세로 위치 Y (")}{layer.y}%)</label>
                                                             <input
                                                                 type="range"
                                                                 min="0"
@@ -12257,7 +12258,7 @@ export default function StdPortalPage() {
 
                                                     <div className="flex items-center gap-3 text-[10px]">
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="text-gray-400">글자색:</span>
+                                                            <span className="text-gray-400">{ui("글자색:")}</span>
                                                             <input
                                                                 type="color"
                                                                 value={layer.color}
@@ -12269,7 +12270,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="text-gray-400">외곽선색:</span>
+                                                            <span className="text-gray-400">{ui("외곽선색:")}</span>
                                                             <input
                                                                 type="color"
                                                                 value={layer.strokeColor}
@@ -12281,7 +12282,7 @@ export default function StdPortalPage() {
                                                             />
                                                         </div>
                                                         <div className="flex items-center gap-1.5">
-                                                            <span className="text-gray-400">외곽선 두께:</span>
+                                                            <span className="text-gray-400">{ui("외곽선 두께:")}</span>
                                                             <input
                                                                 type="number"
                                                                 min="0"
@@ -12306,10 +12307,10 @@ export default function StdPortalPage() {
                                     <div className="bg-[#1c2027] border border-white/10 rounded-xl overflow-hidden shadow flex flex-col">
                                         <div className="p-3 border-b border-white/5 flex items-center justify-between text-xs font-bold text-gray-200">
                                             <div className="flex items-center gap-2">
-                                                <span>🎨 실시간 16:9 템플릿 캔버스</span>
+                                                <span>{ui("🎨 실시간 16:9 템플릿 캔버스")}</span>
                                                 {!templateBgUrl && (
                                                     <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold border border-red-500/30">
-                                                        {templateBgTransparent ? '투명 배경' : '단색 배경'}
+                                                        {templateBgTransparent ? ui("투명 배경") : ui("단색 배경")}
                                                     </span>
                                                 )}
                                             </div>
@@ -12320,7 +12321,7 @@ export default function StdPortalPage() {
                                                         onClick={() => { setTemplateBgUrl(''); setTemplateBgTransparent(true) }}
                                                         className="text-[10px] px-2 py-0.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded border border-red-500/30 font-bold transition"
                                                     >
-                                                        ✕ 배경 지우기
+                                                        {ui("✕ 배경 지우기")}
                                                     </button>
                                                 )}
                                                 <span className="text-[10px] text-gray-500 font-mono">1280 x 720 (HD)</span>
@@ -12389,11 +12390,11 @@ export default function StdPortalPage() {
                                 {/* (1) 배경 설정 */}
                                 <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
                                     <h4 className="text-xs font-bold text-gray-300 flex items-center justify-between">
-                                        <span className="flex items-center gap-1.5">🖼️ 배경 설정</span>
+                                        <span className="flex items-center gap-1.5">{ui("🖼️ 배경 설정")}</span>
                                         {templateBgUrl ? (
-                                            <span className="text-[10px] text-emerald-400 font-mono">이미지 활성</span>
+                                            <span className="text-[10px] text-emerald-400 font-mono">{ui("이미지 활성")}</span>
                                         ) : (
-                                            <span className="text-[10px] text-gray-400 font-mono">{templateBgTransparent ? '투명 배경' : '단색 배경'}</span>
+                                            <span className="text-[10px] text-gray-400 font-mono">{templateBgTransparent ? ui("투명 배경") : ui("단색 배경")}</span>
                                         )}
                                     </h4>
                                     <div className="space-y-2">
@@ -12406,7 +12407,7 @@ export default function StdPortalPage() {
                                             }}
                                             className="w-full py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
                                         >
-                                            <span>🗑️</span> 배경 지우고 투명하게
+                                            <span>🗑️</span> {ui("배경 지우고 투명하게")}
                                         </button>
 
                                         <input
@@ -12422,7 +12423,7 @@ export default function StdPortalPage() {
                                                 onClick={() => document.getElementById('template-bg-upload-input')?.click()}
                                                 className="py-2 bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-300 hover:text-white rounded-lg text-xs font-bold transition truncate px-1"
                                             >
-                                                ⬆️ 이미지 파일 업로드
+                                                {ui("⬆️ 이미지 파일 업로드")}
                                             </button>
                                         </div>
 
@@ -12433,11 +12434,11 @@ export default function StdPortalPage() {
                                                 onChange={e => setTemplateBgTransparent(e.target.checked)}
                                                 className="accent-cyan-500"
                                             />
-                                            배경색 투명하게
+                                            {ui("배경색 투명하게")}
                                         </label>
                                         {/* 단색 배경 색상 선택 */}
                                         <div className="flex items-center justify-between p-2 bg-[#14181f] rounded-lg border border-white/5 text-[11px]">
-                                            <span className="text-gray-400 font-bold">단색 캔버스 배경색</span>
+                                            <span className="text-gray-400 font-bold">{ui("단색 캔버스 배경색")}</span>
                                             <div className="flex items-center gap-2">
                                                 <input
                                                     type="color"
@@ -12446,7 +12447,7 @@ export default function StdPortalPage() {
                                                     onChange={e => setTemplateBgColor(e.target.value)}
                                                     className="w-6 h-6 rounded border border-white/10 bg-transparent cursor-pointer"
                                                 />
-                                                <span className="font-mono text-gray-300 text-[10px]">{templateBgTransparent ? '투명' : templateBgColor}</span>
+                                                <span className="font-mono text-gray-300 text-[10px]">{templateBgTransparent ? ui("투명") : templateBgColor}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -12455,7 +12456,7 @@ export default function StdPortalPage() {
                                 {/* (2) 템플릿 프리셋 관리 */}
                                 <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
                                     <h4 className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
-                                        <span>💾 템플릿 프리셋 관리</span>
+                                        <span>{ui("💾 템플릿 프리셋 관리")}</span>
                                     </h4>
                                     <div className="space-y-2">
                                         <select
@@ -12463,7 +12464,7 @@ export default function StdPortalPage() {
                                             onChange={e => applyTemplatePreset(e.target.value)}
                                             className="w-full bg-[#14181f] border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none"
                                         >
-                                            <option value="">저장된 템플릿 없음</option>
+                                            <option value="">{ui("저장된 템플릿 없음")}</option>
                                             {templatePresets.map(preset => (
                                                 <option key={preset.id} value={preset.id}>
                                                     {preset.name}
@@ -12475,7 +12476,7 @@ export default function StdPortalPage() {
                                                 type="text"
                                                 value={templatePresetName}
                                                 onChange={e => setTemplatePresetName(e.target.value)}
-                                                placeholder="새 프리셋 이름"
+                                                placeholder={ui("새 프리셋 이름")}
                                                 className="flex-1 bg-[#14181f] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
                                             />
                                             <button
@@ -12492,11 +12493,11 @@ export default function StdPortalPage() {
                                 {/* (3) 도형 및 자막바 관리 */}
                                 <div className="bg-[#1c2027] border border-white/10 rounded-xl p-4 shadow space-y-3">
                                     <h4 className="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
-                                        <span>📐 배경 도형 및 자막바</span>
+                                        <span>{ui("📐 배경 도형 및 자막바")}</span>
                                     </h4>
                                     <div className="space-y-2 text-xs">
                                         <div className="flex items-center justify-between text-gray-400">
-                                            <span>자막바 배너 투명도</span>
+                                            <span>{ui("자막바 배너 투명도")}</span>
                                             <span className="font-mono text-white">60%</span>
                                         </div>
                                         <button
@@ -12517,7 +12518,7 @@ export default function StdPortalPage() {
                                             }}
                                             className="w-full py-2 bg-[#202632] hover:bg-cyan-600/20 border border-white/10 hover:border-cyan-500 text-gray-200 hover:text-cyan-300 rounded-lg font-bold transition"
                                         >
-                                            {shapeLayers.length > 0 ? '도형 배너 제거' : '+ 하단 자막바 배너 추가'}
+                                            {shapeLayers.length > 0 ? ui("도형 배너 제거") : ui("+ 하단 자막바 배너 추가")}
                                         </button>
                                     </div>
                                 </div>
@@ -12891,19 +12892,19 @@ export default function StdPortalPage() {
                             {/* 1. 상단 타이틀 및 액션 바 */}
                             <div className="flex items-center justify-between bg-[#1c2027] p-3 rounded-xl border border-white/10 shadow-sm shrink-0">
                                 <h2 className="text-base font-bold text-white flex items-center gap-2">
-                                    <span>⚙️ 세팅</span>
+                                    <span>{ui("⚙️ 세팅")}</span>
                                 </h2>
                                 <div className="flex items-center gap-2">
                                     <label className="flex items-center gap-1.5 text-xs text-gray-400 bg-[#202632] px-2.5 py-1.5 rounded-lg border border-white/5 cursor-pointer">
                                         <input type="checkbox" defaultChecked className="rounded bg-black border-gray-600 w-3.5 h-3.5" />
-                                        <span>새로고침</span>
+                                        <span>{ui("새로고침")}</span>
                                     </label>
                                     <button
                                         onClick={saveProfileSettings}
                                         disabled={loading}
                                         className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-xs font-bold text-white shadow-md flex items-center gap-1.5 transition-all"
                                     >
-                                        <span>💾</span> 변경사항 저장
+                                        <span>💾</span> {ui("변경사항 저장")}
                                     </button>
                                 </div>
                             </div>
@@ -12912,12 +12913,12 @@ export default function StdPortalPage() {
                             <div className="border-b border-white/10 shrink-0">
                                 <div className="flex space-x-2 overflow-x-auto">
                                     {[
-                                        { id: 'basic', label: '■■ 기본 설정' },
-                                        { id: 'orgchart', label: '조직도' },
-                                        { id: 'history', label: '수당 내역 (History)' },
-                                        { id: 'withdrawal', label: '지갑 / 출금 (Wallet)' },
-                                        { id: 'support', label: '💬 문의하기' },
-                                        { id: 'announcements', label: '📢 공지사항' },
+                                        { id: 'basic', label: ui("■■ 기본 설정") },
+                                        { id: 'orgchart', label: ui("조직도") },
+                                        { id: 'history', label: ui("수당 내역 (History)") },
+                                        { id: 'withdrawal', label: ui("지갑 / 출금 (Wallet)") },
+                                        { id: 'support', label: ui("💬 문의하기") },
+                                        { id: 'announcements', label: ui("📢 공지사항") },
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -12943,10 +12944,10 @@ export default function StdPortalPage() {
                                         <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 p-5 shadow-lg space-y-4">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-500/20 pb-3">
                                                 <h5 className="text-xs font-bold text-purple-300 flex items-center gap-2">
-                                                    <span>🔑 내 추천 코드 및 초대 링크</span>
+                                                    <span>{ui("🔑 내 추천 코드 및 초대 링크")}</span>
                                                 </h5>
                                                 <span className="text-[11px] text-purple-200/80 font-medium">
-                                                    SNS 공유 링크 클릭 시 추천 코드가 자동 입력된 가입화면으로 이동합니다.
+                                                    {ui("SNS 공유 링크 클릭 시 추천 코드가 자동 입력된 가입화면으로 이동합니다.")}
                                                 </span>
                                             </div>
 
@@ -12954,7 +12955,7 @@ export default function StdPortalPage() {
                                                 {/* 추천 코드 */}
                                                 <div className="space-y-1.5">
                                                     <label className="text-[11px] font-bold text-purple-300 block">
-                                                        추천 코드
+                                                        {ui("추천 코드")}
                                                     </label>
                                                     <div className="flex items-center gap-2">
                                                         <input
@@ -12967,11 +12968,11 @@ export default function StdPortalPage() {
                                                             type="button"
                                                             onClick={() => {
                                                                 navigator.clipboard.writeText(referralCode)
-                                                                alert('추천 코드가 클립보드에 복사되었습니다: ' + referralCode)
+                                                                alert(ui("추천 코드가 클립보드에 복사되었습니다: ") + referralCode)
                                                             }}
                                                             className="px-4 py-2 bg-purple-600 hover:bg-purple-500 border border-purple-500 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition-all active:scale-95"
                                                         >
-                                                            코드 복사
+                                                            {ui("코드 복사")}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -12979,7 +12980,7 @@ export default function StdPortalPage() {
                                                 {/* 추천 링크 (SNS 전달용) */}
                                                 <div className="lg:col-span-2 space-y-1.5">
                                                     <label className="text-[11px] font-bold text-purple-300 block">
-                                                        추천 가입 링크 (SNS 전달용)
+                                                        {ui("추천 가입 링크 (SNS 전달용)")}
                                                     </label>
                                                     <div className="flex items-center gap-2">
                                                         <input
@@ -12993,49 +12994,49 @@ export default function StdPortalPage() {
                                                             onClick={() => {
                                                                 const link = typeof window !== 'undefined' ? `${window.location.origin}/?ref=${referralCode}` : `https://studio.airing.work/?ref=${referralCode}`
                                                                 navigator.clipboard.writeText(link)
-                                                                alert('추천 가입 링크가 클립보드에 복사되었습니다!\nSNS로 전달하시면 상대방이 링크 클릭 시 추천 코드가 자동 적용된 가입 페이지가 열립니다:\n\n' + link)
+                                                                alert(ui("추천 가입 링크가 클립보드에 복사되었습니다!\nSNS로 전달하시면 상대방이 링크 클릭 시 추천 코드가 자동 적용된 가입 페이지가 열립니다:\n\n") + link)
                                                             }}
                                                             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 border border-blue-500/50 rounded-xl text-xs font-bold text-white whitespace-nowrap shadow transition-all active:scale-95"
                                                         >
-                                                            링크 복사
+                                                            {ui("링크 복사")}
                                                         </button>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <p className="text-[11px] text-purple-300/80 mt-1 leading-relaxed">
-                                                * 이 코드로 가입한 회원이 영상을 3개 이상 렌더링 완성 시 보상이 지급됩니다. 조직도는 상단의 &apos;조직도&apos; 탭에서 확인할 수 있습니다.
+                                                {ui("* 이 코드로 가입한 회원이 영상을 3개 이상 렌더링 완성 시 보상이 지급됩니다. 조직도는 상단의 '조직도' 탭에서 확인할 수 있습니다.")}
                                             </p>
                                         </div>
 
                                         {/* (2) 사용자 정보 섹션 */}
                                         <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                             <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                                <span>👤 사용자 정보</span>
+                                                <span>{ui("👤 사용자 정보")}</span>
                                             </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">이름</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("이름")}</label>
                                                     <input
                                                         type="text"
                                                         value={settingName}
                                                         onChange={e => setSettingName(e.target.value)}
                                                         className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                                                        placeholder="이름을 입력하세요"
+                                                        placeholder={ui("이름을 입력하세요")}
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">국적</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("국적")}</label>
                                                     <input
                                                         type="text"
                                                         value={settingNationality}
                                                         onChange={e => setSettingNationality(e.target.value)}
                                                         className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
-                                                        placeholder="국가를 입력하세요 (예: 대한민국)"
+                                                        placeholder={ui("국가를 입력하세요 (예: 대한민국)")}
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">연락처</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("연락처")}</label>
                                                     <input
                                                         type="text"
                                                         value={settingPhone}
@@ -13045,7 +13046,7 @@ export default function StdPortalPage() {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">이메일</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("이메일")}</label>
                                                     <input
                                                         type="email"
                                                         value={user?.email || 'ejsh0518@naver.com'}
@@ -13057,7 +13058,7 @@ export default function StdPortalPage() {
                                                 {/* 선호 영상 주제 태그 (공식 8개 카테고리) */}
                                                 <div className="col-span-1 md:col-span-2">
                                                     <label className="text-[11px] font-bold text-gray-400 mb-2 block">
-                                                        선호 영상 주제 (복수 선택 가능)
+                                                        {ui("선호 영상 주제 (복수 선택 가능)")}
                                                     </label>
                                                     <div className="flex flex-wrap gap-2">
                                                         {STD_OFFICIAL_CATEGORIES.map(catItem => {
@@ -13091,10 +13092,10 @@ export default function StdPortalPage() {
                                                         onClick={saveProfileSettings}
                                                         className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg text-xs font-bold text-white shadow transition flex items-center gap-1.5"
                                                     >
-                                                        {loading ? '저장 중...' : '저장'}
+                                                        {loading ? ui("저장 중...") : ui("저장")}
                                                     </button>
                                                     {profileSavedMsg && (
-                                                        <span className="text-xs font-bold text-emerald-400 animate-pulse">{profileSavedMsg}</span>
+                                                        <span className="text-xs font-bold text-emerald-400 animate-pulse">{ui(profileSavedMsg)}</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -13102,11 +13103,11 @@ export default function StdPortalPage() {
                                             {/* (3) 비밀번호 변경 서브섹션 */}
                                             <div className="mt-6 pt-5 border-t border-white/5 space-y-3">
                                                 <h5 className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                                                    <span>🔒 비밀번호 변경</span>
+                                                    <span>{ui("🔒 비밀번호 변경")}</span>
                                                 </h5>
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                     <div>
-                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">현재 비밀번호</label>
+                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">{ui("현재 비밀번호")}</label>
                                                         <input
                                                             type="password"
                                                             value={currentPw}
@@ -13115,7 +13116,7 @@ export default function StdPortalPage() {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">새 비밀번호</label>
+                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">{ui("새 비밀번호")}</label>
                                                         <input
                                                             type="password"
                                                             value={newPw}
@@ -13124,7 +13125,7 @@ export default function StdPortalPage() {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">새 비밀번호 확인</label>
+                                                        <label className="text-[10px] font-bold text-gray-500 mb-1 block">{ui("새 비밀번호 확인")}</label>
                                                         <input
                                                             type="password"
                                                             value={confirmPw}
@@ -13135,12 +13136,12 @@ export default function StdPortalPage() {
                                                 </div>
 
                                                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-400">
-                                                    <span className={newPw.length >= 8 ? 'text-emerald-400 font-bold' : ''}>● 8자 이상</span>
-                                                    <span className={/[A-Z]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 대문자</span>
-                                                    <span className={/[a-z]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 소문자</span>
-                                                    <span className={/[0-9]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 숫자</span>
-                                                    <span className={/[!@#$%^&*]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>● 특수문자</span>
-                                                    <span className={newPw && newPw === confirmPw ? 'text-emerald-400 font-bold' : ''}>● 비밀번호 일치</span>
+                                                    <span className={newPw.length >= 8 ? 'text-emerald-400 font-bold' : ''}>{ui("● 8자 이상")}</span>
+                                                    <span className={/[A-Z]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>{ui("● 대문자")}</span>
+                                                    <span className={/[a-z]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>{ui("● 소문자")}</span>
+                                                    <span className={/[0-9]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>{ui("● 숫자")}</span>
+                                                    <span className={/[!@#$%^&*]/.test(newPw) ? 'text-emerald-400 font-bold' : ''}>{ui("● 특수문자")}</span>
+                                                    <span className={newPw && newPw === confirmPw ? 'text-emerald-400 font-bold' : ''}>{ui("● 비밀번호 일치")}</span>
                                                 </div>
 
                                                 <div className="flex items-center gap-3 pt-2">
@@ -13148,11 +13149,11 @@ export default function StdPortalPage() {
                                                         type="button"
                                                         onClick={() => {
                                                             if (!currentPw) {
-                                                                alert('현재 비밀번호를 입력해주세요.')
+                                                                alert(ui("현재 비밀번호를 입력해주세요."))
                                                                 return
                                                             }
                                                             if (!newPw || newPw !== confirmPw) {
-                                                                alert('새 비밀번호가 일치하지 않거나 입력되지 않았습니다.')
+                                                                alert(ui("새 비밀번호가 일치하지 않거나 입력되지 않았습니다."))
                                                                 return
                                                             }
                                                             setPwSavedMsg('비밀번호가 성공적으로 변경되었습니다.')
@@ -13163,10 +13164,10 @@ export default function StdPortalPage() {
                                                         }}
                                                         className="px-4 py-2 bg-[#202632] hover:bg-blue-600 rounded-lg text-xs font-bold text-white border border-white/10 transition"
                                                     >
-                                                        비밀번호 변경
+                                                        {ui("비밀번호 변경")}
                                                     </button>
                                                     {pwSavedMsg && (
-                                                        <span className="text-xs font-bold text-emerald-400 animate-pulse">{pwSavedMsg}</span>
+                                                        <span className="text-xs font-bold text-emerald-400 animate-pulse">{ui(pwSavedMsg)}</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -13174,19 +13175,19 @@ export default function StdPortalPage() {
                                             {/* (4) 회원 탈퇴 경고 박스 */}
                                             <div className="mt-6 pt-5 border-t border-red-500/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-red-950/20 p-4 rounded-xl border">
                                                 <div className="text-[11px] text-gray-300 leading-relaxed">
-                                                    ⚠️ 회원 탈퇴 시 모든 프로젝트 작업 내역, 수당 정보 및 지갑 주소가 영구적으로 삭제되며 복구할 수 없습니다.
+                                                    {ui("⚠️ 회원 탈퇴 시 모든 프로젝트 작업 내역, 수당 정보 및 지갑 주소가 영구적으로 삭제되며 복구할 수 없습니다.")}
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        if (confirm('정말로 탈퇴하시겠습니까? 모든 작업 데이터와 수당 내역이 영구 삭제됩니다.')) {
-                                                            alert('회원 탈퇴 요청이 접수되었습니다.')
+                                                        if (confirm(ui("정말로 탈퇴하시겠습니까? 모든 작업 데이터와 수당 내역이 영구 삭제됩니다."))) {
+                                                            alert(ui("회원 탈퇴 요청이 접수되었습니다."))
                                                             signOut()
                                                         }
                                                     }}
                                                     className="px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-500/30 text-red-400 hover:text-white rounded-lg text-xs font-bold transition whitespace-nowrap shadow-sm"
                                                 >
-                                                    🗑️ 회원 탈퇴 (Delete Account)
+                                                    {ui("🗑️ 회원 탈퇴 (Delete Account)")}
                                                 </button>
                                             </div>
                                         </div>
@@ -13198,7 +13199,7 @@ export default function StdPortalPage() {
                                     <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                         <div className="flex items-center justify-between border-b border-white/5 pb-3">
                                             <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2">
-                                                <span>🌳 추천 조직도 & 파트너 현황</span>
+                                                <span>{ui("🌳 추천 조직도 & 파트너 현황")}</span>
                                             </h4>
                                             <div className="flex gap-1 p-1 bg-black/30 rounded-lg border border-white/5">
                                                 <button
@@ -13207,7 +13208,7 @@ export default function StdPortalPage() {
                                                         treeViewMode === 'list' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
                                                     }`}
                                                 >
-                                                    리스트 뷰
+                                                    {ui("리스트 뷰")}
                                                 </button>
                                                 <button
                                                     onClick={() => setTreeViewMode('card')}
@@ -13215,16 +13216,16 @@ export default function StdPortalPage() {
                                                         treeViewMode === 'card' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:text-white'
                                                     }`}
                                                 >
-                                                    카드 뷰
+                                                    {ui("카드 뷰")}
                                                 </button>
                                             </div>
                                         </div>
 
                                         <div className="p-6 text-center space-y-3 bg-[#14181f] rounded-xl border border-white/5">
                                             <div className="text-3xl">🌱</div>
-                                            <h3 className="text-sm font-bold text-white">내 추천 코드로 연결된 파트너 조직</h3>
+                                            <h3 className="text-sm font-bold text-white">{ui("내 추천 코드로 연결된 파트너 조직")}</h3>
                                             <p className="text-xs text-gray-400 max-w-md mx-auto leading-relaxed">
-                                                추천 코드 <span className="font-mono text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">{referralCode}</span> 를 공유하여 파트너를 초대하고 영상 완성 수당을 적립하세요.
+                                                {ui("추천 코드")} <span className="font-mono text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">{referralCode}</span> {ui("를 공유하여 파트너를 초대하고 영상 완성 수당을 적립하세요.")}
                                             </p>
                                         </div>
                                     </div>
@@ -13234,18 +13235,18 @@ export default function StdPortalPage() {
                                 {settingsSubTab === 'history' && (
                                     <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                         <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                            <span>📜 작업 및 수당 지급 내역</span>
+                                            <span>{ui("📜 작업 및 수당 지급 내역")}</span>
                                         </h4>
                                         <div className="overflow-x-auto rounded-xl border border-white/5">
                                             <table className="w-full text-xs text-left text-gray-300">
                                                 <thead className="bg-[#202632] text-gray-400 border-b border-white/5 uppercase text-[11px]">
                                                     <tr>
-                                                        <th className="px-4 py-3">작업 일자</th>
-                                                        <th className="px-4 py-3">프로젝트명</th>
-                                                        <th className="px-4 py-3 text-center">영상 길이</th>
-                                                        <th className="px-4 py-3 text-center">비디오 씬</th>
-                                                        <th className="px-4 py-3 text-center">이미지 씬</th>
-                                                        <th className="px-4 py-3 text-right">정산 금액 (USDT)</th>
+                                                        <th className="px-4 py-3">{ui("작업 일자")}</th>
+                                                        <th className="px-4 py-3">{ui("프로젝트명")}</th>
+                                                        <th className="px-4 py-3 text-center">{ui("영상 길이")}</th>
+                                                        <th className="px-4 py-3 text-center">{ui("비디오 씬")}</th>
+                                                        <th className="px-4 py-3 text-center">{ui("이미지 씬")}</th>
+                                                        <th className="px-4 py-3 text-right">{ui("정산 금액 (USDT)")}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-white/5 bg-[#14181f]">
@@ -13269,9 +13270,9 @@ export default function StdPortalPage() {
                                         <div className="bg-gradient-to-br from-blue-900/30 to-cyan-900/20 rounded-2xl p-6 border border-blue-500/30 shadow-lg">
                                             <div className="flex items-start justify-between gap-4">
                                                 <div className="min-w-0">
-                                                    <div className="text-blue-300 text-xs font-medium mb-1">내 ERC20 지갑 주소</div>
-                                                    <div className="text-sm font-mono text-blue-100 break-all">{walletAddress || (walletLoading ? '생성/조회 중...' : '-')}</div>
-                                                    {walletMessage && <div className="mt-2 text-xs text-red-300">{walletMessage}</div>}
+                                                    <div className="text-blue-300 text-xs font-medium mb-1">{ui("내 ERC20 지갑 주소")}</div>
+                                                    <div className="text-sm font-mono text-blue-100 break-all">{walletAddress || (walletLoading ? ui("생성/조회 중...") : '-')}</div>
+                                                    {walletMessage && <div className="mt-2 text-xs text-red-300">{ui(walletMessage)}</div>}
                                                 </div>
                                                 <div className="flex gap-2 shrink-0">
                                                     <button
@@ -13279,11 +13280,11 @@ export default function StdPortalPage() {
                                                         onClick={async () => {
                                                             if (!walletAddress) return
                                                             await navigator.clipboard.writeText(walletAddress)
-                                                            alert('지갑 주소를 복사했습니다.')
+                                                            alert(ui("지갑 주소를 복사했습니다."))
                                                         }}
                                                         className="px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 text-xs font-bold"
                                                     >
-                                                        주소 복사
+                                                        {ui("주소 복사")}
                                                     </button>
                                                     <button
                                                         type="button"
@@ -13295,7 +13296,7 @@ export default function StdPortalPage() {
                                                                 const data = await walletApi('sync_air_deposits')
                                                                 setWalletInfo((prev: any) => ({ ...(prev || {}), balances: data.balances || prev?.balances }))
                                                                 await loadStdWallet()
-                                                                alert(`AIR 입금 확인 완료: ${data.credited_count || 0}건 / ${data.credited_amount || 0} AIR`)
+                                                                alert(ui('AIR 입금 확인 완료: {count}건 / {amount} AIR', {count: data.credited_count || 0, amount: data.credited_amount || 0}))
                                                             } catch (error: any) {
                                                                 setWalletMessage(error?.message || 'AIR 입금 확인 실패')
                                                             } finally {
@@ -13304,7 +13305,7 @@ export default function StdPortalPage() {
                                                         }}
                                                         className="px-3 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-xs font-bold disabled:opacity-50"
                                                     >
-                                                        AIR 입금 확인
+                                                        {ui("AIR 입금 확인")}
                                                     </button>
                                                 </div>
                                             </div>
@@ -13312,22 +13313,22 @@ export default function StdPortalPage() {
 
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div className="bg-gradient-to-br from-sky-900/40 to-blue-900/30 rounded-2xl p-6 border border-sky-500/30 shadow-lg">
-                                                <div className="text-sky-300 text-xs font-medium mb-1">AIR 잔액</div>
+                                                <div className="text-sky-300 text-xs font-medium mb-1">{ui("AIR 잔액")}</div>
                                                 <div className="text-3xl font-black text-sky-300 flex items-baseline gap-1 font-mono">
                                                     <span>{Number(walletInfo?.balances?.AIR?.available || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                                                     <span className="text-sm font-bold opacity-70">AIR</span>
                                                 </div>
-                                                <div className="text-[11px] text-sky-200/60 mt-1">잠김 {Number(walletInfo?.balances?.AIR?.locked || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })} AIR</div>
+                                                <div className="text-[11px] text-sky-200/60 mt-1">{ui("잠김")} {Number(walletInfo?.balances?.AIR?.locked || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })} AIR</div>
                                             </div>
                                             <div className="bg-gradient-to-br from-green-900/40 to-emerald-900/30 rounded-2xl p-6 border border-green-500/30 shadow-lg">
-                                                <div className="text-green-300 text-xs font-medium mb-1">USDT 잔액</div>
+                                                <div className="text-green-300 text-xs font-medium mb-1">{ui("USDT 잔액")}</div>
                                                 <div className="text-3xl font-black text-green-400 flex items-baseline gap-1 font-mono">
                                                     <span>{Number(walletInfo?.balances?.USDT?.available || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                                                     <span className="text-sm font-bold opacity-70">USDT</span>
                                                 </div>
                                             </div>
                                             <div className="bg-gradient-to-br from-indigo-900/30 to-blue-900/20 rounded-2xl p-6 border border-indigo-500/30 shadow-lg">
-                                                <div className="text-indigo-300 text-xs font-medium mb-1">USDT 잠김</div>
+                                                <div className="text-indigo-300 text-xs font-medium mb-1">{ui("USDT 잠김")}</div>
                                                 <div className="text-2xl font-bold text-indigo-400 flex items-baseline gap-1 font-mono">
                                                     <span>{Number(walletInfo?.balances?.USDT?.locked || 0).toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>
                                                     <span className="text-sm font-bold opacity-70">USDT</span>
@@ -13337,7 +13338,7 @@ export default function StdPortalPage() {
 
                                         <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                             <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                                <span>🔁 AIR / USDT 스왑</span>
+                                                <span>{ui("🔁 AIR / USDT 스왑")}</span>
                                             </h4>
                                             <div className="grid grid-cols-1 md:grid-cols-[160px_1fr_160px] gap-3 max-w-2xl">
                                                 <select
@@ -13352,7 +13353,7 @@ export default function StdPortalPage() {
                                                     type="number"
                                                     value={swapAmount}
                                                     onChange={e => setSwapAmount(e.target.value)}
-                                                    placeholder="스왑 수량"
+                                                    placeholder={ui("스왑 수량")}
                                                     className="bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-blue-500"
                                                 />
                                                 <button
@@ -13360,14 +13361,14 @@ export default function StdPortalPage() {
                                                     disabled={walletLoading}
                                                     onClick={async () => {
                                                         if (!swapAmount || Number(swapAmount) <= 0) {
-                                                            alert('스왑 수량을 입력해주세요.')
+                                                            alert(ui("스왑 수량을 입력해주세요."))
                                                             return
                                                         }
                                                         setWalletLoading(true)
                                                         setWalletMessage('')
                                                         try {
                                                             const data = await walletApi('swap', { from_asset: swapFromAsset, amount: swapAmount })
-                                                            alert(`스왑 완료: ${data.swap?.net_to_amount || ''} ${data.swap?.to_asset || ''}`)
+                                                            alert(ui('스왑 완료: {amount} {asset}', {amount: data.swap?.net_to_amount || '', asset: data.swap?.to_asset || ''}))
                                                             setSwapAmount('')
                                                             await loadStdWallet()
                                                         } catch (error: any) {
@@ -13378,50 +13379,50 @@ export default function StdPortalPage() {
                                                     }}
                                                     className="py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow transition-all disabled:opacity-50"
                                                 >
-                                                    스왑하기
+                                                    {ui("스왑하기")}
                                                 </button>
                                             </div>
                                             <p className="text-[11px] text-gray-500">
-                                                AIR→USDT {walletInfo?.settings?.air_to_usdt_rate || '0'} / USDT→AIR {walletInfo?.settings?.usdt_to_air_rate || '0'} / 수수료 {walletInfo?.settings?.swap_fee_percent || '0'}%
+                                                AIR→USDT {walletInfo?.settings?.air_to_usdt_rate || '0'} / USDT→AIR {walletInfo?.settings?.usdt_to_air_rate || '0'} {ui("/ 수수료")} {walletInfo?.settings?.swap_fee_percent || '0'}%
                                             </p>
                                         </div>
 
                                         <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                             <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                                <span>💳 AIR / USDT 보내기 신청</span>
+                                                <span>{ui("💳 AIR / USDT 보내기 신청")}</span>
                                             </h4>
                                             <div className="space-y-4 max-w-md">
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">자산</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("자산")}</label>
                                                     <select
                                                         value={withdrawAsset}
                                                         onChange={e => setWithdrawAsset(e.target.value as 'USDT' | 'AIR')}
                                                         className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-green-500"
                                                     >
-                                                        <option value="USDT">USDT 보내기 신청 (BEP20)</option>
-                                                        <option value="AIR">AIR 보내기 신청 (ERC20)</option>
+                                                        <option value="USDT">{ui("USDT 보내기 신청 (BEP20)")}</option>
+                                                        <option value="AIR">{ui("AIR 보내기 신청 (ERC20)")}</option>
                                                     </select>
                                                     <p className="text-[11px] text-yellow-300/70 mt-1">
-                                                        네트워크: {withdrawAsset === 'USDT' ? 'BEP20 고정' : 'ERC20 고정'}
+                                                        {ui("네트워크:")} {withdrawAsset === 'USDT' ? ui("BEP20 고정") : ui("ERC20 고정")}
                                                     </p>
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">받을 지갑 주소</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("받을 지갑 주소")}</label>
                                                     <input
                                                         type="text"
                                                         value={withdrawAddress}
                                                         onChange={e => setWithdrawAddress(e.target.value)}
-                                                        placeholder="0x로 시작하는 지갑 주소"
+                                                        placeholder={ui("0x로 시작하는 지갑 주소")}
                                                         className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-green-500"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">보내기 신청 수량 ({withdrawAsset})</label>
+                                                    <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("보내기 신청 수량 (")}{withdrawAsset})</label>
                                                     <input
                                                         type="number"
                                                         value={withdrawAmount}
                                                         onChange={e => setWithdrawAmount(e.target.value)}
-                                                        placeholder="최소 10 USDT 이상"
+                                                        placeholder={ui("최소 10 USDT 이상")}
                                                         className="w-full bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-green-500"
                                                     />
                                                 </div>
@@ -13430,11 +13431,11 @@ export default function StdPortalPage() {
                                                     disabled={walletLoading}
                                                     onClick={async () => {
                                                         if (!/^0x[a-fA-F0-9]{40}$/.test(withdrawAddress.trim())) {
-                                                            alert('지갑 주소를 입력해주세요.')
+                                                            alert(ui("지갑 주소를 입력해주세요."))
                                                             return
                                                         }
                                                         if (!withdrawAmount || Number(withdrawAmount) <= 0) {
-                                                            alert('신청 수량을 입력해주세요.')
+                                                            alert(ui("신청 수량을 입력해주세요."))
                                                             return
                                                         }
                                                         setWalletLoading(true)
@@ -13446,7 +13447,7 @@ export default function StdPortalPage() {
                                                                 to_address: withdrawAddress.trim(),
                                                                 network: withdrawAsset === 'USDT' ? 'BEP20' : 'ERC20',
                                                             })
-                                                            alert(`${withdrawAmount} ${withdrawAsset} 보내기 신청이 접수되었습니다.`)
+                                                            alert(ui('{amount} {asset} 보내기 신청이 접수되었습니다.', {amount: withdrawAmount, asset: withdrawAsset}))
                                                             setWithdrawAmount('')
                                                             setWithdrawAddress('')
                                                             await loadStdWallet()
@@ -13458,7 +13459,7 @@ export default function StdPortalPage() {
                                                     }}
                                                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold text-white shadow transition-all disabled:opacity-50"
                                                 >
-                                                    출금 신청하기
+                                                    {ui("출금 신청하기")}
                                                 </button>
                                             </div>
                                         </div>
@@ -13469,27 +13470,27 @@ export default function StdPortalPage() {
                                 {settingsSubTab === 'support' && (
                                     <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                         <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                            <span>💬 1:1 고객센터 문의하기</span>
+                                            <span>{ui("💬 1:1 고객센터 문의하기")}</span>
                                         </h4>
                                         <div className="space-y-3 max-w-xl">
                                             <div>
-                                                <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">문의 유형</label>
+                                                <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("문의 유형")}</label>
                                                 <select
                                                     value={inquiryCategory}
                                                     onChange={e => setInquiryCategory(e.target.value)}
                                                     className="bg-[#14181f] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 w-full"
                                                 >
-                                                    <option value="시스템 문의">시스템 및 작업 오류 문의</option>
-                                                    <option value="정산 문의">수당 및 USDT 정산 문의</option>
-                                                    <option value="기타">기타 요청 사항</option>
+                                                    <option value="시스템 문의">{ui("시스템 및 작업 오류 문의")}</option>
+                                                    <option value="정산 문의">{ui("수당 및 USDT 정산 문의")}</option>
+                                                    <option value="기타">{ui("기타 요청 사항")}</option>
                                                 </select>
                                             </div>
                                             <div>
-                                                <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">문의 내용</label>
+                                                <label className="text-[11px] font-bold text-gray-400 mb-1.5 block">{ui("문의 내용")}</label>
                                                 <textarea
                                                     value={inquiryText}
                                                     onChange={e => setInquiryText(e.target.value)}
-                                                    placeholder="문의하실 내용을 상세히 적어주세요."
+                                                    placeholder={ui("문의하실 내용을 상세히 적어주세요.")}
                                                     className="w-full p-3 bg-[#14181f] border border-white/10 rounded-lg text-xs text-white min-h-[120px] focus:outline-none focus:border-blue-500 resize-none leading-relaxed"
                                                 />
                                             </div>
@@ -13497,15 +13498,15 @@ export default function StdPortalPage() {
                                                 type="button"
                                                 onClick={() => {
                                                     if (!inquiryText.trim()) {
-                                                        alert('문의 내용을 입력해주세요.')
+                                                        alert(ui("문의 내용을 입력해주세요."))
                                                         return
                                                     }
-                                                    alert('문의가 접수되었습니다. 신속히 답변드리겠습니다.')
+                                                    alert(ui("문의가 접수되었습니다. 신속히 답변드리겠습니다."))
                                                     setInquiryText('')
                                                 }}
                                                 className="px-5 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white shadow transition"
                                             >
-                                                문의 접수
+                                                {ui("문의 접수")}
                                             </button>
                                         </div>
                                     </div>
@@ -13515,17 +13516,17 @@ export default function StdPortalPage() {
                                 {settingsSubTab === 'announcements' && (
                                     <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-6 shadow space-y-4">
                                         <h4 className="text-xs font-bold text-gray-200 flex items-center gap-2 border-b border-white/5 pb-3">
-                                            <span>📢 공지사항 & 업데이트 소식</span>
+                                            <span>{ui("📢 공지사항 & 업데이트 소식")}</span>
                                         </h4>
                                         <div className="space-y-3 text-xs">
                                             <div className="p-4 bg-[#14181f] rounded-xl border border-white/5 space-y-1">
                                                 <div className="flex items-center justify-between text-gray-400 text-[11px]">
-                                                    <span className="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded font-bold">공지</span>
+                                                    <span className="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded font-bold">{ui("공지")}</span>
                                                     <span className="font-mono">2026.08.18</span>
                                                 </div>
-                                                <h5 className="font-bold text-white text-sm pt-1">롱폼 스튜디오 v2.3.46 정식 업데이트 안내</h5>
+                                                <h5 className="font-bold text-white text-sm pt-1">{ui("롱폼 스튜디오 v2.3.46 정식 업데이트 안내")}</h5>
                                                 <p className="text-gray-400 leading-relaxed text-[11px] pt-1">
-                                                    1~18씬은 사용자 업로드 영상 클립, 19씬 이후는 정지 이미지를 사용합니다. 모든 구간은 새 페이싱 시간표를 적용하며 자막을 씬 타이밍에 맞춰 분할합니다.
+                                                    {ui("1~18씬은 사용자 업로드 영상 클립, 19씬 이후는 정지 이미지를 사용합니다. 모든 구간은 새 페이싱 시간표를 적용하며 자막을 씬 타이밍에 맞춰 분할합니다.")}
                                                 </p>
                                             </div>
                                         </div>
@@ -13549,7 +13550,7 @@ export default function StdPortalPage() {
                                 <h3 className="text-base font-black text-white flex items-center gap-2">
                                     <span>{legalModalType === 'terms' ? '📜' : '🔒'}</span>
                                     <span>
-                                        {legalModalType === 'terms' ? '서비스 이용약관' : '개인정보 수집 및 이용 동의'}
+                                        {legalModalType === 'terms' ? ui("서비스 이용약관") : ui("개인정보 수집 및 이용 동의")}
                                     </span>
                                 </h3>
                                 <button
@@ -13563,8 +13564,8 @@ export default function StdPortalPage() {
 
                             <div className="flex-1 overflow-y-auto bg-[#0f172a] border border-white/5 rounded-2xl p-4 text-xs text-gray-300 leading-relaxed font-sans whitespace-pre-wrap select-text">
                                 {legalModalType === 'terms'
-                                    ? (legalTexts.terms[currentLocale] || legalTexts.terms.ko || '이용약관을 불러오는 중입니다...')
-                                    : (legalTexts.privacy[currentLocale] || legalTexts.privacy.ko || '개인정보 처리방침을 불러오는 중입니다...')}
+                                    ? (legalTexts.terms[currentLocale] || legalTexts.terms.ko || ui("이용약관을 불러오는 중입니다..."))
+                                    : (legalTexts.privacy[currentLocale] || legalTexts.privacy.ko || ui("개인정보 처리방침을 불러오는 중입니다..."))}
                             </div>
 
                             <div className="flex items-center gap-2 pt-2 border-t border-white/10">
@@ -13577,14 +13578,14 @@ export default function StdPortalPage() {
                                     }}
                                     className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white shadow-md transition"
                                 >
-                                    확인 및 동의하기
+                                    {ui("확인 및 동의하기")}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setLegalModalType(null)}
                                     className="px-4 py-2.5 bg-[#334155] hover:bg-[#475569] text-gray-300 hover:text-white rounded-xl text-xs font-bold transition"
                                 >
-                                    닫기
+                                    {ui("닫기")}
                                 </button>
                             </div>
                         </div>

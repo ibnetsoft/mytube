@@ -5,6 +5,20 @@ import type { SupportedLocale } from '@/lib/i18n'
 import { normalizeSpeakerGender, speakerNameLabel, type SpeakerInfo, type SpeakerNameTranslations } from '@/lib/stdSpeakerAssignment'
 
 const COPY = {
+    en: {
+        title: 'Confirm speaker', note: 'Editor information only. Not included in speech or video subtitles.',
+        name: 'Speaker name (use the same name for the same character)', gender: 'Character gender',
+        unknown: 'Needs confirmation', male: 'Male', female: 'Female', custom: 'Enter a name',
+        placeholder: 'Enter the original name', cancel: 'Cancel', save: 'Save', error: 'Failed to save.',
+        translating: 'Loading name translations…', translationError: 'Could not load name translations.', retry: 'Retry',
+    },
+    vi: {
+        title: 'Xác nhận người nói', note: 'Chỉ dành cho biên tập. Không xuất hiện trong giọng nói hoặc phụ đề video.',
+        name: 'Tên người nói (dùng cùng tên cho cùng nhân vật)', gender: 'Giới tính nhân vật',
+        unknown: 'Cần xác nhận', male: 'Nam', female: 'Nữ', custom: 'Nhập tên',
+        placeholder: 'Nhập tên gốc', cancel: 'Hủy', save: 'Lưu', error: 'Không lưu được.',
+        translating: 'Đang tải bản dịch tên…', translationError: 'Không tải được bản dịch tên.', retry: 'Thử lại',
+    },
     ko: {
         title: '화자 확인', note: '편집용 정보입니다. TTS와 영상 자막에는 포함되지 않습니다.',
         name: '화자 이름 (같은 인물은 같은 이름 사용)', gender: '인물 성별',
@@ -28,7 +42,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
     onTranslations?: (locale: 'ko' | 'th', translations: Record<string, string>) => void;
     onSave: (name: string, gender: string) => void; onClose: () => void;
 }) {
-    const copy = locale === 'th' ? COPY.th : COPY.ko
+    const copy = COPY[locale]
     const [name, setName] = useState(speaker?.name || '')
     const [custom, setCustom] = useState(false)
     const [gender, setGender] = useState(speaker?.gender || '')
@@ -43,7 +57,12 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
     const nameTranslations = { ...translations, [locale]: { ...translations[locale], ...translated[locale] } }
 
     useEffect(() => {
-        if (!projectId || !headers || (locale !== 'ko' && locale !== 'th') || !optionNames.length) return
+        if (locale !== 'ko' && locale !== 'th') {
+            setTranslating(false)
+            setTranslationError(false)
+            return
+        }
+        if (!projectId || !headers || !optionNames.length) return
         const missing = optionNames.some(value => !characters.find(c => c.name === value)?.[`name_${locale}`]
             && !translations[locale]?.[value])
         if (!missing) return
@@ -92,7 +111,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
         : 'border-white/10 bg-black/15 text-gray-200 hover:border-white/30'
 
     return createPortal(<div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" onClick={e => e.stopPropagation()}>
-        <div role="dialog" aria-modal="true" aria-label={copy.title} lang={locale === 'th' ? 'th' : 'ko'}
+        <div role="dialog" aria-modal="true" aria-label={copy.title} lang={locale}
             className="flex max-h-[85dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-white/20 bg-[#1c2027] p-5 text-gray-100">
             <h2 className="font-bold">{copy.title}</h2>
             <p className="text-xs text-gray-400">{copy.note}</p>

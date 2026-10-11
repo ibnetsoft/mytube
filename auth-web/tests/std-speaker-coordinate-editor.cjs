@@ -3,7 +3,7 @@ const code=ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../compone
 const face={speaker:'仙太郎',status:'visible',face_box:[.2,.2,.6,.6],mouth_box:[.4,.4,.45,.43]}
 const scene={number:63,key:'same-image',image:{id:'image'},rows:[{speaker:'仙太郎',text:'父上。'},{speaker:'大五郎',text:'米俵が…'}]}
 const identity={};new Function('exports',ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../lib/stdSpeakerDraftIdentity.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(identity)
-const uiExports={};new Function('exports',ts.transpileModule(fs.readFileSync(path.resolve(__dirname,'../lib/stdUiText.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(uiExports)
+const uiExports=require('./load-ts-module.cjs')(path.resolve(__dirname,'../lib/stdUiText.ts'))
 function harness(rows,locale='ko',overrideScene={},fetchError='',fetchImpl){
  const data={count:1,completed:0,confirmed:0,scenes:[{...scene,...overrideScene}]},state=[data,'',true,scene.key,'a'.repeat(64),0,63,rows,0,'mouth_box','blob:image',true,false,'',null];let cursor=0,refCursor=0,submitted;const effects=[],refs=[]
  const React={createElement:(type,props,...children)=>({type,props:props||{},children}),useState:()=>{const i=cursor++;return[state[i],v=>{state[i]=typeof v==='function'?v(state[i]):v}]},useEffect:(fn,deps)=>effects.push({fn,deps}),useCallback:f=>f,useRef:v=>{const i=refCursor++;return refs[i]||(refs[i]={current:v})}}
