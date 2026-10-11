@@ -176,10 +176,11 @@ def test_continuity_feedback_repairs_only_current_chapter(tmp_path,monkeypatch):
 def test_media_queue_requires_current_approval_and_can_set_voice_after_draft(tmp_path):
     from worker.sermon_queue import enqueue
     c=candidate()
-    job={'approved_hash':fingerprint(c)}
+    job={'approved_hash':fingerprint(c),'worker_id':'fixtureworker'}
     bundle={'job':job,'candidate':c,'request':{'sermon_voice_id':''}}
     class Jobs:
         root=tmp_path
+        worker_id='fixtureworker'
         import threading
         lock=threading.RLock()
         def load(self,identity):return bundle
@@ -188,6 +189,9 @@ def test_media_queue_requires_current_approval_and_can_set_voice_after_draft(tmp
     assert enqueue(Jobs(),'a'*32,'fixturevoice')['status']=='queued'
     assert json.loads((tmp_path/('a'*32)/'request.json').read_text())['sermon_voice_id']=='fixturevoice'
     assert enqueue(Jobs(),'a'*32)['status']=='queued'
+    job['worker_id']='otherworker'
+    with pytest.raises(ValueError,match='컴퓨터'):enqueue(Jobs(),'a'*32)
+    job['worker_id']='fixtureworker'
     with pytest.raises(ValueError,match='변경'):enqueue(Jobs(),'a'*32,'differentvoice')
     job['approved_hash']='obsolete'
     with pytest.raises(ValueError,match='승인'):enqueue(Jobs(),'a'*32)

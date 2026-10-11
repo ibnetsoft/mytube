@@ -385,6 +385,7 @@ class ApproveRequest(BaseModel):
 class Jobs:
     def __init__(self, root, store=None):
         self.root = root
+        self.worker_id = WORKER_ID
         self.lock = threading.RLock()
         self.pool = ThreadPoolExecutor(max_workers=1)
         self.rows = {}

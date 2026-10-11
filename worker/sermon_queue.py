@@ -13,6 +13,8 @@ def enqueue(jobs, identity, voice_id=''):
 def _enqueue(jobs, identity, voice_id):
     bundle = jobs.load(identity)
     row, candidate = bundle['job'], bundle['candidate']
+    if row.get('worker_id') != jobs.worker_id:
+        raise ValueError('설교를 생성한 컴퓨터의 통합워커에서 제작하세요.')
     if row.get('approved_hash') != fingerprint(candidate) or not candidate.get('sermon_plan'):
         raise ValueError('현재 설교 대본의 승인 기록이 필요합니다.')
     request = bundle['request']
@@ -47,6 +49,8 @@ def _process(jobs, identity, stop):
     from worker.sermon_media_worker import process_sermon, font_path
     bundle = jobs.load(identity)
     request, candidate = bundle['request'], bundle['candidate']
+    if bundle['job'].get('worker_id') != jobs.worker_id:
+        raise ValueError('다른 컴퓨터가 소유한 설교 제작 작업입니다.')
     if bundle['job'].get('approved_hash') != fingerprint(candidate):
         raise ValueError('승인한 설교 대본이 변경되었습니다.')
     config = {'voice_id': request['sermon_voice_id'], 'voice_speed': request.get('sermon_voice_speed', 1.),
@@ -72,6 +76,8 @@ def start_media_loop(jobs):
                 if stop.is_set():
                     break
                 row = jobs.rows.get(identity, {})
+                if row.get('worker_id') != jobs.worker_id:
+                    continue
                 if row.get('sermon_media', {}).get('status') not in ('queued', 'audio', 'video', 'assembling'):
                     continue
                 try:
