@@ -61,4 +61,3 @@ export const scanDialogueQuoteState = (text: string, incomingClose = '') => {
 
     return { isDialogue, nextClose: expectedClose }
 }
-

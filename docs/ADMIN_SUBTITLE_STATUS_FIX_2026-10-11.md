@@ -14,7 +14,7 @@ classification shown in the user editor. Verified the live compact projection
 retains the original codex-ai annotations for the two latest active Japanese projects.
 No historical completion flags were guessed or backfilled.
 
-22 targeted subtitle persistence, speaker assignment/editor and status tests pass.
+23 targeted subtitle persistence, speaker assignment/editor and status tests pass.
 Production build passes. Full type checking retains existing unrelated errors.
 A wider old speaker-confirmation integration harness has a missing ttsNoticeCopy
 mock; the unchanged test fails on its retry path, unrelated to the new count helper.
