@@ -1,5 +1,6 @@
 import { projectReadCacheKey, readProjectResponse, cacheProjectResponse } from '@/lib/stdProjectReadCache'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
+import { subtitleSpeechChanged } from '@/lib/stdSubtitleSpeakerProgress'
 import { persistTemplateOverlay } from '@/lib/stdTemplateOverlayPng'
 import { dialogueSceneIndex } from '@/lib/stdDialogueSceneIndex'
 import { normalizeSubtitleFragments } from '@/lib/stdSubtitleFragments'
@@ -543,6 +544,10 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     }
     const scriptChanged = Object.prototype.hasOwnProperty.call(projectPayloadPatch, 'script')
         && String(projectPayloadPatch.script || '').trim() !== String(project.project_payload?.script || '').trim()
+    if (Array.isArray(projectPayloadPatch.subtitles) && incomingProgress.subtitle_tts_completed !== true
+        && subtitleSpeechChanged(project.project_payload?.subtitles || [], projectPayloadPatch.subtitles)) {
+        Object.assign(progressPatch, { subtitle_tts_completed: false, subtitle_tts_completed_at: null, subtitles_completed: false })
+    }
     if (!allowSceneUpdate) {
         delete (projectPayloadPatch as any).scenes
         if (

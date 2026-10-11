@@ -1,4 +1,6 @@
 'use client'
+import { scanDialogueQuoteState } from '@/lib/stdDialogueQuoteState'
+import { subtitleSpeakerProgress } from '@/lib/stdSubtitleSpeakerProgress'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
@@ -639,71 +641,8 @@ const DEFAULT_SUBTITLE_PRESETS = [
     }
 ]
 
-const DIALOGUE_QUOTE_OPEN_TO_CLOSE: Record<string, string> = {
-    '"': '"',
-    "'": "'",
-    '“': '”',
-    '‘': '’',
-    '「': '」',
-    '『': '』',
-}
-
-const DIALOGUE_CLOSING_QUOTES = new Set(Object.values(DIALOGUE_QUOTE_OPEN_TO_CLOSE))
 const STD_BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_COMMIT || 'local'
 const SHOW_TOPIC_TREND_PANEL = false
-
-const isWordQuote = (text: string, index: number) => {
-    const char = text[index]
-    if (char !== "'" && char !== '"') return false
-    const prev = text[index - 1] || ''
-    const next = text[index + 1] || ''
-    return /[A-Za-z0-9]/.test(prev) && /[A-Za-z0-9]/.test(next)
-}
-
-const isLooseClosingQuote = (text: string, index: number) => {
-    const char = text[index]
-    if (char !== "'" && char !== '"') return false
-    const prev = text[index - 1] || ''
-    const next = text[index + 1] || ''
-    return Boolean(prev && !/\s/.test(prev) && (!next || /\s/.test(next)))
-}
-
-const isRepeatedOpeningQuote = (text: string, index: number, expectedClose: string) => {
-    const char = text[index]
-    if ((char !== "'" && char !== '"') || char !== expectedClose || index <= 0) return false
-    if (text[index - 1] !== char) return false
-    return text.slice(0, index - 1).trim() === '' && text.slice(index + 1).trim() !== ''
-}
-
-const scanDialogueQuoteState = (text: string, incomingClose = '') => {
-    const value = String(text || '')
-    let expectedClose = incomingClose
-    let isDialogue = Boolean(incomingClose)
-
-    for (let i = 0; i < value.length; i += 1) {
-        const char = value[i]
-        if (isWordQuote(value, i)) continue
-
-        if (expectedClose) {
-            isDialogue = true
-            if (isRepeatedOpeningQuote(value, i, expectedClose)) continue
-            if (char === expectedClose || DIALOGUE_CLOSING_QUOTES.has(char)) {
-                expectedClose = ''
-            }
-            continue
-        }
-
-        const nextClose = DIALOGUE_QUOTE_OPEN_TO_CLOSE[char]
-        if (nextClose) {
-            isDialogue = true
-            expectedClose = isLooseClosingQuote(value, i) ? '' : nextClose
-        } else if (DIALOGUE_CLOSING_QUOTES.has(char)) {
-            isDialogue = true
-        }
-    }
-
-    return { isDialogue, nextClose: expectedClose }
-}
 
 export default function StdPortalPage() {
     function generateSynchronizedSubtitles(script: string, scenes: any[], maxChars: number) {
@@ -2953,11 +2892,7 @@ export default function StdPortalPage() {
 
     // Count the same yellow subtitle rows shown by renderAiDialogue. A selected
     // voice alone does not establish which character is speaking.
-    const dialogueSpeakerProgress = localSubtitles.reduce((count, subtitle, index) => {
-        const yellow = aiDialogueParts.get(index)?.some(part => part.dialogue) || isSubtitleDialogue(subtitle, index)
-        if (!yellow) return count
-        return { total: count.total + 1, confirmed: count.confirmed + (subtitleSpeakers[index]?.name ? 1 : 0) }
-    }, { total: 0, confirmed: 0 })
+    const dialogueSpeakerProgress = subtitleSpeakerProgress(localSubtitles, aiDialogueParts, subtitleSpeakers)
 
     // Use the same classification as the subtitle rows; unresolved candidates are never narration targets.
     const isSubtitleNarration = (subtitle: any, index: number) => (
@@ -3031,9 +2966,10 @@ export default function StdPortalPage() {
                 ...(options?.deletedScenes ? { deleted_subtitle_scene_numbers: options.deletedScenes } : {}),
                 progress_payload: {
                     subtitles_saved: true,
-                    subtitles_completed: options?.subtitleTtsCompleted === true,
-                    subtitle_tts_completed: options?.subtitleTtsCompleted === true,
-                    subtitle_tts_completed_at: options?.subtitleTtsCompleted === true ? new Date().toISOString() : null,
+                    ...(options?.subtitleTtsCompleted === true ? {
+                        subtitles_completed: true, subtitle_tts_completed: true,
+                        subtitle_tts_completed_at: new Date().toISOString(),
+                    } : {}),
                 },
                 project_payload: {
                     subtitles: updatedSubtitles, subtitles_saved: true,
@@ -6932,9 +6868,9 @@ export default function StdPortalPage() {
         setMessage(copy.saving)
         setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'running', detail: ttsNoticeCopy(currentLocale).saving })
         try {
-            await handleSaveSubtitles(false)
+            if (!await handleSaveSubtitles(false)) throw new Error('자막 저장에 실패했습니다.')
             const ttsSaved = await generateTts(true, requestScope)
-            if (!ttsSaved) return
+            if (!ttsSaved || !isCurrentMediaScope(requestScope, mediaScopeRef.current)) return
             await persistVrewVoiceSubtitles(speechSubtitlesRef.current, {
                 strict: true,
                 subtitleTtsCompleted: true,

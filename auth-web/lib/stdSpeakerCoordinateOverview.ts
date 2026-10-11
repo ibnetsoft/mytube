@@ -1,6 +1,9 @@
 import { isWorkerSceneVideo, sceneVideoAssets } from './stdSceneVideo'
 import { coordinateCast, coordinateScenes, savedSpeakerGeometry, savedSpeakerDraft } from './stdSpeakerGeometry'
-import { subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
+import { mapDialogueAnnotations } from './stdDialogueAnnotations'
+import { subtitleSpeaker } from './stdSpeakerAssignment'
+import { charactersFromPayload } from './stdCharacterProtection'
+import { subtitleSpeakerProgress } from './stdSubtitleSpeakerProgress'
 
 export function speakerCoordinateOverview(project: any, assets: any[]) {
     const cast = coordinateCast(project),
@@ -48,7 +51,9 @@ export function speakerCoordinateOverview(project: any, assets: any[]) {
 export function speakerWorkInfo(project: any, assets: any[]) {
     const { count, completed, confirmed, failed, pending, workerCompleted } = speakerCoordinateOverview(project, assets)
     const subtitles = Array.isArray(project.project_payload?.subtitles) ? project.project_payload.subtitles : []
-    const dialogue = subtitles.filter((row: any) => row.dialogue_kind === 'dialogue')
+    const parts = mapDialogueAnnotations(subtitles, project.project_payload?.structure?.dialogue_annotations)
+    const characters = charactersFromPayload(project.project_payload)
+    const speakers = subtitles.map((row: any, index: number) => row.dialogue_override === false ? null : subtitleSpeaker(row, parts.get(index), characters))
     return { projectId: project.id, count, completed, confirmed, failed, pending, workerCompleted,
-        speakerProgress: { total: dialogue.length, confirmed: dialogue.filter((row: any) => subtitleDialogueSpeakerName(row)).length } }
+        speakerProgress: subtitleSpeakerProgress(subtitles, parts, speakers) }
 }

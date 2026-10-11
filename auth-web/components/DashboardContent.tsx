@@ -4435,7 +4435,7 @@ export default function DashboardContent() {
                                             <th className="px-10 py-3">카테고리</th>
                                             <th className="px-10 py-3">제안 영상 주제</th>
                                             <th className="px-10 py-3">배정된 직원 이메일</th>
-                                            <th className="px-10 py-3 text-center whitespace-nowrap">기획-대본-이미지-TTS-자막-썸네일-설명-제출</th>
+                                            <th className="px-10 py-3 text-center whitespace-nowrap">기획-대본-영상-TTS-자막-썸네일-설명-제출</th>
                                             <th className="px-4 py-3 whitespace-nowrap">작업정보</th>
                                             <th className="px-10 py-3 text-right">{t('admin.manage')}</th>
                                         </tr>
@@ -4600,7 +4600,7 @@ export default function DashboardContent() {
                                                             const stepDefs = [
                                                                 { key: 'plan', label: '기획' },
                                                                 { key: 'script', label: '대본' },
-                                                                { key: 'image', label: '이미지' },
+                                                                { key: 'image', label: '영상' },
                                                                 { key: 'tts', label: 'TTS' },
                                                                 { key: 'subtitle', label: '자막' },
                                                                 { key: 'template', label: '썸네일' },

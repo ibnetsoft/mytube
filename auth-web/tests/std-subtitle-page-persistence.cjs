@@ -217,9 +217,6 @@ test('manual save persists current edited rows, metadata and render settings wit
     })
     assert.deepEqual(request.body.progress_payload, {
         subtitles_saved: true,
-        subtitles_completed: false,
-        subtitle_tts_completed: false,
-        subtitle_tts_completed_at: null,
     })
     assert.equal(h.state.ttsCalls, 0)
     assert.ok(!h.state.messages.includes(ttsNoticeCopy('ko').subtitleSaved))
