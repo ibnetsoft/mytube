@@ -55,7 +55,8 @@ def process_one():
     thread=threading.Thread(target=heartbeat,daemon=True);thread.start()
     def current():
         projects=ae._request('GET',base+'/rest/v1/std_projects',headers,params={'select':'*','id':'eq.'+job['project_id']}).json()
-        assets=ae._request('GET',url,headers,params={'select':'*','project_id':'eq.'+job['project_id'],'status':'in.(uploaded,assigned)','order':'created_at.desc'}).json()
+        from project_assets import read_project_assets
+        assets=[a for a in read_project_assets(ae._request,url,headers,job['project_id']) if a.get('status') in ('uploaded','assigned')]
         image=next((a for a in assets if a.get('asset_type')=='image' and a.get('scene_number')==meta['input']['number']),None)
         latest=next((a for a in assets if (a.get('metadata') or {}).get('kind')==meta['kind'] and a.get('scene_number')==meta['input']['number']),None)
         if not projects or projects[0].get('status')=='canceled' or not image or image['id']!=meta['input']['image']['id'] or not latest or latest['id']!=job['id'] or (not is_layers and timeline(projects[0],meta['input']['number'])!=meta['input']['timeline']):

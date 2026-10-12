@@ -14,7 +14,17 @@ def now(): return datetime.now(timezone.utc).isoformat()
 def write_state(state):
     HOME.mkdir(parents=True,exist_ok=True)
     target=HOME/'status.json'; temp=HOME/'status.tmp'
-    temp.write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding='utf-8');temp.replace(target)
+    temp.write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding='utf-8')
+    # Windows readers/antivirus may briefly hold the destination open.
+    for attempt in range(8):
+        try:
+            temp.replace(target)
+            return True
+        except PermissionError:
+            time.sleep(.05 * (attempt + 1))
+    import logging
+    logging.warning('Local media status file is busy; retrying on the next update')
+    return False
 
 @contextlib.contextmanager
 def singleton():

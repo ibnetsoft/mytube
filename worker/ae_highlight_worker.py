@@ -161,7 +161,17 @@ def _supabase() -> tuple[str, dict[str, str]]:
 
 
 def _request(method: str, url: str, headers: dict[str, str], **kwargs: Any) -> requests.Response:
-    response = requests.request(method, url, headers=headers, timeout=60, **kwargs)
+    for attempt in range(3):
+        try:
+            response = requests.request(method, url, headers=headers, timeout=60, **kwargs)
+            if response.status_code in (429, 502, 503, 504) and method.upper() in ('GET', 'PATCH') and attempt < 2:
+                time.sleep(2 ** attempt)
+                continue
+            break
+        except (requests.ConnectionError, requests.Timeout):
+            if method.upper() not in ('GET', 'PATCH') or attempt == 2:
+                raise
+            time.sleep(2 ** attempt)
     if not response.ok:
         raise AeWorkerError(f"Supabase request failed ({response.status_code}): {response.text[:500]}")
     return response

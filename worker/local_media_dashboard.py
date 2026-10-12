@@ -4,10 +4,26 @@ import threading
 import time
 from datetime import datetime, timezone
 
+_connections = threading.local()
+
+def query_session():
+    # Reuse TLS connections and retry only read requests after transient failures.
+    if not hasattr(_connections, 'session'):
+        import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        session = requests.Session()
+        session.mount('https://', HTTPAdapter(max_retries=Retry(
+            total=2, backoff_factor=.4, status_forcelist=(429, 502, 503, 504),
+            allowed_methods=frozenset(('GET',)), respect_retry_after_header=False,
+        )))
+        _connections.session = session
+    return _connections.session
+
 def group(state):
     if state in ('ready', 'reviewed', 'completed'): return 'completed'
     if state in ('failed', 'obsolete', 'cancelled'): return 'failed'
-    if state in ('prepared', 'approved', 'needs_review', 'direction_pending', 'review_pending'): return 'review'
+    if state in ('draft', 'prepared', 'approved', 'needs_review', 'direction_pending', 'review_pending'): return 'review'
     if state in ('processing', 'rendering'): return 'working'
     return 'waiting'
 
@@ -23,6 +39,8 @@ def summarize(row, render=False):
             'title': row.get('project_name') or '', 'kind': 'render' if render else meta.get('kind'),
             'state': state, 'group': 'review' if meta.get('kind') == 'region_motion_plan' and state == 'ready' else group(state), 'phase': meta.get('phase'),
             'total': len(scenes), 'done': completed, 'analyzed': len(results),
+            'generated': sum(bool(r.get('asset_id')) and r.get('status') in ('review_pending', 'approved', 'reviewed') for r in results),
+            'skipped': sum(r.get('status') == 'skipped' for r in results),
             'scene_number': row.get('scene_number'),
             'progress': max(0, min(100, float(row.get('progress') or 0))) if render else None,
             'created_at': row.get('created_at'), 'updated_at': row.get('updated_at'),
@@ -34,7 +52,7 @@ def fetch_jobs():
     key = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
     if not base or not key: raise RuntimeError('Missing database configuration')
     def query(table, params):
-        response = requests.get(base+'/rest/v1/'+table, headers={'apikey':key,'Authorization':'Bearer '+key},
+        response = query_session().get(base+'/rest/v1/'+table, headers={'apikey':key,'Authorization':'Bearer '+key},
                                 params=params, timeout=(5,15))
         response.raise_for_status()
         return response.json()
