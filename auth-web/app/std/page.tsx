@@ -2265,14 +2265,9 @@ export default function StdPortalPage() {
         const scenes = selectedProject?.scenes || []
         const index = scenes.findIndex((item: any, itemIndex: number) => Number(item?.scene_number || item?.scene_order || itemIndex + 1) === number)
         const nextScene = index >= 0 ? scenes[index + 1] : null
-        const rawMode = String(
-            scene?.transition_to_next
-            || scene?.video_keyframe_plan?.mode
-            || scene?.metadata?.transition_to_next
-            || scene?.metadata?.video_keyframe_plan?.mode
-            || 'cut'
-        ).toLowerCase()
-        const mode = rawMode === 'continuous' && nextScene ? 'continuous' : 'cut'
+        // Story continuity does not establish compatible image keyframes. Saved
+        // plans may connect different people, so generate each scene separately.
+        const mode: string = 'cut'
         const nextSceneNumber = nextScene
             ? Number(nextScene?.scene_number || nextScene?.scene_order || index + 2)
             : null
@@ -10897,8 +10892,6 @@ export default function StdPortalPage() {
                                     const inMiddleVideoZone = isStdMiddleVideoScene(sceneNum)
                                     const requiresClip = isStdRequiredClipScene(sceneNum)
                                     const transition = getSceneVideoTransitionPlan(scene, sceneNum)
-                                    const startFrameUrl = runtimeAssetUrl(scene.image_url)
-                                    const endFrameUrl = runtimeAssetUrl(transition.nextScene?.image_url)
                                     const videoSpec = sceneVideoGeneration(selectedProject.project, selectedProject.scenes.indexOf(scene))
                                     const ratioLabels = videoRatioLabels(currentLocale)
                                     const videoPromptText = getSceneVideoPromptText(scene, sceneNum)
@@ -11045,20 +11038,8 @@ export default function StdPortalPage() {
                                                             <span className="text-[10px] text-gray-400">{ui('영상 제작 지시')}</span>
                                                         </div>
                                                         <p className="mt-1.5 text-[11px] leading-relaxed text-gray-200">
-                                                            {transition.mode === 'continuous'
-                                                                ? ui('현재 씬 이미지를 시작 프레임, 다음 씬 이미지를 종료 프레임으로 넣어 영상을 만든 뒤 현재 씬에 업로드하세요.')
-                                                                : ui('현재 씬 이미지를 시작 기준으로 영상을 만들고 다음 씬과 보간하지 마세요. 장면 끝에서 컷으로 전환됩니다.')}
+                                                            {ui('현재 씬 이미지만 참조해 각각 생성하고 현재 씬에 업로드하세요. 다른 인물이 나오는 다음 씬은 별도로 생성한 뒤 컷으로 연결하세요. 다음 씬 이미지를 종료 프레임으로 넣지 마세요.')}
                                                         </p>
-                                                        {transition.mode === 'continuous' && (
-                                                            <div className="mt-2 grid grid-cols-2 gap-2">
-                                                                {startFrameUrl
-                                                                    ? <a href={startFrameUrl} target="_blank" rel="noreferrer" className="rounded border border-white/10 bg-black/20 p-2 text-[10px] font-bold text-blue-300 hover:border-blue-400/50">{ui('시작 이미지')} · {ui('씬')} {sceneNum}</a>
-                                                                    : <span className="rounded border border-white/10 bg-black/20 p-2 text-[10px] font-bold text-gray-500">{ui('시작 이미지 준비 중')}</span>}
-                                                                {endFrameUrl
-                                                                    ? <a href={endFrameUrl} target="_blank" rel="noreferrer" className="rounded border border-white/10 bg-black/20 p-2 text-[10px] font-bold text-cyan-300 hover:border-cyan-400/50">{ui('종료 이미지')} · {ui('씬')} {transition.nextSceneNumber}</a>
-                                                                    : <span className="rounded border border-white/10 bg-black/20 p-2 text-[10px] font-bold text-gray-500">{ui('종료 이미지 준비 중')}</span>}
-                                                            </div>
-                                                        )}
                                                     </div>
                                                     <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3" data-testid="video-generation-ratio">
                                                         <div className="flex items-center gap-3">
