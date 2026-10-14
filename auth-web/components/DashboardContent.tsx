@@ -699,7 +699,12 @@ export default function DashboardContent() {
         }
     };
 
-    const fetchLocalUploadChannels = useCallback(async () => { setLocalChannels([]) }, [])
+    const fetchLocalUploadChannels = useCallback(async () => {
+        const response = await adminFetch('/api/admin/youtube/channels')
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'YouTube 채널 조회 실패')
+        setLocalChannels(data.channels || [])
+    }, [adminFetch])
 
     const applySelectedChannelToCreateForm = (channelId: number | null) => {
         if (!channelId) {
@@ -742,7 +747,19 @@ export default function DashboardContent() {
 
     const handleCreateOrUpdateLocalChannel = async () => { alert('이전 로컬 채널 연동은 종료되었습니다.') }
 
-    const handleStartCategoryChannelOAuth = () => { alert('이전 로컬 채널 인증은 종료되었습니다.') }
+    const handleStartCategoryChannelOAuth = async () => {
+        if (!channelConfigCategory) return
+        try {
+            const response = await adminFetch('/api/admin/youtube/channels', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category_id: channelConfigCategory.id,
+                    local_channel_id: channelConfigForm.local_channel_id || undefined }),
+            })
+            const data = await response.json()
+            if (!response.ok || !data.authorization_url) throw new Error(data.error || 'YouTube 인증 시작 실패')
+            window.location.assign(data.authorization_url)
+        } catch (error: any) { alert(error.message || 'YouTube 인증 시작 실패') }
+    }
 
     const handleSaveCategoryChannelBinding = async () => {
         if (!channelConfigCategory) return

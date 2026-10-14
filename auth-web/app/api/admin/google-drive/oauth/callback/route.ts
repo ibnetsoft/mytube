@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { getGoogleDriveConfig } from '@/lib/googleDriveConfig'
 import { deleteServerCache } from '@/lib/server-cache'
+import { completeYoutubeChannelOAuth } from '@/lib/stdYoutubeChannelOAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,8 @@ export async function GET(req: Request) {
     const receivedState = String(url.searchParams.get('state') || '')
     const config = await getGoogleDriveConfig()
     if (!config.clientId || !config.clientSecret) return redirect(req, 'client_not_configured')
+
+    if (receivedState.startsWith('yt_')) return completeYoutubeChannelOAuth(req, config)
 
     if (!hasValidState(receivedState, config.clientSecret)) {
         return redirect(req, 'state_mismatch')
