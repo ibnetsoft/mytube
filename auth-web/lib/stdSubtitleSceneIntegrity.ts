@@ -27,7 +27,20 @@ export function subtitlesMatchSceneManifest(subtitles: any[], scenes: any[]): bo
 export function preserveSubtitleScenes(incoming: any[], previous: any[], scenes: any[], deleted: number[] = []) {
     const excluded = new Set(deleted.map(Number))
     const numberOf = (row: any) => Number(row.scene_number ?? row.scene_order)
-    const rows = incoming.filter(row => !excluded.has(numberOf(row))).map(row => ({ ...row }))
+    const sourceRecovery = (row: any) => /^sub-\d+-source-recovery$/.test(String(row.id || ''))
+    const replaced = new Set<number>()
+    const rows = incoming.filter(row => !excluded.has(numberOf(row))).flatMap(row => {
+        // A source placeholder is not an editor revision. Prefer the saved split
+        // rows, including their speaker metadata, even in an old browser draft.
+        const number = numberOf(row)
+        const saved = previous.filter(item => numberOf(item) === number && !sourceRecovery(item))
+        if (sourceRecovery(row) && saved.length) {
+            if (replaced.has(number)) return []
+            replaced.add(number)
+            return saved.map(item => ({ ...item }))
+        }
+        return [{ ...row }]
+    })
     const present = new Set(rows.map(numberOf))
     const recovered: number[] = []
     const manifest = new Map<number, any>()

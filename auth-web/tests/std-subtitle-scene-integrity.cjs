@@ -35,3 +35,13 @@ test('manual splits and within-scene order survive scene recovery', () => {
     const result = preserveSubtitleScenes(split, previous, scenes)
     assert.deepEqual(result.subtitles.filter(row => row.scene_number === 2), split)
 })
+test('a stale source recovery row cannot replace saved splits and confirmed speakers', () => {
+    const saved = [{ ...previous[1], text: 'Narration' }, { ...previous[1], id: 'dialogue', text: '「Hello」',
+        editor_speaker: { name: 'Speaker', gender: 'male', text: '「Hello」' }, voice_id: 'actor' }]
+    const stale = { id: 'sub-2-source-recovery', scene_number: 2, text: 'Narration 「Hello」', restored_audio_pending: true }
+    const reopened = preserveSubtitleScenes([stale], saved, [scenes[1]]).subtitles
+    assert.deepEqual(reopened, saved)
+    assert.deepEqual(preserveSubtitleScenes([stale], reopened, [scenes[1]]).subtitles, saved)
+    assert.deepEqual(preserveSubtitleScenes([], saved, [scenes[1]]).subtitles, saved)
+    assert.deepEqual(preserveSubtitleScenes([stale], saved, [scenes[1]], [2]).subtitles, [])
+})

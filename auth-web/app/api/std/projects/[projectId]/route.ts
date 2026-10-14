@@ -360,11 +360,14 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     const subtitlePayload = project.project_payload || {}
     if (Array.isArray(subtitlePayload.subtitles)) {
         const normalizedRows = normalizeSubtitleFragments(subtitlePayload.subtitles, 20, { punctuationOnly: true })
-        const repaired = preserveSubtitleScenes(normalizedRows, normalizedRows,
+        const editorSnapshot = Array.isArray(subtitlePayload.subtitle_editor_snapshot)
+            ? subtitlePayload.subtitle_editor_snapshot : normalizedRows
+        const repaired = preserveSubtitleScenes(normalizedRows, editorSnapshot,
             [...(subtitlePayload.structure?.scenes || subtitlePayload.scenes || []), ...(scenes || [])],
             subtitlePayload.deleted_subtitle_scene_numbers || [])
         if (JSON.stringify(repaired.subtitles) !== JSON.stringify(subtitlePayload.subtitles)) {
-            const repairedPayload = { ...subtitlePayload, subtitles: repaired.subtitles }
+            const repairedPayload = { ...subtitlePayload, subtitles: repaired.subtitles,
+                subtitle_editor_snapshot: repaired.subtitles }
             const { data: repairedProject, error: repairError } = await supabaseAdmin.from('std_projects')
                 .update({ project_payload: repairedPayload, updated_at: new Date().toISOString() })
                 .eq('id', project.id).eq('updated_at', project.updated_at).select('*').maybeSingle()
@@ -449,9 +452,12 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             .select('scene_number,scene_text').eq('project_id', project.id)
         if (canonicalScenesError) return NextResponse.json({ success: false, error: canonicalScenesError.message }, { status: 503 })
         sceneManifest = [...sceneManifest, ...(canonicalScenes || [])]
+        const currentEditorRows = preserveSubtitleScenes(currentSubtitlePayload.subtitles || [],
+            currentSubtitlePayload.subtitle_editor_snapshot || currentSubtitlePayload.subtitles || [],
+            sceneManifest, deletedSubtitleScenes).subtitles
         const repaired = preserveSubtitleScenes(
             normalizeSubtitleFragments(incomingProjectPayload.subtitles, 20, { punctuationOnly: true }),
-            normalizeSubtitleFragments(currentSubtitlePayload.subtitles || [], 20, { punctuationOnly: true }), sceneManifest, deletedSubtitleScenes)
+            normalizeSubtitleFragments(currentEditorRows, 20, { punctuationOnly: true }), sceneManifest, deletedSubtitleScenes)
         incomingProjectPayload.subtitles = repaired.subtitles
         incomingProjectPayload.deleted_subtitle_scene_numbers = deletedSubtitleScenes
         incomingProjectPayload.deleted_subtitle_scene_archive = {
@@ -667,6 +673,16 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         }
     }
     if (updatePayload.project_payload) {
+        // Keep the complete editor state separate from recording-only subtitles.
+        // Audio recovery may replace that array; subsequent reads can restore the
+        // saved splits and speakers rather than synthesizing source-only rows.
+        if (Array.isArray(projectPayloadPatch.subtitles)) {
+            updatePayload.project_payload.subtitle_editor_snapshot = projectPayloadPatch.subtitles
+        } else if (scriptChanged) {
+            updatePayload.project_payload.subtitle_editor_snapshot = []
+        } else if (!Array.isArray(updatePayload.project_payload.subtitle_editor_snapshot)) {
+            updatePayload.project_payload.subtitle_editor_snapshot = project.project_payload?.subtitles || []
+        }
         updatePayload.project_payload.dialogue_scene_index = dialogueSceneIndex(updatePayload.project_payload.subtitles || [])
         if (updatePayload.project_payload.render_settings) {
             try {
