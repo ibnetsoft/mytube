@@ -280,7 +280,7 @@ function LazySceneMedia({
 
     return (
         <div ref={containerRef} className="w-full h-full bg-[#0b0e14]">
-            {shouldLoad && videoUrl && !videoUrl.includes('/api/std/projects/') && !videoFailed && (shouldPlay || !imageUrl) ? (
+            {shouldLoad && videoUrl && !videoUrl.includes('/api/std/projects/') && !videoFailed ? (
                 <video
                     src={videoUrl}
                     poster={imageUrl || undefined}
