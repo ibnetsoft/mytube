@@ -8387,7 +8387,7 @@ export default function StdPortalPage() {
                         {/* 팝업 바디 (테이블) */}
                         <div className="overflow-auto flex-1 p-4 sm:p-6">
                             <div className="bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">
-                                <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1000px]">
+                                <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1080px]">
                                     <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px] sticky top-0 z-10">
                                         <tr>
                                             <th className="px-2 py-2.5 w-12 text-center">{ui("썸네일")}</th>
@@ -8395,6 +8395,7 @@ export default function StdPortalPage() {
                                                 <input type="checkbox" className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
                                             </th>
                                             <th className="px-3 py-2.5 w-32 text-center">카테고리</th>
+                                            <th className="px-2 py-2.5 w-20 text-center">토픽번호</th>
                                             <th className="px-2 py-2.5 w-24 text-center">시작일</th>
                                             <th className="px-2 py-2.5 w-24 text-center">수정일</th>
                                             <th className="px-3 py-2.5">영상 제목</th>
@@ -8479,6 +8480,9 @@ export default function StdPortalPage() {
                                                         <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                                                             {projectCatName}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-2 py-2 text-center text-gray-300 font-mono text-[11px] whitespace-nowrap">
+                                                        {p.topic_queue_id ?? p.project_payload?.topic_queue_id ?? p.source_payload?.topic_queue_id ?? '—'}
                                                     </td>
                                                     <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
                                                         {formatProjectListDate(p.created_at)}
