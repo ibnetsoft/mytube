@@ -398,7 +398,12 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         raise ValueError(f"image grids do not cover scene(s): {missing}")
 
     destination.parent.mkdir(parents=True, exist_ok=True)
+    from content_identity import content_hash, speech_text, visual_hash
+    from mouth_work_policy import load_policy, normalize, selected_scenes
+    mouth_policy = normalize(structure.get('mouth_work_policy') or load_policy())
     manifest = {
+        'mouth_work_selection': {'policy': mouth_policy, 'scene_numbers': selected_scenes(structure, mouth_policy)},
+        "content_identity": {"schema_version": 1, "origin_topic_queue_id": int(row["id"]), "script_sha256": content_hash(speech_text(row.get("pregenerated_script"))), "generation_job_id": str(destination.resolve())},
         "schema": "cowork_scene_assets/v1",
         "topic_id": str(row["id"]),
         "title": str(row.get("generated_title") or row.get("topic") or ""),
@@ -604,6 +609,10 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]", bucket):
         raise ValueError("bucket must be a safe lowercase storage bucket name")
     row, structure, base_url, headers = _topic(topic_id)
+    from content_identity import content_hash, speech_text, visual_hash
+    origin = manifest.get("content_identity")
+    if origin and (origin.get("origin_topic_queue_id") != int(row["id"]) or origin.get("script_sha256") != content_hash(speech_text(row.get("pregenerated_script")))):
+        raise ValueError("CONTENT_IDENTITY_MISMATCH: topic script changed after image generation request")
     manifest_layer_specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
     current_layer_specs = manga_layer_package.scene_specs(structure.get("scenes") or [])
     if manifest_layer_specs != current_layer_specs:
@@ -755,6 +764,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
             scene["image_url"] = scene_urls[number]
             scene["asset_status"] = "ready"
             scene.setdefault("metadata", {})["cowork_image_asset"] = {
+                "origin_content_identity": {**origin, "scene_number": number, "visual_sha256": visual_hash(scene, "image")} if origin else None,
                 "source": "cowork_builtin_imagegen",
                 "storage_provider": "gcs",
                 "bucket": gcs_bucket,
@@ -823,7 +833,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
     except ImportError:
         from generated_speaker_coordinates import analyze_published_scenes
     analyze_published_scenes(topic_id, structure, published_scenes, images_dir,
-                             base_url, headers, sys.modules[__name__])
+                             base_url, headers, sys.modules[__name__], manifest.get("mouth_work_selection"))
     if manifest_layer_specs and not defer_layers:
         _propagate_published_template_assets(topic_id, base_url, headers)
     return [scene_urls[number] for number in sorted(scene_urls)]

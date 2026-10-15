@@ -56,11 +56,14 @@ def prepare_submitted_video(runner, project_id, scene, rows, cast, directory, fr
     if not allow_analyze:
         raise ValueError('승인된 영상 좌표 결과가 없습니다. 자동 분석과 연출 확인을 다시 진행해 주세요.')
     fresh()
-    run([ffmpeg(), '-hide_banner', '-loglevel', 'error', '-y', '-i', str(video),
+    reference_time = max(0.0, float(manual.get('reference_seconds') or 0))
+    if reference_time >= scene['end'] - scene['start']:
+        raise ValueError('Visible reference frame falls outside the scene')
+    run([ffmpeg(), '-hide_banner', '-loglevel', 'error', '-y', '-ss', str(reference_time), '-i', str(video),
          '-map', '0:v:0', '-frames:v', '1', '-an', str(first)])
     reference = first
     supplied = {r['speaker']: r for r in manual.get('speakers', [])}
-    if supplied:
+    if supplied and not reference_time:
         if not scene.get('image') or manual.get('image_id') != scene['image']['id']:
             raise ValueError('저장된 화자 좌표의 기준 이미지가 일치하지 않습니다.')
         rb, rp = ref(scene['image'])
@@ -92,7 +95,7 @@ def prepare_submitted_video(runner, project_id, scene, rows, cast, directory, fr
     if any(not s.get('face_box') for s in speakers):
         raise ValueError('영상 화자의 얼굴 좌표가 없습니다.')
     if speakers:
-        first, speakers, report = track_video(video, reference, speakers, directory / 'tracking', scene['end'] - scene['start'])
+        first, speakers, report = track_video(video, reference, speakers, directory / 'tracking', scene['end'] - scene['start'], reference_time, bool(manual.get('tracking_visible_only')))
     else:
         report = {'version': 1, 'video_sha256': video_hash, 'speakers': [], 'source_duration': 0}
     fresh()

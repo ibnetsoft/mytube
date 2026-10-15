@@ -87,27 +87,60 @@ def analyze_scene(structure, scene, image, bucket, path, previous=None, runner=N
     return {**result, 'state': 'ready', 'speakers': speakers, 'eye_blink': blink}
 
 
-def analyze_published_scenes(topic_id, structure, scenes, images_dir, base_url, headers, publisher):
+def analyze_published_scenes(topic_id, structure, scenes, images_dir, base_url, headers, publisher, selection=None):
     """Images are already committed. A later failure cannot erase earlier results.
 
     The same scene-asset CAS as image publication protects concurrent replacements.
     Failed DB writes stop publication, so retrying the command can recover them.
     """
+    from mouth_work_policy import load_policy, normalize, selected_scenes
+    # Freeze once per topic/image manifest, including across partial batch retries.
+    policy_file = images_dir / 'mouth-work-selection.json'
+    if policy_file.exists():
+        selection = json.loads(policy_file.read_text(encoding='utf8'))
+    else:
+        if selection is None:
+            policy = normalize(structure.get('mouth_work_policy') or load_policy())
+            selection = {'policy': policy, 'scene_numbers': selected_scenes(structure, policy)}
+        policy_file.parent.mkdir(parents=True, exist_ok=True)
+        temporary = policy_file.with_suffix('.tmp')
+        temporary.write_text(json.dumps(selection), encoding='utf8')
+        temporary.replace(policy_file)
     for number, scene in sorted(scenes.items()):
-        if number < 19:
-            continue  # Uploaded clips need their own reference frames.
-        asset = scene['metadata']['cowork_image_asset']
-        previous = asset.get('speaker_geometry')
+        if number < 19 and number not in selection['scene_numbers']:
+            continue
         receipt_path = images_dir / f'scene-{number:03d}-speaker-coordinates.json'
-        if receipt_path.exists():
+        if number not in selection['scene_numbers']:
+            result = {'version': 1, 'source': 'local-codex-image-publish', 'number': number,
+                      'state': 'not_required', 'speakers': [], 'mouth_work_selection': selection}
+        else:
+            asset = scene['metadata']['cowork_image_asset']
+            previous = asset.get('speaker_geometry')
+            receipt_path = images_dir / f'scene-{number:03d}-speaker-coordinates.json'
+            if receipt_path.exists():
+                try:
+                    cached = json.loads(receipt_path.read_text(encoding='utf-8'))
+                    if cached.get('state') in ('ready', 'not_required'):
+                        previous = cached
+                except (ValueError, OSError):
+                    pass
+            result = analyze_scene(structure, scene, images_dir / f'scene-{number:03d}.png',
+                                   asset['gcs_bucket'], asset['gcs_path'], previous)
+            result = {**result, 'mouth_work_selection': selection}
+            # Prepare reviewed mouth art before assignment/TTS/postprocessing.
+            from prepared_mouth_layers import prepare_scene
             try:
-                cached = json.loads(receipt_path.read_text(encoding='utf-8'))
-                if cached.get('state') in ('ready', 'not_required'):
-                    previous = cached
-            except (ValueError, OSError):
-                pass
-        result = analyze_scene(structure, scene, images_dir / f'scene-{number:03d}.png',
-                               asset['gcs_bucket'], asset['gcs_path'], previous)
+                result = {**result, 'mouth_preparation': prepare_scene(
+                    images_dir / f'scene-{number:03d}.png', result, technical=True)}
+            except Exception as exc:
+                # Keep valid geometry and completed patches for a recoverable retry.
+                result = {**result, 'mouth_preparation': {'state': 'needs_review', 'error': str(exc)[:500]}}
+            try:
+                from prepared_mouth_preview import prepare_preview
+                result['mouth_preview'] = prepare_preview(topic_id, number,
+                    images_dir / f'scene-{number:03d}.png', result, result.get('mouth_preparation') or {})
+            except Exception as exc:
+                result['mouth_preview'] = {'state': 'input_error', 'error': str(exc)[:500]}
         temp = receipt_path.with_suffix('.tmp')
         temp.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
         temp.replace(receipt_path)

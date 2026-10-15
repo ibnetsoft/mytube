@@ -1,7 +1,7 @@
 export const VIDEO_TAIL_POLICY = 'normal_speed_ae_freeze_zoom_v1'
 
 export function reviewedVideoTail(scene: any, source: any, payload: any) {
-    if (!source || source.asset_type !== 'video') return source
+    if (!source || source.asset_type !== 'video' || payload?.submission_pipeline_version === 2) return source
     const number = Number(scene.scene_number)
     const rows = (payload?.subtitles || []).filter((r: any) => Number(r.scene_number) === number)
     const start = Math.min(...rows.map((r: any) => Number(r.start_num ?? r.start_time ?? r.start)))

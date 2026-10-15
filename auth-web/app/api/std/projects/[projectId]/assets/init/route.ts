@@ -1,3 +1,4 @@
+import { assetContentIdentity } from '@/lib/stdContentIdentity'
 import { isComicProject } from '@/lib/stdComic'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { NextResponse } from 'next/server'
@@ -97,8 +98,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             expiresInMinutes: 30,
         })
 
+        const plannedScene = sceneNumber == null ? null : (project.project_payload?.structure?.scenes || project.project_payload?.scenes || []).find((s: any, i: number) => Number(s.scene_number || s.scene_order || i + 1) === sceneNumber)
+        const identity = assetContentIdentity(project, { type: assetType, scene: plannedScene ? { ...plannedScene, scene_number: sceneNumber } : undefined })
+        const receipt = await supabaseAdmin.from('std_project_assets').insert({
+            project_id: project.id, asset_type: 'other', status: 'uploaded', file_name: fileName,
+            metadata: { kind: 'asset_upload_claim', upload_path: storagePath, content_identity: identity },
+        }).select('id').single()
+        if (receipt.error) throw receipt.error
         return NextResponse.json({
             success: true,
+            content_identity: identity,
+            upload_claim_id: receipt.data.id,
             storage_provider: 'gcs',
             secondary_storage_provider: null,
             storage_upload_url: signedUpload.signedUrl,

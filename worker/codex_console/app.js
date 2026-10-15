@@ -322,3 +322,16 @@ if ($('new-script-style')) $('new-script-style').onchange = () => {
   }
   window.updateNewSettingSummary();
 };
+
+async function loadMouthPolicy(){
+  try { const p=await api('mouth-policy'); $('mouth-enabled').checked=p.enabled;
+    $('mouth-start').value=p.start_scene; $('mouth-count').value=p.max_dialogue_scenes;
+  } catch(e){error(e.message);}
+}
+$('mouth-policy-form').addEventListener('submit',async event=>{
+  event.preventDefault(); const button=event.currentTarget.querySelector('button'); button.disabled=true;
+  try { await api('mouth-policy',{enabled:$('mouth-enabled').checked,start_scene:Number($('mouth-start').value),max_dialogue_scenes:Number($('mouth-count').value)});
+    $('mouth-policy-status').textContent=' 저장됨 · 다음 이미지 작업부터 적용';
+  } catch(e){error(e.message);} finally {button.disabled=false;}
+});
+loadMouthPolicy();

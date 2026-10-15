@@ -9,24 +9,31 @@ import cv2
 import numpy as np
 
 
-def track_video(video, reference, speakers, directory, duration):
+def track_video(video, reference, speakers, directory, duration, reference_time=0.0, allow_partial=False):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     cap = cv2.VideoCapture(str(video))
     try:
         fps = cap.get(cv2.CAP_PROP_FPS)
+        seed_frame = round(max(0.0, float(reference_time)) * fps)
+        if seed_frame:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, seed_frame)
         ok, first = cap.read()
         if not ok or not math.isfinite(fps) or fps <= 0:
             raise ValueError('원본 영상의 프레임과 재생 속도를 읽지 못했습니다.')
         h, w = first.shape[:2]
-        ref = cv2.imread(str(reference))
+        # OpenCV's Windows file reader cannot reliably open Unicode paths.
+        ref = cv2.imdecode(np.frombuffer(Path(reference).read_bytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
         if ref is None:
             raise ValueError('저장된 화자 좌표의 기준 이미지를 읽지 못했습니다.')
         ref = cv2.resize(ref, (w, h))
         gray = cv2.cvtColor(first, cv2.COLOR_BGR2GRAY)
         reference_gray = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
         first_path = directory / 'video-first-frame.png'
-        cv2.imwrite(str(first_path), first)
+        encoded, pixels = cv2.imencode('.png', first)
+        if not encoded:
+            raise ValueError('Cannot encode video reference frame')
+        first_path.write_bytes(pixels.tobytes())
         tracked, states = copy.deepcopy(speakers), []
         for speaker in tracked:
             box = speaker.get('face_box')
@@ -46,8 +53,21 @@ def track_video(video, reference, speakers, directory, duration):
             if alternatives.max() > .9 and score - alternatives.max() < .03:
                 raise ValueError('비슷한 얼굴이 여러 위치에 있어 화자를 확정할 수 없습니다.')
             dx, dy = loc[0] - x, loc[1] - y
+            geometry=speaker.get('mouth_geometry')
+            if geometry:
+                from mouth_geometry import validate, validate_image_evidence
+                validate(speaker,hashlib.sha256(Path(reference).read_bytes()).hexdigest())
+                geometry['reference_source_image_sha256']=geometry['source_sha256']
+                geometry['source_sha256']=hashlib.sha256(first_path.read_bytes()).hexdigest()
+                def translate(point):return [point[0]+dx/w,point[1]+dy/h]
+                geometry['landmarks']={key:translate(point) for key,point in geometry['landmarks'].items()}
+                geometry['face_outline']=[translate(point) for point in geometry['face_outline']]
+                if geometry.get('lip_contour'):geometry['lip_contour']=[translate(point) for point in geometry['lip_contour']]
             speaker['face_box'] = [(x+dx)/w, (y+dy)/h, (right+dx)/w, (bottom+dy)/h]
             speaker['mouth_box'] = [v + (dx/w if i % 2 == 0 else dy/h) for i, v in enumerate(speaker['mouth_box'])]
+            if geometry:
+                from PIL import Image
+                with Image.open(first_path) as actual:validate_image_evidence(speaker,actual)
             mask = np.zeros(gray.shape, np.uint8)
             cv2.rectangle(mask, loc, (loc[0]+right-x, loc[1]+bottom-y), 255, -1)
             l, t, r, b = [round(v * (w if i % 2 == 0 else h)) for i,v in enumerate(speaker['mouth_box'])]
@@ -59,10 +79,12 @@ def track_video(video, reference, speakers, directory, duration):
                            'center':np.array([[(l+r)/2, (t+b)/2]],np.float32), 'matrix':np.eye(2,3,dtype=np.float32),
                            'face_box':speaker['face_box'][:], 'mouth_box':speaker['mouth_box'][:],
                            'mask':mask.astype(bool), 'appearance':gray[mask.astype(bool)].astype(float)})
-            speaker['tracking'] = [{'at_seconds':0., 'offset':[0.,0.], 'scale':100., 'rotation':0.,
+            speaker['visible_from_seconds'] = seed_frame / fps
+            speaker['tracking'] = [{'at_seconds':seed_frame / fps, 'offset':[0.,0.], 'scale':100., 'rotation':0.,
                                     'face_box':speaker['face_box'][:], 'mouth_box':speaker['mouth_box'][:]}]
         previous = gray
-        frame = 1
+        frame = seed_frame + 1
+        partial_end = None
         while frame / fps < duration:
             ok, image = cap.read()
             if not ok:
@@ -82,6 +104,16 @@ def track_video(video, reference, speakers, directory, duration):
                 origin, moved = state['origin'][keep], moved[keep]
                 matrix, inliers = cv2.estimateAffinePartial2D(origin, moved, method=cv2.RANSAC, ransacReprojThreshold=1.5)
                 if matrix is None or inliers is None or inliers.mean()<.8:
+                    (directory/'tracking-failure.json').write_text(json.dumps({
+                        'frame':frame,'time':frame/fps,'speaker':speaker['speaker'],
+                        'initial_points':state['initial_count'],'retained_points':int(keep.sum()),
+                        'inlier_ratio':float(inliers.mean()) if inliers is not None else None,
+                        'matrix':matrix.tolist() if matrix is not None else None,
+                        'median_motion_pixels':np.median(moved-origin,axis=0).tolist(),
+                    }),encoding='utf-8')
+                    if allow_partial and (frame-1-seed_frame)/fps >= .5:
+                        partial_end = (frame-1)/fps
+                        break
                     raise ValueError('얼굴 움직임을 안정적으로 추정하지 못했습니다.')
                 scale = math.hypot(matrix[0,0],matrix[1,0])
                 rotation = math.degrees(math.atan2(matrix[1,0],matrix[0,0]))
@@ -106,13 +138,23 @@ def track_video(video, reference, speakers, directory, duration):
                     'offset':(center-state['center'][0]).tolist(), 'scale':scale*100, 'rotation':rotation,
                     'face_box':transformed_box(state['face_box']), 'mouth_box':transformed_box(state['mouth_box'])})
                 state.update(points=moved,origin=origin,matrix=matrix)
+            if partial_end is not None:
+                break
             previous = current
             frame += 1
-        actual_duration = frame / fps
+        actual_duration = cap.get(cv2.CAP_PROP_FRAME_COUNT)/fps
+        if partial_end is not None:
+            for speaker in tracked:
+                speaker['visible_until_seconds'] = partial_end
         report = {'version':1,'video_sha256':hashlib.sha256(Path(video).read_bytes()).hexdigest(),
             'first_frame_sha256':hashlib.sha256(first_path.read_bytes()).hexdigest(),
-            'fps':fps,'frames_checked':frame,'source_duration':actual_duration,'width':w,'height':h,
-            'speakers':[{'speaker':s['speaker'],'keyframes':len(s['tracking'])} for s in tracked]}
+            'fps':fps,'frames_checked':frame-seed_frame,'reference_time':seed_frame/fps,
+            'source_duration':actual_duration,'width':w,'height':h,
+            'speakers':[{'speaker':s['speaker'],'keyframes':len(s['tracking']),
+                         'tracking':s['tracking'],
+                         'visible_from_seconds':s.get('visible_from_seconds',0),
+                         'visible_until_seconds':s.get('visible_until_seconds')}
+                        for s in tracked]}
         (directory/'tracking.json').write_text(json.dumps({'report':report,'speakers':tracked},ensure_ascii=False),encoding='utf-8')
         return first_path, tracked, report
     finally:

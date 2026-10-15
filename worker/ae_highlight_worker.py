@@ -38,7 +38,13 @@ from ae_candidate_cache import load_candidates
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 STATE_DIR = worker_config.STATE_DIR / "ae_highlight"
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 WORKER_STATE_FILE = worker_config.STATE_DIR / "ae_highlight_worker.json"
@@ -209,21 +215,10 @@ def _download_gcs_file(ref: GcsRef, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
         return
-    creds, default_bucket = _gcs_credentials()
-    bucket = ref.bucket or default_bucket
-    clean_path = ref.path.strip().replace("\\", "/").lstrip("/")
-    if not clean_path:
-        raise AeWorkerError("GCS object path is empty")
-    response = requests.get(
-        f"https://storage.googleapis.com/storage/v1/b/{quote(bucket, safe='')}/o/"
-        f"{quote(clean_path, safe='')}?alt=media",
-        headers={"Authorization": f"Bearer {creds.token}"},
-        timeout=300,
-    )
-    if response.status_code != 200:
-        raise AeWorkerError(f"GCS download failed ({response.status_code}): {response.text[:300]}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(response.content)
+    creds, bucket = _gcs_credentials()
+    from render_asset_cache import download_cached
+    download_cached({'gcs_bucket': ref.bucket or bucket, 'gcs_path': ref.path}, target, creds,
+                    Path(os.getenv('AIR_MEDIA_CACHE', str(Path.home() / '.air-studio' / 'media-cache'))))
 
 
 def _upload_gcs_file(file_path: Path, object_path: str, mime_type: str) -> tuple[str, str, str]:
@@ -231,16 +226,8 @@ def _upload_gcs_file(file_path: Path, object_path: str, mime_type: str) -> tuple
     clean_path = str(object_path or "").strip().replace("\\", "/").lstrip("/")
     if not clean_path:
         raise AeWorkerError("GCS object path is empty")
-    with file_path.open("rb") as handle:
-        response = requests.post(
-            f"https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket, safe='')}/o"
-            f"?uploadType=media&name={quote(clean_path, safe='')}",
-            headers={"Authorization": f"Bearer {creds.token}", "Content-Type": mime_type},
-            data=handle,
-            timeout=600,
-        )
-    if response.status_code not in (200, 201):
-        raise AeWorkerError(f"GCS upload failed ({response.status_code}): {response.text[:300]}")
+    from gcs_resumable_upload import upload_resumable
+    upload_resumable(file_path, bucket, clean_path, mime_type, creds.token)
     return bucket, clean_path, f"/api/std/assets/gcs-file?bucket={quote(bucket, safe='')}&path={quote(clean_path, safe='')}"
 
 
@@ -589,7 +576,10 @@ def _uploaded_video_review_frames(job: SceneJob, clip_path: Path) -> tuple[list[
     review_dir = ROOT / "output" / "codex-local-console" / "ae-video-review" / f"{_safe_name(job.topic_id)}-{job.scene_number:03d}-{source_sha256[:12]}"
     review_dir.mkdir(parents=True, exist_ok=True)
     ffmpeg = _ffmpeg_executable()
-    timestamps = [round(job.duration_seconds * ratio, 3) for ratio in (0.08, 0.5, 0.9)]
+    from media_checkpoint import _mp4_duration_with_first_frame
+    stat = clip_path.stat()
+    clip_duration = _mp4_duration_with_first_frame(str(clip_path.resolve()), stat.st_size, stat.st_mtime_ns)
+    timestamps = [round(clip_duration * ratio, 3) for ratio in (0.08, 0.5, 0.9)]
     frame_paths: list[str] = []
     used_timestamps: list[float] = []
     for index, timestamp in enumerate(timestamps, 1):
@@ -622,7 +612,8 @@ def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[di
     metadata = job.scene.get("metadata") if isinstance(job.scene.get("metadata"), dict) else {}
     old_asset = metadata.get(asset_key) if isinstance(metadata.get(asset_key), dict) else {}
     saved_direction = old_asset.get("directorial_plan") if isinstance(old_asset.get("directorial_plan"), dict) else {}
-    if saved_direction.get("source_video_sha256") == source_sha256 and saved_direction.get("source_video_review_status") == "reviewed":
+    direction_duration = float(saved_direction.get("reviewed_duration_seconds") or old_asset.get("duration_seconds") or 0)
+    if saved_direction.get("source_video_sha256") == source_sha256 and saved_direction.get("source_video_review_status") == "reviewed" and abs(direction_duration - job.duration_seconds) <= .04:
         direction = saved_direction
     else:
         from codex_content_runner import CodexStagedContentRunner
@@ -661,15 +652,24 @@ def _review_uploaded_video_direction(job: SceneJob, clip_path: Path) -> tuple[di
             + "\n\nReview the attached frames from this exact uploaded clip in timestamp order. "
             "Return one final scene_directions item with source_video_reviewed=true. "
             "Use no storyboard frames. Keep timed beats tied to visible moments in the attached footage. "
-            "Return {'scene_directions':[...]} only.",
+            "Return {'scene_directions':[...]} only. Each item MUST contain dramatic_intent (not dramatic_purpose), visual_strategy, "
+            "timed_beats with numeric start_seconds/end_seconds and nonempty action/target, ae_operations from the allowlist, "
+            "required_layers:[], additional_keyframes:[], and qa_assertions as observable assertion strings. "
+            "This is a video-tail job: preserve source playback at 1x until the actual source ends, then hold its final frame "
+            "and gently zoom by 6% about the fixed canvas center (0.5,0.5) through the remaining narration duration. Focus targets are attention labels, not alternate zoom anchors. Do not request added assets, replacement frames, "
+            "mouth edits, looping, slowed footage or new effects. Review the actual source frames and include output QA assertions "
+            "for normal playback, final-frame extension, and unchanged identity.",
         )
         normalized = validate_directorial_plans(
             [scene_context], result, direction_profile=direction_profile["id"]
         )
-        direction = {**normalized[0], "source_video_sha256": source_sha256,
+        direction = {**normalized[0], "source_video_sha256": source_sha256, "reviewed_duration_seconds": job.duration_seconds,
                      "review_frame_timestamps_seconds": timestamps}
         if direction.get("source_video_review_status") != "reviewed":
             raise AeReviewRequired("Scene director did not confirm review of the uploaded video frames")
+
+    if (job.scene.get("ae_motion_plan") or {}).get("video_tail_policy") == VIDEO_TAIL_POLICY:
+        direction.setdefault("effect_limits", {})["max_scale_delta"] = 0.06
 
     if direction.get("requires_layered_assets"):
         existing_layers = metadata.get("ae_layer_assets") if isinstance(metadata.get("ae_layer_assets"), list) else []
@@ -711,7 +711,32 @@ def _qa_uploaded_video_render(job: SceneJob, render_path: Path,
                              direction: dict[str, Any]) -> dict[str, Any]:
     """Compare representative rendered frames with the approved scene direction."""
     frame_paths, timestamps = _uploaded_video_review_frames(job, render_path)
+    from media_checkpoint import _mp4_duration_with_first_frame
+    source_path = render_path.parent.parent / "input" / "scene.mp4"
+    evidence = {}
+    if source_path.is_file():
+        for label, video in (("source", source_path), ("output", render_path)):
+            stat = video.stat()
+            seconds = _mp4_duration_with_first_frame(str(video.resolve()), stat.st_size, stat.st_mtime_ns)
+            evidence[label + "_duration_seconds"] = seconds
+            for idx, instant in enumerate((0.5, max(0, min(4.0, seconds - 0.05)), max(0, seconds - 0.05))):
+                comparison_dir = ROOT / "output" / "codex-local-console" / "ae-video-review" / (job.topic_id + "-" + str(job.scene_number) + "-comparison")
+                comparison_dir.mkdir(parents=True, exist_ok=True)
+                target = comparison_dir / (label + "-comparison-" + str(idx) + ".jpg")
+                command = [_ffmpeg_executable(), "-v", "error", "-y"]
+                command += (["-i", str(video), "-vf", "reverse"] if idx == 2 else ["-ss", str(instant), "-i", str(video)])
+                command += ["-frames:v", "1", "-pix_fmt", "yuvj420p", str(target)]
+                subprocess.run(command, check=True, capture_output=True)
+                if not target.is_file() or target.stat().st_size < 1024:
+                    raise AeReviewRequired("Comparison frame was not produced: " + target.name)
+                frame_paths.append(str(target.resolve()))
+                evidence.setdefault("comparison_frames", []).append({"file": target.name, "kind": label, "timestamp": instant})
     from codex_content_runner import CodexStagedContentRunner
+
+    from video_tail_evidence import compare_video_playback, compare_tail_frames
+    if source_path.is_file():
+        evidence.update(compare_video_playback(_ffmpeg_executable(), source_path, render_path, evidence["source_duration_seconds"]))
+        evidence.update(compare_tail_frames(_ffmpeg_executable(), source_path, render_path, evidence["source_duration_seconds"], job.duration_seconds))
 
     result = CodexStagedContentRunner()._stage(
         f"ae-qa-{_safe_name(job.topic_id)}-{job.scene_number:03d}-{_sha256_file(render_path)[:12]}",
@@ -720,10 +745,13 @@ def _qa_uploaded_video_render(job: SceneJob, render_path: Path,
             "scene_number": job.scene_number,
             "duration_seconds": job.duration_seconds,
             "approved_direction": direction,
+            "measured_video_evidence": evidence,
             "review_frame_timestamps_seconds": timestamps,
             "_local_image_paths": frame_paths,
         },
-        "Review the attached frames from the rendered AE scene against approved_direction and its qa_assertions. "
+        "Use measured_video_evidence for frame-accurate duration tolerance and continuous same-timestamp source playback checks. "
+        "This is a visual-only scene clip: finalized narration is assembled separately at final rendering, not embedded in this tail clip. "
+        "Do not demand embedded narration here. Review the attached source and output frames against approved_direction and its qa_assertions. "
         "Check that directed effects happen in the stated time windows, the uploaded action and identities remain "
         "consistent, and no unintended zoom, repeated motion, color/wardrobe drift, or visual damage appears. "
         "Include one check for each qa_assertions entry, copying the assertion exactly. If uncertain fail. "
@@ -1468,11 +1496,10 @@ def _request_afterfx_close(process: subprocess.Popen[Any], *, timeout: float = 1
 
 
 def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, timeout: int = 240) -> None:
-    """Run JSX in an isolated AE instance and wait for its explicit receipt.
+    """Dispatch sequential scene JSX to the existing shared AE session.
 
-    Without ``-m``, ``-r`` forwards the script to whichever interactive AE
-    instance is already open. That instance may be busy with an unrelated
-    project, so project creation must use a separate command-line instance.
+    The worker lock serializes scripts; each script creates and saves a new
+    project. Keep the session open and accept launcher exit after forwarding.
     """
     candidate = afterfx
     if candidate.suffix.lower() == ".com":
@@ -1485,7 +1512,7 @@ def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, ti
     log_path = jsx_path.with_name("afterfx-launch.log")
     with log_path.open("wb") as log:
         process = subprocess.Popen(
-            [str(candidate), "-m", "-r", str(jsx_path)],
+            [str(candidate), "-r", str(jsx_path)],
             cwd=str(ROOT),
             stdout=log,
             stderr=subprocess.STDOUT,
@@ -1500,9 +1527,6 @@ def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, ti
                     if status_text.startswith("error|"):
                         raise AeWorkerError(f"After Effects script failed: {status_text[:800]}")
                     if status_text.startswith("success|") and project_path.is_file():
-                        if not _request_afterfx_close(process):
-                            print(f"[AE] project saved; worker-owned AE window did not close: pid={process.pid}",
-                                  file=sys.stderr, flush=True)
                         return
                 now = time.monotonic()
                 if now - last_recovery_check >= 5:
@@ -1513,17 +1537,15 @@ def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, ti
                             raise AeRecoveryError(
                                 f"AE crash-recovery dialog did not clear after 3 attempts; log={log_path}"
                             )
-                if process.poll() is not None and not status_path.exists():
+                if process.poll() not in (None, 0) and not status_path.exists():
                     raise AeWorkerError(
                         f"After Effects command exited without a JSX status receipt "
                         f"(exit={process.returncode}, log={log_path}): {_log_tail(log_path, 1200)}"
                     )
                 time.sleep(1)
         except BaseException:
-            _request_afterfx_close(process)
+            # The shared session may predate this dispatch; do not close it.
             raise
-        if process.poll() is None:
-            _request_afterfx_close(process)
     raise AeWorkerError(
         f"After Effects timed out without a JSX status receipt for {project_path}; "
         f"log={log_path}: {_log_tail(log_path, 1200)}"
@@ -1590,21 +1612,25 @@ def _manga_preflight(job: SceneJob, input_psd: Path) -> dict[str, Any]:
     return report
 
 
+from ae_stage_timing import stage_timing
+
+
 def _render_job(job: SceneJob, keep_workdir: bool = False) -> dict[str, Any]:
     # Dialogue and effect workers share one Adobe render host.
     with (STATE_DIR / 'adobe-render.lock').open('a+b') as lock:
-        if os.name == 'nt':
-            import msvcrt
-            deadline = time.monotonic() + 1800
-            while True:
-                try:
-                    lock.seek(0)
-                    msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-                    break
-                except OSError:
-                    if time.monotonic() >= deadline:
-                        raise AeWorkerError('Adobe render host is still busy; retry this scene later')
-                    time.sleep(2)
+        with stage_timing(STATE_DIR / 'ae-stage-timings.jsonl', 'adobe_lock_wait', scene=job.scene_number, project=job.topic_id):
+            if os.name == 'nt':
+                import msvcrt
+                deadline = time.monotonic() + 1800
+                while True:
+                    try:
+                        lock.seek(0)
+                        msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                        break
+                    except OSError:
+                        if time.monotonic() >= deadline:
+                            raise AeWorkerError('Adobe render host is still busy; retry this scene later')
+                        time.sleep(2)
         try:
             return _render_job_unlocked(job, keep_workdir=keep_workdir)
         finally:
@@ -1688,7 +1714,8 @@ def _render_job_unlocked(job: SceneJob, keep_workdir: bool = False) -> dict[str,
             _write_jsx(job, input_image, project_path, mp4_path, jsx_path)
     write_state("preparing", 35, _job_summary(job))
     if not project_reusable:
-        _run_afterfx_script(afterfx, jsx_path, project_path, timeout=240)
+        with stage_timing(workdir / 'stage-timings.jsonl', 'project_prepare', scene=job.scene_number, project=job.topic_id):
+            _run_afterfx_script(afterfx, jsx_path, project_path, timeout=240)
     if not valid_file(project_path):
         raise AeWorkerError("After Effects did not create a project file")
     checkpoint.mark("project_ready", {"path": str(project_path), "bytes": project_path.stat().st_size})
@@ -1697,7 +1724,8 @@ def _render_job_unlocked(job: SceneJob, keep_workdir: bool = False) -> dict[str,
         try:
             tracked_video = bool((job.scene.get('ae_mouth_runtime') or {}).get('video_source'))
             native = mp4_path.with_name('native-mouth-' + uuid.uuid4().hex + '.avi') if tracked_video else mp4_path
-            _run_checked([str(aerender), "-project", str(project_path), "-comp", f"ae_highlight_{_safe_name(job.preset)}", "-output", str(native)], timeout=1200)
+            with stage_timing(workdir / 'stage-timings.jsonl', 'aerender', scene=job.scene_number, project=job.topic_id):
+                _run_checked([str(aerender), "-project", str(project_path), "-comp", f"ae_highlight_{_safe_name(job.preset)}", "-output", str(native)], timeout=1200)
             if tracked_video:
                 candidates = [p for p in native.parent.glob(native.stem + '.*') if p.suffix.lower() in {'.avi','.mov','.mp4','.mxf'} and p.stat().st_size > 0]
                 if len(candidates) != 1:
@@ -1765,6 +1793,9 @@ def _render_job_unlocked(job: SceneJob, keep_workdir: bool = False) -> dict[str,
         "render_sha256": _sha256_file(mp4_path) if template or uploaded_video_direction is not None else "",
         "review_local_path": str(mp4_path.resolve()) if template or uploaded_video_direction is not None else "",
         "video_tail_policy": VIDEO_TAIL_POLICY if uploaded_video_direction is not None else None,
+        "content_identity": {**job.project_payload["content_identity"], "asset_type": "video", "scene_number": job.scene_number,
+            "source_storage": {"bucket": job.source.bucket, "path": job.source.path},
+            "audio_asset_id": job.project_payload.get("subtitle_source_audio_id")} if job.project_payload and job.project_payload.get("content_identity") else None,
         "source_image": {"bucket": job.source.bucket, "object_path": job.source.path},
         "postprocess_mode": "after_effects",
         "local_workdir": str(workdir) if keep_workdir else "",

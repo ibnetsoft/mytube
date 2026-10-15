@@ -9,7 +9,7 @@ def pending_video_tail(scene, payload):
     if not plan.get('enabled') or scene.get('visual_type') != 'video':
         return False
     number = int(scene.get('scene_number') or scene.get('scene_order') or 0)
-    if any(int(r.get('scene_number') or 0) == number and r.get('dialogue_kind') == 'dialogue'
+    if number not in (payload or {}).get('ae_mouth_effect_excluded_scenes', []) and any(int(r.get('scene_number') or 0) == number and r.get('dialogue_kind') == 'dialogue'
            for r in (payload or {}).get('subtitles',[])):
         return False  # Tracked-mouth rendering already owns this video's frozen zoom tail.
     source_duration = float(scene.get('duration_seconds') or plan.get('duration_seconds') or 5)
@@ -18,7 +18,7 @@ def pending_video_tail(scene, payload):
     if duration <= source_duration + .12 or asset.get('status') in {'needs_attention', 'rendering'}:
         return False
     current = asset.get('video_tail_policy') == VIDEO_TAIL_POLICY and abs(float(asset.get('duration_seconds') or 0) - duration) <= .12
-    if current and asset.get('status') == 'review_pending' and (payload or {}).get('ae_mouth', {}).get('enabled'):
+    if current and asset.get('status') == 'review_pending' and ((payload or {}).get('ae_mouth', {}).get('enabled') or (payload or {}).get('content_recovery', {}).get('supervised_repair')):
         return True  # Reuse checkpoint and inspect output automatically after updating the worker.
     return not (current and asset.get('status') in {'ready', 'review_pending'})
 
@@ -49,10 +49,13 @@ def video_tail_jsx(timing_locked=False):
     if (needsTail && !mouthRuntime.video_source) {
       bg.timeRemapEnabled = true;
       var remap = bg.property("ADBE Time Remapping");
-      while (remap.numKeys > 0) remap.removeKey(1);
       remap.setValueAtTime(0, 0);
       remap.setValueAtTime(sourceEnd, sourceEnd);
       remap.setValueAtTime(DUR, sourceEnd);
+      for (var dk = remap.numKeys; dk >= 1; dk--) {
+        var kt = remap.keyTime(dk);
+        if (Math.abs(kt) > 0.001 && Math.abs(kt - sourceEnd) > 0.001 && Math.abs(kt - DUR) > 0.001) remap.removeKey(dk);
+      }
       for (var rk = 1; rk <= remap.numKeys; rk++) remap.setInterpolationTypeAtKey(rk, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
     }
     bg.outPoint = DUR;
@@ -72,7 +75,7 @@ def video_tail_jsx(timing_locked=False):
 
 def automatic_tail_review(payload, result):
     """Authorize only the submitted-project tail whose real-source/output QA passed."""
-    if not (payload or {}).get('ae_mouth', {}).get('enabled'):
+    if not ((payload or {}).get('ae_mouth', {}).get('enabled') or (payload or {}).get('content_recovery', {}).get('supervised_repair')):
         return None
     qa = result.get('scene_visual_qa') or {}
     direction = result.get('directorial_plan') or {}

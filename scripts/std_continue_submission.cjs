@@ -8,7 +8,7 @@ function load(name) {
  if (cache.has(name)) return cache.get(name)
  const exports = {}; cache.set(name, exports)
  const file = path.join(web, 'lib', name + '.ts'), localRequire = createRequire(file)
- new Function('exports', 'require', ts.transpileModule(fs.readFileSync(file, 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(exports, id => {
+ new Function('exports', 'require', ts.transpileModule(fs.readFileSync(file, 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText)(exports, id => {
   if (id.startsWith('@/lib/')) return load(id.slice(6))
   if (id.startsWith('./') && fs.existsSync(path.join(web, 'lib', id + '.ts'))) return load(id.slice(2))
   return localRequire(id)

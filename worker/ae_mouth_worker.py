@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'worker'))
 import worker_config
 import ae_highlight_worker as ae
+from ae_stage_timing import stage_timing
 from ae_mouth import (assess_dialogue, locate_speakers, mouth_layers, amplitude_cues,
                       audio_reactive_light_cues, decode_scene_audio, review_layers,
                       digest, direction_text, visible_speakers, eye_layers,
@@ -26,9 +27,11 @@ from manga_layer_generation import NativeCodexLayerGenerator
 from ae_video_tracking import track_video
 from submitted_video_coordinates import prepare_submitted_video
 from ae_media_utils import ffmpeg, run, ref
-from std_project_assets import load_project_assets
+from std_project_assets import load_project_assets, load_project_input_assets
+from content_identity import mouth_output_identity
 from ae_mouth_runtime import Heartbeat, instance_lock, claimable_filter
 from ae_mouth_automation import automatic_phase, run_phase
+from submission_pipeline import assembly_only, validate_layers, recorded_rows, stage_record, ready_scene_artifacts, render_prepared_scene
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -83,7 +86,7 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
         return False
     for row, original in zip(saved, snapshot['subtitles']):
         if (row.get('text') != original['text'] or int(row.get('scene_number', row.get('scene', row.get('sceneNumber', 0)))) != original['scene_number']
-                or (row.get('dialogue_kind') or '') != original['kind'] or (row.get('dialogue_speaker') or '') != original['speaker']
+                or (row.get('dialogue_kind') or '') != original['kind'] or str(((row.get('editor_speaker') or {}).get('name') if (row.get('editor_speaker') or {}).get('text') == row.get('text') else None) or row.get('dialogue_speaker') or (row.get('speaker') or {}).get('name') or '').strip() != original['speaker']
                 or str(row.get('direction') or '') != original.get('direction', '')
                 or str(row.get('voice_id') or row.get('voiceId') or '') != str(original['voice_id'])
                 or abs(float(row.get('start', row.get('start_num', row.get('start_time', -1)))) - original['start']) > .12
@@ -170,12 +173,16 @@ def missing_geometry(scene, names):
         row = by_name.get(name) or {}
         if row.get('status') == 'offscreen':
             continue
+        from mouth_geometry import validate
+        try:validate(row,regions['source_sha256'])
+        except ValueError:return 'unverified_face_pose_or_mouth_geometry'
+        if row.get('status') == 'occluded':continue
         if not row.get('face_box') or not row.get('mouth_box'):
             return 'missing_speaker_coordinates'
     return None
 
 
-def process_one(report=None, should_stop=None) -> bool:
+def process_one(report=None, should_stop=None, job_id=None) -> bool:
     report = report or (lambda **changes: None)
     should_stop = should_stop or (lambda: False)
     base, headers = ae._supabase()
@@ -183,13 +190,15 @@ def process_one(report=None, should_stop=None) -> bool:
         'select': '*', 'metadata->>kind': 'eq.ae_mouth_job',
         'or': claimable_filter(),
         'order': 'created_at.asc', 'limit': '1',
+        **({'id': 'eq.' + str(job_id)} if job_id else {'metadata->>pipeline_version':'eq.2'}),
     }).json()
     if not jobs:
         return False
     job = jobs[0]
     meta = copy.deepcopy(job['metadata'])
     auto_phase = automatic_phase(meta)
-    render_phase = not auto_phase and (meta.get('phase') == 'render' or meta.get('state') == 'direction_approved')
+    technical = assembly_only(meta)
+    render_phase = technical and auto_phase != 'auto_enqueue' or not auto_phase and (meta.get('phase') == 'render' or meta.get('state') == 'direction_approved')
     snapshot, identity = meta['input'], meta['fingerprint']
     directory = ROOT / 'output' / 'codex-local-console' / 'ae-mouth' / identity
     directory.mkdir(parents=True, exist_ok=True)
@@ -201,8 +210,14 @@ def process_one(report=None, should_stop=None) -> bool:
         if lease_lost.is_set():
             raise LeaseLost('AE mouth job lease was lost')
         projects = ae._request('GET', project_url, headers, params={'select': '*', 'id': 'eq.' + job['project_id']}).json()
-        assets = load_project_assets(ae._request, base, headers, job['project_id'])
-        scenes = ae._request('GET', scenes_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'], 'order': 'scene_number.asc'}).json()
+        assets = [] if technical and not meta.get('preview_sync') else load_project_input_assets(ae._request, base, headers, job['project_id'])
+        scenes = [] if technical and not meta.get('preview_sync') else ae._request('GET', scenes_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'], 'order': 'scene_number.asc'}).json()
+        if technical:
+            if not projects or projects[0].get('status') == 'canceled':
+                raise Obsolete('Submission canceled')
+            if meta.get('preview_sync') and not input_matches(snapshot, projects[0], assets, scenes):
+                raise Obsolete('Preview inputs changed')
+            return projects[0]
         if not projects or not input_matches(snapshot, projects[0], assets, scenes):
             raise Obsolete('대본·음성·원본 이미지가 변경되었습니다. 다시 제출해 주세요.')
         return projects[0]
@@ -251,15 +266,18 @@ def process_one(report=None, should_stop=None) -> bool:
         if auto_phase == 'auto_enqueue':
             run_phase(None, job, meta, directory, None, fresh, save, should_stop)
             return True
-        runner = CodexStagedContentRunner()
-        generator = None if auto_phase else NativeCodexLayerGenerator()
+        if technical and not snapshot['scenes']:
+            save(state='artifact_ready', phase='auto_enqueue', auto_pending=True, error='')
+            return True
+        runner = None if technical else CodexStagedContentRunner()
+        generator = None if technical or auto_phase else NativeCodexLayerGenerator()
         # Recheck before each image generation, not just after publishing a long job.
         class CurrentGenerator:
             def generate(self, **kwargs):
                 fresh()
                 kwargs['work_dir'] = kwargs['work_dir'].with_name(kwargs['work_dir'].name + '-' + job['id'])
                 return generator.generate(**kwargs)
-        rows = assess_dialogue(runner, identity, snapshot)
+        rows = recorded_rows(snapshot) if technical else assess_dialogue(runner, identity, snapshot)
         audio_path = directory / 'final-narration.mp3'
         if not audio_path.exists():
             bucket, path = ref(snapshot['audio'])
@@ -268,6 +286,11 @@ def process_one(report=None, should_stop=None) -> bool:
             run_phase(runner, job, meta, directory, audio_path, fresh, save, should_stop)
             return True
         outcomes = {r['number']: r for r in meta.get('results', [])}
+        if technical:
+            ready_assets = ae._request('GET', assets_url, headers, params={'select':'*',
+                'project_id':'eq.'+job['project_id'],'asset_type':'eq.video',
+                'metadata->>artifact_ready':'eq.true','metadata->>ae_mouth_fingerprint':'eq.'+identity}).json()
+            outcomes.update(ready_scene_artifacts(snapshot, ready_assets, identity))
         candidates = ({r['scene_number'] for r in rows if r['kind'] != 'narration'} |
                       {s['number'] for s in snapshot['scenes'] if s.get('eye_blink')})
         for scene in snapshot['scenes']:
@@ -276,17 +299,24 @@ def process_one(report=None, should_stop=None) -> bool:
         save(results=list(outcomes.values()))
         for scene in sorted((s for s in snapshot['scenes'] if s['number'] in candidates), key=lambda s:s['number']):
             number, duration = scene['number'], scene['end'] - scene['start']
-            if number in outcomes and (not render_phase or outcomes[number]['status'] != 'direction_approved'):
+            if number in outcomes and (technical and outcomes[number]['status'] in ('artifact_ready', 'skipped') or not technical and (not render_phase or outcomes[number]['status'] != 'direction_approved')):
                 continue
             if should_stop():
                 # Leave the job processing; persisted scene outcomes resume on next launch.
                 return True
             fresh()
             report(current_job={'id': job['id'], 'project_id': job['project_id'], 'scene_number': number, 'phase': meta['phase']})
+            stage_record(ae, base, headers, meta, number, 'composing')
             scene_rows = [r for r in rows if r['scene_number'] == number]
             dialogue = [r for r in scene_rows if r['kind'] == 'dialogue']
+            exclusions = (scene.get('speaker_regions') or {}).get('effect_exclusions') or []
+            disabled = {r.get('speaker') for r in exclusions
+                        if r.get('reason') == 'generator_refused' and r.get('evidence_sha256')}
+            dialogue = [r for r in dialogue if r['speaker'] not in disabled]
             blink = copy.deepcopy(scene.get('eye_blink'))
+            if technical: blink = None  # Optional blink art is never generated after submission.
             result = {'number': number, 'duration': duration, 'speakers': list(dict.fromkeys(r['speaker'] for r in dialogue)),
+                      'effect_exclusions': exclusions,
                       'eye_blink_plan_id': blink.get('id') if blink else None}
             if any(r['kind'] == 'uncertain' for r in scene_rows):
                 outcomes[number] = {**result,
@@ -325,7 +355,10 @@ def process_one(report=None, should_stop=None) -> bool:
                         names = list(dict.fromkeys(r['speaker'] for r in dialogue))
                         by_name = {r['speaker']:r for r in regions['speakers']}
                         visibility = visible_speakers({'speakers':[by_name.get(name,{}) for name in names]}, names)
-                        speakers = [r for r in visibility if r['status'] == 'visible']
+                        from mouth_geometry import animatable
+                        speakers = [r for r in visibility if animatable(r,digest(image))]
+                        from prepared_mouth_layers import is_excluded
+                        speakers = [r for r in speakers if not is_excluded(image, r)]
                     else:
                         visibility, speakers = [], []
                     if not speakers and not blink:
@@ -339,7 +372,9 @@ def process_one(report=None, should_stop=None) -> bool:
                             video_hash = (scene['image'].get('metadata') or {}).get('source_video_sha256')
                             if video_hash and digest(video) != video_hash:
                                 raise ValueError('기준 프레임의 원본 영상이 변경됐습니다. 영상 좌표를 다시 저장해 주세요.')
-                            image, speakers, tracking = track_video(video,image,speakers,scene_dir/'tracking',duration)
+                            image, speakers, tracking = track_video(video,image,speakers,scene_dir/'tracking',duration,
+                                float((scene.get('speaker_regions') or {}).get('reference_seconds') or 0),
+                                bool((scene.get('speaker_regions') or {}).get('tracking_visible_only')))
                         direction = direction_text(speakers, dialogue, scene['start']) if speakers else ''
                         if blink:
                             if blink.get('cues'):
@@ -350,18 +385,26 @@ def process_one(report=None, should_stop=None) -> bool:
                                 direction += (' 사용자가 지정한 ' + str(blink['character']) + '의 양쪽 눈 좌표에만 '
                                               + str(blink['interval_seconds']) + '초 간격의 자연스러운 눈 깜빡임을 적용합니다.')
                         if tracking:
-                            direction += ' 원본 영상은 1배속으로 유지하고 얼굴·입의 이동·크기·회전을 추적합니다. 영상 종료 후 입 움직임은 확정된 대사 끝까지 유지하며 마지막 화면에 6% 줌인을 적용합니다.'
+                            direction += ' 원본 영상은 1배속으로 유지하고 얼굴·입의 이동·크기·회전을 추적하며 마지막 화면에 6% 줌인을 적용합니다.'
+                            if not any(s.get('visible_until_seconds') is not None or s.get('visible_from_seconds', 0) for s in speakers):
+                                direction += ' 영상 종료 후 입 움직임은 확정된 대사 끝까지 유지합니다.'
                         if not render_phase:
                             outcomes[number] = {**result, 'status': 'direction_pending', 'direction': direction, 'visibility': visibility, 'tracking':tracking}
                             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
                             continue
                         samples = decode_scene_audio(ffmpeg(), audio_path, scene['start'], duration)
                         for index, speaker in enumerate(speakers):
-                            speaker['layers'] = mouth_layers(CurrentGenerator(), image, speaker, scene_dir / f'speaker-{index}')
+                            with stage_timing(scene_dir / 'stage-timings.jsonl', 'mouth_layers', scene=number):
+                                from prepared_mouth_layers import reuse_prepared
+                                if technical:
+                                    validate_layers(image, speaker)
+                                elif not reuse_prepared(image, speaker):
+                                    speaker['layers'] = mouth_layers(CurrentGenerator(), image, speaker, scene_dir / f'speaker-{index}')
                             speaker['layer_sha256'] = {pose: digest(Path(path)) for pose, path in speaker['layers'].items()}
                             speaker['cues'] = amplitude_cues(samples, [r for r in dialogue if r['speaker'] == speaker['speaker']], start=scene['start'], duration=duration)
-                        if speakers:
-                            review_layers(runner, f'{identity}-{number}', image, speakers, scene_dir)
+                        if speakers and not technical:
+                            with stage_timing(scene_dir / 'stage-timings.jsonl', 'mouth_review', scene=number):
+                                review_layers(runner, f'{identity}-{number}', image, speakers, scene_dir)
                         runtime_blinks = []
                         if blink:
                             if blink.get('image_id') != (scene.get('image') or {}).get('id') or blink.get('source_sha256') != digest(image):
@@ -402,7 +445,8 @@ def process_one(report=None, should_stop=None) -> bool:
                             duration_seconds=duration, source=ae.GcsRef('__local__', str(render_source.resolve())), source_type='project',
                             project_payload={'ae_scene_delivery': 'local'})
                         # Existing AE effects consume the animated-mouth source precomp, preserving registration.
-                        rendered = ae._render_job(job_spec, keep_workdir=True)
+                        with stage_timing(scene_dir / 'stage-timings.jsonl', 'ae_render_total', scene=number):
+                            rendered = render_prepared_scene(ae, job_spec, technical)
                         silent = Path(rendered['local_path'])
                         preview = scene_dir / 'ae-mouth-preview.mp4'
                         run([ffmpeg(), '-y', '-i', str(silent), '-ss', str(scene['start']), '-i', str(audio_path), '-t', str(duration),
@@ -413,7 +457,8 @@ def process_one(report=None, should_stop=None) -> bool:
                             raise ValueError('AE 영상 길이가 확정된 TTS와 다릅니다. 속도 변경 없이 재검토가 필요합니다.')
                         fresh()
                         object_path = f'std-projects/{job["project_id"]}/ae-mouth/{identity}/scene-{number}-{digest(preview)[:16]}.mp4'
-                        bucket, path, _ = ae._upload_gcs_file(preview, object_path, 'video/mp4')
+                        with stage_timing(scene_dir / 'stage-timings.jsonl', 'upload', scene=number):
+                            bucket, path, _ = ae._upload_gcs_file(preview, object_path, 'video/mp4')
                         # Idempotent recovery: a restarted worker reuses this fingerprint/scene output.
                         assets = ae._request('GET', assets_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'],
                             'scene_number': 'eq.' + str(number), 'asset_type': 'eq.video', 'metadata->>ae_mouth_fingerprint': 'eq.' + identity}).json()
@@ -423,7 +468,7 @@ def process_one(report=None, should_stop=None) -> bool:
                                 'project_id': job['project_id'], 'scene_number': number, 'asset_type': 'video', 'status': 'uploaded',
                                 'file_name': f'scene_{number}_ae_mouth.mp4', 'mime_type': 'video/mp4', 'file_size': preview.stat().st_size,
                                 'metadata': {'storage_provider': 'gcs', 'gcs_bucket': bucket, 'gcs_path': path, 'storage_bucket': bucket,
-                                    'storage_path': path, 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'ae_reviewed': False,
+                                    'storage_path': path, 'content_identity': mouth_output_identity(job, scene), 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'ae_reviewed': False, 'artifact_ready': technical, 'pipeline_version': meta.get('pipeline_version'),
                                     'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction,
                                     'source_image_id': (scene.get('image') or {}).get('id'), 'source_audio_id': snapshot['audio']['id'],
                                     'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking,
@@ -431,7 +476,7 @@ def process_one(report=None, should_stop=None) -> bool:
                                     'eye_blink_plan_id':blink.get('id') if blink else None,
                                     'eye_blink_applied':bool(blink)},
                             }).json()[0]
-                        outcomes[number] = {**outcomes.get(number, {}), **result, 'visibility': visibility, 'status': 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction,'tracking':tracking}
+                        outcomes[number] = {**outcomes.get(number, {}), **result, 'visibility': visibility, 'status': 'artifact_ready' if technical else 'review_pending', 'asset_id': asset['id'], 'render_sha256': digest(preview), 'direction': direction,'tracking':tracking}
                 except (LeaseLost, Obsolete):
                     raise
                 except Exception as exc:
@@ -441,8 +486,13 @@ def process_one(report=None, should_stop=None) -> bool:
                         'skip_reason': 'automatic_processing_failed' if meta.get('automatic') else None,
                         'fallback': 'original' if meta.get('automatic') else None,
                         'reason': str(exc)[:500]}
+            if technical and outcomes[number]['status'] == 'skipped': outcomes[number]['fallback'] = 'original'
+            stage_record(ae, base, headers, meta, number, outcomes[number]['status'], outcomes[number], outcomes[number].get('reason'))
             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
         fresh()
+        if technical:
+            save(state='artifact_ready', phase='complete' if meta.get('preview_sync') else 'auto_enqueue', auto_pending=not meta.get('preview_sync'), error='')
+            return True
         save(state='reviewed' if all(r['status'] == 'skipped' for r in outcomes.values()) else 'review_pending' if render_phase else 'direction_pending', auto_pending=bool(meta.get('automatic')), error='')
     except LeaseLost as exc:
         report(last_error=str(exc))
@@ -450,7 +500,12 @@ def process_one(report=None, should_stop=None) -> bool:
         save(state='obsolete', error=str(exc))
         report(last_error=str(exc))
     except Exception as exc:
-        save(state='failed', error=str(exc)[:500])
+        attempts = int(meta.get('technical_attempts') or 0) + 1
+        retry = technical and attempts < 3
+        save(state='queued' if retry else 'failed', technical_attempts=attempts, error=str(exc)[:500])
+        if technical and not retry and meta.get('pipeline_run_id'):
+            ae._request('PATCH', base + '/rest/v1/std_pipeline_runs', headers,
+                params={'id':'eq.'+meta['pipeline_run_id']}, json={'status':'input_error','updated_at':ae._now()})
         report(last_error=str(exc)[:500])
     finally:
         stopped.set()

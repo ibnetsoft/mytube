@@ -231,11 +231,31 @@ class NativeCodexLayerGenerator:
         self.timeout_seconds = timeout_seconds or max(60, int(os.getenv("CODEX_CONTENT_TIMEOUT_SECONDS", "1800")))
 
     def generate(self, *, prompt: str, role: str, reference: Path | None, work_dir: Path) -> Path:
+        import hashlib
+        request = {'prompt': prompt, 'role': role, 'model': self.model,
+                   'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest() if reference else None}
+        identity = hashlib.sha256(json.dumps(request, sort_keys=True).encode('utf-8')).hexdigest()
+        # Preserve legacy attempts and isolate changed geometry/prompts from their artifacts.
+        work_dir = work_dir / 'requests' / identity
+        # CreateProcess rejects long cwd paths even when Python can create their files.
+        if os.name == 'nt' and len(str(work_dir.resolve() / 'source.png')) >= 240:
+            import worker_config
+            work_dir = worker_config.TEMP_DIR / 'native-layer-requests' / identity
         work_dir.mkdir(parents=True, exist_ok=True)
         source = work_dir / "source.png"
         response = work_dir / "response.json"
+        receipt = work_dir / 'generation-receipt.json'
         if source.exists() or response.exists():
+            if source.is_file() and receipt.is_file():
+                saved = json.loads(receipt.read_text(encoding='utf-8'))
+                if saved.get('request') == request and saved.get('sha256') == hashlib.sha256(source.read_bytes()).hexdigest():
+                    with Image.open(source) as image:
+                        if image.format != 'PNG' or min(image.size) < 512:
+                            raise ValueError('Cached generation is not a valid PNG')
+                        image.verify()
+                    return source
             raise FileExistsError(f"unreviewed prior generation exists: {work_dir}")
+        (work_dir / 'generation-request.json').write_text(json.dumps(request, ensure_ascii=False), encoding='utf-8')
         reference_file = None
         if reference is not None:
             reference_file = work_dir / (
@@ -275,11 +295,16 @@ class NativeCodexLayerGenerator:
         if raw.startswith("```"):
             raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw)
         result = json.loads(raw)
-        if result.get("status") == "safety_refused":
+        if result.get("status") == "safety_refused" or (result.get('status') == 'refused' and result.get('reason') == 'safety_system_rejection'):
             raise RuntimeError("native image generation safety refusal; review required")
         if (result.get("status") != "ready" or result.get("generator") != "builtin_image_gen"
                 or result.get("image_file") != "source.png" or not source.is_file()):
             raise RuntimeError("native image generator unavailable or did not return an actual PNG")
+        with Image.open(source) as image:
+            if image.format != 'PNG' or min(image.size) < 512:
+                raise ValueError('Generated layer is not a valid PNG')
+            image.verify()
+        receipt.write_text(json.dumps({'request': request, 'sha256': hashlib.sha256(source.read_bytes()).hexdigest()}, ensure_ascii=False), encoding='utf-8')
         return source
 
 

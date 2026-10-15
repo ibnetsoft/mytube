@@ -1,4 +1,7 @@
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
+import { ensureSyncedMouthPreview } from '@/lib/stdSubmissionPipeline'
+import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
+import { assetContentIdentity, bindProjectContent, persistContentRevision, fileContentHash } from '@/lib/stdContentIdentity'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { NextResponse } from 'next/server'
 import { assembleStoredNarration } from '@/lib/stdStoredNarration'
@@ -679,6 +682,7 @@ async function releaseOwnedTtsClaim(claim: OwnedTtsClaim | null) {
 }
 
 async function runTts(body: any, auth: any, project: any) {
+    await persistContentRevision(supabaseAdmin, project)
     let scenes: any[] = []
     if (!cleanTtsText(body?.text)) {
         const { data: scenesData, error: scenesError } = await supabaseAdmin
@@ -1019,7 +1023,7 @@ async function runTts(body: any, auth: any, project: any) {
         if (segmentPreview) {
             stage = 'persist_segment_audio'
             const asset = await persistSegmentAudio(supabaseAdmin, {
-                projectId: project.id, cacheKey: segmentCacheKey, identity: segmentIdentity,
+                projectId: project.id, project, cacheKey: segmentCacheKey, identity: segmentIdentity,
                 audioBuffer, fileName, segmentIndex, generatedBy: auth.requester.email,
             })
             await releaseOwnedTtsClaim(ownedSegmentClaim)
@@ -1041,6 +1045,8 @@ async function runTts(body: any, auth: any, project: any) {
             status: 'uploaded', uploaded_by: auth.requester.user.id,
             metadata: {
                 ...gcsMetadata,
+                sha256: fileContentHash(audioBuffer),
+                content_identity: assetContentIdentity(project, { type: 'audio', timeline: subtitleTimeline || [], jobId: fileName }),
                 provider, voice_id: voiceId, model_id: modelId, tts_speed: projectTtsSpeed,
                 multi_voice: multiVoice, voice_map: voiceMap, voice_segments: voiceSegments,
                 segment_reuse: segmentReuse,
@@ -1053,11 +1059,12 @@ async function runTts(body: any, auth: any, project: any) {
             },
         }).select('*').single()
         if (assetError) throw assetError
-        // Retire old narration only after the replacement is durably saved.
-        const { error: replaceError } = await supabaseAdmin.from('std_project_assets')
-            .update({ status: 'replaced', updated_at: now }).eq('project_id', project.id)
-            .eq('asset_type', 'audio').neq('id', asset.id).in('status', ['uploaded', 'assigned'])
-        if (replaceError) throw replaceError
+        const latest = await supabaseAdmin.from('std_projects').select('updated_at').eq('id', project.id).single()
+        if (latest.error) throw latest.error
+        if (latest.data.updated_at !== project.updated_at) {
+            await supabaseAdmin.from('std_project_assets').update({ status: 'replaced' }).eq('id', asset.id)
+            throw new Error('음성 생성 중 프로젝트가 변경됐습니다. 생성된 음성은 보존했으며 현재 대본에 자동 연결하지 않았습니다.')
+        }
         const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
         project.project_payload = preserveAudioAnchors(project.project_payload, project.project_payload)
         const syncedSubtitles = applyRecordedSubtitleTiming(project.project_payload?.subtitles || [], subtitleTimeline || [])
@@ -1069,12 +1076,24 @@ async function runTts(body: any, auth: any, project: any) {
                 voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
                 voice_map: voiceMap, voice_segments: voiceSegments,
             },
-            project_payload: { ...(project.project_payload || {}), subtitles: syncedSubtitles, audio_url: audioUrl, tts_url: audioUrl,
+            project_payload: bindProjectContent(project, { ...(project.project_payload || {}), subtitle_source_audio_id: asset.id, subtitles: syncedSubtitles, audio_url: audioUrl, tts_url: audioUrl,
                 voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
-                voice_map: voiceMap, voice_segments: voiceSegments },
+                voice_map: voiceMap, voice_segments: voiceSegments }),
             updated_at: now,
-        }).eq('id', project.id)
+        }).eq('id', project.id).eq('updated_at', project.updated_at).select('id').single()
         if (stateError) throw stateError
+        // AE work is queued after voice finalization; no render/model call delays this response.
+        try {
+            const saved = await supabaseAdmin.from('std_projects').select('*').eq('id', project.id).single()
+            const loaded = await loadStdProjectAssets(supabaseAdmin, project.id, '*')
+            if (saved.data && loaded.data) await ensureSyncedMouthPreview(saved.data, scenes, loaded.data)
+        } catch (previewError: any) { console.warn('[STD TTS] synced preview preparation:', previewError.message) }
+        // Retire old narration only after the replacement is durably saved.
+        const { error: replaceError } = await supabaseAdmin.from('std_project_assets')
+            .update({ status: 'replaced', updated_at: now }).eq('project_id', project.id)
+            .eq('asset_type', 'audio').neq('id', asset.id).in('status', ['uploaded', 'assigned'])
+        if (replaceError) throw replaceError
+
 
         try {
             stage = 'sync_legacy'

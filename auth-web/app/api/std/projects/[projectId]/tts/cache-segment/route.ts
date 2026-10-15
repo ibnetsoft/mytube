@@ -90,7 +90,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     try {
         const asset = await persistSegmentAudio(supabaseAdmin, {
-            projectId: project.id, cacheKey,
+            projectId: project.id, project, cacheKey,
             audioBuffer: Buffer.from(await fileValue.arrayBuffer()),
             fileName: String(form.get('file_name') || fileValue.name || `vrew_segment_${cacheKey}.mp3`),
             segmentIndex: Number(form.get('segment_index')), generatedBy: auth.requester.email,

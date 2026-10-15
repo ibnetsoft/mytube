@@ -8,7 +8,7 @@ import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '@/lib/stdRenderQueue'
 import { aeMouthApplicable } from '@/lib/stdAeMouth'
-import { ensureAeMouthJob } from '@/lib/stdAeMouthQueue'
+import { registerSubmissionPipeline } from '@/lib/stdSubmissionPipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -221,7 +221,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }, { status: 409 })
     }
 
-    const mouthRequired = aeMouthApplicable(project, scenes || [])
+    const mouthRequired = project.project_payload?.ae_mouth?.enabled !== false && aeMouthApplicable(project, scenes || [], assets)
     const plannedScenes = Array.isArray(project.project_payload?.structure?.scenes)
         ? project.project_payload.structure.scenes.filter((scene: any) =>
             scene?.ae_effect_plan?.enabled || scene?.ae_motion_plan?.enabled) : []
@@ -244,166 +244,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         project.updated_at = enabled.data.updated_at || enabledAt
     }
 
-    let submittedAt = String(project.submitted_at || '')
-    let submission: any = null
-    let submissionClaimed = false
-
-    const releaseSubmissionClaim = async (errorMessage = '') => {
-        if (!submissionClaimed) return
-        await supabaseAdmin
-            .from('std_projects')
-            .update({
-                status: project.status,
-                submitted_at: null,
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', project.id)
-            .eq('submitted_at', submittedAt)
-        if (submission?.id) {
-            await supabaseAdmin.from('std_project_submissions').update({
-                status: 'failed',
-                metadata: {
-                    scene_count: scenes?.length || 0,
-                    asset_count: assets?.length || 0,
-                    failed_at: new Date().toISOString(),
-                    error: errorMessage,
-                },
-            }).eq('id', submission.id)
-        }
-    }
-
-    const claimSubmission = async () => {
-        if (project.submitted_at) return false
-        submittedAt = new Date().toISOString()
-        const { data: submissionClaim, error: submissionClaimError } = await supabaseAdmin
-            .from('std_projects')
-            .update({ status: 'review_requested', submitted_at: submittedAt, updated_at: submittedAt })
-            .eq('id', project.id).is('submitted_at', null).select('id').maybeSingle()
-        if (submissionClaimError) throw submissionClaimError
-        if (!submissionClaim) return false
-        submissionClaimed = true
-        const inserted = await supabaseAdmin.from('std_project_submissions').insert({
-            project_id: project.id,
-            submitted_by: auth.requester.user.id,
-            status: 'review_requested',
-            metadata: {
-                scene_count: scenes?.length || 0,
-                asset_count: assets?.length || 0,
-                frozen_at: submittedAt,
-                postprocess_status: mouthRequired ? 'pending' : 'not_required',
-            },
-        }).select('*').single()
-        if (inserted.error) {
-            await releaseSubmissionClaim(inserted.error.message)
-            throw inserted.error
-        }
-        submission = inserted.data
-        project.submitted_at = submittedAt
-        return true
-    }
-
-    // Freeze the validated scene, subtitle, voice and asset set before a
-    // background worker is allowed to inspect or render it.
-    if (!project.submitted_at) {
-        try {
-            const claimed = await claimSubmission()
-            if (!claimed) return NextResponse.json({ success: true, already_submitted: true })
-        } catch (error: any) {
-            return NextResponse.json({ success: false, error: error.message || 'Failed to freeze submission data' }, { status: 500 })
-        }
-    }
-
-    if (mouthRequired) {
-        try {
-            const pending = await ensureAeMouthJob(project, scenes || [], assets)
-            if (!pending.ready) {
-                if (submission?.id) await supabaseAdmin.from('std_project_submissions').update({
-                    status: 'review_requested',
-                    metadata: {
-                        scene_count: scenes?.length || 0,
-                        asset_count: assets?.length || 0,
-                        frozen_at: submittedAt,
-                        postprocess_status: 'pending',
-                        ae_mouth_job_id: pending.job?.id || null,
-                        ae_mouth_fingerprint: pending.job?.metadata?.fingerprint || null,
-                    },
-                }).eq('id', submission.id)
-                await supabaseAdmin.from('std_projects').update({
-                    progress_payload: {
-                        ...(project.progress_payload || {}),
-                        submitted_at: submittedAt,
-                        submitted_asset_count: assets?.length || 0,
-                        postprocess_status: 'pending',
-                        ae_mouth_job_id: pending.job?.id || null,
-                    },
-                    updated_at: new Date().toISOString(),
-                }).eq('id', project.id)
-                return NextResponse.json({ success: true, postprocess_pending: true, submitted_at: submittedAt,
-                    message: '제출 완료. AE 후작업과 검수 후 최종 렌더링이 자동으로 진행됩니다.',
-                }, { status: 202 })
-            }
-        } catch (error: any) {
-            await releaseSubmissionClaim(error.message || 'AE 후작업 요청 실패')
-            return NextResponse.json({ success: false, error: error.message || 'AE 후작업 요청 실패' }, { status: 409 })
-        }
-    }
-
-    // A previous frozen submission still discovers current AE work above,
-    // but must never create a duplicate final-render queue row here.
-    if (!submissionClaimed) {
-        return NextResponse.json({ success: true, already_submitted: true, submitted_at: project.submitted_at })
-    }
-
-    let renderQueueRow: any = null
     try {
-        renderQueueRow = await enqueueStdProjectRender(project.id)
-    } catch (queueError: any) {
-        await releaseSubmissionClaim(queueError?.message || 'Failed to enqueue render job')
-        return NextResponse.json({ success: false, error: queueError?.message || 'Failed to enqueue render job' }, { status: 500 })
+        const run = await registerSubmissionPipeline(project, scenes || [], assets, auth.requester.user.id, mouthRequired)
+        return NextResponse.json({ success: true, ...run, postprocess_pending: true,
+            pipeline_version: 2, message: '제출 완료. 저장한 영상·음향 설정으로 자동 렌더링이 진행됩니다.' }, { status: 202 })
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message || '제출 등록 실패' }, { status: 409 })
     }
-
-    const renderVersion = Number(renderQueueRow?.metadata?.render_version || renderQueueRow?.render_version || 1)
-    await supabaseAdmin
-        .from('std_project_submissions')
-        .update({
-            metadata: {
-                scene_count: scenes?.length || 0,
-                asset_count: assets?.length || 0,
-                render_version: renderVersion,
-                remote_render_queue_id: renderQueueRow?.id || null,
-            },
-        })
-        .eq('id', submission.id)
-
-    await supabaseAdmin
-        .from('std_projects')
-        .update({
-            status: 'review_requested',
-            submitted_at: submittedAt,
-            progress_payload: {
-                ...(project.progress_payload || {}),
-                submitted_at: submittedAt,
-                submitted_asset_count: assets?.length || 0,
-                remote_task_id: renderQueueRow?.id || null,
-                remote_render_queue_id: renderQueueRow?.id || null,
-                remote_render_mode: renderQueueRow?.render_mode || 'gcs_api',
-                remote_asset_file_id: renderQueueRow?.asset_file_id || null,
-                remote_asset_file_name: renderQueueRow?.asset_file_name || null,
-                latest_render_version: renderVersion,
-                editing_render_version: null,
-                rerender_draft: false,
-                admin_publish_status: 'render_pending',
-                submitted_to_render_queue_at: submittedAt,
-            },
-            updated_at: submittedAt,
-        })
-        .eq('id', project.id)
-
-    try {
-        await syncStdProjectToLegacy(project.id)
-    } catch (syncError: any) {
-        console.error('[STD Submit] legacy sync failed:', syncError?.message)
-    }
-
-    return NextResponse.json({ success: true, submission, render_queue: renderQueueRow, render_version: renderVersion })
 }

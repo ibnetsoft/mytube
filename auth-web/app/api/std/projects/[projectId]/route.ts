@@ -1,4 +1,5 @@
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
+import { bindProjectContent, persistContentRevision } from '@/lib/stdContentIdentity'
 import { projectReadCacheKey, readProjectResponse, cacheProjectResponse } from '@/lib/stdProjectReadCache'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { subtitleSpeechChanged } from '@/lib/stdSubtitleSpeakerProgress'
@@ -685,6 +686,9 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         } else if (!Array.isArray(updatePayload.project_payload.subtitle_editor_snapshot)) {
             updatePayload.project_payload.subtitle_editor_snapshot = project.project_payload?.subtitles || []
         }
+        updatePayload.project_payload = bindProjectContent(project, updatePayload.project_payload)
+        await persistContentRevision(supabaseAdmin, project)
+        await persistContentRevision(supabaseAdmin, { ...project, project_payload: updatePayload.project_payload })
         updatePayload.project_payload.dialogue_scene_index = dialogueSceneIndex(updatePayload.project_payload.subtitles || [])
         if (updatePayload.project_payload.render_settings) {
             try {

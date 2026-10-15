@@ -1,8 +1,10 @@
+import { selectNarrationAsset } from './stdContentIdentity'
 import { isNonverbalProject } from './stdNonverbal'
 import { savedSpeakerGeometry, coordinateCast, coordinateImage, coordinateVideo } from './stdSpeakerGeometry'
 import { dialogueSceneIndex, subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
 import { createHash } from 'crypto'
 import { isComicProject } from './stdComic'
+import { mouthWorkScenes } from './stdMouthWorkPolicy'
 import { lipSyncPlan, lipSyncSceneStarts } from './stdLipSync'
 
 const active = (a: any) => ['uploaded', 'assigned'].includes(a.status)
@@ -41,15 +43,16 @@ function approvedLayeredSource(source: any) {
     } }
 }
 
-export function aeMouthApplicable(project: any, scenes: any[]) {
-    return !isNonverbalProject(project) && !isComicProject(project) && scenes.some(s => Number(s.scene_number) >= 19 || (project.project_payload?.subtitles || []).some((r: any) => Number(r.scene_number) === Number(s.scene_number) && r.dialogue_kind === 'dialogue'))
+export function aeMouthApplicable(project: any, scenes: any[], assets: any[] = []) {
+    return !isNonverbalProject(project) && !isComicProject(project) && mouthWorkScenes(project, scenes, assets).size > 0
 }
 
 export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
+    const selected = mouthWorkScenes(project, scenes, assets)
     assets = [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     // Validate the finalized recording, including saved text, voice, direction and timing.
     lipSyncPlan(project, scenes, assets.filter(a => a.asset_type !== 'audio' || a.metadata?.subtitle_timeline?.length))
-    const audio = assets.find(a => active(a) && a.asset_type === 'audio' && Array.isArray(a.metadata?.subtitle_timeline) && a.metadata.subtitle_timeline.length)
+    const audio = selectNarrationAsset(project, assets)
     const starts = lipSyncSceneStarts(project, scenes, audio)
     const payload = project.project_payload || {}, structure = payload.structure || {}
     const subtitles = (payload.subtitles || []).map((s: any, index: number) => ({
@@ -66,6 +69,7 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
         annotations: structure.dialogue_annotations || {},
         scenes: scenes.flatMap((s, index) => {
             const number = Number(s.scene_number)
+            if (!selected.has(number)) return []
             if (number < 19 && !subtitles.some((r: any) => r.scene_number === number && r.kind === 'dialogue')) return []
             const source = structure.scenes?.find((r: any) => Number(r.scene_number ?? r.scene_order) === number) || s
             const image = coordinateImage(assets, number)
@@ -102,7 +106,12 @@ function compatibleMouthInput(saved: any, current: any) {
 }
 
 export function currentAeMouthJob(project: any, scenes: any[], assets: any[]) {
-    if (!aeMouthApplicable(project, scenes)) return null
+    if (!aeMouthApplicable(project, scenes, assets)) return null
+    const runId = (project.submitted_at || project.project_payload?.submission_pipeline_version === 2) && project.progress_payload?.pipeline_run_id
+    if (runId) {
+        const frozen = assets.find(a => active(a) && a.metadata?.kind === 'ae_mouth_job' && a.metadata?.pipeline_run_id === runId)
+        if (frozen) return frozen
+    }
     const { input, fingerprint } = aeMouthInput(project, scenes, assets)
     return [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))).find(a => active(a) && a.metadata?.kind === 'ae_mouth_job' && (a.metadata.fingerprint === fingerprint || compatibleMouthInput(a.metadata.input, input))) || null
 }
@@ -111,6 +120,7 @@ export function reviewedAeMouthAssets(project: any, scenes: any[], assets: any[]
     const result = new Map<number, any>()
     if (!project.project_payload?.ae_mouth?.enabled) return result
     const job = currentAeMouthJob(project, scenes, assets)
+    if (job?.metadata?.pipeline_version === 2) return readyPipelineMouthAssets(job, assets)
     if (job?.metadata?.state !== 'reviewed' && !(job?.metadata?.automatic === true && job.metadata.state === 'processing' && job.metadata.phase === 'auto_enqueue')) throw new Error('대사 영상과 정지 씬의 AE 입모양 후작업·검수를 완료해 주세요.')
     const numbers = (job.metadata.input?.scenes || aeMouthInput(project, scenes, assets).input.scenes).map((s: any) => Number(s.number))
     const checked = job.metadata.results || []
@@ -127,6 +137,29 @@ export function reviewedAeMouthAssets(project: any, scenes: any[], assets: any[]
             && Math.abs(Number(a.metadata.duration_seconds) - Number(row.duration)) <= .12)
         if (!asset) throw new Error(`${row.number}번 씬의 검수된 AE 영상이 현재 음성과 일치하지 않습니다.`)
         result.set(row.number, asset)
+    }
+    return result
+}
+
+/** Technical contracts are distinct from historical model approval. */
+export function readyPipelineMouthAssets(job: any, assets: any[]) {
+    if (!['artifact_ready', 'processing'].includes(job.metadata.state) ||
+        (job.metadata.state === 'processing' && job.metadata.phase !== 'auto_enqueue'))
+        throw new Error('입모양 영상 합성이 진행 중입니다.')
+    const result = new Map<number, any>()
+    for (const scene of job.metadata.input.scenes) {
+        const rows = job.metadata.results.filter((r: any) => r.number === scene.number)
+        if (rows.length !== 1) throw new Error(`${scene.number}번 씬의 처리 결과가 없습니다.`)
+        const row = rows[0]
+        if (row.status === 'skipped' && (!row.skip_reason || row.fallback === 'original')) continue
+        if (row.status !== 'artifact_ready') throw new Error(`${scene.number}번 영상 합성이 완료되지 않았습니다.`)
+        const asset = assets.find(a => active(a) && a.id === row.asset_id && a.asset_type === 'video')
+        if (!asset || asset.metadata?.artifact_ready !== true || asset.metadata.source_audio_id !== job.metadata.input.audio.id ||
+            asset.metadata.render_sha256 !== row.render_sha256 || asset.metadata.ae_mouth_fingerprint !== job.metadata.fingerprint ||
+            !asset.metadata.timing_locked || Number(asset.scene_number) !== scene.number ||
+            Math.abs(Number(asset.metadata.duration_seconds) - (scene.end - scene.start)) > .12)
+            throw new Error(`${scene.number}번 영상 파일·음성·시간 연결이 일치하지 않습니다.`)
+        result.set(scene.number, asset)
     }
     return result
 }

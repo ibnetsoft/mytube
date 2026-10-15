@@ -4,6 +4,7 @@ import argparse, contextlib, json, os, signal, subprocess, sys, threading, time
 from pathlib import Path
 from datetime import datetime, timezone
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT))
 sys.path.insert(0,str(ROOT/'worker'))
 import worker_config
 from ae_mouth_runtime import claimable_filter
@@ -53,20 +54,12 @@ def pending_roles():
         if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.(queued,processing)'}):
             roles.append('region');break
     # Submitted mouth work is independent of optional coordinate analysis.
-    if exists('std_project_assets', {'metadata->>kind':'eq.ae_mouth_job','or':claimable_filter()}):
+    if exists('std_project_assets', {'metadata->>kind':'eq.ae_mouth_job','metadata->>pipeline_version':'eq.2','or':claimable_filter()}):
         roles.append('ae')
     if exists('std_project_assets', {'metadata->>kind':'eq.ae_speaker_coordinates','metadata->>state':'in.(queued,processing)'}):
         roles.append('coordinates')
-    from ae_video_tail import pending_video_tail
-    response=requests.get(base+'/rest/v1/std_projects',headers=headers,params={
-        'select':'project_payload','or':'(submitted_at.not.is.null,project_payload->ae_mouth->>enabled.eq.true)','status':'not.in.(approved,canceled)',
-        'order':'updated_at.desc','limit':'20'},timeout=(5,15))
-    response.raise_for_status()
-    if any(pending_video_tail(scene,row.get('project_payload'))
-           for row in response.json()
-           for scene in ((row.get('project_payload') or {}).get('structure') or {}).get('scenes',[])):
-        roles.append('video_tail')
-    if exists('remote_render_queue',{'status':'eq.pending','render_mode':'eq.gcs_api'}):roles.append('render')
+    # Version two extends selected clips in the final composer; legacy model tail QA is not a submission stage.
+    if exists('remote_render_queue',{'render_mode':'eq.gcs_api','or':f"(status.eq.pending,and(status.eq.rendering,metadata->>pipeline_version.eq.2,updated_at.lt.{(datetime.now(timezone.utc)-__import__('datetime').timedelta(minutes=3)).isoformat()}))"}):roles.append('render')
     return roles
 
 def role_command(role):
@@ -80,7 +73,7 @@ def role_command(role):
 
 def busy_processes():
     if os.name!='nt':return []
-    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe','ffmpeg.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
+    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
     result=subprocess.run(['powershell','-NoProfile','-Command',script],capture_output=True,text=True,creationflags=subprocess.CREATE_NO_WINDOW,timeout=15)
     if result.returncode:raise RuntimeError('Could not verify local media resources')
     rows=json.loads(result.stdout) if result.stdout.strip() else []
@@ -112,11 +105,12 @@ class Supervisor:
     def __init__(self,poll=10,queue=pending_roles,spawn=subprocess.Popen,include_highlight=False):
         self.poll=poll;self.queue=queue;self.spawn=spawn;self.include_highlight=include_highlight
         self.stop=threading.Event();self.failures={};self.retry_after={};self.last_role='render'
-        self.state={'service':'air-local-media','pid':os.getpid(),'status':'starting','active':None,'roles':{},'started_at':now()}
+        self.state={'service':'air-local-media','pipeline_version':2,'pid':os.getpid(),'status':'starting','active':None,'roles':{},'started_at':now()}
     def choose(self,roles):
         if (HOME/'pause-render').exists():roles=[r for r in roles if r!='render']
         if self.include_highlight or (HOME/'highlight-enabled').exists():roles=[*roles,'highlight']
-        available=[r for r in roles if self.failures.get(r,0)<3 and time.monotonic()>=self.retry_after.get(r,0)]
+        available=[r for r in roles if time.monotonic()>=self.retry_after.get(r,0)]
+        if 'render' in available: return 'render'
         return next((r for r in available if r!=self.last_role),available[0] if available else None)
     def execute(self,role):
         LOGS.mkdir(parents=True,exist_ok=True)
@@ -133,7 +127,7 @@ class Supervisor:
             code=child.returncode
         self.failures[role]=self.failures.get(role,0)+1 if code else 0
         self.retry_after[role]=time.monotonic()+min(300,30*self.failures[role]) if code else 0
-        self.state['roles'][role]={'exit_code':code,'failures':self.failures[role],'status':'blocked' if self.failures[role]>=3 else 'failed' if code else 'idle','finished_at':now()}
+        self.state['roles'][role]={'exit_code':code,'failures':self.failures[role],'status':'retry_wait' if code else 'idle','finished_at':now()}
         self.state.update(active=None,status='idle');self.last_role=role;write_state(self.state)
     def run(self,once=False):
         with singleton():

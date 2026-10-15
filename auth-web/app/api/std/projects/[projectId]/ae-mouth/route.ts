@@ -1,3 +1,4 @@
+import { ensureSyncedMouthPreview } from '@/lib/stdSubmissionPipeline'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
@@ -25,7 +26,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     try {
         const b = await bundle(req, params.projectId)
         if (b.response) return b.response
-        if (!aeMouthApplicable(b.project, b.scenes!)) return NextResponse.json({ applicable: false })
+        if (!aeMouthApplicable(b.project, b.scenes!, b.assets!)) return NextResponse.json({ applicable: false })
         let job: any, error = ''
         try { job = currentAeMouthJob(b.project, b.scenes!, b.assets!) } catch (e: any) { error = e.message }
         return NextResponse.json({ applicable: true, preparationError: error, fingerprint: job?.metadata?.fingerprint || '',
@@ -46,10 +47,15 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const b = await bundle(req, params.projectId)
         if (b.response) return b.response
         const body = await req.json()
+        if (body.action === 'prepare_preview') {
+            const preview = await ensureSyncedMouthPreview(b.project, b.scenes!, b.assets!)
+            return NextResponse.json({ success: true, job_id: preview?.id, message: '음성 싱크 영상 준비를 시작했습니다.' })
+        }
         const { fingerprint } = aeMouthInput(b.project, b.scenes!, b.assets!)
         const job = currentAeMouthJob(b.project, b.scenes!, b.assets!)
         if (body.fingerprint !== (job?.metadata?.fingerprint || fingerprint)) throw new Error('음성·이미지·대본이 변경되었습니다. 작업 목록을 새로 확인해 주세요.')
         if (!job) throw new Error('제출 버튼으로 AE 후작업을 먼저 요청해 주세요.')
+        if (job.metadata.pipeline_version === 2) throw new Error('새 제출 파이프라인은 별도 모델 승인이 필요하지 않습니다.')
         if (body.action === 'retry') {
             await ensureAeMouthJob(b.project, b.scenes!, b.assets!, true)
             return NextResponse.json({ success: true })

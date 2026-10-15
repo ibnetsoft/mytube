@@ -624,6 +624,26 @@ def health():
     return {'service': 'codex-local-console', 'port': PORT, 'legacy_dashboard': False}
 
 
+class MouthPolicySettings(BaseModel):
+    enabled: bool = True
+    start_scene: int = Field(default=19, ge=1, le=10000)
+    max_dialogue_scenes: int = Field(default=10, ge=0, le=1000)
+
+
+@app.get('/api/mouth-policy')
+def mouth_policy_get():
+    from mouth_work_policy import load_policy
+    return load_policy()
+
+
+@app.post('/api/mouth-policy')
+def mouth_policy_save(value: MouthPolicySettings):
+    from mouth_work_policy import SETTINGS, normalize
+    policy = normalize(value.model_dump())
+    write_json(SETTINGS, policy)
+    return policy
+
+
 class GuidelineProposal(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     issue: str = Field(min_length=1, max_length=4000)
@@ -685,7 +705,7 @@ def status():
     except StoreUnavailable as exc:
         storage_error = str(exc)
     return {'jobs': jobs.listing(), 'codex_installed': bool(shutil.which(os.environ.get('CODEX_EXECUTABLE', 'codex'))),
-            'script_model': 'gpt-6-astra', 'output': str(OUT), 'server': '대본 전용 워커 · Database 저장',
+            'script_model': 'gpt-6.1-sol', 'output': str(OUT), 'server': '대본 전용 워커 · Database 저장',
             'cloud_summary': cloud_summary,
             'storage': {'connected': jobs.cloud_ready and not storage_error, 'error': storage_error or jobs.cloud_error,
                         'pending': sum(r.get('sync_status') == 'pending' for r in jobs.rows.values())},

@@ -1,5 +1,7 @@
 import { createHash } from 'crypto'
 import { dialogueSceneIndex, subtitleDialogueSpeakerName } from './stdDialogueSceneIndex'
+import { verifiedMouthGeometry } from './stdMouthGeometry'
+import { mouthWorkScenes } from './stdMouthWorkPolicy'
 
 export function coordinateCast(project: any) {
     const p = project.project_payload || {},
@@ -30,6 +32,7 @@ export function coordinateKey(cast: any, scene: any) {
 export function coordinateVideo(assets: any[], number: number) {
     return assets.find(a => ['uploaded', 'assigned'].includes(a.status) && a.asset_type === 'video'
         && Number(a.scene_number) === number && !a.metadata?.ae_mouth_fingerprint
+        && a.metadata?.kind !== 'mouth_preview' && a.metadata?.voice_synced !== false
         && !a.metadata?.lipsync_fingerprint && !a.metadata?.region_motion_plan_id
         && !['after_effects', 'region_motion'].includes(a.metadata?.postprocess_mode))
 }
@@ -46,8 +49,10 @@ export function coordinateScenes(project: any, assets: any[]) {
     const p = project.project_payload || {},
         subtitles = p.subtitles || [],
         cast = coordinateCast(project)
-    return dialogueSceneIndex(subtitles)
-        .scenes.filter((s) => s.scene_number >= 19 || coordinateVideo(assets, s.scene_number))
+    const index = dialogueSceneIndex(subtitles)
+    const selected = mouthWorkScenes(project, index.scenes.map(s => ({ scene_number: s.scene_number })), assets)
+    return index
+        .scenes.filter((s) => selected.has(s.scene_number))
         .map((s) => {
             const image = coordinateImage(assets, s.scene_number)
             const video = coordinateVideo(assets, s.scene_number)
@@ -86,7 +91,7 @@ export function validateSpeakerGeometry(rows: any, names: string[]) {
         b[3] <= 1
     return names.map((name, index) => {
         const r = rows[index]
-        if (r?.speaker !== name || !['visible', 'offscreen'].includes(r.status))
+        if (r?.speaker !== name || !['visible', 'offscreen', 'occluded'].includes(r.status))
             throw new Error('화자마다 얼굴·입 위치를 지정하거나 화면 밖을 선택해 주세요.')
         if (r.status === 'offscreen')
             return {
@@ -95,6 +100,10 @@ export function validateSpeakerGeometry(rows: any, names: string[]) {
                 confidence: 1,
                 reason: '사용자가 원본 이미지를 확인하고 화면 밖 화자로 확정함',
             }
+        if (r.status === 'occluded') {
+            if (r.mouth_geometry?.render_policy !== 'preserve_original') throw new Error('가려진 입은 원본을 유지해야 합니다.')
+            return { ...r, speaker: name }
+        }
         const f = r.face_box,
             m = r.mouth_box
         if (!box(f) || !box(m) || m[0] < f[0] || m[1] < f[1] || m[2] > f[2] || m[3] > f[3])
@@ -118,6 +127,7 @@ export function validateSpeakerGeometry(rows: any, names: string[]) {
         )
             throw new Error('다른 화자의 입 영역과 겹칠 수 없습니다.')
         return {
+            ...r,
             speaker: name,
             status: 'visible',
             confidence: 1,
@@ -155,6 +165,7 @@ export function savedSpeakerGeometry(assets: any[], cast: any, scene: any) {
             if (!r || !/^[a-f0-9]{64}$/.test(r.source_sha256 || '')) continue
             try {
                 const speakers = names.map((name) => r.speakers?.find((s: any) => s.speaker === name))
+                if (!speakers.every((speaker: any) => verifiedMouthGeometry(speaker,r.source_sha256))) continue
                 if (
                     kind === 'ae_speaker_coordinates' &&
                     speakers.some(

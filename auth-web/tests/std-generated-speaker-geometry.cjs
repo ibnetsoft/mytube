@@ -6,6 +6,7 @@ function fixture(){
  const project={id:'p',topic_queue_id:3373,project_payload:{structure:{main_character:{name:'Mother'}},subtitles:[{scene_number:19,dialogue_kind:'dialogue',dialogue_speaker:'Mother',text:'Hello'}]}}
  const cast=geometry.coordinateCast(project),image={id:'i',project_id:'p',asset_type:'image',status:'uploaded',scene_number:19,metadata:{gcs_bucket:'bucket',gcs_path:'19.png'}}
  const receipt={version:1,source:'local-codex-image-publish',number:19,state:'ready',fingerprint:'receipt',cast,source_bucket:'bucket',source_path:'19.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'Mother',status:'visible',confidence:.99,face_box:[.1,.1,.5,.6],mouth_box:[.25,.4,.32,.44]}]}
+ receipt.speakers[0].mouth_geometry={version:2,source_sha256:receipt.source_sha256,orientation:'frontal',pitch:'level',mouth_visibility:'clear',render_policy:'animate',evidence:'fixture lips',face_outline:[[.1,.1],[.5,.1],[.5,.5],[.3,.6],[.1,.5]],landmarks:{nose_tip:[.285,.28],chin:[.285,.55],lip_left:[.26,.42],lip_right:[.31,.42],lip_center:[.285,.42]},review:{passed:true,reason:'fixture checked',proof:'annotated-face-crop-v4'}}
  const structure={scenes:[{scene_number:19,metadata:{cowork_image_asset:{speaker_geometry:receipt}}}]}
  return{project,cast,image,receipt,structure}
 }
@@ -54,3 +55,18 @@ test('compact receipts retain current-cast validation without repeating the cast
  const stale=[f.image,...generated.generatedSpeakerAssets(f.project,f.structure,[f.image])]
  assert.equal(overview.speakerCoordinateOverview(f.project,stale).completed,0)
 })
+
+test('empty worker scope survives assignment and does not request coordinates',()=>{
+ const f=fixture();f.receipt.state='not_required';f.receipt.mouth_work_selection={policy:{enabled:false,start_scene:19,max_dialogue_scenes:10},scene_numbers:[]};
+ const assets=[f.image,...generated.generatedSpeakerAssets(f.project,f.structure,[f.image])];
+ assert.equal(geometry.coordinateScenes(f.project,assets).length,0);
+ assert.deepEqual(assets.find(a=>a.metadata.kind==='mouth_work_selection').metadata.scene_numbers,[]);
+});
+test('GCS preview is source-bound and kept separate from final voice clips',()=>{
+ const f=fixture();f.receipt.mouth_preview={state:'ready',source_sha256:f.receipt.source_sha256,gcs_path:'preview.mp4',url:'/api/std/assets/gcs-file?path=preview.mp4',sha256:'b'.repeat(64),voice_synced:false};
+ const assets=generated.generatedSpeakerAssets(f.project,f.structure,[f.image]);
+ assert.equal(assets.find(a=>a.metadata.kind==='mouth_preview').metadata.voice_synced,false);
+ assert.equal(geometry.coordinateVideo(assets,19),undefined);
+ f.receipt.mouth_preview.source_sha256='c'.repeat(64);
+ assert(!generated.generatedSpeakerAssets(f.project,f.structure,[f.image]).some(a=>a.metadata.kind==='mouth_preview'));
+});

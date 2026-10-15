@@ -2203,6 +2203,7 @@ export default function StdPortalPage() {
             return {
                 ...scene,
                 image_url: imageUrl,
+                mouth_preview_url: sanitizeAssetUrl((assets || []).find((a: any) => Number(a.scene_number) === sceneNumber && a.metadata?.kind === 'mouth_preview')?.metadata?.url) || scene?.mouth_preview_url,
                 video_url: videoUrl,
                 video_prompt: scene?.video_prompt || scene?.metadata?.video_prompt || scene?.prompt_en || '',
                 image_prompt: scene?.image_prompt || scene?.metadata?.image_prompt || scene?.prompt || '',
@@ -10833,6 +10834,7 @@ export default function StdPortalPage() {
                                                     const sNum = scene.scene_number || idx + 1
                                                     const isMiddleVideo = isStdMiddleVideoScene(sNum)
                                                     const isReady = isMiddleVideo ? Boolean(scene.video_url) : Boolean(scene.image_url || scene.video_url)
+                                                    const mouthPreview = scene.mouth_preview_url || scene.metadata?.cowork_image_asset?.speaker_geometry?.mouth_preview?.url
                                                     const isUploading = uploadingKey.startsWith(`${sNum}-`)
                                                     return (
                                                         <div
@@ -10850,7 +10852,7 @@ export default function StdPortalPage() {
                                                                 <span className={`text-[10px] font-bold ${isReady ? 'text-emerald-400' : isUploading ? 'text-blue-400' : 'text-amber-400/80'}`}>
                                                                     {isMiddleVideo
                                                                         ? scene.video_url ? ui('🎬 영상 준비됨') : isUploading ? ui('업로드 중...') : ui('영상 필요')
-                                                                        : scene.image_url ? ui('🔒 이미지 고정') : isUploading ? ui('처리 중...') : ui('이미지 없음')}
+                                                                        : scene.video_url ? ui('🎬 영상 준비됨') : mouthPreview ? ui('🎬 입모양 미리보기') : scene.image_url ? ui('🔒 이미지 고정') : isUploading ? ui('처리 중...') : ui('이미지 없음')}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
@@ -10883,6 +10885,20 @@ export default function StdPortalPage() {
                                 {ui('영상 프롬프트 복사 → 필요한 씬만 수동 영상 제작 → 아래에서 클립 업로드 → 자막 페이지에서 대사·말풍선·컷 최종 수정 → 기존 렌더링 제출.')}
                                 {ui('무빙툰 모드에서는 업로드한 클립이 해당 컷의 영상으로 선택됩니다. 클립이 없는 씬은 이미지로 구성합니다.')}
                             </div>}
+                            {selectedProject.scenes.some((s: any) => s.mouth_preview_url || s.metadata?.cowork_image_asset?.speaker_geometry?.mouth_preview?.url) && (
+                                <details className="rounded-xl border border-white/10 p-4">
+                                    <summary className="cursor-pointer">입모양 영상 미리보기 · 음성 싱크 전</summary>
+                                    <div className="grid grid-cols-2 gap-3 mt-3">
+                                        {selectedProject.scenes.map((s: any) => {
+                                            const url = s.mouth_preview_url || s.metadata?.cowork_image_asset?.speaker_geometry?.mouth_preview?.url
+                                            return url ? <div key={s.id || s.scene_number}>
+                                                <span className="text-xs">#{s.scene_number} · 성우 음성 확정 후 타이밍 적용</span>
+                                                <video src={url} controls loop muted playsInline className="w-full rounded" />
+                                            </div> : null
+                                        })}
+                                    </div>
+                                </details>
+                            )}
                             <div className="space-y-4">
                                 {selectedProject.scenes
                                     .filter((scene: any, i: number) => comicProject || isStdVideoPromptScene(scene?.scene_number || i + 1))
@@ -10935,8 +10951,8 @@ export default function StdPortalPage() {
                                                             {inRequiredZone ? ui('필수 영상 클립') : ui('영상 클립')}
                                                         </div>
                                                     )}
-                                                    {inMiddleVideoZone && scene.video_url ? (
-                                                        <video src={scene.video_url} className="w-full h-full object-cover" controls loop muted playsInline />
+                                                    {scene.video_url || scene.mouth_preview_url ? (
+                                                        <video src={scene.video_url || scene.mouth_preview_url} className="w-full h-full object-cover" controls loop muted playsInline aria-label={`${sceneNum}번 씬 입모양 영상`} />
                                                     ) : scene.image_url ? (
                                                         <>
                                                             <img

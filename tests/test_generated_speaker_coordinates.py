@@ -18,7 +18,10 @@ def reference_directory(tmp_path, monkeypatch):
 
 def fixture(tmp_path, number=19):
     image = tmp_path / f'scene-{number:03d}.png'
-    image.write_bytes(b'original final cropped image')
+    from PIL import Image, ImageDraw
+    pixels=Image.new('RGB',(1000,1000),'white')
+    ImageDraw.Draw(pixels).line([(360,470),(440,470)],fill='black',width=3)
+    pixels.save(image)
     scene = {'scene_number': number, 'scene_text': 'Mother said hello.', 'image_url': 'image',
              'metadata': {'cowork_image_asset': {'source': 'cowork_builtin_imagegen', 'gcs_bucket': 'bucket', 'gcs_path': f'{number}.png'}}}
     annotation = {'scene_number': number, 'source_sha256': hashlib.sha256(scene['scene_text'].encode()).hexdigest(),
@@ -31,8 +34,19 @@ class Runner:
     def __init__(self): self.calls = []
     def _stage(self, identity, stage, context, task):
         self.calls.append(context)
-        return {'speakers': [{'speaker': 'Mother', 'status': 'visible', 'confidence': .98,
-                             'face_box': [.1, .1, .5, .6], 'mouth_box': [.25, .4, .32, .44], 'reason': 'Visible lips'}]}
+        from test_mouth_geometry import speaker as verified_speaker
+        row=verified_speaker();row.update(speaker='Mother',confidence=.98,reason='Visible lips')
+        if stage=='03_ae_mouth_geometry_review':
+            return {'speakers':[{'speaker':'Mother','passed':True,'reason':'Fixture lip markers match source pixels'}]}
+        if stage=='03_ae_mouth_crop_localization':
+            l,t,r,b=context['crop_rect_pixels']
+            def mapped(p): return [(p[0]*1000-l)/(r-l),(p[1]*1000-t)/(b-t)]
+            for key in ('face_box','mouth_box'):
+                box=row[key];row[key]=mapped(box[:2])+mapped(box[2:])
+            g=row['mouth_geometry'];g['face_outline']=[mapped(p) for p in g['face_outline']]
+            g['landmarks']={k:mapped(p) for k,p in g['landmarks'].items()}
+            return row
+        return {'speakers':[row]}
 
 
 def test_actual_pixels_and_saved_dialogue_are_analyzed_and_reused(tmp_path):
@@ -43,10 +57,10 @@ def test_actual_pixels_and_saved_dialogue_are_analyzed_and_reused(tmp_path):
     assert pathlib.Path(runner.calls[0]['_local_image_paths'][0]).read_bytes() == image.read_bytes()
     assert runner.calls[0]['speakers'] == ['Mother']
     assert geometry.analyze_scene(structure, scene, image, 'bucket', '19.png', result, runner) == result
-    assert len(runner.calls) == 1
+    assert len(runner.calls) == 3
     image.write_bytes(b'replaced pixels')
     assert geometry.analyze_scene(structure, scene, image, 'bucket', '19.png', result, runner)['fingerprint'] != result['fingerprint']
-    assert len(runner.calls) == 2
+    assert len(runner.calls) == 4
 
 
 def test_missing_or_stale_annotations_fail_without_guessing_and_narration_skips(tmp_path):
@@ -73,14 +87,13 @@ def test_directed_blink_is_verified_against_final_image_and_saved(tmp_path):
         'enabled': True, 'character': 'Mother', 'reason': 'reaction pause',
         'cues': [{'at_seconds': 2.4, 'duration_seconds': .11, 'type': 'single'}],
     }}
-    class BlinkRunner:
+    class BlinkRunner(Runner):
         def _stage(self, identity, stage, context, task):
             if stage == '03_ae_eye_visibility':
                 return {'eye_blink': {'character': 'Mother', 'status': 'visible', 'confidence': .98,
                     'left_eye_box': [.2,.2,.24,.23], 'right_eye_box': [.3,.2,.34,.23],
                     'reason': 'Both eyes are unobscured on Mother.'}}
-            return {'speakers': [{'speaker': 'Mother', 'status': 'visible', 'confidence': .98,
-                'face_box': [.1,.1,.5,.6], 'mouth_box': [.25,.4,.32,.44], 'reason': 'Visible lips'}]}
+            return super()._stage(identity, stage, context, task)
     result = geometry.analyze_scene(structure, scene, image, 'bucket', '19.png', runner=BlinkRunner())
     assert result['state'] == 'ready'
     assert result['eye_blink']['state'] == 'ready'
@@ -100,7 +113,7 @@ def test_each_scene_checkpoint_failure_continues_and_early_video_skips(tmp_path,
         _patch_topic_scene_assets=lambda topic, updates, *args: writes.append(copy.deepcopy(updates)))
     geometry.analyze_published_scenes('topic', structure, scenes, tmp_path, '', {}, fake)
     assert [w[0]['scene_number'] for w in writes] == [19, 20]
-    assert writes[1][0]['asset_patch']['metadata']['cowork_image_asset']['speaker_geometry']['state'] == 'ready'
+    assert writes[1][0]['asset_patch']['metadata']['cowork_image_asset']['speaker_geometry']['state'] == 'not_required'
     assert json.loads((tmp_path / 'scene-019-speaker-coordinates.json').read_text())['state'] == 'needs_review'
     assert 'speaker_geometry' not in writes[0][0]['expected_assets']['metadata']['cowork_image_asset']
 

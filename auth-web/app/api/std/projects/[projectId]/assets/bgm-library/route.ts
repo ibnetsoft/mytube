@@ -1,3 +1,4 @@
+import { assetContentIdentity } from '@/lib/stdContentIdentity'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
@@ -36,7 +37,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     const { data: asset, error: saveError } = await supabaseAdmin.from('std_project_assets').insert({
         project_id: project.id, asset_type: 'other', status: 'uploaded', file_name: source.file_name,
         mime_type: source.mime_type, file_size: source.file_size,
-        metadata: { ...source.metadata, audio_role: 'bgm', bgm_source_asset_id: source.id },
+        metadata: { ...source.metadata, source_content_identity: source.metadata?.content_identity || null, content_identity: assetContentIdentity(project, { type: 'bgm', parents: [source.id] }), audio_role: 'bgm', bgm_source_asset_id: source.id },
     }).select('*').single()
     if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 })
     return NextResponse.json({ asset })

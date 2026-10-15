@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'worker'))
-from std_project_assets import load_project_assets
+from std_project_assets import load_project_assets, load_project_input_assets
 from ae_mouth_runtime import Heartbeat, instance_lock
 
 
@@ -32,6 +32,22 @@ def test_page_failure_does_not_return_incomplete_sources():
         return SimpleNamespace(json=lambda: [{'id': 1}] * 500)
     with pytest.raises(RuntimeError):
         load_project_assets(request, 'db', {}, 'p')
+
+
+def test_input_check_keeps_old_media_and_reference_metadata_across_pages():
+    media=[{'id':str(i),'asset_type':'image','metadata':{'source_sha256':str(i)}} for i in range(501)]
+    references=[{'id':kind,'asset_type':'other','metadata':{'kind':kind,'source_sha256':'changed'}}
+                for kind in ('speaker_video_reference','eye_blink_confirmation')]
+    selected=media+references
+    offsets=[]
+    def request(method,url,headers,params):
+        assert params['select']=='*'
+        assert params['or']=='(asset_type.in.(audio,image,video),metadata->>kind.in.(speaker_video_reference,eye_blink_confirmation))'
+        start=int(params['offset']);offsets.append(start)
+        return SimpleNamespace(json=lambda:selected[start:start+int(params['limit'])])
+    actual=load_project_input_assets(request,'db',{},'p')
+    assert actual==selected and offsets==[0,500]
+    assert actual[-1]['metadata']['source_sha256']=='changed'
 
 
 def test_heartbeat_continues_during_blocking_render_and_clears_job_on_exit(tmp_path):

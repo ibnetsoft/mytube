@@ -1,3 +1,4 @@
+import { projectContentIdentity, selectNarrationAsset, assertNarrationIdentity, renderAssetIdentity, assetContentIdentity, persistContentRevision, finalizeRecordedRenderConfig } from './stdContentIdentity'
 import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from './stdNonverbal'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
@@ -10,7 +11,8 @@ import { audioAssetRole, backgroundWindow } from './stdAudioMix'
 import { sceneMotion, sceneMotionSpeed } from './stdSceneMotion'
 import { reviewedVideoTail } from './stdVideoTail'
 import { templateOverlayPng } from './stdTemplateOverlayPng'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
+import { frozenRenderBundle } from './stdSubmissionPipeline'
 import { supabaseAdmin } from './supabaseAdmin'
 import { isStdRequiredClipScene, isStdRequiredVideoScene } from './stdPolicy'
 import { nextStdRenderVersion, normalizeStdRenderHistory } from './stdRenderVersion'
@@ -112,6 +114,7 @@ export function reviewedScenePostprocessAsset(project: any, sceneNumber: number)
         ? metadata[`ae_${kind}_asset`] : {}
     const status = String(rendered.status || plannedScene[`ae_${kind}_status`] || '')
     if (status === 'needs_attention') return null
+    if (status !== 'ready' && project.project_payload?.submission_pipeline_version === 2) return null
     if (status !== 'ready') {
         const error: any = new Error(`${sceneNumber}번 씬의 AIR STUDIO 후작업을 기다리고 있습니다.`)
         error.code = 'SCENE_POSTPROCESS_PENDING'
@@ -225,6 +228,13 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             delete metadata.gcs_public_url
             delete metadata.gcs_signed_url
             delete metadata.secondary_storage_provider
+            const origin = scene.metadata?.[`cowork_${kind}_asset`]?.origin_content_identity
+            if (origin) {
+                if (Number(origin.origin_topic_queue_id) !== Number(project.topic_queue_id)) throw new Error('CONTENT_IDENTITY_MISMATCH: 생성 원본의 토픽이 다릅니다.')
+                metadata.content_identity = { ...assetContentIdentity(project, { type: kind, scene }),
+                    script_sha256: origin.script_sha256, script_revision: `sha256:${origin.script_sha256}`,
+                    visual_sha256: origin.visual_sha256, generation_job_id: origin.generation_job_id, origin_topic_queue_id: origin.origin_topic_queue_id }
+            }
             Object.assign(metadata, {
                 storage_provider: 'gcs',
                 storage_bucket: stored.bucket,
@@ -539,7 +549,7 @@ function nonverbalTiming(project: any, scenes: any[]) {
     return { starts, duration }
 }
 async function renderAudioAsset(project: any, scenes: any[], assets: any[]) {
-    if (!isNonverbalProject(project)) return assets.find(isAudioAsset)
+    if (!isNonverbalProject(project)) return selectNarrationAsset(project, assets)
     const { duration } = nonverbalTiming(project, scenes)
     // Explicit silence supplies the renderer's audio clock without generating speech.
     const bytes = duration * 16000 * 2
@@ -557,8 +567,9 @@ async function renderAudioAsset(project: any, scenes: any[], assets: any[]) {
 async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
     const entries: ZipEntry[] = []
     const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
-    const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
+    const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()) && !asset.metadata?.ae_mouth_fingerprint && !asset.metadata?.lipsync_fingerprint)
     const audioAsset = await renderAudioAsset(project, scenes, activeAssets)
+    const narrationIdentity = isNonverbalProject(project) ? null : assertNarrationIdentity(project, audioAsset, buildRenderSubtitles(project, scenes))
 
     if (!storageSourceForAsset(audioAsset)) {
         throw new Error('렌더용 오디오 파일이 없습니다. GCS 저장 정보가 필요합니다.')
@@ -584,7 +595,11 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         )
         const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
         if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
-        const asset = selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
+        let asset = selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
+        const sourcePath = (videoAsset || imageAsset)?.metadata?.gcs_path || (videoAsset || imageAsset)?.metadata?.storage_path
+        if (project.project_payload?.submission_pipeline_version === 2 && asset?.metadata?.source_image?.object_path && asset.metadata.source_image.object_path !== sourcePath) asset = videoAsset || imageAsset
+        if (asset?.metadata?.source_image?.object_path && asset.metadata.source_image.object_path !== sourcePath)
+            throw Object.assign(new Error(`${sceneNumber}번 후처리 영상의 원본 자산이 현재 씬과 다릅니다.`), { code: 'CONTENT_IDENTITY_MISMATCH' })
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
@@ -602,7 +617,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
     const imageTimingStarts = isNonverbalProject(project) ? nonverbalTiming(project, scenes).starts : isComicProject(project)
         ? comicSceneTimings(scenes, subtitles).map(scene => scene.start)
         : buildSceneTimingStarts(scenes, subtitles)
-    const workerTts = isNonverbalProject(project) ? null : buildWorkerTtsPlan(project, subtitles)
+    const workerTts = isNonverbalProject(project) || narrationIdentity ? null : buildWorkerTtsPlan(project, subtitles)
 
     const thumbnailAsset = activeAssets.find((asset: any) => String(asset.asset_type || '').toLowerCase() === 'thumbnail')
     let thumbnailFilename: string | null = null
@@ -662,7 +677,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         aspect_ratio: '16:9',
         speech_gain_version: 1,
         audio_filename: audioFilename,
-        audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : project.progress_payload?.audio_duration || null,
+        audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : narrationIdentity?.duration_seconds || project.progress_payload?.audio_duration || null,
         images,
         subtitles,
         worker_tts: workerTts,
@@ -698,16 +713,19 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
 }
 
 async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
-    const lipAssets = isNonverbalProject(project) ? new Map<number, any>() : new Map([...reviewedLipSyncAssets(project, scenes, assets), ...reviewedAeMouthAssets(project, scenes, assets)])
-    const recordedTiming = !isNonverbalProject(project) && (lipSyncEnabled(project) || Boolean(project.project_payload?.ae_mouth?.enabled))
+    const lipAssets = isNonverbalProject(project) ? new Map<number, any>() : new Map([...(project.project_payload?.submission_pipeline_version === 2 ? [] : reviewedLipSyncAssets(project, scenes, assets)), ...reviewedAeMouthAssets(project, scenes, assets)])
+    let recordedTiming = !isNonverbalProject(project) && (lipSyncEnabled(project) || Boolean(project.project_payload?.ae_mouth?.enabled))
     const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
-    const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
+    const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()) && !asset.metadata?.ae_mouth_fingerprint && !asset.metadata?.lipsync_fingerprint)
     const audioAsset = await renderAudioAsset(project, scenes, activeAssets)
+    const narrationIdentity = isNonverbalProject(project) ? null : assertNarrationIdentity(project, audioAsset, buildRenderSubtitles(project, scenes))
 
     if (!storageSourceForAsset(audioAsset)) {
         throw new Error('렌더용 오디오 파일이 없습니다. GCS 저장 정보가 필요합니다.')
     }
 
+    recordedTiming = recordedTiming || Boolean(narrationIdentity)
+    const contentIdentity = projectContentIdentity(project)
     const manifestFiles: any[] = []
     const templateSettings = { ...project.project_payload?.settings, ...project.project_payload?.render_settings }
     const overlayPng = isNonverbalProject(project) ? null : await templateOverlayPng(templateSettings)
@@ -717,7 +735,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         const overlayPath = `std-projects/${project.id}/template-overlays/${randomUUID()}.png`
         await uploadGcsBuffer({ objectPath: overlayPath, data: overlayPng, contentType: 'image/png' })
         manifestFiles.push({ asset_type: 'template_overlay', path: `overlays/${templateOverlayFilename}`,
-            file_name: templateOverlayFilename, mime_type: 'image/png', size: overlayPng.length,
+            file_name: templateOverlayFilename, mime_type: 'image/png', size: overlayPng.length, sha256: createHash('sha256').update(overlayPng).digest('hex'),
             ...(await storageManifestFields({ provider: 'gcs', bucket: gcsBucketName(), path: overlayPath })) })
     }
     const audioExt = mediaExtension(audioAsset.file_name, audioAsset.mime_type, '.mp3')
@@ -725,6 +743,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
     const audioStorage = storageSourceForAsset(audioAsset)
     manifestFiles.push({
         asset_type: 'audio',
+        content_identity: { ...contentIdentity, ...narrationIdentity, asset_id: audioAsset.id, source_sha256: audioAsset.metadata?.sha256 || null },
         path: `audio/${audioFilename}`,
         file_name: audioAsset.file_name,
         mime_type: audioAsset.mime_type,
@@ -745,9 +764,13 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         )
         const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
         if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
-        const asset = lipAssets.get(sceneNumber) || reviewedScenePostprocessAsset(project, sceneNumber) || reviewedVideoTail(scene,
+        let asset = lipAssets.get(sceneNumber) || reviewedScenePostprocessAsset(project, sceneNumber) || reviewedVideoTail(scene,
             selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset),
             project.project_payload)
+        const sourcePath = (videoAsset || imageAsset)?.metadata?.gcs_path || (videoAsset || imageAsset)?.metadata?.storage_path
+        if (project.project_payload?.submission_pipeline_version === 2 && asset?.metadata?.source_image?.object_path && asset.metadata.source_image.object_path !== sourcePath) asset = videoAsset || imageAsset
+        if (asset?.metadata?.source_image?.object_path && asset.metadata.source_image.object_path !== sourcePath)
+            throw Object.assign(new Error(`${sceneNumber}번 후처리 영상의 원본 자산이 현재 씬과 다릅니다.`), { code: 'CONTENT_IDENTITY_MISMATCH' })
         const assetStorage = storageSourceForAsset(asset)
         if (!assetStorage) {
             throw new Error(`Scene ${sceneNumber} media is missing from render storage`)
@@ -758,6 +781,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         manifestFiles.push({
             asset_type: String(asset.asset_type || '').toLowerCase(),
             scene_number: sceneNumber,
+            content_identity: renderAssetIdentity(project, scene, asset, audioAsset.id),
             path: `images/${filename}`,
             file_name: asset.file_name,
             mime_type: asset.mime_type,
@@ -910,7 +934,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         } : {}),
     }
 
-    return {
+    const finalConfig = {
         project_id: pseudoProjectId,
         project_name: project.title || `Project ${pseudoProjectId}`,
         email: project.employee_email || 'unknown',
@@ -920,7 +944,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         speech_gain_version: 1,
         audio_filename: audioFilename,
         audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : recordedTiming
-            ? Number(audioAsset.metadata.subtitle_timeline[audioAsset.metadata.subtitle_timeline.length - 1].end)
+            ? narrationIdentity?.duration_seconds || Number(audioAsset.metadata.subtitle_timeline[audioAsset.metadata.subtitle_timeline.length - 1].end)
             : project.progress_payload?.audio_duration || null,
         images,
         subtitles,
@@ -940,6 +964,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,
         sfx_cues: sfxCues,
+        subtitle_content_identity: { ...contentIdentity, ...narrationIdentity, row_count: subtitles.length },
         asset_manifest: {
             version: 1,
             transport: 'gcs_manifest',
@@ -953,10 +978,27 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
             status: 'ready_for_upload',
         },
     }
+    const resolved = narrationIdentity ? finalizeRecordedRenderConfig(finalConfig) : finalConfig
+    if (project.project_payload?.submission_pipeline_version === 2) {
+        const stable = (v: any): any => Array.isArray(v) ? v.map(stable) : v && typeof v === 'object'
+            ? Object.fromEntries(Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => [k, stable(v[k])])) : v
+        const hash = (v: any) => createHash('sha256').update(JSON.stringify(stable(v))).digest('hex')
+        const visualSettings = Object.fromEntries(Object.entries(resolved.render_settings).filter(([key]) => !key.startsWith('bgm_') && !key.startsWith('sfx_')))
+        resolved.visual_recipe_sha256 = hash({ images: resolved.images, starts: resolved.image_timing_starts,
+            subtitles: resolved.subtitles.map(({ volume, voice_id, voice_name, ...row }: any) => row),
+            effects: resolved.image_effects, transitions: resolved.transition_effects, settings: visualSettings,
+            duration: resolved.audio_duration, resolution: resolved.resolution, aspect: resolved.aspect_ratio,
+            files: resolved.asset_manifest.files.filter((f: any) => ['image','video','template_overlay'].includes(f.asset_type))
+                .map((f: any) => ({ path: f.path, source: f.content_identity?.source_sha256 || f.sha256 || f.gcs_path })) })
+        resolved.audio_recipe_sha256 = hash({ audio: audioAsset.id, sha: audioAsset.metadata?.sha256,
+            settings: projectRenderSettings, cues: resolved.sfx_cues })
+        resolved.pipeline_version = 2
+    }
+    return resolved
 }
 
 export async function enqueueStdProjectRender(projectId: string, automatic?: { jobId: string; taskId: string }) {
-    const { project, scenes, assets } = await loadBundle(projectId)
+    const { project, scenes, assets } = (automatic && await frozenRenderBundle(projectId, automatic.jobId)) || await loadBundle(projectId)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')
 
     if (automatic) {
@@ -982,11 +1024,12 @@ export async function enqueueStdProjectRender(projectId: string, automatic?: { j
         return existingRow
     }
 
+    await persistContentRevision(supabaseAdmin, project)
     const renderHistory = await getStdProjectRenderHistory(project.id)
     const renderVersion = nextStdRenderVersion(renderHistory)
     const previousRender = renderHistory[0] || null
 
-    reviewedLipSyncAssets(project, scenes, assets)
+    if (project.project_payload?.submission_pipeline_version !== 2) reviewedLipSyncAssets(project, scenes, assets)
     reviewedAeMouthAssets(project, scenes, assets)
     const pseudoProjectId = stdWebPseudoProjectId(project.topic_queue_id)
     const taskId = automatic?.taskId || randomUUID()
@@ -995,6 +1038,7 @@ export async function enqueueStdProjectRender(projectId: string, automatic?: { j
     const renderConfig = {
         ...(await buildGcsRenderConfig(project, scenes, archivedAssets, pseudoProjectId)),
         render_version: renderVersion,
+        content_identity: projectContentIdentity(project),
         std_web_project_id: project.id,
     }
 
@@ -1023,6 +1067,7 @@ export async function enqueueStdProjectRender(projectId: string, automatic?: { j
 
     const metadata = {
         ...(automatic ? { ae_mouth_job_id: automatic.jobId } : {}),
+        ...(project.project_payload?.submission_pipeline_version === 2 ? { pipeline_version: 2, pipeline_run_id: project.progress_payload?.pipeline_run_id } : {}),
         queue_scope: 'remote_render',
         worker_platform: 'korea_render_pc',
         upload_owner: 'web_admin',
@@ -1050,6 +1095,8 @@ export async function enqueueStdProjectRender(projectId: string, automatic?: { j
         render_version: renderVersion,
         previous_render_queue_id: previousRender?.id || null,
         topic_queue_id: project.topic_queue_id,
+        content_identity: renderConfig.content_identity,
+        audio_asset_id: renderConfig.asset_manifest.files.find((f: any) => f.asset_type === 'audio')?.content_identity?.asset_id,
         admin_publish_ready: false,
         admin_publish_status: 'render_pending',
     }

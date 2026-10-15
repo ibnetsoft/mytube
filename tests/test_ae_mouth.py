@@ -12,6 +12,15 @@ import ae_mouth_worker as worker
 import ae_highlight_worker as ae
 
 
+def test_partial_tracking_plan_limits_motion_and_preserves_original_afterward():
+    rows=[{'speaker':'大五郎','start':10,'end':14,'text':'誰だ。'}]
+    plan=mouth.direction_text([{'speaker':'大五郎','visible_from_seconds':0,
+                               'visible_until_seconds':1.375}],rows,10)
+    assert '0.000~1.375초' in plan
+    assert '화자가 계속 보이더라도 합성 입 레이어를 숨기고 원본 영상' in plan
+    assert '대사 끝까지 유지' not in plan
+
+
 def test_semantic_assessment_preserves_saved_dialogue_and_narration():
     rows = [{'index': 2, 'text': '그는 편지를 읽었다.', 'kind': 'narration', 'scene_number': 19}]
     assert mouth.dialogue_rows({'rows': [{'index': 2, 'text': rows[0]['text'], 'kind': 'narration', 'reason': 'reported writing'}]}, rows)[0]['kind'] == 'narration'
@@ -165,7 +174,9 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
     from ae_media_utils import ffmpeg, run
     master, original = tmp_path / 'voice.wav', tmp_path / 'original.png'
     run([ffmpeg(), '-y', '-f', 'lavfi', '-i', 'sine=frequency=220:duration=19', '-ac', '1', str(master)])
-    Image.new('RGB', (1280, 720), '#d6b8a1').save(original)
+    source = Image.new('RGB', (1280, 720), '#d6b8a1')
+    ImageDraw.Draw(source).line((525,302,602,302),fill='black',width=3)
+    source.save(original)
     subtitles = [{'index': 0, 'text': 'hello', 'scene_number': 19, 'start': 1, 'end': 2, 'voice_id': 'girl', 'kind': 'dialogue', 'speaker': 'girl'},
                  {'index': 1, 'text': 'ending', 'scene_number': 20, 'start': 18, 'end': 19, 'voice_id': 'n', 'kind': 'narration', 'speaker': ''}]
     saved = [{**r, 'dialogue_kind': r['kind'], 'dialogue_speaker': r['speaker']} for r in subtitles]
@@ -182,6 +193,13 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
                     for i, (n, text, start, end) in enumerate([(19, 'hello', 0, 18), (20, 'ending', 18, 19)])]}
     snapshot['scenes'][0]['speaker_regions'] = {'image_id':'image19','source_sha256':mouth.digest(original),
         'speakers':[{'speaker':'girl','status':'visible','confidence':.98,'face_box':[.2,.2,.7,.7], 'mouth_box':[.4,.4,.48,.44],'reason':'saved original-image geometry'}]}
+    snapshot['scenes'][0]['speaker_regions']['speakers'][0]['mouth_geometry'] = {
+        'version':2,'source_sha256':mouth.digest(original),'orientation':'frontal','pitch':'level',
+        'mouth_visibility':'clear','render_policy':'animate','evidence':'black lip line in source fixture',
+        'face_outline':[[.2,.2],[.7,.2],[.7,.65],[.45,.7],[.2,.65]],
+        'landmarks':{'nose_tip':[.44,.34],'chin':[.44,.63],'lip_left':[.41,.42],
+                     'lip_right':[.47,.42],'lip_center':[.44,.42]},
+        'review':{'passed':True,'reason':'fixture lip pixels confirmed','proof':'annotated-face-crop-v4'}}
     tracked = []
     if video_scene:
         snapshot['version'] = 2

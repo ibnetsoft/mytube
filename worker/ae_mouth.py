@@ -13,6 +13,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from ae_stage_timing import stage_timing
+
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
 POSES = ('closed', 'half', 'open')
@@ -22,9 +24,16 @@ def direction_text(speakers: list[dict], rows: list[dict], start: float) -> str:
     visible = {s['speaker'] for s in speakers}
     turns = [f"{r['speaker']} {r['start'] - start:.2f}~{r['end'] - start:.2f}초: {r['text'][:90]}"
              for r in rows if r['speaker'] in visible]
-    return ('씬 시작 기준 ' + '; '.join(turns) + '. 해당 화자의 입만 닫힘·반열림·열림으로 전환하고 '
+    direction = ('씬 시작 기준 ' + '; '.join(turns) + '. 해당 화자의 입만 닫힘·반열림·열림으로 전환하고 '
             '입술과 턱 주변의 원래 그림체를 유지합니다. 내레이션·쉼·상대 화자의 대사에서는 입을 다뭅니다. '
             '화면의 구도와 기존 AE 효과를 유지해 합성하며, 최종 음성 길이와 재생 속도는 바꾸지 않습니다.')
+    windows = [s for s in speakers if s.get('visible_until_seconds') is not None or s.get('visible_from_seconds', 0)]
+    if windows:
+        spans = ['%s %.3f~%s초' % (s['speaker'], s.get('visible_from_seconds', 0),
+                 ('%.3f' % s['visible_until_seconds']) if s.get('visible_until_seconds') is not None else '대사 끝') for s in windows]
+        direction += (' 합성 입 움직임은 검증된 추적 구간(' + '; '.join(spans) + ')에만 적용합니다. '
+                      '이 구간 밖에서는 화자가 계속 보이더라도 합성 입 레이어를 숨기고 원본 영상의 얼굴과 입을 그대로 유지합니다.')
+    return direction
 
 
 def digest(path: Path) -> str:
@@ -70,7 +79,7 @@ def visible_speakers(response: dict, speakers: list[str]) -> list[dict]:
         raise ValueError('Visible speaker assessment is incomplete')
     accepted = []
     for row, speaker in zip(rows, speakers):
-        if row.get('speaker') != speaker or row.get('status') not in ('visible', 'offscreen', 'uncertain'):
+        if row.get('speaker') != speaker or row.get('status') not in ('visible', 'offscreen', 'occluded', 'uncertain'):
             raise ValueError('Visible speaker assessment changed the cast')
         confidence = row.get('confidence')
         if not isinstance(confidence, (int, float)) or not math.isfinite(confidence) or confidence < .9:
@@ -113,9 +122,107 @@ def locate_speakers(runner, identity: str, scene: dict, image: Path, rows: list[
         "and a small surrounding skin margin so alternate mouth patches cover the original mouth. "
         "Use visible only for a confidently identified unobscured mouth. Tiny, hidden or ambiguous faces "
         "need uncertain. Offscreen means the actual speaker is absent; never assign their speech to a listener. "
-        "Do not change composition or identify a character from a name alone."
+        "Do not change composition or identify a character from a name alone. "
+        "For each visible or occluded speaker ALSO return mouth_geometry:{version:2,"
+        "orientation:'frontal|three_quarter_left|three_quarter_right|profile_left|profile_right',"
+        "pitch:'level|up|down',mouth_visibility:'clear|partial|hidden',"
+        "render_policy:'animate|preserve_original',face_outline:[[x,y],...],"
+        "landmarks:{nose_tip:[x,y],chin:[x,y],lip_left:[x,y],lip_right:[x,y],lip_center:[x,y]},"
+        "evidence:'specific visible lip contour, face direction and occluders'}. "
+        "All points are normalized ORIGINAL-image coordinates; lip_left/right are screen-left/right. "
+        "Only clearly visible complete lips may animate. Never infer a mouth behind a hand, hair, "
+        "clothes or turned-away face. Use status=occluded and preserve_original for present speakers "
+        "whose mouth is partial/hidden; omit lip landmarks rather than guessing them. "
+        "Distinguish cheek creases from actual lips using the nose tip, chin and skin contour."
     ))
-    return visible_speakers(response, speakers)
+    # First pass proposes only a face search area. Never treat full-frame
+    # approximate coordinates or its confidence as final lip geometry.
+    coarse=response.get('speakers')
+    if not isinstance(coarse,list) or len(coarse)!=len(speakers):raise ValueError('Face search incomplete')
+    accepted=[]
+    source_sha=digest(image)
+    directory=image.parent / ('geometry-review-v3-'+source_sha[:12])
+    directory.mkdir(parents=True,exist_ok=True)
+    with Image.open(image) as original:
+        for index,(candidate,name) in enumerate(zip(coarse,speakers)):
+            if candidate.get('speaker')!=name:raise ValueError('Face search changed speaker')
+            if candidate.get('status')=='offscreen':
+                accepted.extend(visible_speakers({'speakers':[candidate]},[name]));continue
+            face=candidate.get('face_box')
+            if not isinstance(face,list) or len(face)!=4 or not all(isinstance(v,(int,float)) and math.isfinite(v) for v in face):
+                raise ValueError('Face search bounds missing')
+            l,t,r,b=face
+            if not 0<=l<r<=1 or not 0<=t<b<=1:raise ValueError('Face search bounds invalid')
+            dx,dy=(r-l)*.18,(b-t)*.18
+            rect=(max(0,round((l-dx)*original.width)),max(0,round((t-dy)*original.height)),
+                  min(original.width,round((r+dx)*original.width)),min(original.height,round((b+dy)*original.height)))
+            crop_path=directory/f'face-{index}.png';original.crop(rect).save(crop_path)
+            refined=runner._stage(identity+'-'+str(index),'03_ae_mouth_crop_localization',{
+                '_local_image_paths':[str(crop_path.resolve())],
+                'speaker':name,'cast':cast,'source_sha256':source_sha,
+                'coarse_proposal':candidate,'crop_rect_pixels':rect,
+            }, 'The ONLY attached image is the enlarged TARGET FACE. '
+               'Locate features on this attached face crop with precision. Return {speaker:exact_name,status:visible|occluded|uncertain,'
+               'confidence:number,face_box:[l,t,r,b],mouth_box:[l,t,r,b],reason:visual_evidence,mouth_geometry:{'
+               'version:2,orientation:frontal|three_quarter_left|three_quarter_right|profile_left|profile_right,'
+               'pitch:level|up|down,mouth_visibility:clear|partial|hidden,render_policy:animate|preserve_original,'
+               'face_outline:[[x,y],...],landmarks:{nose_tip:[x,y],chin:[x,y],lip_left:[x,y],lip_right:[x,y],lip_center:[x,y]},evidence:string}}. '
+               'ALL coordinates must be normalized to THIS FACE CROP ONLY. Do not copy the coarse full-image proposal. '
+               'Find actual lip edges, not cheek lines, under the true nose tip and above chin. '
+               'For hidden lips use occluded+preserve_original and do not invent mouth points. '
+               'If unsure use uncertain with honest confidence; no blind approval.')
+            if refined.get('speaker')!=name:raise ValueError('Face refinement changed speaker')
+            def mapped(p):return [(rect[0]+p[0]*(rect[2]-rect[0]))/original.width,(rect[1]+p[1]*(rect[3]-rect[1]))/original.height]
+            for key in ('face_box','mouth_box'):
+                if refined.get(key):
+                    q=refined[key];refined[key]=mapped(q[:2])+mapped(q[2:])
+            g=refined.get('mouth_geometry') or {}
+            if g.get('face_outline'):g['face_outline']=[mapped(p) for p in g['face_outline']]
+            if g.get('landmarks'):g['landmarks']={key:mapped(p) for key,p in g['landmarks'].items()}
+            refined['mouth_geometry']=g
+            accepted.append(refined)
+    accepted=visible_speakers({'speakers':accepted},speakers)
+    candidates = [s for s in accepted if s['status'] in ('visible', 'occluded')]
+    if not candidates:return accepted
+    from mouth_geometry import validate
+    attachments=[str(image.resolve())]
+    with Image.open(image) as original:
+        for index,speaker in enumerate(candidates):
+            speaker['mouth_geometry']['source_sha256']=source_sha
+            validate(speaker,source_sha,require_review=False)
+            if speaker['mouth_geometry']['render_policy']=='animate':
+                from mouth_geometry import validate_image_evidence
+                validate_image_evidence(speaker,original)
+            if speaker.get('face_box'):
+                box=speaker['face_box'];rect=tuple(round(v*(original.width if i%2==0 else original.height)) for i,v in enumerate(box))
+                crop=original.crop(rect)
+                target=directory/f'original-face-{index}.png';crop.save(target);attachments.append(str(target.resolve()))
+                marked=crop.convert('RGB');draw=ImageDraw.Draw(marked)
+                mb=speaker.get('mouth_box')
+                if mb:draw.rectangle([mb[0]*original.width-rect[0],mb[1]*original.height-rect[1],mb[2]*original.width-rect[0],mb[3]*original.height-rect[1]],outline='lime',width=2)
+                for key,p in (speaker['mouth_geometry'].get('landmarks') or {}).items():
+                    x,y=p[0]*original.width-rect[0],p[1]*original.height-rect[1]
+                    draw.ellipse([x-2,y-2,x+2,y+2],fill='red');draw.text((x+3,y+3),key,fill='yellow')
+                marked_path=directory/f'annotated-face-{index}.png';marked.save(marked_path);attachments.append(str(marked_path.resolve()))
+    review=runner._stage(identity,'03_ae_mouth_geometry_review',{
+        '_local_image_paths':attachments,'source_sha256':source_sha,'speakers':candidates,
+    }, 'Independently inspect the ORIGINAL and each paired unmarked/ANNOTATED face crop. '
+       'Green rectangles are proposed mouth patches, red dots and yellow labels are proposed landmarks. '
+       'Check the DRAWN markers against the actual pixels, not just numeric plausibility. '
+       'Reject markers above/below actual lips, dots on a cheek/eye instead of nose, or missed lip corners. '
+       'Coordinates remain normalized to '
+       'the ORIGINAL, never crop-local. Verify each lip endpoint and center against actual lip lines, '
+       'nose/chin/face contour, head direction, tilt and occlusion. A cheek crease is not a mouth. '
+       'For profile/downward faces check visible lip silhouette specifically. Hidden/partial mouths '
+       'must preserve original. Return {speakers:[{speaker:exact_name,passed:true|false,reason:visual_evidence}]} '
+       'in supplied order. Reject guesses, wrong person, wrong side, and ambiguous contours.')
+    reviewed=review.get('speakers') or []
+    if len(reviewed)!=len(candidates):raise ValueError('Geometry review must cover every visible face')
+    for speaker,result in zip(candidates,reviewed):
+        if result.get('speaker')!=speaker['speaker']:raise ValueError('Geometry review changed speaker')
+        speaker['mouth_geometry']['review']={'passed':result.get('passed'),'reason':result.get('reason'),'proof':'annotated-face-crop-v4'}
+        validate(speaker,source_sha)
+    return accepted
 
 
 def visible_blink_eyes(response: dict, character: str) -> dict:
@@ -188,6 +295,12 @@ def normalize_patch(source: Path, target: Path, reference: Path, box: list[float
 
 
 def mouth_layers(generator, image: Path, speaker: dict, directory: Path) -> dict[str, str]:
+    from mouth_geometry import animatable, fingerprint
+    if not animatable(speaker,digest(image)):
+        raise ValueError('Occluded mouth must preserve original; do not generate mouth patches')
+    from mouth_geometry import validate_image_evidence
+    with Image.open(image) as original:validate_image_evidence(speaker,original)
+    geometry_key=fingerprint(speaker)
     box = speaker['mouth_box']
     # Reserve opaque skin around the entire original lip contour, including its corners.
     if not speaker.get('coverage_version'):
@@ -209,19 +322,21 @@ def mouth_layers(generator, image: Path, speaker: dict, directory: Path) -> dict
         reusable = False
         if target.exists() and receipt.exists():
             saved = json.loads(receipt.read_text(encoding='utf-8'))
-            reusable = saved == {'source': source_hash, 'mouth_box': box, 'pose': pose, 'coverage_version': 2, 'sha256': digest(target)}
+            reusable = saved == {'source': source_hash, 'mouth_box': box, 'pose': pose, 'coverage_version': 2, 'geometry':geometry_key,'sha256': digest(target)}
         if not reusable:
             # A failed native generation is deliberately not silently regenerated/charged.
-            raw = generator.generate(role='background', reference=reference, work_dir=directory / f'generate-{pose}', prompt=(
-                f"Edit the attached cropped mouth of {speaker['speaker']}. Return the SAME crop with "
-                f"the mouth {'fully closed' if pose == 'closed' else 'slightly parted' if pose == 'half' else 'naturally open while speaking'}. "
-                "Preserve exact lip center, scale, angle, skin color, lighting, linework and illustration style. "
-                "Erase the entire original mouth contour and replace it with exactly ONE mouth in the requested pose. Draw matching opaque skin over all old lip lines, including the corners. No transparency. "
-                "Do not add eyes, nose, teeth outside the mouth, a face, characters, text, or a new background. "
-                "Match the supplied crop's aspect ratio and keep the crop geometry aligned with it."
-            ))
+            with stage_timing(directory / 'stage-timings.jsonl', 'mouth_image_generation', pose=pose):
+                raw = generator.generate(role='background', reference=reference, work_dir=directory / f'generate-{pose}', prompt=(
+                    f"Edit the attached cropped mouth of {speaker['speaker']}. Return the SAME crop with "
+                    f"the mouth {'fully closed' if pose == 'closed' else 'slightly parted' if pose == 'half' else 'naturally open while speaking'}. "
+                    "Preserve exact lip center, scale, angle, skin color, lighting, linework and illustration style. "
+                    "Erase the entire original mouth contour and replace it with exactly ONE mouth in the requested pose. Draw matching opaque skin over all old lip lines, including the corners. No transparency. "
+                    "Do not add eyes, nose, teeth outside the mouth, a face, characters, text, or a new background. "
+                    "Match the supplied crop's aspect ratio and keep the crop geometry aligned with it. "
+                    + 'Verified face geometry: ' + json.dumps(speaker['mouth_geometry'],ensure_ascii=False)
+                ))
             normalize_patch(raw, target, image, box)
-            receipt.write_text(json.dumps({'source': source_hash, 'mouth_box': box, 'pose': pose, 'coverage_version': 2, 'sha256': digest(target)}), encoding='utf-8')
+            receipt.write_text(json.dumps({'source': source_hash, 'mouth_box': box, 'pose': pose, 'coverage_version': 2, 'geometry':geometry_key,'sha256': digest(target)}), encoding='utf-8')
         layers[pose] = str(target.resolve())
     with Image.open(layers['closed']) as closed, Image.open(layers['open']) as opened:
         if sum(ImageStat.Stat(ImageChops.difference(closed.convert('RGB'), opened.convert('RGB'))).mean) < 3:
@@ -464,7 +579,9 @@ def mouth_jsx(runtime: dict) -> str:
       if (DUR > footage.duration) {
         originalMouthPlate.timeRemapEnabled = true;
         var plateRemap = originalMouthPlate.property("ADBE Time Remapping");
-        while (plateRemap.numKeys > 0) plateRemap.removeKey(1);
+        // AE disables Time Remapping when its last key is removed.
+        // Keep the initial key while replacing the default end key.
+        while (plateRemap.numKeys > 1) plateRemap.removeKey(plateRemap.numKeys);
         var lastFrame = Math.max(0, footage.duration - footage.frameDuration);
         plateRemap.setValueAtTime(0, 0);
         plateRemap.setValueAtTime(lastFrame, lastFrame);
@@ -498,7 +615,8 @@ def mouth_jsx(runtime: dict) -> str:
         for (var mc = 0; mc < speaker.cues.length; mc++) {
           var cue = speaker.cues[mc];
           var key = mouthOpacity.addKey(cue.at_seconds);
-          mouthOpacity.setValueAtKey(key, cue.pose == pose ? 100 : 0);
+          var mouthVisible = cue.at_seconds >= (speaker.visible_from_seconds || 0) && (speaker.visible_until_seconds == null || cue.at_seconds <= speaker.visible_until_seconds);
+          mouthOpacity.setValueAtKey(key, mouthVisible && cue.pose == pose ? 100 : 0);
           mouthOpacity.setInterpolationTypeAtKey(key, KeyframeInterpolationType.HOLD, KeyframeInterpolationType.HOLD);
         }
       }

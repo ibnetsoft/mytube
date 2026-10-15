@@ -1,3 +1,4 @@
+import { assetContentIdentity, fileContentHash } from './stdContentIdentity'
 import { createHash } from 'crypto'
 import { isGcsConfiguredAsync, uploadGcsBuffer } from '@/lib/gcsStorage'
 
@@ -18,7 +19,7 @@ export function legacySegmentMatches(metadata: any, identity: Record<string, any
 }
 
 export async function persistSegmentAudio(db: any, args: {
-    projectId: string; cacheKey: string; identity: Record<string, any>;
+    projectId: string; project?: any; cacheKey: string; identity: Record<string, any>;
     audioBuffer: Buffer; fileName: string; segmentIndex: number; generatedBy: string;
 }) {
     const path = `std/${args.projectId}/tts/${args.cacheKey}.mp3`
@@ -32,6 +33,8 @@ export async function persistSegmentAudio(db: any, args: {
         file_size: args.audioBuffer.length, status: 'uploaded',
         metadata: {
             kind: 'vrew_segment_tts', cache_key: args.cacheKey,
+            content_identity: args.project ? assetContentIdentity(args.project, { type: 'segment_audio', jobId: args.cacheKey }) : null,
+            sha256: fileContentHash(args.audioBuffer),
             segment_index: args.segmentIndex, provider: identity.provider,
             voice_id: identity.voiceId, model_id: identity.modelId,
             tts_speed: identity.speed, stability: identity.stability, style: identity.style,

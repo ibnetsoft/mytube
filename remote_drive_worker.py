@@ -108,7 +108,18 @@ class RemoteDriveWorker:
             kwargs.setdefault("verify", True)
         kwargs.setdefault("timeout", 30)
         kwargs.setdefault("proxies", {"http": None, "https": None})
-        response = requests.request(method, url, headers=self.headers, **kwargs)
+        attempts = 4 if method.upper() in {"GET", "PATCH"} else 1
+        for attempt in range(attempts):
+            try:
+                response = requests.request(method, url, headers=self.headers, **kwargs)
+                if response.status_code in {429, 502, 503, 504} and attempt + 1 < attempts:
+                    time.sleep(2 ** attempt)
+                    continue
+                break
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                if attempt + 1 >= attempts:
+                    raise
+                time.sleep(2 ** attempt)
         if response.status_code >= 400:
             raise RuntimeError(f"Supabase request failed: {response.status_code} {response.text}")
         if response.text:
@@ -129,6 +140,15 @@ class RemoteDriveWorker:
         return len(rows)
 
     def fetch_next_job(self):
+        # A live encoder renews updated_at every 15s; only expired claims resume.
+        stale = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=3)).isoformat()
+        expired = self._request('GET', self.queue_url, params={'select':'id,updated_at,metadata',
+            'status':'eq.rendering','render_mode':'eq.gcs_api','updated_at':'lt.'+stale,
+            'metadata->>pipeline_version':'eq.2','limit':'10'}) or []
+        for row in expired:
+            self._request('PATCH', self.queue_url, params={'id':'eq.'+row['id'],'updated_at':'eq.'+row['updated_at']},
+                json={'status':'pending','updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                      'message':'중단된 실행의 저장 지점에서 재개합니다.'})
         if self.max_concurrent_jobs > 0 and self._active_rendering_count() >= self.max_concurrent_jobs:
             return None
         params = {
@@ -137,6 +157,7 @@ class RemoteDriveWorker:
             "status": "eq.pending",
             "order": "created_at.asc",
             "limit": "1",
+            "or": f"(metadata->>retry_not_before.is.null,metadata->>retry_not_before.lt.{datetime.datetime.now(datetime.timezone.utc).isoformat()})",
         }
         rows = self._request("GET", self.queue_url, params=params) or []
         return rows[0] if rows else None
@@ -179,9 +200,16 @@ class RemoteDriveWorker:
 
     def update_job(self, job_id, **fields):
         fields["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        url = f"{self.queue_url}?id=eq.{job_id}"
+        url = f"{self.queue_url}?id=eq.{job_id}&worker_id=eq.{self.worker_id}"
         rows = self._request("PATCH", url, json=fields) or []
-        return rows[0] if rows else None
+        row = rows[0] if rows else None
+        if row and (row.get('metadata') or {}).get('pipeline_run_id'):
+            state = fields.get('status')
+            if state in ('completed', 'failed'):
+                self._request('PATCH', self.supabase_url + '/rest/v1/std_pipeline_runs',
+                    params={'id': 'eq.' + row['metadata']['pipeline_run_id']},
+                    json={'status': 'completed' if state == 'completed' else 'input_error', 'updated_at': fields['updated_at']})
+        return row
 
     def _build_result_filename(self, job):
         project_name = (job.get("project_name") or "").strip()
@@ -316,14 +344,11 @@ class RemoteDriveWorker:
             "Content-Type": mime_type,
         }
         try:
-            with open(file_path, "rb") as f:
-                res = requests.post(
-                    url,
-                    headers=headers,
-                    data=f,
-                    timeout=300,
-                    proxies={"http": None, "https": None},
-                )
+            from worker.gcs_resumable_upload import upload_resumable
+            upload_resumable(file_path, bucket, clean_path, mime_type, creds.token)
+            class Uploaded:
+                status_code = 200
+            res = Uploaded()
             if res.status_code in (200, 201):
                 media_url = f"https://storage.googleapis.com/{quote(bucket, safe='')}/{quote(clean_path, safe='/')}"
                 signed_url = self._generate_gcs_signed_url(creds, bucket, clean_path)
@@ -421,42 +446,44 @@ class RemoteDriveWorker:
         with open(config_path, "r", encoding="utf-8") as f_conf:
             packaged_config = json.load(f_conf)
 
+        from worker.content_identity import validate_render_identity
+        validate_render_identity(packaged_config, metadata)
         manifest = packaged_config.get("asset_manifest") or {}
         files = manifest.get("files") or []
         if not files:
             raise RuntimeError("렌더 설정 파일에 다운로드할 에셋 목록이 없습니다.")
 
-        total = len(files)
-        for index, item in enumerate(files, start=1):
-            relative_path = item.get("path")
-            has_storage = (
-                item.get("gcs_signed_url")
-                or (item.get("gcs_bucket") and item.get("gcs_path"))
-            )
-            if (not has_storage) or not relative_path:
-                raise RuntimeError("렌더 에셋 목록에 저장소 위치 또는 경로가 없습니다.")
-            local_rel_path = self._safe_manifest_path(relative_path)
-            local_path = os.path.join(temp_dir, local_rel_path)
-            progress = 6 + int((index / max(total, 1)) * 12)
-            self.update_job(
-                job_id,
-                progress=progress,
-                message=f"렌더 에셋 다운로드 중... ({index}/{total})",
-            )
-            storage_source = {
-                "gcs_bucket": item.get("gcs_bucket"),
-                "gcs_path": item.get("gcs_path"),
-                "gcs_signed_url": item.get("gcs_signed_url"),
-            }
-            if not storage_source["gcs_bucket"] and not storage_source["gcs_signed_url"]:
-                storage_source = None
-            self._download_asset_with_fallback(
-                job_id,
-                None,
-                local_path,
-                storage_source=storage_source,
-                label=relative_path,
-            )
+        self.visual_cache_dir = None
+        visual_hash = packaged_config.get('visual_recipe_sha256')
+        if visual_hash and len(visual_hash) == 64 and all(c in '0123456789abcdef' for c in visual_hash):
+            from pathlib import Path
+            self.visual_cache_dir = Path.home() / '.air-studio' / 'visual-cache' / visual_hash
+            cached = self.visual_cache_dir / 'output.mp4'
+            receipt = self.visual_cache_dir / 'receipt.json'
+            if cached.exists() and receipt.exists():
+                with receipt.open() as stream: cached_receipt = json.load(stream)
+                import hashlib
+                with cached.open('rb') as stream: cached_hash = hashlib.file_digest(stream, 'sha256').hexdigest()
+                if cached_receipt.get('bytes') == cached.stat().st_size and cached_receipt.get('sha256') == cached_hash:
+                    shutil.copyfile(cached, os.path.join(temp_dir, 'cached-visual.mp4'))
+                    files = [f for f in files if f.get('asset_type') not in ('image','video','template_overlay')]
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from worker.render_asset_cache import download_cached
+        from pathlib import Path
+        creds_info = self._get_gcs_credentials()
+        cache_root = Path(os.getenv('AIR_MEDIA_CACHE', str(Path.home() / '.air-studio' / 'media-cache')))
+        def fetch(item):
+            relative_path = item.get('path')
+            local_path = os.path.join(temp_dir, self._safe_manifest_path(relative_path))
+            expected = (item.get('content_identity') or {}).get('source_sha256') or item.get('sha256')
+            download_cached(item, local_path, creds_info[0] if creds_info else None, cache_root, expected)
+            return relative_path
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = [pool.submit(fetch, item) for item in files]
+            for index, future in enumerate(as_completed(futures), 1):
+                future.result()
+                self.update_job(job_id, progress=6 + int(index / len(files) * 12),
+                    message=f'파일 확보 {index}/{len(files)} (기존 파일 캐시 재사용)')
 
     def process_job(self, job):
         self._refresh_gcs_settings()
@@ -465,7 +492,15 @@ class RemoteDriveWorker:
         if not asset_file_id:
             raise RuntimeError("큐 작업에 asset_file_id가 없습니다.")
 
-        temp_dir = tempfile.mkdtemp(prefix=f"gcs_api_render_{job_id}_")
+        temp_dir = os.path.join(tempfile.gettempdir(), 'air-render-checkpoints', str(job_id))
+        os.makedirs(temp_dir, exist_ok=True)
+        lease_stop = threading.Event()
+        def pulse():
+            while not lease_stop.wait(15):
+                try: self.update_job(job_id)
+                except Exception: pass
+        lease_thread = threading.Thread(target=pulse, daemon=True)
+        lease_thread.start()
         zip_path = os.path.join(temp_dir, "asset_package.zip")
         try:
             metadata = job.get("metadata") or {}
@@ -516,7 +551,19 @@ class RemoteDriveWorker:
             progress_thread = threading.Thread(target=sync_render_progress, name=f"remote-render-progress-{job_id}", daemon=True)
             progress_thread.start()
             try:
-                remote_render_executor_func(job_id, temp_dir, use_gpu=self.use_gpu)
+                output = os.path.join(temp_dir, 'output.mp4')
+                checkpoint = os.path.join(temp_dir, 'encoder-completed.json')
+                import hashlib
+                with open(os.path.join(temp_dir, 'config.json'), 'rb') as stream:
+                    config_hash = hashlib.file_digest(stream, 'sha256').hexdigest()
+                reusable = False
+                if os.path.isfile(checkpoint) and os.path.isfile(output):
+                    with open(checkpoint) as stream: receipt = json.load(stream)
+                    reusable = receipt.get('config_hash') == config_hash and receipt.get('bytes') == os.path.getsize(output)
+                if not reusable:
+                    remote_render_executor_func(job_id, temp_dir, use_gpu=self.use_gpu)
+                    with open(checkpoint, 'w') as stream:
+                        json.dump({'config_hash': config_hash, 'bytes': os.path.getsize(output)}, stream)
             finally:
                 progress_stop.set()
                 progress_thread.join(timeout=3)
@@ -525,6 +572,15 @@ class RemoteDriveWorker:
             if not os.path.exists(output_path):
                 raise RuntimeError("렌더링은 완료됐지만 output.mp4 파일을 찾을 수 없습니다.")
 
+            if getattr(self, 'visual_cache_dir', None):
+                self.visual_cache_dir.mkdir(parents=True, exist_ok=True)
+                cached = self.visual_cache_dir / 'output.mp4'
+                if not cached.exists():
+                    shutil.copyfile(output_path, str(cached) + '.tmp')
+                    os.replace(str(cached)+'.tmp', cached)
+                    import hashlib
+                    with cached.open('rb') as stream: cached_hash = hashlib.file_digest(stream, 'sha256').hexdigest()
+                    (self.visual_cache_dir / 'receipt.json').write_text(json.dumps({'bytes': cached.stat().st_size, 'sha256': cached_hash}))
             self.update_job(job_id, progress=92, message="렌더링된 영상을 GCS API 저장소에 업로드 중...")
             result_filename = self._build_result_filename(job)
 
@@ -631,16 +687,23 @@ class RemoteDriveWorker:
                     traceback.format_exc(),
                 ]
             ).strip()
+            attempts = int((job.get('metadata') or {}).get('render_attempts') or 0) + 1
+            recoverable = (job.get('metadata') or {}).get('pipeline_version') == 2 and attempts < 3
             self.update_job(
                 job_id,
-                status="failed",
+                status="pending" if recoverable else "failed",
+                metadata={**(job.get('metadata') or {}), 'render_attempts': attempts,
+                          'retry_not_before': (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=30*attempts)).isoformat()},
                 progress=-1,
                 message=f"렌더링 실패: {e}",
                 error_message=error_detail,
             )
             raise
         finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            lease_stop.set()
+            lease_thread.join(timeout=2)
+            # Completed local artifacts remain available for upload-only recovery.
+
 
     def run_forever(self):
         print(f"[GcsRenderWorker] Started as {self.worker_id}")

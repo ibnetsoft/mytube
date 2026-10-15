@@ -8,6 +8,12 @@ export function generatedSpeakerAssets(project: any, structure: any, assets: any
     return (structure?.scenes || []).flatMap((scene: any, index: number) => {
         const number = Number(scene.scene_number || scene.scene_order || index + 1)
         const receipt = scene.metadata?.cowork_image_asset?.speaker_geometry
+        const selection = receipt?.mouth_work_selection
+        const scope = selection && Array.isArray(selection.scene_numbers) && selection.policy ? {
+            id: `mouth-scope:${project.id}:${number}`, project_id: project.id,
+            asset_type: 'other', status: 'uploaded', scene_number: number,
+            metadata: { kind: 'mouth_work_selection', ...selection } } : null
+        if (scope && receipt.state === 'not_required') return [scope]
         if (number < 19 || receipt?.source !== 'local-codex-image-publish' || receipt.number !== number) return []
         const image = assets.find(a => a.project_id === project.id && a.asset_type === 'image'
             && Number(a.scene_number) === number && ['uploaded', 'assigned'].includes(a.status))
@@ -16,6 +22,7 @@ export function generatedSpeakerAssets(project: any, structure: any, assets: any
         if (ref.path !== receipt.source_path || ref.bucket !== receipt.source_bucket
             || !/^[a-f0-9]{64}$/.test(receipt.source_sha256 || '')) return []
         const generated: any[] = []
+        if (scope) generated.push(scope)
         // The consumer also validates current cast, speakers, bounds and confidence.
         const result = { number, image_id: image.id, source_path: ref.path,
             source_sha256: receipt.source_sha256, speakers: receipt.speakers }
@@ -29,6 +36,12 @@ export function generatedSpeakerAssets(project: any, structure: any, assets: any
                     : JSON.stringify({ main: receipt.cast?.main || {}, supporting: receipt.cast?.supporting || [], scene_cast: receipt.cast?.scene_cast || [] }), scenes: [{ number, image: { id: image.id } }] },
                 results: receipt.state === 'ready' ? [result] : [],
                 failures: receipt.state === 'needs_review' ? [{ number, error: receipt.error || 'Speaker coordinates need review' }] : [] } })
+        const preview = receipt.mouth_preview
+        if (preview?.state === 'ready' && preview.source_sha256 === receipt.source_sha256 && preview.gcs_path) {
+            generated.push({ id: `mouth-preview:${image.id}:${preview.sha256}`, project_id: project.id,
+                asset_type: 'other', status: 'uploaded', scene_number: number, mime_type: 'video/mp4',
+                metadata: { ...preview, kind: 'mouth_preview', source_image_id: image.id } })
+        }
         const blink = receipt.eye_blink
         if (blink?.state === 'ready' && blink.character && Array.isArray(blink.cues)
             && Array.isArray(blink.left_eye_box) && Array.isArray(blink.right_eye_box)) {

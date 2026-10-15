@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 def claimable_filter():
     now = datetime.now(timezone.utc).isoformat()
     stale = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
-    return f"(metadata->>state.in.(queued,direction_approved),and(metadata->>automatic.eq.true,metadata->>auto_pending.eq.true,metadata->>state.in.(direction_pending,review_pending,reviewed),or(metadata->>auto_not_before.is.null,metadata->>auto_not_before.lt.{now})),and(metadata->>state.eq.processing,updated_at.lt.{stale}))"
+    return f"(metadata->>state.in.(queued,direction_approved),and(metadata->>automatic.eq.true,metadata->>auto_pending.eq.true,metadata->>state.in.(direction_pending,review_pending,reviewed,artifact_ready),or(metadata->>auto_not_before.is.null,metadata->>auto_not_before.lt.{now})),and(metadata->>state.eq.processing,updated_at.lt.{stale}))"
 
 
 @contextmanager
@@ -45,7 +45,16 @@ class Heartbeat:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temporary = self.path.with_suffix('.tmp')
             temporary.write_text(json.dumps(self.state, ensure_ascii=False), encoding='utf-8')
-            temporary.replace(self.path)
+            # Windows readers briefly hold the destination open. A transient
+            # sharing violation must not kill the periodic heartbeat thread.
+            for attempt in range(5):
+                try:
+                    temporary.replace(self.path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        return
+                    time.sleep(.05 * (attempt + 1))
 
     def __enter__(self):
         self.update()

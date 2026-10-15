@@ -77,11 +77,32 @@ def process_one(should_stop=None):
                 image = directory / f"scene-{scene['number']}.png"
                 if not image.exists(): ae._download_gcs_file(ae.GcsRef(bucket,path),image)
                 names = {r['speaker'] for r in scene['rows']}
-                cached = next((r for r in reusable if r['image_id']==scene['image']['id'] and r['source_path']==path
+                from mouth_geometry import validate
+                def verified_result(r):
+                    try:
+                        for speaker in r['speakers']:
+                            if speaker.get('status') != 'offscreen':validate(speaker,digest(image))
+                        return True
+                    except (ValueError,KeyError,TypeError):return False
+                cached = next((r for r in reusable if verified_result(r) and r['image_id']==scene['image']['id'] and r['source_path']==path
                     and r['source_sha256']==digest(image) and names.issubset({v['speaker'] for v in r['speakers']})),None)
                 speakers = [r for r in cached['speakers'] if r['speaker'] in names] if cached else locate_speakers(runner,meta['fingerprint']+'-'+str(scene['number'])+'-'+lease,scene,image,scene['rows'],meta['input']['cast'])
                 if any(r['status']=='visible' and not r.get('face_box') for r in speakers): raise ValueError('Face bounds are missing')
                 results[scene['number']] = {'number':scene['number'],'image_id':scene['image']['id'],'source_path':path,'source_sha256':digest(image),'speakers':speakers}
+                try:
+                    from prepared_mouth_layers import prepare_scene
+                    from prepared_mouth_preview import prepare_preview
+                    geometry = {**results[scene['number']], 'state': 'ready'}
+                    art = prepare_scene(image, geometry, technical=True)
+                    preview = prepare_preview(job['project_id'], scene['number'], image, geometry, art)
+                    results[scene['number']]['mouth_preparation'] = art
+                    if preview.get('state') == 'ready':
+                        ae._request('POST', url, {**headers,'Prefer':'return=representation'}, json={
+                            'project_id': job['project_id'], 'asset_type': 'other', 'status': 'uploaded',
+                            'scene_number': scene['number'], 'file_name': 'mouth-preview.mp4', 'mime_type': 'video/mp4',
+                            'metadata': {**preview,'source_image_id':scene['image']['id']}})
+                except Exception as exc:
+                    results[scene['number']]['preparation_error'] = str(exc)[:500]
                 failures.pop(scene['number'], None)
                 save(results=list(results.values()),failures=list(failures.values()))
             except LeaseLost:

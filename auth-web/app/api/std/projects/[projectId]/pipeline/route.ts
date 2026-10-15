@@ -1,0 +1,19 @@
+import { NextResponse } from 'next/server'
+import { requireStdUser } from '@/lib/stdWeb'
+import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: Request, { params }: { params: { projectId: string } }) {
+    const auth = await requireStdUser(req)
+    if (!auth.ok) return auth.response
+    const project = await db.from('std_projects').select('id,progress_payload').eq('id', params.projectId).eq('employee_email', auth.requester.email).maybeSingle()
+    if (project.error) return NextResponse.json({ error: 'Project read failed' }, { status: 500 })
+    if (!project.data) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    const id = project.data.progress_payload?.pipeline_run_id
+    if (!id) return NextResponse.json({ run: null })
+    const run = await db.from('std_pipeline_runs').select('id,status,render_queue_id,warnings,updated_at').eq('id', id).eq('project_id', params.projectId).single()
+    const stages = await db.from('std_pipeline_stages').select('stage,scene_number,state,error,updated_at').eq('run_id', id)
+    if (run.error || stages.error) return NextResponse.json({ error: 'Pipeline read failed' }, { status: 500 })
+    const queue = run.data.render_queue_id ? await db.from('remote_render_queue').select('status,progress,message').eq('id', run.data.render_queue_id).single() : { data: null }
+    return NextResponse.json({ run: run.data, stages: stages.data, render: queue.data })
+}

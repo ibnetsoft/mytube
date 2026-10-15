@@ -740,8 +740,8 @@ def render_ffmpeg_slideshow(
             continue
         command.extend(["-i", cue_path])
         label = f"sfx{cue_index}"
-        delay_ms = max(0, int(float(cue.get("start") or cue.get("time") or 0) * 1000))
-        volume_db = max(-60.0, min(12.0, float(cue.get("volume_db") or -18.0)))
+        delay_ms = max(0, int(float(cue.get("start") if cue.get("start") is not None else cue.get("time") or 0) * 1000))
+        volume_db = max(-60.0, min(12.0, float(cue.get("volume_db") if cue.get("volume_db") is not None else -18.0)))
         trim = f"atrim=duration={max(.2, min(30., float(cue['duration']))):.3f}," if cue.get("duration") else ""
         filters.append(
             f"[{next_audio_index}:a]{trim}volume={volume_db:.2f}dB,adelay={delay_ms}|{delay_ms}[{label}]"

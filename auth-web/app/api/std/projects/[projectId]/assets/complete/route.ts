@@ -1,3 +1,4 @@
+import { projectContentIdentity, renderAssetIdentity } from '@/lib/stdContentIdentity'
 import { isComicProject } from '@/lib/stdComic'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { queueSubmittedVideoReplacement } from '@/lib/stdSubmittedVideoReplacement'
@@ -204,6 +205,19 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     try {
+        const claim = await supabaseAdmin.from('std_project_assets').select('metadata').eq('project_id', project.id)
+            .eq('metadata->>kind', 'asset_upload_claim').eq('metadata->>upload_path', storagePath).maybeSingle()
+        if (claim.error) throw claim.error
+        const uploadIdentity = claim.data?.metadata?.content_identity
+        if (!uploadIdentity) return NextResponse.json({ success: false, code: 'CONTENT_IDENTITY_MISSING', error: '업로드 시작 기록이 없습니다. 현재 프로젝트에서 업로드를 다시 시작해 주세요.' }, { status: 409 })
+        if (uploadIdentity.asset_type !== assetType || Number(uploadIdentity.scene_number) !== Number(sceneNumber))
+            return NextResponse.json({ success: false, code: 'CONTENT_IDENTITY_MISMATCH', error: '업로드 시작 때의 자산 유형·씬 번호와 다릅니다.' }, { status: 409 })
+        if (sceneNumber != null) {
+            const planned = (project.project_payload?.structure?.scenes || project.project_payload?.scenes || []).find((s: any, i: number) => Number(s.scene_number || s.scene_order || i + 1) === sceneNumber) || {}
+            renderAssetIdentity(project, { ...planned, scene_number: sceneNumber }, { asset_type: assetType, metadata: { content_identity: uploadIdentity } })
+        }
+        if (uploadIdentity.script_sha256 !== projectContentIdentity(project).script_sha256)
+            return NextResponse.json({ success: false, code: 'CONTENT_IDENTITY_MISMATCH', error: '업로드 중 대본 버전이 바뀌었습니다. 이전 파일을 현재 버전으로 자동 연결하지 않습니다.' }, { status: 409 })
         if (!storagePath.startsWith(`std-projects/${project.id}/`)) {
             return NextResponse.json({ success: false, error: 'Invalid GCS asset path' }, { status: 400 })
         }
@@ -271,6 +285,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 status: sceneNumber != null ? 'assigned' : 'uploaded',
                 uploaded_by: uploadedById(auth.requester.user.id),
                 metadata: {
+                    content_identity: uploadIdentity,
                     storage_provider: 'gcs',
                     storage_bucket: storageBucket,
                     storage_path: storagePath,

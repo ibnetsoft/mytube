@@ -1,3 +1,4 @@
+import { selectNarrationAsset, assertNarrationIdentity } from './stdContentIdentity'
 import { createHash } from 'crypto'
 
 export function lipSyncEnabled(project: any) {
@@ -6,7 +7,8 @@ export function lipSyncEnabled(project: any) {
 
 export function lipSyncPlan(project: any, scenes: any[], assets: any[]) {
     const subtitles = (project.project_payload?.subtitles || []).map((s: any) => ({ ...s, start: Number(s.start ?? s.start_num ?? s.start_time), end: Number(s.end ?? s.end_num ?? s.end_time), scene_number: Number(s.scene_number ?? s.scene ?? s.sceneNumber) }))
-    const audio = assets.find(a => a.asset_type === 'audio' && ['uploaded', 'assigned'].includes(a.status))
+    const audio = selectNarrationAsset(project, assets)
+    assertNarrationIdentity(project, audio, subtitles)
     const timeline = audio?.metadata?.subtitle_timeline
     if (!audio || !Array.isArray(timeline) || timeline.length !== subtitles.length) {
         throw new Error('자막의 저장+TTS를 먼저 완료해 대사별 실제 음성 시간을 확정해 주세요.')

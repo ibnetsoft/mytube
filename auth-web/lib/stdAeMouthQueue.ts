@@ -1,9 +1,11 @@
+import { assetContentIdentity, persistContentRevision } from './stdContentIdentity'
 import { supabaseAdmin as db } from './supabaseAdmin'
 import { aeMouthInput, currentAeMouthJob, reviewedAeMouthAssets } from './stdAeMouth'
 
 export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[], retry = false) {
     assets = [...assets].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     const { input, fingerprint } = aeMouthInput(project, scenes, assets)
+    await persistContentRevision(db, project)
     const existing = currentAeMouthJob(project, scenes, assets)
     // Submission enables video analysis in the existing default AIR worker. No frame decoding
     // or model call runs inside this HTTP request.
@@ -78,7 +80,7 @@ export async function ensureAeMouthJob(project: any, scenes: any[], assets: any[
         throw claim.error
     }
     const inserted = await db.from('std_project_assets').insert({ project_id: project.id, asset_type: 'other', status: 'uploaded',
-        file_name: `ae_mouth_${fingerprint}.json`, mime_type: 'application/json', metadata: { kind: 'ae_mouth_job', state: 'queued', auto_video_coordinates: true, automatic: true, auto_pending: true, fingerprint, input, results: [] },
+        file_name: `ae_mouth_${fingerprint}.json`, mime_type: 'application/json', metadata: { content_identity: assetContentIdentity(project, { type: 'ae_mouth_job', audioId: input.audio.id, parents: [input.audio.id], jobId: fingerprint, timeline: project.project_payload?.subtitles || [] }), kind: 'ae_mouth_job', state: 'queued', auto_video_coordinates: true, automatic: true, auto_pending: true, fingerprint, input, results: [] },
     }).select('*').single()
     if (inserted.error) { await db.storage.from('content-assets').remove([path]); throw inserted.error }
     return { ready: false, job: inserted.data }

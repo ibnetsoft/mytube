@@ -1,3 +1,4 @@
+import { assetContentIdentity } from '@/lib/stdContentIdentity'
 import { isComicProject } from '@/lib/stdComic'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { queueSubmittedVideoReplacement } from '@/lib/stdSubmittedVideoReplacement'
@@ -257,6 +258,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 status: sceneNumber != null ? 'assigned' : 'uploaded',
                 uploaded_by: uploadedById(auth.requester.user.id),
                 metadata: {
+                    content_identity: assetContentIdentity(project, { type: assetType, scene: sceneNumber == null ? undefined : { ...(project.project_payload?.structure?.scenes || project.project_payload?.scenes || []).find((s: any, i: number) => Number(s.scene_number || s.scene_order || i + 1) === sceneNumber), id: scene?.id, scene_number: sceneNumber } }),
                     storage_provider: 'gcs',
                     storage_bucket: stored.bucket,
                     storage_path: stored.path,

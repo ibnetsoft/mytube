@@ -1068,6 +1068,14 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             from services.bgm_timeline import retime_bgm_settings
             render_settings = retime_bgm_settings(render_settings, subs, audio_duration)
         update_progress(22, '저장된 자막 타이밍 적용 중...')
+        cached_visual = os.path.join(temp_dir, 'cached-visual.mp4')
+        if metadata.get('pipeline_version') == 2 and os.path.isfile(cached_visual):
+            from worker.render_audio_reuse import remux_audio_only
+            update_progress(50, '기존 영상 화면을 유지하고 저장된 음향만 교체 중...')
+            remux_audio_only(cached_visual,audio_path,temp_dir,audio_duration,render_settings,sfx_cues)
+            update_progress(100, '음향 교체 완료')
+            return
+
 
         images = []
         for fname in images_filenames:
