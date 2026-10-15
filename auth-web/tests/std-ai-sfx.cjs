@@ -1,6 +1,7 @@
+const loadAudioTs = require('./load-ts.cjs')
 const fs=require('fs'),ts=require('typescript'),assert=require('node:assert/strict')
 const cueApi={}
-new Function('exports',ts.transpile(fs.readFileSync('auth-web/lib/stdSfxCues.ts','utf8'),{module:1,target:7}))(cueApi)
+new Function('exports', 'require',ts.transpile(fs.readFileSync('auth-web/lib/stdSfxCues.ts','utf8'),{module:1,target:7}))(cueApi, name => loadAudioTs(require('node:path').resolve('auth-web/lib',name+'.ts')))
 const exportsObject={}
 new Function('require','exports',ts.transpile(fs.readFileSync('auth-web/lib/stdAiSfx.ts','utf8'),{module:1,target:7}))(
     id=>id==='crypto'?require(id):id==='./stdSfxCues'?cueApi:{},exportsObject)

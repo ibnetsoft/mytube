@@ -1,3 +1,4 @@
+const loadAudioTs = require('./load-ts.cjs')
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
@@ -7,7 +8,7 @@ function compile(start, end, name, context) {
     return new Function(...Object.keys(context), ts.transpile(src + `\nreturn ${name}`, { target: ts.ScriptTarget.ES2020 }))(...Object.values(context));
 }
 const mix = {};
-new Function('exports', ts.transpile(fs.readFileSync(require.resolve('../lib/stdAudioMix.ts'), 'utf8'), { module: ts.ModuleKind.CommonJS }))(mix);
+new Function('exports', 'require', ts.transpile(fs.readFileSync(require.resolve('../lib/stdAudioMix.ts'), 'utf8'), { module: ts.ModuleKind.CommonJS }))(mix, name => loadAudioTs(require('node:path').resolve('auth-web/lib',name+'.ts')));
 const bgmRangeRef = { current: { start: 0, end: 100, valid: true, fadeIn: 0, fadeOut: 0 } };
 const volumeUpdater = loop => compile('    const updatePreviewBgmVolume =', '    const playPreviewBgm =', 'updatePreviewBgmVolume', {
     ...mix, bgmRangeRef, bgmLoop: loop, bgmVolume: .08,

@@ -1,7 +1,8 @@
+const loadAudioTs = require('./load-ts.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs'), ts = require('typescript')
 const api = {}
-new Function('exports', ts.transpile(fs.readFileSync(require.resolve('../lib/stdAudioMix.ts'), 'utf8'), {module:ts.ModuleKind.CommonJS}))(api)
+new Function('exports', 'require', ts.transpile(fs.readFileSync(require.resolve('../lib/stdAudioMix.ts'), 'utf8'), {module:ts.ModuleKind.CommonJS}))(api, name => loadAudioTs(require('node:path').resolve('auth-web/lib',name+'.ts')))
 const rows = [{scene_number:2,start_num:6.9,end_num:10},{scene_number:2,start_num:10,end_num:19.2},{scene_number:3,start_num:19.2,end_num:25.6}]
 const range = api.backgroundWindow({bgm_start_scene:2,bgm_end_scene:3,bgm_fade_in:2,bgm_fade_out:2}, rows, 100)
 assert.equal(range.start,6.9); assert.equal(range.end,25.6)

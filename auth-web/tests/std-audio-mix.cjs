@@ -1,9 +1,10 @@
+const loadAudioTs = require('./load-ts.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const ts = require('typescript')
 const compile = s => ts.transpile(s, {target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS})
 const api = {}
-new Function('exports',compile(fs.readFileSync(require.resolve('../lib/stdAudioMix.ts'),'utf8')))(api)
+new Function('exports', 'require',compile(fs.readFileSync(require.resolve('../lib/stdAudioMix.ts'),'utf8')))(api, name => loadAudioTs(require('node:path').resolve('auth-web/lib',name+'.ts')))
 assert.equal(api.backgroundVolume(undefined),0.08)
 assert.equal(api.backgroundVolume(0),0)
 assert.equal(api.backgroundVolume(2),1)
@@ -15,7 +16,7 @@ for(const role of ['bgm','sfx']) {
     assert.equal(api.audioAssetRole(saved),role)
 }
 const queue=fs.readFileSync(require.resolve('../lib/stdRenderQueue.ts'),'utf8')
-const section=queue.slice(queue.indexOf('    const audioEffectAssets ='),queue.indexOf('    const savedSfxCues ='))
+const section=queue.slice(queue.indexOf('    const audioEffectAssets ='),queue.indexOf('    if (!isNonverbalProject', queue.indexOf('    const audioEffectAssets =')))
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor
 const build=new AsyncFunction('activeAssets','projectRenderSettings','project','storageSourceForAsset','audioManifestPath','storageManifestFields',compile('const manifestFiles=[];'+section+'\nreturn {bgmPath,manifestFiles}'))
 const storageAsset={id:'bgm',asset_type:'bgm',metadata:{storage_path:'project/music.mp3'}}

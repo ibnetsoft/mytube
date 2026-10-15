@@ -1,9 +1,10 @@
+const loadAudioTs = require('./load-ts.cjs')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const ts = require('typescript')
 const compile = source => ts.transpile(source, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 })
 const api = {}
-new Function('exports', compile(fs.readFileSync('auth-web/lib/stdSfxCues.ts', 'utf8')))(api)
+new Function('exports', 'require', compile(fs.readFileSync('auth-web/lib/stdSfxCues.ts', 'utf8')))(api, name => loadAudioTs(require('node:path').resolve('auth-web/lib',name+'.ts')))
 const subtitle = { id: 'a', text: '문을 열고 들어왔다', start_num: 10, end_num: 16, scene_number: 3 }
 const cue = { id: 'cue1', asset_id: 'sound', subtitle_id: 'a', subtitle_index: 0, word_boundary: 1, enabled: true, volume_db: -18 }
 assert.equal(api.wordBoundaryTime(subtitle, 0), 10)
@@ -20,14 +21,17 @@ const duplicate = { ...cue, id: 'cue2', word_boundary: 2 }
 assert.deepEqual(api.resolveSfxCues([cue, duplicate], [subtitle]).map(c => c.start), [12, 14])
 const queue = fs.readFileSync('auth-web/lib/stdRenderQueue.ts', 'utf8')
 const section = queue.slice(queue.indexOf('    const savedSfxCues ='), queue.indexOf('    const renderSettings =', queue.indexOf('    const savedSfxCues =')))
-const build = new Function('projectRenderSettings', 'project', 'subtitles', 'assetById', 'storageSourceForAsset', 'audioManifestPath', 'clampNumber', 'resolveSfxCues', compile('const manifestFiles=[];' + section + '\nreturn {manifestFiles,sfxCues}'))
+const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor
+const build = new AsyncFunction('projectRenderSettings', 'project', 'subtitles', 'assetById', 'storageSourceForAsset', 'audioManifestPath', 'clampNumber', 'resolveSfxCues', 'sfxNeedsReview', 'storageManifestFields', compile('const manifestFiles=[];' + section + '\nreturn {manifestFiles,sfxCues}'))
 const asset = { id: 'sound', file_name: 'door.mp3', metadata: { storage_bucket: 'content-assets', storage_path: 'std-projects/project/door.mp3' } }
-const result = build({ sfx_cues: [cue, duplicate] }, { project_payload: { subtitles: [subtitle] } }, [subtitle], new Map([['sound', asset]]), a => a ? { bucket: a.metadata.storage_bucket, path: a.metadata.storage_path } : null, (a, p, i) => `audio/sfx-${i}.mp3`, (v, d) => Number.isFinite(Number(v)) ? Number(v) : d, api.resolveSfxCues)
+require('node:test')('render package resolves final subtitle positions', async () => {
+const result = await build({ sfx_cues: [cue, duplicate] }, { project_payload: { subtitles: [subtitle] } }, [subtitle], new Map([['sound', asset]]), a => a ? { bucket: a.metadata.storage_bucket, path: a.metadata.storage_path } : null, (a, p, i) => `audio/sfx-${i}.mp3`, (v, d) => Number.isFinite(Number(v)) ? Number(v) : d, api.resolveSfxCues, api.sfxNeedsReview, async a => ({supabase_bucket:a.bucket,supabase_path:a.path}))
 assert.equal(result.manifestFiles.length, 2)
 assert(result.manifestFiles.every(f => f.supabase_bucket === 'content-assets' && f.supabase_path === asset.metadata.storage_path))
 assert.deepEqual(result.sfxCues.map(c => c.start), [12, 14])
 assert(result.sfxCues.every(c => c.volume_db === -18))
 console.log('PASS: word boundary timing, multiple inserts, reordered/deleted anchors, legacy cues, Storage-only render manifest')
+})
 
 const planned = { source:'codex-sfx-v1', scene_number:3, anchor_scope:'scene', anchor_source_text:'문을 열고 들어왔다', anchor_offset:4, word_boundary:2 }
 assert.equal(api.sfxSubtitleIndex(planned,[{text:'문을 열고',scene_number:3,start_num:0,end_num:2},{text:'들어왔다',scene_number:3,start_num:2,end_num:4}]),1)

@@ -1,3 +1,4 @@
+import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { NextResponse } from 'next/server'
 import { assembleStoredNarration } from '@/lib/stdStoredNarration'
@@ -1058,7 +1059,8 @@ async function runTts(body: any, auth: any, project: any) {
             .eq('asset_type', 'audio').neq('id', asset.id).in('status', ['uploaded', 'assigned'])
         if (replaceError) throw replaceError
         const audioUrl = `/api/std/projects/${encodeURIComponent(project.id)}/assets/file?assetId=${encodeURIComponent(asset.id)}`
-        const syncedSubtitles = applyRecordedSubtitleTiming(project.project_payload?.subtitles || [], subtitleTimeline)
+        project.project_payload = preserveAudioAnchors(project.project_payload, project.project_payload)
+        const syncedSubtitles = applyRecordedSubtitleTiming(project.project_payload?.subtitles || [], subtitleTimeline || [])
         const { error: stateError } = await supabaseAdmin.from('std_projects').update({
             progress_payload: {
                 ...completedScriptTtsProgress(project.progress_payload || {}, text, buildTtsText(project, scenes)),

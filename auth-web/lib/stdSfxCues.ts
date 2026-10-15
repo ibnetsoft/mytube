@@ -1,10 +1,12 @@
+import { sceneAudioAnchor, resolveSceneAudioAnchor } from './stdSceneAudioAnchor'
 export function subtitleWords(text: string): string[] {
     return String(text || '').match(/\S+/g) || []
 }
 
-export function sfxSubtitleIndex(cue: any, subtitles: any[]): number {
+function directSubtitleIndex(cue: any, subtitles: any[]): number {
     if (cue.anchor_scope === 'scene') return sceneAnchor(cue, subtitles)?.index ?? -1
     if (cue.subtitle_id != null) return subtitles.findIndex(s => String(s.id) === String(cue.subtitle_id)
+        && (cue.scene_number == null || String(s.scene_number) === String(cue.scene_number))
         && (!cue.subtitle_text || s.text === cue.subtitle_text))
     const index = Number(cue.subtitle_index)
     if (!cue.subtitle_text) return Number.isInteger(index) ? index : -1
@@ -12,6 +14,11 @@ export function sfxSubtitleIndex(cue: any, subtitles: any[]): number {
     if (matches(subtitles[index])) return index
     const candidates = subtitles.flatMap((s, i) => matches(s) ? [i] : [])
     return candidates.length === 1 ? candidates[0] : -1
+}
+
+export function sfxSubtitleIndex(cue: any, subtitles: any[]): number {
+    const index = directSubtitleIndex(cue, subtitles)
+    return index >= 0 ? index : resolveSceneAudioAnchor(cue.scene_anchor, subtitles)?.index ?? -1
 }
 
 function sceneAnchor(cue: any, subtitles: any[]) {
@@ -56,9 +63,12 @@ export function resolveSfxCues(cues: any[], subtitles: any[]): any[] {
         const words = sub.word_timestamps || sub.words
         const aligned = Array.isArray(words) ? Number(words[boundary]?.start) : NaN
         const automatic = cue.source === 'codex-sfx-v1' && !cue.user_override
-        const start = Number.isFinite(aligned) ? aligned : automatic
+        const position = cue.anchor_scope === 'scene'
+            ? resolveSceneAudioAnchor({ scene_number: cue.scene_number, source_text: cue.anchor_source_text, offset: cue.anchor_offset }, subtitles)
+            : directSubtitleIndex(cue, subtitles) < 0 ? resolveSceneAudioAnchor(cue.scene_anchor, subtitles) : null
+        const start = position ? position.start : Number.isFinite(aligned) ? aligned : automatic
             ? Number(sub.start_num ?? sub.start ?? sub.start_time) || 0 : wordBoundaryTime(sub, boundary)
-        return [{ ...cue, subtitle_index: index, word_boundary: boundary, start,
+        return [{ ...cue, scene_anchor: cue.scene_anchor || sceneAudioAnchor(subtitles, index, boundary), subtitle_index: index, word_boundary: boundary, start,
             timing_mode: Number.isFinite(aligned) ? 'word' : automatic ? 'subtitle_start' : 'estimated_word' }]
     })
     const manual = resolved.filter(c => c.source !== 'codex-sfx-v1' || c.user_override)

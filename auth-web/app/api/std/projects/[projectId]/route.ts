@@ -1,3 +1,4 @@
+import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
 import { projectReadCacheKey, readProjectResponse, cacheProjectResponse } from '@/lib/stdProjectReadCache'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { subtitleSpeechChanged } from '@/lib/stdSubtitleSpeakerProgress'
@@ -515,7 +516,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         Object.entries(incomingProjectPayload).filter(([key]) => allowedProjectPayloadKeys.has(key))
     )
     if (projectPayloadPatch.render_settings && ['audio', 'subtitle'].includes(body.render_settings_scope)) {
-        const audioKeys = ['bgm_asset_id', 'bgm_file_name', 'bgm_volume', 'bgm_loop', 'bgm_start_scene', 'bgm_start_subtitle', 'bgm_end_scene', 'bgm_fade_in', 'bgm_fade_out', 'sfx_cues', 'sfx_plan']
+        const audioKeys = ['bgm_asset_id', 'bgm_file_name', 'bgm_volume', 'bgm_loop', 'bgm_start_scene', 'bgm_start_subtitle', 'bgm_start_anchor', 'bgm_end_scene', 'bgm_fade_in', 'bgm_fade_out', 'sfx_cues', 'sfx_plan']
         const incoming = projectPayloadPatch.render_settings
         const current = project.project_payload?.render_settings || {}
         if (body.render_settings_scope === 'subtitle') {
@@ -673,6 +674,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         }
     }
     if (updatePayload.project_payload) {
+        updatePayload.project_payload = preserveAudioAnchors(project.project_payload, updatePayload.project_payload)
         // Keep the complete editor state separate from recording-only subtitles.
         // Audio recovery may replace that array; subsequent reads can restore the
         // saved splits and speakers rather than synthesizing source-only rows.

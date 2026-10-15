@@ -100,6 +100,8 @@ def _sanitize_subtitles_for_render(subtitles):
         text_value = re.sub(r'\s+', ' ', text_value).strip()
         cleaned.append({
             'text': text_value,
+            **({'id': sub['id']} if sub.get('id') is not None else {}),
+            'anchor_text': sub.get('anchor_text', sub.get('text', '')),
             'dialogue_kind': 'dialogue' if sub.get('dialogue_kind') == 'dialogue' else 'narration',
             'dialogue_speaker': sub.get('dialogue_speaker'),
             'start': sub.get('start', 0),
@@ -1061,7 +1063,10 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         if str(metadata.get('subtitle_sync_mode') or '').lower() == 'audio_duration_weighted' and not _subtitles_have_explicit_timings(subs):
             subs = _sync_subtitle_timings_to_audio_duration(subs, audio_duration)
         from services.sfx_timing import retime_sfx_cues
-        sfx_cues = retime_sfx_cues(sfx_cues, subs)
+        sfx_cues = retime_sfx_cues(sfx_cues, subs, strict=True)
+        if render_settings.get('bgm_path'):
+            from services.bgm_timeline import retime_bgm_settings
+            render_settings = retime_bgm_settings(render_settings, subs, audio_duration)
         update_progress(22, '저장된 자막 타이밍 적용 중...')
 
         images = []

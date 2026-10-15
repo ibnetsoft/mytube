@@ -4,7 +4,8 @@ import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './std
 import { reviewedAeMouthAssets } from './stdAeMouth'
 import { comicSettingsForProject, isComicProject, selectComicMedia, comicSceneTimings } from './stdComic'
 import { subtitleGain } from './stdSpeechGain'
-import { resolveSfxCues } from '@/lib/stdSfxCues'
+import { preserveAudioAnchors } from './stdAudioAnchors'
+import { resolveSfxCues, sfxNeedsReview } from '@/lib/stdSfxCues'
 import { audioAssetRole, backgroundWindow } from './stdAudioMix'
 import { sceneMotion, sceneMotionSpeed } from './stdSceneMotion'
 import { reviewedVideoTail } from './stdVideoTail'
@@ -306,6 +307,8 @@ function buildRenderSubtitles(project: any, scenes: any[]) {
             start: Number.isFinite(start) ? start : index * 5,
             end: Number.isFinite(end) && end > start ? end : start + 5,
             text: String(subtitle?.text || '').trim(),
+            ...(subtitle?.id != null ? { id: String(subtitle.id) } : {}),
+            anchor_text: String(subtitle?.text || ''),
             volume: subtitleGain(subtitle) * 100,
             dialogue_kind: subtitle.dialogue_kind === 'dialogue' ? 'dialogue' : 'narration',
             dialogue_speaker: subtitle.dialogue_speaker || null,
@@ -785,7 +788,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         })
     }
 
-    const projectRenderSettings = {
+    let projectRenderSettings = {
         ...(project.project_payload?.settings || {}),
         ...(project.project_payload?.render_settings || {}),
     }
@@ -813,11 +816,13 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
     if (!isNonverbalProject(project) && (project.project_payload?.subtitles || []).some((subtitle: any) => subtitle.restored_audio_pending)) {
         throw new Error('복구된 씬의 음성이 아직 없습니다. 음성 복구와 타이밍 확인 후 렌더링해 주세요.')
     }
+    projectRenderSettings = preserveAudioAnchors(project.project_payload, { ...project.project_payload, render_settings: projectRenderSettings }).render_settings
     const savedSfxCues = Array.isArray(projectRenderSettings.sfx_cues)
         ? projectRenderSettings.sfx_cues
         : (Array.isArray(project.project_payload?.sfx_cues) ? project.project_payload.sfx_cues : [])
     const sfxCues: any[] = []
-    const resolvedCues = resolveSfxCues(savedSfxCues, project.project_payload?.subtitles || subtitles)
+    if (savedSfxCues.some((cue: any) => sfxNeedsReview(cue, subtitles))) throw new Error('효과음의 기준 문장이 변경되거나 삭제됐습니다. 위치를 다시 확인해 주세요.')
+    const resolvedCues = resolveSfxCues(savedSfxCues, subtitles)
     for (let index = 0; index < resolvedCues.length; index++) {
         const cue = resolvedCues[index]
         if (!cue || cue.enabled === false) continue

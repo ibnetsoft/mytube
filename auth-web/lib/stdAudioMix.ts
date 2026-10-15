@@ -1,3 +1,4 @@
+import { resolveSceneAudioAnchor } from './stdSceneAudioAnchor'
 export function audioAssetRole(asset: any): string {
     const type = String(asset?.asset_type || '')
     const role = String(asset?.metadata?.audio_role || '')
@@ -25,7 +26,9 @@ export function backgroundWindow(settings: any, subtitles: any[], duration: numb
     const sceneSubtitles = subtitles.filter(row => Number(row.scene_number) === from)
     const subtitleNumber = Number(settings.bgm_start_subtitle ?? 1)
     const selectedSubtitle = Number.isInteger(subtitleNumber) && subtitleNumber > 0 ? sceneSubtitles[subtitleNumber - 1] : undefined
-    const subtitleStart = selectedSubtitle ? time(selectedSubtitle, false) : NaN
+    const subtitleStart = settings.bgm_start_anchor
+        ? resolveSceneAudioAnchor(settings.bgm_start_anchor, subtitles)?.start ?? NaN
+        : selectedSubtitle ? time(selectedSubtitle, false) : NaN
     const ends = subtitles.filter(row => Number(row.scene_number) === to).map(row => time(row, true)).filter(Number.isFinite)
     const valid = (!from || Number.isFinite(subtitleStart)) && (!to || ends.length > 0) && (!from || !to || from <= to)
     const start = from ? (Number.isFinite(subtitleStart) ? subtitleStart : 0) : 0
