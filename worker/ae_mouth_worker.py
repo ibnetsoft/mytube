@@ -31,7 +31,7 @@ from std_project_assets import load_project_assets, load_project_input_assets
 from content_identity import mouth_output_identity
 from ae_mouth_runtime import Heartbeat, instance_lock, claimable_filter
 from ae_mouth_automation import automatic_phase, run_phase
-from submission_pipeline import assembly_only, validate_layers, recorded_rows, stage_record, ready_scene_artifacts, render_prepared_scene
+from submission_pipeline import assembly_only, validate_layers, recorded_rows, stage_record, ready_scene_artifacts, render_prepared_scene, prepared_scene_direction
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -41,6 +41,31 @@ class LeaseLost(RuntimeError):
 
 class Obsolete(RuntimeError):
     pass
+
+
+PREVIEW_PROJECT_SELECT = ','.join([
+    'id', 'status', 'tts_speed:project_payload->tts_speed',
+    'progress_tts_speed:progress_payload->tts_speed', 'subtitles:project_payload->subtitles',
+    'main_character:project_payload->main_character', 'supporting_characters:project_payload->supporting_characters',
+    'cast_main:project_payload->structure->main_character',
+    'cast_supporting:project_payload->structure->supporting_characters',
+    'cast_scenes:project_payload->structure->scene_cast',
+    'annotations:project_payload->structure->dialogue_annotations',
+    'scene_sources:project_payload->structure->scenes',
+])
+
+
+def preview_project_context(row):
+    """Keep the exact input contract without transferring duplicate source/history payloads."""
+    if 'project_payload' in row:
+        return row
+    return {'id': row.get('id'), 'status': row.get('status'),
+        'progress_payload': {'tts_speed': row.get('progress_tts_speed')},
+        'project_payload': {'tts_speed': row.get('tts_speed'), 'subtitles': row.get('subtitles') or [],
+            'main_character': row.get('main_character'), 'supporting_characters': row.get('supporting_characters'),
+            'structure': {'main_character': row.get('cast_main'), 'supporting_characters': row.get('cast_supporting'),
+                'scene_cast': row.get('cast_scenes'), 'dialogue_annotations': row.get('annotations'),
+                'scenes': row.get('scene_sources') or []}}}
 
 
 def generated_blink_plan(source: dict, image: dict | None) -> dict | None:
@@ -218,9 +243,15 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
     def fresh():
         if lease_lost.is_set():
             raise LeaseLost('AE mouth job lease was lost')
-        projects = ae._request('GET', project_url, headers, params={'select': '*', 'id': 'eq.' + job['project_id']}).json()
+        compact_preview = technical and meta.get('preview_sync')
+        projects = ae._request('GET', project_url, headers, params={
+            'select': PREVIEW_PROJECT_SELECT if compact_preview else '*', 'id': 'eq.' + job['project_id']}).json()
+        if compact_preview:
+            projects = [preview_project_context(p) for p in projects]
         assets = [] if technical and not meta.get('preview_sync') else load_project_input_assets(ae._request, base, headers, job['project_id'])
-        scenes = [] if technical and not meta.get('preview_sync') else ae._request('GET', scenes_url, headers, params={'select': '*', 'project_id': 'eq.' + job['project_id'], 'order': 'scene_number.asc'}).json()
+        scenes = [] if technical and not meta.get('preview_sync') else ae._request('GET', scenes_url, headers, params={
+            'select': 'scene_number,scene_text,image_prompt' if compact_preview else '*',
+            'project_id': 'eq.' + job['project_id'], 'order': 'scene_number.asc'}).json()
         if technical:
             if not projects or projects[0].get('status') == 'canceled':
                 raise Obsolete('Submission canceled')
@@ -424,7 +455,9 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
                             review_eye_layers(runner, f'{identity}-{number}', image, blink, scene_dir / 'eye-blink')
                             runtime_blinks.append(blink)
                         fresh()
-                        source_scene = {'scene_number': number, 'scene_text': scene['text'], **copy.deepcopy(scene['direction']),
+                        applied_direction, exclusions = prepared_scene_direction(scene['direction'], scene.get('layered_source'), meta.get('preview_sync'))
+                        result['effect_exclusions'] = exclusions
+                        source_scene = {'scene_number': number, 'scene_text': scene['text'], **applied_direction,
                                         'ae_mouth_runtime': {'enabled': True, 'speakers': speakers, 'audio_sha256': digest(audio_path),
                                             'blinks': runtime_blinks,
                                             'audio_light_cues': audio_reactive_light_cues(samples, dialogue, start=scene['start'], duration=duration) if dialogue else [],
@@ -478,7 +511,7 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
                                 'file_name': f'scene_{number}_ae_mouth.mp4', 'mime_type': 'video/mp4', 'file_size': preview.stat().st_size,
                                 'metadata': {'storage_provider': 'gcs', 'gcs_bucket': bucket, 'gcs_path': path, 'storage_bucket': bucket,
                                     'storage_path': path, 'content_identity': mouth_output_identity(job, scene), 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'voice_synced': True, 'timing_mode': 'final_voice', 'ae_reviewed': False, 'artifact_ready': technical, 'pipeline_version': meta.get('pipeline_version'),
-                                    'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction,
+                                    'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction, 'effect_exclusions': exclusions,
                                     'source_image_id': (scene.get('image') or {}).get('id'), 'source_audio_id': snapshot['audio']['id'],
                                     'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking,
                                     'video_coordinate_asset_id':coordinate_asset_id,

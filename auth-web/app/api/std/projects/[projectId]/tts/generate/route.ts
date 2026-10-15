@@ -1086,7 +1086,9 @@ async function runTts(body: any, auth: any, project: any) {
         try {
             const saved = await supabaseAdmin.from('std_projects').select('*').eq('id', project.id).single()
             const loaded = await loadStdProjectAssets(supabaseAdmin, project.id, '*')
-            if (saved.data && loaded.data) await ensureSyncedMouthPreview(saved.data, scenes, loaded.data)
+            const previewScenes = scenes.length ? scenes : (await supabaseAdmin.from('std_project_scenes')
+                .select('*').eq('project_id', project.id).order('scene_number')).data
+            if (saved.data && loaded.data && previewScenes?.length) await ensureSyncedMouthPreview(saved.data, previewScenes, loaded.data)
         } catch (previewError: any) { console.warn('[STD TTS] synced preview preparation:', previewError.message) }
         // Retire old narration only after the replacement is durably saved.
         const { error: replaceError } = await supabaseAdmin.from('std_project_assets')

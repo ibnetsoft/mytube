@@ -47,6 +47,7 @@ export function submissionSnapshot(project: any, scenes: any[], assets: any[], m
 
 /** Final voice exists now: queue synced scene previews, without submitting a final render. */
 export async function ensureSyncedMouthPreview(project: any, scenes: any[], assets: any[]) {
+    if (!scenes.length) return null
     if (project.submitted_at || project.project_payload?.ae_mouth?.enabled === false || !aeMouthApplicable(project, scenes, assets)) return null
     const { input, fingerprint } = aeMouthInput(project, scenes, assets)
     const existing = assets.find(a => a.metadata?.kind === 'ae_mouth_job' && a.metadata.fingerprint === fingerprint && a.metadata.pipeline_version === 2)

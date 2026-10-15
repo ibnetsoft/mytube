@@ -17,6 +17,18 @@ def test_saved_speaker_is_not_reinterpreted():
     assert rows[1]['kind'] == 'narration'
     with pytest.raises(ValueError): recorded_rows({'subtitles':[{'kind':'dialogue'}]})
 
+
+def test_flat_mouth_preview_does_not_invoke_psd_template_or_rewrite_final_direction():
+    from submission_pipeline import prepared_scene_direction
+    direction={'ae_effect_plan':{'enabled':True,'template':'dialogue_closeup'},'ae_motion_plan':{'enabled':True,'preset':'subtle_dialogue'}}
+    preview, exclusions=prepared_scene_direction(direction,None,True)
+    assert not preview['ae_effect_plan']['enabled']
+    assert preview['ae_motion_plan']==direction['ae_motion_plan']
+    assert exclusions[0]['template']=='dialogue_closeup'
+    assert direction['ae_effect_plan']['enabled']
+    assert prepared_scene_direction(direction,None,False)==(direction,[])
+    assert prepared_scene_direction(direction,{'metadata':{'qa_status':'approved'}},True)==(direction,[])
+
 def test_missing_prepared_layers_never_calls_generator(monkeypatch,tmp_path):
     import prepared_mouth_layers
     monkeypatch.setattr(prepared_mouth_layers, 'reuse_prepared', lambda *args: False)

@@ -25,6 +25,18 @@ def ready_scene_artifacts(snapshot, assets, fingerprint):
 def assembly_only(meta):
     return meta.get('pipeline_version') == 2
 
+
+def prepared_scene_direction(direction, layered_source, preview_sync):
+    """A mouth preview can use its reviewed flat image while PSD direction stays saved."""
+    from manga_ae_templates import template_for_scene
+    result = copy.deepcopy(direction)
+    template = template_for_scene(result)
+    exclusions = []
+    if preview_sync and template and not layered_source:
+        result['ae_effect_plan']['enabled'] = False
+        exclusions.append({'template': template, 'reason': 'Layered PSD unavailable; voice-synced mouth preview preserves the approved flat source.'})
+    return result, exclusions
+
 def validate_layers(image, speaker):
     from prepared_mouth_layers import reuse_prepared
     if not reuse_prepared(image, speaker):

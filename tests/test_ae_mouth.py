@@ -133,6 +133,20 @@ def test_snapshot_invalidates_new_sources_but_ignores_generated_output():
     assert not worker.input_matches(scoped, project, assets, expanded_scenes)
 
 
+def test_compact_preview_context_keeps_recording_cast_and_source_directions():
+    source={'scene_number':19,'scene_text':'hello','image_prompt':'original','ae_motion_plan':{'enabled':True}}
+    rows=[{'text':'hello','voice_id':'voice','start':0,'end':2}]
+    compact={'id':'p','status':'in_progress','tts_speed':1,'progress_tts_speed':1,'subtitles':rows,
+        'main_character':{},'supporting_characters':[],'cast_main':{'name':'A'},'cast_supporting':[],
+        'cast_scenes':[],'annotations':{'version':1},'scene_sources':[source]}
+    project=worker.preview_project_context(compact)
+    assert project['project_payload']['subtitles']==rows
+    assert project['project_payload']['structure']['scenes']==[source]
+    assert project['project_payload']['structure']['main_character']=={'name':'A'}
+    assert 'source_payload' not in project
+    assert worker.preview_project_context(project) is project
+
+
 def test_snapshot_requires_the_same_confirmed_eye_plan():
     project = {'project_payload': {'subtitles': [{'text':'still','scene_number':19,'start':0,'end':1,'voice_id':'n'}]}}
     image = {'id':'image','asset_type':'image','status':'uploaded','scene_number':19,'metadata':{}}
