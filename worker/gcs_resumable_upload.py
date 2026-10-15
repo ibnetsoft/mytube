@@ -6,6 +6,10 @@ from pathlib import Path
 from urllib.parse import quote
 import requests
 
+# Keep each request below the local network's large-body interruption threshold.
+# GCS requires non-final chunks to be multiples of 256 KiB.
+CHUNK_SIZE = 1024 * 1024
+
 def upload_resumable(file, bucket, path, mime, token):
     file = Path(file)
     size = file.stat().st_size
@@ -30,7 +34,7 @@ def upload_resumable(file, bucket, path, mime, token):
             with file.open('rb') as stream:
                 stream.seek(offset)
                 while offset<size:
-                    chunk = stream.read(8*1024*1024)
+                    chunk = stream.read(CHUNK_SIZE)
                     end = offset+len(chunk)-1
                     response = requests.put(session, headers={'Content-Type':mime,'Content-Length':str(len(chunk)),
                         'Content-Range':f'bytes {offset}-{end}/{size}'},data=chunk,timeout=(10,120))
