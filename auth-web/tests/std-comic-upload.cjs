@@ -7,7 +7,7 @@ const cache = {}
 function lib(name) {
  if(cache[name]) return cache[name]
  const exports={};cache[name]=exports
- new Function('exports','require',compile(path.join(__dirname,'../lib',name+'.ts')))(exports,id=>id.endsWith('.json')?require(path.join(__dirname,'../lib',id)):lib(path.basename(id)))
+ new Function('exports','require',compile(path.join(__dirname,'../lib',name+'.ts')))(exports,id=>id.startsWith('node:')?require(id):id.endsWith('.json')?require(path.join(__dirname,'../lib',id)):lib(path.basename(id)))
  return exports
 }
 let project, authorized = true, filters = [], signed = 0
@@ -15,7 +15,7 @@ const exportsRoute={}
 new Function('exports','require',compile(path.join(__dirname,'../app/api/std/projects/[projectId]/assets/init/route.ts')))(exportsRoute,id=>{
  if(id==='next/server') return {NextResponse:{json:(body,opts={})=>({body,status:opts.status||200})}}
  if(id.endsWith('stdWeb')) return {requireStdUser:async()=>authorized?{ok:true,requester:{email:'owner@test.invalid'}}:{ok:false,response:{status:401}}}
- if(id.endsWith('supabaseAdmin')) return {supabaseAdmin:{from:()=>({select(){return this},eq(k,v){filters.push([k,v]);return this},async maybeSingle(){return {data:project}}})}}
+ if(id.endsWith('supabaseAdmin')) return {supabaseAdmin:{from:()=>({select(){return this},insert(){return this},async single(){return {data:{id:'upload-claim'}}},eq(k,v){filters.push([k,v]);return this},async maybeSingle(){return {data:project}}})}}
  if(id.endsWith('gcsStorage')) return {sanitizeGcsObjectName:s=>s,buildStdGcsObjectPath:()=> 'test/file.png',isGcsConfiguredAsync:async()=>true,createGcsSignedUploadUrl:async()=>{signed++;return {signedUrl:'https://example.invalid/upload',bucket:'test'}}}
  return lib(path.basename(id))
 })

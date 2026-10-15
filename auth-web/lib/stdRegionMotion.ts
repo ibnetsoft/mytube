@@ -35,7 +35,7 @@ const finite = (value: unknown, min: number, max: number) =>
     value <= max
 const point = (p: any): p is MotionPoint =>
     Array.isArray(p) && p.length === 2 && p.every((n) => finite(n, 0, 1))
-export function motionSceneTimeline(subtitles: any[], number: number, nonverbalScene?: any) {
+export function motionSceneTimeline(subtitles: any[], number: number, nonverbalScene?: any): { duration: number; subtitles: { id: string; text: string; start: number; end: number }[] } {
     if (nonverbalScene?.joint_motion_plan?.contract === 'ae_joint_rig/v1' && nonverbalScene?.scene_timeline) {
         const t = nonverbalScene.scene_timeline
         if (!finite(t.duration, .1, 300) || !Array.isArray(t.cues)) throw new Error('행동 타임라인을 확인해 주세요.')

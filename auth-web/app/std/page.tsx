@@ -318,10 +318,14 @@ type Topic = {
     scene_count: number
     pregenerated_structure?: any
     pregenerated_script?: string
+    script?: string
     created_at?: string
 }
 
 type StdProject = {
+    source_payload?: Record<string, any> | null
+    image_style?: string | null
+    updated_at?: string | null
     id: string
     title: string
     status: string
@@ -1131,7 +1135,7 @@ export default function StdPortalPage() {
     const previewPrefetchRef = useRef<Map<string, HTMLImageElement | HTMLVideoElement>>(new Map())
     const vrewPlaybackCancelRef = useRef(0)
     const vrewProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-    const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Record<string, 'loading' | 'generating' | 'ready' | 'stale' | 'error'>>({})
+    const [vrewSegmentStatus, setVrewSegmentStatus] = useState<Partial<Record<string, 'loading' | 'generating' | 'ready' | 'stale' | 'error'>>>({})
     const [vrewActiveTokenIndex, setVrewActiveTokenIndex] = useState(-1)
     const [isSubtitleSyncing, setIsSubtitleSyncing] = useState(false)
     const [subtitleSyncProgress, setSubtitleSyncProgress] = useState('')
@@ -4025,7 +4029,7 @@ export default function StdPortalPage() {
     const findOriginalWorkerScript = (projectPayload?: SelectedProjectPayload | null): string => {
         const payload = projectPayload?.project?.project_payload || {}
 
-        const currentProject = projectPayload?.project || {}
+        const currentProject = projectPayload?.project
         const sourcePayload = currentProject?.source_payload || {}
         const sourceScript = cleanScriptContextText(
             sourcePayload?.pregenerated_script
@@ -4381,7 +4385,7 @@ export default function StdPortalPage() {
             progress_payload: {
                 scene_count: scenes.length,
                 image_grid_prompt_count: gridPrompts.length,
-                ready_scene_count: scenes.filter(s => s.video_url || s.image_url).length,
+                ready_scene_count: scenes.filter((s: any) => s.video_url || s.image_url).length,
             }
         }
 
@@ -5075,7 +5079,7 @@ export default function StdPortalPage() {
             })
             const data = await res.json().catch(() => ({}))
             if (data.success || res.ok) {
-                setUser(prev => prev ? {
+                setUser((prev: typeof user) => prev ? {
                     ...prev,
                     full_name: settingName,
                     nationality: settingNationality,
@@ -5511,7 +5515,7 @@ export default function StdPortalPage() {
                 const payloadScenes = Array.isArray(payload.project?.project_payload?.structure?.scenes)
                     ? payload.project.project_payload.structure.scenes
                     : (Array.isArray(payload.project?.project_payload?.scenes) ? payload.project.project_payload.scenes : [])
-                const payloadSceneByNumber = new Map(
+                const payloadSceneByNumber = new Map<number, Record<string, any>>(
                     payloadScenes.map((scene: any, idx: number) => [
                         Number(scene?.scene_number || scene?.scene_order || idx + 1),
                         scene,
@@ -5777,7 +5781,13 @@ export default function StdPortalPage() {
             } as any : p))
             if (isCurrent() && actualAssetType === 'video' && comicSettingsForProject(selectedProject.project).mode === 'moving_comic') {
                 try {
-                    await saveComicSettings(comicSettingsWithUploadedVideo(selectedProject.project, Number(sceneNum)))
+                    await persistVrewVoiceSubtitles(speechSubtitlesRef.current, {
+                        strict: true,
+                        renderSettings: {
+                            ...(selectedProject.project.project_payload?.render_settings || {}),
+                            comic: comicSettingsWithUploadedVideo(selectedProject.project, Number(sceneNum)),
+                        },
+                    })
                 } catch {
                     if (isCurrent()) setMessage('영상 클립은 저장됐지만 영상 우선 설정을 저장하지 못했습니다. 자막 페이지의 페이지 편집에서 해당 씬을 영상 우선으로 선택하고 저장해 주세요.')
                     return 'synced'
@@ -7082,7 +7092,7 @@ export default function StdPortalPage() {
         // 3. 전체 대본에서 씬별 비례 분할 위치의 첫 문장
         const fullScript = customScriptText || selectedProject?.project?.project_payload?.script || ''
         if (fullScript) {
-            const paragraphs = fullScript.split(/\n+/).map(p => p.trim()).filter(Boolean)
+            const paragraphs = String(fullScript).split(/\n+/).map(p => p.trim()).filter(Boolean)
             if (paragraphs.length > 0) {
                 const pIdx = Math.min(
                     paragraphs.length - 1,
@@ -7589,7 +7599,7 @@ export default function StdPortalPage() {
 
     const copyAllPrompts = () => {
         if (!imageGridPrompts.length) return
-        const text = imageGridPrompts.map(g => `[Grid ${g.grid_number || ''}]\n${g.prompt}`).join('\n\n')
+        const text = imageGridPrompts.map((g: { grid_number?: number; prompt?: string }) => `[Grid ${g.grid_number || ''}]\n${g.prompt}`).join('\n\n')
         copyPromptText(text)
     }
 
@@ -10419,7 +10429,7 @@ export default function StdPortalPage() {
                                         key={selectedProject.project.id} projectId={selectedProject.project.id}
                                         revision={selectedProject.project.updated_at || ''} headers={authedJsonHeaders}
                                         speakerProgress={dialogueSpeakerProgress}
-                                        onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev?.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
+                                        onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev && prev.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
                                         selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />
 
                                     </div>

@@ -2,7 +2,7 @@
 export const isSubtitleClosingPunctuation = (text: string) => /^[\s。．.!！?？…，,、;；:：」』”’"'）)\]】]+$/u.test(text)
 
 export function normalizeSubtitleFragments<T extends { text?: string; scene_number?: number;
-    start_num?: number; end_num?: number; start_time?: string; end_time?: string;
+    start_num?: number; end_num?: number; start_time?: string | number; end_time?: string | number;
     audio_regeneration_required?: boolean; [key: string]: any }>(
     subtitles: T[], maxChars = 20, options: { punctuationOnly?: boolean } = {},
 ): T[] {

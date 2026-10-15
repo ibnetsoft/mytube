@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 export const dynamic = 'force-dynamic'
 
-export const STD_OFFICIAL_CATEGORIES = [
+const STD_OFFICIAL_CATEGORIES = [
     { id: 2, name: '옛날이야기', language: 'ko' },
     { id: 4, name: '탈북사연', language: 'ko' },
     { id: 5, name: '한국사연', language: 'ko' },
