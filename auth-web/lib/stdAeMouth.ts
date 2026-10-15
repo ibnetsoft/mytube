@@ -64,6 +64,7 @@ export function aeMouthInput(project: any, scenes: any[], assets: any[]) {
     }))
     const input = { version: subtitles.some((r: any) => r.scene_number < 19 && r.kind === 'dialogue') ? 2 : 1, project_id: project.id, tts_speed: payload.tts_speed ?? project.progress_payload?.tts_speed ?? null,
         audio: { id: audio.id, metadata: audio.metadata }, subtitles,
+        mouth_work_scene_numbers: scenes.map(s => Number(s.scene_number)).filter(n => selected.has(n)),
         dialogue_scene_index: dialogueSceneIndex(payload.subtitles || []),
         cast: { main: structure.main_character || payload.main_character || {}, supporting: structure.supporting_characters || payload.supporting_characters || [], scene_cast: structure.scene_cast || [] },
         annotations: structure.dialogue_annotations || {},

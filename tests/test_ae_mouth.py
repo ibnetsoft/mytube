@@ -122,6 +122,16 @@ def test_snapshot_invalidates_new_sources_but_ignores_generated_output():
     changed = copy.deepcopy(project); changed['project_payload']['subtitles'][0]['direction'] = 'whisper'
     assert not worker.input_matches(snapshot, changed, assets, scenes)
 
+    scoped = copy.deepcopy(snapshot)
+    scoped['mouth_work_scene_numbers'] = [19]
+    expanded_scenes = scenes + [{'scene_number': 20, 'scene_text': 'unselected narration'}]
+    assert worker.input_matches(scoped, project, assets, expanded_scenes)
+    changed_source = copy.deepcopy(assets)
+    changed_source[1]['id'] = 'replacement-image'
+    assert not worker.input_matches(scoped, project, changed_source, expanded_scenes)
+    scoped['mouth_work_scene_numbers'] = [20]
+    assert not worker.input_matches(scoped, project, assets, expanded_scenes)
+
 
 def test_snapshot_requires_the_same_confirmed_eye_plan():
     project = {'project_payload': {'subtitles': [{'text':'still','scene_number':19,'start':0,'end':1,'voice_id':'n'}]}}

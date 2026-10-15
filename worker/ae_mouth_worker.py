@@ -103,6 +103,15 @@ def input_matches(snapshot: dict, project: dict, assets: list[dict], scenes: lis
                  and not (a.get('metadata') or {}).get('ae_mouth_fingerprint') and not (a.get('metadata') or {}).get('lipsync_fingerprint')
                  and not (a.get('metadata') or {}).get('region_motion_plan_id')
                  and (a.get('metadata') or {}).get('postprocess_mode') not in ('after_effects', 'region_motion') for a in assets))]
+    frozen_scope = snapshot.get('mouth_work_scene_numbers')
+    if frozen_scope is not None:
+        if (not isinstance(frozen_scope, list) or any(type(n) is not int or n <= 0 for n in frozen_scope)
+                or len(set(frozen_scope)) != len(frozen_scope)
+                or frozen_scope != [s['number'] for s in snapshot['scenes']]):
+            return False
+        # Other image scenes are outside the source worker's frozen mouth scope.
+        # Still verify every selected source and all finalized voice/subtitle rows.
+        current_numbers = [int(s['scene_number']) for s in scenes if int(s['scene_number']) in frozen_scope]
     if current_numbers != [s['number'] for s in snapshot['scenes']]:
         return False
     for original in snapshot['scenes']:
