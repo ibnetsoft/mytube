@@ -146,3 +146,23 @@ def test_database_conflict_keeps_local_receipt_and_does_not_claim_success(tmp_pa
         geometry.analyze_published_scenes('topic', structure, {19:scene}, tmp_path, '', {}, fake)
     assert json.loads((tmp_path / 'scene-019-speaker-coordinates.json').read_text())['state'] == 'ready'
     assert 'speaker_geometry' not in scene['metadata']['cowork_image_asset']
+
+
+def test_geometry_publication_preserves_queued_layer_state(tmp_path, monkeypatch):
+    image, scene, structure = fixture(tmp_path)
+    scene['psd_layer_status'] = 'queued'
+    scene['metadata']['cowork_image_asset']['source'] = 'codex_builtin_imagegen'
+    scene['metadata']['psd_layer_plan'] = {'template': 'pending-user-direction'}
+    writes=[]
+    monkeypatch.setattr(geometry, 'analyze_scene', lambda *args: {'state':'needs_review','number':19})
+    fake=SimpleNamespace(_scene_asset_snapshot=publisher._scene_asset_snapshot,
+        _publish_source_snapshot=publisher._publish_source_snapshot,
+        _patch_topic_scene_assets=lambda topic,updates,*args:writes.extend(copy.deepcopy(updates)))
+    geometry.analyze_published_scenes('topic',structure,{19:scene},tmp_path,'',{},fake)
+    patch=writes[0]['asset_patch']
+    assert writes[0]['expected_assets']['psd_layer_status']=='queued'
+    assert 'scene_direction_plan' in writes[0]['expected_source']
+    assert 'psd_layer_status' not in patch
+    assert 'psd_layer_plan' not in patch['metadata']
+    assert patch['metadata']['cowork_image_asset']['source']=='codex_builtin_imagegen'
+    assert scene['psd_layer_status']=='queued'

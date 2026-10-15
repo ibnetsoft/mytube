@@ -151,7 +151,9 @@ def analyze_published_scenes(topic_id, structure, scenes, images_dir, base_url, 
             'scene_number': number,
             'expected_source': publisher._publish_source_snapshot(scene, number),
             'expected_assets': expected,
-            'asset_patch': publisher._scene_asset_patch(updated),
+            # This receipt does not complete or replace queued PSD/layer work.
+            'asset_patch': {'image_url': updated['image_url'], 'asset_status': 'ready',
+                            'metadata': {'cowork_image_asset': updated['metadata']['cowork_image_asset']}},
         }], base_url, headers)
         scene.clear()
         scene.update(updated)

@@ -46,7 +46,7 @@ def test_publication_freezes_scope_across_batches_and_publishes_clips(tmp_path, 
         _scene_asset_patch=lambda s: copy.deepcopy(s),
         _patch_topic_scene_assets=lambda topic, rows, *a: writes.extend(rows))
     def batch(numbers):
-        return {n:{'scene_number':n,'metadata':{'cowork_image_asset':{'gcs_bucket':'bucket','gcs_path':f'{n}.png'}}} for n in numbers}
+        return {n:{'scene_number':n,'image_url':f'image-{n}','metadata':{'cowork_image_asset':{'gcs_bucket':'bucket','gcs_path':f'{n}.png'}}} for n in numbers}
     geometry.analyze_published_scenes('topic', structure, batch(range(19,31)), tmp_path, '', {}, publisher)
     monkeypatch.setattr(policy, 'load_policy', lambda: {**DEFAULT,'max_dialogue_scenes':100})
     geometry.analyze_published_scenes('topic', structure, batch(range(31,61)), tmp_path, '', {}, publisher)
