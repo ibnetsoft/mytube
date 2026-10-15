@@ -491,8 +491,10 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
                             rendered = render_prepared_scene(ae, job_spec, technical)
                         silent = Path(rendered['local_path'])
                         preview = scene_dir / 'ae-mouth-preview.mp4'
+                        video_codec = (['-c:v', 'h264_nvenc', '-preset', 'p6', '-cq', '20', '-b:v', '0', '-bf', '3', '-pix_fmt', 'yuv420p']
+                                       if meta.get('preview_sync') else ['-c:v', 'copy'])
                         run([ffmpeg(), '-y', '-i', str(silent), '-ss', str(scene['start']), '-i', str(audio_path), '-t', str(duration),
-                             '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-ar', '48000', str(preview)])
+                             '-map', '0:v:0', '-map', '1:a:0', *video_codec, '-c:a', 'aac', '-ar', '48000', '-movflags', '+faststart', str(preview)])
                         # Probe actual duration before accepting a timing-locked asset.
                         probe = subprocess_probe(preview)
                         if abs(probe - duration) > .12:
@@ -512,6 +514,7 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
                                 'metadata': {'storage_provider': 'gcs', 'gcs_bucket': bucket, 'gcs_path': path, 'storage_bucket': bucket,
                                     'storage_path': path, 'content_identity': mouth_output_identity(job, scene), 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'voice_synced': True, 'timing_mode': 'final_voice', 'ae_reviewed': False, 'artifact_ready': technical, 'pipeline_version': meta.get('pipeline_version'),
                                     'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction, 'effect_exclusions': exclusions,
+                                    'delivery_variant': 'web_cq20' if meta.get('preview_sync') else 'original_render',
                                     'source_image_id': (scene.get('image') or {}).get('id'), 'source_audio_id': snapshot['audio']['id'],
                                     'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking,
                                     'video_coordinate_asset_id':coordinate_asset_id,

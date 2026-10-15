@@ -11,6 +11,11 @@ import requests
 CHUNK_SIZE = 1024 * 1024
 
 def upload_resumable(file, bucket, path, mime, token):
+    with requests.Session() as client:
+        return _upload_resumable(file, bucket, path, mime, token, client)
+
+
+def _upload_resumable(file, bucket, path, mime, token, client):
     file = Path(file)
     size = file.stat().st_size
     with file.open('rb') as stream: sha = hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -21,12 +26,12 @@ def upload_resumable(file, bucket, path, mime, token):
     for attempt in range(3):
         try:
             if not session:
-                response = requests.post(f'https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket,safe="")}/o?uploadType=resumable',
+                response = client.post(f'https://storage.googleapis.com/upload/storage/v1/b/{quote(bucket,safe="")}/o?uploadType=resumable',
                     headers={'Authorization':'Bearer '+token,'X-Upload-Content-Type':mime,'X-Upload-Content-Length':str(size)},
                     json={'name':path,'contentType':mime}, timeout=(10,60))
                 response.raise_for_status();session=response.headers['Location']
                 receipt.write_text(json.dumps({**expected,'session':session}))
-            status = requests.put(session, headers={'Content-Length':'0','Content-Range':f'bytes */{size}'}, data=b'',timeout=(10,60))
+            status = client.put(session, headers={'Content-Length':'0','Content-Range':f'bytes */{size}'}, data=b'',timeout=(10,60))
             if status.status_code in (200,201): return status.json()
             if status.status_code in (404,410): session=None;continue
             if status.status_code != 308: status.raise_for_status()
@@ -36,7 +41,7 @@ def upload_resumable(file, bucket, path, mime, token):
                 while offset<size:
                     chunk = stream.read(CHUNK_SIZE)
                     end = offset+len(chunk)-1
-                    response = requests.put(session, headers={'Content-Type':mime,'Content-Length':str(len(chunk)),
+                    response = client.put(session, headers={'Content-Type':mime,'Content-Length':str(len(chunk)),
                         'Content-Range':f'bytes {offset}-{end}/{size}'},data=chunk,timeout=(10,120))
                     if response.status_code in (200,201): return response.json()
                     if response.status_code != 308: response.raise_for_status()

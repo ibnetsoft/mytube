@@ -2,6 +2,17 @@ import sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'worker'))
 import gcs_resumable_upload as upload
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def shared_transport(monkeypatch):
+    class Client:
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+        def post(self,*args,**kwargs):return upload.requests.post(*args,**kwargs)
+        def put(self,*args,**kwargs):return upload.requests.put(*args,**kwargs)
+    monkeypatch.setattr(upload.requests,'Session',Client)
 
 def test_completed_upload_is_reused_without_sending_bytes_again(tmp_path,monkeypatch):
     file=tmp_path/'video.mp4';file.write_bytes(b'completed video')
