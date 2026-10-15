@@ -1,6 +1,13 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),ts=require('../node_modules/typescript');
 const cache={};function load(file){if(cache[file])return cache[file];const ex={};cache[file]=ex;new Function('exports','require',ts.transpile(fs.readFileSync(`lib/${file}.ts`,'utf8'),{module:1,target:7}))(ex,name=>name==='./stdComic'?{isComicProject:p=>p.project_payload?.comic_settings?.mode==='comic'}:name.startsWith('./')?load(name.slice(2)):require(name));return ex;}
 const lib=load('stdAeMouth');
+function verified(speaker){
+ const f=speaker.face_box,m=speaker.mouth_box,x=(m[0]+m[2])/2,y=(m[1]+m[3])/2;
+ return {...speaker,mouth_geometry:{version:2,source_sha256:'a'.repeat(64),orientation:'frontal',pitch:'level',mouth_visibility:'clear',render_policy:'animate',
+  evidence:'test fixture verified lips',review:{passed:true,reason:'fixture checked',proof:'annotated-face-crop-v4'},
+  face_outline:[[f[0],f[1]],[f[2],f[1]],[f[2],f[3]],[x,f[3]],[f[0],f[3]]],
+  landmarks:{nose_tip:[x,y-.06],chin:[x,y+.1],lip_left:[m[0]+.001,y],lip_right:[m[2]-.001,y],lip_center:[x,y]}}}
+}
 function fixture(){
  const subtitles=[{text:'설명',voice_id:'n',scene_number:18,start:0,end:1,dialogue_kind:'narration'},
   {text:'어머니',voice_id:'a',scene_number:19,start:1,end:2,dialogue_kind:'dialogue',dialogue_speaker:'소녀'},
@@ -9,6 +16,9 @@ function fixture(){
  const scenes=[18,19,20].map(n=>({scene_number:n,scene_text:n===19?'어머니':'설명'}));
  const assets=[{id:'audio',asset_type:'audio',status:'assigned',created_at:'2026-10-05',metadata:{subtitle_timeline:subtitles.map(s=>({...s}))}},
   ...scenes.map(s=>({id:`image${s.scene_number}`,scene_number:s.scene_number,asset_type:'image',status:'assigned',created_at:'2026-10-05',metadata:{gcs_path:'image.png'}}))];
+ // These legacy snapshot tests explicitly freeze their old scope, including scene 20 narration.
+ // New projects use the separate 19-onward, ten-dialogue-scene policy tests.
+ assets.push({id:'scope',asset_type:'other',status:'uploaded',metadata:{kind:'mouth_work_selection',scene_numbers:[18,19,20]}});
  return {project,scenes,assets};
 }
 test('snapshot covers only still scenes 19 onward with finalized voice timing',()=>{
@@ -52,7 +62,7 @@ test('newer retry and newer audio are selected regardless of caller ordering',()
 
 test('saved geometry is reused only for the same image, cast and assigned speaker',()=>{
  const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
- const regions={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,mouth_box:[.4,.4,.45,.43],face_box:[.2,.2,.7,.7]}]};
+ const regions={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,mouth_box:[.4,.4,.45,.43],face_box:[.2,.2,.7,.7]}].map(verified)};
  const metadata={kind:'ae_speaker_coordinates',state:'ready',input:{cast_key:JSON.stringify(cast)},results:[regions]};
  f.assets.unshift({id:'coords',asset_type:'other',status:'uploaded',metadata});
  assert.deepEqual(lib.aeMouthInput(f.project,f.scenes,f.assets).input.scenes[0].speaker_regions,{...regions,origin:'ai'});
@@ -65,7 +75,7 @@ test('saved geometry is reused only for the same image, cast and assigned speake
 test('user-confirmed coordinates reach the render snapshot without an AI job',()=>{
  const f=fixture(),geometry=load('stdSpeakerGeometry'),scene=geometry.coordinateScenes(f.project,f.assets)[0];
  const result={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),
-  speakers:[{speaker:'소녀',status:'visible',confidence:1,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]};
+  speakers:[{speaker:'소녀',status:'visible',confidence:1,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}].map(verified)};
  f.assets.push({id:'manual',asset_type:'other',status:'uploaded',metadata:{kind:'speaker_coordinate_confirmation',scene_key:scene.key,results:[result]}});
  const snapshot=lib.aeMouthInput(f.project,f.scenes,f.assets);
  assert.equal(snapshot.input.scenes[0].speaker_regions.origin,'user');
@@ -74,7 +84,7 @@ test('user-confirmed coordinates reach the render snapshot without an AI job',()
 
 test('partial coordinates remain available to AE when another scene needs review',()=>{
  const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
- const result={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]};
+ const result={number:19,image_id:'image19',source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}].map(verified)};
  const metadata={kind:'ae_speaker_coordinates',state:'needs_review',input:{cast_key:JSON.stringify(cast)},results:[result],failures:[{number:20,error:'uncertain'}]};
  f.assets.push({id:'partial',asset_type:'other',status:'uploaded',metadata});
  for(const state of ['needs_review','processing','queued']){
@@ -89,7 +99,7 @@ test('newly analyzed scenes do not discard AE work but corrected used coordinate
  const f=fixture(),cast={main:{},supporting:[],scene_cast:[]};
  f.project.project_payload.subtitles[2].dialogue_kind='dialogue';
  f.project.project_payload.subtitles[2].dialogue_speaker='소녀';
- const result=n=>({number:n,image_id:`image${n}`,source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}]});
+ const result=n=>({number:n,image_id:`image${n}`,source_path:'image.png',source_sha256:'a'.repeat(64),speakers:[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.2,.2,.7,.7],mouth_box:[.4,.4,.45,.43]}].map(verified)});
  const metadata={kind:'ae_speaker_coordinates',state:'processing',input:{cast_key:JSON.stringify(cast)},results:[result(19)]};
  f.assets.push({id:'coords',asset_type:'other',status:'uploaded',metadata});
  const snapshot=JSON.parse(JSON.stringify(lib.aeMouthInput(f.project,f.scenes,f.assets)));
@@ -122,7 +132,7 @@ test('newly analyzed scenes do not discard AE work but corrected used coordinate
 test('generation-time coordinates reach AE submission with original asset metadata intact',()=>{
  const f=fixture(),geometry=load('stdSpeakerGeometry'),generated=load('stdGeneratedSpeakerGeometry');
  f.assets.forEach(a=>a.project_id='p');
- const image=f.assets.find(a=>a.scene_number===19),speakers=[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.1,.1,.5,.6],mouth_box:[.25,.4,.32,.44]}];
+ const image=f.assets.find(a=>a.scene_number===19),speakers=[{speaker:'소녀',status:'visible',confidence:.99,face_box:[.1,.1,.5,.6],mouth_box:[.25,.4,.32,.44]}].map(verified);
  const structure={scenes:[{scene_number:19,metadata:{cowork_image_asset:{speaker_geometry:{source:'local-codex-image-publish',number:19,state:'ready',fingerprint:'ready',cast:geometry.coordinateCast(f.project),source_bucket:'air-studio-prod',source_path:'image.png',source_sha256:'a'.repeat(64),speakers}}}}]};
  const assets=[...f.assets,...generated.generatedSpeakerAssets(f.project,structure,f.assets)];
  const input=lib.aeMouthInput(f.project,f.scenes,assets).input;

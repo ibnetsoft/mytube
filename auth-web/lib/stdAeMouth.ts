@@ -154,7 +154,8 @@ export function readyPipelineMouthAssets(job: any, assets: any[]) {
         if (row.status === 'skipped' && (!row.skip_reason || row.fallback === 'original')) continue
         if (row.status !== 'artifact_ready') throw new Error(`${scene.number}번 영상 합성이 완료되지 않았습니다.`)
         const asset = assets.find(a => active(a) && a.id === row.asset_id && a.asset_type === 'video')
-        if (!asset || asset.metadata?.artifact_ready !== true || asset.metadata.source_audio_id !== job.metadata.input.audio.id ||
+        if (!asset || asset.metadata?.kind === 'mouth_preview' || asset.metadata?.timing_mode === 'preview_cycle' ||
+            asset.metadata?.voice_synced === false || asset.metadata?.artifact_ready !== true || asset.metadata.source_audio_id !== job.metadata.input.audio.id ||
             asset.metadata.render_sha256 !== row.render_sha256 || asset.metadata.ae_mouth_fingerprint !== job.metadata.fingerprint ||
             !asset.metadata.timing_locked || Number(asset.scene_number) !== scene.number ||
             Math.abs(Number(asset.metadata.duration_seconds) - (scene.end - scene.start)) > .12)

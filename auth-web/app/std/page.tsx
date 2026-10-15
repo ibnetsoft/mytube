@@ -1,6 +1,7 @@
 'use client'
 import { scanDialogueQuoteState } from '@/lib/stdDialogueQuoteState'
 import { subtitleSpeakerProgress } from '@/lib/stdSubtitleSpeakerProgress'
+import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
@@ -244,11 +245,13 @@ function LazySceneMedia({
     imageUrl,
     videoUrl,
     shouldPlay = false,
+    loop = false,
     priority = false,
 }: {
     imageUrl?: string | null
     videoUrl?: string | null
     shouldPlay?: boolean
+    loop?: boolean
     priority?: boolean
 }) {
     const containerRef = useRef<HTMLDivElement | null>(null)
@@ -284,6 +287,7 @@ function LazySceneMedia({
                     onError={() => setVideoFailed(true)}
                     className="w-full h-full object-cover"
                     autoPlay={shouldPlay}
+                    loop={loop}
                     muted
                     playsInline
                     preload={shouldPlay ? 'auto' : 'metadata'}
@@ -2208,6 +2212,7 @@ export default function StdPortalPage() {
                 ...scene,
                 image_url: imageUrl,
                 mouth_preview_url: sanitizeAssetUrl((assets || []).find((a: any) => Number(a.scene_number) === sceneNumber && a.metadata?.kind === 'mouth_preview')?.metadata?.url) || scene?.mouth_preview_url,
+                mouth_preview: (assets || []).find((a: any) => Number(a.scene_number) === sceneNumber && a.metadata?.kind === 'mouth_preview')?.metadata || scene?.mouth_preview,
                 video_url: videoUrl,
                 video_prompt: scene?.video_prompt || scene?.metadata?.video_prompt || scene?.prompt_en || '',
                 image_prompt: scene?.image_prompt || scene?.metadata?.image_prompt || scene?.prompt || '',
@@ -7248,6 +7253,7 @@ export default function StdPortalPage() {
     }, [currentNav, currentPreviewSceneNumber, selectedProject?.project?.id, authedJsonHeaders])
 
     const previewMotionScene = selectedProject?.scenes?.find((scene: any) => Number(scene.scene_number) === currentPreviewSceneNumber)
+    const currentMouthPreview = subtitleMouthPreview(previewMotionScene, currentSubVideoUrl)
     const previewMotionGroup = subtitleSceneGroups.find(group => Number(group.scene_number) === currentPreviewSceneNumber)
     const previewMotionStart = Number(previewMotionGroup?.start_num ?? currentSub.start_num ?? currentSub.start_time ?? 0)
     const previewMotionEnd = Number(previewMotionGroup?.end_num ?? currentSub.end_num ?? currentSub.end_time ?? previewMotionStart + 1)
@@ -9533,9 +9539,6 @@ export default function StdPortalPage() {
                                                 const isActive = selectedSubIndex >= group.firstIndex && selectedSubIndex <= group.lastIndex
                                                 const sNum = group.scene_number
                                                 const isChecked = selectedSubtitleSceneNumbers.includes(Number(sNum))
-                                                const shouldPlayThumbnailVideo = Boolean(group.video_url) && (
-                                                    isActive || hoveredSubtitleSceneNumber === Number(sNum)
-                                                )
                                                 const isHook = sNum <= 12
                                                 const duration = Math.max(0, Number(group.end_num || 0) - Number(group.start_num || 0))
                                                 const groupText = group.subtitles.map((item: any) => item.text).filter(Boolean).join(' ')
@@ -9547,6 +9550,10 @@ export default function StdPortalPage() {
                                                 const groupVoiceNames = subtitleGroupVoiceNamesInOrder(group.subtitles)
                                                 const hasSingleGroupVoice = groupVoiceNames.length === 1
                                                 const sceneRecord = selectedProject?.scenes?.find((scene: any) => Number(scene?.scene_number) === Number(sNum))
+                                                const thumbnailMedia = subtitleMouthPreview(sceneRecord, group.video_url)
+                                                const shouldPlayThumbnailVideo = Boolean(thumbnailMedia.url) && (
+                                                    isActive || hoveredSubtitleSceneNumber === Number(sNum)
+                                                )
                                                 const directionBadges = sceneDirectionBadges(
                                                     [sceneRecord, ...getProjectPayloadScenes()], Number(sNum)
                                                 )
@@ -9612,9 +9619,10 @@ export default function StdPortalPage() {
                                                             <div className="aspect-video w-full rounded-md sm:rounded-lg overflow-hidden border border-white/10 relative">
                                                                 <LazySceneMedia
                                                                     key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
-                                                                    videoUrl={group.video_url}
+                                                                    videoUrl={runtimeAssetUrl(thumbnailMedia.url)}
                                                                     imageUrl={group.image_url}
                                                                     shouldPlay={shouldPlayThumbnailVideo}
+                                                                    loop={thumbnailMedia.isMouthPreview}
                                                                     priority={Number(sNum) <= 4 || isActive}
                                                                 />
                                                                 {originalVideo && (
@@ -9635,6 +9643,11 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                 )}
                                                             </div>
+                                                            {thumbnailMedia.isMouthPreview && (
+                                                                <div className="mt-1 text-[9px] leading-tight text-cyan-300" role="note">
+                                                                    {ui(thumbnailMedia.label)}
+                                                                </div>
+                                                            )}
                                                             <div className="mt-1 text-[9px] sm:text-[10px] font-mono leading-tight text-gray-400">
                                                                 {Number(group.start_time).toFixed(1)}s ~ {Number(group.end_time).toFixed(1)}s
                                                                 <span className="ml-1 text-[9px] text-gray-500">{duration.toFixed(1)}s</span>
@@ -10019,6 +10032,15 @@ export default function StdPortalPage() {
                                                     muted
                                                     playsInline
                                                 />
+                                            ) : currentMouthPreview.isMouthPreview ? (
+                                                <>
+                                                    <video key={currentMouthPreview.url} src={runtimeAssetUrl(currentMouthPreview.url) || undefined}
+                                                        poster={currentSubImageUrl || undefined} autoPlay loop muted playsInline
+                                                        aria-label={ui(currentMouthPreview.label)} className="w-full h-full object-cover" />
+                                                    <span role="note" className="absolute top-2 left-2 z-20 rounded bg-black/80 px-2 py-1 text-[10px] text-cyan-200">
+                                                        {ui(currentMouthPreview.label)}
+                                                    </span>
+                                                </>
                                             ) : currentSubImageUrl ? (
                                                 <img
                                                     src={currentSubImageUrl}

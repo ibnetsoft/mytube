@@ -228,7 +228,7 @@ def test_submitted_job_discovers_then_waits_for_direction_approval_before_genera
             'source_video_id': 'video12', 'source_video_path': 'video12.mp4',
             'source_video_sha256': mouth.digest(original)}
         snapshot['scenes'][1]['image']['metadata'] = assets[1]['metadata']
-        def track(video, image, speakers, directory, duration):
+        def track(video, image, speakers, directory, duration, reference_time=0.0, allow_partial=False):
             tracked.append(duration)
             return image, speakers, {'source_duration': 3, 'speakers': speakers}
         monkeypatch.setattr(worker, 'track_video', track)

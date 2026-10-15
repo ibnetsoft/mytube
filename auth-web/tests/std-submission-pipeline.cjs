@@ -34,4 +34,7 @@ test('technical ready output ignores historical aesthetic review but binds audio
  const asset={id:'v',status:'uploaded',asset_type:'video',scene_number:23,metadata:{artifact_ready:true,ae_reviewed:false,source_audio_id:'a',render_sha256:'h',ae_mouth_fingerprint:'f',timing_locked:true,duration_seconds:3}}
  assert.equal(mouth.readyPipelineMouthAssets(job,[asset]).get(23).id,'v')
  assert.throws(()=>mouth.readyPipelineMouthAssets(job,[{...asset,metadata:{...asset.metadata,source_audio_id:'wrong'}}]),/일치/)
+ for(const preview of [{kind:'mouth_preview'},{timing_mode:'preview_cycle'},{voice_synced:false}]) {
+  assert.throws(()=>mouth.readyPipelineMouthAssets(job,[{...asset,metadata:{...asset.metadata,...preview}}]),/일치/)
+ }
 })

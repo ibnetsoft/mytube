@@ -386,10 +386,12 @@ def audio_reactive_light_cues(samples: list[int], rows: list[dict], *, start: fl
     audible = sorted(value for value in rms_values if value >= 32)
     reference = audible[min(len(audible) - 1, round((len(audible) - 1) * .95))] if audible else 0
     normalized = []
-    for value in rms_values:
+    for index, value in enumerate(rms_values):
+        active = any(float(row['start']) - start < (index + 1) / cue_rate
+                     and float(row['end']) - start > index / cue_rate for row in rows)
         level = 0 if reference <= 0 or value < max(32, reference * .08) else min(1.0, value / reference)
         previous = normalized[-1] if normalized else 0
-        normalized.append(round(previous * .55 + level * .45, 4))
+        normalized.append(round(previous * .55 + level * .45, 4) if active else 0.0)
     cues = [{'at_seconds': 0, 'value': 0.0}]
     for index, value in enumerate(normalized):
         at = round(index / cue_rate, 6)

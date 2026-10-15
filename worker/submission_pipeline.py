@@ -7,7 +7,9 @@ def ready_scene_artifacts(snapshot, assets, fingerprint):
     for scene in snapshot['scenes']:
         for asset in assets:
             meta = asset.get('metadata') or {}
-            if (asset.get('status') not in ('uploaded','assigned') or asset.get('scene_number') != scene['number']
+            if (asset.get('asset_type') != 'video' or meta.get('kind') == 'mouth_preview'
+                or meta.get('timing_mode') == 'preview_cycle' or meta.get('voice_synced') is False
+                or asset.get('status') not in ('uploaded','assigned') or asset.get('scene_number') != scene['number']
                 or meta.get('artifact_ready') is not True or meta.get('ae_mouth_fingerprint') != fingerprint
                 or meta.get('source_audio_id') != snapshot['audio']['id'] or not meta.get('timing_locked')
                 or not re.fullmatch('[0-9a-f]{64}', str(meta.get('render_sha256') or ''))

@@ -468,7 +468,7 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
                                 'project_id': job['project_id'], 'scene_number': number, 'asset_type': 'video', 'status': 'uploaded',
                                 'file_name': f'scene_{number}_ae_mouth.mp4', 'mime_type': 'video/mp4', 'file_size': preview.stat().st_size,
                                 'metadata': {'storage_provider': 'gcs', 'gcs_bucket': bucket, 'gcs_path': path, 'storage_bucket': bucket,
-                                    'storage_path': path, 'content_identity': mouth_output_identity(job, scene), 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'ae_reviewed': False, 'artifact_ready': technical, 'pipeline_version': meta.get('pipeline_version'),
+                                    'storage_path': path, 'content_identity': mouth_output_identity(job, scene), 'ae_mouth_fingerprint': identity, 'timing_locked': True, 'voice_synced': True, 'timing_mode': 'final_voice', 'ae_reviewed': False, 'artifact_ready': technical, 'pipeline_version': meta.get('pipeline_version'),
                                     'duration_seconds': duration, 'render_sha256': digest(preview), 'direction': direction,
                                     'source_image_id': (scene.get('image') or {}).get('id'), 'source_audio_id': snapshot['audio']['id'],
                                     'source_video_id':scene['original_video']['id'] if video else None,'video_tracking':tracking,

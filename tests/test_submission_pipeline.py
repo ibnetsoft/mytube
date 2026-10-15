@@ -31,6 +31,29 @@ def test_completed_voice_preview_is_reused_when_submit_arrives_during_preview():
     assert ready_scene_artifacts(snapshot,[asset],'recipe')[23]['asset_id']=='clip'
     assert ready_scene_artifacts(snapshot,[{**asset,'metadata':{**meta,'source_audio_id':'wrong'}}],'recipe')=={}
 
+
+@pytest.mark.parametrize('extra', [{'kind':'mouth_preview'}, {'timing_mode':'preview_cycle'}, {'voice_synced':False}])
+def test_pose_preview_is_never_reused_as_final_dialogue_even_with_matching_duration(extra):
+    from submission_pipeline import ready_scene_artifacts
+    snapshot={'audio':{'id':'audio'},'scenes':[{'number':19,'start':120,'end':123,'image':{'id':'image'}}]}
+    meta={'artifact_ready':True,'timing_locked':True,'duration_seconds':3,'source_image_id':'image',
+          'source_audio_id':'audio','ae_mouth_fingerprint':'recipe','render_sha256':'a'*64,**extra}
+    asset={'id':'preview','asset_type':'video','status':'uploaded','scene_number':19,'metadata':meta}
+    assert ready_scene_artifacts(snapshot,[asset],'recipe')=={}
+
+
+def test_final_lips_follow_changed_scene_length_and_each_actual_speakers_interval():
+    from ae_mouth import amplitude_cues
+    samples=[1000,-1000]*int(14*8000/2)
+    rows=[{'speaker':'A','start':121,'end':124},{'speaker':'B','start':127,'end':131}]
+    for name in ('A','B'):
+        cues=amplitude_cues(samples,[r for r in rows if r['speaker']==name],start=120,duration=14)
+        def pose(t): return next(c['pose'] for c in reversed(cues) if c['at_seconds']<=t)
+        assert pose(2) in ('half','open') if name=='A' else pose(2)=='closed'
+        assert pose(8) in ('half','open') if name=='B' else pose(8)=='closed'
+        assert pose(12)=='closed'
+        assert cues[-1]['pose']=='closed'
+
 def test_ae_retry_is_bounded_and_does_not_retry_input_errors():
     from submission_pipeline import render_prepared_scene
     class Renderer:
