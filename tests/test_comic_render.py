@@ -55,7 +55,27 @@ def test_opt_in_and_layout_contract():
     assert not comic_enabled({'comic': {'mode': 'comic'}})
     assert not comic_enabled({'comic': {'version': 2, 'mode': 'comic'}})
     assert comic_enabled({'comic': {'version': 1, 'mode': 'moving_comic'}})
+    assert comic_enabled({'comic': {'version': 1, 'mode': 'webtoon_video'}})
     assert LAYOUTS == json.loads(Path('auth-web/public/comic/layouts.json').read_text())
+
+
+def test_vertical_webtoon_keeps_one_source_panel_per_direct_cut(tmp_path):
+    paths = fixtures(tmp_path)
+    frames = ComicFrames(paths, [1, 1, 1], [], {
+        'comic': {'version': 1, 'mode': 'webtoon_video', 'layout': 'grid', 'turn_duration': 1.5}
+    }, (360, 640), FONT)
+    try:
+        assert frames.turn == 0
+        assert [(page['first'], page['last'], page['layout']) for page in frames.pages] == [
+            (0, 1, 'single'), (1, 2, 'single'), (2, 3, 'single')
+        ]
+        assert frames.duration == 3
+        first = frames.frame(.5)
+        second = frames.frame(1.2)
+        assert first.shape == (640, 360, 3)
+        assert not np.array_equal(first, second)
+    finally:
+        frames.close()
 
 
 def test_page_timeline_preserves_all_narration_and_odd_last_page():

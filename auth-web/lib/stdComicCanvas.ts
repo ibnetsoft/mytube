@@ -2,13 +2,14 @@ import { drawLettering } from './stdComicLettering'
 import { COMIC_LAYOUTS, ComicSettings } from './stdComic'
 
 export type ComicMedia = HTMLImageElement | HTMLVideoElement
-const W = 1280, H = 720
 export function drawComicPage(canvas: HTMLCanvasElement, scenes: any[], media: ComicMedia[], settings: ComicSettings,
     timings: ReturnType<typeof import('./stdComic').comicSceneTimings>, sourceTime: number, allBalloons = false, pageIndex = 0) {
+    const webtoon = settings.mode === 'webtoon_video'
+    const W = webtoon ? 720 : 1280, H = webtoon ? 1280 : 720
     canvas.width = W; canvas.height = H
     const ctx = canvas.getContext('2d')!
     ctx.fillStyle = '#f7f2e8'; ctx.fillRect(0, 0, W, H)
-    const layoutName=settings.page_layouts?.[String(pageIndex)] || settings.layout
+    const layoutName=webtoon ? 'single' : (settings.page_layouts?.[String(pageIndex)] || settings.layout)
     if (['spread','double'].includes(layoutName)) {
         ctx.strokeStyle = '#c8bfae'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(W / 2, H * .02); ctx.lineTo(W / 2, H * .98); ctx.stroke()
     }

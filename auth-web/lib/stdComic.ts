@@ -1,6 +1,6 @@
 import layouts from '../public/comic/layouts.json'
 
-export type ComicMode = 'standard' | 'comic' | 'moving_comic'
+export type ComicMode = 'standard' | 'comic' | 'moving_comic' | 'webtoon_video'
 export type ComicLayout = keyof typeof layouts
 export type ComicLettering = {kind?: 'narration' | 'dialogue'; style?: 'speech' | 'shout' | 'whisper'; x?: number; y?: number; width?: number; target_x?: number; target_y?: number}
 export type ComicSettings = {
@@ -22,7 +22,7 @@ const finite = (v: unknown, fallback: number, low: number, high: number) =>
 
 export function normalizeComicSettings(value: any): ComicSettings {
     const raw = value && typeof value === 'object' ? value : {}
-    const mode = raw.version === 1 && ['comic', 'moving_comic'].includes(raw.mode) ? raw.mode : 'standard'
+    const mode = raw.version === 1 && ['comic', 'moving_comic', 'webtoon_video'].includes(raw.mode) ? raw.mode as ComicMode : 'standard'
     const panels: ComicSettings['panels'] = {}
     for (const [key, val] of Object.entries(raw.panels || {}).slice(0, 1000)) {
         if (!/^\d+$/.test(key) || !val || typeof val !== 'object') continue
@@ -39,7 +39,10 @@ export function normalizeComicSettings(value: any): ComicSettings {
         for (const field of ['x','y','width','target_x','target_y'] as const) if (b[field]!=null) clean[field]=finite(b[field],field==='width'?.9:.05,field==='width'?.2:0,field==='width'?.94:1)
         lettering[k]=clean
     }
-    return { version: 1, mode, layout: Object.hasOwn(layouts, raw.layout) ? raw.layout : 'spread',
+    // A vertical webtoon is read as one source panel at a time. It never turns a
+    // landscape comic page sideways or inserts page-turn time into narration.
+    const webtoon = mode === 'webtoon_video'
+    return { version: 1, mode, layout: webtoon ? 'single' : (Object.hasOwn(layouts, raw.layout) ? raw.layout : 'spread'),
         turn_duration: finite(raw.turn_duration ?? 0.7, 0.7, 0.3, 1.5),
         turn_sound: raw.turn_sound !== false, dim_inactive: raw.dim_inactive === true,
         font_size: finite(raw.font_size ?? 28, 28, 18, 44), panels, page_layouts, lettering }
@@ -49,12 +52,19 @@ export function comicSettingsForProject(project: any): ComicSettings {
 }
 export function isComicProject(project: any): boolean {
     const value = project?.project_payload?.render_settings?.comic ?? project?.project_payload?.structure?.comic_plan?.render_settings
-    return value?.version === 1 && (value.mode === 'comic' || value.mode === 'moving_comic')
+    return value?.version === 1 && ['comic', 'moving_comic', 'webtoon_video'].includes(value.mode)
+}
+export function isWebtoonVideoProject(project: any): boolean {
+    return comicSettingsForProject(project).mode === 'webtoon_video'
 }
 export function selectComicMedia<T>(mode: ComicMode, image: T | undefined, video: T | undefined): T | undefined {
-    return mode === 'comic' ? image || video : video || image
+    // Webtoon originals are the source of truth. A user can still opt into a
+    // clip in a future panel-specific setting, but a stray video must not replace
+    // a vertical PSD/image by default.
+    return mode === 'comic' || mode === 'webtoon_video' ? image || video : video || image
 }
 export function comicPages<T>(scenes: T[], settings: ComicSettings): T[][] {
+    if (settings.mode === 'webtoon_video') return scenes.map(scene => [scene])
     const pages: T[][]=[]
     for (let cursor=0;cursor<scenes.length;) {
         const size=layouts[settings.page_layouts?.[String(pages.length)] || settings.layout].length

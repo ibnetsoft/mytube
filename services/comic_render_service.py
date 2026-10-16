@@ -18,7 +18,7 @@ VIDEO_EXTENSIONS = {'.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v'}
 
 def comic_enabled(settings):
     value = (settings or {}).get('comic') or {}
-    return isinstance(value, dict) and value.get('version') == 1 and value.get('mode') in ('comic', 'moving_comic')
+    return isinstance(value, dict) and value.get('version') == 1 and value.get('mode') in ('comic', 'moving_comic', 'webtoon_video')
 
 
 def _number(value, fallback, low, high):
@@ -89,12 +89,13 @@ def animated_balloon(layer, position, elapsed, animate):
 
 class ComicFrames:
     def __init__(self, images, durations, subtitles, settings, resolution, font_path, scene_numbers=None):
-        from moviepy import VideoFileClip
         self.options = settings['comic']
         self.mode = self.options['mode']
-        self.layout = LAYOUTS.get(self.options.get('layout'), LAYOUTS['spread'])
-        self.turn = _number(self.options.get('turn_duration'), .7, .3, 1.5)
-        self.starts, self.pages, self.duration = build_timeline(durations, len(self.layout), self.turn, self.options.get('page_layouts'), self.options.get('layout','spread'))
+        self.webtoon = self.mode == 'webtoon_video'
+        self.layout = LAYOUTS['single'] if self.webtoon else LAYOUTS.get(self.options.get('layout'), LAYOUTS['spread'])
+        self.turn = 0.0 if self.webtoon else _number(self.options.get('turn_duration'), .7, .3, 1.5)
+        self.starts, self.pages, self.duration = build_timeline(durations, len(self.layout), self.turn,
+            {} if self.webtoon else self.options.get('page_layouts'), 'single' if self.webtoon else self.options.get('layout','spread'))
         self.resolution = tuple(resolution)
         self.media = []
         self.balloons = []
@@ -109,6 +110,7 @@ class ComicFrames:
                     raise ValueError(f'만화책 컷 {i + 1}의 이미지 또는 영상이 없습니다.')
                 if Path(path).suffix.lower() in VIDEO_EXTENSIONS:
                     if self.mode == 'comic':
+                        from moviepy import VideoFileClip
                         clip = VideoFileClip(path, audio=False)
                         frame = Image.fromarray(clip.get_frame(0))
                         clip.close()
@@ -153,7 +155,6 @@ class ComicFrames:
     def page(self, index, source_time, all_balloons=False):
         page = self.pages[index]
         self._panel_cache = {key:value for key,value in self._panel_cache.items() if page['first']<=key<page['last']}
-        from moviepy import VideoFileClip
         for key in list(self._clips):
             if key < page['first'] or key >= page['last']:
                 self._clips.pop(key).close()
@@ -170,6 +171,7 @@ class ComicFrames:
             media = self.media[scene_index]
             if isinstance(media, str):
                 if scene_index not in self._clips:
+                    from moviepy import VideoFileClip
                     self._clips[scene_index] = VideoFileClip(media, audio=False)
                 media = self._clips[scene_index]
             if isinstance(media, Image.Image):
@@ -222,7 +224,7 @@ class ComicFrames:
     def frame(self, t):
         index = min(len(self.pages) - 1, max(0, bisect.bisect_right([p['start'] for p in self.pages], t) - 1))
         page = self.pages[index]
-        if t >= page['end'] and index + 1 < len(self.pages):
+        if self.turn > 0 and t >= page['end'] and index + 1 < len(self.pages):
             if self._cache.get('index') != index:
                 self._cache = {'index': index, 'previous': self.page(index, page['source_end'] - .0001),
                                'next': self.page(index + 1, self.pages[index + 1]['source_start'] - .0001)}
@@ -236,8 +238,11 @@ def render_comic(*, temp_dir, images, durations, audio_path, subtitles, settings
     progress = progress_callback or (lambda *_: None)
     if not comic_enabled(settings):
         raise ValueError('만화책 모드 설정이 없습니다.')
-    if resolution[0] <= resolution[1]:
+    webtoon = settings.get('comic', {}).get('mode') == 'webtoon_video'
+    if resolution[0] <= resolution[1] and not webtoon:
         raise ValueError('만화책 모드는 가로 화면만 지원합니다.')
+    if webtoon and resolution[0] >= resolution[1]:
+        raise ValueError('웹툰 영상화 모드는 세로 9:16 화면이 필요합니다.')
     font_settings = dict(settings)
     font_settings['subtitle_font_family'] = 'NanumSquareExtraBold'
     fonts_dir = _prepare_fonts_dir(temp_dir, font_settings)
@@ -278,7 +283,7 @@ def render_comic(*, temp_dir, images, durations, audio_path, subtitles, settings
             length = min(effect.duration, _number(cue.get('duration'), effect.duration, .1, 30))
             tracks.append(effect.subclipped(0, length).with_start(start + page_index * frames.turn)
                 .with_volume_scaled(10 ** (_number(cue.get('volume_db'), -18, -60, 12) / 20)))
-        if settings['comic'].get('turn_sound', True):
+        if not webtoon and settings['comic'].get('turn_sound', True):
             recordings=settings['comic'].get('turn_sound_paths') or []
             if recordings:
                 from services.comic_turn_audio import recorded_page_turns

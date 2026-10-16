@@ -6,6 +6,7 @@ import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import StdAeScenePreparation from '@/components/StdAeScenePreparation'
+import StdComicEditor from '@/components/StdComicEditor'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import StdNonverbalPlan from '@/components/StdNonverbalPlan'
@@ -10758,6 +10759,23 @@ export default function StdPortalPage() {
                                 </div>
 
                                 <StdAeScenePreparation key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} ui={ui} onPreparedScenesChange={onAePreparedScenesChange} />
+
+                                <StdComicEditor
+                                    value={selectedProject.project.project_payload?.render_settings?.comic}
+                                    scenes={selectedProject.scenes}
+                                    subtitles={localSubtitles}
+                                    disabled={Boolean(selectedProject.project.submitted_at || submittingProjectId)}
+                                    onSave={async (comic) => {
+                                        await persistVrewVoiceSubtitles(speechSubtitlesRef.current, {
+                                            strict: true,
+                                            renderSettings: {
+                                                ...(selectedProject.project.project_payload?.render_settings || {}),
+                                                comic,
+                                            },
+                                        })
+                                    }}
+                                    onUpload={async (scene, file) => uploadAsset(scene, file.type.startsWith('video/') ? 'video' : 'image', file)}
+                                />
 
                                 <div className="px-5 space-y-2">
                                     <div className="flex items-center justify-between text-xs text-gray-400">

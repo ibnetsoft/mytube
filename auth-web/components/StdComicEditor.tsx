@@ -143,9 +143,12 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
             setTimeout(() => URL.revokeObjectURL(url), 1000)
         } catch (e: any) { setError(`페이지 저장 실패: ${e.message}`) }
     }
+    const webtoon = draft.mode === 'webtoon_video'
+    const selectMode = (mode: ComicSettings['mode']) => setDraft(normalizeComicSettings({ ...draft, mode,
+        ...(mode === 'webtoon_video' ? { layout: 'single', page_layouts: {}, turn_duration: .3, turn_sound: false } : {}) }))
     const controls = <>
-        <label>제작 모드 <select aria-label="제작 모드" disabled={disabled || busy} value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as ComicSettings['mode'] })} className="rounded border border-white/20 bg-[#171d28] px-2 py-1">
-            <option value="standard">기존 영상</option><option value="comic">만화책 · 이미지</option><option value="moving_comic">무빙툰 · 영상 + 이미지</option>
+        <label>제작 모드 <select aria-label="제작 모드" disabled={disabled || busy} value={draft.mode} onChange={e => selectMode(e.target.value as ComicSettings['mode'])} className="rounded border border-white/20 bg-[#171d28] px-2 py-1">
+            <option value="standard">기존 영상</option><option value="comic">만화책 · 이미지</option><option value="moving_comic">무빙툰 · 영상 + 이미지</option><option value="webtoon_video">웹툰 영상화 · 세로 원본</option>
         </select></label>
         <button type="button" disabled={!dirty || busy || disabled} onClick={() => void save()} className="rounded bg-blue-600 px-3 py-1 disabled:opacity-40">{busy ? '저장 중…' : '모드·배치 저장'}</button>
         {dirty && <span className="text-amber-300">저장 전 변경 있음</span>}
@@ -160,20 +163,22 @@ export default function StdComicEditor({ value, scenes, subtitles, audioUrl, dis
             {open && <>
                 <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">만화책 · 무빙툰 편집</h2><button type="button" onClick={() => { setOpen(false); setPlaying(false) }} aria-label="편집 닫기">닫기 ✕</button></div>
                 <div className="mb-4 flex flex-wrap gap-3 text-sm">{controls}</div>
-                <p className="mb-3 text-xs text-gray-300">가로 16:9 · 씬 순서대로 컷을 배치합니다. 말풍선 문구와 등장 시간은 기존 자막 편집에서 수정합니다. MP4는 모드를 저장한 뒤 기존 렌더 제출을 이용하세요.</p>
+                <p className="mb-3 text-xs text-gray-300">{webtoon
+                    ? '세로 9:16 · 원본 웹툰을 한 컷씩 빠르게 전환합니다. 원본 이미지를 우선 사용하며, 페이지 넘김 시간은 넣지 않습니다. 말풍선 문구와 등장 시간은 기존 자막 편집에서 수정합니다.'
+                    : '가로 16:9 · 씬 순서대로 컷을 배치합니다. 말풍선 문구와 등장 시간은 기존 자막 편집에서 수정합니다. MP4는 모드를 저장한 뒤 기존 렌더 제출을 이용하세요.'}</p>
                 <div className="mb-3 flex flex-wrap items-center gap-4 text-sm">
-                    <label>배치 <select aria-label="페이지 배치" value={draft.layout} disabled={disabled} onChange={e => setDraft({ ...draft, layout: e.target.value as ComicSettings['layout'] })} className="bg-[#263044] p-1">
+                    {!webtoon && <label>배치 <select aria-label="페이지 배치" value={draft.layout} disabled={disabled} onChange={e => setDraft({ ...draft, layout: e.target.value as ComicSettings['layout'] })} className="bg-[#263044] p-1">
                         {Object.entries(COMIC_LAYOUT_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-                    </select></label>
-                    <label>현재 페이지 배치 <select aria-label="현재 페이지 배치" value={draft.page_layouts[String(pageIndex)] || draft.layout} disabled={disabled} onChange={e=>setDraft({...draft,page_layouts:{...draft.page_layouts,[String(pageIndex)]:e.target.value as ComicSettings['layout']}})} className="bg-[#263044] p-1">{Object.entries(COMIC_LAYOUT_LABELS).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>
-                    <label>넘김 시간 <input aria-label="넘김 시간" type="number" step="0.1" min="0.3" max="1.5" value={draft.turn_duration} disabled={disabled} onChange={e => setDraft(normalizeComicSettings({ ...draft, turn_duration: e.target.value }))} className="w-16 bg-[#263044] p-1" /> 초</label>
+                    </select></label>}
+                    {!webtoon && <label>현재 페이지 배치 <select aria-label="현재 페이지 배치" value={draft.page_layouts[String(pageIndex)] || draft.layout} disabled={disabled} onChange={e=>setDraft({...draft,page_layouts:{...draft.page_layouts,[String(pageIndex)]:e.target.value as ComicSettings['layout']}})} className="bg-[#263044] p-1">{Object.entries(COMIC_LAYOUT_LABELS).map(([id,label])=><option key={id} value={id}>{label}</option>)}</select></label>}
+                    {!webtoon && <label>넘김 시간 <input aria-label="넘김 시간" type="number" step="0.1" min="0.3" max="1.5" value={draft.turn_duration} disabled={disabled} onChange={e => setDraft(normalizeComicSettings({ ...draft, turn_duration: e.target.value }))} className="w-16 bg-[#263044] p-1" /> 초</label>}
                     <label>글자 크기 <input aria-label="말풍선 글자 크기" type="number" min="18" max="44" value={draft.font_size} disabled={disabled} onChange={e => setDraft(normalizeComicSettings({ ...draft, font_size: e.target.value }))} className="w-16 bg-[#263044] p-1" /></label>
                     <label><input type="checkbox" checked={draft.dim_inactive} disabled={disabled} onChange={e => setDraft({ ...draft, dim_inactive: e.target.checked })} /> 현재 컷 강조</label>
-                    <label><input type="checkbox" checked={draft.turn_sound} disabled={disabled} onChange={e => setDraft({ ...draft, turn_sound: e.target.checked })} /> 넘김 효과음</label>
+                    {!webtoon && <label><input type="checkbox" checked={draft.turn_sound} disabled={disabled} onChange={e => setDraft({ ...draft, turn_sound: e.target.checked })} /> 넘김 효과음</label>}
                 </div>
                 {audioUrl && <audio ref={audioRef} src={audioUrl} preload="metadata" onLoadedMetadata={e => setAudioDuration(e.currentTarget.duration)} />}
                 {(draft.page_layouts[String(pageIndex)] || draft.layout)==='breakout' && <p className="text-amber-200">두 번째 씬에 배경을 제거한 투명 PNG를 넣으세요. 전경이 첫 컷의 테두리를 넘어갑니다.</p>}
-                <canvas ref={canvasRef} width="1280" height="720" className="aspect-video w-full rounded bg-[#f7f2e8]" aria-label="만화책 페이지 미리보기" />
+                <canvas ref={canvasRef} width={webtoon ? 720 : 1280} height={webtoon ? 1280 : 720} className={webtoon ? 'mx-auto aspect-[9/16] max-h-[68vh] w-auto max-w-full rounded bg-[#f7f2e8]' : 'aspect-video w-full rounded bg-[#f7f2e8]'} aria-label="만화책 페이지 미리보기" />
                 {!loaded && <p className="mt-2 text-xs">{error ? '컷을 확인해 주세요.' : '페이지 불러오는 중…'}</p>}
                 <div className="my-3 flex flex-wrap items-center gap-3 text-sm">
                     <button type="button" disabled={pageIndex === 0} onClick={() => { setPageIndex(i => i - 1); setPlaying(false) }}>← 이전</button>

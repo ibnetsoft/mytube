@@ -3,7 +3,7 @@ import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from '.
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
 import { reviewedAeMouthAssets } from './stdAeMouth'
-import { comicSettingsForProject, isComicProject, selectComicMedia, comicSceneTimings } from './stdComic'
+import { comicSettingsForProject, isComicProject, isWebtoonVideoProject, selectComicMedia, comicSceneTimings } from './stdComic'
 import { subtitleGain } from './stdSpeechGain'
 import { preserveAudioAnchors } from './stdAudioAnchors'
 import { resolveSfxCues, sfxNeedsReview } from '@/lib/stdSfxCues'
@@ -617,7 +617,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         email: project.employee_email || 'unknown',
         use_subtitles: !isNonverbalProject(project),
         resolution: '1080p',
-        aspect_ratio: '16:9',
+        aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : '16:9',
         speech_gain_version: 1,
         audio_filename: audioFilename,
         audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : narrationIdentity?.duration_seconds || project.progress_payload?.audio_duration || null,
@@ -634,7 +634,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         bg_video_url: null,
         intro_filename: null,
         template_overlay_filename: null,
-        content_aspect_ratio: null,
+        content_aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : null,
         ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,
@@ -867,7 +867,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         email: project.employee_email || 'unknown',
         use_subtitles: !isNonverbalProject(project),
         resolution: '1080p',
-        aspect_ratio: '16:9',
+        aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : '16:9',
         speech_gain_version: 1,
         audio_filename: audioFilename,
         audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : recordedTiming
@@ -886,7 +886,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         bg_video_url: null,
         intro_filename: null,
         template_overlay_filename: templateOverlayFilename,
-        content_aspect_ratio: null,
+        content_aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : null,
         ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,

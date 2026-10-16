@@ -1092,7 +1092,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         durations = _compute_image_durations(image_timing_starts, len(images), audio_duration)
         # Explicit opt-in: legacy projects continue through the original pipeline below.
         comic_options = render_settings.get('comic') or {}
-        if isinstance(comic_options, dict) and comic_options.get('version') == 1 and comic_options.get('mode') in ('comic', 'moving_comic'):
+        if isinstance(comic_options, dict) and comic_options.get('version') == 1 and comic_options.get('mode') in ('comic', 'moving_comic', 'webtoon_video'):
             from services.comic_render_service import render_comic
             render_comic(temp_dir=temp_dir, images=images, durations=durations,
                          audio_path=audio_path, subtitles=subs if metadata.get('use_subtitles') else [],

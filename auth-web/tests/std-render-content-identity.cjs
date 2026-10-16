@@ -10,7 +10,12 @@ function renderer(){
   if(name.includes('stdNonverbal'))return {isNonverbalProject:()=>false}
   if(name.includes('stdLipSync'))return {lipSyncEnabled:()=>false,reviewedLipSyncAssets:()=>new Map(),lipSyncSceneStarts:()=>[0]}
   if(name.includes('stdAeMouth'))return {reviewedAeMouthAssets:()=>new Map()}
-  if(name.includes('stdComic'))return {isComicProject:()=>false,comicSettingsForProject:()=>({panels:{},mode:'classic'}),selectComicMedia:(_m,image,video)=>image||video}
+  if(name.includes('stdComic'))return {
+   isComicProject:project=>['comic','moving_comic','webtoon_video'].includes(project.project_payload?.render_settings?.comic?.mode),
+   isWebtoonVideoProject:project=>project.project_payload?.render_settings?.comic?.mode==='webtoon_video',
+   comicSettingsForProject:project=>project.project_payload?.render_settings?.comic || {panels:{},mode:'classic'},
+   selectComicMedia:(mode,image,video)=>(mode==='comic'||mode==='webtoon_video' ? image||video : video||image)
+  }
   if(name.includes('stdSpeechGain'))return {subtitleGain:()=>1}
   if(name.includes('stdSfxCues'))return {resolveSfxCues:()=>[]}
   if(name.includes('stdAudioMix'))return {audioAssetRole:a=>a.asset_type}
@@ -40,6 +45,16 @@ test('final GCS composition uses the same frozen comic neighbor source selector'
  assert.equal(selected.id,'image')
  assert.equal(visual.content_identity.asset_id,selected.id)
  assert.equal(visual.asset_type,'image')
+})
+test('vertical webtoon composition preserves original image media and requests 9:16 output',async()=>{
+ const f=fixture()
+ f.p.project_payload.render_settings={comic:{version:1,mode:'webtoon_video',layout:'single',panels:{'19':{fit:'contain'}}}}
+ const config=await renderer()(f.p,[f.scene],[f.audio,f.image],1000003373)
+ const visual=config.asset_manifest.files.find(item=>item.asset_type==='image')
+ assert.equal(config.aspect_ratio,'9:16')
+ assert.equal(config.content_aspect_ratio,'9:16')
+ assert.equal(config.comic.mode,'webtoon_video')
+ assert.equal(visual.content_identity.asset_id,'image')
 })
 test('real render config binds original audio, scene assets and duration and suppresses TTS without AE',async()=>{
  const f=fixture(),newer={...f.audio,id:'wrong',file_name:'expanded.mp3',metadata:{...f.audio.metadata,duration_seconds:34,subtitle_timeline:[{...f.audio.metadata.subtitle_timeline[0],end_num:34}]}}
