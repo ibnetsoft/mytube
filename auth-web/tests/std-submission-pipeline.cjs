@@ -7,6 +7,8 @@ function snapshot() {
   if (id === 'crypto') return require('crypto')
   if (id.includes('supabaseAdmin')) return {supabaseAdmin:{}}
   if (id.includes('stdAeMouth')) return {aeMouthInput:()=>({input:{scenes:[]},fingerprint:'f'}),currentAeMouthJob:()=>null}
+  if (id.includes('stdAeScenePreparation')) return load('lib/stdAeScenePreparation.ts')
+  if (id.includes('stdAeSceneReview')) return load('lib/stdAeSceneReview.ts')
   if (id.includes('stdAudioMix')) return load('lib/stdAudioMix.ts')
   if (id.includes('stdSfxCues')) return load('lib/stdSfxCues.ts')
   throw new Error(id)

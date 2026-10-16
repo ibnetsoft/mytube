@@ -50,6 +50,10 @@ def pending_roles():
         response=requests.get(base+'/rest/v1/'+table,headers=headers,params={'select':'id','limit':'1',**params},timeout=(5,15))
         response.raise_for_status();return bool(response.json())
     roles=[]
+    from ae_scene_preparation import claimable_filter as scene_preparation_filter
+    if exists('std_project_assets', {'metadata->>kind':'eq.ae_scene_preparation',
+            'metadata->>enabled':'eq.true','or':scene_preparation_filter()}):
+        roles.append('preparation')
     for kind in ('region_layer_package','region_motion_plan'):
         if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.(queued,processing)'}):
             roles.append('region');break
@@ -63,6 +67,7 @@ def pending_roles():
     return roles
 
 def role_command(role):
+    if role=='preparation': return [sys.executable,'-u',str(ROOT/'worker/ae_scene_preparation.py'),'--once']
     if role=='coordinates': return [sys.executable,'-u',str(ROOT/'worker/ae_speaker_coordinates.py'),'--once']
     if role=='video_tail': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--video-tails-only','--max-scenes','1']
     if role=='region': return [sys.executable,'-u',str(ROOT/'worker/ae_region_motion_worker.py'),'--once']
@@ -73,7 +78,7 @@ def role_command(role):
 
 def busy_processes():
     if os.name!='nt':return []
-    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
+    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_scene_preparation|ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
     result=subprocess.run(['powershell','-NoProfile','-Command',script],capture_output=True,text=True,creationflags=subprocess.CREATE_NO_WINDOW,timeout=15)
     if result.returncode:raise RuntimeError('Could not verify local media resources')
     rows=json.loads(result.stdout) if result.stdout.strip() else []

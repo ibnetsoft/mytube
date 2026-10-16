@@ -1,9 +1,5 @@
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),ts=require('../node_modules/typescript');
-const ex={};new Function('exports','require',ts.transpile(fs.readFileSync('lib/stdRenderQueue.ts','utf8'),{module:1,target:7}))(ex,name=>{
- if(name==='crypto')return require(name);
- if(name.includes('supabaseAdmin'))return {supabaseAdmin:{}};
- return {};
-});
+const test=require('node:test'),assert=require('node:assert/strict');
+const ex=require('./load-ts-module.cjs')('lib/stdSceneMedia.ts');
 const project=(asset,layer,plan={enabled:true,preset:'parallax'})=>({project_payload:{structure:{scenes:[{
  scene_number:19,ae_motion_plan:plan,metadata:{ae_motion_asset:asset,...(layer?{psd_layer_asset:layer}:{})}
 }]}}});

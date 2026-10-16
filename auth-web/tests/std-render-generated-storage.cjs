@@ -20,7 +20,7 @@ function load(relativePath, dependencies = {}, cache = new Map()) {
         if (name.includes('stdNonverbal')) { const ex = {}; new Function('exports', ts.transpile(fs.readFileSync('lib/stdNonverbal.ts','utf8'),{module:1,target:7}))(ex); return ex }
  if (name in dependencies) return dependencies[name]
         if (name === 'crypto') return require('node:crypto')
-        if (name.endsWith('stdGeneratedSceneStorage') || name.endsWith('stdPolicy') || name.endsWith('stdComic')) {
+        if (['stdGeneratedSceneStorage', 'stdPolicy', 'stdComic', 'stdSceneMedia', 'stdVideoTail'].some(module => name.endsWith(module))) {
             return load(`lib/${name.split('/').pop()}.ts`, dependencies, cache)
         }
         if (name.endsWith('.json')) return require(path.resolve(path.dirname(filename), name))

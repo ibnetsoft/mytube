@@ -5,6 +5,7 @@ function renderer(){
  new Function('exports','require',ts.transpile(source,{module:1,target:7}))(ex,name=>{
   if(name==='crypto')return require('crypto')
   if(name.includes('stdContentIdentity'))return identity
+  if(name.includes('stdSceneMedia'))return load('lib/stdSceneMedia.ts')
   if(name.includes('stdAudioAnchors'))return load('lib/stdAudioAnchors.ts')
   if(name.includes('stdNonverbal'))return {isNonverbalProject:()=>false}
   if(name.includes('stdLipSync'))return {lipSyncEnabled:()=>false,reviewedLipSyncAssets:()=>new Map(),lipSyncSceneStarts:()=>[0]}
@@ -28,6 +29,18 @@ function fixture(){const rows=[{text:'原本。',voice_id:'v',start_num:0,end_nu
  const image={id:'image',project_id:'p',scene_id:'scene',scene_number:19,asset_type:'image',status:'assigned',file_name:'original.png',metadata:{gcs_bucket:'bucket',gcs_path:'topics/3373/image.png'}}
  return {p,scene,audio,image}
 }
+test('final GCS composition uses the same frozen comic neighbor source selector',async()=>{
+ const f=fixture()
+ f.p.project_payload.submission_pipeline_version=2
+ f.p.project_payload.render_settings={comic:{version:1,mode:'moving_comic',panels:{'19':{motion:'still'}}}}
+ const video={...f.image,id:'video',asset_type:'video',file_name:'generated.mp4',metadata:{gcs_bucket:'bucket',gcs_path:'different-video.mp4'}}
+ const selected=load('lib/stdSceneMedia.ts').resolveSceneMedia(f.p,f.scene,[video,f.image,f.audio])
+ const config=await renderer()(f.p,[f.scene],[video,f.image,f.audio],1000003373)
+ const visual=config.asset_manifest.files.find(item=>['image','video'].includes(item.asset_type))
+ assert.equal(selected.id,'image')
+ assert.equal(visual.content_identity.asset_id,selected.id)
+ assert.equal(visual.asset_type,'image')
+})
 test('real render config binds original audio, scene assets and duration and suppresses TTS without AE',async()=>{
  const f=fixture(),newer={...f.audio,id:'wrong',file_name:'expanded.mp3',metadata:{...f.audio.metadata,duration_seconds:34,subtitle_timeline:[{...f.audio.metadata.subtitle_timeline[0],end_num:34}]}}
  const config=await renderer()(f.p,[f.scene],[newer,f.image,f.audio],1000003373)

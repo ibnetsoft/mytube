@@ -3,11 +3,14 @@ import { supabaseAdmin as db } from './supabaseAdmin'
 import { aeMouthApplicable, aeMouthInput, currentAeMouthJob } from './stdAeMouth'
 import { backgroundWindow } from './stdAudioMix'
 import { sfxNeedsReview, resolveSfxCues } from './stdSfxCues'
+import { hasAeSceneIntent } from './stdAeScenePreparation'
+import { aeSceneArtifactReviewMatches, aeSceneRenderReviewMatches } from './stdAeSceneReview'
 
 export const SUBMISSION_PIPELINE_VERSION = 2
 export function submissionSnapshot(project: any, scenes: any[], assets: any[], mouthRequired: boolean) {
     const frozen = JSON.parse(JSON.stringify({ project, scenes, assets }))
     frozen.project.project_payload = { ...frozen.project.project_payload, submission_pipeline_version: 2 }
+    mouthRequired = mouthRequired || hasAeSceneIntent(frozen.project, frozen.scenes, frozen.assets)
     const settings = { ...frozen.project.project_payload.settings, ...frozen.project.project_payload.render_settings }
     const bgmId = settings.bgm_asset_id || frozen.project.project_payload.bgm_asset_id
     const subtitles = frozen.project.project_payload.subtitles || []
@@ -21,23 +24,49 @@ export function submissionSnapshot(project: any, scenes: any[], assets: any[], m
     }
     if (bgmId && !assets.some((a: any) => a.id === bgmId))
         throw new Error('선택한 배경음 파일이 없습니다.')
-    const mouth = mouthRequired ? aeMouthInput(frozen.project, scenes, assets) : {
+    const mouth = mouthRequired ? aeMouthInput(frozen.project, frozen.scenes, frozen.assets) : {
         input: { project_id: project.id, scenes: [], subtitles: [], cast: {}, annotations: {} },
         fingerprint: createHash('sha256').update(`assembly:${project.id}:${project.updated_at}`).digest('hex'),
     }
     const previous = mouthRequired ? currentAeMouthJob(frozen.project, scenes, assets) : null
+    if (mouthRequired) frozen.project.project_payload.ae_mouth = { ...frozen.project.project_payload.ae_mouth, enabled: true }
     const reusable = previous?.metadata?.fingerprint === mouth.fingerprint && previous.metadata?.pipeline_version === 2
-        ? previous.metadata.results.filter((r: any) => r.status === 'artifact_ready') : []
+        ? previous.metadata.results.filter((row: any) => {
+            if (row.status !== 'artifact_ready') return false
+            const scene = mouth.input.scenes.find((scene: any) => scene.number === row.number)
+            if (!scene) return false
+            if (!scene.ae_scene) return true
+            const asset = assets.find((asset: any) => asset.id === row.asset_id && asset.asset_type === 'video' &&
+                ['uploaded', 'assigned'].includes(asset.status) && Number(asset.scene_number) === scene.number)
+            return asset?.metadata?.artifact_ready === true && asset.metadata.timing_locked === true &&
+                asset.metadata.source_audio_id === (mouth.input as any).audio.id && asset.metadata.render_sha256 === row.render_sha256 &&
+                asset.metadata.ae_mouth_fingerprint === mouth.fingerprint && asset.metadata.voice_synced !== false &&
+                Math.abs(Number(asset.metadata.duration_seconds) - (scene.end - scene.start)) <= .12 &&
+                aeSceneArtifactReviewMatches(scene, (mouth.input as any).audio, asset.metadata) &&
+                aeSceneRenderReviewMatches(scene, (mouth.input as any).audio, row.output_review, row.render_sha256)
+        }) : []
     const outputIds = new Set(reusable.map((r: any) => r.asset_id))
+    const sourceIds = new Set<string>()
+    const narrationId = (mouth.input as any).audio?.id
+    if (narrationId) sourceIds.add(narrationId)
+    for (const scene of [...(mouth.input.scenes || []), ...((mouth.input as any).sequence_scenes || [])] as any[]) {
+        for (const source of [scene.image, scene.original_video, scene.selected_media, scene.ae_scene, scene.ae_scene?.metadata?.input?.source_psd]) {
+            if (source?.id) sourceIds.add(source.id)
+        }
+    }
     const audioIds = new Set([bgmId, ...enabled.map((c: any) => c.asset_id)])
+    const frozenVisualKeys = new Set(frozen.assets.filter((asset: any) => sourceIds.has(asset.id) &&
+        ['image', 'video'].includes(asset.asset_type)).map((asset: any) => `${asset.scene_number}:${asset.asset_type}`))
     const selected = new Set<string>()
     // Freeze selected media and geometry, not every historical job's embedded input/results.
     frozen.assets = frozen.assets.filter((asset: any) => {
-        if (outputIds.has(asset.id) || audioIds.has(asset.id) || asset.metadata?.kind === 'mouth_work_selection') return true
+        if (sourceIds.has(asset.id) || outputIds.has(asset.id) || audioIds.has(asset.id) || asset.metadata?.kind === 'mouth_work_selection') return true
+        if (narrationId && asset.asset_type === 'audio') return false
         if (['speaker_coordinate_confirmation','ae_speaker_coordinates','submitted_video_coordinates','eye_blink_confirmation'].includes(asset.metadata?.kind)) return true
         if (!['image','video','thumbnail','audio'].includes(asset.asset_type)) return false
         if (asset.metadata?.ae_mouth_fingerprint || asset.metadata?.lipsync_fingerprint) return false
         const key = `${asset.scene_number}:${asset.asset_type}`
+        if (frozenVisualKeys.has(key)) return false
         if (selected.has(key)) return false
         selected.add(key);return true
     })
@@ -48,6 +77,8 @@ export function submissionSnapshot(project: any, scenes: any[], assets: any[], m
 /** Final voice exists now: queue synced scene previews, without submitting a final render. */
 export async function ensureSyncedMouthPreview(project: any, scenes: any[], assets: any[]) {
     if (!scenes.length) return null
+    // Prepared scene production is explicitly submitted; saving TTS must not start it.
+    if (hasAeSceneIntent(project, scenes, assets)) return null
     if (project.submitted_at || project.project_payload?.ae_mouth?.enabled === false || !aeMouthApplicable(project, scenes, assets)) return null
     const { input, fingerprint } = aeMouthInput(project, scenes, assets)
     const existing = assets.find(a => a.metadata?.kind === 'ae_mouth_job' && a.metadata.fingerprint === fingerprint && a.metadata.pipeline_version === 2)

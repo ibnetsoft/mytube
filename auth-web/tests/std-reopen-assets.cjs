@@ -8,15 +8,20 @@ function loadLibrary(name) {
         dep === './stdComic' ? { isComicProject: () => false } : dep.startsWith('./') ? loadLibrary(dep.slice(2)) : require(dep))
     return exports
 }
-function fixture({ missingVideo = false, failPage = false, activeRender = false, unauthorized = false } = {}) {
+function fixture({ missingVideo = false, failPage = false, activeRender = false, unauthorized = false, aeScene = false } = {}) {
     const subtitle = { text: '어머니', voice_id: 'voice', scene_number: 5, start: 0, end: 3, dialogue_kind: 'dialogue', dialogue_speaker: '소녀' }
     const project = { id: 'p', project_payload: { ae_mouth: { enabled: true }, subtitles: [subtitle] } }
     const scenes = [{ scene_number: 5, scene_text: subtitle.text }]
     const assets = [
         { id: 'audio', asset_type: 'audio', status: 'assigned', metadata: { subtitle_timeline: [subtitle] } },
+        { id: 'selection', asset_type: 'other', status: 'uploaded', metadata: { kind: 'mouth_work_selection', scene_numbers: [5] } },
         ...Array.from({ length: 1263 }, (_, i) => ({ id: `other-${i}`, asset_type: 'other', status: 'uploaded', metadata: {} })),
         ...missingVideo ? [] : [{ id: 'original-5', asset_type: 'video', scene_number: 5, status: 'assigned', metadata: { gcs_path: 'clip.mp4' } }],
     ]
+    if (aeScene) {
+        project.project_payload.ae_mouth.enabled = false
+        assets.push({ id: 'prepared', scene_number: 5, asset_type: 'other', status: 'uploaded', metadata: { kind: 'ae_scene_preparation', state: 'queued' } })
+    }
     const pages = [], prepared = []
     const db = { from(table) {
         const query = {
@@ -44,6 +49,7 @@ function fixture({ missingVideo = false, failPage = false, activeRender = false,
             return { ready: false, job: { id: 'queued' } }
         } }
         if (name.includes('stdAeMouth')) return loadLibrary('stdAeMouth')
+        if (name.includes('stdAeScenePreparation')) return loadLibrary('stdAeScenePreparation')
         throw Error(name)
     })
     return { run: () => exports.POST({}, { params: { projectId: 'p' } }), pages, prepared }
@@ -73,4 +79,11 @@ test('Re route preserves authorization and duplicate-render guards', async () =>
         assert.equal(f.pages.length, 0)
         assert.equal(f.prepared.length, 0)
     }
+})
+test('Re route requires a frozen submission for selected AE scenes even with mouth processing disabled', async () => {
+    const f = fixture({ aeScene: true }), result = await f.run()
+    assert.equal(result.status, 409)
+    assert.equal(result.body.code, 'AE_SCENE_SUBMISSION_REQUIRED')
+    assert.equal(f.prepared.length, 0)
+    assert.deepEqual(f.pages, [0, 500, 1000])
 })

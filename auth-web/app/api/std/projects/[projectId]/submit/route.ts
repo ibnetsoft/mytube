@@ -9,6 +9,7 @@ import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '@/lib/stdRenderQueue'
 import { aeMouthApplicable } from '@/lib/stdAeMouth'
 import { registerSubmissionPipeline } from '@/lib/stdSubmissionPipeline'
+import { preparedAeScenes } from '@/lib/stdAeScenePreparation'
 
 export const dynamic = 'force-dynamic'
 
@@ -136,16 +137,17 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }
     }
 
-    const [{ data: scenes, error: scenesError }, { data: loadedAssets, error: assetsError }] = await Promise.all([
+    const [{ data: fetchedScenes, error: scenesError }, { data: loadedAssets, error: assetsError }] = await Promise.all([
         supabaseAdmin
             .from('std_project_scenes')
             .select('*')
-            .eq('project_id', project.id),
+            .eq('project_id', project.id).order('scene_number'),
         loadStdProjectAssets(supabaseAdmin, project.id, '*'),
     ])
 
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
     if (assetsError) return NextResponse.json({ success: false, error: assetsError.message }, { status: 500 })
+    const scenes = [...(fetchedScenes || [])].sort((a: any, b: any) => Number(a.scene_number) - Number(b.scene_number))
 
     if (!scenes?.length) {
         return NextResponse.json({
@@ -171,6 +173,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }, { status: 500 })
     }
 
+    let preparedScenes: Map<number, any>
+    try {
+        preparedScenes = preparedAeScenes(project, scenes, assets)
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message || 'AE 장면 준비를 확인해 주세요.' }, { status: 409 })
+    }
     const visualAssets = assets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
     const activeSceneNumbers = new Set(visualAssets.map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
     const activeVideoSceneNumbers = new Set(
@@ -181,6 +189,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     )
     const missingScenes = (scenes || []).filter((scene: any) => {
         const sceneNumber = Number(scene.scene_number)
+        if (preparedScenes.has(sceneNumber)) return false
         if (isNonverbalProject(project)) return !hasReadyNonverbalPlan(project) || !visualAssets.some((a: any) =>
             Number(a.scene_number) === sceneNumber && a.asset_type === 'video' && hasStoredAssetFile(a)
             && a.metadata?.postprocess_mode === 'region_motion' && a.metadata?.reviewed_by_user === true)
@@ -195,7 +204,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             missing_scene_numbers: missingScenes.map((scene: any) => scene.scene_number),
             required_video_scene_numbers: (scenes || [])
                 .map((scene: any) => Number(scene.scene_number))
-                .filter((sceneNumber: number) => isStdVideoPromptScene(sceneNumber, project)),
+                .filter((sceneNumber: number) => !preparedScenes.has(sceneNumber) && isStdVideoPromptScene(sceneNumber, project)),
         }, { status: 409 })
     }
 
@@ -245,7 +254,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     try {
-        const run = await registerSubmissionPipeline(project, scenes || [], assets, auth.requester.user.id, mouthRequired)
+        const run = await registerSubmissionPipeline(project, scenes || [], assets, auth.requester.user.id, mouthRequired || preparedScenes.size > 0)
         return NextResponse.json({ success: true, ...run, postprocess_pending: true,
             pipeline_version: 2, message: '제출 완료. 저장한 영상·음향 설정으로 자동 렌더링이 진행됩니다.' }, { status: 202 })
     } catch (error: any) {

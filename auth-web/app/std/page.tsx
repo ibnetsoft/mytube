@@ -5,6 +5,7 @@ import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
+import StdAeScenePreparation from '@/components/StdAeScenePreparation'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import StdNonverbalPlan from '@/components/StdNonverbalPlan'
@@ -6957,10 +6958,16 @@ export default function StdPortalPage() {
         return dynamicGrids
     }, [selectedProject])
 
+    const [aePreparedSceneState, setAePreparedSceneState] = useState<{ projectId: string; numbers: number[] }>({ projectId: '', numbers: [] })
+    const onAePreparedScenesChange = useCallback((numbers: number[]) => {
+        setAePreparedSceneState({ projectId: String(selectedProject?.project?.id || ''), numbers })
+    }, [selectedProject?.project?.id])
+
     // 에셋 완성도 및 통계 계산
     const assetStats = useMemo(() => {
         const scenes = selectedProject?.scenes || []
         const totalScenes = scenes.length || DEFAULT_15_MINUTE_SCENE_COUNT
+        const aeReady = new Set(aePreparedSceneState.projectId === String(selectedProject?.project?.id || '') ? aePreparedSceneState.numbers : [])
         const sceneNumberOf = (scene: any, index: number) => Number(scene?.scene_number || scene?.scene_order || index + 1)
         const videoScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
@@ -6972,30 +6979,30 @@ export default function StdPortalPage() {
             .map(({ sceneNumber }) => sceneNumber)
         const completeScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
-            .filter(({ scene, sceneNumber }) =>
+            .filter(({ scene, sceneNumber }) => aeReady.has(sceneNumber) || (
                 baseIsStdRequiredClipScene(sceneNumber, selectedProject?.project)
                     ? Boolean(scene.video_url)
                     : Boolean(scene.video_url || scene.image_url)
-            )
+            ))
             .map(({ sceneNumber }) => sceneNumber)
         const missingScenes = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
-            .filter(({ scene, sceneNumber }) =>
+            .filter(({ scene, sceneNumber }) => !aeReady.has(sceneNumber) && (
                 baseIsStdRequiredClipScene(sceneNumber, selectedProject?.project)
                     ? !scene.video_url
                     : !scene.video_url && !scene.image_url
-            )
+            ))
             .map(({ sceneNumber }) => sceneNumber)
 
         const requiredVideoZone = Array.from({ length: requiredVideoSceneCount }, (_, index) => index + 1)
-        const videoReadyInZone = videoScenes.filter(num => requiredVideoZone.includes(num))
+        const videoReadyInZone = [...new Set([...videoScenes, ...Array.from(aeReady)])].filter(num => requiredVideoZone.includes(num))
         const requiredZoneOnlyImage = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
-            .filter(({ scene, sceneNumber }) => requiredVideoZone.includes(sceneNumber) && Boolean(scene.image_url) && !scene.video_url)
+            .filter(({ scene, sceneNumber }) => requiredVideoZone.includes(sceneNumber) && !aeReady.has(sceneNumber) && Boolean(scene.image_url) && !scene.video_url)
             .map(({ sceneNumber }) => sceneNumber)
         const requiredZoneMissingAll = scenes
             .map((s: any, index: number) => ({ scene: s, sceneNumber: sceneNumberOf(s, index) }))
-            .filter(({ scene, sceneNumber }) => requiredVideoZone.includes(sceneNumber) && !scene.image_url && !scene.video_url)
+            .filter(({ scene, sceneNumber }) => requiredVideoZone.includes(sceneNumber) && !aeReady.has(sceneNumber) && !scene.image_url && !scene.video_url)
             .map(({ sceneNumber }) => sceneNumber)
         const completion = totalScenes > 0 ? Math.round((completeScenes.length / totalScenes) * 100) : 0
 
@@ -7003,6 +7010,7 @@ export default function StdPortalPage() {
             totalScenes,
             imageCount: imageScenes.length,
             videoCount: videoScenes.length,
+            aePreparedCount: aeReady.size,
             missingScenes,
             completeScenes,
             videoReadyInZoneCount: videoReadyInZone.length,
@@ -7011,7 +7019,7 @@ export default function StdPortalPage() {
             completion,
             videoScenes,
         }
-    }, [selectedProject, requiredVideoSceneCount])
+    }, [selectedProject, requiredVideoSceneCount, aePreparedSceneState])
 
     const selectedVoiceObj = useMemo(() => {
         return allVoices.find(v => v.id === selectedVoice) || STD_DEFAULT_VOICE
@@ -10743,10 +10751,13 @@ export default function StdPortalPage() {
                                         <span className="px-2 py-1 bg-blue-500/15 text-blue-400 rounded font-bold">{ui('씬')} {assetStats.totalScenes}</span>
                                         <span className="px-2 py-1 bg-emerald-500/15 text-emerald-400 rounded font-bold">{ui('유효 이미지')} {assetStats.imageCount}</span>
                                         <span className="px-2 py-1 bg-purple-500/15 text-purple-400 rounded font-bold">{ui('영상')} {assetStats.videoCount}</span>
+                                        {assetStats.aePreparedCount > 0 && <span className="px-2 py-1 bg-cyan-500/15 text-cyan-300 rounded font-bold">{ui('PSD 연출 준비')} {assetStats.aePreparedCount}</span>}
                                         <span className="px-2 py-1 bg-orange-500/15 text-orange-400 rounded font-bold">🔒 {assetStats.videoReadyInZoneCount}/{requiredVideoSceneCount}</span>
                                         <span className="px-2 py-1 bg-amber-500/15 text-amber-400 rounded font-bold">{ui('비주얼 누락')} {assetStats.missingScenes.length}</span>
                                     </div>
                                 </div>
+
+                                <StdAeScenePreparation key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} ui={ui} onPreparedScenesChange={onAePreparedScenesChange} />
 
                                 <div className="px-5 space-y-2">
                                     <div className="flex items-center justify-between text-xs text-gray-400">

@@ -4,6 +4,7 @@ pydantic>=2,<3
 requests>=2.32,<3
 python-dotenv>=1,<2
 Pillow>=11,<13
+psd-tools>=1.12.1,<2
 imageio-ffmpeg>=0.6,<1
 google-auth>=2,<3
 google-cloud-storage>=2,<4

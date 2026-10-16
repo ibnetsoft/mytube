@@ -10,6 +10,7 @@ test('recovered video is archived before registration',async()=>{
  if(name==='crypto')return require('crypto');
  if(name.includes('supabaseAdmin'))return {supabaseAdmin:db};
  if(name.includes('stdComic'))return comic;
+ if(name.includes('stdSceneMedia'))return require('./load-ts-module.cjs')('lib/stdSceneMedia.ts');
  if(name.includes('stdPolicy'))return {isStdRequiredVideoScene:n=>n<=12,isStdRequiredClipScene:n=>n<=18};
  if(name.includes('stdGeneratedSceneStorage')){const helper={};new Function('exports','require',ts.transpile(fs.readFileSync(path.join(root,'lib/stdGeneratedSceneStorage.ts'),'utf8'),{module:1,target:7}))(helper,require);return helper;}
  if(name.includes('gcsStorage'))return {gcsBucketName:()=> 'render',uploadGcsBuffer:async args=>{assert.equal((args.data||args.buffer).toString(),'video');uploaded=true;return {bucket:'render',path:args.objectPath}},isGcsConfiguredAsync:async()=>true};

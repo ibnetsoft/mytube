@@ -15,6 +15,7 @@ import ae_highlight_worker as ae
 from ae_media_utils import ffmpeg, run, ref
 from ae_mouth import decode_scene_audio, digest, amplitude_cues, resolved_blink_cues
 from std_project_assets import load_project_assets
+from submission_pipeline import validate_required_scene_results, ready_scene_artifacts, sequence_fingerprint
 
 
 def automatic_phase(meta):
@@ -243,9 +244,65 @@ def inspect_scene(runner, job, scene, result, audio_path, directory, phase, fres
             'render_sha256':digest(output) if output else None,'audio':audio_check,'batches':receipts}, output_asset
 
 
+def review_required_sequence(runner, job, meta, directory, fresh):
+    """Review real neighboring final/source frames before registering a final render."""
+    snapshot = meta['input']
+    if not any(scene.get('ae_scene') for scene in snapshot.get('scenes') or []):
+        return None
+    validate_required_scene_results(snapshot, meta.get('results') or [])
+    fingerprint = sequence_fingerprint(meta)
+    saved = meta.get('sequence_review') or {}
+    sequence = snapshot.get('sequence_scenes')
+    if not isinstance(sequence, list) or not sequence:
+        raise ValueError('Required AE sequence is missing frozen adjacent-scene sources')
+    from ae_scene_review_contract import sequence_review_matches
+    if (saved.get('fingerprint') == fingerprint and
+            sequence_review_matches(sequence, meta.get('results') or [], saved)):
+        return saved
+    required_numbers = {scene['number'] for scene in snapshot['scenes'] if scene.get('ae_scene')}
+    if not required_numbers.issubset({scene.get('number') for scene in sequence if scene.get('ae_scene')}):
+        raise ValueError('Required AE sequence does not cover every prepared scene')
+    fresh()
+    base, headers = ae._supabase()
+    assets = load_project_assets(ae._request, base, headers, job['project_id'])
+    reusable = ready_scene_artifacts(snapshot, assets, meta['fingerprint'])
+    outputs = {}
+    directory = directory / 'sequence-review'
+    directory.mkdir(parents=True, exist_ok=True)
+    for row in meta.get('results') or []:
+        if row.get('status') == 'skipped' and row['number'] not in required_numbers:
+            continue
+        ready = reusable.get(row['number']) or {}
+        if ready.get('asset_id') != row.get('asset_id') or ready.get('render_sha256') != row.get('render_sha256'):
+            raise ValueError(f"Scene {row['number']} output changed before sequence review")
+        asset = next(item for item in assets if item['id'] == row['asset_id'])
+        output = directory / f'scene-{row["number"]}-{row["render_sha256"][:16]}.mp4'
+        if not output.exists() or digest(output) != row['render_sha256']:
+            _download(asset, output)
+        if digest(output) != row['render_sha256']:
+            raise ValueError('Sequence review output checksum mismatch')
+        outputs[row['number']] = output
+    if runner is None:
+        from codex_content_runner import CodexStagedContentRunner
+        runner = CodexStagedContentRunner()
+    from ae_scene_production import review_sequence
+    receipt = review_sequence(sequence, outputs, directory, fresh, runner)
+    if not sequence_review_matches(sequence, meta.get('results') or [], receipt):
+        raise ValueError('AE adjacent-scene visual review did not pass')
+    fresh()
+    return {**receipt, 'fingerprint': fingerprint}
+
+
 def run_phase(runner, job, meta, directory, audio_path, fresh, save, should_stop):
     phase = meta['phase']
     if phase == 'auto_enqueue':
+        if any(scene.get('ae_scene') for scene in meta.get('input', {}).get('scenes', [])):
+            try:
+                receipt = review_required_sequence(runner, job, meta, directory, fresh)
+                save(sequence_review=receipt)
+            except Exception as exc:
+                save(state='failed', phase='sequence_review', auto_pending=False, error=str(exc)[:500])
+                return
         repair = [r['number'] for r in meta.get('results', [])
                   if r.get('skip_reason') in ('automatic_processing_failed', 'automatic_review_failed')]
         if repair and meta.get('pipeline_version') != 2:

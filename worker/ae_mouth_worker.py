@@ -24,14 +24,13 @@ from ae_mouth import (assess_dialogue, locate_speakers, mouth_layers, amplitude_
                       review_eye_layers, resolved_blink_cues)
 from codex_content_runner import CodexStagedContentRunner
 from manga_layer_generation import NativeCodexLayerGenerator
-from ae_video_tracking import track_video
-from submitted_video_coordinates import prepare_submitted_video
 from ae_media_utils import ffmpeg, run, ref
 from std_project_assets import load_project_assets, load_project_input_assets
 from content_identity import mouth_output_identity
 from ae_mouth_runtime import Heartbeat, instance_lock, claimable_filter
 from ae_mouth_automation import automatic_phase, run_phase
-from submission_pipeline import assembly_only, validate_layers, recorded_rows, stage_record, ready_scene_artifacts, render_prepared_scene, prepared_scene_direction
+from submission_pipeline import (assembly_only, validate_layers, recorded_rows, stage_record,
+    ready_scene_artifacts, render_prepared_scene, prepared_scene_direction, validate_required_scene_results)
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 
 
@@ -41,6 +40,17 @@ class LeaseLost(RuntimeError):
 
 class Obsolete(RuntimeError):
     pass
+
+
+def track_video(*args, **kwargs):
+    # PSD-only scene production does not require the optional video-tracking runtime.
+    from ae_video_tracking import track_video as implementation
+    return implementation(*args, **kwargs)
+
+
+def prepare_submitted_video(*args, **kwargs):
+    from submitted_video_coordinates import prepare_submitted_video as implementation
+    return implementation(*args, **kwargs)
 
 
 PREVIEW_PROJECT_SELECT = ','.join([
@@ -216,6 +226,62 @@ def missing_geometry(scene, names):
     return None
 
 
+def render_required_ae_scene(job, scene, audio_path, scene_dir, fresh, runner, assets_url, headers):
+    """Publish only the renderer's reviewed, final-voice-bound scene output."""
+    from ae_scene_production import render_scene
+    from ae_scene_review_contract import render_review_matches
+    scene_dir.mkdir(parents=True, exist_ok=True)
+    fresh()
+    snapshot = job['metadata']['input']
+    rendered = render_scene({**scene, 'audio': snapshot['audio'],
+        'subtitles': [row for row in snapshot.get('subtitles', []) if row['scene_number'] == scene['number']]},
+        audio_path, scene_dir, fresh, runner)
+    output = Path(rendered['output'])
+    checksum = digest(output)
+    review = rendered.get('review') or {}
+    if (rendered.get('render_sha256') != checksum or
+            not render_review_matches(scene, snapshot['audio'], review, checksum)):
+        raise ValueError('AE scene output has no matching rendered-file review')
+    duration = scene['end'] - scene['start']
+    if abs(subprocess_probe(output) - duration) > .12:
+        raise ValueError('AE scene output duration does not match finalized narration')
+    prepared = scene['ae_scene']
+    package = prepared['metadata']['result']
+    identity = job['metadata']['fingerprint']
+    fresh()
+    object_path = f'std-projects/{job["project_id"]}/ae-scenes/{identity}/scene-{scene["number"]}-{checksum[:16]}.mp4'
+    bucket, path, _ = ae._upload_gcs_file(output, object_path, 'video/mp4')
+    content_identity = mouth_output_identity(job, scene)
+    if content_identity:
+        content_identity['parent_asset_ids'] = list(dict.fromkeys([
+            *content_identity.get('parent_asset_ids', []), prepared['id'], package['source_asset_id']]))
+    metadata = {'kind': 'ae_scene_output', 'storage_provider': 'gcs', 'gcs_bucket': bucket,
+        'gcs_path': path, 'storage_bucket': bucket, 'storage_path': path,
+        'content_identity': content_identity, 'ae_mouth_fingerprint': identity,
+        'artifact_ready': True, 'pipeline_version': job['metadata'].get('pipeline_version'),
+        'timing_locked': True, 'voice_synced': True, 'timing_mode': 'final_voice',
+        'ae_reviewed': True, 'ae_scene_review': review,
+        'duration_seconds': duration, 'render_sha256': checksum,
+        'source_audio_id': job['metadata']['input']['audio']['id'],
+        'source_image_id': (scene.get('image') or {}).get('id'),
+        'source_psd_id': package['source_asset_id'], 'source_sha256': package['source_sha256'],
+        'plan_sha256': package['plan_sha256'], 'ae_scene_preparation_id': prepared['id'],
+        'ae_scene_preparation_fingerprint': prepared['metadata']['fingerprint']}
+    fresh()
+    existing = ae._request('GET', assets_url, headers, params={'select': '*',
+        'project_id': 'eq.' + job['project_id'], 'scene_number': 'eq.' + str(scene['number']),
+        'asset_type': 'eq.video', 'metadata->>ae_mouth_fingerprint': 'eq.' + identity}).json()
+    asset = next((item for item in existing if (item.get('metadata') or {}) == metadata), None)
+    if not asset:
+        asset = ae._request('POST', assets_url, {**headers, 'Prefer': 'return=representation'}, json={
+            'project_id': job['project_id'], 'scene_number': scene['number'], 'asset_type': 'video',
+            'status': 'uploaded', 'file_name': f'scene_{scene["number"]}_ae_scene.mp4',
+            'mime_type': 'video/mp4', 'file_size': output.stat().st_size, 'metadata': metadata}).json()[0]
+    return {'number': scene['number'], 'duration': duration, 'status': 'artifact_ready',
+        'asset_id': asset['id'], 'render_sha256': checksum, 'output_review': review,
+        'ae_scene_preparation_id': prepared['id']}
+
+
 def process_one(report=None, should_stop=None, job_id=None) -> bool:
     report = report or (lambda **changes: None)
     should_stop = should_stop or (lambda: False)
@@ -309,7 +375,8 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
         if technical and not snapshot['scenes']:
             save(state='artifact_ready', phase='auto_enqueue', auto_pending=True, error='')
             return True
-        runner = None if technical else CodexStagedContentRunner()
+        required_scenes = any(scene.get('ae_scene') for scene in snapshot['scenes'])
+        runner = CodexStagedContentRunner() if required_scenes or not technical else None
         generator = None if technical or auto_phase else NativeCodexLayerGenerator()
         # Recheck before each image generation, not just after publishing a long job.
         class CurrentGenerator:
@@ -330,16 +397,22 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
             ready_assets = ae._request('GET', assets_url, headers, params={'select':'*',
                 'project_id':'eq.'+job['project_id'],'asset_type':'eq.video',
                 'metadata->>artifact_ready':'eq.true','metadata->>ae_mouth_fingerprint':'eq.'+identity}).json()
-            outcomes.update(ready_scene_artifacts(snapshot, ready_assets, identity))
+            reusable = ready_scene_artifacts(snapshot, ready_assets, identity)
+            for scene in snapshot['scenes']:
+                if scene.get('ae_scene') and scene['number'] not in reusable:
+                    outcomes.pop(scene['number'], None)
+            outcomes.update(reusable)
         candidates = ({r['scene_number'] for r in rows if r['kind'] != 'narration'} |
-                      {s['number'] for s in snapshot['scenes'] if s.get('eye_blink')})
+                      {s['number'] for s in snapshot['scenes'] if s.get('eye_blink') or s.get('ae_scene')})
         for scene in snapshot['scenes']:
             if scene['number'] not in candidates:
                 outcomes[scene['number']] = {'number':scene['number'],'duration':scene['end']-scene['start'],'speakers':[], 'status':'skipped','reason':'저장된 자막에 실제 대사가 없는 씬입니다.'}
         save(results=list(outcomes.values()))
         for scene in sorted((s for s in snapshot['scenes'] if s['number'] in candidates), key=lambda s:s['number']):
             number, duration = scene['number'], scene['end'] - scene['start']
-            if number in outcomes and (technical and outcomes[number]['status'] in ('artifact_ready', 'skipped') or not technical and (not render_phase or outcomes[number]['status'] != 'direction_approved')):
+            if number in outcomes and (technical and (outcomes[number]['status'] == 'artifact_ready' or
+                    (outcomes[number]['status'] == 'skipped' and not scene.get('ae_scene'))) or
+                    not technical and (not render_phase or outcomes[number]['status'] != 'direction_approved')):
                 continue
             if should_stop():
                 # Leave the job processing; persisted scene outcomes resume on next launch.
@@ -347,6 +420,20 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
             fresh()
             report(current_job={'id': job['id'], 'project_id': job['project_id'], 'scene_number': number, 'phase': meta['phase']})
             stage_record(ae, base, headers, meta, number, 'composing')
+            if scene.get('ae_scene'):
+                try:
+                    outcomes[number] = render_required_ae_scene({**job, 'metadata': meta}, scene,
+                        audio_path, directory / f'scene-{number}', fresh, runner, assets_url, headers)
+                except (LeaseLost, Obsolete):
+                    raise
+                except Exception as exc:
+                    outcomes[number] = {'number': number, 'duration': duration, 'status': 'needs_review',
+                        'reason': str(exc)[:500], 'required': True}
+                stage_record(ae, base, headers, meta, number, outcomes[number]['status'],
+                             outcomes[number], outcomes[number].get('reason'))
+                save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes],
+                     sequence_review=None)
+                continue
             scene_rows = [r for r in rows if r['scene_number'] == number]
             dialogue = [r for r in scene_rows if r['kind'] == 'dialogue']
             exclusions = (scene.get('speaker_regions') or {}).get('effect_exclusions') or []
@@ -536,6 +623,14 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
             save(results=[outcomes[s['number']] for s in snapshot['scenes'] if s['number'] in outcomes])
         fresh()
         if technical:
+            try:
+                validate_required_scene_results(snapshot, outcomes)
+            except ValueError as exc:
+                save(state='failed', phase='needs_review', auto_pending=False, error=str(exc))
+                if meta.get('pipeline_run_id'):
+                    ae._request('PATCH', base + '/rest/v1/std_pipeline_runs', headers,
+                        params={'id': 'eq.' + meta['pipeline_run_id']}, json={'status': 'input_error', 'updated_at': ae._now()})
+                return True
             save(state='artifact_ready', phase='complete' if meta.get('preview_sync') else 'auto_enqueue', auto_pending=not meta.get('preview_sync'), error='')
             return True
         save(state='reviewed' if all(r['status'] == 'skipped' for r in outcomes.values()) else 'review_pending' if render_phase else 'direction_pending', auto_pending=bool(meta.get('automatic')), error='')

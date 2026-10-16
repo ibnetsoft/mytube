@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { enqueueStdProjectRender, getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { requireStdUser } from '@/lib/stdWeb'
+import { hasAeSceneIntent } from '@/lib/stdAeScenePreparation'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,7 +46,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             loadStdProjectAssets(supabaseAdmin, project.id, '*'),
         ])
         if (scenes.error || assets.error) throw scenes.error || assets.error
-        if (aeMouthApplicable(project, scenes.data || [])) {
+        if (hasAeSceneIntent(project, scenes.data || [], assets.data || [])) {
+            return NextResponse.json({ success: false, code: 'AE_SCENE_SUBMISSION_REQUIRED',
+                error: 'AE 장면은 원본·음성·연출을 확정한 제출 작업에서 제작해야 합니다. 프로젝트를 저장한 뒤 제출 단계에서 진행해 주세요.' }, { status: 409 })
+        }
+        if (aeMouthApplicable(project, scenes.data || [], assets.data || [])) {
             const pending = await ensureAeMouthJob(project, scenes.data || [], assets.data || [])
             if (!project.project_payload?.ae_mouth?.enabled) {
                 const enabled = await supabaseAdmin.from('std_projects').update({
