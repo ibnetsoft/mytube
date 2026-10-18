@@ -223,7 +223,10 @@ SCENE_JSX = r'''
   function linear(property) {
     for (var k=1;k<=property.numKeys;k++) {
       property.setInterpolationTypeAtKey(k,KeyframeInterpolationType.LINEAR,KeyframeInterpolationType.LINEAR);
-      if (property.isSpatial) property.setSpatialTangentsAtKey(k,[0,0],[0,0]);
+      if (property.isSpatial) {
+        var zero=property.propertyValueType===PropertyValueType.ThreeD_SPATIAL?[0,0,0]:[0,0];
+        property.setSpatialTangentsAtKey(k,zero,zero);
+      }
     }
   }
   function key(property,time,value) { property.setValueAtTime(time*S.duration,value); }

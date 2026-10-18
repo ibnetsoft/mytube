@@ -95,3 +95,24 @@ def test_web_and_worker_share_effect_ids_and_actual_frame_samples():
         input=json.dumps(p), capture_output=True, text=True, check=True).stdout)
     assert data['ids'] == sorted(EFFECT_TYPES)
     assert data['times'] == sample_times(p, 10)
+
+
+def test_ae_2026_three_dimensional_spatial_properties_accept_matching_tangents():
+    import subprocess
+    from ae_scene_animation import SCENE_JSX
+    helper = SCENE_JSX.split('  function linear(property) {', 1)[1].split('  function key(', 1)[0]
+    script = '''
+    const assert=require('node:assert/strict');
+    const PropertyValueType={ThreeD_SPATIAL:3,TwoD_SPATIAL:2};
+    const KeyframeInterpolationType={LINEAR:1};
+    function linear(property) {''' + helper + '''
+    for (const dimensions of [2,3]) {
+      let calls=0;
+      linear({numKeys:2,isSpatial:true,propertyValueType:dimensions,
+        setInterpolationTypeAtKey(){},setSpatialTangentsAtKey(k,left,right){
+          assert.equal(left.length,dimensions);assert.equal(right.length,dimensions);calls++;
+        }});
+      assert.equal(calls,2);
+    }
+    '''
+    subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
