@@ -132,7 +132,7 @@ function applySceneEffects(source,layers) {
     if(E.type==="atmospheric_haze") {
       fx=sceneFx(layer,"ADBE Fractal Noise");
       fx.property("ADBE Fractal Noise-0004").setValue(120);fx.property("ADBE Fractal Noise-0005").setValue(-45);
-      key(fx.property("ADBE Fractal Noise-0007"),E.start,0);key(fx.property("ADBE Fractal Noise-0007"),E.end,180);
+      key(fx.property("ADBE Fractal Noise-0023"),E.start,0);key(fx.property("ADBE Fractal Noise-0023"),E.end,180);
       effectMask(layer,E,false);effectEnvelope(opacity,E,15*E.intensity);
       key(layer.property("ADBE Transform Group").property("ADBE Position"),E.start,[W*.49,H*.5]);
       key(layer.property("ADBE Transform Group").property("ADBE Position"),E.end,[W*.51,H*.49]);

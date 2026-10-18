@@ -125,7 +125,7 @@ def test_korean_ae_effect_properties_resolve_using_installed_match_names():
     script = '''
     const assert=require('node:assert/strict');
     const installed={
-      'ADBE Fractal Noise':['ADBE Fractal Noise-0004','ADBE Fractal Noise-0005','ADBE Fractal Noise-0007'],
+      'ADBE Fractal Noise':['ADBE Fractal Noise-0004','ADBE Fractal Noise-0005','ADBE Fractal Noise-0023'],
       'ADBE Turbulent Displace':['ADBE Turbulent Displace-0002','ADBE Turbulent Displace-0003','ADBE Turbulent Displace-0006']
     };
     const used=[];
