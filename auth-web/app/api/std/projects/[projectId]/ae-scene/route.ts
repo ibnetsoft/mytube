@@ -33,7 +33,7 @@ function summary(ctx: any) {
         }
         return { number, title: scene.scene_title, source: source ? { id: source.id, file_name: source.file_name } : null,
             preparation: selection ? { id: selection.id, enabled: selection.metadata.enabled !== false, state: issue ? 'stale' : selection.metadata.state,
-                direction_text: selection.metadata.input?.direction_text || '', error: issue || selection.metadata.error || '',
+                direction_text: selection.metadata.input?.direction_text || '', requested_effects: selection.metadata.input?.requested_effects, error: issue || selection.metadata.error || '',
                 progress: selection.metadata.progress || '', plan: selection.metadata.result?.plan || null } : null }
     }) }
 }
@@ -63,7 +63,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         } else {
             const direction = String(body.direction_text || '').trim()
             if (!direction || direction.length > 4000) throw new Error('원하는 연출을 1~4,000자로 입력해 주세요.')
-            input = aeScenePreparationInput(ctx.project, ctx.scenes!, ctx.assets!, number, direction)
+            input = aeScenePreparationInput(ctx.project, ctx.scenes!, ctx.assets!, number, direction, body.requested_effects)
             if (body.source_asset_id !== input.source_psd?.id) throw new Error('PSD가 바뀌었습니다. 새로고침한 뒤 다시 준비해 주세요.')
             fingerprint = aeSceneHash(input)
             if (current?.metadata.enabled !== false && current?.metadata.fingerprint === fingerprint) {
@@ -86,7 +86,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (recovered) return NextResponse.json(summary(fresh))
         if (!editable(fresh.project) || fresh.project.updated_at !== ctx.project.updated_at
             || aeSceneSelections(fresh.assets!).get(number)?.id !== current?.id) throw new Error('프로젝트 상태가 바뀌었습니다. 새로고침해 주세요.')
-        if (body.action === 'prepare' && aeSceneHash(aeScenePreparationInput(fresh.project, fresh.scenes!, fresh.assets!, number, input.direction_text)) !== fingerprint)
+        if (body.action === 'prepare' && aeSceneHash(aeScenePreparationInput(fresh.project, fresh.scenes!, fresh.assets!, number, input.direction_text, input.requested_effects)) !== fingerprint)
             throw new Error('원본이나 대본이 바뀌었습니다. 새로고침한 뒤 다시 준비해 주세요.')
         const added = await db.from('std_project_assets').insert({ id: jobId, project_id: ctx.project.id, scene_number: number,
             asset_type: 'other', status: 'uploaded', mime_type: 'application/json', file_name: `ae-scene-${number}-${fingerprint}.json`,

@@ -64,3 +64,18 @@ test('plan tampering, missing source evidence and unreviewed layers block submis
         assert.throws(() => preparedAeScenes(f.project, f.scenes, f.assets), /검수|원본/)
     }
 })
+
+test('selected effects are frozen and a missing or substituted effect blocks submission', () => {
+    const f = fixture(), meta = f.assets[2].metadata
+    meta.input.requested_effects = ['focus_glow']
+    meta.fingerprint = aeSceneHash(meta.input)
+    const r = meta.result
+    r.review.input_fingerprint = meta.fingerprint
+    assert.throws(() => preparedAeScenes(f.project, f.scenes, f.assets), /선택한 효과/)
+    r.plan.effects = [{ type: 'focus_glow', start: .2, end: .8, intensity: .3 }]
+    r.plan_sha256 = r.review.plan_sha256 = aeSceneHash(r.plan)
+    assert.equal(preparedAeScenes(f.project, f.scenes, f.assets).size, 1)
+    r.plan.effects[0].type = 'impact_flash'
+    r.plan_sha256 = r.review.plan_sha256 = aeSceneHash(r.plan)
+    assert.throws(() => preparedAeScenes(f.project, f.scenes, f.assets), /선택한 효과/)
+})

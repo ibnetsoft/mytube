@@ -31,6 +31,10 @@ export function aeSceneReviewSampleTimes(plan: any, duration: number, fps = 24) 
             if (i) keys.add((timeline[i - 1].t + timeline[i].t) / 2)
         }
     }
+    for (const effect of plan.effects || []) {
+        const span = effect.end - effect.start
+        for (const t of [effect.start, effect.start + span * .15, effect.start + span * .7, effect.end]) keys.add(t)
+    }
     if (plan.transition.in === 'fade') {
         keys.add(plan.transition.fraction / 2); keys.add(plan.transition.fraction)
     }

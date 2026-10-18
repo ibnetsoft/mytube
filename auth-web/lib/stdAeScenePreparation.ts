@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { aeSceneEffectSelection, aeSceneEffectsMatch } from './stdAeSceneEffects'
 
 const active = (asset: any) => ['uploaded', 'assigned'].includes(asset?.status)
 const numberOf = (scene: any) => Number(scene?.scene_number ?? scene?.scene_order ?? scene?.number)
@@ -52,7 +53,7 @@ function reference(asset: any) {
         .filter(key => m[key] !== undefined).map(key => [key, m[key]]))
     return { id: asset.id, asset_type: asset.asset_type, file_name: asset.file_name, mime_type: asset.mime_type, metadata }
 }
-export function aeScenePreparationInput(project: any, scenes: any[], assets: any[], number: number, direction: string) {
+export function aeScenePreparationInput(project: any, scenes: any[], assets: any[], number: number, direction: string, effects?: unknown) {
     const source = aeSceneSources(assets).get(number)
     if (!source) throw new Error(`${number}번 씬의 원본 PSD를 올려 주세요.`)
     const contexts = aeSceneContexts(project, scenes), index = contexts.findIndex(s => s.scene_number === number)
@@ -62,6 +63,7 @@ export function aeScenePreparationInput(project: any, scenes: any[], assets: any
         && !['after_effects', 'region_motion'].includes(a.metadata?.postprocess_mode))
     return {
         number, source_psd: reference(source), direction_text: direction.trim(),
+        ...(effects === undefined ? {} : { requested_effects: aeSceneEffectSelection(effects) }),
         scene_context: contexts[index], neighbors: contexts.filter((_, i) => Math.abs(i - index) === 1),
         ...(visuals.find(a => a.asset_type === 'image') ? { reference_image: reference(visuals.find(a => a.asset_type === 'image')) } : {}),
         ...(visuals.find(a => a.asset_type === 'video') ? { reference_video: reference(visuals.find(a => a.asset_type === 'video')) } : {}),
@@ -81,10 +83,11 @@ export function preparedAeScenes(project: any, scenes: any[], assets: any[]): Ma
         if (!numbers.has(number) || meta.enabled === false) continue
         const fail = (reason: string): never => { throw new Error(`${number}번 씬 AE 연출: ${reason}`) }
         if (meta.state !== 'prepared') fail(meta.state === 'failed' ? '준비 작업을 수정한 뒤 다시 요청해 주세요.' : 'PSD와 연출 준비가 끝난 뒤 제출해 주세요.')
-        const expected = aeScenePreparationInput(project, scenes, assets, number, String(meta.input?.direction_text || ''))
+        const expected = aeScenePreparationInput(project, scenes, assets, number, String(meta.input?.direction_text || ''), meta.input?.requested_effects)
         // A newly uploaded video can be a planned reference replacement. It must be reviewed again.
         if (meta.fingerprint !== aeSceneHash(expected) || aeSceneHash(meta.input) !== meta.fingerprint) fail('원본·대본·참고 영상이 바뀌었습니다. 연출을 다시 준비해 주세요.')
         const r = meta.result
+        if (!aeSceneEffectsMatch(meta.input?.requested_effects, r?.plan)) fail('선택한 효과가 연출 계획과 다릅니다. 다시 준비해 주세요.')
         if (!r || r.plan?.contract !== 'ae_scene/v1' || r.source_asset_id !== expected.source_psd?.id
             || !sha(r.source_sha256) || !sha(r.plan_sha256) || r.plan_sha256 !== aeSceneHash(r.plan)
             || r.review?.passed !== true || !Array.isArray(r.review.critical_issues) || r.review.critical_issues.length

@@ -29,8 +29,9 @@ async function main() {
                 assert.equal(body.scene_number, 1)
                 if (body.action === 'prepare') {
                     assert.equal(body.source_asset_id, 'psd'); assert.match(body.direction_text, /머리카락/)
+                    assert.deepEqual(body.requested_effects, ['atmospheric_haze', 'focus_glow'])
                     requested = true
-                    scene.preparation = { id: 'prep', enabled: true, state: 'queued', direction_text: body.direction_text }
+                    scene.preparation = { id: 'prep', enabled: true, state: 'queued', direction_text: body.direction_text, requested_effects: body.requested_effects }
                 } else {
                     assert.equal(body.action, 'disable'); disabled = true
                     scene.preparation = { ...scene.preparation, enabled: false, state: 'disabled' }
@@ -40,14 +41,21 @@ async function main() {
         })
         await page.goto('http://ae-scene.test')
         for (const pkg of ['react', 'react-dom']) await page.addScriptTag({ path: path.join(path.dirname(require.resolve(pkg + '/package.json')), 'umd/' + pkg + '.development.js') })
+        const effectModule = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../lib/stdAeSceneEffects.ts'), 'utf8'), { compilerOptions: { module: 1, target: 9 } }).outputText
+        await page.addScriptTag({content: `var effectExports={};(function(exports){${effectModule}})(effectExports);`})
         const compiled = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../components/StdAeScenePreparation.tsx'), 'utf8'), { compilerOptions: { module: 1, target: 9, jsx: 4 } }).outputText
-        await page.addScriptTag({ content: `var exports={};function require(n){if(n==='react')return React;if(n==='react/jsx-runtime')return {jsx:(t,p,k)=>React.createElement(t,{...p,key:k}),jsxs:(t,p,k)=>React.createElement(t,{...p,key:k}),Fragment:React.Fragment};throw Error(n)};${compiled};ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(exports.default,{projectId:'fixture',headers:{Authorization:'Bearer fixture'}}));` })
+        await page.addScriptTag({ content: `var exports={};function require(n){if(n==='../lib/stdAeSceneEffects')return effectExports;if(n==='react')return React;if(n==='react/jsx-runtime')return {jsx:(t,p,k)=>React.createElement(t,{...p,key:k}),jsxs:(t,p,k)=>React.createElement(t,{...p,key:k}),Fragment:React.Fragment};throw Error(n)};${compiled};ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(exports.default,{projectId:'fixture',headers:{Authorization:'Bearer fixture'}}));` })
+        const cssDir = path.join(__dirname, '../.next/static/css')
+        if (fs.existsSync(cssDir)) for (const name of fs.readdirSync(cssDir).filter(name => name.endsWith('.css')))
+            await page.addStyleTag({ path: path.join(cssDir, name) })
         assert.equal(reads, 0)
         await page.getByText('PSD로 AE 장면 연출', { exact: true }).click()
         await page.getByLabel('작업할 씬').waitFor()
         await page.getByLabel('원본 PSD / PSB').setInputFiles({ name: 'scene.psd', mimeType: 'image/vnd.adobe.photoshop', buffer: Buffer.from('8BPS-test') })
         await page.getByText('scene.psd', { exact: true }).waitFor()
         await page.getByLabel('원하는 연출').fill('머리카락 끝을 움직이고 얼굴로 접근')
+        await page.getByLabel('안개', { exact: true }).check()
+        await page.getByLabel('부분 발광', { exact: true }).check()
         await page.getByRole('button', { name: '레이어·연출 준비', exact: true }).click()
         await page.getByRole('status').filter({ hasText: '준비 대기' }).waitFor()
         assert.equal(requested, true)

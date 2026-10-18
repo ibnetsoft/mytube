@@ -6,6 +6,7 @@ The v1 rig uses CC Bend It for separated hair/cloth, not automatic Puppet meshes
 from __future__ import annotations
 
 import copy
+from ae_scene_effects import validate_effects, EFFECTS_JSX
 import hashlib
 import json
 import math
@@ -166,6 +167,7 @@ def validate_plan(plan: dict, width=None, height=None) -> dict:
     for name in ('entry', 'exit', 'screen_direction', 'light_direction'):
         if not isinstance(continuity.get(name), str) or not continuity[name].strip():
             raise ValueError('Continuity requires explicit entry, exit, direction and lighting evidence')
+    validate_effects(result)
     return result
 
 
@@ -203,12 +205,16 @@ def write_scene_jsx(plan: dict, layer_paths: dict[str, Path], project: Path, nat
                     jsx: Path, duration: float, fps: int = 24) -> None:
     plan = validate_plan(plan)
     _number(duration, .1, 3600, 'duration')
+    _number(fps, 1, 120, 'fps')
+    for effect in plan.get('effects', []):
+        if (effect['end'] - effect['start']) * duration * fps < 3:
+            raise ValueError('AE effect window needs at least three final narration frames; repair its timing')
     data = {'plan': plan, 'layers': resolved_layers(plan),
             'files': {key: str(value.resolve()) for key, value in layer_paths.items()},
             'duration': duration, 'fps': fps, 'project': str(project.resolve()),
             'native': str(native.resolve()), 'status': str(jsx.with_suffix('.status.txt').resolve())}
     encoded = json.dumps(data, ensure_ascii=True, allow_nan=False)
-    jsx.write_text('var S = ' + encoded + ';\n' + SCENE_JSX, encoding='utf-8')
+    jsx.write_text('var S = ' + encoded + ';\n' + SCENE_JSX.replace('/* SCENE_EFFECTS */', EFFECTS_JSX), encoding='utf-8')
 
 
 SCENE_JSX = r'''
@@ -221,18 +227,21 @@ SCENE_JSX = r'''
     }
   }
   function key(property,time,value) { property.setValueAtTime(time*S.duration,value); }
+  /* SCENE_EFFECTS */
   try {
     app.beginSuppressDialogs();
     app.newProject();
     var P=S.plan,W=P.width,H=P.height,O=P.output;
     var source=app.project.items.addComp("ae_scene_source",W,H,1,S.duration,S.fps);
     var comp=app.project.items.addComp("ae_scene",O.width,O.height,1,S.duration,S.fps);
+    var semanticLayers={};
     for(var i=0;i<S.layers.length;i++) {
       var L=S.layers[i], f=new File(S.files[L.id]);
       if(!f.exists) throw new Error("Missing reviewed layer "+L.id);
       var footage=app.project.importFile(new ImportOptions(f));
       if(footage.width!==W || footage.height!==H) throw new Error("Layer canvas mismatch "+L.id);
       var layer=source.layers.add(footage); layer.name=L.role+"_"+L.id; layer.outPoint=S.duration;
+      semanticLayers[L.id]=layer;
       var anchor=L.anchor||[.5,.5], transform=layer.property("ADBE Transform Group");
       transform.property("ADBE Anchor Point").setValue([anchor[0]*W,anchor[1]*H]);
       for(var j=0;j<L.motion.length;j++) {
@@ -262,6 +271,7 @@ SCENE_JSX = r'''
         linear(bend.property(1));
       }
     }
+    applySceneEffects(source,semanticLayers);
     for(var n=0;n<(P.lights||[]).length;n++) {
       var Q=P.lights[n], light=source.layers.addSolid(Q.color,"directed_light_"+n,W,H,1,S.duration);
       light.blendingMode=BlendingMode.SCREEN;

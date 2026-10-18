@@ -16,6 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 from ae_media_utils import ffmpeg, ref, run
+from ae_scene_effects import validate_effects
 from ae_scene_animation import canonical_plan_sha256, validate_plan, write_scene_jsx
 from ae_scene_review_contract import (BOUNDARY_CHECKS, RENDER_CHECKS, render_review_matches,
                                       sample_times, valid_review, visible_sequence)
@@ -85,6 +86,7 @@ def load_preparation(scene, directory, fresh):
             review.get('input_fingerprint') != metadata['fingerprint']):
         raise ValueError('Preparation review belongs to different source, plan or inputs')
     plan = validate_plan(plan, result.get('width'), result.get('height'))
+    validate_effects(plan, (metadata.get('input') or {}).get('requested_effects'))
     files = result.get('files')
     if not isinstance(files, list) or not files:
         raise ValueError('Prepared scene has no files')
@@ -229,7 +231,9 @@ def _review_render(scene, prepared, audio, output, directory, runner, fresh):
             'camera framing/crop and visible motion against the plan, restrained hair/cloth bending without '
             'detached roots or deformation of faces, timed lighting and intended fade/cut. Planned fades may '
             'be black at the exact endpoints; inspect the other provided times and do not mistake fades for '
-            'missing art. Unsupported or uncertain motion/identity fails; plan text alone cannot establish success. '
+            'missing art. Inspect planned finishing effects at their sampled active times for presence, '
+            'correct placement, restrained strength, readable faces/text and clean disappearance. '
+            'Missing or obscuring effects fail visual_quality. Unsupported or uncertain motion/identity fails; plan text alone cannot establish success. '
             'Audio evidence proves finalized recording identity/timing numerically, NOT listening or pronunciation. '
             'Return {passed:boolean,critical_issues:[],checks:[{id:each required_checks ID exactly once,'
             'passed:boolean,evidence:specific observed pixels or supplied decoded audio measurements}]}.')

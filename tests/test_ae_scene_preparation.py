@@ -248,3 +248,25 @@ def test_supervisor_has_one_cross_platform_preparation_role():
     command = local_media_supervisor.role_command('preparation')
     assert command[-1] == '--once'
     assert command[-2].endswith('ae_scene_preparation.py')
+
+
+def test_web_requested_effects_survive_preparation_and_missing_effects_require_repair(tmp_path):
+    from test_ae_scene_effects import effect
+
+    class EffectRunner(Runner):
+        def __init__(self, include=True):
+            super().__init__()
+            self.include = include
+
+        def _stage(self, identity, name, context, task):
+            result = super()._stage(identity, name, context, task)
+            if name == '02_ae_scene_direction' and self.include:
+                result['plan']['effects'] = [effect()]
+            return result
+
+    source = create_psd(tmp_path)
+    snapshot = {'number': 1, 'source_psd': {'id': 'psd'}, 'requested_effects': ['focus_glow']}
+    result = prep.prepare(source, snapshot, tmp_path / 'good', EffectRunner(), NoGeneration())
+    assert result['plan']['effects'][0]['type'] == 'focus_glow'
+    with pytest.raises(ValueError, match='exactly match'):
+        prep.prepare(source, snapshot, tmp_path / 'missing', EffectRunner(False), NoGeneration())

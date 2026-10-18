@@ -74,3 +74,15 @@ test('disable records a new selection and a later prepare can create a fresh job
     assert.equal((await f.submit()).status, 202)
     assert.equal(new Set(f.state.attempts).size, 3)
 })
+
+test('effect selection survives queued requests and retries without duplicate jobs', async () => {
+    const f = fixture()
+    assert.equal((await f.submit({ requested_effects: ['focus_glow', 'atmospheric_haze'] })).status, 202)
+    const input = f.state.assets[1].metadata.input
+    assert.deepEqual(input.requested_effects, ['atmospheric_haze', 'focus_glow'])
+    assert.equal((await f.submit({ requested_effects: ['atmospheric_haze', 'focus_glow'] })).status, 200)
+    assert.equal(f.state.assets.length, 2)
+    for (const requested_effects of [['unknown'], ['focus_glow', 'focus_glow'], null, 'focus_glow'])
+        assert.equal((await f.submit({ requested_effects })).status, 400)
+    assert.equal(f.state.assets.length, 2)
+})

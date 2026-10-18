@@ -1,0 +1,97 @@
+import json
+import pathlib
+import sys
+
+import pytest
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'worker'))
+from ae_scene_effects import EFFECT_TYPES, validate_effects
+from ae_scene_animation import write_scene_jsx
+from ae_scene_review_contract import sample_times
+from test_ae_scene_preparation import plan
+
+
+def effect(kind='focus_glow'):
+    return dict(type=kind, start=.31, end=.39, intensity=.4, center=[.5, .5],
+                color=[1, .8, .5], radius=.2, reason='Light from the visible lantern.')
+
+
+def test_all_effects_validate_and_are_emitted_in_real_renderer(tmp_path):
+    p = plan()
+    p['effects'] = [effect(kind) for kind in sorted(EFFECT_TYPES)]
+    for item in p['effects']:
+        if item['type'] == 'heat_distortion':
+            item['target_layer'] = 'background'
+    validate_effects(p, sorted(EFFECT_TYPES))
+    target = tmp_path / 'scene.jsx'
+    write_scene_jsx(p, {}, tmp_path / 'scene.aep', tmp_path / 'scene.mov', target, 8)
+    jsx = target.read_text()
+    assert 'function applySceneEffects' in jsx
+    assert 'applySceneEffects(source,semanticLayers)' in jsx
+    assert '/* SCENE_EFFECTS */' not in jsx
+    assert 'Required AE effect unavailable' in jsx
+    assert 'layer=layer.duplicate()' in jsx
+    data = json.loads(jsx.split(';\n', 1)[0].removeprefix('var S = '))
+    assert data['plan']['effects'] == p['effects']
+    assert data['duration'] == 8
+
+
+@pytest.mark.parametrize('change', [
+    {'type': 'unknown'}, {'start': .5, 'end': .4}, {'start': -1}, {'intensity': float('nan')},
+    {'intensity': True}, {'intensity': 2}, {'center': [0, 2]}, {'color': [1]},
+    {'radius': 0}, {'reason': ''}, {'target_layer': 'character'},
+])
+def test_malformed_effect_is_rejected(change):
+    p = plan()
+    p['effects'] = [{**effect(), **change}]
+    with pytest.raises(ValueError):
+        validate_effects(p)
+
+
+def test_character_distortion_duplicates_and_missing_selection_are_rejected():
+    p = plan()
+    p['effects'] = [{**effect('heat_distortion'), 'target_layer': 'character'}]
+    with pytest.raises(ValueError, match='separated background or prop'):
+        validate_effects(p)
+    p['effects'] = [effect(), effect()]
+    with pytest.raises(ValueError, match='Duplicate'):
+        validate_effects(p)
+    p['effects'] = [effect()]
+    for requested in ([], ['impact_flash'], ['focus_glow', 'focus_glow']):
+        with pytest.raises(ValueError, match='exactly match'):
+            validate_effects(p, requested)
+
+
+def test_short_effect_peak_is_sampled_at_final_narration_time():
+    p = plan()
+    p['effects'] = [effect()]
+    times = sample_times(p, 10)
+    assert round((.31 + (.39 - .31) * .15) * 10 * 24) / 24 in times
+    assert round((.31 + (.39 - .31) * .7) * 10 * 24) / 24 in times
+    assert sample_times(plan(), 10) == sample_times({**plan(), 'effects': []}, 10)
+
+
+def test_effect_cannot_disappear_between_final_frames(tmp_path):
+    p = plan()
+    p['effects'] = [effect()]
+    with pytest.raises(ValueError, match='three final narration frames'):
+        write_scene_jsx(p, {}, tmp_path / 'scene.aep', tmp_path / 'scene.mov', tmp_path / 'scene.jsx', .5)
+
+
+def test_web_and_worker_share_effect_ids_and_actual_frame_samples():
+    import subprocess
+    root = pathlib.Path(__file__).resolve().parents[1]
+    p = plan()
+    p['effects'] = [effect()]
+    script = """
+    const load = require('./tests/load-ts.cjs'), fs = require('fs'), path = require('path');
+    const effects = load(path.resolve('lib/stdAeSceneEffects.ts'));
+    const reviews = load(path.resolve('lib/stdAeSceneReview.ts'));
+    const plan = JSON.parse(fs.readFileSync(0, 'utf8'));
+    process.stdout.write(JSON.stringify({ids: effects.AE_SCENE_EFFECTS.map(e=>e.id).sort(),
+      times: reviews.aeSceneReviewSampleTimes(plan, 10)}));
+    """
+    data = json.loads(subprocess.run(['node', '-e', script], cwd=root / 'auth-web',
+        input=json.dumps(p), capture_output=True, text=True, check=True).stdout)
+    assert data['ids'] == sorted(EFFECT_TYPES)
+    assert data['times'] == sample_times(p, 10)

@@ -51,6 +51,10 @@ def sample_times(plan, duration, fps=24):
     for timeline in timelines:
         keys.update(row['t'] for row in timeline)
         keys.update((left['t'] + right['t']) / 2 for left, right in zip(timeline, timeline[1:]))
+    for effect in plan.get('effects', []):
+        span = effect['end'] - effect['start']
+        keys.update((effect['start'], effect['start'] + span * .15,
+                     effect['start'] + span * .7, effect['end']))
     transition = plan['transition']
     if transition['in'] == 'fade':
         keys.update((transition['fraction'] / 2, transition['fraction']))

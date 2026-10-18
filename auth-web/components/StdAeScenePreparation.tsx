@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { AE_SCENE_EFFECTS } from '../lib/stdAeSceneEffects'
 
 type Scene = {
     number: number; title: string; source: { id: string; file_name: string } | null
-    preparation: { id: string; enabled: boolean; state: string; direction_text: string; error: string; progress: string; plan: any } | null
+    preparation: { id: string; enabled: boolean; state: string; direction_text: string; requested_effects?: string[]; error: string; progress: string; plan: any } | null
 }
 type Data = { editable: boolean; scenes: Scene[] }
 const statusText: Record<string, string> = { queued: '준비 대기', processing: '레이어·연출 준비 중', prepared: '제출 준비 완료', failed: '수정 필요', stale: '다시 준비 필요', disabled: '사용 안 함' }
@@ -14,6 +15,7 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
 }) {
     const [open, setOpen] = useState(false), [data, setData] = useState<Data | null>(null)
     const [number, setNumber] = useState(0), [drafts, setDrafts] = useState<Record<number, string>>({})
+    const [effectDrafts, setEffectDrafts] = useState<Record<number, string[]>>({})
     const [busy, setBusy] = useState(''), [error, setError] = useState('')
     const headerKey = JSON.stringify(headers), endpoint = `/api/std/projects/${projectId}/ae-scene`
     const read = useCallback(async (signal?: AbortSignal) => {
@@ -35,6 +37,7 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
     }, [data, onPreparedScenesChange])
     const scene = data?.scenes.find(s => s.number === number) || data?.scenes[0]
     const direction = scene ? drafts[scene.number] ?? scene.preparation?.direction_text ?? '' : ''
+    const effects = scene ? effectDrafts[scene.number] ?? scene.preparation?.requested_effects ?? [] : []
     const locked = !data?.editable || Boolean(busy)
     const json = async (url: string, body: unknown) => {
         const response = await fetch(url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -62,7 +65,7 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
         if (!scene) return
         setBusy('요청 중…'); setError('')
         try {
-            const result = await json(endpoint, { action, scene_number: scene.number, source_asset_id: scene.source?.id, direction_text: direction })
+            const result = await json(endpoint, { action, scene_number: scene.number, source_asset_id: scene.source?.id, direction_text: direction, requested_effects: effects })
             setData(result)
         } catch (e: any) { setError(e.message) }
         finally { setBusy('') }
@@ -86,8 +89,17 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
                         placeholder={ui('예: 머리카락 끝만 약하게 흔들고, 얼굴로 천천히 접근. 빛은 왼쪽에서 유지하고 다음 씬의 오른쪽을 보는 시선으로 연결.')}
                         className="mt-1 w-full rounded border border-white/15 bg-[#0f141d] p-2 text-sm text-white disabled:opacity-50" />
                 </label>
+                <fieldset disabled={locked} className="space-y-2">
+                    <legend className="text-xs text-gray-300">{ui('AE 추가 효과')}</legend>
+                    <div className="flex flex-wrap gap-3">{AE_SCENE_EFFECTS.map(effect => <label key={effect.id} className="flex items-center gap-1 text-xs text-gray-200">
+                        <input type="checkbox" checked={effects.includes(effect.id)} onChange={e => setEffectDrafts(d => ({ ...d,
+                            [scene.number]: e.target.checked ? [...effects, effect.id] : effects.filter(id => id !== effect.id),
+                        }))} />{ui(effect.label)}
+                    </label>)}</div>
+                    <p className="text-xs text-gray-400">{ui('선택한 효과의 위치·강도·시점은 원하는 연출에 적어 주세요. 준비를 다시 요청하면 검수 후 반영됩니다. 열 왜곡은 분리된 배경이나 소품에만 적용합니다.')}</p>
+                </fieldset>
                 <p className="text-xs text-gray-400">{ui('원화와 레이어를 검사하고 필요한 빈 배경만 정지 이미지로 보완합니다. 분리되지 않은 부위나 추가 그림이 필요한 동작은 수정 필요로 표시됩니다.')}</p>
-                <p className="text-xs text-amber-200">{ui('현재 PSD 연출은 카메라·레이어 움직임·조명·컷 전환을 지원합니다. 같은 씬에 별도로 선택한 입모양·눈깜빡임 작업이 있으면 함께 제출할 수 없습니다.')}</p>
+                <p className="text-xs text-amber-200">{ui('현재 PSD 연출은 카메라·레이어 움직임·조명·컷 전환과 선택한 추가 효과를 지원합니다. 같은 씬에 별도로 선택한 입모양·눈깜빡임 작업이 있으면 함께 제출할 수 없습니다.')}</p>
                 <div className="flex flex-wrap items-center gap-2">
                     <button type="button" disabled={locked || !scene.source || !direction.trim() || ['queued', 'processing'].includes(scene.preparation?.state || '')}
                         onClick={() => void request('prepare')} className="rounded bg-cyan-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{ui(busy || '레이어·연출 준비')}</button>
@@ -99,6 +111,7 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
                     <p className="font-semibold text-cyan-100">{ui('준비된 연출')}</p>
                     <p>{scene.preparation.plan.intent}</p>
                     <p>{ui('카메라 지점')} {scene.preparation.plan.camera?.length || 0} · {ui('레이어')} {scene.preparation.plan.layers?.length || 0} · {ui('빛 효과')} {scene.preparation.plan.lights?.length || 0}</p>
+                    <p>{ui('추가 효과')}: {(scene.preparation.plan.effects || []).map((effect: any) => ui(AE_SCENE_EFFECTS.find(item => item.id === effect.type)?.label || effect.type)).join(' · ') || ui('없음')}</p>
                     {scene.preparation.plan.continuity?.entry && <p>{ui('시작 상태')}: {scene.preparation.plan.continuity.entry}</p>}
                     {scene.preparation.plan.continuity?.exit && <p>{ui('끝 상태')}: {scene.preparation.plan.continuity.exit}</p>}
                 </div>}
