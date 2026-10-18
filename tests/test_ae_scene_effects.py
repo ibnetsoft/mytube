@@ -116,3 +116,32 @@ def test_ae_2026_three_dimensional_spatial_properties_accept_matching_tangents()
     }
     '''
     subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
+
+
+def test_korean_ae_effect_properties_resolve_using_installed_match_names():
+    import subprocess
+    from ae_scene_effects import EFFECTS_JSX
+    effects = [effect('atmospheric_haze'), {**effect('heat_distortion'), 'target_layer': 'background'}]
+    script = '''
+    const assert=require('node:assert/strict');
+    const installed={
+      'ADBE Fractal Noise':['ADBE Fractal Noise-0004','ADBE Fractal Noise-0005','ADBE Fractal Noise-0007'],
+      'ADBE Turbulent Displace':['ADBE Turbulent Displace-0002','ADBE Turbulent Displace-0003','ADBE Turbulent Displace-0006']
+    };
+    const used=[];
+    const generic={setValue(){},setValueAtTime(){},property(){return this;},addProperty(){return this;}};
+    const fxGroup={canAddProperty(){return true;},addProperty(name){return {property(id){
+      assert.ok(installed[name].includes(id),'Missing Korean AE property: '+id);used.push(id);return generic;
+    }}}};
+    const layer={property(name){return name==='ADBE Effect Parade'?fxGroup:generic;},duplicate(){return this;}};
+    const source={layers:{addSolid(){return layer;}}};
+    const BlendingMode={SCREEN:1},W=640,H=360;
+    function Shape(){}
+    function key(property,t,value){property.setValueAtTime(t,value);}
+    function linear(){}
+    const S={duration:24,plan:{effects:''' + json.dumps(effects) + '''}};
+    ''' + EFFECTS_JSX + '''
+    applySceneEffects(source,{background:layer});
+    for(const ids of Object.values(installed)) for(const id of ids) assert.ok(used.includes(id));
+    '''
+    subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)

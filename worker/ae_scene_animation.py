@@ -231,9 +231,11 @@ SCENE_JSX = r'''
   }
   function key(property,time,value) { property.setValueAtTime(time*S.duration,value); }
   /* SCENE_EFFECTS */
+  var ownsProject=false;
   try {
     app.beginSuppressDialogs();
-    app.newProject();
+    if(!app.newProject()) throw new Error("AE project creation was cancelled");
+    ownsProject=true;
     var P=S.plan,W=P.width,H=P.height,O=P.output;
     var source=app.project.items.addComp("ae_scene_source",W,H,1,S.duration,S.fps);
     var comp=app.project.items.addComp("ae_scene",O.width,O.height,1,S.duration,S.fps);
@@ -306,6 +308,12 @@ SCENE_JSX = r'''
     var item=app.project.renderQueue.items.add(comp);item.outputModule(1).file=new File(S.native);
     app.project.save(new File(S.project));
     status("success|"+S.project);app.endSuppressDialogs(false);
-  } catch(error) { status("error|"+String(error)+" line="+error.line);try{app.endSuppressDialogs(false);}catch(ignore){} }
+  } catch(error) {
+    var failure="error|"+String(error)+" line="+error.line;
+    // Keep our failed diagnostic/editable project saved so the next shared-session
+    // dispatch does not stall on a Save As dialog. Never save a pre-existing user project.
+    if(ownsProject) { try { app.project.save(new File(S.project+".failed.aep")); } catch(saveError) {} }
+    status(failure);try{app.endSuppressDialogs(false);}catch(ignore){}
+  }
 })();
 '''

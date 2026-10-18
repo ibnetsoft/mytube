@@ -92,9 +92,9 @@ function applySceneEffects(source,layers) {
       effectMask(layer,E,false);
       effectEnvelope(layer.property("ADBE Transform Group").property("ADBE Opacity"),E,100);
       fx=sceneFx(layer,"ADBE Turbulent Displace");
-      effectEnvelope(fx.property("Amount"),E,4*E.intensity);
-      fx.property("Size").setValue(35);
-      key(fx.property("Evolution"),E.start,0);key(fx.property("Evolution"),E.end,90);
+      effectEnvelope(fx.property("ADBE Turbulent Displace-0002"),E,4*E.intensity);
+      fx.property("ADBE Turbulent Displace-0003").setValue(35);
+      key(fx.property("ADBE Turbulent Displace-0006"),E.start,0);key(fx.property("ADBE Turbulent Displace-0006"),E.end,90);
       continue;
     }
     if(E.type==="warm_dust_motes" || E.type==="speedline_burst") {
@@ -131,8 +131,8 @@ function applySceneEffects(source,layers) {
     opacity=layer.property("ADBE Transform Group").property("ADBE Opacity");
     if(E.type==="atmospheric_haze") {
       fx=sceneFx(layer,"ADBE Fractal Noise");
-      fx.property("Contrast").setValue(120);fx.property("Brightness").setValue(-45);
-      key(fx.property("Evolution"),E.start,0);key(fx.property("Evolution"),E.end,180);
+      fx.property("ADBE Fractal Noise-0004").setValue(120);fx.property("ADBE Fractal Noise-0005").setValue(-45);
+      key(fx.property("ADBE Fractal Noise-0007"),E.start,0);key(fx.property("ADBE Fractal Noise-0007"),E.end,180);
       effectMask(layer,E,false);effectEnvelope(opacity,E,15*E.intensity);
       key(layer.property("ADBE Transform Group").property("ADBE Position"),E.start,[W*.49,H*.5]);
       key(layer.property("ADBE Transform Group").property("ADBE Position"),E.end,[W*.51,H*.49]);
