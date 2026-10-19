@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 import wave
 from pathlib import Path
@@ -49,6 +50,10 @@ def main():
               dict(t=1,x=.5,y=.5,scale=1.1,rotation=0,opacity=100)],
         effects=[dict(type='light_sweep',start=.1,end=.9,intensity=.5,center=[.5,.5],radius=.4,color=[1,.8,.4])],transition='cut')
     reports = []
+    def pcm(path):
+        result = subprocess.run([ffmpeg(), '-v', 'error', '-i', str(path), '-f', 's16le', '-ac', '1', '-ar', '8000', '-'], capture_output=True, check=True)
+        return np.frombuffer(result.stdout, dtype='<i2').astype(float)
+    source_pcm = pcm(audio)
     sheet = Image.new('RGB', (1280, 720), '#101820')
     for index, (aspect, size, fps) in enumerate([('16:9',(640,360),24),('9:16',(360,640),30)]):
         target = directory / ('landscape' if index == 0 else 'portrait')
@@ -60,13 +65,18 @@ def main():
             dict(start=4,end=8,text='Native AE - PSD layers')],settings=settings,resolution=size,scene_numbers=[1,2]))
         with VideoFileClip(str(output)) as video:
             assert video.size == list(size) and video.fps == fps and abs(video.duration - 8) < .08
-            assert video.audio is not None and np.max(np.abs(video.audio.to_soundarray(fps=8000))) > .001
+            assert video.audio is not None
             assert not np.array_equal(video.get_frame(.2), video.get_frame(3.5))
             for column, seconds in enumerate([1,5]):
                 frame = Image.fromarray(video.get_frame(seconds)); frame.thumbnail((640,330))
                 sheet.paste(frame,(column*640,index*360+30))
                 ImageDraw.Draw(sheet).text((column*640+8,index*360+8),f'{aspect} at {seconds}s',fill='white')
-        reports.append(dict(aspect=aspect,fps=fps,duration=8,width=size[0],height=size[1],audio='calibration_tone_not_narration',
+        # Independent FFmpeg decoding avoids MoviePy resampling/buffer false silence on Windows.
+        output_pcm = pcm(output)
+        assert abs(len(output_pcm) / 8000 - 8) < .08
+        correlation = float(np.corrcoef(source_pcm[:min(len(source_pcm),len(output_pcm))], output_pcm[:len(source_pcm)])[0,1])
+        assert correlation > .95 and np.max(np.abs(output_pcm)) > 100
+        reports.append(dict(aspect=aspect,fps=fps,duration=8,width=size[0],height=size[1],audio='calibration_tone_not_narration',audio_correlation=correlation,
                             file=str(output),sha256=hashlib.sha256(output.read_bytes()).hexdigest()))
     sheet.save(directory/'contact-sheet.png')
     report = dict(state='rendered_requires_visual_review',native_ae=True,production_approved=False,outputs=reports)
