@@ -112,6 +112,30 @@ def original_preview(source,kind,target):
     return target
 
 
+def native_preparation(prepared):
+    """Bridge inspected local preparation files to the native renderer's layer-path contract."""
+    from PIL import Image
+    from ae_scene_animation import canonical_plan_sha256
+    plan=prepared['plan'];review=prepared.get('review') or {}
+    if review.get('passed') is not True or review.get('critical_issues')!=[] or canonical_plan_sha256(plan)!=prepared['plan_sha256'] or review.get('plan_sha256')!=prepared['plan_sha256']:
+        raise NeedsReview('Local PSD preparation changed after review')
+    local={}
+    for item in prepared['files']:
+        path=Path(item['path']);key=(item['role'],item.get('layer_id') or '')
+        if key in local or not path.is_file() or digest(path)!=item['sha256']:raise NeedsReview('Prepared local layer checksum changed')
+        local[key]=path
+    layers={}
+    for layer in plan['layers']:
+        path=local.get(('layer',layer['id']))
+        if layer['role']=='background':path=local.get(('background_plate',''),path)
+        if path is None:raise NeedsReview('Missing inspected PSD layer: '+layer['id'])
+        with Image.open(path) as pixels:
+            if pixels.size!=(plan['width'],plan['height']):raise NeedsReview('Prepared layer canvas changed')
+            if layer['role']=='background' and pixels.convert('RGBA').getchannel('A').getextrema()[0]!=255:raise NeedsReview('Background has unfilled holes')
+        layers[layer['id']]=path
+    return {**prepared,'layers':layers}
+
+
 def direct(runner,snapshot,scene,preview,waveform,audio_info,neighbors,prior,feedback=None):
     context={'_local_image_paths':[str(preview.resolve()),str(waveform.resolve()),*[str(p.resolve()) for p in neighbors]],
         'image_labels':['actual source','actual finalized voice waveform','neighbor source images'],
@@ -147,7 +171,7 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
             'motion_output':{'width':size[0],'height':size[1]},'motion_scene':{**plan['scene'],**({'layers':snapshot['motion']['scenes'][str(scene['number'])]['layers']} if snapshot['motion']['scenes'].get(str(scene['number']),{}).get('layers') else {})},'requested_effects':[e['type'] for e in plan['scene']['effects']],
             'finalized_narration':{'start':scene['start'],'end':scene['end'],'audio_id':snapshot['audio']['id']}}
         prepared=prepare(source,spec,directory/'preparation',runner,NativeCodexLayerGenerator(),current=fresh)
-        native=_render_native(prepared,directory,duration)
+        native=_render_native(native_preparation(prepared),directory,duration)
         run([ffmpeg(),'-v','error','-y','-i',str(native),'-an','-t',str(duration),'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
     else:
         from moviepy import VideoClip
@@ -271,7 +295,7 @@ def process_one():
             except Exception:lost.set();return
     thread=threading.Thread(target=heartbeat,daemon=True);thread.start()
     # Codex CLI only accepts inspected media inside this existing restricted attachment root.
-    directory=ROOT/'output'/'codex-local-console'/'motion-automation'/job['id'];directory.mkdir(parents=True,exist_ok=True)
+    directory=worker_config.PROJECT_ROOT/'output'/'codex-local-console'/'motion-automation'/job['id'];directory.mkdir(parents=True,exist_ok=True)
     try:
         snapshot=unseal(meta['input']);runner=CodexStagedContentRunner()
         save(total_scenes=len(snapshot['scenes']),phase='direction',progress='원본과 최종 음성 확인')

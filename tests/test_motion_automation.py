@@ -56,3 +56,19 @@ def test_supervisor_dispatches_automation_without_a_manual_editor():
     from worker.local_media_supervisor import role_command
     command=role_command('motion_automation')
     assert command[-1]=='--once' and command[-2].endswith('motion_automation_worker.py')
+
+def test_local_psd_preparation_supplies_native_layer_paths_and_rejects_changes(tmp_path):
+    from PIL import Image
+    from ae_scene_animation import canonical_plan_sha256
+    from motion_automation_worker import native_preparation,digest
+    background=tmp_path/'background.png';character=tmp_path/'character.png'
+    Image.new('RGBA',(32,32),'blue').save(background);Image.new('RGBA',(32,32),(255,0,0,128)).save(character)
+    plan={'width':32,'height':32,'layers':[{'id':'bg','role':'background'},{'id':'person','role':'character'}]}
+    sha=canonical_plan_sha256(plan)
+    prepared={'plan':plan,'plan_sha256':sha,'review':{'passed':True,'critical_issues':[],'plan_sha256':sha},
+        'files':[{'role':'background_plate','path':background,'sha256':digest(background)},
+                 {'role':'layer','layer_id':'person','path':character,'sha256':digest(character)}]}
+    native=native_preparation(prepared)
+    assert native['layers']=={'bg':background,'person':character}
+    Image.new('RGBA',(32,32),'black').save(character)
+    pytest.raises(NeedsReview,native_preparation,prepared)
