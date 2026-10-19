@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import StdMotionAutomation from './StdMotionAutomation'
+import dynamic from 'next/dynamic'
+const StdWebMotionStudio=dynamic(()=>import('./StdWebMotionStudio'),{ssr:false})
 import { AE_SCENE_EFFECTS } from '../lib/stdAeSceneEffects'
 import { interpolateMotion, MotionDraft, MotionKey, motionKey, motionPreset, motionScene, MOTION_PRESETS, normalizeMotionDraft } from '../lib/stdMotionStudio'
 
@@ -46,10 +47,10 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
     const save=async()=>{setBusy(true);setError('');try{await onSave(normalizeMotionDraft(draft));setNotice('Motion Studio 설정 저장 완료')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const previews=async(action:'read'|'preview'|'direction')=>{setError('');setBusy(true);try{if(action!=='read')await onSave(normalizeMotionDraft(draft));const response=await fetch(`/api/std/projects/${projectId}/motion`,{method:action==='read'?'GET':'POST',headers:{...headers,'Content-Type':'application/json'},...(action!=='read'?{body:JSON.stringify({scene_number:number,action})}:{})});const data=await response.json();if(!response.ok)throw new Error(data.error);setJobs(data.jobs||[]);setPreparations(data.preparations||[]);if(action!=='read')setNotice('워커 작업 요청 완료. 처리 후 상태를 새로고침해 주세요.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const keyField=(k:MotionKey,field:keyof MotionKey,label:string,min:number,max:number,step:number)=> <label key={field} className="text-xs">{label}<input aria-label={`${Math.round(k.t*100)}% ${label}`} type="number" value={k[field]} min={min} max={max} step={step} disabled={disabled||busy} onChange={e=>update({keys:scene.keys.map(item=>item===k?{...k,[field]:Number(e.target.value)}:item)})} className="ml-1 w-20 rounded bg-slate-800 p-1"/></label>
-    return <><StdMotionAutomation draft={draft} onChange={setDraft} onSave={()=>void save()} disabled={disabled} busy={busy} projectId={projectId} headers={headers}/>
+    return <><StdWebMotionStudio draft={draft} onChange={setDraft} onSave={onSave} disabled={disabled} projectId={projectId} headers={headers}/>
         {notice&&<p role="status" className="mx-5 text-xs text-cyan-200">{notice}</p>}{error&&<p role="alert" className="mx-5 text-sm text-red-300">{error}</p>}
         <details className="mx-5 rounded-xl border border-cyan-400/30 bg-[#101722] p-4 text-white" onToggle={e=>setOpen(e.currentTarget.open)}>
-        <summary className="cursor-pointer font-semibold text-cyan-200">고급 수동 연출 · 선택 사항</summary>
+        <summary className="cursor-pointer font-semibold text-cyan-200">고급 타임라인 · 기존 워커 작업</summary>
         {open&&<div className="mt-4 space-y-4">
             <div className="flex flex-wrap items-center gap-4 text-sm">
                 <label><input type="checkbox" disabled={disabled||busy} checked={draft.enabled} onChange={e=>setDraft({...draft,enabled:e.target.checked})}/> Motion Studio 사용</label>

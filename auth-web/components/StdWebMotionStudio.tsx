@@ -1,0 +1,128 @@
+'use client'
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react'
+import {drawWebMotion,exportWebMotion,imageArtwork,readWebPsd,uploadWebMotion,mixWebMotionAudio,releaseWebMotionFile,type WebArtwork,type WebShot} from '@/lib/stdWebMotion'
+import {motionKey,motionPreset,motionScene,MOTION_PRESETS,normalizeMotionDraft,type MotionDraft,type MotionKey} from '@/lib/stdMotionStudio'
+import StdVideoModelSettings from './StdVideoModelSettings'
+
+type Scene={number:number;title:string;start:number;end:number;source:{id:string;kind:string;url:string}|null}
+type Workspace={scenes:Scene[];audio:{id:string;url:string}|null;audio_error:string;subtitles:{start:number;end:number;text:string}[];ai_jobs:{id:string;number:number;state:string}[];finals?:{id:string;name:string;url:string;created_at:string}[];sounds?:{url:string;start:number;end:number;volume:number;loop:boolean;fadeIn:number;fadeOut:number}[];overlay?:string|null}
+const stable=(value:unknown)=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v)
+const workspaceSignature=(w:Workspace)=>stable({audio:w.audio,subtitles:w.subtitles,scenes:w.scenes,sounds:w.sounds,overlay:w.overlay})
+export default function StdWebMotionStudio({draft,onChange,onSave,projectId,headers,disabled}:{draft:MotionDraft;onChange:(d:MotionDraft)=>void;onSave:(d:MotionDraft)=>Promise<void>;projectId:string;headers:Record<string,string>;disabled:boolean}){
+    const [workspace,setWorkspace]=useState<Workspace|null>(null),[number,setNumber]=useState(0),[revision,setRevision]=useState(0),[time,setTime]=useState(0),[playing,setPlaying]=useState(false)
+    const [error,setError]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[progress,setProgress]=useState<number|null>(null),[result,setResult]=useState(''),[resultAsset,setResultAsset]=useState('')
+    const [layerId,setLayerId]=useState(''),[mode,setMode]=useState<'web'|'hybrid'>(draft.web?.mode||'web'),[prompt,setPrompt]=useState(''),[aiJob,setAiJob]=useState(''),[aiUrl,setAiUrl]=useState(''),[aiState,setAiState]=useState('')
+    const [aiStart,setAiStart]=useState(0),[aiDuration,setAiDuration]=useState(3),[includeAi,setIncludeAi]=useState(false)
+    const headerKey=JSON.stringify(headers),authHeaders:Record<string,string>=useMemo(()=>JSON.parse(headerKey),[headerKey])
+    const artworks=useRef(new Map<number,WebArtwork>()),videos=useRef(new Map<number,HTMLVideoElement>()),canvas=useRef<HTMLCanvasElement>(null),abort=useRef<AbortController|null>(null),voice=useRef<AudioBuffer|null>(null)
+    const blobUrls=useRef<string[]>([]),renderedBlob=useRef<Blob|null>(null),aiVideo=useRef<HTMLVideoElement|null>(null),aiScene=useRef<number|null>(null)
+    const exports=useRef<Blob[]>([])
+    const resultSettings=useRef(''),resultSource=useRef('')
+    const settingsSignature=stable({draft:{...draft,enabled:true,automation:undefined},mode,includeAi,aiJob,aiStart,aiDuration})
+    const scene=draft.scenes[String(number)]||motionScene(),selected=workspace?.scenes.find(s=>s.number===number),art=artworks.current.get(number)
+    const changeScene=(changes:Partial<typeof scene>)=>onChange({...draft,enabled:true,automation:undefined,scenes:{...draft.scenes,[number]:{...scene,...changes}}})
+    const updateInsert=(enabled:boolean,start=aiStart,duration=aiDuration)=>{const inserts={...draft.web?.inserts};if(enabled&&aiJob)inserts[String(number)]={job_id:aiJob,start,duration};else delete inserts[String(number)];onChange({...draft,web:{mode,inserts}})}
+    const request=useCallback(async(body?:object)=>{const r=await fetch(`/api/std/projects/${projectId}/web-motion`,{headers:{...authHeaders,'Content-Type':'application/json'},...(body?{method:'POST',body:JSON.stringify(body)}:{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d},[authHeaders,projectId])
+    const load=async()=>{const data:Workspace=await request();setWorkspace(data);setNumber(n=>n||data.scenes[0]?.number||0);return data}
+    useEffect(()=>{let live=true;void request().then((d:Workspace)=>{if(live){setWorkspace(d);setNumber(n=>n||d.scenes[0]?.number||0)}}).catch(e=>{if(live)setError(e.message)});return()=>{live=false}},[request])
+    useEffect(()=>{const urls=blobUrls.current,media=videos.current,files=exports.current;return()=>{abort.current?.abort();urls.forEach(URL.revokeObjectURL);media.forEach(v=>{v.removeAttribute('src');v.load()});files.forEach(blob=>void releaseWebMotionFile(blob).catch(()=>{}))}},[projectId])
+    const task=async(fn:()=>Promise<void>)=>{setBusy(true);setError('');try{await fn()}catch(e:any){setError(e.message||String(e))}finally{setBusy(false)}}
+    const fetchBlob=useCallback(async(url:string)=>{const response=await fetch(url,{headers:authHeaders});if(!response.ok)throw Error('원본 파일을 읽을 수 없습니다.');return response.blob()},[authHeaders])
+    const videoFrom=useCallback(async(blob:Blob)=>{const v=document.createElement('video');v.muted=true;v.preload='auto';const url=URL.createObjectURL(blob);blobUrls.current.push(url);await new Promise<void>((resolve,reject)=>{v.onloadeddata=()=>resolve();v.onerror=()=>reject(Error('영상 형식을 읽을 수 없습니다.'));v.src=url});return v},[])
+    const loadArtwork=useCallback(async(s:Scene)=>{
+        if(artworks.current.has(s.number))return artworks.current.get(s.number)!
+        if(!s.source)throw Error(`${s.number}번 씬에 PSD·이미지·영상 원본이 필요합니다.`)
+        const blob=await fetchBlob(s.source.url)
+        let artwork:WebArtwork
+        if(s.source.kind==='psd')artwork=await readWebPsd(await blob.arrayBuffer())
+        else if(s.source.kind==='video'){
+            const video=await videoFrom(blob),layer=document.createElement('canvas');layer.width=video.videoWidth;layer.height=video.videoHeight;layer.getContext('2d')!.drawImage(video,0,0)
+            artwork={width:layer.width,height:layer.height,layers:[{id:'video',name:'기존 영상',left:0,top:0,opacity:1,blend:'source-over',canvas:layer}]};videos.current.set(s.number,video)
+        }else artwork=await imageArtwork(blob)
+        artworks.current.set(s.number,artwork);setRevision(r=>r+1);return artwork
+    },[fetchBlob,videoFrom])
+    useEffect(()=>{for(const n of artworks.current.keys())if(n!==number){artworks.current.delete(n);const video=videos.current.get(n);if(video){URL.revokeObjectURL(video.src);video.removeAttribute('src');video.load();videos.current.delete(n)}}if(selected&&!artworks.current.has(number)){let live=true;void loadArtwork(selected).catch(e=>{if(live)setError(e.message)});return()=>{live=false}}},[number,selected,loadArtwork])
+    const latest=useRef({draft,workspace});latest.current={draft,workspace}
+    useEffect(()=>{setTime(0);setPlaying(false);setLayerId('');setAiUrl('');const saved=latest.current.draft.web?.inserts[String(number)],job=latest.current.workspace?.ai_jobs.find(j=>j.number===number);setIncludeAi(Boolean(saved));setAiStart(saved?.start||0);setAiDuration(saved?.duration||3);setAiJob(saved?.job_id||job?.id||'');setAiState(job?.state||'')},[number])
+    useEffect(()=>{
+        if(!playing)return
+        let id=0,last=performance.now();const duration=Math.max(.1,(selected ? selected.end-selected.start : 5)||5)
+        const tick=(now:number)=>{const dt=(now-last)/1000/duration;last=now;setTime(t=>{if(t+dt>=1){setPlaying(false);return 1}return t+dt});id=requestAnimationFrame(tick)}
+        id=requestAnimationFrame(tick);return()=>cancelAnimationFrame(id)
+    },[playing,selected])
+    useEffect(()=>{if(art&&canvas.current){drawWebMotion(canvas.current,art,scene,time);const video=videos.current.get(number);if(video&&Number.isFinite(video.duration)){video.onseeked=()=>{art.layers[0].canvas.getContext('2d')!.drawImage(video,0,0);if(canvas.current)drawWebMotion(canvas.current,art,scene,time)};video.currentTime=Math.min(time*((selected ? selected.end-selected.start : 5)||5),Math.max(0,video.duration-.04))}}},[art,scene,time,revision,draft.aspect,number,selected])
+    const importPsd=async(file:File)=>{
+        const artwork=await readWebPsd(await file.arrayBuffer()) // Validate before changing or uploading the source.
+        await uploadWebMotion(projectId,headers,new File([file],file.name,{type:'image/vnd.adobe.photoshop'}),'original',number)
+        artworks.current.set(number,artwork);videos.current.delete(number);changeScene({source:'psd',layers:{}});await load();setRevision(r=>r+1);setMessage(`${artwork.layers.length}개 레이어를 불러오고 PSD 원본을 웹에 저장했습니다.`)
+    }
+    const decodeVoice=async()=>{if(voice.current)return voice.current;if(!workspace?.audio)throw Error(workspace?.audio_error||'확정 음성을 먼저 저장해 주세요.');const context=new AudioContext();try{voice.current=await context.decodeAudioData(await (await fetchBlob(workspace.audio.url)).arrayBuffer());return voice.current}finally{await context.close()}}
+    const exportFinal=async()=>{
+        if(!workspace)throw Error('프로젝트를 먼저 불러와 주세요.')
+        if(!workspace.audio||workspace.audio_error)throw Error(workspace.audio_error)
+        setPlaying(false);setResult('');setResultAsset('');renderedBlob.current=null
+        await onSave(normalizeMotionDraft({...draft,enabled:true,automation:undefined}))
+        const current:Workspace=await request()
+        if(JSON.stringify(current.audio)!==JSON.stringify(workspace.audio)||JSON.stringify(current.subtitles)!==JSON.stringify(workspace.subtitles)||JSON.stringify(current.scenes)!==JSON.stringify(workspace.scenes)){setWorkspace(current);voice.current=null;artworks.current.clear();throw Error('원본·음성 또는 장면이 변경되었습니다. 최신 내용을 확인한 뒤 다시 제작해 주세요.')}
+        const shots:WebShot[]=[]
+        for(const s of workspace.scenes){shots.push({number:s.number,start:s.start,end:s.end,artwork:{width:0,height:0,layers:[]},motion:draft.scenes[String(s.number)]||motionScene(),
+            load:async()=>({artwork:await loadArtwork(s),video:videos.current.get(s.number)}),dispose:()=>{if(s.number!==number){artworks.current.delete(s.number);const v=videos.current.get(s.number);if(v){URL.revokeObjectURL(v.src);v.removeAttribute('src');v.load();videos.current.delete(s.number)}}}})}
+        const inserts={...draft.web?.inserts};if(includeAi&&aiJob)inserts[String(number)]={job_id:aiJob,start:aiStart,duration:aiDuration};else delete inserts[String(number)]
+        for(const [sceneNumber,insertPlan] of mode==='hybrid'?Object.entries(inserts):[]){
+            const n=Number(sceneNumber),shot=shots.find(s=>s.number===n);if(!shot)throw Error('AI 구간의 원본 씬이 없습니다.')
+            const status=await request({action:'poll',scene_number:n,job_id:insertPlan.job_id});if(!status.url)throw Error(`${n}번 씬의 생성 영상이 아직 완료되지 않았습니다.`)
+            const duration=shot.end-shot.start
+            shot.originStart=shot.start;shot.originEnd=shot.end
+            if(insertPlan.start<0||insertPlan.start+insertPlan.duration>duration+.001)throw Error('AI 구간이 원본 씬 길이를 초과합니다.')
+            let generated:HTMLVideoElement|undefined
+            const insert:WebShot={number:n,start:shot.start+insertPlan.start,end:shot.start+insertPlan.start+insertPlan.duration,artwork:{width:0,height:0,layers:[]},motion:motionScene(),
+                load:async()=>{const v=await videoFrom(await fetchBlob(status.url));generated=v;if(v.duration+.05<insertPlan.duration)throw Error('생성 영상이 설정한 구간보다 짧습니다.');const layer=document.createElement('canvas');layer.width=v.videoWidth;layer.height=v.videoHeight;return {artwork:{width:layer.width,height:layer.height,layers:[{id:'ai',name:'AI 구간',canvas:layer,left:0,top:0,opacity:1,blend:'source-over'}]},video:v}},
+                dispose:()=>{if(generated){URL.revokeObjectURL(generated.src);generated.removeAttribute('src');generated.load();generated=undefined}}}
+            const i=shots.indexOf(shot),parts:WebShot[]=[];if(insertPlan.start>0)parts.push({...shot,end:insert.start});parts.push(insert);if(insert.end<shot.end)parts.push({...shot,start:insert.end});shots.splice(i,1,...parts)
+        }
+        abort.current=new AbortController();setProgress(0)
+        try{
+            const context=new AudioContext(),sounds=[]
+            try{for(const track of current.sounds||[])sounds.push({...track,buffer:await context.decodeAudioData(await (await fetchBlob(track.url)).arrayBuffer())})}finally{await context.close()}
+            const mixed=await mixWebMotionAudio(await decodeVoice(),sounds),overlay=current.overlay?await createImageBitmap(await fetchBlob(current.overlay)):undefined
+            let blob:Blob;try{blob=await exportWebMotion(shots,mixed,workspace.subtitles,draft.aspect,draft.fps,abort.current.signal,setProgress,overlay)}finally{overlay?.close()}
+            exports.current.push(blob);renderedBlob.current=blob;resultSettings.current=settingsSignature;resultSource.current=workspaceSignature(current);const url=URL.createObjectURL(blob);blobUrls.current.push(url);setResult(url);setResultAsset('');setMessage('최종 MP4 제작 완료. 재생해 확인한 뒤 웹 저장·관리자 검수를 요청하세요.')
+        }finally{setProgress(null)}
+    }
+    const validateResult=async()=>{if(renderedBlob.current&&(settingsSignature!==resultSettings.current||workspaceSignature(await request())!==resultSource.current))throw Error('제작 후 원본·음성 또는 설정이 변경됐습니다. 최신 내용으로 다시 제작해 주세요.')}
+    const saveResult=async()=>{if(!renderedBlob.current)throw Error('최종 영상을 먼저 제작해 주세요.');await validateResult();const asset=await uploadWebMotion(projectId,headers,new File([renderedBlob.current],`motion-web-final-${Date.now()}.mp4`,{type:'video/mp4'}),'video',null);setResultAsset(asset.id);setMessage('최종 영상을 웹에 저장했습니다. 실제 영상을 확인한 뒤 검수를 요청해 주세요.')}
+    const generate=async()=>{
+        if(!art)throw Error('원본을 먼저 불러와 주세요.')
+        setIncludeAi(false);setAiUrl('');updateInsert(false)
+        const c=document.createElement('canvas');c.width=art.width;c.height=art.height;drawWebMotion(c,art,motionScene(),0)
+        const blob=await new Promise<Blob>((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(Error('원본 추출 실패')),'image/png'))
+        const source=await uploadWebMotion(projectId,headers,new File([blob],`motion-source-${number}.png`,{type:'image/png'}),'original',number)
+        const data=await request({action:'generate',mode,scene_number:number,source_asset_id:source.id,prompt,duration:aiDuration});setAiJob(data.id);setAiState(data.state);if(['creating','needs_reconcile'].includes(data.state))throw Error('기존 생성 요청의 접수 여부를 확인해야 합니다. 중복 생성 요청은 차단했습니다.');setMessage('영상 생성 요청을 접수했습니다. 상태 확인으로 기존 요청을 이어갑니다.')
+    }
+    const poll=async()=>{const d=await request({action:'poll',scene_number:number,job_id:aiJob});setAiState(d.state);if(d.url){setAiUrl(d.url);aiVideo.current=await videoFrom(await fetchBlob(d.url));aiScene.current=number;setMessage('생성 영상을 확인한 뒤 최종 영상에 포함할 수 있습니다.')}}
+    const layer=art?.layers.find(l=>l.id===layerId),layerMotion=scene.layers?.[layerId]||{depth:0,keys:[motionKey(0),motionKey(1)]}
+    const editLayer=(field:keyof MotionKey,value:number)=>changeScene({source:'psd',layers:{...scene.layers,[layerId]:{...layerMotion,keys:layerMotion.keys.map((k,i)=>i===layerMotion.keys.length-1?{...k,[field]:value}:k)}}})
+    return <section aria-label="웹 모션 제작" className="mx-5 space-y-4 rounded-xl border border-cyan-400/40 bg-[#101722] p-4 text-white">
+        <h3 className="text-lg font-semibold text-cyan-200">Motion Studio · 웹 제작</h3>
+        <p className="text-sm text-slate-300">PSD 레이어·카메라·효과를 여기서 편집하고 최종 MP4까지 제작합니다. AE·사무실 워커가 필요 없습니다. 제작 중에는 이 탭을 열어 두세요.</p>
+        {error&&<p role="alert" className="text-sm text-red-300">{error}</p>}{message&&<p role="status" className="text-sm text-cyan-200">{message}</p>}
+        <fieldset disabled={busy||disabled} className="space-y-4">
+            <div className="flex flex-wrap gap-4"><label>제작 모드 <select aria-label="웹 제작 모드" value={mode} onChange={e=>{setMode(e.target.value as typeof mode);setIncludeAi(e.target.value==='hybrid'&&Boolean(draft.web?.inserts[String(number)]));onChange({...draft,web:{mode:e.target.value as typeof mode,inserts:draft.web?.inserts||{}}})}} className="rounded bg-slate-800 p-2"><option value="web">웹 모션 · 영상 생성 API 미사용</option><option value="hybrid">혼합 · 웹 모션 + AI 영상</option></select></label><label>비율 <select value={draft.aspect} onChange={e=>onChange({...draft,aspect:e.target.value as MotionDraft['aspect']})} className="rounded bg-slate-800 p-2"><option>16:9</option><option>9:16</option></select></label><label>FPS <select value={draft.fps} onChange={e=>onChange({...draft,fps:Number(e.target.value) as 24|30})} className="rounded bg-slate-800 p-2"><option>24</option><option>30</option></select></label></div>
+            <div className="flex flex-wrap gap-2">{workspace?.scenes.map(s=><button type="button" aria-pressed={number===s.number} key={s.number} onClick={()=>{setNumber(s.number);setResult('');renderedBlob.current=null;setResultAsset('')}} className={`rounded border px-3 py-2 text-xs ${number===s.number?'border-cyan-300':'border-slate-600'}`}>씬 {s.number} · {s.title}</button>)}</div>
+            <div className="grid gap-4 lg:grid-cols-2"><div><canvas ref={canvas} width={draft.aspect==='9:16'?360:640} height={draft.aspect==='9:16'?640:360} aria-label="웹 PSD 효과 미리보기" className="max-h-[520px] max-w-full bg-black"/><div className="mt-2 flex gap-3"><button type="button" onClick={()=>{if(time>=1)setTime(0);setPlaying(!playing)}}>{playing?'정지':'모션 재생'}</button><input aria-label="웹 모션 시간" className="flex-1" type="range" min="0" max="1" step=".001" value={time} onChange={e=>{setPlaying(false);setTime(Number(e.target.value))}}/></div></div>
+            <div className="space-y-3"><label className="block text-sm">레이어 PSD 불러오기 · 원본 웹 보관<input aria-label="웹 PSD 불러오기" type="file" accept=".psd" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void task(()=>importPsd(file))}} className="mt-2 block"/></label><p className="text-xs text-slate-400">8비트 RGB 픽셀 레이어를 지원합니다. 마스크·클리핑·스타일은 픽셀에 적용해 저장하세요. 움직임으로 가려진 부분이 드러날 경우 배경 원본을 보완하세요.</p>
+                <div className="flex flex-wrap gap-2">{MOTION_PRESETS.map(p=><button type="button" key={p.id} className="rounded border border-cyan-600 px-2 py-1 text-xs" onClick={()=>changeScene(motionPreset(p.id,scene))}>{p.label}</button>)}</div>
+                <details><summary className="cursor-pointer text-sm">카메라·효과 세부 조정</summary><div className="mt-2 space-y-2">{([['x','카메라 X',0,1,.01],['y','카메라 Y',0,1,.01],['scale','카메라 확대',1,2,.01],['rotation','카메라 회전',-8,8,.1]] as const).map(([field,label,min,max,step])=><label key={field} className="block text-xs">{label} · 끝 위치 <input aria-label={label} type="range" min={min} max={max} step={step} value={scene.keys.at(-1)![field]} onChange={e=>changeScene({keys:scene.keys.map((k,i)=>i===scene.keys.length-1?{...k,[field]:Number(e.target.value)}:k)})}/></label>)}{scene.effects.map((effect,index)=><div key={effect.type} className="rounded border border-slate-700 p-2 text-xs"><span>{effect.type}</span>{([['intensity','강도',.05,1],['start','시작',0,.99],['end','종료',.01,1]] as const).map(([field,label,min,max])=><label key={field} className="ml-2">{label}<input aria-label={`${effect.type} ${label}`} type="number" min={min} max={max} step=".01" value={effect[field]} onChange={e=>changeScene({effects:scene.effects.map((item,i)=>i===index?{...item,[field]:Number(e.target.value)}:item)})} className="w-16 bg-slate-800"/></label>)}<button type="button" onClick={()=>changeScene({effects:scene.effects.filter((_,i)=>i!==index)})}>효과 제거</button></div>)}</div></details>
+                <label className="block text-sm">화면 맞춤 <select value={scene.fit} onChange={e=>changeScene({fit:e.target.value as 'contain'|'cover'})} className="rounded bg-slate-800 p-2"><option value="contain">원본 전체</option><option value="cover">화면 채우기</option></select></label>
+                {art&&art.layers.length>1&&<><label className="block">레이어 <select aria-label="웹 PSD 레이어" value={layerId} onChange={e=>setLayerId(e.target.value)} className="rounded bg-slate-800 p-2"><option value="">레이어 선택</option>{art.layers.map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label>{layer&&<div className="space-y-2"><p className="text-xs">시작 위치는 원본을 유지합니다. 아래 값은 장면 끝 위치입니다.</p>{([['x','가로 위치',.45,.55,.001],['y','세로 위치',.45,.55,.001],['scale','확대',.9,1.1,.001],['rotation','회전',-8,8,.1],['opacity','불투명도',0,100,1]] as const).map(([field,label,min,max,step])=><label key={field} className="block text-xs">{label}<input aria-label={`레이어 ${label}`} type="range" min={min} max={max} step={step} value={layerMotion.keys.at(-1)![field]} onChange={e=>editLayer(field,Number(e.target.value))}/><span>{layerMotion.keys.at(-1)![field]}</span></label>)}</div>}</>}
+                <button type="button" className="rounded bg-cyan-800 px-3 py-2" onClick={()=>void task(async()=>{await onSave(normalizeMotionDraft({...draft,enabled:true,automation:undefined}));setMessage('웹 모션 설정을 저장했습니다.')} )}>모션 설정 저장</button>
+            </div></div>
+            {mode==='hybrid'&&<div className="space-y-3 rounded border border-violet-400/30 p-3"><h4>선택 사항 · AI 영상 혼합</h4><StdVideoModelSettings headers={headers}/><p className="text-xs">생성 버튼을 누르면 설정한 제공자의 비용이 발생할 수 있습니다. 기존 요청은 상태 확인으로 이어갑니다.</p><textarea aria-label="AI 영상 연출" value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={4000} placeholder="원본 인물·배경을 유지할 짧은 움직임" className="w-full rounded bg-slate-800 p-2"/><label>생성 길이 <select value={aiDuration} onChange={e=>{setAiDuration(Number(e.target.value));updateInsert(includeAi,aiStart,Number(e.target.value))}} className="bg-slate-800">{[3,4,5].map(n=><option key={n} value={n}>{n}초</option>)}</select></label><button type="button" disabled={!prompt||!art} onClick={()=>void task(generate)} className="rounded bg-violet-800 px-3 py-2">AI 영상 생성 요청</button>{aiJob&&<button type="button" onClick={()=>void task(poll)}>기존 요청 상태 확인 · {aiState}</button>}{aiUrl&&<><video controls src={aiVideo.current?.src} className="max-h-64"/><label><input type="checkbox" checked={includeAi} onChange={e=>{setIncludeAi(e.target.checked);updateInsert(e.target.checked)}}/> 확인한 AI 구간을 현재 씬에 포함</label><label>씬 내 시작(초) <input type="number" min="0" step=".1" value={aiStart} onChange={e=>{setAiStart(Number(e.target.value));updateInsert(includeAi,Number(e.target.value))}} className="w-20 bg-slate-800"/></label></>}</div>}
+            <p className="text-xs text-slate-300">{workspace?.audio?'확정 음성·자막 시간으로 전체 장면을 제작합니다.':workspace?.audio_error||'확정 음성 조회 중'} · 출력 1080p MP4</p>
+            <button type="button" disabled={!workspace?.audio} onClick={()=>void task(exportFinal)} className="rounded bg-cyan-700 px-4 py-3 font-semibold">AE 없이 전체 최종 MP4 제작</button>
+        </fieldset>
+        {progress!==null&&<div role="status"><progress max="100" value={progress}/><span> {Math.round(progress)}%</span><button type="button" onClick={()=>abort.current?.abort()}>제작 취소</button></div>}
+        {Boolean(workspace?.finals?.length)&&<details><summary className="cursor-pointer text-sm text-emerald-200">웹에 저장한 최종 영상 다시 열기</summary>{workspace!.finals!.map(final=><button type="button" key={final.id} disabled={busy} onClick={()=>void task(async()=>{const url=URL.createObjectURL(await fetchBlob(final.url));blobUrls.current.push(url);setResult(url);setResultAsset(final.id);renderedBlob.current=null;setMessage('저장된 최종 영상입니다. 현재 편집 설정과 다른 버전일 수 있으니 실제 영상을 확인해 주세요.')})} className="m-2 rounded border border-emerald-600 p-2 text-xs">{final.name}</button>)}</details>}
+        {result&&<div className="space-y-3"><video controls src={result} className="max-h-[520px] w-full"/><a href={result} download="motion-studio-final.mp4" className="mr-4 text-cyan-200 underline">최종 MP4 다운로드</a><button type="button" disabled={busy||disabled||Boolean(resultAsset)} onClick={()=>void task(saveResult)} className="rounded bg-emerald-800 px-3 py-2">최종 영상 웹 저장</button>{resultAsset&&<button type="button" disabled={busy||disabled} onClick={()=>void task(async()=>{await validateResult();await request({action:'review',asset_id:resultAsset});setMessage('관리자 검수 목록에 전달했습니다. 게시·YouTube 업로드는 별도 승인입니다.');await load()})} className="rounded bg-emerald-800 px-3 py-2">영상 확인 완료 · 관리자 검수 요청</button>}</div>}
+    </section>
+}

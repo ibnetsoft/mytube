@@ -21,3 +21,10 @@ test('PSD layer keys preserve authored depth and cannot be moved outside bounded
  assert.equal(lib.normalizeMotionDraft(v).scenes[1].layers.hair.depth,.3)
  v.scenes[1].layers.hair.keys[1].x=.8;assert.throws(()=>lib.normalizeMotionDraft(v))
 })
+
+test('web hybrid assignments survive save and reject invalid provider references or insert times',()=>{
+ const v=draft();v.web={mode:'hybrid',inserts:{'1':{job_id:'12345678-1234-5123-a123-123456789012',start:.5,duration:3}}}
+ assert.deepEqual(lib.normalizeMotionDraft(v).web,v.web)
+ v.web.inserts[1].start=-1;assert.throws(()=>lib.normalizeMotionDraft(v));v.web.inserts[1].start=0
+ v.web.inserts[1].job_id='https://arbitrary.example/';assert.throws(()=>lib.normalizeMotionDraft(v))
+})
