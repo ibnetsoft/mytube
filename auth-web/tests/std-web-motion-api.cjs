@@ -48,3 +48,17 @@ test('same source pixels reserve the same paid request even after repeated sourc
 test('review cannot register a scene clip or an unrelated uploaded video as a final',async()=>{
  for(const asset of [{...source,asset_type:'video',file_name:'other.mp4',scene_number:null},{...source,asset_type:'video',file_name:'motion-web-final-x.mp4'}]){const f=fixture({assets:[asset]});assert.equal((await f.ex.POST(req({action:'review',asset_id:source.id}),params)).status,400);assert.equal(f.state.writes.length,0)}
 })
+test('ordinary submission cannot send a saved web project back to local AE or legacy render queues',async()=>{
+ const code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../app/api/std/projects/[projectId]/submit/route.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText
+ for(const mode of ['web','hybrid']){
+  const ex={},project={id:'p',status:'in_progress',project_payload:{render_settings:{motion:{enabled:true,web:{mode,inserts:{}}}}}}
+  const query={select(){return query},eq(){return query},maybeSingle:async()=>({data:project})}
+  new Function('exports','require',code)(ex,name=>{
+   if(name==='next/server')return {NextResponse:{json:(data,init)=>Response.json(data,init)}}
+   if(name.endsWith('supabaseAdmin'))return {supabaseAdmin:{from:()=>query}}
+   if(name.endsWith('stdWeb'))return {requireStdUser:async()=>({ok:true,requester:{email:'owner@example.com'}})}
+   return new Proxy({},{get(){throw Error('Web submission reached a legacy worker dependency')}})
+  })
+  const response=await ex.POST(req({}),params);assert.equal(response.status,409);assert.equal((await response.json()).code,'web_motion_export_required')
+ }
+})

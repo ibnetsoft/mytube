@@ -111,6 +111,12 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (['approved', 'canceled'].includes(project.status)) {
         return NextResponse.json({ success: false, error: 'Project is closed' }, { status: 409 })
     }
+    const webMotion = project.project_payload?.render_settings?.motion
+    if (webMotion?.enabled && ['web', 'hybrid'].includes(webMotion.web?.mode)) {
+        return NextResponse.json({ success: false, code: 'web_motion_export_required',
+            error: 'Motion Studio에서 최종 MP4를 제작·저장한 뒤 «관리자 검수 요청»을 눌러 주세요. 웹 제작은 로컬 AE 워커로 제출하지 않습니다.',
+        }, { status: 409 })
+    }
     const thumbnailError = motionAutomationEnabled(project) ? null : editableThumbnailError(
         project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
         project.project_payload?.thumbnail_url || project.progress_payload?.thumbnail_url,
