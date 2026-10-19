@@ -112,3 +112,55 @@ and parsed by the browser: all three are 1920×1080 with background, foreground
 and character layers. The finalized-audio gate still applies independently.
 No final production output is approved when the selected recording and current
 subtitle/voice identity disagree.
+
+
+## Webtoon key editing and recorded-source verification (2026-10-20)
+
+The optional Motion Studio now exposes frame-snapped key tracks for selected
+bone rotation, two-bone IK targets, root translation and mesh pin targets. Keys
+can be added, moved by frame number, copied/pasted and deleted (endpoints remain).
+Each track has 50-step key undo/redo; edits made outside that track reset its
+history. Segment interpolation supports linear, smoothstep, quadratic ease-in,
+quadratic ease-out and hold. Normalization preserves these settings and the
+same sampler drives preview and export. This is not a Bezier graph editor or a
+multi-scene clip editor.
+
+Skeletons support optional local angle limits (also applied after the IK solve)
+and animated root translation. A constrained IK chain can stop short of its
+target. Locked mesh pins attenuate both bone and moving-pin displacement back
+toward the bind artwork; they are radial anchors, not an AE Puppet solver.
+Artwork-backed handles edit FK endpoints, IK targets and moving pins. Pin-only
+artwork also gets the handle view. Bind coordinates, pose controls and a final
+render preview remain separate so the artist can inspect deformation.
+
+Actual project 3376 PSD scenes 19, 25 and 29 were exported with their own recorded
+narration intervals: 13.401, 12.382 and 12.408 seconds. All are browser-rendered
+1920x1080, 24fps H.264/AAC videos with timed Japanese subtitles. Source PSD SHA256
+checks and the downloaded MP3's stored generation SHA256 passed. The original
+recording has 518 subtitle rows and 1614.420 seconds. Current live voice choices
+differ from that recording, so verification used a separate local snapshot with
+recorded voices/directions/speed; every text/time row was first compared and the
+existing strict narration identity/lip-sync validators passed. No project row,
+AE selection, worker, or admin review state was changed.
+
+The three encoded clips passed complete FFmpeg decoding. Comparing decoded AAC
+against the original scene audio gives correlation >=0.999986, 0ms best lag at
+1ms search resolution, and <=18ms trailing codec padding. Encoded beginning,
+middle and ending frames were inspected for missing layers, tears, edges and
+subtitle placement. The deliberately small torso/pin motion showed no obvious
+new background gaps at those inspected poses. This is a 38.191-second source
+validation reel, not a full 26-minute production render, anatomical character
+rigging, listening review, or proof of AE deformation equivalence.
+
+Local artifacts: `output/motion-final-production/recorded-motion-verification.json`,
+`audio-render-check.json`, `encoded-contact-sheet.png`, `timeline-editor.png`,
+and `scene-{19,25,29}-motion-recorded.mp4`. Required source manifests and media are
+local private production assets and are not committed. To reproduce from those
+manifests, set `MOTION_FFMPEG`, run `node scripts/verify_motion_recorded.cjs`, then
+`python scripts/qa_motion_recorded.py` (NumPy required).
+
+Additional checks: `node --test tests/std-motion-timeline.cjs` and
+`node tests/std-motion-timeline-browser.cjs` from `auth-web/`. The browser test
+covers add/move/copy/paste/delete, interpolation persistence, undo/redo, root
+motion, limits, locked pins and a pointer-driven pose edit. Existing AE selection,
+API ownership/queue protections and renderer regression suites are retained.

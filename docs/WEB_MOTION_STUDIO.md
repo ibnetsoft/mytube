@@ -96,3 +96,11 @@ They are served by an authenticated, project-scoped, byte-hash-checked endpoint.
 Glow exposes a bright/alpha seed threshold and soft knee; the optional AE-reference
 glow button adds the calibrated pulse glow/blur recipe. These changes preserve
 the finalized-audio identity gate and the existing AE/worker paths.
+
+Selected bone, IK, root and pin tracks now have frame-based key editing,
+linear/ease/hold interpolation, copy/paste and per-track undo/redo. Skeleton
+angle limits and locked mesh pins reduce excessive bending and unwanted motion.
+Artwork-backed handles record FK/IK/pin poses at the current frame. These are
+native web tools; the AE option and existing script/render workers remain intact.
+See the recorded-source verification section in `MOTION_NATIVE_VERIFICATION.md`
+for the actual three-PSD/narration render scope and remaining limits.
