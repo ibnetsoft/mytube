@@ -17,7 +17,8 @@ function fixture(mode='ae_only') {
   if(name.includes('stdVideoModelStore'))return {selectedVideoModel:async()=>{calls.models++;return {config:{id:'model',provider:'fal'},fingerprint:'modelhash',secret:'never-copy-this'}}}
   throw Error(name)
  })
- return {calls,project,audio,image,run:()=>exports.registerMotionAutomation(project,[{scene_number:1,scene_text:'Source scene'}],[audio,image],'owner-id')}
+ const assets=[audio,image]
+ return {calls,project,audio,image,assets,run:()=>exports.registerMotionAutomation(project,[{scene_number:1,scene_text:'Source scene'}],assets,'owner-id')}
 }
 test('AE-only submission freezes voice and original without reading a provider key',async()=>{
  const f=fixture();await f.run();assert.equal(f.calls.voice,1);assert.equal(f.calls.models,0)
@@ -32,4 +33,10 @@ test('hybrid freezes selected model configuration but excludes its secret',async
 test('resolved sound cues and background audio survive automatic submission',async()=>{
  const f=fixture();f.project.project_payload.render_settings.sfx_cues=[{library_key:'wind.wav',word_boundary:0}]
  await f.run();assert.equal(JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json).sfx_cues[0].start,3)
+})
+test('existing manual video remains usable without an API; vertical webtoons retain originals',async()=>{
+ const f=fixture();f.assets.push({...f.image,id:'manual-video',asset_type:'video',metadata:{gcs_path:'manual.mp4'}})
+ await f.run();assert.equal(JSON.parse(f.calls.rpc.at(-1).args.p_manifest.automation.snapshot_json).scenes[0].source.id,'manual-video')
+ f.project.project_payload.render_settings.comic={mode:'webtoon_video'};await f.run()
+ assert.equal(JSON.parse(f.calls.rpc.at(-1).args.p_manifest.automation.snapshot_json).scenes[0].source.id,'image')
 })

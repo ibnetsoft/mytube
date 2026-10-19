@@ -8,6 +8,7 @@ The active product is `auth-web/`. The user supplies scene originals and finaliz
 - `hybrid`: the same pipeline, with optional short inserts through the settings-selected fal or Replicate model. The submitted model ID and configuration fingerprint are frozen. At most 1–3 inserts, at most 3–5 seconds each, and at most 20% of the complete recording. The director may choose no insert. Provider/model input compatibility still requires live validation with a real configured model.
 
 Both support 16:9 and 9:16. Vertical webtoon originals default to 9:16. No page-turn transition is introduced.
+Existing manually produced clips remain valid inputs without a generation API. Automatic source selection prefers an original PSD, then an existing video for ordinary projects; vertical webtoons prefer original images. Explicit advanced source selections are respected.
 
 ## Execution and review
 
@@ -35,3 +36,7 @@ Before a paid provider POST, the web proxy commits a creation-intent checkpoint.
 - `worker/motion_automation_smoke.py NAME` exercises actual local Codex direction, deterministic 1080p rendering, audio preservation, and actual-output review with a synthetic original and finalized calibration tone. This is not native AE, customer narration, a production queue submission or a customer-quality sample.
 - Paid live video generation is deferred at the user's request. Provider HTTP contracts are tested with mocked responses.
 - Updating/restarting the office Windows supervisor and verifying the new production queue through native AE are deferred until the office session, at the user's request. A web deployment alone does not update that running process.
+
+Recorded local evidence: `output/codex-local-console/motion-automation-smoke/auto-two-modes-20261019-c/report.json` and `final/output.mp4`. Actual local Codex direction, scene review and assembled-output review passed. The 3-second 1920×1080, 24 fps output has SHA-256 `2bb40cd27e6b48596966d010a2601106fb5b289acd669a7afd3df904c9b619e9`; decoded final audio relative PCM error was `0.00001869185835051435`. This simple synthetic fixture establishes execution, not dramatic quality on customer art. No paid video-generation request was made.
+
+Focused checks: 37 Node tests; 25 motion Python tests and 6 existing supervisor/dashboard checks; TypeScript and Next.js production build. Both new migrations were applied and the rollback-only database test passed. This is not an all-repository test-suite claim: legacy `std-submit-ae-resubmit.cjs` fixtures still reject existing `stdSubmissionPipeline` imports and were not rewritten as part of this change.

@@ -22,14 +22,18 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const active=assets.filter(a=>['uploaded','assigned'].includes(a.status)).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))
     const psds=aeSceneSources(active)
     const lipSync=reviewedLipSyncAssets(project,scenes,assets)
+    const verticalOriginal=(project.project_payload?.render_settings?.comic||project.project_payload?.structure?.comic_plan?.render_settings)?.mode==='webtoon_video'
     const ordered=scenes.map((scene,index)=>{
         const n=Number(scene.scene_number)
         const candidates=active.filter(a=>Number(a.scene_number)===n && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint)
-        const source=lipSync.get(n)||psds.get(n)||candidates.find(a=>a.asset_type==='image')||candidates.find(a=>a.asset_type==='video')
+        const image=candidates.find(a=>a.asset_type==='image'),video=candidates.find(a=>a.asset_type==='video')
+        const choice=motion.scenes[String(n)]?.source||'auto'
+        const selected=choice==='psd'?psds.get(n):choice==='image'?image:choice==='video'?video:psds.get(n)||(verticalOriginal?image||video:video||image)
+        const source=lipSync.get(n)||selected
         if(!source||!storageSourceForAsset(source))throw new Error(`${n}번 씬의 이미지·영상 또는 원본 PSD가 필요합니다.`)
         const start=index===0?0:starts[index],end=starts[index+1]??total
         if(!Number.isSafeInteger(n)||n<1||scenes.slice(0,index).some(s=>Number(s.scene_number)===n)||!Number.isFinite(start)||!Number.isFinite(end)||end-start<1/motion.fps)throw new Error(`${n}번 씬의 최종 음성 구간이 유효하지 않습니다.`)
-        return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',start,end,source,source_kind:lipSync.has(n)?'video':psds.has(n)?'psd':source.asset_type}
+        return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',start,end,source,source_kind:source.asset_type==='original'?'psd':source.asset_type}
     })
     const settings=await persistTemplateOverlay(project.id,{...project.project_payload?.settings,...project.project_payload?.render_settings})
     await templateOverlayPng(settings)

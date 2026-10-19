@@ -144,7 +144,7 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         from ae_scene_production import _render_native
         spec={'number':scene['number'],'source_psd':scene['source'],'direction_text':plan['scene']['direction'],
             'scene_context':{k:v for k,v in scene.items() if k!='source'},'neighbors':[p['continuity'] for p in snapshot.get('_plans',[])],
-            'motion_output':{'width':size[0],'height':size[1]},'motion_scene':plan['scene'],'requested_effects':[e['type'] for e in plan['scene']['effects']],
+            'motion_output':{'width':size[0],'height':size[1]},'motion_scene':{**plan['scene'],**({'layers':snapshot['motion']['scenes'][str(scene['number'])]['layers']} if snapshot['motion']['scenes'].get(str(scene['number']),{}).get('layers') else {})},'requested_effects':[e['type'] for e in plan['scene']['effects']],
             'finalized_narration':{'start':scene['start'],'end':scene['end'],'audio_id':snapshot['audio']['id']}}
         prepared=prepare(source,spec,directory/'preparation',runner,NativeCodexLayerGenerator(),current=fresh)
         native=_render_native(prepared,directory,duration)
