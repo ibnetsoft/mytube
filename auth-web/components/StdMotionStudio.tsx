@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
+import StdMotionAutomation from './StdMotionAutomation'
+import StdProductionMethodSelector from './StdProductionMethodSelector'
 const StdWebMotionStudio=dynamic(()=>import('./StdWebMotionStudio'),{ssr:false})
 import { AE_SCENE_EFFECTS } from '../lib/stdAeSceneEffects'
-import { interpolateMotion, MotionDraft, MotionKey, motionKey, motionPreset, motionScene, MOTION_PRESETS, normalizeMotionDraft } from '../lib/stdMotionStudio'
+import { interpolateMotion, MotionDraft, MotionKey, motionKey, motionPreset, motionScene, MOTION_PRESETS, normalizeMotionDraft, motionProductionMethod, switchMotionProduction, type ProductionMethod } from '../lib/stdMotionStudio'
 
-export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpload, projectId, headers, renderHistory=[], defaultAspect='16:9' }: {
-    value: any; scenes: any[]; disabled: boolean; onSave: (draft: MotionDraft) => Promise<void>; onUpload: (scene: any, file: File) => Promise<unknown>; projectId: string; headers: Record<string,string>; renderHistory?:any[]; defaultAspect?:MotionDraft['aspect']
+export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpload, projectId, headers, renderHistory=[], defaultAspect='16:9', aePreparation }: {
+    value: any; scenes: any[]; disabled: boolean; onSave: (draft: MotionDraft) => Promise<void>; onUpload: (scene: any, file: File) => Promise<unknown>; projectId: string; headers: Record<string,string>; renderHistory?:any[]; defaultAspect?:MotionDraft['aspect']; aePreparation?:ReactNode
 }) {
     const [draft,setDraft]=useState<MotionDraft>(()=>value ? normalizeMotionDraft(value) : {version:1,enabled:false,aspect:defaultAspect,fps:24,scenes:{}})
     const [index,setIndex]=useState(0), [time,setTime]=useState(0), [playing,setPlaying]=useState(false), [busy,setBusy]=useState(false), [error,setError]=useState(''), [notice,setNotice]=useState('')
@@ -19,6 +21,8 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
     const isVideo=scene.source==='video' || (scene.source!=='image' && Boolean(selected?.video_url))
     const update=(changes: Partial<typeof scene>)=>setDraft(d=>({...d,scenes:{...d.scenes,[number]:{...scene,...changes}}}))
     const serialized=JSON.stringify(value)
+    const method=motionProductionMethod({project_payload:{render_settings:{motion:draft}}})
+    const selectMethod=async(next:ProductionMethod)=>{if(next===method)return;setBusy(true);setError('');try{const updated=switchMotionProduction(draft,next);await onSave(updated);setDraft(updated);setNotice(next==='ae'?'기존 AE 제작 방식으로 저장했습니다.':'Motion Studio 추가 옵션으로 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     useEffect(()=>{ if(serialized) setDraft(normalizeMotionDraft(JSON.parse(serialized))) },[serialized]) // saved server snapshot
     useEffect(()=>{setTime(0);setPlaying(false)},[index])
     useEffect(()=>{
@@ -47,9 +51,11 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
     const save=async()=>{setBusy(true);setError('');try{await onSave(normalizeMotionDraft(draft));setNotice('Motion Studio 설정 저장 완료')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const previews=async(action:'read'|'preview'|'direction')=>{setError('');setBusy(true);try{if(action!=='read')await onSave(normalizeMotionDraft(draft));const response=await fetch(`/api/std/projects/${projectId}/motion`,{method:action==='read'?'GET':'POST',headers:{...headers,'Content-Type':'application/json'},...(action!=='read'?{body:JSON.stringify({scene_number:number,action})}:{})});const data=await response.json();if(!response.ok)throw new Error(data.error);setJobs(data.jobs||[]);setPreparations(data.preparations||[]);if(action!=='read')setNotice('워커 작업 요청 완료. 처리 후 상태를 새로고침해 주세요.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const keyField=(k:MotionKey,field:keyof MotionKey,label:string,min:number,max:number,step:number)=> <label key={field} className="text-xs">{label}<input aria-label={`${Math.round(k.t*100)}% ${label}`} type="number" value={k[field]} min={min} max={max} step={step} disabled={disabled||busy} onChange={e=>update({keys:scene.keys.map(item=>item===k?{...k,[field]:Number(e.target.value)}:item)})} className="ml-1 w-20 rounded bg-slate-800 p-1"/></label>
-    return <><StdWebMotionStudio draft={draft} onChange={setDraft} onSave={onSave} disabled={disabled} projectId={projectId} headers={headers}/>
+    return <><StdProductionMethodSelector method={method} disabled={disabled||busy} onSelect={next=>void selectMethod(next)}/>
+        {method==='ae'&&aePreparation}
+        {method==='motion_studio'?<StdWebMotionStudio draft={draft} onChange={setDraft} onSave={onSave} disabled={disabled||busy} projectId={projectId} headers={headers}/>:<StdMotionAutomation draft={draft} onChange={setDraft} onSave={()=>void save()} disabled={disabled} busy={busy} projectId={projectId} headers={headers}/>}
         {notice&&<p role="status" className="mx-5 text-xs text-cyan-200">{notice}</p>}{error&&<p role="alert" className="mx-5 text-sm text-red-300">{error}</p>}
-        <details className="mx-5 rounded-xl border border-cyan-400/30 bg-[#101722] p-4 text-white" onToggle={e=>setOpen(e.currentTarget.open)}>
+        {method==='ae'&&<details className="mx-5 rounded-xl border border-cyan-400/30 bg-[#101722] p-4 text-white" onToggle={e=>setOpen(e.currentTarget.open)}>
         <summary className="cursor-pointer font-semibold text-cyan-200">고급 타임라인 · 기존 워커 작업</summary>
         {open&&<div className="mt-4 space-y-4">
             <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -101,5 +107,5 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
                 return url?<details key={r.id} className="rounded border border-emerald-500/30 p-3"><summary className="cursor-pointer text-sm text-emerald-200">최종 합성 영상 v{r.render_version} · 실제 출력 검토</summary><p className="my-2 text-xs text-slate-400">음성·자막·장면 경계와 피사체 가림을 실제 영상에서 확인하세요. 미리보기 및 렌더 완료는 검수 승인과 별개입니다.</p><video controls preload="metadata" src={url} className="max-h-[500px] w-full"/></details>:null
             })}
         </div>}
-    </details></>
+    </details>}</>
 }

@@ -10788,9 +10788,8 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
 
-                                <StdAeScenePreparation key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} ui={ui} onPreparedScenesChange={onAePreparedScenesChange} />
-
                                 <StdMotionStudio key={`motion-${selectedProject.project.id}`}
+                                    aePreparation={<StdAeScenePreparation key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} ui={ui} onPreparedScenesChange={onAePreparedScenesChange} />}
                                     value={selectedProject.project.project_payload?.render_settings?.motion}
                                     defaultAspect={isWebtoonVideoProject(selectedProject.project) ? '9:16' : '16:9'}
                                     scenes={selectedProject.scenes}

@@ -7,15 +7,15 @@ function bundle(entries){
   if(/\.tsx?$/.test(file))code=ts.transpileModule(code,{compilerOptions:{module:1,target:9,jsx:4}}).outputText
   const dependencies={}
   for(const match of code.matchAll(/require\(["']([^"']+)["']\)/g)){
-   const name=match[1];if(name==='react'||name==='react/jsx-runtime')continue
+   const name=match[1];if(name==='react'||name==='react/jsx-runtime'||name==='next/dynamic')continue
    if(name.startsWith('node:')||['fs','path','stream','util','zlib'].includes(name))continue
    const base=name.startsWith('@/')?path.join(root,name.slice(2)):name.startsWith('.')?path.resolve(path.dirname(file),name):null
    const resolved=name==='mediabunny'?path.join(root,'node_modules/mediabunny/dist/bundles/mediabunny.cjs'):base?['','.ts','.tsx','.js','/index.js'].map(ext=>base+ext).find(p=>fs.existsSync(p)&&fs.statSync(p).isFile()):require.resolve(name,{paths:[path.dirname(file)]});dependencies[name]=add(resolved)
   }
-  modules.set(file,`function(module,exports,load){const ids=${JSON.stringify(dependencies)};const require=name=>name==='react'?React:name==='react/jsx-runtime'?{jsx:(t,p,k)=>React.createElement(t,{...p,key:k}),jsxs:(t,p,k)=>React.createElement(t,{...p,key:k}),Fragment:React.Fragment}:load(ids[name]);\n${code}\n}`);return file
+  modules.set(file,`function(module,exports,load){const ids=${JSON.stringify(dependencies)};const require=name=>name==='react'?React:name==='next/dynamic'?{default:()=>props=>React.createElement(window.Editor,props)}:name==='react/jsx-runtime'?{jsx:(t,p,k)=>React.createElement(t,{...p,key:k}),jsxs:(t,p,k)=>React.createElement(t,{...p,key:k}),Fragment:React.Fragment}:load(ids[name]);\n${code}\n}`);return file
  }
  const ids=entries.map(add)
- return `var process={env:{NODE_ENV:'test'}};var registry={${[...modules].map(([k,v])=>JSON.stringify(k)+':'+v).join(',')}},cache={};function load(id){if(!id)throw Error('Unsupported test module');if(cache[id])return cache[id].exports;const module={exports:{}};cache[id]=module;registry[id](module,module.exports,load);return module.exports};window.motion=load(${JSON.stringify(ids[0])});window.psd=load(${JSON.stringify(ids[1])});window.Editor=load(${JSON.stringify(ids[2])}).default;`
+ return `var process={env:{NODE_ENV:'test'}};var registry={${[...modules].map(([k,v])=>JSON.stringify(k)+':'+v).join(',')}},cache={};function load(id){if(!id)throw Error('Unsupported test module');if(cache[id])return cache[id].exports;const module={exports:{}};cache[id]=module;registry[id](module,module.exports,load);return module.exports};window.motion=load(${JSON.stringify(ids[0])});window.psd=load(${JSON.stringify(ids[1])});window.Editor=load(${JSON.stringify(ids[2])}).default;window.Selector=load(${JSON.stringify(ids[3])}).default;window.motionSettings=load(${JSON.stringify(ids[4])});window.Production=load(${JSON.stringify(ids[5])}).default;`
 }
 async function main(){
  const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL||'chrome'}),page=await browser.newPage({viewport:{width:1400,height:1000}})
@@ -23,7 +23,7 @@ async function main(){
  try{
   await page.route('http://localhost:43199/**',r=>r.fulfill({contentType:'text/html',body:'<html><body><div id="root"></div></body></html>'}));await page.goto('http://localhost:43199')
   await page.addScriptTag({path:path.join(root,'node_modules/react/umd/react.development.js')});await page.addScriptTag({path:path.join(root,'node_modules/react-dom/umd/react-dom.development.js')})
-  await page.addScriptTag({content:bundle([path.join(root,'lib/stdWebMotion.ts'),path.join(root,'node_modules/ag-psd/index.js'),path.join(root,'components/StdWebMotionStudio.tsx')])})
+  await page.addScriptTag({content:bundle([path.join(root,'lib/stdWebMotion.ts'),path.join(root,'node_modules/ag-psd/index.js'),path.join(root,'components/StdWebMotionStudio.tsx'),path.join(root,'components/StdProductionMethodSelector.tsx'),path.join(root,'lib/stdMotionStudio.ts'),path.join(root,'components/StdMotionStudio.tsx')])})
   const evidence=await page.evaluate(async()=>{
    const {motion,psd}=window,make=(w,h,color)=>{const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').fillStyle=color;c.getContext('2d').fillRect(0,0,w,h);return c}
    const composite=make(320,180,'#0000ff');composite.getContext('2d').drawImage(make(60,80,'#ff0000'),100,50)
@@ -73,6 +73,14 @@ async function main(){
   await page.getByText('관리자 검수 목록에 전달했습니다.',{exact:false}).waitFor();assert.ok(saved&&reviewed);assert.equal(providerCalls,0)
   await page.screenshot({path:path.join(output,'web-studio.png'),fullPage:true});assert.deepEqual(errors,[])
   console.log('PASS browser UI: stored PSD + finalized recording → full MP4 → signed upload → admin review; no paid provider calls')
+  await page.evaluate(()=>{const div=document.createElement('div');div.id='production-choice';document.body.append(div);function Choice(){const [draft,setDraft]=React.useState({version:1,enabled:true,aspect:'16:9',fps:24,scenes:{'1':window.motionSettings.motionPreset('impact')}});window.selectionDraft=draft;return React.createElement(window.Production,{aePreparation:React.createElement('div',{'data-testid':'legacy-ae-preparation'},'기존 AE 장면 연출'),value:draft,scenes:[{scene_number:1}],projectId:'fixture',headers:{},disabled:false,onSave:async value=>setDraft(value),onUpload:async()=>{}})};ReactDOM.createRoot(div).render(React.createElement(Choice))})
+  await page.getByRole('radio',{name:'기존 AE 방식 · 기본',exact:false}).check();assert.equal(await page.getByRole('radio',{name:'기존 AE 방식 · 기본',exact:false}).isChecked(),true)
+  assert.equal(await page.locator('#production-choice [aria-label="웹 모션 제작"]').count(),0);assert.equal(await page.getByTestId('legacy-ae-preparation').count(),1)
+  await page.getByRole('radio',{name:'Motion Studio · 추가 옵션',exact:false}).check();assert.equal(await page.evaluate(()=>window.selectionDraft.production_method),'motion_studio')
+  await page.locator('#production-choice [aria-label="웹 모션 제작"]').waitFor();assert.equal(await page.getByTestId('legacy-ae-preparation').count(),0)
+  await page.getByRole('radio',{name:'기존 AE 방식 · 기본',exact:false}).check();assert.equal(await page.evaluate(()=>window.selectionDraft.scenes[1].effects[0].type),'impact_shake')
+  assert.equal(await page.locator('#production-choice [aria-label="웹 모션 제작"]').count(),0);assert.equal(await page.getByTestId('legacy-ae-preparation').count(),1)
+  console.log('PASS production method selection: AE default, explicit optional studio, original AE settings restored')
   const realPsd=path.resolve(root,'../output/ae-psd-wuxia-3285/wuxia-split-layered.psd')
   if(fs.existsSync(realPsd)){
    await page.route('**/real.psd',r=>r.fulfill({contentType:'image/vnd.adobe.photoshop',body:fs.readFileSync(realPsd)}))

@@ -13,6 +13,7 @@ import { createGcsSignedReadUrl, getGcsObjectMetadata, downloadGcsObjectViaSigne
 import {backgroundWindow,backgroundVolume} from '@/lib/stdAudioMix'
 import {resolveSfxCues,sfxNeedsReview} from '@/lib/stdSfxCues'
 import {templateOverlayPng} from '@/lib/stdTemplateOverlayPng'
+import {motionProductionMethod} from '@/lib/stdMotionStudio'
 
 export const dynamic='force-dynamic'
 export const maxDuration=60
@@ -63,6 +64,7 @@ export async function POST(req:Request,{params}:{params:{projectId:string}}){
     try{
         const c=await context(req,params.projectId);if(c.response)return c.response
         const body=await req.json()
+        if(motionProductionMethod(c.project)!=='motion_studio')throw Error('Motion Studio 추가 옵션을 선택하고 저장한 뒤 사용해 주세요. 현재는 기존 AE 제작 방식입니다.')
         if(['approved','canceled'].includes(c.project.status))throw Error('종료된 프로젝트입니다.')
         if(body.action==='review'){
             const asset=c.assets!.find(a=>a.id===body.asset_id&&a.asset_type==='video'&&a.scene_number==null&&a.status==='uploaded')

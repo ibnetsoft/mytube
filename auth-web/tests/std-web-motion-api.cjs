@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),ts=require('typescript'),crypto=require('node:crypto')
 function fixture(options={}){
- const state={providerPosts:0,filters:[],writes:[],assets:options.assets||[],project:{id:'p',employee_email:'owner@example.com',status:'in_progress',updated_at:'version',project_payload:{},...options.project}}
+ const state={providerPosts:0,filters:[],writes:[],assets:options.assets||[],project:{id:'p',employee_email:'owner@example.com',status:'in_progress',updated_at:'version',project_payload:{render_settings:{motion:{production_method:'motion_studio'}}},...options.project}}
  const db={from(table){let action='select',body
   const q={select(){return q},eq(k,v){state.filters.push([table,k,v]);return q},order(){return q},update(b){action='update';body=b;return q},insert(b){action='insert';body=b;return q},maybeSingle(){return Promise.resolve({data:table==='std_projects'?(options.missing?null:state.project):null})},then(resolve){if(action!=='select')state.writes.push({table,action,body});return Promise.resolve({data:table==='std_project_scenes'?[{scene_number:1,scene_title:'scene'}]:null,error:table==='std_project_assets'&&action==='insert'&&options.reservationConflict?{code:'23505'}:null}).then(resolve)}};return q}}
  const ex={},code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../app/api/std/projects/[projectId]/web-motion/route.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText
@@ -13,6 +13,7 @@ function fixture(options={}){
   if(name.endsWith('stdContentIdentity'))return {selectNarrationAsset:()=>{throw Error('final voice required')}}
   if(name.endsWith('stdLipSync'))return {lipSyncPlan:()=>{},lipSyncSceneStarts:()=>[0]}
   if(name.endsWith('stdAeScenePreparation'))return {aeSceneSources:()=>new Map()}
+  if(name.endsWith('stdMotionStudio'))return {motionProductionMethod:p=>p.project_payload?.render_settings?.motion?.production_method==='ae'?'ae':'motion_studio'}
   if(name.endsWith('stdAudioMix'))return {backgroundWindow:()=>({valid:true,start:0,end:1}),backgroundVolume:()=>.08}
   if(name.endsWith('stdSfxCues'))return {resolveSfxCues:()=>[],sfxNeedsReview:()=>false}
   if(name.endsWith('stdTemplateOverlayPng'))return {templateOverlayPng:async()=>null}
@@ -57,8 +58,14 @@ test('ordinary submission cannot send a saved web project back to local AE or le
    if(name==='next/server')return {NextResponse:{json:(data,init)=>Response.json(data,init)}}
    if(name.endsWith('supabaseAdmin'))return {supabaseAdmin:{from:()=>query}}
    if(name.endsWith('stdWeb'))return {requireStdUser:async()=>({ok:true,requester:{email:'owner@example.com'}})}
+   if(name.endsWith('stdMotionStudio'))return {motionProductionMethod:()=> 'motion_studio'}
    return new Proxy({},{get(){throw Error('Web submission reached a legacy worker dependency')}})
   })
   const response=await ex.POST(req({}),params);assert.equal(response.status,409);assert.equal((await response.json()).code,'web_motion_export_required')
  }
+})
+test('AE-selected projects cannot accidentally create a paid web job or submit browser output',async()=>{
+ const f=fixture({project:{project_payload:{render_settings:{motion:{production_method:'ae',web:{mode:'hybrid',inserts:{}}}}}},assets:[source]})
+ for(const body of [generation,{action:'review',asset_id:'source'}]){const response=await f.ex.POST(req(body),params);assert.equal(response.status,400);assert.match((await response.json()).error,/추가 옵션/)}
+ assert.equal(f.state.providerPosts,0);assert.equal(f.state.writes.length,0)
 })

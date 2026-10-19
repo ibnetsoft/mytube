@@ -1,5 +1,17 @@
 # Motion Studio browser production
 
+## Additional production option
+
+Existing AE production is the default. `production_method` selects `ae` or
+`motion_studio`; the editor shows the browser option only after explicit selection
+and saves that choice before entering it. Active settings and the two independent
+`alternatives` snapshots round-trip without overwriting the original AE recipe.
+Old AE projects without a selection stay on AE. Existing saved browser projects
+are recognized from their `web` marker until an explicit selection is saved.
+Explicit `ae` takes precedence over any dormant browser settings. Script and
+render workers remain installed and unchanged. Browser generation/review routes
+reject AE-selected projects; the ordinary submission route keeps its AE behavior.
+
 The active `auth-web/` editor can produce a final video without After Effects,
 the office computer, a local Codex process, or a media worker. The browser parses
 PSD pixels, composites scene frames, and encodes H.264/AAC MP4 with WebCodecs.

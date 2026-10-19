@@ -28,3 +28,13 @@ test('web hybrid assignments survive save and reject invalid provider references
  v.web.inserts[1].start=-1;assert.throws(()=>lib.normalizeMotionDraft(v));v.web.inserts[1].start=0
  v.web.inserts[1].job_id='https://arbitrary.example/';assert.throws(()=>lib.normalizeMotionDraft(v))
 })
+test('AE remains the default and switching stores independent drafts with lossless return',()=>{
+ const original=draft('16:9');original.automation={mode:'ae_only',max_ai_clips:1,max_ai_seconds:5};original.scenes[1]=lib.motionPreset('impact')
+ assert.equal(lib.motionProductionMethod({}), 'ae')
+ const studio=lib.switchMotionProduction(original,'motion_studio');assert.equal(studio.production_method,'motion_studio');assert.deepEqual(studio.alternatives.ae,original)
+ studio.scenes[1]=lib.motionPreset('light');studio.web.mode='hybrid'
+ const ae=lib.switchMotionProduction(studio,'ae');assert.deepEqual(ae.scenes,original.scenes);assert.deepEqual(ae.automation,original.automation)
+ assert.equal(lib.motionProductionMethod({project_payload:{render_settings:{motion:{...ae,web:studio.web}}}}),'ae')
+ const restored=lib.switchMotionProduction(ae,'motion_studio');assert.deepEqual(restored.scenes,studio.scenes);assert.equal(restored.web.mode,'hybrid')
+ assert.throws(()=>lib.normalizeMotionDraft({...original,alternatives:{ae:{...original,alternatives:{}}}}))
+})
