@@ -135,7 +135,10 @@ function applySceneEffects(source,layers) {
     }
     if(E.type==="shock_ring") {
       layer=effectShape(source,"ae_effect_shock_ring_"+e);var ringContents=layer.property("ADBE Root Vectors Group");
-      var ring=ringContents.addProperty("ADBE Vector Shape - Ellipse"),ringStroke=ringContents.addProperty("ADBE Vector Graphic - Stroke");
+      var ring=ringContents.addProperty("ADBE Vector Shape - Ellipse"),ringIndex=ring.propertyIndex;
+      var ringStroke=ringContents.addProperty("ADBE Vector Graphic - Stroke");
+      // Adding to an indexed AE group invalidates earlier Property references.
+      ring=ringContents.property(ringIndex);
       ringStroke.property("ADBE Vector Stroke Color").setValue(E.color);ringStroke.property("ADBE Vector Stroke Width").setValue(Math.max(2,W*.003*E.intensity));
       layer.property("ADBE Transform Group").property("ADBE Position").setValue([E.center[0]*W,E.center[1]*H]);
       key(ring.property("ADBE Vector Ellipse Size"),E.start,[W*E.radius*.12,H*E.radius*.12]);
