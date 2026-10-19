@@ -57,6 +57,7 @@ function harness(options = {}) {
         selectedVoice: options.voice || 'voice-a',
         subtitleVoiceSegments: () => options.segments ?? [{ text: 'Saved script.', voice_id: 'voice-a' }],
         isVoiceStudioVoice: voice => voice.startsWith('gemini:'), customScriptText: '',
+        elevenLabsModel: options.model || 'eleven_multilingual_v2',
         ttsSpeed: '1', elStability: '0.7', elStyle: '0.45', multiVoice: false, detectedCharacters: [], characterVoices: {},
         authedJsonHeaders: { Authorization: 'Bearer fixture' }, safeParseJson: async response => response.payload,
         formatTtsErrorMessage: value => value, shouldUseBrowserElevenLabsFallback: () => Boolean(options.fallback),
@@ -89,6 +90,7 @@ function harness(options = {}) {
             state.saves++
             if (options.saveGate) await options.saveGate.promise
             if (options.saveError) throw Error(options.saveError)
+            return true
         },
     }
     const generateTts = extract('    const generateTts =', '    const setSelectedSubtitleBlocksVoice =', 'generateTts', context)
@@ -96,6 +98,16 @@ function harness(options = {}) {
     return { state, mediaScopeRef, generateTts, handleFinalizeSubtitlesAndTts }
 }
 const terminal = h => h.state.notices.filter(notice => notice.phase !== 'running')
+
+test('v4 choice reaches synthesis and saved timing; v2 remains the default', async () => {
+    for (const model of ['eleven_multilingual_v2', 'eleven_v4']) {
+        const h = harness({ model })
+        await h.handleFinalizeSubtitlesAndTts()
+        assert.equal(terminal(h)[0].phase, 'success', JSON.stringify(h.state.notices))
+        const request = h.state.requests.find(r => r.url.endsWith('/tts/generate'))
+        assert.equal(JSON.parse(request.init.body).model_id, model)
+    }
+})
 
 test('Save + TTS shows completion once after saved audio, with reuse counts, and stops spinning', async () => {
     const h = harness()

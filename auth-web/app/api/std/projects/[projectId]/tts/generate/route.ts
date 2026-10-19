@@ -153,6 +153,8 @@ function shouldRetryElevenLabsWithAlternateModel(status: number, detail: string)
 }
 
 function buildElevenLabsModelCandidates(modelId: string) {
+    // An explicit v4 choice must never return older audio under a v4 cache key.
+    if (modelId === 'eleven_v4') return [modelId]
     const candidates = [String(modelId || '').trim(), ...FALLBACK_ELEVENLABS_MODEL_IDS]
     return candidates.filter((value, index) => value && candidates.indexOf(value) === index)
 }
@@ -1073,11 +1075,11 @@ async function runTts(body: any, auth: any, project: any) {
                 ...completedScriptTtsProgress(project.progress_payload || {}, text, buildTtsText(project, scenes)),
                 has_tts_audio: true, tts_generated_at: now, tts_asset_id: asset.id,
                 tts_drive_file_id: null, tts_file_name: fileName,
-                voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
+                voice_id: voiceId, tts_model_id: modelId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
                 voice_map: voiceMap, voice_segments: voiceSegments,
             },
             project_payload: bindProjectContent(project, { ...(project.project_payload || {}), subtitle_source_audio_id: asset.id, subtitles: syncedSubtitles, audio_url: audioUrl, tts_url: audioUrl,
-                voice_id: voiceId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
+                voice_id: voiceId, tts_model_id: modelId, tts_speed: projectTtsSpeed, multi_voice: multiVoice,
                 voice_map: voiceMap, voice_segments: voiceSegments }),
             updated_at: now,
         }).eq('id', project.id).eq('updated_at', project.updated_at).select('id').single()

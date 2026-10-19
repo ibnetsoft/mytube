@@ -1038,6 +1038,14 @@ export default function StdPortalPage() {
         || selectedProject?.project?.source_payload?.progress_payload?.tts_speed
         || 1
     ) || 1)))
+    const [elevenLabsModelChoices, setElevenLabsModelChoices] = useState<Record<string, string>>({})
+    const elevenLabsModel = elevenLabsModelChoices[selectedProject?.project?.id || '']
+        || (selectedProject?.project?.project_payload?.tts_model_id === 'eleven_v4' ? 'eleven_v4' : 'eleven_multilingual_v2')
+    const chooseElevenLabsModel = (model: string) => {
+        const projectId = selectedProject?.project?.id
+        if (!projectId || generatingTts) return
+        setElevenLabsModelChoices(previous => ({ ...previous, [projectId]: model }))
+    }
     const [elStability, setElStability] = useState('0.7')
     const [elStyle, setElStyle] = useState('0.45')
     const [multiVoice, setMultiVoice] = useState(false)
@@ -2756,6 +2764,7 @@ export default function StdPortalPage() {
             projectId || 'project',
             index,
             voiceId,
+            elevenLabsModel,
             String(subtitle?.voice_direction || ''),
             Number(ttsSpeed) || 1,
             Number(elStability) || 0.7,
@@ -3561,7 +3570,7 @@ export default function StdPortalPage() {
         return ['uploaded', 'assigned'].includes(asset.status) && (m?.storage_path || asset.drive_file_id)
             && m?.kind === 'vrew_segment_tts' && m.text === String(subtitle?.text || '').trim()
             && m.voice_id === String(subtitle?.voice_id || selectedVoice)
-            && m.model_id === 'eleven_multilingual_v2' && Number(m.tts_speed) === Number(ttsSpeed)
+            && m.model_id === elevenLabsModel && Number(m.tts_speed) === Number(ttsSpeed)
             && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
             && String(m.direction || '') === String(subtitle?.voice_direction || '')
     })
@@ -3600,7 +3609,7 @@ export default function StdPortalPage() {
                     provider: isVoiceStudioVoice(voiceId) ? 'voice_studio' : voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                     direction: String(subtitle?.voice_direction || ''),
                     voice_id: voiceId,
-                    model_id: 'eleven_multilingual_v2',
+                    model_id: elevenLabsModel,
                     speed: Number(ttsSpeed),
                     stability: Number(elStability),
                     style: Number(elStyle),
@@ -4158,7 +4167,7 @@ export default function StdPortalPage() {
                     return ['uploaded','assigned'].includes(asset.status) && m.kind === 'vrew_segment_tts'
                         && m.text === String(subtitle.text || '').trim()
                         && m.voice_id === String(subtitle.voice_id || selectedVoice)
-                        && m.model_id === 'eleven_multilingual_v2' && Number(m.tts_speed) === Number(ttsSpeed)
+                        && m.model_id === elevenLabsModel && Number(m.tts_speed) === Number(ttsSpeed)
                         && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
                         && String(m.direction || '') === String(subtitle.voice_direction || '')
                 })
@@ -5943,7 +5952,7 @@ export default function StdPortalPage() {
                         },
                         body: JSON.stringify({
                             text: chunk,
-                            model_id: 'eleven_multilingual_v2',
+                            model_id: elevenLabsModel,
                             voice_settings: { stability, similarity_boost: 0.75, style, speed },
                         }),
                     }
@@ -6535,7 +6544,7 @@ export default function StdPortalPage() {
                 const requestBody = {
                     provider: voiceSegments.some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : 'elevenlabs',
                     voice_id: selectedVoice,
-                    model_id: 'eleven_multilingual_v2',
+                    model_id: elevenLabsModel,
                     speed: Number(ttsSpeed),
                     stability: Number(elStability),
                     style: Number(elStyle),
@@ -6650,7 +6659,7 @@ export default function StdPortalPage() {
                             },
                             body: JSON.stringify({
                                 text: chunks[i],
-                                model_id: 'eleven_multilingual_v2',
+                                model_id: elevenLabsModel,
                                 voice_settings: { stability, similarity_boost: 0.75, style, speed },
                             }),
                         }
@@ -6681,7 +6690,7 @@ export default function StdPortalPage() {
                     body: JSON.stringify({
                         provider: 'elevenlabs',
                         voice_id: selectedVoice,
-                        model_id: 'eleven_multilingual_v2',
+                        model_id: elevenLabsModel,
                         speed: Number(ttsSpeed),
                         stability: Number(elStability),
                         style: Number(elStyle),
@@ -9034,6 +9043,15 @@ export default function StdPortalPage() {
                                     <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
                                         {isVrewSubtitleMode && (
                                             <>
+                                                <label className="flex items-center gap-1 text-[10px] text-gray-200">
+                                                    ElevenLabs
+                                                    <select aria-label="ElevenLabs 모델" value={elevenLabsModel} disabled={generatingTts}
+                                                        onChange={e => chooseElevenLabsModel(e.target.value)}
+                                                        className="h-7 rounded border border-purple-400/30 bg-[#14181f] px-2 text-white">
+                                                        <option value="eleven_multilingual_v2">Multilingual v2</option>
+                                                        <option value="eleven_v4">Eleven v4</option>
+                                                    </select>
+                                                </label>
                                                 <div className="flex items-center gap-1 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1 shrink-0">
                                                     <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
                                                         {t('sub_stability')}
@@ -10483,7 +10501,7 @@ export default function StdPortalPage() {
                                         <span>📜</span> {selectedProject.scenes.length}개 씬 · {scriptCharCount.toLocaleString()}자 대본 로드됨
                                     </span>
                                     <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 font-bold border border-purple-500/20">
-                                        ⚡ Multilingual v2
+                                        ⚡ {elevenLabsModel === 'eleven_v4' ? 'Eleven v4' : 'Multilingual v2'}
                                     </span>
                                 </div>
 
@@ -10500,6 +10518,16 @@ export default function StdPortalPage() {
                                             ))}
                                         </select>
                                     </div>
+
+                                    <label className="flex items-center gap-1.5 text-xs text-gray-300">
+                                        ElevenLabs
+                                        <select aria-label="ElevenLabs 모델" value={elevenLabsModel} disabled={generatingTts}
+                                            onChange={e => chooseElevenLabsModel(e.target.value)}
+                                            className="rounded-lg border border-white/10 bg-[#202632] px-2.5 py-1.5 text-white">
+                                            <option value="eleven_multilingual_v2">Multilingual v2</option>
+                                            <option value="eleven_v4">Eleven v4</option>
+                                        </select>
+                                    </label>
 
                                     <label className="flex items-center gap-1.5 cursor-pointer bg-[#202632] px-2.5 py-1 rounded-lg border border-white/5">
                                         <span className="text-xs font-bold text-gray-300">다중 성우</span>
