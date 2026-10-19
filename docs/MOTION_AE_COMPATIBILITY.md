@@ -1,0 +1,60 @@
+# Motion Studio / AE compatibility evidence
+
+Inspected 2026-10-20. Existing AE remains the default production choice;
+Motion Studio is an additional option. Script and render workers are retained.
+This inventory is not a claim that Motion Studio can execute AE projects.
+
+## Located local reference projects
+
+- `ae_wuxia_fx/wuxia_ae_fx.aep`, with `create_wuxia_ae_fx.jsx` and
+  `wuxia_ae_fx_report.txt`.
+- `ae_layer_tests/layer_effect_tests.aep`, with
+  `create_layer_effect_tests.jsx` and `effect_test_report.txt`.
+- `output/ae-psd-wuxia-3285/wuxia-split-animation.aep`, with
+  `create-layered-ae.jsx`, layered artwork and reference frames.
+- `output/manga-ae-smoke/*/scene.aep` and accompanying `scene.jsx` files:
+  wall impact/debris, kinetic titles, ink splat, glasses reflection, dialogue,
+  body-following energy, backlit hand and triple reaction examples.
+
+These are located files. Their binary project contents were not loaded into AE
+or exhaustively extracted. Generated scripts and execution reports establish
+the following dependencies, not a complete inventory of every AEP property.
+
+| Existing dependency / evidence | Browser status |
+| --- | --- |
+| Layer transforms, camera motion | Implemented subset; not AE camera parity |
+| Raster PSD masks | Grayscale, density, coordinates and disabled state supported; alpha baked at import |
+| Shape paths, ellipse, fill/stroke, Trim Paths | Requires native animated path model and renderer |
+| `ADBE Glo2` | Existing light presets are not the AE Glow algorithm |
+| `ADBE Fast Blur`, `ADBE Gaussian Blur 2` | Requires explicit layer effect implementation and comparison |
+| `ADBE Fractal Noise` | Requires procedural noise renderer and parameter mapping |
+| `ADBE Turbulent Displace` | Requires displacement renderer and parameter mapping |
+| `ADBE Radial Wipe` | Requires wipe implementation and parameter mapping |
+| Feathered/vector/animated masks, layer styles | Unsupported |
+| Skeleton joints, IK, weighted mesh deformation | Unsupported |
+| AE expressions, arbitrary AEP import, third-party binaries | No compatible runtime/importer |
+| Existing render worker consumes browser composition | Not integrated |
+
+`worker/manga_ae_templates.py` also contains shape construction, masks and parented
+mouth/eye layers. These establish useful migration examples; parenting alone
+does not establish a skeletal or Puppet rig implementation.
+
+No third-party effect dependency or version has been established from the
+inspected example reports. Installed `.aex` files alone do not prove project use.
+
+## Acceptance requirements for further migration
+
+1. Extract the actual dependency graph and parameters from each reference AEP
+   into a separate report without overwriting the original.
+2. Implement native animation data for masks, paths, styles, parent transforms,
+   joints/IK and weighted mesh deformation, with web editing controls.
+3. Port the listed effects and supported expression functions individually;
+   unknown effects/expressions must be reported, never silently ignored.
+4. Render the same scene/time/size in AE and the native engine and compare
+   actual images and motion. Approximation must be described as approximation.
+5. Integrate the native composition engine into the retained render worker,
+   including asset identity, retries, narration/subtitle timing and output review.
+
+AE expression objects and plug-in host APIs are specific to AE. Arbitrary native
+plug-ins cannot be made web-compatible by loading their binaries as JavaScript.
+Preserving the AE path remains necessary for exact unsupported behavior.

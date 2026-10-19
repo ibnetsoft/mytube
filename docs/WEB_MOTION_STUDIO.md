@@ -39,9 +39,14 @@ Finalized narration is decoded, never regenerated. Audio mixing preserves its
 timeline. Each output frame has an explicit timestamp, independent of tab FPS.
 
 PSD input supports 8-bit RGB pixel layers, up to 80 visible layers, 150 MB,
-24 million canvas pixels and 100 million total layer pixels. Active masks,
+24 million canvas pixels and 100 million total layer pixels. Unsupported masks,
 clipping, layer styles and unsupported group blending must be rasterized in the
-source first. The importer compares both stacking conventions against the
+source first. Raster layer masks now support grayscale alpha, density, document
+or layer-relative coordinates, outside-mask background and disabled masks.
+Their alpha is baked once at import and moves with the layer; this is not an
+editable animated mask path. Vector, feathered, group and real masks still
+require the existing AE path or source rasterization.
+The importer compares both stacking conventions against the
 saved composite and refuses a reconstruction with mean error over 4%. It does
 not invent pixels behind moving subjects or promise full Photoshop parity.
 

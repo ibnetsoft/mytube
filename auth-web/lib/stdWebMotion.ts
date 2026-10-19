@@ -1,4 +1,5 @@
 import { interpolateMotion, motionKey, type MotionScene } from './stdMotionStudio'
+import { applyPsdRasterMask } from './stdPsdMask'
 
 export type WebLayer = { id:string; name:string; canvas:HTMLCanvasElement; left:number; top:number; opacity:number; blend:GlobalCompositeOperation }
 export type WebArtwork = { width:number; height:number; layers:WebLayer[] }
@@ -15,17 +16,21 @@ export async function readWebPsd(buffer:ArrayBuffer):Promise<WebArtwork> {
     const header=readPsd(buffer,{skipLayerImageData:true,skipCompositeImageData:true,skipThumbnail:true})
     if(header.width*header.height>24_000_000||header.width<1||header.height<1)throw Error('PSD 캔버스는 2,400만 픽셀 이하로 준비해 주세요.')
     const psd=readPsd(buffer,{skipThumbnail:true});let layers:WebLayer[]=[]
+    const maskedCanvases=new WeakMap<object,HTMLCanvasElement>()
     const visit=(items:any[],reverse:boolean,prefix='')=>{const order=items.map((item,index)=>({item,index}));if(reverse)order.reverse();order.forEach(({item,index})=>{
         if(item.hidden)return
         const id=prefix+index,opacity=item.opacity??1
-        if(item.clipping||item.mask||item.realMask||item.effects||item.vectorMask||item.adjustment)throw Error(`${item.name}: 마스크·클리핑·레이어 스타일은 픽셀에 적용한 PSD로 저장해 주세요.`)
+        if(item.clipping||item.realMask||item.effects||item.vectorMask||item.adjustment)throw Error(`${item.name}: 클리핑·벡터 마스크·레이어 스타일은 기존 AE 방식으로 제작하거나 픽셀에 적용한 PSD로 저장해 주세요.`)
         if(item.children){
+            if(item.mask&&!item.mask.disabled)throw Error(`${item.name}: 그룹 마스크는 기존 AE 방식으로 제작해 주세요.`)
             if(opacity!==1||!['normal','pass through',undefined].includes(item.blendMode))throw Error(`${item.name}: 그룹 불투명도·혼합 효과를 픽셀 레이어로 병합해 주세요.`)
             visit(item.children,reverse,id+'-');return
         }
         if(!item.canvas||!item.canvas.width||!item.canvas.height)return
         const blend=blends[item.blendMode||'normal'];if(!blend)throw Error(`${item.name}: 지원하지 않는 혼합 방식입니다.`)
-        layers.push({id,name:item.name||id,canvas:item.canvas,left:item.left||0,top:item.top||0,opacity,blend})
+        const canvas=maskedCanvases.get(item)||applyPsdRasterMask(item.canvas,item.mask,item.left||0,item.top||0)
+        maskedCanvases.set(item,canvas)
+        layers.push({id,name:item.name||id,canvas,left:item.left||0,top:item.top||0,opacity,blend})
     })}
     visit(psd.children||[],true)
     if(!layers.length||layers.length>80)throw Error('표시되는 픽셀 레이어 1~80개가 필요합니다.')

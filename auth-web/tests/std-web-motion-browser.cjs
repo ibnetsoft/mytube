@@ -26,10 +26,25 @@ async function main(){
   await page.addScriptTag({content:bundle([path.join(root,'lib/stdWebMotion.ts'),path.join(root,'node_modules/ag-psd/index.js'),path.join(root,'components/StdWebMotionStudio.tsx'),path.join(root,'components/StdProductionMethodSelector.tsx'),path.join(root,'lib/stdMotionStudio.ts'),path.join(root,'components/StdMotionStudio.tsx')])})
   const evidence=await page.evaluate(async()=>{
    const {motion,psd}=window,make=(w,h,color)=>{const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').fillStyle=color;c.getContext('2d').fillRect(0,0,w,h);return c}
+   // A document-positioned mask reveals only half the subject. It must travel
+   // with the subject and preserve grayscale alpha, not just the saved composite.
+   const mask=make(20,20,'white');mask.getContext('2d').fillStyle='#808080';mask.getContext('2d').fillRect(10,0,10,20)
+   const maskedComposite=make(320,180,'blue'),mctx=maskedComposite.getContext('2d');mctx.fillStyle='red';mctx.fillRect(100,50,10,20);mctx.fillStyle='rgb(128,0,127)';mctx.fillRect(110,50,10,20)
+   const maskedRaw=psd.writePsd({width:320,height:180,canvas:maskedComposite,children:[{name:'masked',left:100,top:50,canvas:make(40,20,'red'),mask:{left:100,top:50,defaultColor:0,canvas:mask}},{name:'background',canvas:make(320,180,'blue')}]})
+   const maskedArt=await motion.readWebPsd(maskedRaw),maskedLayer=maskedArt.layers.find(l=>l.name==='masked'),maskedPixels=maskedLayer.canvas.getContext('2d')
+   if(maskedPixels.getImageData(5,5,1,1).data[3]!==255||maskedPixels.getImageData(15,5,1,1).data[3]!==128||maskedPixels.getImageData(30,5,1,1).data[3]!==0)throw Error('Raster mask alpha or document coordinates incorrect')
+   const maskVariant=async settings=>motion.readWebPsd(psd.writePsd({width:320,height:180,canvas:maskedComposite,children:[{name:'masked',left:100,top:50,canvas:make(40,20,'red'),mask:{left:100,top:50,defaultColor:0,canvas:mask,...settings}},{name:'background',canvas:make(320,180,'blue')}]}))
+   const relative=await maskVariant({left:0,top:0,positionRelativeToLayer:true,userMaskDensity:.5}),relativeAlpha=relative.layers.find(l=>l.name==='masked').canvas.getContext('2d')
+   if(Math.abs(relativeAlpha.getImageData(15,5,1,1).data[3]-192)>1||Math.abs(relativeAlpha.getImageData(30,5,1,1).data[3]-128)>1)throw Error('Relative raster mask or density incorrect')
+   const disabledMask=await maskVariant({disabled:true});if(disabledMask.layers.find(l=>l.name==='masked').canvas.getContext('2d').getImageData(30,5,1,1).data[3]!==255)throw Error('Disabled mask applied')
+   const whiteOutside=await maskVariant({defaultColor:255});if(whiteOutside.layers.find(l=>l.name==='masked').canvas.getContext('2d').getImageData(30,5,1,1).data[3]!==255)throw Error('White mask background ignored')
+   let featherRejected=false;try{await maskVariant({userMaskFeather:2})}catch{featherRejected=true}if(!featherRejected)throw Error('Unsupported feather silently accepted')
    const composite=make(320,180,'#0000ff');composite.getContext('2d').drawImage(make(60,80,'#ff0000'),100,50)
    const raw=psd.writePsd({width:320,height:180,canvas:composite,children:[{name:'subject',left:100,top:50,canvas:make(60,80,'#ff0000')},{name:'background',canvas:make(320,180,'#0000ff')}]})
    const art=await motion.readWebPsd(raw),keys=[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],scene={source:'psd',fit:'contain',direction:'',keys,effects:[],transition:'cut',layers:{'0':{depth:0,keys:[keys[0],{...keys[1],x:.55}]}}}
    const c=make(320,180,'black');motion.drawWebMotion(c,art,scene,0);const initial=[...c.getContext('2d').getImageData(105,60,1,1).data]
+   const maskMotion=make(320,180,'black');motion.drawWebMotion(maskMotion,maskedArt,scene,0);if(maskMotion.getContext('2d').getImageData(105,55,1,1).data[0]!==255)throw Error('Masked subject missing')
+   motion.drawWebMotion(maskMotion,maskedArt,scene,1);if(maskMotion.getContext('2d').getImageData(105,55,1,1).data[2]!==255)throw Error('Mask did not move with subject')
    motion.drawWebMotion(c,art,scene,1);const moved=[...c.getContext('2d').getImageData(105,60,1,1).data]
    const audio=new AudioBuffer({length:48000,numberOfChannels:1,sampleRate:48000});for(let i=0;i<48000;i++)audio.getChannelData(0)[i]=Math.sin(i/48000*440*Math.PI*2)*.1
    const shot={number:1,start:0,end:1,artwork:art,motion:scene};let progress=0
