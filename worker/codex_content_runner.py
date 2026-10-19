@@ -2648,6 +2648,8 @@ class CodexStagedContentRunner:
                 if attempt:
                     raise CodexContentError(str(exc)) from exc
                 dialogue_context['validation_feedback'] = str(exc)
+        from worker.elevenlabs_performance import plan_performance
+        structure['audio_performance'] = plan_performance(self._stage, job_id, scenes, setting['language'])
         direction_profile = resolve_directing_profile(payload)
         visual_context = {
             **script_context,

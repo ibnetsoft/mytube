@@ -42,6 +42,9 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         scope['category'] = request.get('category') or row.get('category') or ''
     rows, instruction = approved_guidelines(ScriptStore(), scope)
     package = _produce(identity, {**request, '_approved_guidance': instruction}, snapshot, output, notify, sources)
+    if request.get('mode') in ('new', 'grounded'):
+        from worker.elevenlabs_performance import annotate_new_package
+        package = annotate_new_package(package, identity, notify)
     package['applied_guidelines'] = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]
     return package
 
