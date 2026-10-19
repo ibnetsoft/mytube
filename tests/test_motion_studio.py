@@ -11,6 +11,17 @@ from services.motion_render_service import EFFECTS, MotionFrames, compose_frame,
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 
+def test_native_diagnostic_covers_all_current_effects_without_truncation(tmp_path):
+    import sys
+    sys.path.insert(0,str(ROOT/'worker'))
+    from ae_scene_effects_smoke import fixture
+    from ae_scene_effects import EFFECT_TYPES
+    prepared,duration=fixture(tmp_path)
+    assert duration == 3 * len(EFFECT_TYPES)
+    assert {effect['type'] for effect in prepared['plan']['effects']} == EFFECT_TYPES
+    assert all(0 <= effect['start'] < effect['end'] <= 1 for effect in prepared['plan']['effects'])
+    assert all(key['scale'] >= 1.03 for key in prepared['plan']['camera'])
+
 def scene():
     return dict(source='image',fit='contain',direction='Preserve face; push toward center.',
                 keys=[dict(t=t,x=.5,y=.5,scale=1+t*.15,rotation=0,opacity=100) for t in (0,1)],effects=[],transition='cut')

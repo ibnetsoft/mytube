@@ -19,7 +19,7 @@ from ae_scene_effects import EFFECT_TYPES
 
 def fixture(directory: Path):
     directory.mkdir(parents=True, exist_ok=True)
-    width, height, duration = 640, 360, 24
+    width, height, duration = 640, 360, 3 * len(EFFECT_TYPES)
     background = Image.new('RGBA', (width, height), (34, 48, 67, 255))
     draw = ImageDraw.Draw(background)
     for x in range(0, width, 20):
@@ -67,7 +67,7 @@ def fixture(directory: Path):
         effects.append(entry)
     plan = dict(contract='ae_scene/v1', schema_version='ae_scene/v1', timing='normalized',
         width=width, height=height, output=dict(width=width, height=height),
-        camera=[dict(t=t, x=.5, y=.5, scale=1, rotation=0) for t in (0, 1)],
+        camera=[dict(t=t, x=.5, y=.5, scale=1.04, rotation=0) for t in (0, 1)],
         layers=[dict(id=name, role=role, z_index=index, anchor=[.5, .5], parallax=0)
             for index, (name, role) in enumerate([('background', 'background'), ('character', 'character'), ('lamp', 'prop')])],
         lights=[], effects=effects, transition=dict(in_='cut', out='cut', fraction=0),
@@ -99,7 +99,7 @@ def main():
     run([ffmpeg(), '-y', '-i', str(native), '-an', '-c:v', 'libx264', '-crf', '16',
          '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(output)])
     info = _video_info(output)
-    if (info['width'], info['height'], info['frames']) != (640, 360, 576):
+    if (info['width'], info['height'], info['frames']) != (640, 360, duration * 24):
         raise RuntimeError('Unexpected diagnostic render dimensions or duration: ' + str(info))
     import numpy as np
     def frame(seconds, name):
@@ -109,7 +109,7 @@ def main():
             return image.convert('RGB').copy()
     baseline = frame(0, 'render-baseline')
     base = np.asarray(baseline).astype(float)
-    sheet = Image.new('RGB', (1280, 4 * 390), '#101820')
+    sheet = Image.new('RGB', (1280, ((len(prepared['plan']['effects']) + 1) // 2) * 390), '#101820')
     metrics = []
     for index, effect in enumerate(prepared['plan']['effects']):
         seconds = (effect['start'] + (effect['end'] - effect['start']) * .4) * duration
