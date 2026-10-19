@@ -75,3 +75,17 @@ audio mixing, and the editor upload/review flow with mocked HTTP endpoints.
 An existing local three-layer PSD is also inspected when available. Diagnostic
 video uses a calibration tone; it is not a customer narration audition. Live
 paid generation is not part of these tests.
+
+## Native joints, deformation and reference effects
+
+PSD layer controls now include parented FK bones, two-bone IK, automatically
+weighted WebGL mesh deformation and animated radial pins. The scene timeline
+records pose keys at the selected time. Authored polygon masks, feather/inversion,
+outlines, shadows, blur, glow, fractal noise, turbulent displacement, radial wipe
+and trimmed glowing paths use the same renderer in preview and final output.
+These controls are part of the optional browser recipe and do not alter the
+existing AE or worker execution path. The importer still rejects unsupported
+PSD features rather than claiming to translate arbitrary AE/Photoshop content.
+
+See `MOTION_NATIVE_VERIFICATION.md` for reproducible tests, actual AE comparison
+measurements, diagnostic output locations and the remaining compatibility limits.

@@ -82,10 +82,17 @@ async function main(){
   const cssDir=path.join(root,'.next/static/css');if(fs.existsSync(cssDir))for(const file of fs.readdirSync(cssDir).filter(f=>f.endsWith('.css')))await page.addStyleTag({path:path.join(cssDir,file)})
   await page.evaluate(()=>{function Fixture(){const [draft,setDraft]=React.useState({version:1,enabled:false,aspect:'16:9',fps:24,scenes:{}});return React.createElement(window.Editor,{draft,onChange:setDraft,onSave:async d=>{window.savedDraft=d;setDraft(d)},projectId:'fixture',headers:{},disabled:false})};ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Fixture))})
   await page.getByRole('button',{name:'카메라 접근',exact:true}).click()
+  await page.getByRole('combobox',{name:'웹 PSD 레이어',exact:true}).selectOption('0')
+  await page.getByRole('button',{name:'2관절 리그 만들기',exact:true}).click()
+  await page.getByRole('slider',{name:'웹 모션 시간',exact:true}).fill('1')
+  await page.getByRole('slider',{name:'관절 현재 회전',exact:true}).fill('10')
+  await page.getByRole('button',{name:'메시 변형 핀 추가',exact:true}).click()
   await page.getByRole('button',{name:'AE 없이 전체 최종 MP4 제작',exact:true}).click()
   await page.getByRole('link',{name:'최종 MP4 다운로드'}).waitFor({timeout:60000})
   await page.getByRole('button',{name:'최종 영상 웹 저장',exact:true}).click();await page.getByRole('button',{name:'영상 확인 완료 · 관리자 검수 요청'}).click()
   await page.getByText('관리자 검수 목록에 전달했습니다.',{exact:false}).waitFor();assert.ok(saved&&reviewed);assert.equal(providerCalls,0)
+  assert.equal(await page.evaluate(()=>window.savedDraft.scenes[1].layers[0].advanced.rig.bones[0].keys.at(-1).value),10)
+  assert.equal(await page.evaluate(()=>window.savedDraft.scenes[1].layers[0].advanced.mesh.pins.length),1)
   await page.screenshot({path:path.join(output,'web-studio.png'),fullPage:true});assert.deepEqual(errors,[])
   console.log('PASS browser UI: stored PSD + finalized recording → full MP4 → signed upload → admin review; no paid provider calls')
   await page.evaluate(()=>{const div=document.createElement('div');div.id='production-choice';document.body.append(div);function Choice(){const [draft,setDraft]=React.useState({version:1,enabled:true,aspect:'16:9',fps:24,scenes:{'1':window.motionSettings.motionPreset('impact')}});window.selectionDraft=draft;return React.createElement(window.Production,{aePreparation:React.createElement('div',{'data-testid':'legacy-ae-preparation'},'기존 AE 장면 연출'),value:draft,scenes:[{scene_number:1}],projectId:'fixture',headers:{},disabled:false,onSave:async value=>setDraft(value),onUpload:async()=>{}})};ReactDOM.createRoot(div).render(React.createElement(Choice))})
@@ -108,4 +115,5 @@ async function main(){
   console.log('PASS actual browser: PSD stacking and independent layer motion, 1080p H264/AAC final MP4 with captions, cancellation; '+JSON.stringify(evidence))
  }finally{await browser.close()}
 }
-main().catch(e=>{console.error(e);process.exitCode=1})
+module.exports={bundle}
+if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1})

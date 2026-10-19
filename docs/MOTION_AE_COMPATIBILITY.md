@@ -24,14 +24,14 @@ the following dependencies, not a complete inventory of every AEP property.
 | --- | --- |
 | Layer transforms, camera motion | Implemented subset; not AE camera parity |
 | Raster PSD masks | Grayscale, density, coordinates and disabled state supported; alpha baked at import |
-| Shape paths, ellipse, fill/stroke, Trim Paths | Requires native animated path model and renderer |
-| `ADBE Glo2` | Existing light presets are not the AE Glow algorithm |
-| `ADBE Fast Blur`, `ADBE Gaussian Blur 2` | Requires explicit layer effect implementation and comparison |
-| `ADBE Fractal Noise` | Requires procedural noise renderer and parameter mapping |
-| `ADBE Turbulent Displace` | Requires displacement renderer and parameter mapping |
-| `ADBE Radial Wipe` | Requires wipe implementation and parameter mapping |
-| Feathered/vector/animated masks, layer styles | Unsupported |
-| Skeleton joints, IK, weighted mesh deformation | Unsupported |
+| Shape paths and Trim Paths | Native polygonal strokes with animated trim start/end, color, width and glow; not arbitrary AE shape import |
+| `ADBE Glo2` | Native additive blurred glow; approximate algorithm |
+| `ADBE Fast Blur`, `ADBE Gaussian Blur 2` | Native Canvas blur, animated strength and radius; approximate algorithm |
+| `ADBE Fractal Noise` | Deterministic four-octave evolving value noise; approximate algorithm |
+| `ADBE Turbulent Displace` | Evolving noise-driven WebGL mesh displacement; approximate algorithm |
+| `ADBE Radial Wipe` | Animated clockwise radial reveal/removal |
+| Feathered/vector masks, layer styles | Authored polygon mask, inversion, feather, outline and shadow; no automatic PSD style/vector import or animated path morph |
+| Skeleton joints, IK, weighted mesh deformation | Hierarchical FK, two-bone root-chain IK with bend reversal/reach clamp, automatic two-nearest-bone linear blend skinning, animated radial mesh pins |
 | AE expressions, arbitrary AEP import, third-party binaries | No compatible runtime/importer |
 | Existing render worker consumes browser composition | Not integrated |
 
@@ -46,8 +46,8 @@ inspected example reports. Installed `.aex` files alone do not prove project use
 
 1. Extract the actual dependency graph and parameters from each reference AEP
    into a separate report without overwriting the original.
-2. Implement native animation data for masks, paths, styles, parent transforms,
-   joints/IK and weighted mesh deformation, with web editing controls.
+2. Extend the implemented native rig/mesh/effect model for any further required
+   constraints, manual weight painting, animated path morphs and unsupported styles.
 3. Port the listed effects and supported expression functions individually;
    unknown effects/expressions must be reported, never silently ignored.
 4. Render the same scene/time/size in AE and the native engine and compare
@@ -58,3 +58,11 @@ inspected example reports. Installed `.aex` files alone do not prove project use
 AE expression objects and plug-in host APIs are specific to AE. Arbitrary native
 plug-ins cannot be made web-compatible by loading their binaries as JavaScript.
 Preserving the AE path remains necessary for exact unsupported behavior.
+
+## Actual comparison and native animation verification
+
+See `MOTION_NATIVE_VERIFICATION.md`. The retained AE MP4 and a web port of its
+source JSX transforms/pulse are compared at 0, 2 and 95/24 seconds. This checks
+one known project, not all listed projects or every effect. Native glow visibly
+differs. New rig/mesh output is rendered separately on the same real PSD because
+the existing AE reference has no skeleton or Puppet animation to compare.

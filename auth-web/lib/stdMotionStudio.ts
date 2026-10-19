@@ -1,9 +1,10 @@
 import { AE_SCENE_EFFECTS } from './stdAeSceneEffects'
+import {normalizeLayerAdvanced,normalizeNativeScene,type LayerAdvanced,type NativeScene} from './stdMotionRig'
 
 export type MotionKey = { t: number; x: number; y: number; scale: number; rotation: number; opacity: number }
 export type MotionEffect = { type: string; start: number; end: number; intensity: number; center: [number, number]; radius: number; color: [number, number, number] }
-export type MotionLayer = { depth:number; keys:MotionKey[] }
-export type MotionScene = { source: 'auto' | 'image' | 'video' | 'psd'; fit: 'contain' | 'cover'; direction: string; keys: MotionKey[]; effects: MotionEffect[]; transition: 'cut' | 'fade' | 'flash'; layers?:Record<string,MotionLayer> }
+export type MotionLayer = { depth:number; keys:MotionKey[]; advanced?:LayerAdvanced }
+export type MotionScene = { source: 'auto' | 'image' | 'video' | 'psd'; fit: 'contain' | 'cover'; direction: string; keys: MotionKey[]; effects: MotionEffect[]; transition: 'cut' | 'fade' | 'flash'; layers?:Record<string,MotionLayer>;native?:NativeScene }
 export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: number; max_ai_seconds: number }
 export type WebMotionInsert = { job_id:string; start:number; duration:number }
 export type ProductionMethod = 'ae'|'motion_studio'
@@ -67,10 +68,10 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
                 if(!/^[A-Za-z0-9_-]{1,80}$/.test(id)||!layer||!Array.isArray(layer.keys)||layer.keys.length<2||layer.keys.length>64)throw new Error('PSD 레이어 설정을 확인해 주세요.')
                 const layerKeys:MotionKey[]=layer.keys.map((k:any)=>({t:finite(k.t,0,1,'레이어 시간'),x:finite(k.x,.45,.55,'레이어 X'),y:finite(k.y,.45,.55,'레이어 Y'),scale:finite(k.scale,.9,1.1,'레이어 확대'),rotation:finite(k.rotation,-8,8,'레이어 회전'),opacity:finite(k.opacity,0,100,'레이어 불투명도')}))
                 if(layerKeys[0].t!==0||layerKeys[layerKeys.length-1].t!==1||layerKeys.some((k,i)=>i>0&&k.t<=layerKeys[i-1].t))throw new Error('PSD 레이어 키프레임 시간을 확인해 주세요.')
-                layers[id]={depth:finite(layer.depth,0,1,'레이어 깊이'),keys:layerKeys}
+                layers[id]={depth:finite(layer.depth,0,1,'레이어 깊이'),keys:layerKeys,...(layer.advanced!==undefined?{advanced:normalizeLayerAdvanced(layer.advanced)}:{})}
             }
         }
-        scenes[number]={source:s.source,fit:s.fit,direction:s.direction,transition:s.transition,keys,effects,...(s.layers!==undefined?{layers}:{})}
+        scenes[number]={source:s.source,fit:s.fit,direction:s.direction,transition:s.transition,keys,effects,...(s.layers!==undefined?{layers}:{}),...(s.native!==undefined?{native:normalizeNativeScene(s.native)}:{})}
     }
     let automation: MotionAutomation | undefined
     if (raw.automation != null) {

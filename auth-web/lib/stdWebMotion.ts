@@ -1,5 +1,6 @@
 import { interpolateMotion, motionKey, type MotionScene } from './stdMotionStudio'
 import { applyPsdRasterMask } from './stdPsdMask'
+import {renderAdvancedLayer,drawNativePaths,applyNativeEffects} from './stdWebMotionAdvanced'
 
 export type WebLayer = { id:string; name:string; canvas:HTMLCanvasElement; left:number; top:number; opacity:number; blend:GlobalCompositeOperation }
 export type WebArtwork = { width:number; height:number; layers:WebLayer[] }
@@ -66,9 +67,12 @@ export function drawWebMotion(canvas:HTMLCanvasElement,art:WebArtwork,scene:Moti
         const depth=authored?.depth||0,dx=(pose.x-.5)*art.width+(camera.x-.5)*art.width*depth,dy=(pose.y-.5)*art.height+(camera.y-.5)*art.height*depth
         ctx.save();ctx.globalCompositeOperation=layer.blend;ctx.globalAlpha=layer.opacity*pose.opacity/100*camera.opacity/100
         const cx=layer.left+layer.canvas.width/2,cy=layer.top+layer.canvas.height/2
-        ctx.translate(cx+dx,cy+dy);ctx.rotate(pose.rotation*Math.PI/180);ctx.scale(pose.scale,pose.scale);ctx.drawImage(layer.canvas,-layer.canvas.width/2,-layer.canvas.height/2);ctx.restore()
+        const rendered=renderAdvancedLayer(layer.canvas,authored?.advanced,t)
+        ctx.translate(cx+dx,cy+dy);ctx.rotate(pose.rotation*Math.PI/180);ctx.scale(pose.scale,pose.scale);ctx.drawImage(rendered.canvas,-layer.canvas.width/2+rendered.left,-layer.canvas.height/2+rendered.top);ctx.restore()
     }
+    if(scene.native?.paths.length)drawNativePaths(ctx,scene.native.paths,art.width,art.height,t)
     ctx.restore()
+    if(scene.native?.effects.length){const effected=applyNativeEffects(canvas,scene.native.effects,t);ctx.clearRect(0,0,w,h);ctx.drawImage(effected,0,0)}
     for(const e of scene.effects){
         if(t<e.start||t>e.end)continue
         const u=(t-e.start)/(e.end-e.start),strength=e.intensity*Math.max(0,Math.min(1,u/.15,(1-u)/.3)),x=e.center[0]*w,y=e.center[1]*h,r=e.radius*Math.min(w,h),color=e.color.map(v=>Math.round(v*255)).join(',')
