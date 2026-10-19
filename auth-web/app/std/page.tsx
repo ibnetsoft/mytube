@@ -9059,15 +9059,6 @@ export default function StdPortalPage() {
                                     <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
                                         {isVrewSubtitleMode && (
                                             <>
-                                                <label className="flex items-center gap-1 text-[10px] text-gray-200">
-                                                    ElevenLabs
-                                                    <select aria-label="ElevenLabs 모델" value={elevenLabsModel} disabled={generatingTts}
-                                                        onChange={e => chooseElevenLabsModel(e.target.value)}
-                                                        className="h-7 rounded border border-purple-400/30 bg-[#14181f] px-2 text-white">
-                                                        <option value="eleven_multilingual_v2">Multilingual v2</option>
-                                                        <option value="eleven_v4">Eleven v4</option>
-                                                    </select>
-                                                </label>
                                                 <div className="flex items-center gap-1 rounded-lg border border-purple-400/20 bg-[#14181f] px-2 py-1 shrink-0">
                                                     <span className="whitespace-nowrap text-[10px] font-black text-gray-200">
                                                         {t('sub_stability')}
@@ -10516,9 +10507,6 @@ export default function StdPortalPage() {
                                     <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20 flex items-center gap-1">
                                         <span>📜</span> {selectedProject.scenes.length}개 씬 · {scriptCharCount.toLocaleString()}자 대본 로드됨
                                     </span>
-                                    <span className="text-[11px] px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 font-bold border border-purple-500/20">
-                                        ⚡ {elevenLabsModel === 'eleven_v4' ? 'Eleven v4' : 'Multilingual v2'}
-                                    </span>
                                 </div>
 
                                 <div className="flex items-center gap-3 flex-wrap">
@@ -10535,15 +10523,6 @@ export default function StdPortalPage() {
                                         </select>
                                     </div>
 
-                                    <label className="flex items-center gap-1.5 text-xs text-gray-300">
-                                        ElevenLabs
-                                        <select aria-label="ElevenLabs 모델" value={elevenLabsModel} disabled={generatingTts}
-                                            onChange={e => chooseElevenLabsModel(e.target.value)}
-                                            className="rounded-lg border border-white/10 bg-[#202632] px-2.5 py-1.5 text-white">
-                                            <option value="eleven_multilingual_v2">Multilingual v2</option>
-                                            <option value="eleven_v4">Eleven v4</option>
-                                        </select>
-                                    </label>
 
                                     <label className="flex items-center gap-1.5 cursor-pointer bg-[#202632] px-2.5 py-1 rounded-lg border border-white/5">
                                         <span className="text-xs font-bold text-gray-300">다중 성우</span>
