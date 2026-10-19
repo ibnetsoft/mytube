@@ -20,3 +20,5 @@ assert.deepEqual(h.mapVoicePerformance(rows,undefined),[undefined,undefined],'Ol
 assert.deepEqual(h.elevenLabsVoiceSettings('eleven_v4',{stability:0.5,similarityBoost:0.75,speed:1.2,style:0.45}),{stability:0.5,similarity_boost:0.75});
 assert.equal(h.elevenLabsVoiceSettings('eleven_multilingual_v2',{speed:1.2,style:0.45}).speed,1.2);
 console.log('PASS: Unicode/mid-line tags, separate subtitles, stale-plan safety, delivery continuity, v4-only settings');
+
+assert.equal(h.voicePerformanceKey({cues:[{tag:'whispers',offset:0}],text:'hello',version:1}),h.voicePerformanceKey({version:1,text:'hello',cues:[{offset:0,tag:'whispers'}]}),'JSONB field order must preserve stored recording identity');

@@ -18,7 +18,8 @@ export function normalizeVoicePerformance(value: any, text: string): VoicePerfor
 }
 
 export function voicePerformanceKey(value: VoicePerformance | undefined): string {
-    return value ? JSON.stringify(value) : ''
+    const normalized = value ? normalizeVoicePerformance(value, value.text) : undefined
+    return normalized ? JSON.stringify(normalized) : ''
 }
 
 /** Pure display text stays untouched. Only validated, matching NEW-script plans apply. */

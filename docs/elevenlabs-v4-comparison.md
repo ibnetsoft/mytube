@@ -44,3 +44,9 @@ Generation reuses local cached samples. The verification script also caches tran
 Validation: production Next.js build; 20 TTS feedback tests; recorded subtitle timing tests; stored narration tests; strict v4/no-downgrade/cache-isolation tests; browser model selector/request/reopen/error flow; and real sample duration, character-boundary and browser seeking checks. The older segment-cache test harness cannot load the current route's `@/lib/stdAudioAnchors` dependency; it was not changed for this feature.
 
 Direct Vercel project access returned HTTP 403 and the CLI scope lookup also failed. The repository's connected `main` branch is the deployment path for this change; verify its GitHub Vercel status after pushing.
+
+### Live acting-tag verification (2026-10-19)
+
+New verification project `0fcac845-2fc7-46f0-b8b0-ae7bfd52875d` uses a newly authored Korean script with Laura. Actual production generation produced two new clips (zero reused); ElevenLabs history confirms `eleven_v4` and exact `[whispers]` / `[excited]` inputs. Saved subtitles contain only spoken text. Clip boundary is 4.127347s; final subtitle end is 7.680s, decoded audio 7.668s (12ms encoding difference). Saved subtitle times equal assembled clip boundaries. Acoustic comparison shows excited RMS approximately 8.7dB higher and voiced pitch approximately 296Hz versus 193Hz for the whisper clip; this is objective delivery evidence, not a subjective naturalness rating.
+
+Before/after snapshots confirm original project and all 515 narration assets unchanged; the previous short sample and its three audio assets are also unchanged. Verification evidence is under `_dev/artifacts/v4-performance/` locally. JSONB object key order is canonicalized before matching stored performance cues so reopening a saved project reuses its recordings.
