@@ -723,6 +723,7 @@ async function runTts(body: any, auth: any, project: any) {
             || DEFAULT_ELEVENLABS_VOICE_ID
         ).trim()
         const modelId = String(body?.model_id || project.project_payload?.tts_model_id || DEFAULT_ELEVENLABS_MODEL_ID).trim()
+        const cacheModelForVoice = (id: string) => isVoiceStudioVoice(id) || id.startsWith('google_') ? DEFAULT_ELEVENLABS_MODEL_ID : modelId
         const projectTtsSpeed = Math.max(0.7, Math.min(1.2, Number(
             body?.speed
             ?? project.project_payload?.tts_speed
@@ -736,7 +737,7 @@ async function runTts(body: any, auth: any, project: any) {
         const segmentPreview = body?.mode === 'vrew_segment_preview' || fastSegmentPreview || body?.segment_preview === true
         const segmentIndex = Number(body?.segment_index)
         const segmentIdentity = {
-            text, provider, voiceId, modelId, speed: projectTtsSpeed,
+            text, provider, voiceId, modelId: cacheModelForVoice(voiceId), speed: projectTtsSpeed,
             direction: String(body?.direction || ''),
             stability: body?.stability ?? 0.7, style: body?.style ?? null,
             language: String(project.language || 'ko'),
@@ -869,6 +870,7 @@ async function runTts(body: any, auth: any, project: any) {
             stage = 'assemble_saved_segments'
             const segmentKey = (segment: { text: string; voiceId: string; direction?: string }) => segmentAudioKey({
                 ...segmentIdentity, text: segment.text, voiceId: segment.voiceId,
+                modelId: cacheModelForVoice(segment.voiceId),
                 provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                 direction: segment.direction || '',
             })

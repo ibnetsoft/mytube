@@ -25,5 +25,16 @@ const synthesize = new Function('fetch','Buffer','DEFAULT_ELEVENLABS_MODEL_ID','
   const v4 = {...identity,modelId:'eleven_v4'};
   assert.notEqual(segmentAudioKey(identity),segmentAudioKey(v4));
   assert.equal(legacySegmentMatches({text:identity.text,voice_id:'Laura',model_id:identity.modelId,tts_speed:1,stability:0.7,style:0.45,direction:''},v4),false);
+  for (const file of ['auth-web/app/std/page.tsx','auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts']) {
+    const text = fs.readFileSync(file,'utf8');
+    const declaration = text.match(/const cacheModelForVoice = .*$/m)[0];
+    for (const chosen of ['eleven_multilingual_v2','eleven_v4']) {
+      const pick = new Function('isVoiceStudioVoice','DEFAULT_ELEVENLABS_MODEL_ID','modelId','elevenLabsModel',ts.transpile(declaration+';return cacheModelForVoice;',{target:9,module:1}))(
+        id=>id.startsWith('gemini:'),'eleven_multilingual_v2',chosen,chosen);
+      assert.equal(pick('Laura'),chosen);
+      assert.equal(pick('gemini:Charon'),'eleven_multilingual_v2','ElevenLabs selection must preserve reusable Google narration');
+      assert.equal(pick('google_kr'),'eleven_multilingual_v2');
+    }
+  }
   console.log('PASS: v4 API model, explicit failure without model downgrade, distinct v2/v4 audio caches');
 })().catch(e=>{console.error(e);process.exitCode=1});

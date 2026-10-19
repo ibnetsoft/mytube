@@ -1,6 +1,6 @@
 # ElevenLabs v4 integration and sample verification (2026-10-19)
 
-The subtitle editor offers Multilingual v2 and Eleven v4. The selected model is sent to segment synthesis, full narration and the existing browser fallback. Memory and stored audio caches distinguish models. Successful narration finalization saves `tts_model_id` in the project so reopening restores the choice. Existing projects default to v2. Explicit v4 requests fail visibly rather than substituting v3/v2.
+The subtitle editor offers Multilingual v2 and Eleven v4. The selected model is sent to segment synthesis, full narration and the existing browser fallback. Memory and stored audio caches distinguish models. Google/Voice Studio cache identities remain unchanged when the ElevenLabs model changes, preserving reusable narration in mixed-provider projects. Successful narration finalization saves `tts_model_id` in the project so reopening restores the choice. Existing projects default to v2. Explicit v4 requests fail visibly rather than substituting v3/v2.
 
 The configured account's `/v1/models` response included `eleven_v4` with `can_do_text_to_speech: true`. Eight short source clips were generated through the speech-with-timestamps API using Laura (`FGY2WhTYpPnrIDTdsKH5`), two identical subtitle rows per language/model. All used speed 1, stability 0.7, similarity 0.75 and style 0.45, with no emotional tags. Samples are under `_dev/artifacts/elevenlabs-v4-comparison/` (local artifacts, not committed).
 
