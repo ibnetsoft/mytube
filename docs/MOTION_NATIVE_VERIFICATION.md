@@ -164,3 +164,47 @@ Additional checks: `node --test tests/std-motion-timeline.cjs` and
 covers add/move/copy/paste/delete, interpolation persistence, undo/redo, root
 motion, limits, locked pins and a pointer-driven pose edit. Existing AE selection,
 API ownership/queue protections and renderer regression suites are retained.
+
+
+## Full-body, painted skin, Bezier and multi-scene clips (2026-10-20)
+
+Superseding the prior feature limits: native full-body rigs, editable skin
+weights, cubic Bezier segment graphs and multi-scene visual clip editing are now
+implemented. This does not provide AE Puppet's solver, anatomy detection,
+automatic occluded artwork repair or arbitrary AEP/expression/plugin execution.
+The timeline locks the recorded audio/subtitle track; it is not an audio editor.
+
+Math/schema regression tests cover four simultaneous limb targets below moving
+FK parents/root translation, rectangular/square bind-pose preservation, painting
+and erasing skin to the bind artwork, normalized weights, Bezier time inversion
+and overshoot, invalid handles/shared IK bones, clip split ranges, reorder,
+boundary trim, removal, duration/source rejection and AE-option round trips.
+Browser controls verify 12-bone creation, four IK chains, Bezier coordinates,
+skin painting/stroke undo and clip split/reorder/replace/trim/delete/undo.
+
+`node scripts/verify_motion_fullbody.cjs` consumes the private frozen-source
+manifests described above, checks original PSD/recording hashes and renders the
+same actual scenes 19/25/29 with their exact recorded excerpts. Fitted body
+joints, four chains, manually adjusted skin and Bezier targets are serialized,
+normalized and rendered over a four-clip timeline (scene 19 split at a frame).
+Output: `output/motion-fullbody-validation/fullbody-recorded-validation.mp4`,
+1920x1080/24fps H.264/AAC, 38.191 seconds. `python scripts/qa_motion_fullbody.py`
+checks complete decode and audio correlation. Source/output correlation is
+0.9999863, best lag 0ms at 1ms resolution, trailing padding 16.96ms. Encoded
+start/middle/end frames were inspected for layers, new gaps, tears and subtitles.
+The source art crops out feet; it cannot validate visible-foot walking or a
+complete anatomical performance. Four-limb mechanics are verified separately.
+
+`node tests/std-motion-fullbody-production-browser.cjs` from `auth-web/` uses an
+isolated API fixture containing these real source assets and the frozen recording
+excerpts. The actual production Editor loads the PSD, previews recorded audio
+across a clip split, saves all skin/Bezier/timeline settings, exports and downloads
+`editor-recorded-final.mp4`, and passes FFmpeg decode. API data is a local fixture;
+this is not a live account/admin publishing test. No project/voice row, AE method,
+worker process, provider generation request or external upload was changed.
+Additional local evidence: `verification.json`, `audio-qa.json`,
+`editor-verification.json`, `encoded-contact-sheet.png`, `fullbody-editor.png`,
+`actual-psd-rig-editor.png`, and `editor-export-result.png` in that directory.
+Both scripts require `MOTION_FFMPEG`; Python QA requires NumPy. Private media and
+frozen manifests are not committed. The 26-minute whole project remains outside
+this bounded source validation.

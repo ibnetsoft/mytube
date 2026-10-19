@@ -28,7 +28,7 @@ async function main(){
    window.uiAdvanced={};window.testLayer=c;window.renderCount=0;function Fixture(){const [value,setValue]=React.useState({});window.uiAdvanced=value;return React.createElement(window.LayerTools,{value,time:1,width:240,height:180,onChange:v=>{setValue(v);window.renderCount++}})}ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Fixture));return {effects,png,video}
   })
   fs.writeFileSync(path.join(out,'rig-mesh-preview.png'),Buffer.from(result.png.split(',')[1],'base64'));fs.writeFileSync(path.join(out,'rig-mesh.mp4'),Buffer.from(result.video,'base64'));delete result.png;delete result.video
-  await page.getByRole('button',{name:'2관절 리그 만들기'}).click();await page.getByRole('slider',{name:'관절 현재 회전',exact:true}).fill('45');assert.equal(await page.evaluate(()=>window.uiAdvanced.rig.bones[0].keys.at(-1).value),45)
+  await page.getByRole('button',{name:'2관절 리그 만들기',exact:true}).click();await page.getByRole('slider',{name:'관절 현재 회전',exact:true}).fill('45');assert.equal(await page.evaluate(()=>window.uiAdvanced.rig.bones[0].keys.at(-1).value),45)
   await page.getByRole('checkbox',{name:'두 관절 IK 사용'}).check();await page.getByRole('slider',{name:'IK 목표 X'}).fill('0.7');assert.equal(await page.evaluate(()=>window.uiAdvanced.rig.ik.target.at(-1).x),.7)
   await page.getByRole('button',{name:'메시 변형 핀 추가'}).click();await page.getByRole('slider',{name:'핀 현재 X'}).fill('0.6');assert.equal(await page.evaluate(()=>window.uiAdvanced.mesh.pins[0].keys.at(-1).x),.6)
   await page.getByText('선택 레이어 효과',{exact:true}).click();await page.getByRole('button',{name:'발광 추가',exact:true}).click();assert.equal(await page.evaluate(()=>window.uiAdvanced.effects[0].type),'glow')

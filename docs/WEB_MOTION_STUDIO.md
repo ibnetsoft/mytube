@@ -104,3 +104,28 @@ Artwork-backed handles record FK/IK/pin poses at the current frame. These are
 native web tools; the AE option and existing script/render workers remain intact.
 See the recorded-source verification section in `MOTION_NATIVE_VERIFICATION.md`
 for the actual three-PSD/narration render scope and remaining limits.
+
+
+The full-body preset adds pelvis/spine/neck/head and both arms/legs (12 bones),
+with four independent parented two-bone IK chains. Native rigs support up to
+8 non-overlapping chains. Bind joints must be fitted to the artwork; this does
+not detect anatomy or invent hidden limbs. Skin grids support automatic weights,
+selected-bone heatmaps, add/erase brushes, normalized four-influence weights and
+stroke undo. Bone -1 denotes the unchanged bind artwork. Bilinear interpolation
+keeps the painted weight field continuous.
+
+Key tracks also expose a cubic Bezier graph with draggable handles and numeric
+control points. X handles are monotonic in [0,1]; Y handles allow [-2,3] for
+overshoot. The renderer solves the curve's time coordinate before evaluating
+its value; preview/export use the same sampler.
+
+The web-only visual clip timeline supports selection/project scrubbing, split,
+drag or button reorder, adjacent boundary trimming, source scene replacement,
+source animation in/out, removal with adjacent extension, and undo/redo. Its
+persisted clips must cover the finalized narration duration without gaps. Audio
+and subtitle timing stay fixed; visual reordering requires semantic review.
+Animation recipes are shared by source scene, including split/repeated clips.
+Full timeline preview follows recorded audio across clips. Custom visual clip
+editing currently exports in web mode; existing AI inserts continue on the
+original scene timeline. The original AE selection/worker submission path is
+unchanged and does not consume this optional web timeline.

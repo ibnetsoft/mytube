@@ -31,7 +31,7 @@ the following dependencies, not a complete inventory of every AEP property.
 | `ADBE Turbulent Displace` | Evolving noise-driven WebGL mesh displacement; approximate algorithm |
 | `ADBE Radial Wipe` | Animated clockwise radial reveal/removal |
 | Feathered/vector masks, layer styles | Authored polygon mask, inversion, feather, outline and shadow; no automatic PSD style/vector import or animated path morph |
-| Skeleton joints, IK, weighted mesh deformation | Hierarchical FK, two-bone root-chain IK with bend reversal/reach clamp, automatic two-nearest-bone linear blend skinning, animated radial mesh pins |
+| Skeleton joints, IK, weighted mesh deformation | 12-bone full-body preset, hierarchical FK, up to 8 independent parented two-bone IK chains, angle limits, painted normalized four-influence grid skinning, animated radial pins/anchors; not AE Puppet equivalence |
 | AE expressions, arbitrary AEP import, third-party binaries | No compatible runtime/importer |
 | Existing render worker consumes browser composition | Not integrated |
 
@@ -47,7 +47,7 @@ inspected example reports. Installed `.aex` files alone do not prove project use
 1. Extract the actual dependency graph and parameters from each reference AEP
    into a separate report without overwriting the original.
 2. Extend the implemented native rig/mesh/effect model for any further required
-   constraints, manual weight painting, animated path morphs and unsupported styles.
+   constraints, finer weight/mesh solvers, animated path morphs and unsupported styles.
 3. Port the listed effects and supported expression functions individually;
    unknown effects/expressions must be reported, never silently ignored.
 4. Render the same scene/time/size in AE and the native engine and compare

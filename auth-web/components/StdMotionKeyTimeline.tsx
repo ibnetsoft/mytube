@@ -1,9 +1,10 @@
 'use client'
+import StdMotionBezierGraph from './StdMotionBezierGraph'
 import {useEffect,useRef,useState} from 'react'
 import {sampleValue,samplePoint,type ValueKey,type PointKey,type Interpolation} from '@/lib/stdMotionRig'
 
 type Key=ValueKey|PointKey
-const modes:Record<Interpolation,string>={linear:'직선',ease:'부드럽게', 'ease-in':'천천히 시작','ease-out':'천천히 정지',hold:'정지 후 전환'}
+const modes:Record<Interpolation,string>={linear:'직선',ease:'부드럽게', 'ease-in':'천천히 시작','ease-out':'천천히 정지',hold:'정지 후 전환',bezier:'베지어 그래프'}
 /** A key's interpolation controls the segment leaving that key. Endpoints stay fixed. */
 export default function StdMotionKeyTimeline({label,keys,onChange,time,onSeek,duration=5,fps=24,min=-360,max=360}:{label:string;keys:Key[];onChange:(keys:any[])=>void;time:number;onSeek?:(t:number)=>void;duration?:number;fps?:number;min?:number;max?:number}){
  const [selected,setSelected]=useState(0),[clipboard,setClipboard]=useState<Key|null>(null),[,refresh]=useState(0)
@@ -23,6 +24,7 @@ export default function StdMotionKeyTimeline({label,keys,onChange,time,onSeek,du
   <label className="block text-xs">선택 키 프레임 <input aria-label={`${label} 키 프레임`} type="number" min={0} max={frames} step={1} value={Math.round(key.t*frames)} disabled={index===0||index===keys.length-1} onChange={e=>move(Number(e.target.value))} className="w-24 bg-slate-800"/> / {frames} ({(key.t*duration).toFixed(3)}초)</label>
   {(point?['x','y']:['value']).map(field=><label key={field} className="mr-3 inline-block text-xs">{field==='value'?'값':field.toUpperCase()} <input aria-label={`${label} 키 ${field}`} type="number" min={min} max={max} step={point?.001:1} value={(key as any)[field]} onChange={e=>{const v=Number(e.target.value);if(Number.isFinite(v)&&v>=min&&v<=max)update({[field]:v})}} className="w-24 bg-slate-800"/></label>)}
   <label className="block text-xs">다음 키까지 보간 <select aria-label={`${label} 보간`} value={key.interpolation||'linear'} disabled={index===keys.length-1} className="bg-slate-800" onChange={e=>update({interpolation:e.target.value as Interpolation})}>{Object.entries(modes).map(([v,name])=><option key={v} value={v}>{name}</option>)}</select></label>
+  {key.interpolation==='bezier'&&index<keys.length-1&&<StdMotionBezierGraph value={key.bezier||[.25,.1,.25,1]} onChange={bezier=>update({bezier})}/>}
   <p className="text-xs text-slate-400">키 추가·이동은 {fps}fps 프레임에 맞춥니다. 시작·끝 키는 유지하며, 보간은 다음 키까지 적용합니다.</p>
  </fieldset>
 }

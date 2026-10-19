@@ -1,3 +1,4 @@
+import {normalizeWebTimeline,type MotionClip} from './stdMotionTimeline'
 import { AE_SCENE_EFFECTS } from './stdAeSceneEffects'
 import {normalizeLayerAdvanced,normalizeNativeScene,type LayerAdvanced,type NativeScene} from './stdMotionRig'
 
@@ -8,7 +9,7 @@ export type MotionScene = { source: 'auto' | 'image' | 'video' | 'psd'; fit: 'co
 export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: number; max_ai_seconds: number }
 export type WebMotionInsert = { job_id:string; start:number; duration:number }
 export type ProductionMethod = 'ae'|'motion_studio'
-type MotionConfig = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene>; automation?: MotionAutomation; web?:{mode:'web'|'hybrid';inserts:Record<string,WebMotionInsert>} }
+type MotionConfig = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene>; automation?: MotionAutomation; web?:{timeline?:MotionClip[];mode:'web'|'hybrid';inserts:Record<string,WebMotionInsert>} }
 export type MotionDraft = MotionConfig & {production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
 
 export function motionProductionMethod(project:any):ProductionMethod {
@@ -87,7 +88,7 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
             if(!/^[1-9]\d*$/.test(number)||!insert||typeof insert.job_id!=='string'||!/^[a-f0-9-]{36}$/.test(insert.job_id)||![3,4,5].includes(insert.duration))throw new Error('AI 혼합 구간을 확인해 주세요.')
             inserts[number]={job_id:insert.job_id,start:finite(insert.start,0,86400,'AI 시작'),duration:insert.duration}
         }
-        web={mode:raw.web.mode,inserts}
+        web={mode:raw.web.mode,inserts,...(raw.web.timeline!==undefined?{timeline:normalizeWebTimeline(raw.web.timeline)}:{})}
     }
     if(raw.production_method!==undefined&&!['ae','motion_studio'].includes(raw.production_method))throw new Error('제작 방식을 확인해 주세요.')
     let alternatives:MotionDraft['alternatives']
