@@ -147,6 +147,8 @@ function applySceneEffects(source,layers) {
     }
     if(E.type==="energy_trail") {
       layer=effectShape(source,"ae_effect_energy_trail_"+e);var trailContents=layer.property("ADBE Root Vectors Group");
+      // Vertices below already use composition coordinates, so do not add the default shape-layer center.
+      layer.property("ADBE Transform Group").property("ADBE Position").setValue([0,0]);
       var trailPath=trailContents.addProperty("ADBE Vector Shape - Group"),trailShape=new Shape(),cx=E.center[0]*W,cy=E.center[1]*H,r=E.radius*Math.min(W,H);
       trailShape.vertices=[[cx-r*.8,cy+r*.35],[cx-r*.16,cy-r*.42],[cx+r*.18,cy+r*.1],[cx+r*.9,cy-r*.32]];
       trailShape.inTangents=[[0,0],[0,0],[0,0],[0,0]];trailShape.outTangents=[[0,0],[0,0],[0,0],[0,0]];trailShape.closed=false;
