@@ -10,6 +10,7 @@ import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived } from '
 import { aeMouthApplicable } from '@/lib/stdAeMouth'
 import { registerSubmissionPipeline } from '@/lib/stdSubmissionPipeline'
 import { preparedAeScenes } from '@/lib/stdAeScenePreparation'
+import { motionAutomationEnabled,registerMotionAutomation } from '@/lib/stdMotionAutomation'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,7 +111,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (['approved', 'canceled'].includes(project.status)) {
         return NextResponse.json({ success: false, error: 'Project is closed' }, { status: 409 })
     }
-    const thumbnailError = editableThumbnailError(
+    const thumbnailError = motionAutomationEnabled(project) ? null : editableThumbnailError(
         project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
         project.project_payload?.thumbnail_url || project.progress_payload?.thumbnail_url,
         true,
@@ -164,7 +165,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     let assets = loadedAssets || []
     try {
-        assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
+        if(!motionAutomationEnabled(project)) assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
         if (!isNonverbalProject(project)) assets = await recoverStoredTtsAsset(project, assets)
     } catch (archiveError: any) {
         return NextResponse.json({
@@ -173,6 +174,13 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }, { status: 500 })
     }
 
+    // Automatic production starts from frozen originals and finalized voice; PSD preparation is a worker stage.
+    if(motionAutomationEnabled(project)) {
+        try { const run=await registerMotionAutomation(project,scenes,assets,auth.requester.user.id)
+            return NextResponse.json({success:true,...run,postprocess_pending:true,motion_automation:true,
+                message:'제출 완료. Codex 연출 → 워커 제작 → 실제 출력 검수가 자동으로 진행됩니다.'},{status:202})
+        } catch(error:any) { return NextResponse.json({success:false,error:error.message},{status:409}) }
+    }
     let preparedScenes: Map<number, any>
     try {
         preparedScenes = preparedAeScenes(project, scenes, assets)

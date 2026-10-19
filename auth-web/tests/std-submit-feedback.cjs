@@ -368,3 +368,12 @@ test('accepted AE postprocessing is pending, not a completed final render queue 
         assert.equal(h.state.opens.length, 0)
     }
 })
+
+test('automatic submission freezes the matching editor while production is pending',async()=>{
+    const h=harness({status:202,payload:{success:true,postprocess_pending:true,motion_automation:true,submitted_at:'2026-10-19T00:00:00Z'}})
+    await h.submitProject()
+    assert.equal(h.state.project.project.status,'review_requested')
+    assert.equal(h.state.project.project.submitted_at,'2026-10-19T00:00:00Z')
+    assert.equal(h.state.projects.find(p=>p.id==='project-a').status,'review_requested')
+    assert.equal(h.state.accepted.length,0)
+})

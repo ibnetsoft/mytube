@@ -4,7 +4,8 @@ export type MotionKey = { t: number; x: number; y: number; scale: number; rotati
 export type MotionEffect = { type: string; start: number; end: number; intensity: number; center: [number, number]; radius: number; color: [number, number, number] }
 export type MotionLayer = { depth:number; keys:MotionKey[] }
 export type MotionScene = { source: 'auto' | 'image' | 'video' | 'psd'; fit: 'contain' | 'cover'; direction: string; keys: MotionKey[]; effects: MotionEffect[]; transition: 'cut' | 'fade' | 'flash'; layers?:Record<string,MotionLayer> }
-export type MotionDraft = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene> }
+export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: number; max_ai_seconds: number }
+export type MotionDraft = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene>; automation?: MotionAutomation }
 export const MOTION_PRESETS = [
     { id: 'still', label: '원본 유지', effects: [] },
     { id: 'push', label: '카메라 접근', effects: [] },
@@ -55,7 +56,13 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
         }
         scenes[number]={source:s.source,fit:s.fit,direction:s.direction,transition:s.transition,keys,effects,...(s.layers!==undefined?{layers}:{})}
     }
-    return {version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes}
+    let automation: MotionAutomation | undefined
+    if (raw.automation != null) {
+        const a=raw.automation
+        if (!['ae_only','hybrid'].includes(a.mode) || !Number.isInteger(a.max_ai_clips) || a.max_ai_clips<1 || a.max_ai_clips>3 || ![3,4,5].includes(a.max_ai_seconds)) throw new Error('자동 제작 모드와 AI 구간 한도를 확인해 주세요.')
+        automation={mode:a.mode,max_ai_clips:a.max_ai_clips,max_ai_seconds:a.max_ai_seconds}
+    }
+    return {version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes,...(automation?{automation}:{})}
 }
 export function motionForProject(project: any): MotionDraft | null {
     const raw=project?.project_payload?.render_settings?.motion

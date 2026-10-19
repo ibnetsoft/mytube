@@ -270,7 +270,7 @@ Do not interpret lineart/paint/shadow layers as independent anatomical parts. If
 missing body/face/cloth art, or semantically separable parts cannot be identified, return status=needs_repair.
 Do not invent hidden body parts. Existing complete background is reused. Missing BACKGROUND only can be
 inpainted as a still. Avoid flashy AI-like distortion. Choose modest intentional motion from actual imagery.
-No TTS exists yet: ALL t and transition fraction values are normalized 0..1, to be scaled to finalized narration.
+ALL t and transition fraction values are normalized 0..1. If finalized_narration is supplied, its audio and scene interval are already fixed and immutable; otherwise scale to finalized narration later.
 Match the provided adjacent scene action, look direction and lighting; do not pretend unseen neighbors were viewed.
 If input.motion_output exists, output must exactly match that width and height. input.motion_scene is the user's
 editable direction and camera/effect timing reference. Preserve its intent; translate into this AE contract only

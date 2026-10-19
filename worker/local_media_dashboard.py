@@ -21,7 +21,7 @@ def query_session():
     return _connections.session
 
 def group(state):
-    if state in ('ready', 'reviewed', 'completed'): return 'completed'
+    if state in ('ready', 'reviewed', 'completed', 'complete'): return 'completed'
     if state in ('failed', 'obsolete', 'cancelled'): return 'failed'
     if state in ('draft', 'prepared', 'approved', 'needs_review', 'direction_pending', 'review_pending'): return 'review'
     if state in ('processing', 'rendering'): return 'working'
@@ -35,10 +35,11 @@ def summarize(row, render=False):
     # Discovery outcomes are not rendered or approved outputs.
     completed = sum(r.get('status') in ('approved', 'reviewed', 'skipped') for r in results)
     if meta.get('kind') == 'ae_speaker_coordinates': completed = len(results)
+    if meta.get('kind') == 'motion_automation': completed = sum(r.get('review',{}).get('passed') is True for r in results)
     return {'id': row['id'], 'project_id': meta.get('std_web_project_id') or row.get('project_id'),
             'title': row.get('project_name') or '', 'kind': 'render' if render else meta.get('kind'),
             'state': state, 'group': 'review' if meta.get('kind') == 'region_motion_plan' and state == 'ready' else group(state), 'phase': meta.get('phase'),
-            'total': len(scenes), 'done': completed, 'analyzed': len(results),
+            'total': meta.get('total_scenes') or len(scenes), 'done': completed, 'analyzed': len(results),
             'generated': sum(bool(r.get('asset_id')) and r.get('status') in ('review_pending', 'approved', 'reviewed') for r in results),
             'skipped': sum(r.get('status') == 'skipped' for r in results),
             'scene_number': row.get('scene_number'),
@@ -57,13 +58,13 @@ def fetch_jobs():
         response.raise_for_status()
         return response.json()
     # Project only display fields; do not retrieve asset URLs, credentials or full input.
-    select = 'id,project_id,scene_number,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes'
+    select = 'id,project_id,scene_number,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes,total_scenes:metadata->total_scenes'
     # Input scenes can contain assets; select just counts on the server and never return them.
-    assets = query('std_project_assets', {'select':select,'metadata->>kind':'in.(ae_speaker_coordinates,ae_mouth_job,region_layer_package,region_motion_plan,motion_preview)', 'order':'created_at.desc','limit':'100'})
+    assets = query('std_project_assets', {'select':select,'metadata->>kind':'in.(ae_speaker_coordinates,ae_mouth_job,region_layer_package,region_motion_plan,motion_preview,motion_automation)', 'order':'created_at.desc','limit':'100'})
     jobs = []
     for row in assets:
         row['metadata'] = {'state':row.get('metadata'), 'kind':row.get('kind'), 'phase':row.get('phase'),
-                           'results':row.get('results'), 'input':{'scenes':row.get('scenes')}}
+                           'results':row.get('results'), 'total_scenes':row.get('total_scenes'), 'input':{'scenes':row.get('scenes')}}
         jobs.append(summarize(row))
     renders = query('remote_render_queue', {'select':'id,project_id,project_name,status,progress,created_at,updated_at,web_id:metadata->std_web_project_id',
                                            'render_mode':'eq.gcs_api','order':'created_at.desc','limit':'100'})

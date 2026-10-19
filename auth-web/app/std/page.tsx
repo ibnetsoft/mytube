@@ -15,7 +15,7 @@ import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import StdNonverbalPlan from '@/components/StdNonverbalPlan'
 import { isNonverbalProject } from '@/lib/stdNonverbal'
 import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
-import { isComicProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
+import { isComicProject, isWebtoonVideoProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
 import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
@@ -6307,6 +6307,11 @@ export default function StdPortalPage() {
             if (payload.postprocess_pending) {
                 report('pending', copy.postprocessPending)
                 setMessage(copy.postprocessPending)
+                if (payload.motion_automation) {
+                    const freeze = (p: any) => ({ ...p, submitted_at: payload.submitted_at || p.submitted_at || new Date().toISOString(), status: 'review_requested' })
+                    setProjects(prev => prev.map(p => String(p.id) === targetId ? freeze(p) : p))
+                    setSelectedProject(prev => prev?.project?.id === targetId ? { ...prev, project: freeze(prev.project) } : prev)
+                }
                 return
             }
             const accepted = payload.already_submitted ? copy.alreadySubmitted
@@ -10787,6 +10792,7 @@ export default function StdPortalPage() {
 
                                 <StdMotionStudio key={`motion-${selectedProject.project.id}`}
                                     value={selectedProject.project.project_payload?.render_settings?.motion}
+                                    defaultAspect={isWebtoonVideoProject(selectedProject.project) ? '9:16' : '16:9'}
                                     scenes={selectedProject.scenes}
                                     projectId={selectedProject.project.id} headers={authedJsonHeaders}
                                     renderHistory={selectedProject.render_history}

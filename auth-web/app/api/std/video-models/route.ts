@@ -48,6 +48,7 @@ export async function POST(req: Request) {
                 if (catalog.active_id === body.id) catalog.active_id = null
             } else if (body.action === 'apply') {
                 if (!catalog.models.some(item => item.id === body.id)) throw new Error('등록된 모델을 선택해 주세요.')
+                if (validateVideoModel(catalog.models.find(item=>item.id===body.id)).provider==='unconfigured') throw new Error('모델을 수정해 API 방식을 먼저 지정해 주세요.')
                 catalog.active_id = body.id
             } else throw new Error('지원하지 않는 작업입니다.')
         } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 400 }) }

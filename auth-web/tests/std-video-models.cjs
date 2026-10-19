@@ -16,10 +16,10 @@ function fixture() {
  })
  return {state,get:()=>exports.GET({}),post:body=>exports.POST({json:async()=>body})}
 }
-const model={id:'test',name:'제작 모델',model:'video-v1',endpoint:'https://api.example.test/videos'}
+const model={id:'test',name:'제작 모델',provider:'fal',model:'fal-ai/test/video-v1',endpoint:'https://queue.fal.run/fal-ai/test/video-v1',image_field:'image_url',duration_field:'duration',duration_type:'string',extra_input:{}}
 test('model endpoint excludes inline credentials and non HTTPS URLs',()=>{
  for(const endpoint of ['http://host/video','https://key:secret@host/video','https://host/video?key=secret'])assert.throws(()=>validation.validateVideoModel({...model,endpoint}))
- assert.equal(validation.validateVideoModel(model).model,'video-v1')
+ assert.equal(validation.validateVideoModel(model).model,model.model)
 })
 test('catalog masks secrets, preserves blank keys, scopes accounts and applies only existing models',async()=>{
  process.env.VIDEO_MODEL_ENCRYPTION_KEY='fixture-only'
