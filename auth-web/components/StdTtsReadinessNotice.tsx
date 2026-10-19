@@ -15,15 +15,18 @@ export default function StdTtsReadinessNotice({ readiness, subtitles, busy, voic
         : 'mx-2 mb-2 shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/5 p-3 text-[11px]'
     } role="status" aria-busy={busy}>
         <details open>
-            <summary className="cursor-pointer text-gray-300">{ui('성우 미지정 {missing}개 · 내레이션 성우와 겹침 {shared}개', {
+            <summary className="cursor-pointer text-gray-300">{ui('성우 미지정 대사 {missing}개 · 내레이션과 같은 성우를 쓰는 대사 {shared}개', {
                 missing: readiness.issues.filter(i => i.reason === 'missing').length,
                 shared: readiness.issues.filter(i => i.reason === 'shared').length})}</summary>
             <div className={`${compact ? 'mt-1.5 max-h-56 space-y-1' : 'mt-2 max-h-40 space-y-2'} std-sidebar-notice-scrollbar overflow-y-auto`}>
                 {readiness.issues.map(issue => <div key={issue.index} className={`rounded border border-white/10 bg-black/15 ${compact ? 'p-1.5' : 'p-2'}`}>
                     <button type="button" onClick={() => onJump(issue.index)} className="font-bold text-cyan-200 underline">{ui('{location}로 이동 →', {location: location(issue.index)})}</button>
-                    {issue.reason === 'shared' && <span className={compact ? 'mt-0.5 block text-amber-200' : 'ml-2 text-amber-200'}>{ui('{voice} 성우가 내레이션에도 사용됩니다. 대사 또는 해당 내레이션 성우를 바꿔 주세요.', {voice: voices.get(issue.voice) || issue.voice})}</span>}
+                    {issue.reason === 'shared' && <span className={compact ? 'mt-0.5 block text-amber-200' : 'ml-2 text-amber-200'}>{ui('이 대사는 내레이션과 같은 성우({voice})를 사용합니다. 캐릭터에 맞는 다른 성우를 선택해 주세요.', {voice: voices.get(issue.voice) || issue.voice})}</span>}
                     <div className="mt-1 truncate text-gray-300" title={subtitles[issue.index].text}>{subtitles[issue.index].text}</div>
-                    {issue.reason === 'shared' && <div className="mt-1 flex flex-wrap gap-2 text-gray-400">{ui('겹치는 내레이션:')} {issue.narrationIndexes.map(index => <button key={index} type="button" className="text-cyan-200 underline" onClick={() => onJump(index)}>{location(index)}</button>)}</div>}
+                    {issue.reason === 'shared' && <details className="mt-1 text-gray-400">
+                        <summary className="cursor-pointer">{ui('같은 성우를 쓰는 내레이션 위치 {count}개 보기', {count: issue.narrationIndexes.length})}</summary>
+                        <div className="mt-1 flex flex-wrap gap-2">{issue.narrationIndexes.map(index => <button key={index} type="button" className="text-cyan-200 underline" onClick={() => onJump(index)}>{location(index)}</button>)}</div>
+                    </details>}
                 </div>)}
             </div>
         </details>

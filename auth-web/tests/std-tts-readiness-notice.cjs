@@ -15,9 +15,17 @@ for (const locale of ['ko', 'en', 'vi', 'th']) {
         const html = renderToStaticMarkup(React.createElement(Notice, {
             subtitles, readiness, busy, locale, compact: true, voices: new Map(), onJump() {},
         }));
-        assert.ok(html.includes(stdUiText(locale, '성우 미지정 {missing}개 · 내레이션 성우와 겹침 {shared}개', { missing: 0, shared: 0 })));
+        assert.ok(html.includes(stdUiText(locale, '성우 미지정 대사 {missing}개 · 내레이션과 같은 성우를 쓰는 대사 {shared}개', { missing: 0, shared: 0 })));
         assert.ok(html.includes(`aria-busy="${busy}"`));
     }
+    const rows = [subtitles[0], { ...subtitles[1], voice_id: 'narrator' }];
+    const html = renderToStaticMarkup(React.createElement(Notice, {
+        subtitles: rows, readiness: subtitleTtsReadiness(rows, row => row.dialogue, 'narrator'),
+        busy: false, locale, voices: new Map(), onJump() {},
+    }));
+    assert.ok(html.includes(stdUiText(locale, '같은 성우를 쓰는 내레이션 위치 {count}개 보기', { count: 1 })));
+    assert.match(html, /<details class="mt-1 text-gray-400">/);
+    if (locale !== 'ko') assert.ok(!/[가-힣]/.test(html), `Untranslated notice in ${locale}`);
 }
 for (const voice of ['', 'narrator']) {
     const rows = [subtitles[0], { ...subtitles[1], voice_id: voice }];
@@ -26,6 +34,10 @@ for (const voice of ['', 'narrator']) {
         busy: false, voices: new Map(), onJump() {},
     }));
     assert.ok(html.includes('씬 1 · 자막 2로 이동'));
-    assert.ok(html.includes(voice ? '내레이션 성우와 겹침 1개' : '성우 미지정 1개'));
+    if (voice) {
+        assert.match(html, /<details class="mt-1 text-gray-400">/);
+        assert.ok(html.includes('같은 성우를 쓰는 내레이션 위치 1개 보기'));
+    }
+    assert.ok(html.includes(voice ? '내레이션과 같은 성우를 쓰는 대사 1개' : '성우 미지정 대사 1개'));
 }
 console.log('PASS: voice status stays visible after resolution and during TTS in all four locales; unresolved issues retain navigation');
