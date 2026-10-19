@@ -2753,7 +2753,7 @@ export default function StdPortalPage() {
 
     const voicePerformances = useMemo(() => mapVoicePerformance(localSubtitles || [], selectedProject?.project?.project_payload?.structure?.audio_performance),
         [localSubtitles, selectedProject?.project?.project_payload?.structure?.audio_performance])
-    const performanceForRow = (subtitle: any, index = localSubtitles.indexOf(subtitle)) => elevenLabsModel === 'eleven_v4'
+    const performanceForRow = (subtitle: any, index = Number.isInteger(subtitle?.subtitleIndex) ? subtitle.subtitleIndex : localSubtitles.findIndex((row: any) => row === subtitle || (subtitle?.id && row.id === subtitle.id))) => elevenLabsModel === 'eleven_v4'
         && !isVoiceStudioVoice(String(subtitle?.voice_id || selectedVoice)) && !String(subtitle?.voice_id || selectedVoice).startsWith('google_')
         ? voicePerformances[index] : undefined
     const subtitleVoiceSegments = () => {

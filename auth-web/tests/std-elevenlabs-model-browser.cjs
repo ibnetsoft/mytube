@@ -5,6 +5,7 @@ assert(['localhost','127.0.0.1'].includes(new URL(base).hostname));
 const id = 'e9233112-f0d7-4b35-91bf-2f892844eb30';
 const voiceId = 'FGY2WhTYpPnrIDTdsKH5';
 const project = {id,title:'ElevenLabs model fixture',status:'in_progress',language:'ko',project_payload:{script:'비가 그쳤습니다.',voice_id:voiceId,subtitles:[{id:'s1',text:'비가 그쳤습니다.',scene_number:1,start_time:0,end_time:4,voice_id:voiceId}]},progress_payload:{}};
+let assets=[];
 (async()=>{
   const browser = await chromium.launch({headless:true});
   try {
@@ -18,7 +19,7 @@ const project = {id,title:'ElevenLabs model fixture',status:'in_progress',langua
       const url = new URL(route.request().url()); let body = {success:true};
       if(url.pathname.endsWith('/me'))body={user:{id:'fixture',email:'fixture@example.invalid',full_name:'fixture'}};
       if(url.pathname.endsWith('/projects'))body={projects:[project]};
-      if(url.pathname===`/api/std/projects/${id}`)body={project,scenes:[{scene_number:1,scene_text:'비가 그쳤습니다.',start_seconds:0,end_seconds:4,duration_seconds:4}],assets:[]};
+      if(url.pathname===`/api/std/projects/${id}`)body={project,scenes:[{scene_number:1,scene_text:'비가 그쳤습니다.',start_seconds:0,end_seconds:4,duration_seconds:4}],assets};
       if(url.pathname.endsWith('/topics'))body={topics:[]};
       if(url.pathname.endsWith('/voices'))body={voices:[{id:voiceId,name:'Laura'}]};
       if(url.pathname.endsWith('/speaker-coordinates'))body={count:0,completed:0,confirmed:0,scenes:[]};
@@ -52,6 +53,10 @@ const project = {id,title:'ElevenLabs model fixture',status:'in_progress',langua
     await page.screenshot({path:'_dev/artifacts/elevenlabs-v4-comparison/model-selector.png'});
     await page.goto(`${base}/std?tab=subtitle_vrew&projectId=${id}`);
     await model.waitFor(); assert.equal(await model.inputValue(),'eleven_v4');
+    assets=[{id:'saved-acted-clip',asset_type:'other',scene_number:1,status:'uploaded',metadata:{kind:'vrew_segment_tts',text:'비가 그쳤습니다.',voice_id:voiceId,model_id:'eleven_v4',provider:'elevenlabs',tts_speed:1,stability:0.7,style:0.45,storage_path:'fixture.mp3',voice_performance:{cues:[{tag:'whispers',offset:0}],text:'비가 그쳤습니다.',version:1}}}];
+    await page.reload();await model.waitFor();
+    await page.waitForFunction(()=>!document.body.textContent.includes('음성 생성 전'),null,{timeout:15000});
+    assert.equal(requests.length,1,'Reopening stored acted clips must not generate audio');
     assert.deepEqual(errors,[]);
     console.log('PASS: v4 default, no automatic generation, existing audio preservation requested, old model metadata does not change new default');
   } finally {await browser.close()}
