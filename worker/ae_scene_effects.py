@@ -8,6 +8,7 @@ import math
 EFFECT_TYPES = frozenset({
     'atmospheric_haze', 'warm_dust_motes', 'focus_glow', 'light_sweep',
     'impact_flash', 'heat_distortion', 'subtle_vignette', 'speedline_burst',
+    'impact_shake', 'shock_ring', 'energy_trail', 'particle_burst', 'debris_burst',
 })
 
 
@@ -44,6 +45,12 @@ def validate_effects(plan, requested=None):
             target = effect.get('target_layer')
             if not isinstance(target, str) or layers.get(target, {}).get('role') not in ('background', 'prop'):
                 raise ValueError('Heat distortion requires a separated background or prop, never a character')
+        elif kind == 'impact_shake':
+            camera = plan.get('camera') or []
+            if not all(isinstance(key, dict) and key.get('scale', 0) >= 1.03 for key in camera):
+                raise ValueError('Impact shake requires at least 3% camera overscan')
+            if effect.get('target_layer') is not None:
+                raise ValueError('Overlay effects use source-canvas coordinates, not target layers')
         elif effect.get('target_layer') is not None:
             raise ValueError('Overlay effects use source-canvas coordinates, not target layers')
     if requested is not None:
@@ -80,6 +87,23 @@ function effectSolid(source,E,index) {
   layer.blendingMode=BlendingMode.SCREEN;
   return layer;
 }
+function effectShape(source,name) {
+  var layer=source.layers.addShape();layer.name=name;layer.blendingMode=BlendingMode.SCREEN;return layer;
+}
+function effectParticle(source,E,index,kind) {
+  var layer=effectShape(source,"ae_effect_"+kind+"_"+index),contents=layer.property("ADBE Root Vectors Group");
+  var group=contents.addProperty("ADBE Vector Group"),inner=group.property("ADBE Vectors Group");
+  var shape=inner.addProperty(kind==="debris_burst"?"ADBE Vector Shape - Rect":"ADBE Vector Shape - Ellipse");
+  var size=Math.max(3,W*(kind==="debris_burst"?.008:.004)*(0.5+E.intensity));
+  shape.property(kind==="debris_burst"?"ADBE Vector Rect Size":"ADBE Vector Ellipse Size").setValue([size,size*(kind==="debris_burst"?.65:1)]);
+  var fill=inner.addProperty("ADBE Vector Graphic - Fill");fill.property("ADBE Vector Fill Color").setValue(E.color);
+  var angle=index*2.3999632297, distance=E.radius*(.25+(index%5)*.15), x=E.center[0]*W, y=E.center[1]*H;
+  var transform=layer.property("ADBE Transform Group");
+  key(transform.property("ADBE Position"),E.start,[x,y]);
+  key(transform.property("ADBE Position"),E.end,[x+Math.cos(angle)*W*distance,y+Math.sin(angle)*H*distance]);
+  key(transform.property("ADBE Rotate Z"),E.start,0);key(transform.property("ADBE Rotate Z"),E.end,kind==="debris_burst"?180:0);
+  effectEnvelope(transform.property("ADBE Opacity"),E,70*E.intensity);linear(transform.property("ADBE Position"));
+}
 function applySceneEffects(source,layers) {
   var effects=S.plan.effects||[];
   for(var e=0;e<effects.length;e++) {
@@ -95,6 +119,42 @@ function applySceneEffects(source,layers) {
       effectEnvelope(fx.property("ADBE Turbulent Displace-0002"),E,4*E.intensity);
       fx.property("ADBE Turbulent Displace-0003").setValue(35);
       key(fx.property("ADBE Turbulent Displace-0006"),E.start,0);key(fx.property("ADBE Turbulent Displace-0006"),E.end,90);
+      continue;
+    }
+    if(E.type==="impact_shake") {
+      // This is intentionally small and requires the director to leave camera overscan.
+      var amplitude=Math.max(2,Math.round(W*(.002+.008*E.intensity)));
+      for(var layerId in layers) if(layers.hasOwnProperty(layerId)) {
+        layer=layers[layerId];var position=layer.property("ADBE Transform Group").property("ADBE Position");
+        var times=[E.start,E.start+(E.end-E.start)*.22,E.start+(E.end-E.start)*.48,E.start+(E.end-E.start)*.74,E.end];
+        for(var q=0;q<times.length;q++) { var atTime=times[q]*S.duration,base=position.valueAtTime(atTime,false),sign=q%2?1:-1;
+          position.setValueAtTime(atTime,[base[0]+sign*amplitude,base[1]-sign*amplitude*.55]); }
+        linear(position);
+      }
+      continue;
+    }
+    if(E.type==="shock_ring") {
+      layer=effectShape(source,"ae_effect_shock_ring_"+e);var ringContents=layer.property("ADBE Root Vectors Group");
+      var ring=ringContents.addProperty("ADBE Vector Shape - Ellipse"),ringStroke=ringContents.addProperty("ADBE Vector Graphic - Stroke");
+      ringStroke.property("ADBE Vector Stroke Color").setValue(E.color);ringStroke.property("ADBE Vector Stroke Width").setValue(Math.max(2,W*.003*E.intensity));
+      layer.property("ADBE Transform Group").property("ADBE Position").setValue([E.center[0]*W,E.center[1]*H]);
+      key(ring.property("ADBE Vector Ellipse Size"),E.start,[W*E.radius*.12,H*E.radius*.12]);
+      key(ring.property("ADBE Vector Ellipse Size"),E.end,[W*E.radius*2,H*E.radius*2]);
+      effectEnvelope(layer.property("ADBE Transform Group").property("ADBE Opacity"),E,80*E.intensity);continue;
+    }
+    if(E.type==="energy_trail") {
+      layer=effectShape(source,"ae_effect_energy_trail_"+e);var trailContents=layer.property("ADBE Root Vectors Group");
+      var trailPath=trailContents.addProperty("ADBE Vector Shape - Group"),trailShape=new Shape(),cx=E.center[0]*W,cy=E.center[1]*H,r=E.radius*Math.min(W,H);
+      trailShape.vertices=[[cx-r*.8,cy+r*.35],[cx-r*.16,cy-r*.42],[cx+r*.18,cy+r*.1],[cx+r*.9,cy-r*.32]];
+      trailShape.inTangents=[[0,0],[0,0],[0,0],[0,0]];trailShape.outTangents=[[0,0],[0,0],[0,0],[0,0]];trailShape.closed=false;
+      trailPath.property("ADBE Vector Shape").setValue(trailShape);var trailStroke=trailContents.addProperty("ADBE Vector Graphic - Stroke");
+      trailStroke.property("ADBE Vector Stroke Color").setValue(E.color);trailStroke.property("ADBE Vector Stroke Width").setValue(Math.max(3,W*.006*E.intensity));
+      var trim=trailContents.addProperty("ADBE Vector Filter - Trim");key(trim.property("ADBE Vector Trim End"),E.start,0);key(trim.property("ADBE Vector Trim End"),E.end,100);
+      effectEnvelope(layer.property("ADBE Transform Group").property("ADBE Opacity"),E,85*E.intensity);continue;
+    }
+    if(E.type==="particle_burst" || E.type==="debris_burst") {
+      var burstCount=Math.round((E.type==="debris_burst"?7:12)+E.intensity*(E.type==="debris_burst"?8:16));
+      for(var b=0;b<burstCount;b++) effectParticle(source,E,b+(e*31),E.type);
       continue;
     }
     if(E.type==="warm_dust_motes" || E.type==="speedline_burst") {

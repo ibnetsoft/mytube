@@ -9,6 +9,12 @@ type Scene = {
 }
 type Data = { editable: boolean; scenes: Scene[] }
 const statusText: Record<string, string> = { queued: '준비 대기', processing: '레이어·연출 준비 중', prepared: '제출 준비 완료', failed: '수정 필요', stale: '다시 준비 필요', disabled: '사용 안 함' }
+const EFFECT_PRESETS = [
+    { label: '전투 타격', effects: ['impact_shake', 'impact_flash', 'shock_ring', 'speedline_burst', 'particle_burst'], direction: '타격 순간에 짧은 카메라 흔들림과 섬광, 충격파·집중선·파티클을 넣고 바로 다음 컷으로 연결.' },
+    { label: '검기·오라', effects: ['focus_glow', 'energy_trail', 'light_sweep', 'warm_dust_motes'], direction: '인물과 무기 주변의 기존 빛 방향을 유지하며 짧은 에너지 궤적과 발광을 강조.' },
+    { label: '충돌·파괴', effects: ['impact_flash', 'shock_ring', 'debris_burst', 'speedline_burst'], direction: '충돌 지점에서만 섬광·충격파·파편을 분출하고 인물 원화나 배경 구도는 바꾸지 않음.' },
+    { label: '분위기·빛', effects: ['atmospheric_haze', 'warm_dust_motes', 'focus_glow', 'light_sweep', 'subtle_vignette'], direction: '원화의 광원 방향과 색을 유지하며 안개·먼지·빛 변화로 깊이만 더함.' },
+] as const
 
 export default function StdAeScenePreparation({ projectId, headers, onPreparedScenesChange, ui = (s: string) => s }: {
     projectId: string; headers: Record<string, string>; onPreparedScenesChange?: (numbers: number[]) => void; ui?: (text: string) => string
@@ -39,6 +45,11 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
     const direction = scene ? drafts[scene.number] ?? scene.preparation?.direction_text ?? '' : ''
     const effects = scene ? effectDrafts[scene.number] ?? scene.preparation?.requested_effects ?? [] : []
     const locked = !data?.editable || Boolean(busy)
+    const applyPreset = (preset: typeof EFFECT_PRESETS[number]) => {
+        if (!scene) return
+        setEffectDrafts(d => ({ ...d, [scene.number]: [...new Set([...effects, ...preset.effects])].sort() }))
+        if (!direction.trim()) setDrafts(d => ({ ...d, [scene.number]: preset.direction }))
+    }
     const json = async (url: string, body: unknown) => {
         const response = await fetch(url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         const result = await response.json()
@@ -91,12 +102,13 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
                 </label>
                 <fieldset disabled={locked} className="space-y-2">
                     <legend className="text-xs text-gray-300">{ui('AE 추가 효과')}</legend>
+                    <div className="flex flex-wrap gap-2">{EFFECT_PRESETS.map(preset => <button key={preset.label} type="button" disabled={locked} onClick={() => applyPreset(preset)} className="rounded border border-cyan-500/40 px-2 py-1 text-xs text-cyan-100 disabled:opacity-40">{ui(preset.label)}</button>)}</div>
                     <div className="flex flex-wrap gap-3">{AE_SCENE_EFFECTS.map(effect => <label key={effect.id} className="flex items-center gap-1 text-xs text-gray-200">
                         <input type="checkbox" checked={effects.includes(effect.id)} onChange={e => setEffectDrafts(d => ({ ...d,
                             [scene.number]: e.target.checked ? [...effects, effect.id] : effects.filter(id => id !== effect.id),
                         }))} />{ui(effect.label)}
                     </label>)}</div>
-                    <p className="text-xs text-gray-400">{ui('선택한 효과의 위치·강도·시점은 원하는 연출에 적어 주세요. 준비를 다시 요청하면 검수 후 반영됩니다. 열 왜곡은 분리된 배경이나 소품에만 적용합니다.')}</p>
+                    <p className="text-xs text-gray-400">{ui('프리셋은 선택 항목과 빈 연출 문구를 채웁니다. 위치·강도·시점은 원하는 연출에 적어 주세요. 준비를 다시 요청하면 검수 후 반영됩니다. 열 왜곡은 분리된 배경이나 소품에만 적용합니다.')}</p>
                 </fieldset>
                 <p className="text-xs text-gray-400">{ui('원화와 레이어를 검사하고 필요한 빈 배경만 정지 이미지로 보완합니다. 분리되지 않은 부위나 추가 그림이 필요한 동작은 수정 필요로 표시됩니다.')}</p>
                 <p className="text-xs text-amber-200">{ui('현재 PSD 연출은 카메라·레이어 움직임·조명·컷 전환과 선택한 추가 효과를 지원합니다. 같은 씬에 별도로 선택한 입모양·눈깜빡임 작업이 있으면 함께 제출할 수 없습니다.')}</p>

@@ -18,6 +18,7 @@ def effect(kind='focus_glow'):
 
 def test_all_effects_validate_and_are_emitted_in_real_renderer(tmp_path):
     p = plan()
+    p['camera'] = [dict(t=t, x=.5, y=.5, scale=1.04, rotation=0) for t in (0, 1)]
     p['effects'] = [effect(kind) for kind in sorted(EFFECT_TYPES)]
     for item in p['effects']:
         if item['type'] == 'heat_distortion':
@@ -60,6 +61,15 @@ def test_character_distortion_duplicates_and_missing_selection_are_rejected():
     for requested in ([], ['impact_flash'], ['focus_glow', 'focus_glow']):
         with pytest.raises(ValueError, match='exactly match'):
             validate_effects(p, requested)
+
+
+def test_impact_shake_requires_safe_camera_overscan():
+    p = plan()
+    p['effects'] = [effect('impact_shake')]
+    with pytest.raises(ValueError, match='overscan'):
+        validate_effects(p)
+    p['camera'] = [dict(t=t, x=.5, y=.5, scale=1.04, rotation=0) for t in (0, 1)]
+    validate_effects(p)
 
 
 def test_short_effect_peak_is_sampled_at_final_narration_time():

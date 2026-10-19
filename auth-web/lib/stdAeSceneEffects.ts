@@ -1,10 +1,15 @@
 /** Effects supported by the reviewed PSD renderer; IDs match ae_scene_effects.py. */
 export const AE_SCENE_EFFECTS = [
+    { id: 'impact_shake', label: '타격 카메라 흔들림' },
     { id: 'atmospheric_haze', label: '안개' },
     { id: 'warm_dust_motes', label: '떠다니는 먼지' },
+    { id: 'particle_burst', label: '파티클 분출' },
+    { id: 'debris_burst', label: '파편 분출' },
     { id: 'focus_glow', label: '부분 발광' },
     { id: 'light_sweep', label: '빛줄기 이동' },
     { id: 'impact_flash', label: '충격 섬광' },
+    { id: 'shock_ring', label: '충격파 링' },
+    { id: 'energy_trail', label: '에너지 궤적' },
     { id: 'heat_distortion', label: '국소 열 왜곡' },
     { id: 'subtle_vignette', label: '비네트' },
     { id: 'speedline_burst', label: '집중선' },

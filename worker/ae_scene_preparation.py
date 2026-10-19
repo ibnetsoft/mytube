@@ -280,7 +280,7 @@ motion?:[{t,x:<canvas delta -0.05..0.05>,y:<canvas delta -0.05..0.05>,scale:0.9.
 bend?:{start:[x,y],end:[x,y],keys:[{t,angle:-8..8}]}}],
 lights:[{color:[r,g,b] (each channel 0..1),center:[x,y],radius:0.02..1,keys:[{t,opacity:0..15}]}],
 transition:{in:'cut'|'fade',out:'cut'|'fade',fraction:0..0.15},
-effects:[{type:'atmospheric_haze'|'warm_dust_motes'|'focus_glow'|'light_sweep'|'impact_flash'|'heat_distortion'|'subtle_vignette'|'speedline_burst',
+effects:[{type:'impact_shake'|'atmospheric_haze'|'warm_dust_motes'|'particle_burst'|'debris_burst'|'focus_glow'|'light_sweep'|'impact_flash'|'shock_ring'|'energy_trail'|'heat_distortion'|'subtle_vignette'|'speedline_burst',
 start:0..1,end:0..1,intensity:0.05..1,center:[x,y],radius:0.02..1,color:[r,g,b],reason:string,target_layer?:<layer id>}],
 continuity:{entry:string,exit:string,screen_direction:string,light_direction:string},qa_assertions:[string]},
 background:{mode:'reuse'|'inpaint',reason:string,missing_body_art:[]}}.
@@ -293,6 +293,7 @@ omit motion. Each nonempty light key sequence also includes 0 and 1. Ensure init
 If input.requested_effects is present, include exactly those effect types once each (empty means no effects).
 Effects need increasing normalized start/end windows, source-canvas center/radius and RGB color 0..1.
 Heat distortion requires target_layer with role background or prop; never distort people, text, or faces.
+Impact shake needs at least 3% camera overscan at every camera key so the source canvas never exposes an edge.
 Other effects are source-space overlays and must omit target_layer. Keep effects subtle and motivated by the scene;
 for each effect add QA assertions for visibility, timing, readability and preserved character identity.
 If selected effects cannot safely fit the scene, return needs_repair, never omit a requested effect.
