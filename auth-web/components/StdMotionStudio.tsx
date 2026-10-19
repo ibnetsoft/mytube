@@ -48,7 +48,7 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
         ctx.fillStyle='#22d3ee';ctx.font='11px sans-serif';ctx.fillText('자막·주요 피사체 안전 영역',c.width*.08,c.height*.1-6)
     }
     useEffect(()=>{draw()},[draft,time,index,source,open])
-    const save=async()=>{setBusy(true);setError('');try{await onSave(normalizeMotionDraft(draft));setNotice('Motion Studio 설정 저장 완료')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+    const save=async()=>{setBusy(true);setError('');try{await onSave(normalizeMotionDraft(draft));setNotice('AE 제작 설정 저장 완료')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const previews=async(action:'read'|'preview'|'direction')=>{setError('');setBusy(true);try{if(action!=='read')await onSave(normalizeMotionDraft(draft));const response=await fetch(`/api/std/projects/${projectId}/motion`,{method:action==='read'?'GET':'POST',headers:{...headers,'Content-Type':'application/json'},...(action!=='read'?{body:JSON.stringify({scene_number:number,action})}:{})});const data=await response.json();if(!response.ok)throw new Error(data.error);setJobs(data.jobs||[]);setPreparations(data.preparations||[]);if(action!=='read')setNotice('워커 작업 요청 완료. 처리 후 상태를 새로고침해 주세요.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const keyField=(k:MotionKey,field:keyof MotionKey,label:string,min:number,max:number,step:number)=> <label key={field} className="text-xs">{label}<input aria-label={`${Math.round(k.t*100)}% ${label}`} type="number" value={k[field]} min={min} max={max} step={step} disabled={disabled||busy} onChange={e=>update({keys:scene.keys.map(item=>item===k?{...k,[field]:Number(e.target.value)}:item)})} className="ml-1 w-20 rounded bg-slate-800 p-1"/></label>
     return <><StdProductionMethodSelector method={method} disabled={disabled||busy} onSelect={next=>void selectMethod(next)}/>
@@ -59,7 +59,7 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
         <summary className="cursor-pointer font-semibold text-cyan-200">고급 타임라인 · 기존 워커 작업</summary>
         {open&&<div className="mt-4 space-y-4">
             <div className="flex flex-wrap items-center gap-4 text-sm">
-                <label><input type="checkbox" disabled={disabled||busy} checked={draft.enabled} onChange={e=>setDraft({...draft,enabled:e.target.checked})}/> Motion Studio 사용</label>
+                <label><input type="checkbox" disabled={disabled||busy} checked={draft.enabled} onChange={e=>setDraft({...draft,enabled:e.target.checked})}/> 기존 카메라·효과 설정 사용</label>
                 <label>출력 비율 <select aria-label="Motion 출력 비율" disabled={disabled||busy} value={draft.aspect} onChange={e=>setDraft({...draft,aspect:e.target.value as MotionDraft['aspect']})} className="rounded bg-slate-800 p-2"><option value="16:9">가로 16:9 · 유튜브</option><option value="9:16">세로 9:16 · Shorts</option></select></label>
                 <label>FPS <select disabled={disabled||busy} value={draft.fps} onChange={e=>setDraft({...draft,fps:Number(e.target.value) as 24|30})} className="rounded bg-slate-800 p-2"><option>24</option><option>30</option></select></label>
                 <button type="button" disabled={disabled||busy} onClick={()=>void save()} className="rounded bg-cyan-700 px-3 py-2 disabled:opacity-40">설정·타임라인 저장</button>
