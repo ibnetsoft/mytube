@@ -6,15 +6,15 @@ export default function StdTtsReadinessNotice({ readiness, subtitles, busy, voic
     readiness: ReturnType<typeof subtitleTtsReadiness>; subtitles: any[]; busy: boolean;
     voices: ReadonlyMap<string, string>; onJump: (index: number) => void; compact?: boolean; locale?: SupportedLocale;
 }) {
-    if (busy || !subtitles.length || readiness.ready) return null
+    if (!subtitles.length) return null
     const ui = (text: string, values?: Record<string, string | number>) => stdUiText(locale, text, values)
     const location = (index: number) => ui('씬 {scene} · 자막 {subtitle}', {scene: subtitles[index].scene_number,
         subtitle: subtitles.slice(0, index + 1).filter(s => Number(s.scene_number) === Number(subtitles[index].scene_number)).length})
     return <div className={compact
         ? 'mt-2 w-full shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/5 p-2 text-[9px] leading-snug'
         : 'mx-2 mb-2 shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/5 p-3 text-[11px]'
-    } role="status">
-        {readiness.issues.length > 0 && <details open>
+    } role="status" aria-busy={busy}>
+        <details open>
             <summary className="cursor-pointer text-gray-300">{ui('성우 미지정 {missing}개 · 내레이션 성우와 겹침 {shared}개', {
                 missing: readiness.issues.filter(i => i.reason === 'missing').length,
                 shared: readiness.issues.filter(i => i.reason === 'shared').length})}</summary>
@@ -26,6 +26,6 @@ export default function StdTtsReadinessNotice({ readiness, subtitles, busy, voic
                     {issue.reason === 'shared' && <div className="mt-1 flex flex-wrap gap-2 text-gray-400">{ui('겹치는 내레이션:')} {issue.narrationIndexes.map(index => <button key={index} type="button" className="text-cyan-200 underline" onClick={() => onJump(index)}>{location(index)}</button>)}</div>}
                 </div>)}
             </div>
-        </details>}
+        </details>
     </div>
 }
