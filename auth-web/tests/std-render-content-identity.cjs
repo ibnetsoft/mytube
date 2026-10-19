@@ -1,7 +1,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('../node_modules/typescript')
-const load=require('./load-ts-module.cjs'), identity=load('lib/stdContentIdentity.ts')
+const path=require('node:path'), loadModule=require('./load-ts-module.cjs')
+const webRoot=path.resolve(__dirname,'..'), load=file=>loadModule(path.join(webRoot,file)), identity=load('lib/stdContentIdentity.ts')
 function renderer(){
- const ex={}; const source=fs.readFileSync('lib/stdRenderQueue.ts','utf8')+'\nexport const previewForTest = buildGcsRenderConfig;'
+ const ex={}; const source=fs.readFileSync(path.join(webRoot,'lib/stdRenderQueue.ts'),'utf8')+'\nexport const previewForTest = buildGcsRenderConfig;'
  new Function('exports','require',ts.transpile(source,{module:1,target:7}))(ex,name=>{
   if(name==='crypto')return require('crypto')
   if(name.includes('stdContentIdentity'))return identity
@@ -11,12 +12,7 @@ function renderer(){
   if(name.includes('stdNonverbal'))return {isNonverbalProject:()=>false}
   if(name.includes('stdLipSync'))return {lipSyncEnabled:()=>false,reviewedLipSyncAssets:()=>new Map(),lipSyncSceneStarts:()=>[0]}
   if(name.includes('stdAeMouth'))return {reviewedAeMouthAssets:()=>new Map()}
-  if(name.includes('stdComic'))return {
-   isComicProject:project=>['comic','moving_comic','webtoon_video'].includes(project.project_payload?.render_settings?.comic?.mode),
-   isWebtoonVideoProject:project=>project.project_payload?.render_settings?.comic?.mode==='webtoon_video',
-   comicSettingsForProject:project=>project.project_payload?.render_settings?.comic || {panels:{},mode:'classic'},
-   selectComicMedia:(mode,image,video)=>(mode==='comic'||mode==='webtoon_video' ? image||video : video||image)
-  }
+  if(name.includes('stdComic'))return load('lib/stdComic.ts')
   if(name.includes('stdSpeechGain'))return {subtitleGain:()=>1}
   if(name.includes('stdSfxCues'))return {resolveSfxCues:()=>[]}
   if(name.includes('stdAudioMix'))return {audioAssetRole:a=>a.asset_type}
