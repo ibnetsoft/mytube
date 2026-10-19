@@ -39,6 +39,16 @@ Windows Python 경로는 `.venv-motion/Scripts/python.exe`다. 감독 제안에�
 
 라이브 DB 읽기는 로컬 `.env.production.local`의 `Invalid API key` 응답으로 확인하지 못했다. API 인증·소유권·제출 잠금·중복 미리보기 요청은 테스트 DB 응답으로 검증했다. 이 컴퓨터에서 실제 Adobe 렌더는 실행하지 않았다.
 
+### 실제 운영 검증 · 2026-10-19 후속
+
+- 운영 계정의 모델 설정을 브라우저에서 등록하고 새로고침 후 재조회했다. API 키를 비워 둔 수정 저장도 키 등록 상태를 유지했다. `저장 검증 완료 · 생성 사용 금지` 항목은 비활성 상태이며 실제 제공자를 호출하지 않았다. 로그인 정보 자동 입력은 별도 입력 이름과 `new-password` 속성으로 방지했다.
+- `종로왼쪽컴퓨터`의 기존 저장소에 수정 중인 파일 51개가 있어 `C:\Projects\에어스튜디오\LongformMotionStudio` 작업 폴더를 별도로 만들었다. 기존 `.env`와 공용 워커 상태·캐시는 유지했다. `3e361db4` 코드로 통합 관리자를 재가동했으며 PID 47228에서 큐 조회와 `motion_preview` 종료 코드 0을 확인했다. 기존 스크립트 워커는 중단하지 않았다.
+- 독립 PSD와 레이어 키프레임으로 실제 AE 렌더를 실행하고, 원본 이미지 4초 + AE 출력 4초를 최종 합성했다. 가로 640×360/24fps, 세로 360×640/30fps의 8초 MP4를 내려받아 ZIP CRC와 파일 SHA-256을 검증했다. 자막·13개 효과 구간·수정한 검기 위치를 실제 디코딩 프레임으로 검수했다. 음성은 내레이션 대신 440Hz 테스트 톤이며 독립 FFmpeg PCM 상관도는 두 출력 모두 0.9999922364였다.
+- 실제 실행에서 충격파 도형 참조가 AE 그룹 변경 후 무효화되는 문제와, 검기 좌표에 기본 도형 레이어 중심이 이중 적용되는 문제를 발견해 수정하고 재렌더했다. Windows MoviePy 음성 리샘플링의 무음 오판을 피하도록 진단은 독립 FFmpeg 디코더를 사용한다.
+- 진단 큐 `97cdcfd8-e72b-412d-a633-df499c67aab2`가 `queued → ready`로 처리됐다. 로컬 독립 원본을 사용한 360×640/24fps 2초 미리보기가 GCS에 업로드됐다. 작업의 `scene_number`는 null이며 기존 프로젝트의 씬 원본·편집 설정·제출 상태는 바꾸지 않았다.
+
+이 검증은 독립 소스의 실제 렌더 및 미리보기 큐 검증이며, 사용자의 전체 웹툰 프로젝트를 제출·승인·게시한 결과는 아니다. Mac의 로컬 DB 연결 파일을 운영 키로 교체하지 않았다. 결과 묶음은 `output/motion-studio/final-worker-verified/`, 운영 설정 화면 증거는 `output/motion-studio/production-settings-persisted.png`에 보관했다.
+
 기존의 `test_local_media_supervisor.py` 4건(변경 전부터 존재한 스케줄러 우선순위·조회 계약 불일치), `test_remote_drive_worker_progress.py` 1건(제거된 Drive 재시도 문자열 기대), `std-nonverbal.cjs`(기존 AE 의존성 mock 누락)는 전체 회귀 테스트의 미해결 항목이다. 이번 Motion 변경으로 추가된 모듈에 대한 렌더 저장소 테스트 mock은 갱신했다.
 
 ## 결정
