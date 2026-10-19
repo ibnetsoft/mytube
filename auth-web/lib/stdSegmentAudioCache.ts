@@ -1,4 +1,5 @@
 import { assetContentIdentity, fileContentHash } from './stdContentIdentity'
+import { voicePerformanceKey } from './stdVoicePerformance'
 import { createHash } from 'crypto'
 import { isGcsConfiguredAsync, uploadGcsBuffer } from '@/lib/gcsStorage'
 
@@ -18,6 +19,7 @@ export function legacySegmentMatches(metadata: any, identity: Record<string, any
         && Number(metadata.stability) === Number(identity.stability)
         && Number(metadata.style) === Number(identity.style)
         && String(metadata.direction || '') === identity.direction)
+        && voicePerformanceKey(metadata?.voice_performance) === voicePerformanceKey(identity.performance)
 }
 
 export async function persistSegmentAudio(db: any, args: {
@@ -41,6 +43,7 @@ export async function persistSegmentAudio(db: any, args: {
             voice_id: identity.voiceId, model_id: identity.modelId,
             tts_speed: identity.speed, stability: identity.stability, style: identity.style,
             direction: identity.direction, language: identity.language, text: identity.text,
+            ...(identity.performance ? { voice_performance: identity.performance } : {}),
             text_hash: createHash('sha1').update(identity.text).digest('hex'),
             generated_by: args.generatedBy,
             ...gcsMeta,

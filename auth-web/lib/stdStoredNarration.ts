@@ -1,6 +1,7 @@
 import { finalizeNarrationMp3 } from './stdNarrationMp3'
+import { VoicePerformance } from './stdVoicePerformance'
 
-type Segment = { text: string; voiceId: string; direction?: string }
+type Segment = { text: string; voiceId: string; direction?: string; performance?: VoicePerformance }
 type Resolved = { asset: any; cached: boolean }
 
 // Wait for active operations before returning an error, and stop scheduling more.
@@ -27,7 +28,7 @@ export async function assembleStoredNarration(segments: Segment[], io: {
     const checkTime = () => {
         if (Date.now() > deadline) throw new Error('저장된 음성 준비 시간이 초과되었습니다. 완료된 조각은 보존되어 다시 시도할 때 재사용됩니다.')
     }
-    const key = (s: Segment) => JSON.stringify([s.voiceId, s.direction || '', s.text])
+    const key = (s: Segment) => JSON.stringify([s.voiceId, s.direction || '', s.text, ...(s.performance ? [s.performance] : [])])
     const cached = new Map<string, Promise<Buffer | null>>()
     const read = async (asset: any) => {
         const buffer = await io.read(asset)

@@ -1,4 +1,5 @@
 'use client'
+import { mapVoicePerformance, voicePerformanceKey, elevenLabsVoiceSettings } from '@/lib/stdVoicePerformance'
 import { scanDialogueQuoteState } from '@/lib/stdDialogueQuoteState'
 import { subtitleSpeakerProgress } from '@/lib/stdSubtitleSpeakerProgress'
 import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
@@ -1719,7 +1720,8 @@ export default function StdPortalPage() {
     const totalDuration = useMemo(() => {
         if (!localSubtitles || localSubtitles.length === 0) return 60.0
         const last = localSubtitles[localSubtitles.length - 1]
-        return Math.max(60.0, last.end_num || Number(last.end_time) || 60.0)
+        const end = Number(last.end_num ?? last.end_time)
+        return Number.isFinite(end) && end > 0 ? end : 60.0
     }, [localSubtitles])
 
     const formatTime = (sec: number): string => {
@@ -2749,12 +2751,18 @@ export default function StdPortalPage() {
         await persistVrewVoiceSubtitles(updatedSubtitles)
     }
 
+    const voicePerformances = useMemo(() => mapVoicePerformance(localSubtitles || [], selectedProject?.project?.project_payload?.structure?.audio_performance),
+        [localSubtitles, selectedProject?.project?.project_payload?.structure?.audio_performance])
+    const performanceForRow = (subtitle: any, index = localSubtitles.indexOf(subtitle)) => elevenLabsModel === 'eleven_v4'
+        && !isVoiceStudioVoice(String(subtitle?.voice_id || selectedVoice)) && !String(subtitle?.voice_id || selectedVoice).startsWith('google_')
+        ? voicePerformances[index] : undefined
     const subtitleVoiceSegments = () => {
         return (localSubtitles || [])
-            .map((item: any) => ({
+            .map((item: any, index: number) => ({
                 text: String(item?.text || '').trim(),
                 voice_id: String(item?.voice_id || selectedVoice || '').trim(),
                 direction: String(item?.voice_direction || ''),
+                ...(performanceForRow(item, index) ? { performance: performanceForRow(item, index) } : {}),
             }))
             .filter((item: any) => item.text && item.voice_id)
     }
@@ -2773,7 +2781,7 @@ export default function StdPortalPage() {
             Number(elStability) || 0.7,
             Number(elStyle) || 0.45,
             text,
-        ].join('|')
+        ].concat(performanceForRow(subtitle, index) ? [voicePerformanceKey(performanceForRow(subtitle, index))] : []).join('|')
     }
 
     const vrewTextTokens = (text: string) => {
@@ -3576,6 +3584,7 @@ export default function StdPortalPage() {
             && (m.model_id === cacheModelForVoice(String(subtitle?.voice_id || selectedVoice)) || (preserveExistingAudio && m.provider === 'elevenlabs')) && Number(m.tts_speed) === Number(ttsSpeed)
             && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
             && String(m.direction || '') === String(subtitle?.voice_direction || '')
+            && voicePerformanceKey(m.voice_performance) === voicePerformanceKey(performanceForRow(subtitle))
     })
 
     const getOrCreateVrewSegmentAudioUrl = async (subtitle: any, index: number, signal?: AbortSignal, cacheOnly = true) => {
@@ -3614,6 +3623,7 @@ export default function StdPortalPage() {
                     voice_id: voiceId,
                     model_id: elevenLabsModel,
                     preserve_existing_audio: preserveExistingAudio,
+                    performance: performanceForRow(subtitle, index),
                     speed: Number(ttsSpeed),
                     stability: Number(elStability),
                     style: Number(elStyle),
@@ -4174,6 +4184,7 @@ export default function StdPortalPage() {
                         && (m.model_id === cacheModelForVoice(String(subtitle.voice_id || selectedVoice)) || (preserveExistingAudio && m.provider === 'elevenlabs')) && Number(m.tts_speed) === Number(ttsSpeed)
                         && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
                         && String(m.direction || '') === String(subtitle.voice_direction || '')
+                        && voicePerformanceKey(m.voice_performance) === voicePerformanceKey(performanceForRow(subtitle, index))
                 })
                 if (!stored) continue
                 try {
@@ -5957,7 +5968,7 @@ export default function StdPortalPage() {
                         body: JSON.stringify({
                             text: chunk,
                             model_id: elevenLabsModel,
-                            voice_settings: { stability, similarity_boost: 0.75, style, speed },
+                            voice_settings: elevenLabsVoiceSettings(elevenLabsModel, { stability, similarityBoost: 0.75, style, speed }),
                         }),
                     }
                 )
@@ -6447,7 +6458,7 @@ export default function StdPortalPage() {
             const hasSubtitleVoiceOverrides = voiceSegments.some(segment => segment.voice_id !== selectedVoice)
             const useSubtitleVoiceSegments = currentNav === 'subtitle_vrew' && voiceSegments.length > 0
                 ? true
-                : hasSubtitleVoiceOverrides
+                : hasSubtitleVoiceOverrides || voiceSegments.some(segment => segment.performance)
 
             if (ttsProvider === 'google_free' && !useSubtitleVoiceSegments) {
                 setMessage(copy.preparing)

@@ -1,5 +1,11 @@
 # ElevenLabs v4 integration and sample verification (2026-10-19)
 
+## New-script vocal performance
+
+New standard scripts receive a local Codex vocal-performance stage after final text and dialogue review. New grounded-console packages receive the same stage when a plan is absent. Existing script repair and project reopening do not run this stage. The stage stores `structure.audio_performance` separately from the immutable spoken script, with exact quote anchors validated into Unicode code-point offsets, a restricted vocal tag set, and contextual reasons. No music or environmental effects are introduced through this channel.
+
+The web maps those cues onto exact matching subtitle text after splitting. Only Eleven v4 synthesis receives bracketed tags; subtitles, translation input and recorded timelines retain plain text. Current delivery is carried into independent clips within a scene. Performance is part of persistent and in-memory audio identity, including repeated lines during assembly. A direction change cannot reuse a plain or differently acted clip. Scripts without plans retain their existing cache identities and recordings. V4 sends Stability/Similarity only; older models retain their existing Style/Speed settings.
+
 ## Default update
 
 New generation now defaults to v4, including projects whose prior narration metadata says v2. Opening a project does not generate or migrate audio. The default generation flow reuses existing clips when text, speaker, speed and delivery settings are unchanged, keeping their original model metadata and cache keys. Missing or edited clips use v4. Read-only final assembly can resolve older-model recordings under their existing keys. Explicitly changing the model selector requests that model instead of accepting other-model clips. Google cache identities stay unchanged. Existing finalized narration and its subtitle timeline are not rewritten by this release.

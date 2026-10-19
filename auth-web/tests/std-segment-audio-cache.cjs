@@ -2,7 +2,8 @@ const fs=require('fs'),ts=require('typescript'),assert=require('node:assert/stri
 function load(file,deps={}){const exports={};new Function('require','exports',ts.transpile(fs.readFileSync(file,'utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}))((id)=>id in deps?deps[id]:require(id),exports);return exports}
 const gcs={isGcsConfiguredAsync:async()=>true,uploadGcsBuffer:async({objectPath,buffer})=>{if(failUpload)throw Error('GCS upload failed');stored.set(objectPath,buffer);uploads++;return {bucket:'air-studio-prod',path:objectPath}},downloadGcsObject:async({objectPath})=>{if(failDownload)throw Error('offline');return stored.get(objectPath)}};
 const contentIdentity=load('auth-web/lib/stdContentIdentity.ts');
-const helper=load('auth-web/lib/stdSegmentAudioCache.ts',{'@/lib/gcsStorage':gcs,'./stdContentIdentity':contentIdentity});
+const performance=load('auth-web/lib/stdVoicePerformance.ts');
+const helper=load('auth-web/lib/stdSegmentAudioCache.ts',{'@/lib/gcsStorage':gcs,'./stdContentIdentity':contentIdentity,'./stdVoicePerformance':performance});
 const batches=load('auth-web/lib/stdNarrationBatch.ts');
 const mp3=load('auth-web/lib/stdJoinMp3.ts');
 const stored=new Map(); let failDownload=false; const claims=new Set();const assets=[];let generated=0,uploads=0,failUpload=false,providerHook=null;const removedClaims=[];
@@ -27,6 +28,7 @@ function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/gene
     '@/lib/stdSubmissionPipeline':{ensureSyncedMouthPreview:async()=>{}},
     '@/lib/stdProjectAssets':{loadStdProjectAssets:async()=>({data:assets,error:null})},
     '@/lib/stdContentIdentity':contentIdentity,
+    '@/lib/stdVoicePerformance':performance,
     '@/lib/stdRecordedSubtitleTiming':load('auth-web/lib/stdRecordedSubtitleTiming.ts'),
     '@/lib/gcsStorage':gcs,'@/lib/stdNarrationBatch':batches,
     'next/server':{NextResponse:{json:(data,options)=>({data,status:options?.status||200,ok:!options?.status||options.status<400,json:async()=>data})}},
@@ -161,6 +163,15 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  assert.deepEqual(preservedFinal.data.segment_reuse,{reused:1,generated:0});
  assert.equal(generated,beforePreservation);assert.equal(JSON.stringify(oldAsset),originalOldAsset,'v2 metadata and file reference must stay unchanged');
  console.log('PASS: v4 default reuses existing v2 recording for preview and final assembly without generation or relabeling');
+ const vocal={version:1,text:oldIdentity.text,cues:[{offset:0,tag:'whispers'}]};
+ assert.equal((await call(route(),{...upgraded,performance:vocal})).status,404,'A plain old recording cannot fulfill a new acted line');
+ const actedIdentity={...oldIdentity,modelId:'eleven_v4',performance:vocal};
+ const actedAsset=await helper.persistSegmentAudio(db,{projectId:project.id,cacheKey:helper.segmentAudioKey(actedIdentity),identity:actedIdentity,audioBuffer:oldFrame,fileName:'acted-v4.mp3',segmentIndex:0,generatedBy:'fixture'});
+ const acted=await call(route(),{...upgraded,performance:vocal});assert.equal(acted.status,200);assert.equal(acted.data.asset.id,actedAsset.id);
+ assert.equal((await call(route(),{...upgraded,performance:{...vocal,cues:[{offset:0,tag:'excited'}]}})).status,404);
+ const actedFinal=await call(route(),{...upgraded,cache_only:false,mode:'assemble_narration_segments',voice_segments:[{text:oldIdentity.text,voice_id:oldIdentity.voiceId,performance:vocal}]});
+ assert.equal(actedFinal.status,200,JSON.stringify(actedFinal.data));assert.equal(actedFinal.data.asset.metadata.subtitle_timeline[0].text,oldIdentity.text);
+ assert.equal(generated,beforePreservation,'Acted cache reads and joins must not synthesize');
  const originalFetch=global.fetch;const originalLanguage=project.language;let googleCalls=0;
  try {
    project.language='ja';

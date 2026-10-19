@@ -33,6 +33,8 @@ const project = {id,title:'ElevenLabs model fixture',status:'in_progress',langua
     await model.waitFor({timeout:30000});
     assert.equal(await model.inputValue(),'eleven_v4');
     assert.equal(requests.length,0,'Opening a project must not regenerate existing audio');
+    project.project_payload.structure={audio_performance:{version:1,source:'codex-ai',model:'eleven_v4',offset_unit:'unicode-codepoint',scenes:[{scene_number:1,source_text:'비가 그쳤습니다.',cues:[{offset:0,tag:'whispers'}]}]}};
+    await page.reload();await model.waitFor();
     await page.getByRole('button',{name:'자막 저장 및 TTS 생성',exact:true}).click();
     await page.waitForFunction(()=>document.body.textContent.includes('fixture model error'),null,{timeout:15000}).catch(async error=>{
       console.log(JSON.stringify({requests,errors,text:(await page.locator('body').innerText()).slice(-3500)})); throw error;
@@ -40,6 +42,9 @@ const project = {id,title:'ElevenLabs model fixture',status:'in_progress',langua
     assert.equal(requests.length,1);
     assert.equal(requests[0].model_id,'eleven_v4');
     assert.equal(requests[0].preserve_existing_audio,true);
+    assert.equal(requests[0].voice_segments[0].performance.cues[0].tag,'whispers');
+    assert.equal(requests[0].voice_segments[0].text,'비가 그쳤습니다.');
+    assert(!(await page.locator('body').innerText()).includes('[whispers]'),'Acting tags must never appear in displayed subtitles');
     assert.equal(await model.isEnabled(),true);
     project.project_payload.tts_model_id='eleven_multilingual_v2';
     await page.reload();

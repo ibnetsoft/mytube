@@ -1,4 +1,5 @@
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
+import { normalizeVoicePerformance, performanceTextForChunk, elevenLabsVoiceSettings, VoicePerformance } from '@/lib/stdVoicePerformance'
 import { ensureSyncedMouthPreview } from '@/lib/stdSubmissionPipeline'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { assetContentIdentity, bindProjectContent, persistContentRevision, fileContentHash } from '@/lib/stdContentIdentity'
@@ -279,11 +280,7 @@ async function generateSingleElevenLabsChunk(input: {
     similarityBoost?: number
     style?: number
 }): Promise<{ audioBuffer: Buffer; keySlot: number; modelId: string }> {
-    const voiceSettings: Record<string, number> = {}
-    if (Number.isFinite(input.stability)) voiceSettings.stability = Number(input.stability)
-    if (Number.isFinite(input.similarityBoost)) voiceSettings.similarity_boost = Number(input.similarityBoost)
-    if (Number.isFinite(input.style)) voiceSettings.style = Number(input.style)
-    if (Number.isFinite(input.speed)) voiceSettings.speed = Math.min(1.2, Math.max(0.7, Number(input.speed)))
+    const voiceSettings = elevenLabsVoiceSettings(input.modelId, input)
 
     let lastError = 'ElevenLabs API key is not configured'
     const quotaErrors: Array<{ remaining: number; required: number }> = []
@@ -359,7 +356,8 @@ async function generateElevenLabsMp3(input: {
     voiceId: string
     modelId: string
     text: string
-    voiceSegments?: Array<{ text: string; voiceId: string; direction?: string }>
+    voiceSegments?: Array<{ text: string; voiceId: string; direction?: string; performance?: VoicePerformance }>
+    performance?: VoicePerformance
     language?: string
     speed?: number
     stability?: number
@@ -376,6 +374,14 @@ async function generateElevenLabsMp3(input: {
         usedModelIds.add(result.modelId)
         return result.audioBuffer
     }
+    const speechChunks = (source: string, performance?: VoicePerformance) => {
+        let from = 0
+        return splitText(source).map(chunk => {
+            const spoken = input.modelId === 'eleven_v4' ? performanceTextForChunk(source, chunk, from, performance) : chunk
+            from = source.indexOf(chunk, from) + chunk.length
+            return spoken
+        })
+    }
 
     if (input.voiceSegments && input.voiceSegments.length > 0) {
         const buffers: Buffer[] = []
@@ -388,7 +394,7 @@ async function generateElevenLabsMp3(input: {
                 usedModelIds.add('gemini-2.5-flash-tts')
                 continue
             }
-            const chunks = splitText(seg.text)
+            const chunks = speechChunks(seg.text, seg.performance)
             for (const chunk of chunks) {
                 const result = await generateSingleElevenLabsChunk({
                     apiKeys: input.apiKeys,
@@ -441,7 +447,7 @@ async function generateElevenLabsMp3(input: {
     }
 
     // 2. 단일 보이스 모드
-    const chunks = splitText(input.text)
+    const chunks = speechChunks(input.text, input.performance)
     if (!chunks.length) throw new Error('TTS text is empty')
 
     const buffers: Buffer[] = []
@@ -724,6 +730,7 @@ async function runTts(body: any, auth: any, project: any) {
         ).trim()
         const modelId = String(body?.model_id || DEFAULT_ELEVENLABS_MODEL_ID).trim()
         const cacheModelForVoice = (id: string) => isVoiceStudioVoice(id) || id.startsWith('google_') ? 'eleven_multilingual_v2' : modelId
+        const performance = provider === 'elevenlabs' && modelId === 'eleven_v4' ? normalizeVoicePerformance(body?.performance, text) : undefined
         const projectTtsSpeed = Math.max(0.7, Math.min(1.2, Number(
             body?.speed
             ?? project.project_payload?.tts_speed
@@ -741,6 +748,7 @@ async function runTts(body: any, auth: any, project: any) {
             direction: String(body?.direction || ''),
             stability: body?.stability ?? 0.7, style: body?.style ?? null,
             language: String(project.language || 'ko'),
+            ...(performance ? { performance } : {}),
         }
         const segmentCacheKey = segmentPreview ? segmentAudioKey(segmentIdentity) : ''
         if (segmentPreview && segmentCacheKey) {
@@ -847,6 +855,8 @@ async function runTts(body: any, auth: any, project: any) {
                     text: String(segment?.text || '').trim(),
                     voiceId: String(segment?.voice_id || segment?.voiceId || voiceId).trim(),
                     direction: String(segment?.direction || ''),
+                    performance: modelId === 'eleven_v4' && !isVoiceStudioVoice(String(segment?.voice_id || segment?.voiceId || voiceId))
+                        ? normalizeVoicePerformance(segment?.performance, cleanTtsText(String(segment?.text || ''))) : undefined,
                 }))
                 .filter((segment: { text: string; voiceId: string }) => segment.text && segment.voiceId)
             : []
@@ -869,9 +879,10 @@ async function runTts(body: any, auth: any, project: any) {
         }
         if (!segmentPreview && voiceSegments.length) {
             stage = 'assemble_saved_segments'
-            const segmentKey = (segment: { text: string; voiceId: string; direction?: string }) => segmentAudioKey({
+            const segmentKey = (segment: { text: string; voiceId: string; direction?: string; performance?: VoicePerformance }) => segmentAudioKey({
                 ...segmentIdentity, text: segment.text, voiceId: segment.voiceId,
                 modelId: cacheModelForVoice(segment.voiceId),
+                ...(segment.performance ? { performance: segment.performance } : {}),
                 provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                 direction: segment.direction || '',
             })
@@ -905,6 +916,7 @@ async function runTts(body: any, auth: any, project: any) {
                         ...body, text: segment.text, voice_id: segment.voiceId,
                         provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
                         direction: segment.direction, voice_segments: [], multi_voice: false,
+                        performance: segment.performance,
                         mode: 'vrew_segment_preview', segment_index: index + (prepareOnly ? Math.max(0, Number(body.segment_offset) || 0) : 0), cache_only: cacheOnly,
                         force_claim: false, force_regenerate: false,
                     }, auth, project)
@@ -996,6 +1008,7 @@ async function runTts(body: any, auth: any, project: any) {
                 modelId,
                 text,
                 voiceSegments: synthesisSegments,
+                performance,
                 language: ({ko:'ko-KR',en:'en-US',ja:'ja-JP',vi:'vi-VN',th:'th-TH'} as Record<string,string>)[String(project.language || 'ko')] || String(project.language || 'ko-KR'),
                 speed: projectTtsSpeed,
                 stability: body?.stability == null ? 0.7 : Number(body.stability),

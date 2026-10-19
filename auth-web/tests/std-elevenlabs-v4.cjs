@@ -6,11 +6,11 @@ const source = ast.statements.filter(s => ts.isFunctionDeclaration(s) && names.i
 const code = ts.transpile(source+'\nreturn generateSingleElevenLabsChunk;', {target:9,module:1});
 const calls = [];
 let reject = false;
-const synthesize = new Function('fetch','Buffer','DEFAULT_ELEVENLABS_MODEL_ID','FALLBACK_ELEVENLABS_MODEL_IDS',code)(async (_, request) => {
+const synthesize = new Function('fetch','Buffer','DEFAULT_ELEVENLABS_MODEL_ID','FALLBACK_ELEVENLABS_MODEL_IDS','elevenLabsVoiceSettings',code)(async (_, request) => {
   calls.push(JSON.parse(request.body));
   if (reject) return {ok:false,status:422,text:async()=> 'model unsupported'};
   return {ok:true,headers:new Headers({'content-type':'audio/mpeg'}),arrayBuffer:async()=>new Uint8Array(512).buffer};
-},Buffer,'eleven_multilingual_v2',['eleven_v3','eleven_multilingual_v2']);
+},Buffer,'eleven_multilingual_v2',['eleven_v3','eleven_multilingual_v2'],require('../../scripts/std_web_runtime.cjs').load('stdVoicePerformance').elevenLabsVoiceSettings);
 (async()=>{
   const input = {apiKeys:['fixture'],voiceId:'Laura',modelId:'eleven_v4',chunk:'同じ声です。',speed:1,stability:0.7,style:0.45};
   const result = await synthesize(input);

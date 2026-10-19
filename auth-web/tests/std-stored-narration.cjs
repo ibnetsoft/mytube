@@ -50,6 +50,14 @@ const { assembleStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', {
         read: async () => { reads++; return Buffer.from('a') },
     })
     assert.equal(reads, 1, 'Identical recordings are downloaded once')
+    let performances = 0
+    const contrasted = ['whispers','excited'].map(tag => ({text:'같은 대사',voiceId:'Laura',performance:{version:1,text:'같은 대사',cues:[{offset:0,tag}]}}))
+    const differentDelivery = await assembleStoredNarration(contrasted, {
+        resolve: async s => { performances++; return {asset:s.performance.cues[0].tag,cached:true} },
+        read: async tag => Buffer.from(tag === 'whispers' ? 'W' : 'E'),
+    })
+    assert.equal(performances,2,'Same words with different delivery must never share an audio promise')
+    assert.equal(differentDelivery.audioBuffer.toString(),'WE')
 
     const { generateNarrationInBatches, NARRATION_BATCH_SIZE } = load('auth-web/lib/stdNarrationBatch.ts')
     const long = Array.from({ length: 17 }, (_, i) => ({ text: String(i), voiceId: 'v' }))
