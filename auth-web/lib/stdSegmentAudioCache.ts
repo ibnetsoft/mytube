@@ -7,11 +7,13 @@ export function segmentAudioKey(identity: Record<string, any>): string {
     return createHash('sha256').update(JSON.stringify(identity)).digest('hex')
 }
 
-export function legacySegmentMatches(metadata: any, identity: Record<string, any>): boolean {
+export function legacySegmentMatches(metadata: any, identity: Record<string, any>, preserveExistingModel = false): boolean {
     return Boolean(metadata
         && metadata.text === identity.text
         && metadata.voice_id === identity.voiceId
-        && metadata.model_id === identity.modelId
+        && (metadata.model_id === identity.modelId || (preserveExistingModel
+            && metadata.provider === 'elevenlabs'
+            && ['eleven_multilingual_v2', 'eleven_v3', 'eleven_v4'].includes(metadata.model_id)))
         && Number(metadata.tts_speed) === identity.speed
         && Number(metadata.stability) === Number(identity.stability)
         && Number(metadata.style) === Number(identity.style)

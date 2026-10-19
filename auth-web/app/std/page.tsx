@@ -1040,7 +1040,8 @@ export default function StdPortalPage() {
     ) || 1)))
     const [elevenLabsModelChoices, setElevenLabsModelChoices] = useState<Record<string, string>>({})
     const elevenLabsModel = elevenLabsModelChoices[selectedProject?.project?.id || '']
-        || (selectedProject?.project?.project_payload?.tts_model_id === 'eleven_v4' ? 'eleven_v4' : 'eleven_multilingual_v2')
+        || 'eleven_v4'
+    const preserveExistingAudio = !elevenLabsModelChoices[selectedProject?.project?.id || '']
     const cacheModelForVoice = (id: string) => isVoiceStudioVoice(id) || id.startsWith('google_') ? 'eleven_multilingual_v2' : elevenLabsModel
     const chooseElevenLabsModel = (model: string) => {
         const projectId = selectedProject?.project?.id
@@ -2766,6 +2767,7 @@ export default function StdPortalPage() {
             index,
             voiceId,
             cacheModelForVoice(voiceId),
+            preserveExistingAudio,
             String(subtitle?.voice_direction || ''),
             Number(ttsSpeed) || 1,
             Number(elStability) || 0.7,
@@ -3571,7 +3573,7 @@ export default function StdPortalPage() {
         return ['uploaded', 'assigned'].includes(asset.status) && (m?.storage_path || asset.drive_file_id)
             && m?.kind === 'vrew_segment_tts' && m.text === String(subtitle?.text || '').trim()
             && m.voice_id === String(subtitle?.voice_id || selectedVoice)
-            && m.model_id === cacheModelForVoice(String(subtitle?.voice_id || selectedVoice)) && Number(m.tts_speed) === Number(ttsSpeed)
+            && (m.model_id === cacheModelForVoice(String(subtitle?.voice_id || selectedVoice)) || (preserveExistingAudio && m.provider === 'elevenlabs')) && Number(m.tts_speed) === Number(ttsSpeed)
             && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
             && String(m.direction || '') === String(subtitle?.voice_direction || '')
     })
@@ -3611,6 +3613,7 @@ export default function StdPortalPage() {
                     direction: String(subtitle?.voice_direction || ''),
                     voice_id: voiceId,
                     model_id: elevenLabsModel,
+                    preserve_existing_audio: preserveExistingAudio,
                     speed: Number(ttsSpeed),
                     stability: Number(elStability),
                     style: Number(elStyle),
@@ -4168,7 +4171,7 @@ export default function StdPortalPage() {
                     return ['uploaded','assigned'].includes(asset.status) && m.kind === 'vrew_segment_tts'
                         && m.text === String(subtitle.text || '').trim()
                         && m.voice_id === String(subtitle.voice_id || selectedVoice)
-                        && m.model_id === cacheModelForVoice(String(subtitle.voice_id || selectedVoice)) && Number(m.tts_speed) === Number(ttsSpeed)
+                        && (m.model_id === cacheModelForVoice(String(subtitle.voice_id || selectedVoice)) || (preserveExistingAudio && m.provider === 'elevenlabs')) && Number(m.tts_speed) === Number(ttsSpeed)
                         && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
                         && String(m.direction || '') === String(subtitle.voice_direction || '')
                 })
@@ -6546,6 +6549,7 @@ export default function StdPortalPage() {
                     provider: voiceSegments.some(segment => isVoiceStudioVoice(segment.voice_id)) ? 'voice_studio' : 'elevenlabs',
                     voice_id: selectedVoice,
                     model_id: elevenLabsModel,
+                    preserve_existing_audio: preserveExistingAudio,
                     speed: Number(ttsSpeed),
                     stability: Number(elStability),
                     style: Number(elStyle),

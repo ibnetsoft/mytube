@@ -1,5 +1,13 @@
 # ElevenLabs v4 integration and sample verification (2026-10-19)
 
+## Default update
+
+New generation now defaults to v4, including projects whose prior narration metadata says v2. Opening a project does not generate or migrate audio. The default generation flow reuses existing clips when text, speaker, speed and delivery settings are unchanged, keeping their original model metadata and cache keys. Missing or edited clips use v4. Read-only final assembly can resolve older-model recordings under their existing keys. Explicitly changing the model selector requests that model instead of accepting other-model clips. Google cache identities stay unchanged. Existing finalized narration and its subtitle timeline are not rewritten by this release.
+
+The segment-cache harness was updated for the route's current dependencies and now verifies preview and final assembly reuse a v2 clip with zero synthesis calls and unchanged asset metadata. The browser test verifies v4 is the default even when the project's old recording metadata says v2, and opening the project sends no synthesis requests.
+
+The following records the original optional-model rollout and comparison:
+
 The subtitle editor offers Multilingual v2 and Eleven v4. The selected model is sent to segment synthesis, full narration and the existing browser fallback. Memory and stored audio caches distinguish models. Google/Voice Studio cache identities remain unchanged when the ElevenLabs model changes, preserving reusable narration in mixed-provider projects. Successful narration finalization saves `tts_model_id` in the project so reopening restores the choice. Existing projects default to v2. Explicit v4 requests fail visibly rather than substituting v3/v2.
 
 The configured account's `/v1/models` response included `eleven_v4` with `can_do_text_to_speech: true`. Eight short source clips were generated through the speech-with-timestamps API using Laura (`FGY2WhTYpPnrIDTdsKH5`), two identical subtitle rows per language/model. All used speed 1, stability 0.7, similarity 0.75 and style 0.45, with no emotional tags. Samples are under `_dev/artifacts/elevenlabs-v4-comparison/` (local artifacts, not committed).

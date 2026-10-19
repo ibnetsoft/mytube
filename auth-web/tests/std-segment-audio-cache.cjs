@@ -23,6 +23,9 @@ const db={storage:{from:()=>({
     }
 })},from(table){let filters=[],inserted;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(k,v){if(k==='metadata->>cache_key')filters.push([k,v]);return q},neq(){return q},update(){return q},then(resolve){return Promise.resolve({data:table==='std_project_assets'?assets.filter(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v))):[],error:null}).then(resolve)},order(){return q},limit(){return q},insert(v){inserted=v;return q},async single(){const a={...inserted,id:String(assets.length+1)};assets.push(a);return {data:a}},async maybeSingle(){return {data:table==='std_projects'?project:assets.find(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v)))||null}}};return q}};
 function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts',{
+    '@/lib/stdAudioAnchors':{preserveAudioAnchors:(_,next)=>next},
+    '@/lib/stdSubmissionPipeline':{ensureSyncedMouthPreview:async()=>{}},
+    '@/lib/stdProjectAssets':{loadStdProjectAssets:async()=>({data:assets,error:null})},
     '@/lib/stdContentIdentity':contentIdentity,
     '@/lib/stdRecordedSubtitleTiming':load('auth-web/lib/stdRecordedSubtitleTiming.ts'),
     '@/lib/gcsStorage':gcs,'@/lib/stdNarrationBatch':batches,
@@ -143,7 +146,21 @@ const call=(r,b=body)=>r.POST({json:async()=>b},{params:{projectId:project.id}})
  const mixedFailure=await call(route(),{...rejectionBatch,voice_segments:[{text:'Missing ElevenLabs key in a Google-led batch',voice_id:'eleven-test-voice'}]});
  assert.equal(mixedFailure.status,500);assert.match(mixedFailure.data.error,/ElevenLabs API key/);
  assert.equal(mixedFailure.data.provider,'elevenlabs','Early failures without provider metadata inherit the failed subtitle provider, not the overall Google batch');
- assert.equal(mixedFailure.data.model_id,'eleven_multilingual_v2');
+ assert.equal(mixedFailure.data.model_id,'eleven_v4');
+ const oldIdentity={text:'기존 v2 녹음 보존',provider:'elevenlabs',voiceId:'eleven-test-voice',modelId:'eleven_multilingual_v2',speed:1,stability:0.35,style:0.45,direction:'',language:'ko'};
+ const oldFrame=Buffer.alloc(417);oldFrame.set([0xff,0xfb,0x90,0x00]);
+ const oldAsset=await helper.persistSegmentAudio(db,{projectId:project.id,cacheKey:helper.segmentAudioKey(oldIdentity),identity:oldIdentity,audioBuffer:oldFrame,fileName:'old-v2.mp3',segmentIndex:0,generatedBy:'fixture'});
+ const originalOldAsset=JSON.stringify(oldAsset),beforePreservation=generated;
+ const upgraded={...body,text:oldIdentity.text,voice_id:oldIdentity.voiceId,provider:'elevenlabs',cache_only:true};
+ const preserved=await call(route(),upgraded);
+ assert.equal(preserved.status,200);assert.equal(preserved.data.asset.id,oldAsset.id);assert.equal(preserved.data.cached,true);
+ assert.equal((await call(route(),{...upgraded,preserve_existing_audio:false})).status,404,'Explicit model choice still requires its own recording');
+ assert.equal((await call(route(),{...upgraded,text:'새로운 대본'})).status,404,'Changed text cannot inherit the old recording');
+ const preservedFinal=await call(route(),{...upgraded,cache_only:false,mode:'assemble_narration_segments',voice_segments:[{text:oldIdentity.text,voice_id:oldIdentity.voiceId}]});
+ assert.equal(preservedFinal.status,200,JSON.stringify(preservedFinal.data));
+ assert.deepEqual(preservedFinal.data.segment_reuse,{reused:1,generated:0});
+ assert.equal(generated,beforePreservation);assert.equal(JSON.stringify(oldAsset),originalOldAsset,'v2 metadata and file reference must stay unchanged');
+ console.log('PASS: v4 default reuses existing v2 recording for preview and final assembly without generation or relabeling');
  const originalFetch=global.fetch;const originalLanguage=project.language;let googleCalls=0;
  try {
    project.language='ja';

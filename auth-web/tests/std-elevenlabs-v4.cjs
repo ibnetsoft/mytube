@@ -25,6 +25,12 @@ const synthesize = new Function('fetch','Buffer','DEFAULT_ELEVENLABS_MODEL_ID','
   const v4 = {...identity,modelId:'eleven_v4'};
   assert.notEqual(segmentAudioKey(identity),segmentAudioKey(v4));
   assert.equal(legacySegmentMatches({text:identity.text,voice_id:'Laura',model_id:identity.modelId,tts_speed:1,stability:0.7,style:0.45,direction:''},v4),false);
+  const oldRecording = {text:identity.text,voice_id:'Laura',provider:'elevenlabs',model_id:identity.modelId,tts_speed:1,stability:0.7,style:0.45,direction:''};
+  assert.equal(legacySegmentMatches(oldRecording,v4,true),true,'Default upgrade must reuse unchanged old recordings');
+  assert.equal(legacySegmentMatches(oldRecording,{...v4,text:'새 대본'},true),false,'Changed text must generate new audio');
+  assert.equal(legacySegmentMatches(oldRecording,{...v4,voiceId:'Different'},true),false);
+  assert.equal(oldRecording.model_id,'eleven_multilingual_v2','Never relabel saved recordings');
+  assert.match(route,/const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v4'/);
   for (const file of ['auth-web/app/std/page.tsx','auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts']) {
     const text = fs.readFileSync(file,'utf8');
     const declaration = text.match(/const cacheModelForVoice = .*$/m)[0];

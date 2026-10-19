@@ -57,7 +57,8 @@ function harness(options = {}) {
         selectedVoice: options.voice || 'voice-a',
         subtitleVoiceSegments: () => options.segments ?? [{ text: 'Saved script.', voice_id: 'voice-a' }],
         isVoiceStudioVoice: voice => voice.startsWith('gemini:'), customScriptText: '',
-        elevenLabsModel: options.model || 'eleven_multilingual_v2',
+        elevenLabsModel: options.model || 'eleven_v4',
+        preserveExistingAudio: true,
         ttsSpeed: '1', elStability: '0.7', elStyle: '0.45', multiVoice: false, detectedCharacters: [], characterVoices: {},
         authedJsonHeaders: { Authorization: 'Bearer fixture' }, safeParseJson: async response => response.payload,
         formatTtsErrorMessage: value => value, shouldUseBrowserElevenLabsFallback: () => Boolean(options.fallback),
@@ -99,7 +100,7 @@ function harness(options = {}) {
 }
 const terminal = h => h.state.notices.filter(notice => notice.phase !== 'running')
 
-test('v4 choice reaches synthesis and saved timing; v2 remains the default', async () => {
+test('chosen v2 or v4 model reaches synthesis and saved timing', async () => {
     for (const model of ['eleven_multilingual_v2', 'eleven_v4']) {
         const h = harness({ model })
         await h.handleFinalizeSubtitlesAndTts()

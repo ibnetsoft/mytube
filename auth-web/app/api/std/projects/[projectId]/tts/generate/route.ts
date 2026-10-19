@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 const DEFAULT_ELEVENLABS_VOICE_ID = 'FGY2WhTYpPnrIDTdsKH5'
-const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_multilingual_v2'
+const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v4'
 const FALLBACK_ELEVENLABS_MODEL_IDS = ['eleven_v3', 'eleven_multilingual_v2']
 const MAX_CHARS_PER_REQUEST = 4500
 const ELEVENLABS_KEY_INSPECTION_TTL_MS = 60_000
@@ -722,8 +722,8 @@ async function runTts(body: any, auth: any, project: any) {
             || project.project_payload?.voice_id
             || DEFAULT_ELEVENLABS_VOICE_ID
         ).trim()
-        const modelId = String(body?.model_id || project.project_payload?.tts_model_id || DEFAULT_ELEVENLABS_MODEL_ID).trim()
-        const cacheModelForVoice = (id: string) => isVoiceStudioVoice(id) || id.startsWith('google_') ? DEFAULT_ELEVENLABS_MODEL_ID : modelId
+        const modelId = String(body?.model_id || DEFAULT_ELEVENLABS_MODEL_ID).trim()
+        const cacheModelForVoice = (id: string) => isVoiceStudioVoice(id) || id.startsWith('google_') ? 'eleven_multilingual_v2' : modelId
         const projectTtsSpeed = Math.max(0.7, Math.min(1.2, Number(
             body?.speed
             ?? project.project_payload?.tts_speed
@@ -767,7 +767,8 @@ async function runTts(body: any, auth: any, project: any) {
                     .eq('metadata->>voice_id', segmentIdentity.voiceId)
                     .order('created_at', { ascending: false }).limit(100)
                 if (legacy.error) throw legacy.error
-                cachedAsset = (legacy.data || []).filter((asset: any) => legacySegmentMatches(asset.metadata, segmentIdentity))
+                cachedAsset = (legacy.data || []).filter((asset: any) => legacySegmentMatches(asset.metadata, segmentIdentity,
+                    provider === 'elevenlabs' && body?.preserve_existing_audio !== false))
                     .sort((a: any, b: any) => Number(Boolean(b.metadata?.storage_path)) - Number(Boolean(a.metadata?.storage_path)))[0]
             }
             if (cachedAsset?.metadata?.storage_path) {
@@ -896,7 +897,9 @@ async function runTts(body: any, auth: any, project: any) {
                 resolve: async (segment, index, cacheOnly) => {
                     if (assembleOnly) {
                         const asset = preparedAssets.get(segmentKey(segment))
-                        return asset ? { asset, cached: true } : null
+                        if (asset) return { asset, cached: true }
+                        // Older-model clips keep their original cache keys and recordings.
+                        // Resolve those read-only instead of relabeling or regenerating them.
                     }
                     const result = await runTts({
                         ...body, text: segment.text, voice_id: segment.voiceId,
