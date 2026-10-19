@@ -50,6 +50,9 @@ def pending_roles():
         response=requests.get(base+'/rest/v1/'+table,headers=headers,params={'select':'id','limit':'1',**params},timeout=(5,15))
         response.raise_for_status();return bool(response.json())
     roles=[]
+    from ae_scene_preparation import claimable_filter as motion_filter
+    if exists('std_project_assets', {'metadata->>kind':'eq.motion_preview', 'metadata->>enabled':'eq.true','or':motion_filter()}):
+        roles.append('motion_preview')
     from ae_scene_preparation import claimable_filter as scene_preparation_filter
     if exists('std_project_assets', {'metadata->>kind':'eq.ae_scene_preparation',
             'metadata->>enabled':'eq.true','or':scene_preparation_filter()}):
@@ -67,6 +70,7 @@ def pending_roles():
     return roles
 
 def role_command(role):
+    if role=='motion_preview': return [sys.executable,'-u',str(ROOT/'worker/motion_preview_worker.py'),'--once']
     if role=='preparation': return [sys.executable,'-u',str(ROOT/'worker/ae_scene_preparation.py'),'--once']
     if role=='coordinates': return [sys.executable,'-u',str(ROOT/'worker/ae_speaker_coordinates.py'),'--once']
     if role=='video_tail': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--video-tails-only','--max-scenes','1']

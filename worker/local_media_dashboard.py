@@ -59,7 +59,7 @@ def fetch_jobs():
     # Project only display fields; do not retrieve asset URLs, credentials or full input.
     select = 'id,project_id,scene_number,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes'
     # Input scenes can contain assets; select just counts on the server and never return them.
-    assets = query('std_project_assets', {'select':select,'metadata->>kind':'in.(ae_speaker_coordinates,ae_mouth_job,region_layer_package,region_motion_plan)', 'order':'created_at.desc','limit':'100'})
+    assets = query('std_project_assets', {'select':select,'metadata->>kind':'in.(ae_speaker_coordinates,ae_mouth_job,region_layer_package,region_motion_plan,motion_preview)', 'order':'created_at.desc','limit':'100'})
     jobs = []
     for row in assets:
         row['metadata'] = {'state':row.get('metadata'), 'kind':row.get('kind'), 'phase':row.get('phase'),

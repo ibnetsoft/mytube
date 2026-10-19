@@ -1,5 +1,6 @@
 import { comicSettingsForProject, selectComicMedia } from './stdComic'
 import { reviewedVideoTail } from './stdVideoTail'
+import { motionForProject } from './stdMotionStudio'
 
 export function storageSourceForAsset(asset: any) {
     const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
@@ -73,6 +74,19 @@ export function resolveSceneMedia(project: any, scene: any, assets: any[], overr
         if (override.metadata?.source_image?.object_path && override.metadata.source_image.object_path !== sourcePath)
             throw Object.assign(new Error(`${number}번 검수 영상의 원본 자산이 현재 씬과 다릅니다.`), { code: 'CONTENT_IDENTITY_MISMATCH' })
         return override
+    }
+    const draft = motionForProject(project)
+    if (draft?.enabled) {
+        const choice=draft.scenes[String(number)]?.source || 'auto'
+        if (choice==='psd') {
+            const prepared=assets.some(a=>Number(a.scene_number)===number && a.metadata?.kind==='ae_scene_preparation' && a.metadata.enabled!==false && a.metadata.state==='prepared')
+            if (!prepared) throw new Error(`${number}번 PSD 레이어 준비·검수를 완료해 주세요.`)
+            // Reviewed submission output arrives through override; retain the source for continuity snapshots.
+            return image || video || null
+        }
+        const chosen=choice==='image'?image:choice==='video'?video:video||image
+        if (!chosen) throw new Error(`${number}번 씬의 선택한 Motion Studio 소스가 없습니다.`)
+        return chosen
     }
     const comic = comicSettingsForProject(project), motion = comic.panels[String(number)]?.motion
     if ((motion === 'pan' || motion === 'still') && !image)

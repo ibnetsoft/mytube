@@ -8,6 +8,8 @@ import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import StdAeScenePreparation from '@/components/StdAeScenePreparation'
 import StdComicEditor from '@/components/StdComicEditor'
+import StdMotionStudio from '@/components/StdMotionStudio'
+import StdVideoModelSettings from '@/components/StdVideoModelSettings'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import StdNonverbalPlan from '@/components/StdNonverbalPlan'
@@ -1247,7 +1249,7 @@ export default function StdPortalPage() {
     ])
     const [renderedVideoUrl, setRenderedVideoUrl] = useState('')
 
-    const [settingsSubTab, setSettingsSubTab] = useState<'basic' | 'orgchart' | 'history' | 'withdrawal' | 'support' | 'announcements'>('basic')
+    const [settingsSubTab, setSettingsSubTab] = useState<'basic' | 'video_models' | 'orgchart' | 'history' | 'withdrawal' | 'support' | 'announcements'>('basic')
     const [settingName, setSettingName] = useState('김호')
     const [settingNationality, setSettingNationality] = useState('대한민국')
     const [settingPhone, setSettingPhone] = useState('010-0000-0000')
@@ -10783,6 +10785,18 @@ export default function StdPortalPage() {
 
                                 <StdAeScenePreparation key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} ui={ui} onPreparedScenesChange={onAePreparedScenesChange} />
 
+                                <StdMotionStudio key={`motion-${selectedProject.project.id}`}
+                                    value={selectedProject.project.project_payload?.render_settings?.motion}
+                                    scenes={selectedProject.scenes}
+                                    projectId={selectedProject.project.id} headers={authedJsonHeaders}
+                                    renderHistory={selectedProject.render_history}
+                                    disabled={Boolean(selectedProject.project.submitted_at || submittingProjectId)}
+                                    onSave={async (motion) => {
+                                        await persistVrewVoiceSubtitles(speechSubtitlesRef.current, { strict: true,
+                                            renderSettings: { ...(selectedProject.project.project_payload?.render_settings || {}), motion } })
+                                    }}
+                                    onUpload={async (scene, file) => uploadAsset(scene, file.type.startsWith('video/') ? 'video' : 'image', file)}
+                                />
                                 <StdComicEditor
                                     value={selectedProject.project.project_payload?.render_settings?.comic}
                                     scenes={selectedProject.scenes}
@@ -12999,6 +13013,7 @@ export default function StdPortalPage() {
                                 <div className="flex space-x-2 overflow-x-auto">
                                     {[
                                         { id: 'basic', label: ui("■■ 기본 설정") },
+                                        { id: 'video_models', label: ui("영상 생성 모델 / API") },
                                         { id: 'orgchart', label: ui("조직도") },
                                         { id: 'history', label: ui("수당 내역 (History)") },
                                         { id: 'withdrawal', label: ui("지갑 / 출금 (Wallet)") },
@@ -13022,6 +13037,7 @@ export default function StdPortalPage() {
 
                             {/* 3. 탭별 메인 컨텐츠 영역 */}
                             <div className="space-y-4 overflow-y-auto pb-10">
+                                {settingsSubTab === 'video_models' && <StdVideoModelSettings headers={authedJsonHeaders} />}
                                 {/* [탭 1: 기본 설정] */}
                                 {settingsSubTab === 'basic' && (
                                     <div className="space-y-5">

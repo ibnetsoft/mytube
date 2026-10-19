@@ -12,6 +12,7 @@ function load(name) {
 const { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } = load('stdVideoGeneration')
 const project = layout => ({project_payload: {render_settings: {comic: {version: 1, mode: 'moving_comic', layout}}}})
 assert.equal(sceneVideoGeneration({}, 0).label, '16:9')
+assert.equal(sceneVideoGeneration({project_payload:{render_settings:{motion:{version:1,enabled:true,aspect:'9:16',fps:24,scenes:{}}}}},0).label,'9:16')
 assert.equal(sceneVideoGeneration(project('spread'), 0).label, '1:1')
 assert.equal(sceneVideoGeneration(project('grid'), 3).label, '16:9')
 assert.equal(sceneVideoGeneration(project('inset'), 0).label, '16:9')

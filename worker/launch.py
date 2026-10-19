@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'worker'))
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--role',choices=['script','local','coordinates'],required=True);parser.add_argument('--env-file');parser.add_argument('--check',action='store_true')
+    parser=argparse.ArgumentParser();parser.add_argument('--role',choices=['script','local','coordinates','motion'],required=True);parser.add_argument('--env-file');parser.add_argument('--check',action='store_true')
     args,extra=parser.parse_known_args()
     if args.env_file:
         from dotenv import load_dotenv
@@ -13,7 +13,16 @@ def main():
         os.environ['AIR_WORKER_ENV_FILE']=str(target);load_dotenv(target,override=False)
     import worker_config
     os.environ['AIR_WORKER_ROLE']=args.role
-    if args.role in ('script','coordinates'):
+    if args.role == 'motion':
+        if args.check:
+            import moviepy, imageio_ffmpeg
+            from motion_preview_worker import render_preview
+            import ae_highlight_worker
+            ae_highlight_worker._supabase()
+            print('Motion preview runtime and database settings available. Adobe is not required; director suggestions require Codex CLI login.')
+            return
+        module='worker.motion_preview_worker'
+    elif args.role in ('script','coordinates'):
         if not (shutil.which('codex') or shutil.which('codex.cmd')):raise SystemExit('Install and authenticate Codex CLI before starting the script worker')
         if args.check:
             import worker.codex_content_runner

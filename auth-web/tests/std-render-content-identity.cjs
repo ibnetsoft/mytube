@@ -5,6 +5,7 @@ function renderer(){
  new Function('exports','require',ts.transpile(source,{module:1,target:7}))(ex,name=>{
   if(name==='crypto')return require('crypto')
   if(name.includes('stdContentIdentity'))return identity
+  if(name.includes('stdMotionStudio'))return load('lib/stdMotionStudio.ts')
   if(name.includes('stdSceneMedia'))return load('lib/stdSceneMedia.ts')
   if(name.includes('stdAudioAnchors'))return load('lib/stdAudioAnchors.ts')
   if(name.includes('stdNonverbal'))return {isNonverbalProject:()=>false}
@@ -55,6 +56,17 @@ test('vertical webtoon composition preserves original image media and requests 9
  assert.equal(config.content_aspect_ratio,'9:16')
  assert.equal(config.comic.mode,'webtoon_video')
  assert.equal(visual.content_identity.asset_id,'image')
+})
+test('motion output sends the validated camera timeline and explicit image choice to final worker',async()=>{
+ for(const aspect of ['16:9','9:16']) {
+  const f=fixture(),motion=load('lib/stdMotionStudio.ts')
+  f.p.project_payload.render_settings={motion:{version:1,enabled:true,aspect,fps:30,scenes:{'19':{...motion.motionPreset('impact'),source:'image'}}}}
+  const video={...f.image,id:'video',asset_type:'video',file_name:'other.mp4'}
+  const config=await renderer()(f.p,[f.scene],[f.audio,video,f.image],1000003373)
+  assert.equal(config.aspect_ratio,aspect)
+  assert.equal(config.render_settings.motion.scenes['19'].effects[0].type,'impact_shake')
+  assert.equal(config.asset_manifest.files.find(f=>f.asset_type==='image').content_identity.asset_id,'image')
+ }
 })
 test('real render config binds original audio, scene assets and duration and suppresses TTS without AE',async()=>{
  const f=fixture(),newer={...f.audio,id:'wrong',file_name:'expanded.mp3',metadata:{...f.audio.metadata,duration_seconds:34,subtitle_timeline:[{...f.audio.metadata.subtitle_timeline[0],end_num:34}]}}

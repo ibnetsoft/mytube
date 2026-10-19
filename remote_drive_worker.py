@@ -604,6 +604,24 @@ class RemoteDriveWorker:
             if os.path.exists(config_path):
                 with open(config_path, "r", encoding="utf-8") as f_conf:
                     packaged_config = json.load(f_conf)
+                motion_manifest_ref = None
+                motion_options=(packaged_config.get('render_settings') or {}).get('motion') or {}
+                if motion_options.get('enabled') is True:
+                    with open(output_path,'rb') as stream:
+                        motion_render_hash=hashlib.file_digest(stream,'sha256').hexdigest()
+                    motion_receipt_path=os.path.join(temp_dir,'motion_manifest.json')
+                    renderer_receipt=None
+                    if os.path.isfile(motion_receipt_path):
+                        with open(motion_receipt_path,encoding='utf-8') as stream:renderer_receipt=json.load(stream)
+                        if renderer_receipt.get('render_sha256')!=motion_render_hash:renderer_receipt=None
+                    manifest={'contract':'motion_render_manifest/v1','motion':motion_options,
+                        'render_sha256':motion_render_hash,'audio_identity':packaged_config.get('subtitle_content_identity'),
+                        'asset_manifest':packaged_config.get('asset_manifest'),'renderer_receipt':renderer_receipt,
+                        'review_status':'pending_actual_output_review'}
+                    with open(motion_receipt_path,'w',encoding='utf-8') as stream:json.dump(manifest,stream,ensure_ascii=False,indent=2)
+                    motion_manifest_ref=self._upload_to_gcs_storage(motion_receipt_path,
+                        object_path=f'std-renders/{job_id}/motion_manifest.json',mime_type='application/json')
+                    if not motion_manifest_ref:raise RuntimeError('Motion render manifest upload failed')
                 thumbnail_filename = packaged_config.get("thumbnail_filename")
                 if thumbnail_filename:
                     packaged_thumbnail = os.path.join(temp_dir, thumbnail_filename)
@@ -622,6 +640,7 @@ class RemoteDriveWorker:
                     with open(provenance_path, encoding="utf-8") as provenance_file:
                         upload_metadata["audio_provenance"] = json.load(provenance_file)
                 upload_metadata.update({
+                    **({'motion_manifest':motion_manifest_ref,'motion_review_status':'pending_actual_output_review'} if motion_manifest_ref else {}),
                     "employee_email": job.get("email") or upload_metadata.get("employee_email") or "",
                     "video_file": result_filename,
                     "thumbnail_file": thumbnail_filename,
@@ -676,6 +695,7 @@ class RemoteDriveWorker:
                     "result_thumbnail_file_id": None,
                     "result_metadata_file_id": None,
                     "audio_provenance": upload_metadata.get("audio_provenance"),
+                    **({'motion_manifest':upload_metadata['motion_manifest'],'motion_review_status':upload_metadata['motion_review_status']} if upload_metadata.get('motion_manifest') else {}),
                 },
                 completed_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             )

@@ -636,7 +636,9 @@ def render_ffmpeg_slideshow(
     progress_callback = progress_callback or (lambda _percent, _message: None)
     ffmpeg_exe = _ffmpeg_executable()
     width, height = int(resolution[0]), int(resolution[1])
-    fps = 24
+    motion_options=(subtitle_settings or {}).get('motion') or {}
+    fps = motion_options.get('fps',24) if motion_options.get('enabled') is True else 24
+    if fps not in (24,30):raise ValueError('Unsupported Motion Studio FPS')
     visual_duration = sum(float(value) for value in durations)
     probed_audio_duration = _media_duration(ffmpeg_exe, audio_path)
     audio_duration = max(probed_audio_duration, visual_duration)

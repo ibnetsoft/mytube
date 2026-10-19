@@ -25,6 +25,18 @@ def plan():
         'qa_assertions': ['Preserve the original face and brushwork.']}
 
 
+def test_authored_layer_keys_are_applied_before_art_review_and_background_is_protected():
+    authored={'layers':{'character':{'depth':.3,'keys':[
+        dict(t=t,x=.5+t*.02,y=.5,scale=1,rotation=t*2,opacity=100) for t in (0,1)]}}}
+    directed=prep.apply_motion_layer_edits(plan(),authored)
+    assert directed['layers'][1]['motion'][1]['x']==.02
+    assert directed['layers'][1]['parallax']==.3
+    assert directed['layers'][1]['source_ids']==['psd-002']
+    assert 'motion' not in plan()['layers'][1]
+    with pytest.raises(ValueError,match='protected background'):
+        prep.apply_motion_layer_edits(plan(),{'layers':{'background':authored['layers']['character']}})
+
+
 def create_psd(directory, background_hole=False):
     psd_tools = pytest.importorskip('psd_tools')
     from psd_tools.api.layers import PixelLayer

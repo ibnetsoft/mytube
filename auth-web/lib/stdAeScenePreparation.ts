@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { aeSceneEffectSelection, aeSceneEffectsMatch } from './stdAeSceneEffects'
+import { motionForProject } from './stdMotionStudio'
 
 const active = (asset: any) => ['uploaded', 'assigned'].includes(asset?.status)
 const numberOf = (scene: any) => Number(scene?.scene_number ?? scene?.scene_order ?? scene?.number)
@@ -61,9 +62,15 @@ export function aeScenePreparationInput(project: any, scenes: any[], assets: any
     const visuals = latest(assets).filter(a => active(a) && Number(a.scene_number) === number
         && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint && !a.metadata?.region_motion_plan_id
         && !['after_effects', 'region_motion'].includes(a.metadata?.postprocess_mode))
+    const motion = motionForProject(project)
+    const motionScene = motion?.enabled ? motion.scenes[String(number)] : null
+    const selectedEffects = motionScene?.source==='psd'
+        ? [...new Set([...(aeSceneEffectSelection(effects) || []),...motionScene.effects.map(e=>e.type)])].sort()
+        : effects
     return {
         number, source_psd: reference(source), direction_text: direction.trim(),
-        ...(effects === undefined ? {} : { requested_effects: aeSceneEffectSelection(effects) }),
+        ...(motion?.enabled ? {motion_output:{width:motion.aspect==='9:16'?1080:1920,height:motion.aspect==='9:16'?1920:1080},motion_scene:motion.scenes[String(number)] || null} : {}),
+        ...(selectedEffects === undefined ? {} : { requested_effects: aeSceneEffectSelection(selectedEffects) }),
         scene_context: contexts[index], neighbors: contexts.filter((_, i) => Math.abs(i - index) === 1),
         ...(visuals.find(a => a.asset_type === 'image') ? { reference_image: reference(visuals.find(a => a.asset_type === 'image')) } : {}),
         ...(visuals.find(a => a.asset_type === 'video') ? { reference_video: reference(visuals.find(a => a.asset_type === 'video')) } : {}),

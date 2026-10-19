@@ -8,6 +8,7 @@ import { dialogueSceneIndex } from '@/lib/stdDialogueSceneIndex'
 import { normalizeSubtitleFragments } from '@/lib/stdSubtitleFragments'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { normalizeComicSettings, isComicProject } from '@/lib/stdComic'
+import { normalizeMotionDraft } from '@/lib/stdMotionStudio'
 import { canEditStdProject } from '@/lib/stdProjectEditPolicy'
 import { editableThumbnailError } from '@/lib/stdThumbnailRender'
 import { NextResponse } from 'next/server'
@@ -534,6 +535,25 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             }
             projectPayloadPatch.render_settings = settings
         }
+    }
+    if (projectPayloadPatch.render_settings?.motion !== undefined) {
+        try {
+            const motion=normalizeMotionDraft(projectPayloadPatch.render_settings.motion)
+            if (project.submitted_at && JSON.stringify(motion)!==JSON.stringify(project.project_payload?.render_settings?.motion)) {
+                return NextResponse.json({error:'제출된 Motion 타임라인은 변경할 수 없습니다. 프로젝트를 다시 열어 주세요.'},{status:409})
+            }
+            const allowedScenes=new Set(sceneManifest.map((scene:any)=>String(scene.scene_number || scene.scene_order)))
+            if (Object.keys(motion.scenes).some(number=>!allowedScenes.has(number))) {
+                return NextResponse.json({error:'Motion 타임라인에 프로젝트에 없는 씬이 있습니다.'},{status:400})
+            }
+            projectPayloadPatch.render_settings.motion = motion
+        } catch (error:any) {
+            return NextResponse.json({error:error.message},{status:400})
+        }
+    }
+    if (projectPayloadPatch.render_settings && projectPayloadPatch.render_settings.motion === undefined
+        && project.project_payload?.render_settings?.motion !== undefined) {
+        projectPayloadPatch.render_settings.motion = project.project_payload.render_settings.motion
     }
     if (projectPayloadPatch.render_settings?.comic !== undefined) {
         projectPayloadPatch.render_settings = {

@@ -4,6 +4,7 @@ import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
 import { reviewedAeMouthAssets } from './stdAeMouth'
 import { comicSettingsForProject, isComicProject, isWebtoonVideoProject, selectComicMedia, comicSceneTimings } from './stdComic'
+import { motionForProject, motionOutputAspect } from './stdMotionStudio'
 import { subtitleGain } from './stdSpeechGain'
 import { preserveAudioAnchors } from './stdAudioAnchors'
 import { resolveSfxCues, sfxNeedsReview } from '@/lib/stdSfxCues'
@@ -538,7 +539,8 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         )
         const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
         if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
-        let asset = selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
+        let asset = motionForProject(project)?.enabled ? resolveSceneMedia(project, scene, activeAssets)
+            : selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
         const sourcePath = (videoAsset || imageAsset)?.metadata?.gcs_path || (videoAsset || imageAsset)?.metadata?.storage_path
         if (project.project_payload?.submission_pipeline_version === 2 && asset?.metadata?.source_image?.object_path && asset.metadata.source_image.object_path !== sourcePath) asset = videoAsset || imageAsset
         if (asset?.metadata?.source_image?.object_path && asset.metadata.source_image.object_path !== sourcePath)
@@ -617,7 +619,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         email: project.employee_email || 'unknown',
         use_subtitles: !isNonverbalProject(project),
         resolution: '1080p',
-        aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : '16:9',
+        aspect_ratio: motionOutputAspect(project, isWebtoonVideoProject(project) ? '9:16' : '16:9'),
         speech_gain_version: 1,
         audio_filename: audioFilename,
         audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : narrationIdentity?.duration_seconds || project.progress_payload?.audio_duration || null,
@@ -634,7 +636,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         bg_video_url: null,
         intro_filename: null,
         template_overlay_filename: null,
-        content_aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : null,
+        content_aspect_ratio: motionForProject(project)?.enabled ? motionOutputAspect(project) : isWebtoonVideoProject(project) ? '9:16' : null,
         ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,
@@ -867,7 +869,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         email: project.employee_email || 'unknown',
         use_subtitles: !isNonverbalProject(project),
         resolution: '1080p',
-        aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : '16:9',
+        aspect_ratio: motionOutputAspect(project, isWebtoonVideoProject(project) ? '9:16' : '16:9'),
         speech_gain_version: 1,
         audio_filename: audioFilename,
         audio_duration: isNonverbalProject(project) ? nonverbalTiming(project, scenes).duration : recordedTiming
@@ -886,7 +888,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         bg_video_url: null,
         intro_filename: null,
         template_overlay_filename: templateOverlayFilename,
-        content_aspect_ratio: isWebtoonVideoProject(project) ? '9:16' : null,
+        content_aspect_ratio: motionForProject(project)?.enabled ? motionOutputAspect(project) : isWebtoonVideoProject(project) ? '9:16' : null,
         ...(isComicProject(project) ? {comic:comicSettingsForProject(project)} : {}),
         app_mode: 'longform',
         thumbnail_filename: thumbnailFilename,

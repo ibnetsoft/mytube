@@ -1,5 +1,6 @@
 import { getTranslation, type SupportedLocale } from './i18n'
 import { COMIC_LAYOUTS, comicSettingsForProject } from './stdComic'
+import { motionForProject } from './stdMotionStudio'
 
 // Generation tools accept rectangular clips. Choose a common ratio near the
 // panel's physical dimensions on the 16:9 page, not its normalized coordinates.
@@ -11,6 +12,8 @@ const RATIOS = [
     { label: '16:9', width: 16, height: 9 },
 ]
 export function sceneVideoGeneration(project: any, sceneIndex: number) {
+    const motion=motionForProject(project)
+    if(motion?.enabled)return {...(motion.aspect==='9:16'?RATIOS[0]:RATIOS[4]),comic:false}
     const settings = comicSettingsForProject(project)
     if (settings.mode === 'standard') return { ...RATIOS[4], comic: false }
     let remaining = Number.isFinite(sceneIndex) ? Math.max(0, Math.floor(sceneIndex)) : 0

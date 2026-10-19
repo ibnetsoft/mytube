@@ -272,6 +272,11 @@ Do not invent hidden body parts. Existing complete background is reused. Missing
 inpainted as a still. Avoid flashy AI-like distortion. Choose modest intentional motion from actual imagery.
 No TTS exists yet: ALL t and transition fraction values are normalized 0..1, to be scaled to finalized narration.
 Match the provided adjacent scene action, look direction and lighting; do not pretend unseen neighbors were viewed.
+If input.motion_output exists, output must exactly match that width and height. input.motion_scene is the user's
+editable direction and camera/effect timing reference. Preserve its intent; translate into this AE contract only
+when the actual separated artwork supports it. If not, return needs_repair. Never apply a second motion pass.
+If input.motion_scene.layers exists, preserve those semantic layer IDs when assigning the same actual PSD parts.
+Their authored motion and depth will be applied before structural and actual-art review. Never rename or merge them.
 Return {status:'ready'|'needs_repair',reason:string,plan:{contract:'ae_scene/v1',schema_version:'ae_scene/v1',
 timing:'normalized',width:<source>,height:<source>,output:{width:1920,height:1080},
 camera:[{t,x,y,scale,rotation}],layers:[{id:<safe ASCII id>,name,role:'background'|'character'|'hair'|'cloth'|'foreground'|'prop',
@@ -300,6 +305,24 @@ If selected effects cannot safely fit the scene, return needs_repair, never omit
 Use parallax=0 unless source separation and camera movement visibly justify it. Fade affects visual only.
 If original cannot support requested direction, status=needs_repair with precise required artwork, never silently
 downgrade requested action or approve unsupported movement. qa_assertions must state what output review checks.'''
+
+
+def apply_motion_layer_edits(plan, scene):
+    """Apply authored semantic-layer keys before structural and actual-art review."""
+    plan=copy.deepcopy(plan)
+    edits=(scene or {}).get('layers') or {}
+    if not edits:return plan
+    if not isinstance(edits,dict) or len(edits)>80:raise ValueError('Invalid authored PSD layer list')
+    by_id={layer['id']:layer for layer in plan.get('layers',[])}
+    for identity,edit in edits.items():
+        layer=by_id.get(identity)
+        if not layer or layer['role']=='background':raise ValueError('Authored layer is missing or is the protected background: '+str(identity))
+        keys=edit.get('keys')
+        if not isinstance(keys,list) or not 2<=len(keys)<=64:raise ValueError('Invalid authored layer keyframes')
+        layer['parallax']=edit.get('depth')
+        layer['motion']=[{'t':key['t'],'x':round(key['x']-.5,8),'y':round(key['y']-.5,8),
+                          'scale':key['scale'],'rotation':key['rotation'],'opacity':key['opacity']} for key in keys]
+    return plan
 
 
 def prepare(source, snapshot, directory, runner, generator, current=lambda: None, references=None):
@@ -339,7 +362,10 @@ def prepare(source, snapshot, directory, runner, generator, current=lambda: None
         if directed.get('status') != 'ready':
             raise ValueError('원화/연출 보완 필요: ' + str(directed.get('reason') or '지원 가능한 레이어 움직임을 확인하지 못했습니다.')[:1200])
         try:
-            plan = validate_plan(directed.get('plan'), catalog['width'], catalog['height'])
+            plan = apply_motion_layer_edits(directed.get('plan'), snapshot.get('motion_scene'))
+            plan = validate_plan(plan, catalog['width'], catalog['height'])
+            if snapshot.get('motion_output') and plan.get('output') != snapshot['motion_output']:
+                raise ValueError('Motion Studio 출력 비율이 연출 계획과 다릅니다.')
             validate_effects(plan, snapshot.get('requested_effects'))
             if plan.get('contract') != CONTRACT or plan.get('schema_version') != CONTRACT or plan.get('timing') != 'normalized':
                 raise ValueError('정규화된 AE 장면 연출 계약이 필요합니다.')
@@ -462,6 +488,13 @@ def input_is_current(snapshot, job_id, fingerprint, projects, assets, scenes):
     if reference(originals[0]) != snapshot['source_psd']:
         return False
     payload = projects[0].get('project_payload') or {}
+    motion = (payload.get('render_settings') or {}).get('motion') or {}
+    expected_output = {'width':1080 if motion.get('aspect')=='9:16' else 1920,
+                       'height':1920 if motion.get('aspect')=='9:16' else 1080} if motion.get('enabled') else None
+    if snapshot.get('motion_output') != expected_output:
+        return False
+    if expected_output and snapshot.get('motion_scene') != (motion.get('scenes') or {}).get(str(number)):
+        return False
     authored = (payload.get('structure') or {}).get('scenes') or payload.get('scenes') or []
     def number_of(scene):
         return int(scene.get('scene_number', scene.get('scene_order', scene.get('number', 0))) or 0)

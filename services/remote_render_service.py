@@ -1090,6 +1090,18 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             raise Exception('원격 렌더링에 사용할 이미지 리소스를 찾을 수 없습니다.')
 
         durations = _compute_image_durations(image_timing_starts, len(images), audio_duration)
+        if isinstance(render_settings.get('motion'), dict) and render_settings['motion'].get('enabled') is True:
+            from services.motion_render_service import render_motion
+            motion_overlay_name=metadata.get('template_overlay_filename')
+            motion_overlay=os.path.join(temp_dir,'overlays',motion_overlay_name) if motion_overlay_name else None
+            if not motion_overlay or not os.path.isfile(motion_overlay):
+                motion_overlay=_render_std_template_overlay_png(render_settings,temp_dir,target_resolution)
+            render_motion(temp_dir=temp_dir, images=images, durations=durations, audio_path=audio_path,
+                          subtitles=subs if metadata.get('use_subtitles') else [], settings=render_settings,
+                          resolution=target_resolution, scene_numbers=metadata.get('scene_numbers'),
+                          sfx_cues=sfx_cues, progress_callback=update_progress,template_overlay_path=motion_overlay)
+            update_progress(100, 'Motion Studio 렌더링 완료')
+            return
         # Explicit opt-in: legacy projects continue through the original pipeline below.
         comic_options = render_settings.get('comic') or {}
         if isinstance(comic_options, dict) and comic_options.get('version') == 1 and comic_options.get('mode') in ('comic', 'moving_comic', 'webtoon_video'):
