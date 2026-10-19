@@ -208,3 +208,41 @@ Additional local evidence: `verification.json`, `audio-qa.json`,
 Both scripts require `MOTION_FFMPEG`; Python QA requires NumPy. Private media and
 frozen manifests are not committed. The 26-minute whole project remains outside
 this bounded source validation.
+
+
+## Edited hybrid timeline output (2026-10-20)
+
+`stdMotionHybridTimeline.ts` plans source-time intersections for every visual
+clip. Split/repeated/trimmed/reordered/retimed clips preserve the applicable AI
+video offsets and native animation ranges, without changing the locked audio
+or subtitle duration. The video decoder now accepts an explicit source-second
+range independently of native animation progress. Job polls remain scoped to
+each scene/job, not just job ID, and export does not create generation requests.
+
+`node --test tests/std-motion-hybrid-timeline.cjs` covers split continuity,
+repeated/reordered clips, speed changes, native continuation, unused trimmed
+inserts, invalid ranges and gaps. Existing AE method/worker protections remain.
+`node tests/std-motion-hybrid-production-browser.cjs` uses the actual Editor,
+three real PSDs and their finalized recording excerpts in the isolated frozen
+workspace. Scene 19 is split, source-trimmed, overlapping/repeated and retimed.
+One receipt maps to two output intervals, is polled once and produces a
+38.191-second 1080p/24fps H.264/AAC MP4. Pending and too-short fixture outputs
+are tested to block downloads without automatic generation.
+
+No AI-provider-generated clip was established in the project's stored asset
+inventory. The insertion fixture is the same project's retained 3-second AE
+parallax video (`parallax-oneway-scene-019-3s.mp4`), SHA256
+`b90feb8c6becf8bcf7725184861deffe920eaf3e9d9441690485925660039297`.
+This validates the AI result decoding/mapping/mixing/export path, not real paid
+generation or provider visual quality. No provider generation, database writes,
+worker changes, external upload or publishing was performed.
+
+Local evidence is in `output/motion-fullbody-validation/`:
+`edited-hybrid-recorded-final.mp4`, `hybrid-editor-verification.json`,
+`hybrid-editor-export-result.png`, `hybrid-audio-frame-qa.json` and insertion
+frame PNGs. `python scripts/qa_motion_hybrid.py` compares decoded audio against
+the exact joined recording (correlation 0.9999863, 0ms lag at 1ms resolution,
+16.96ms codec padding). Two encoded insertion frames match the planned source
+positions with mean RGB error 1.67 and 1.80/255 above the subtitle region.
+The original PSDs/recording and private frozen manifests remain uncommitted.
+Set `MOTION_FFMPEG` for browser/QA scripts; Python QA also requires NumPy.

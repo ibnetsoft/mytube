@@ -125,7 +125,16 @@ source animation in/out, removal with adjacent extension, and undo/redo. Its
 persisted clips must cover the finalized narration duration without gaps. Audio
 and subtitle timing stay fixed; visual reordering requires semantic review.
 Animation recipes are shared by source scene, including split/repeated clips.
-Full timeline preview follows recorded audio across clips. Custom visual clip
-editing currently exports in web mode; existing AI inserts continue on the
-original scene timeline. The original AE selection/worker submission path is
-unchanged and does not consume this optional web timeline.
+Full timeline preview follows recorded audio across clips. Edited timelines
+also export in hybrid mode. AI insert settings use original scene seconds;
+each clip intersects that source interval after trimming/splitting/repetition,
+then maps it into its edited output duration. Generated-video offsets continue
+from the appropriate source point and playback speed follows clip retiming.
+Native motion resumes at the matching source animation time. The timeline marks
+intersecting clips as AI mixed. Settings apply to all clips of that source scene.
+Narration/subtitles are never retimed or replaced by the inserted video's audio.
+Only used jobs are polled, once per scene/job per export; unused trimmed inserts
+need no poll. Pending/short videos block output and never trigger generation.
+The original AE selection/worker submission path is unchanged and does not
+consume this optional web timeline. Timeline preview still shows native motion;
+review generated inserts separately and the rendered final video for the mix.
