@@ -13,13 +13,14 @@ function fixture(options={}){
   if(name.endsWith('stdContentIdentity'))return {selectNarrationAsset:()=>{throw Error('final voice required')}}
   if(name.endsWith('stdLipSync'))return {lipSyncPlan:()=>{},lipSyncSceneStarts:()=>[0]}
   if(name.endsWith('stdAeScenePreparation'))return {aeSceneSources:()=>new Map()}
+  if(name.endsWith('stdWebMotionSources'))return require('./load-ts.cjs')(path.resolve(__dirname,'../lib/stdWebMotionSources.ts'))
   if(name.endsWith('stdMotionStudio'))return {motionProductionMethod:p=>p.project_payload?.render_settings?.motion?.production_method==='ae'?'ae':'motion_studio'}
   if(name.endsWith('stdAudioMix'))return {backgroundWindow:()=>({valid:true,start:0,end:1}),backgroundVolume:()=>.08}
   if(name.endsWith('stdSfxCues'))return {resolveSfxCues:()=>[],sfxNeedsReview:()=>false}
   if(name.endsWith('stdTemplateOverlayPng'))return {templateOverlayPng:async()=>null}
   if(name.endsWith('stdSceneMedia'))return {storageSourceForAsset:a=>a?{gcsBucket:'bucket',gcsPath:'source.png'}:null}
   if(name.endsWith('stdVideoModelStore'))return {selectedVideoModel:async()=>({config:{id:'model'},secret:'never-expose',fingerprint:'model-fingerprint'})}
-  if(name.endsWith('gcsStorage'))return {getGcsObjectMetadata:async()=>({size:5,contentType:'image/png'}),downloadGcsObjectViaSignedUrl:async()=>({buffer:Buffer.from('image')}),createGcsSignedReadUrl:async()=>'https://storage.googleapis.com/test'}
+  if(name.endsWith('gcsStorage'))return {getGcsObjectMetadata:async()=>({size:options.objectSize??5,contentType:'image/png'}),downloadGcsObjectViaSignedUrl:async()=>({buffer:Buffer.from('image')}),createGcsSignedReadUrl:async()=>'https://storage.googleapis.com/test'}
   if(name.endsWith('stdMotionVideoProvider'))return {createProviderVideo:async()=>{state.providerPosts++;if(options.ambiguous)throw Error('network');return {id:'request',status_url:'https://queue.fal.run/status'}},pollProviderVideo:async()=>({state:'pending'})}
   throw Error(name)
  });return {ex,state}
@@ -68,4 +69,12 @@ test('AE-selected projects cannot accidentally create a paid web job or submit b
  const f=fixture({project:{project_payload:{render_settings:{motion:{production_method:'ae',web:{mode:'hybrid',inserts:{}}}}}},assets:[source]})
  for(const body of [generation,{action:'review',asset_id:'source'}]){const response=await f.ex.POST(req(body),params);assert.equal(response.status,400);assert.match((await response.json()).error,/추가 옵션/)}
  assert.equal(f.state.providerPosts,0);assert.equal(f.state.writes.length,0)
+})
+test('reviewed PSD packages already attached to scene assets are served with ownership and byte-hash checks',async()=>{
+ const asset={...source,asset_type:'image',file_name:'scene.png',metadata:{psd_layer_asset:{status:'ready',qa_status:'approved',gcs_bucket:'owned-bucket',gcs_path:'std-projects/p/scene-1.psd',sha256:crypto.createHash('sha256').update('image').digest('hex')}}}
+ const f=fixture({assets:[asset]}),data=await (await f.ex.GET(new Request('http://local'),params)).json();assert.equal(data.scenes[0].source.kind,'psd');assert.match(data.scenes[0].source.url,/web-motion\?psd=source/)
+ const request=new Request('http://local?psd=source'),file=await f.ex.GET(request,params);assert.equal(file.status,200);assert.equal(await file.text(),'image');assert.equal(file.headers.get('content-type'),'image/vnd.adobe.photoshop')
+ for(const settings of [{gcs_path:'std-projects/other/scene.psd'},{sha256:'0'.repeat(64)},{qa_status:'pending'}]){const bad=fixture({assets:[{...asset,metadata:{psd_layer_asset:{...asset.metadata.psd_layer_asset,...settings}}}]});assert.equal((await bad.ex.GET(request,params)).status,400)}
+ const tooLarge=fixture({assets:[asset],objectSize:151*1024*1024});assert.equal((await tooLarge.ex.GET(request,params)).status,400)
+ const unauthorized=fixture({assets:[asset],unauthorized:true});assert.equal((await unauthorized.ex.GET(request,params)).status,401);assert.equal(f.state.writes.length,0)
 })

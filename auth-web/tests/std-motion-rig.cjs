@@ -24,3 +24,8 @@ test('invalid hierarchies, cycles, collapsed bones, excessive meshes, unbounded 
  assert.throws(()=>rig.normalizeLayerAdvanced({mesh:{columns:1000,rows:16,pins:[]}}));assert.throws(()=>rig.normalizeNativeEffects([{...rig.nativeEffect('glow'),type:'arbitrary-plugin'}]))
  const r=rig.defaultRig();r.ik={root:1,child:0,bend:1,target:[{t:0,x:.5,y:.5},{t:1,x:.5,y:.5}]};assert.throws(()=>rig.normalizeLayerAdvanced({rig:r}))
 })
+test('glow threshold settings persist and reject unbounded or unrelated effect parameters',()=>{
+ const e={...rig.nativeEffect('glow'),glow:{threshold:.72,softKnee:.2,basedOn:'alpha'}};assert.deepEqual(rig.normalizeNativeEffects([e])[0].glow,e.glow)
+ for(const glow of [{...e.glow,threshold:NaN},{...e.glow,softKnee:2},{...e.glow,basedOn:'script'}])assert.throws(()=>rig.normalizeNativeEffects([{...e,glow}]))
+ assert.throws(()=>rig.normalizeNativeEffects([{...e,type:'blur'}]))
+})

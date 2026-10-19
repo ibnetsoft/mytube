@@ -5,7 +5,8 @@ export type PointKey = {t:number;x:number;y:number}
 export type RigBone = {name:string;parent:number;start:Point;end:Point;keys:ValueKey[]}
 export type MotionRig = {bones:RigBone[];ik?:{root:number;child:number;bend:1|-1;target:PointKey[]}}
 export type MeshPin = {position:Point;radius:number;keys:PointKey[]}
-export type NativeEffect = {type:'blur'|'glow'|'fractal_noise'|'turbulent_displace'|'radial_wipe';amount:number;radius:number;seed:number;keys:ValueKey[]}
+export type GlowSettings = {threshold:number;softKnee:number;basedOn:'luminance'|'alpha'}
+export type NativeEffect = {type:'blur'|'glow'|'fractal_noise'|'turbulent_displace'|'radial_wipe';amount:number;radius:number;seed:number;keys:ValueKey[];glow?:GlowSettings}
 export type NativePath = {points:Point[];closed:boolean;color:string;width:number;glow:number;keys:ValueKey[];startKeys?:ValueKey[]}
 export type LayerAdvanced = {rig?:MotionRig;mesh?:{columns:number;rows:number;pins:MeshPin[]};effects?:NativeEffect[];mask?:{points:Point[];invert:boolean;feather:number};style?:{stroke:number;strokeColor:string;shadow:number;shadowX:number;shadowY:number;shadowColor:string}}
 export type NativeScene = {effects:NativeEffect[];paths:NativePath[]}
@@ -20,7 +21,8 @@ function values(v:any,lo:number,hi:number):ValueKey[]{return sequence(list(v,64)
 function positions(v:any):PointKey[]{return sequence(list(v,64).map(k=>({t:n(k?.t,0,1),x:n(k?.x,-1,2),y:n(k?.y,-1,2)})))}
 function color(v:any):string {if(typeof v!=='string'||!/^#[0-9a-fA-F]{6}$/.test(v))fail();return v}
 function points(v:any):Point[]{const p=list(v,128).map(x=>point(x));if(p.length<3)fail();return p}
-export function normalizeNativeEffects(v:any):NativeEffect[]{return list(v,8).map(e=>{if(!e||!['blur','glow','fractal_noise','turbulent_displace','radial_wipe'].includes(e.type))fail();return {type:e.type,amount:n(e.amount,0,100),radius:n(e.radius,.001,1),seed:n(e.seed,0,65535),keys:values(e.keys,0,1)}})}
+export const defaultGlow=():GlowSettings=>({threshold:.6,softKnee:.1,basedOn:'luminance'})
+export function normalizeNativeEffects(v:any):NativeEffect[]{return list(v,8).map(e=>{if(!e||!['blur','glow','fractal_noise','turbulent_displace','radial_wipe'].includes(e.type))fail();let glow:GlowSettings|undefined;if(e.glow!==undefined){if(e.type!=='glow'||!e.glow||!['luminance','alpha'].includes(e.glow.basedOn))fail();glow={threshold:n(e.glow.threshold,0,1),softKnee:n(e.glow.softKnee,0,1),basedOn:e.glow.basedOn}}return {type:e.type,amount:n(e.amount,0,100),radius:n(e.radius,.001,1),seed:n(e.seed,0,65535),keys:values(e.keys,0,1),...(glow?{glow}:{})}})}
 export function normalizeLayerAdvanced(v:any):LayerAdvanced {
     if(!v||typeof v!=='object'||Array.isArray(v))fail();const out:LayerAdvanced={}
     if(v.rig!==undefined){
@@ -54,4 +56,6 @@ export function deformPoint(p:Point,advanced:LayerAdvanced,t:number,w:number,h:n
     return [x,y]
 }
 export function defaultRig():MotionRig {return {bones:[{name:'상완',parent:-1,start:[.5,.2],end:[.5,.5],keys:valueKeys(0)},{name:'하완',parent:0,start:[.5,.5],end:[.5,.8],keys:valueKeys(25)}]}}
-export const nativeEffect=(type:NativeEffect['type']):NativeEffect=>({type,amount:type==='radial_wipe'?100:35,radius:.05,seed:7,keys:valueKeys(1)})
+export const nativeEffect=(type:NativeEffect['type']):NativeEffect=>({type,amount:type==='radial_wipe'?100:35,radius:.05,seed:7,keys:valueKeys(1),...(type==='glow'?{glow:defaultGlow()}:{})})
+/** Calibrated on the retained 1080p violet-pulse AE reference, not universal AE parity. */
+export function referenceGlowEffects():NativeEffect[]{const keys=[{t:0,value:1},{t:1,value:1}];return [{...nativeEffect('glow'),amount:10,radius:10/1080,keys,glow:{threshold:0,softKnee:0,basedOn:'alpha'}},{...nativeEffect('blur'),amount:100,radius:5/1080,keys:keys.map(k=>({...k}))}]}

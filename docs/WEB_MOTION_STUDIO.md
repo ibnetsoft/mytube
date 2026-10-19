@@ -89,3 +89,10 @@ PSD features rather than claiming to translate arbitrary AE/Photoshop content.
 
 See `MOTION_NATIVE_VERIFICATION.md` for reproducible tests, actual AE comparison
 measurements, diagnostic output locations and the remaining compatibility limits.
+
+Reviewed PSD packages attached to existing scene assets are recognized through
+their `psd_layer_asset` metadata, not just directly uploaded `.psd` originals.
+They are served by an authenticated, project-scoped, byte-hash-checked endpoint.
+Glow exposes a bright/alpha seed threshold and soft knee; the optional AE-reference
+glow button adds the calibrated pulse glow/blur recipe. These changes preserve
+the finalized-audio identity gate and the existing AE/worker paths.

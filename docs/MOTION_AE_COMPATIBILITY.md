@@ -25,7 +25,7 @@ the following dependencies, not a complete inventory of every AEP property.
 | Layer transforms, camera motion | Implemented subset; not AE camera parity |
 | Raster PSD masks | Grayscale, density, coordinates and disabled state supported; alpha baked at import |
 | Shape paths and Trim Paths | Native polygonal strokes with animated trim start/end, color, width and glow; not arbitrary AE shape import |
-| `ADBE Glo2` | Native additive blurred glow; approximate algorithm |
+| `ADBE Glo2` | Thresholded luminance/alpha seed, single additive blur, padded layer halo; calibrated violet-pulse preset; approximate algorithm |
 | `ADBE Fast Blur`, `ADBE Gaussian Blur 2` | Native Canvas blur, animated strength and radius; approximate algorithm |
 | `ADBE Fractal Noise` | Deterministic four-octave evolving value noise; approximate algorithm |
 | `ADBE Turbulent Displace` | Evolving noise-driven WebGL mesh displacement; approximate algorithm |
@@ -62,7 +62,8 @@ Preserving the AE path remains necessary for exact unsupported behavior.
 ## Actual comparison and native animation verification
 
 See `MOTION_NATIVE_VERIFICATION.md`. The retained AE MP4 and a web port of its
-source JSX transforms/pulse are compared at 0, 2 and 95/24 seconds. This checks
+source JSX transforms/pulse are compared at 0, 1, 2, 3 and 95/24 seconds. This checks
 one known project, not all listed projects or every effect. Native glow visibly
-differs. New rig/mesh output is rendered separately on the same real PSD because
+differs, although the pulse ROI error is reduced by 50.8% at the calibration time.
+New rig/mesh output is rendered separately on the same real PSD because
 the existing AE reference has no skeleton or Puppet animation to compare.

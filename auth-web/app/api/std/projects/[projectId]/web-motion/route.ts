@@ -14,6 +14,7 @@ import {backgroundWindow,backgroundVolume} from '@/lib/stdAudioMix'
 import {resolveSfxCues,sfxNeedsReview} from '@/lib/stdSfxCues'
 import {templateOverlayPng} from '@/lib/stdTemplateOverlayPng'
 import {motionProductionMethod} from '@/lib/stdMotionStudio'
+import {linkedWebPsd,linkedWebPsdSources} from '@/lib/stdWebMotionSources'
 
 export const dynamic='force-dynamic'
 export const maxDuration=60
@@ -29,6 +30,16 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}){
     try{
         const c=await context(req,params.projectId);if(c.response)return c.response
         const settings={...c.project.project_payload?.settings,...c.project.project_payload?.render_settings}
+        const psdId=new URL(req.url).searchParams.get('psd')
+        if(psdId){
+            const asset=c.assets!.find(a=>a.id===psdId),source=linkedWebPsd(params.projectId,asset)
+            if(!source)throw Error('이 프로젝트의 검수된 PSD 원본이 필요합니다.')
+            const metadata=await getGcsObjectMetadata({bucket:source.gcsBucket,objectPath:source.gcsPath})
+            if(metadata.size>150*1024*1024)throw Error('PSD는 150MB 이하로 준비해 주세요.')
+            const file=await downloadGcsObjectViaSignedUrl({bucket:source.gcsBucket,objectPath:source.gcsPath})
+            if(file.buffer.length>150*1024*1024||createHash('sha256').update(file.buffer).digest('hex')!==source.sha256)throw Error('PSD 원본 해시가 검수 기록과 다릅니다.')
+            return new Response(new Uint8Array(file.buffer),{headers:{'Content-Type':'image/vnd.adobe.photoshop','Cache-Control':'private, no-store'}})
+        }
         if(new URL(req.url).searchParams.get('template')==='1'){
             const png=await templateOverlayPng(settings);if(!png)throw Error('저장된 템플릿 오버레이를 확인해 주세요.')
             return new Response(new Uint8Array(png),{headers:{'Content-Type':'image/png','Cache-Control':'private, no-store'}})
@@ -42,7 +53,7 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}){
             return new Response(response.body,{headers:{'Content-Type':response.headers.get('content-type')!,'Cache-Control':'private, no-store'}})
         }
         const scenes=await db.from('std_project_scenes').select('*').eq('project_id',params.projectId).order('scene_number');if(scenes.error)throw scenes.error
-        const active=c.assets!.filter(a=>['uploaded','assigned'].includes(a.status)).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))),psds=aeSceneSources(active)
+        const active=c.assets!.filter(a=>['uploaded','assigned'].includes(a.status)).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))),psds=aeSceneSources(active),linkedPsds=linkedWebPsdSources(params.projectId,active,psds)
         let audio:any=null,subtitles:any[]=[],starts:number[]=[],audioError=''
         try{lipSyncPlan(c.project,scenes.data||[],active);audio=selectNarrationAsset(c.project,active);subtitles=audio.metadata.subtitle_timeline;starts=lipSyncSceneStarts(c.project,scenes.data||[],audio)}catch(e:any){audioError=e.message}
         const sounds:any[]=[],total=Number(subtitles.at(-1)?.end)||0,bgmId=settings.bgm_asset_id||c.project.project_payload?.bgm_asset_id
@@ -53,8 +64,8 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}){
         for(const cue of resolveSfxCues(cues,subtitles)){const asset=active.find(a=>a.id===cue.asset_id);if(!asset){audioError=audioError||'저장된 효과음을 확인해 주세요.';continue}sounds.push({url:fileUrl(params.projectId,asset),start:Number(cue.start),end:Math.min(total,Number(cue.start)+Number(cue.duration||asset.metadata?.duration_seconds||3)),volume:Number(cue.volume??.5),loop:false,fadeIn:0,fadeOut:.05})}
         return NextResponse.json({audio:audio?{id:audio.id,url:fileUrl(params.projectId,audio)}:null,audio_error:audioError,subtitles,sounds,
             overlay:settings.std_template_overlay_png_data_url||settings.std_template_overlay_gcs?`/api/std/projects/${params.projectId}/web-motion?template=1`:null,
-            scenes:(scenes.data||[]).map((s,i)=>{const candidate=psds.get(s.scene_number)||active.find(a=>a.scene_number===s.scene_number&&a.asset_type==='image')||active.find(a=>a.scene_number===s.scene_number&&a.asset_type==='video'&&!a.metadata?.ae_mouth_fingerprint)
-                return {number:s.scene_number,title:s.scene_title,start:starts[i],end:starts[i+1]??subtitles.at(-1)?.end,source:candidate?{id:candidate.id,kind:/\.psd$/i.test(candidate.file_name)?'psd':candidate.asset_type,url:fileUrl(params.projectId,candidate)}:null}}),
+            scenes:(scenes.data||[]).map((s,i)=>{const linked=!psds.has(s.scene_number)&&linkedPsds.get(s.scene_number),candidate=psds.get(s.scene_number)||linked||active.find(a=>a.scene_number===s.scene_number&&a.asset_type==='image')||active.find(a=>a.scene_number===s.scene_number&&a.asset_type==='video'&&!a.metadata?.ae_mouth_fingerprint)
+                return {number:s.scene_number,title:s.scene_title,start:starts[i],end:starts[i+1]??subtitles.at(-1)?.end,source:candidate?{id:candidate.id,kind:linked||/\.psd$/i.test(candidate.file_name)?'psd':candidate.asset_type,url:linked?`/api/std/projects/${params.projectId}/web-motion?psd=${encodeURIComponent(candidate.id)}`:fileUrl(params.projectId,candidate)}:null}}),
             ai_jobs:active.filter(a=>a.metadata?.kind==='web_motion_ai').map(a=>({id:a.id,number:a.scene_number,state:a.metadata.state})),
             finals:active.filter(a=>a.asset_type==='video'&&a.scene_number==null&&String(a.file_name).startsWith('motion-web-final-')).slice(0,20).map(a=>({id:a.id,name:a.file_name,url:fileUrl(params.projectId,a),created_at:a.created_at})),
         },{headers:{'Cache-Control':'private, no-store'}})

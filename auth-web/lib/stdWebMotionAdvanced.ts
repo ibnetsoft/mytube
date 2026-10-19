@@ -1,4 +1,4 @@
-import {boneMatrices,deformPoint,sampleValue,type Point,type LayerAdvanced,type NativeEffect,type NativePath} from './stdMotionRig'
+import {boneMatrices,deformPoint,sampleValue,defaultGlow,type GlowSettings,type Point,type LayerAdvanced,type NativeEffect,type NativePath} from './stdMotionRig'
 const make=(w:number,h:number)=>{if(!Number.isFinite(w+h)||Math.ceil(w)*Math.ceil(h)>40_000_000)throw Error('효과·변형 캔버스가 너무 큽니다. 원본 크기나 이동 범위를 줄여 주세요.');const c=document.createElement('canvas');c.width=Math.max(1,Math.ceil(w));c.height=Math.max(1,Math.ceil(h));return c}
 type MeshGpu={canvas:HTMLCanvasElement;gl:WebGLRenderingContext;program:WebGLProgram;buffer:WebGLBuffer;texture:WebGLTexture;position:number;uv:number;resolution:WebGLUniformLocation|null}
 let meshGpu:MeshGpu|undefined
@@ -39,12 +39,23 @@ function maskCanvas(source:HTMLCanvasElement,mask:NonNullable<LayerAdvanced['mas
     const c=make(source.width,source.height),m=make(source.width,source.height),ctx=c.getContext('2d')!,mc=m.getContext('2d')!;ctx.drawImage(source,0,0);mc.fillStyle='white';if(mask.feather)mc.filter=`blur(${mask.feather*Math.min(c.width,c.height)}px)`
     mc.beginPath();mask.points.forEach((p,i)=>i?mc.lineTo(p[0]*c.width,p[1]*c.height):mc.moveTo(p[0]*c.width,p[1]*c.height));mc.closePath();mc.fill();ctx.globalCompositeOperation=mask.invert?'destination-out':'destination-in';ctx.drawImage(m,0,0);return c
 }
-export function applyNativeEffects(source:HTMLCanvasElement,effects:NativeEffect[],t:number):HTMLCanvasElement {
+/** Extract bright/alpha seed before blur; never duplicate the whole source. */
+export function glowSeed(source:HTMLCanvasElement,settings:GlowSettings){
+    const seed=make(source.width,source.height),ctx=seed.getContext('2d')!,pixels=source.getContext('2d')!.getImageData(0,0,source.width,source.height)
+    const {threshold,softKnee,basedOn}=settings
+    for(let i=0;i<pixels.data.length;i+=4){
+        const brightness=basedOn==='alpha'?pixels.data[i+3]/255:(.2126*pixels.data[i]+.7152*pixels.data[i+1]+.0722*pixels.data[i+2])/255
+        const excess=Math.max(0,brightness-threshold),gain=threshold===1?0:softKnee===0?(brightness>threshold?1:0):Math.min(1,excess/Math.max(.00001,softKnee))
+        pixels.data[i+3]*=gain
+    }
+    ctx.putImageData(pixels,0,0);return seed
+}
+export function applyNativeEffects(source:HTMLCanvasElement,effects:NativeEffect[],t:number,unit=Math.min(source.width,source.height)):HTMLCanvasElement {
     let current=source
-    for(const e of effects){const value=sampleValue(e.keys,t),strength=e.amount/100,radius=e.radius*Math.min(source.width,source.height);if(!strength)continue
+    for(const e of effects){const value=sampleValue(e.keys,t),strength=e.amount/100,radius=e.radius*unit;if(!strength)continue
         const c=make(current.width,current.height),ctx=c.getContext('2d')!
         if(e.type==='blur'){ctx.filter=`blur(${radius*strength*value}px)`;ctx.drawImage(current,0,0)}
-        if(e.type==='glow'){ctx.drawImage(current,0,0);ctx.globalCompositeOperation='lighter';ctx.globalAlpha=strength*value;ctx.filter=`blur(${radius}px)`;ctx.drawImage(current,0,0);ctx.drawImage(current,0,0)}
+        if(e.type==='glow'){ctx.drawImage(current,0,0);if(value>0){const seed=glowSeed(current,e.glow||defaultGlow());ctx.globalCompositeOperation='lighter';ctx.globalAlpha=strength*value;ctx.filter=`blur(${radius}px)`;ctx.drawImage(seed,0,0)}}
         if(e.type==='radial_wipe'){ctx.save();ctx.beginPath();const angle=Math.PI*2*(1-strength*value),cx=c.width/2,cy=c.height/2,r=Math.hypot(c.width,c.height);ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+angle);ctx.closePath();ctx.clip();ctx.drawImage(current,0,0);ctx.restore()}
         if(e.type==='fractal_noise'){
             ctx.drawImage(current,0,0);const small=make(Math.min(192,c.width),Math.min(192,c.height)),sc=small.getContext('2d')!,data=sc.createImageData(small.width,small.height)
@@ -69,7 +80,9 @@ export function renderAdvancedLayer(source:HTMLCanvasElement,advanced:LayerAdvan
         if(stroke){const outline=make(c.width,c.height),oc=outline.getContext('2d')!;for(let i=0;i<16;i++)oc.drawImage(current,pad+Math.cos(i*Math.PI/8)*stroke,pad+Math.sin(i*Math.PI/8)*stroke);oc.globalCompositeOperation='source-in';oc.fillStyle=style.strokeColor;oc.fillRect(0,0,c.width,c.height);ctx.drawImage(outline,0,0)}
         ctx.drawImage(current,pad,pad);current=c;left-=pad;top-=pad
     }
-    return {canvas:applyNativeEffects(current,advanced.effects||[],t),left,top}
+    const effects=advanced.effects||[],unit=Math.min(source.width,source.height),pad=Math.ceil(3*Math.max(0,...effects.filter(e=>['glow','blur'].includes(e.type)&&e.amount>0).map(e=>e.radius*unit)))
+    if(pad){const c=make(current.width+2*pad,current.height+2*pad);c.getContext('2d')!.drawImage(current,pad,pad);current=c;left-=pad;top-=pad}
+    return {canvas:applyNativeEffects(current,effects,t,unit),left,top}
 }
 export function drawNativePaths(ctx:CanvasRenderingContext2D,paths:NativePath[],w:number,h:number,t:number){
     for(const p of paths){const points=p.points.map(([x,y])=>[x*w,y*h] as Point);if(p.closed)points.push(points[0]);const lengths=points.slice(1).map((v,i)=>Math.hypot(v[0]-points[i][0],v[1]-points[i][1])),total=lengths.reduce((a,b)=>a+b,0),start=total*(p.startKeys?sampleValue(p.startKeys,t):0),end=total*sampleValue(p.keys,t);let cursor=0,started=false
