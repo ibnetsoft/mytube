@@ -78,7 +78,7 @@ def role_command(role):
 
 def busy_processes():
     if os.name!='nt':return []
-    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe','effectcraft-cli.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_scene_preparation|ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker|motion_automation_worker|motion_preview_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
+    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'aerender.exe' -or ($_.Name -eq 'effectcraft-cli.exe' -and $_.CommandLine -match '\\srender(\\s|$)') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_scene_preparation|ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker|motion_automation_worker|motion_preview_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
     result=subprocess.run(['powershell','-NoProfile','-Command',script],capture_output=True,text=True,creationflags=subprocess.CREATE_NO_WINDOW,timeout=15)
     if result.returncode:raise RuntimeError('Could not verify local media resources')
     rows=json.loads(result.stdout) if result.stdout.strip() else []

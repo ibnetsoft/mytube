@@ -21,7 +21,8 @@ output/effectcraft/<platform>-<architecture>/
   effectcraft-cli[.exe]
   effectcraft[.exe]
   build-manifest.json
-  LICENSE-MIT / LICENSE-APACHE / NOTICE / ATTRIBUTION.md / licenses/
+  LICENSE-MIT / LICENSE-APACHE / NOTICE / ATTRIBUTION.md
+  assets/... and docs/brand/... license and attribution sidecars
 ```
 
 The worker discovers the matching host directory automatically. Alternatively set `EFFECTCRAFT_CLI` to the packaged CLI's absolute path; its sibling `build-manifest.json` is required. Runtime validates the pinned source revision and CLI SHA-256 before executing it. A Mac binary does not install or update the office Windows worker: build/package for that host separately when office work resumes. Do not run AIR Studio's retired Windows installer/release scripts.
@@ -45,3 +46,11 @@ The EffectCraft child process has isolated preferences per render directory and 
 - Per the user's instruction, no functional, render, visual parity, paid video-generation, or office-worker tests are run in this integration task. Compilation/build status must be reported separately. Do not label an installed engine, a successful build, or this adapter as verified production quality.
 
 EffectCraft is unmodified upstream code under MIT OR Apache-2.0. Preserve the copied notices and asset/font licenses with distributed binaries. ArtCraft trademarks retain their upstream restrictions; AIR Studio does not rebrand the upstream executable. Source links and pin identify which upstream build is being used.
+
+## Recorded build status · 2026-10-20
+
+- Native release build completed on this Mac (`Darwin`, `arm64`, Rust 1.99.1), both desktop and CLI binaries. Packaged directory: `output/effectcraft/darwin-arm64/`; receipt: `build-manifest.json`.
+- CLI SHA-256: `56ec591ce3e291bd97da99fa9a7857beb6281c5e298bc30746b60c4be9470eb9`.
+- Desktop SHA-256: `93e0b368d6509097aeca1bb05b9fbef05614f2a0ffe39dacfad2f8428c89041d`.
+- Next.js production compilation, TypeScript compilation, Python bytecode compilation and native worker UI bundling completed. The dedicated queue migration was applied; deployed function grants are service-only. These are build/deployment checks, not functional acceptance.
+- Neither EffectCraft binary was launched. No demo/customer render, automated test suite, AE parity comparison, paid generation, or office Windows installation was performed. The office worker still needs its host-specific engine build and code update when that deferred work resumes.

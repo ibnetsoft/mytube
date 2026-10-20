@@ -48,11 +48,10 @@ def main():
     # Unmodified upstream attribution and licenses travel with the binaries, including fonts/brand terms.
     for name in ('LICENSE-MIT','LICENSE-APACHE','NOTICE','ATTRIBUTION.md'):
         shutil.copy2(source/name,target/name)
-    licenses=target/'licenses';licenses.mkdir(exist_ok=True)
     for parent in ('assets','docs/brand'):
         for file in (source/parent).rglob('*'):
             if file.is_file() and (file.name.startswith(('OFL','LICENSE')) or file.suffix=='.attribution'):
-                destination=licenses/file.relative_to(source);destination.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(file,destination)
+                destination=target/file.relative_to(source);destination.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(file,destination)
     manifest={**pin,'platform':platform.system(),'architecture':platform.machine(),'binaries':hashes,
               'functional_tests':'deferred_by_user','render_validation':'not_run'}
     (target/'build-manifest.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
