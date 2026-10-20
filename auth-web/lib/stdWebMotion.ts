@@ -1,3 +1,4 @@
+import {drawFinanceMotion} from './stdFinanceMotion'
 import { interpolateMotion, motionKey, type MotionScene } from './stdMotionStudio'
 import { applyPsdRasterMask } from './stdPsdMask'
 import {renderAdvancedLayer,drawNativePaths,applyNativeEffects} from './stdWebMotionAdvanced'
@@ -73,6 +74,7 @@ export function drawWebMotion(canvas:HTMLCanvasElement,art:WebArtwork,scene:Moti
     if(scene.native?.paths.length)drawNativePaths(ctx,scene.native.paths,art.width,art.height,t)
     ctx.restore()
     if(scene.native?.effects.length){const effected=applyNativeEffects(canvas,scene.native.effects,t);ctx.clearRect(0,0,w,h);ctx.drawImage(effected,0,0)}
+    if(scene.finance)drawFinanceMotion(ctx,w,h,scene.finance,t)
     for(const e of scene.effects){
         if(t<e.start||t>e.end)continue
         const u=(t-e.start)/(e.end-e.start),strength=e.intensity*Math.max(0,Math.min(1,u/.15,(1-u)/.3)),x=e.center[0]*w,y=e.center[1]*h,r=e.radius*Math.min(w,h),color=e.color.map(v=>Math.round(v*255)).join(',')
