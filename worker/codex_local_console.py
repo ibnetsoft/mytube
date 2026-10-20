@@ -18,6 +18,7 @@ import threading
 import time
 import uuid
 import socket
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -614,9 +615,55 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js', 'modern_japan_watercolor.json'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js', 'settings.js', 'modern_japan_watercolor.json'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
+
+
+SCRIPT_SETTING_FIELDS = frozenset(('category', 'category_id', 'duration_minutes', 'language',
+    'setting_country', 'era_region', 'image_style', 'script_style', 'production_mode',
+    'direction_profile', 'image_layer_mode', 'image_layer_scene_start', 'image_layer_scene_end',
+    'required_video_scene_count', 'generate_bgm_prompt', 'notes'))
+SCRIPT_SETTINGS_KEY = 'codex_script_defaults_' + WORKER_ID
+
+
+def normalize_script_settings(value):
+    # global_settings.value is text on existing installations; PostgREST can
+    # return the stored JSON document as a string rather than an object.
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict) or set(value) - SCRIPT_SETTING_FIELDS:
+        raise ValueError('지원하지 않는 대본 설정입니다.')
+    parsed = StartRequest(mode='new', title='기본 설정', **value)
+    return parsed.model_dump(include=SCRIPT_SETTING_FIELDS)
+
+
+def load_script_settings():
+    rows, _ = store.request('GET', 'global_settings', params={'select': 'value', 'key': 'eq.' + SCRIPT_SETTINGS_KEY, 'limit': '1'})
+    return normalize_script_settings((rows[0].get('value') or {}) if rows else {
+        'category':'옛날이야기', 'category_id':'2', 'setting_country':'한국'})
+
+
+@app.get('/api/script-settings')
+def script_settings_get():
+    try:
+        return {'settings': load_script_settings()}
+    except (ValueError, StoreUnavailable) as exc:
+        raise HTTPException(503, str(exc))
+
+
+@app.post('/api/script-settings')
+def script_settings_save(value: dict):
+    try:
+        settings = normalize_script_settings(value)
+        store.request('POST', 'global_settings', params={'on_conflict': 'key'},
+            body={'key': SCRIPT_SETTINGS_KEY, 'value': settings, 'updated_at': datetime.now(timezone.utc).isoformat()},
+            prefer='resolution=merge-duplicates,return=representation')
+        return {'settings': settings}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except StoreUnavailable as exc:
+        raise HTTPException(503, str(exc))
 
 
 @app.get('/health')
@@ -923,6 +970,9 @@ def start(request: StartRequest):
     snapshot = None
     references = None
     try:
+        if request.mode == 'new':
+            defaults = load_script_settings()
+            request = StartRequest.model_validate({**defaults, **request.model_dump(exclude_unset=True)})
         if request.mode == 'repair':
             snapshot = source(request.kind, request.source_id)
             if not snapshot['script'] or not snapshot['structure'].get('scenes'):

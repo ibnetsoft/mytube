@@ -95,6 +95,7 @@ def busy_processes():
 def serve_status(port=3004):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from worker.local_media_dashboard import Snapshot
+    from worker import local_production_settings as production
     snapshot = Snapshot()
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
@@ -102,15 +103,21 @@ def serve_status(port=3004):
             if self.headers.get('Host')!=f'127.0.0.1:{port}':self.send_error(403);return
             origin=self.headers.get('Origin')
             if origin and origin!=f'http://127.0.0.1:{port}':self.send_error(403);return
+            if production.handle(self):return
             if self.path in ('/status','/health'):
                 payload=(HOME/'status.json').read_bytes() if (HOME/'status.json').exists() else b'{}'
                 content='application/json'
             elif self.path=='/':
-                payload=(ROOT/'worker/local_media_status.html').read_bytes();content='text/html; charset=utf-8'
+                payload=(ROOT/'worker/local_media_status.html').read_text(encoding='utf-8').replace('__LOCAL_TOKEN__',production.TOKEN).encode('utf-8');content='text/html; charset=utf-8'
             elif self.path=='/jobs':
                 payload=json.dumps(snapshot.read(),ensure_ascii=False).encode('utf-8');content='application/json; charset=utf-8'
             else:self.send_error(404);return
             self.send_response(200);self.send_header('Content-Type',content);self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.end_headers();self.wfile.write(payload)
+        def do_POST(self):
+            if self.headers.get('Host')!=f'127.0.0.1:{port}':self.send_error(403);return
+            if self.headers.get('Origin')!=f'http://127.0.0.1:{port}':self.send_error(403);return
+            if not production.handle(self):self.send_error(404)
+        do_PUT = do_POST
     server=ThreadingHTTPServer(('127.0.0.1',port),Handler)
     threading.Thread(target=server.serve_forever,daemon=True).start();return server
 

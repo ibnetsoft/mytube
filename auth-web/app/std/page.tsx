@@ -1,5 +1,4 @@
 'use client'
-import { usePathname } from 'next/navigation'
 import { mapVoicePerformance, voicePerformanceKey, elevenLabsVoiceSettings } from '@/lib/stdVoicePerformance'
 import { scanDialogueQuoteState } from '@/lib/stdDialogueQuoteState'
 import { subtitleSpeakerProgress } from '@/lib/stdSubtitleSpeakerProgress'
@@ -7,10 +6,6 @@ import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
-import StdAeScenePreparation from '@/components/StdAeScenePreparation'
-import StdComicEditor from '@/components/StdComicEditor'
-import StdMotionStudio from '@/components/StdMotionStudio'
-import StdVideoModelSettings from '@/components/StdVideoModelSettings'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import StdNonverbalPlan from '@/components/StdNonverbalPlan'
@@ -661,7 +656,6 @@ const STD_BUILD_LABEL = process.env.NEXT_PUBLIC_BUILD_COMMIT || 'local'
 const SHOW_TOPIC_TREND_PANEL = false
 
 export default function StdPortalPage() {
-    const workerWorkspace = usePathname() === '/worker-studio'
     function generateSynchronizedSubtitles(script: string, scenes: any[], maxChars: number) {
         return generateAnnotatedSubtitles(script, scenes, maxChars,
             selectedProject?.project?.project_payload?.structure?.dialogue_annotations)
@@ -1004,7 +998,7 @@ export default function StdPortalPage() {
         if (typeof window === 'undefined') return 'topics'
         const params = new URLSearchParams(window.location.search)
         return normalizeStdNav(params.get('tab') || params.get('page'))
-            || normalizeStdNav(localStorage.getItem(workerWorkspace ? 'worker_current_nav' : 'std_current_nav'))
+            || normalizeStdNav(localStorage.getItem('std_current_nav'))
             || 'topics'
     })
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -1012,12 +1006,12 @@ export default function StdPortalPage() {
 
     useEffect(() => {
         try {
-            localStorage.setItem(workerWorkspace ? 'worker_current_nav' : 'std_current_nav', currentNav)
+            localStorage.setItem('std_current_nav', currentNav)
             const url = new URL(window.location.href)
             url.searchParams.set('tab', currentNav)
             window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
         } catch (error) {}
-    }, [currentNav, workerWorkspace])
+    }, [currentNav])
 
     useEffect(() => {
         return () => {
@@ -1251,7 +1245,7 @@ export default function StdPortalPage() {
     ])
     const [renderedVideoUrl, setRenderedVideoUrl] = useState('')
 
-    const [settingsSubTab, setSettingsSubTab] = useState<'basic' | 'video_models' | 'orgchart' | 'history' | 'withdrawal' | 'support' | 'announcements'>(() => workerWorkspace && typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('workerPanel') === 'video_models' ? 'video_models' : 'basic')
+    const [settingsSubTab, setSettingsSubTab] = useState<'basic' | 'orgchart' | 'history' | 'withdrawal' | 'support' | 'announcements'>('basic')
     const [settingName, setSettingName] = useState('김호')
     const [settingNationality, setSettingNationality] = useState('대한민국')
     const [settingPhone, setSettingPhone] = useState('010-0000-0000')
@@ -10770,7 +10764,6 @@ export default function StdPortalPage() {
                             {imageDownloadStatus}
                         </div>
                     )}
-                    {workerWorkspace && <section className="mx-5 rounded-xl border border-cyan-400/30 bg-[#101722] p-4 text-white" aria-label="통합워커 제작 설정"><h2 className="font-bold">통합워커 · 제작 설정</h2><div className="mt-3 flex flex-wrap gap-3 text-sm"><button onClick={() => setCurrentNav('image_gen')} className="rounded bg-cyan-800 px-3 py-2">프로젝트 제작·AE 연출</button><button onClick={() => { setCurrentNav('settings'); setSettingsSubTab('video_models') }} className="rounded bg-cyan-800 px-3 py-2">영상 생성 모델 · API 설정</button><a href="http://127.0.0.1:3003/" target="_blank" rel="noopener noreferrer" className="rounded border border-white/20 px-3 py-2">대본 작성·검토 워커</a></div></section>}
 
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
@@ -10792,36 +10785,6 @@ export default function StdPortalPage() {
                                     </div>
                                 </div>
 
-                                {workerWorkspace && <StdMotionStudio key={`motion-${selectedProject.project.id}`}
-                                    aePreparation={<StdAeScenePreparation key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders} ui={ui} onPreparedScenesChange={onAePreparedScenesChange} />}
-                                    value={selectedProject.project.project_payload?.render_settings?.motion}
-                                    defaultAspect={isWebtoonVideoProject(selectedProject.project) ? '9:16' : '16:9'}
-                                    scenes={selectedProject.scenes}
-                                    projectId={selectedProject.project.id} headers={authedJsonHeaders}
-                                    renderHistory={selectedProject.render_history}
-                                    disabled={Boolean(selectedProject.project.submitted_at || submittingProjectId)}
-                                    onSave={async (motion) => {
-                                        await persistVrewVoiceSubtitles(speechSubtitlesRef.current, { strict: true,
-                                            renderSettings: { ...(selectedProject.project.project_payload?.render_settings || {}), motion } })
-                                    }}
-                                    onUpload={async (scene, file) => uploadAsset(scene, file.type.startsWith('video/') ? 'video' : 'image', file)}
-                                />}
-                                {workerWorkspace && <StdComicEditor
-                                    value={selectedProject.project.project_payload?.render_settings?.comic}
-                                    scenes={selectedProject.scenes}
-                                    subtitles={localSubtitles}
-                                    disabled={Boolean(selectedProject.project.submitted_at || submittingProjectId)}
-                                    onSave={async (comic) => {
-                                        await persistVrewVoiceSubtitles(speechSubtitlesRef.current, {
-                                            strict: true,
-                                            renderSettings: {
-                                                ...(selectedProject.project.project_payload?.render_settings || {}),
-                                                comic,
-                                            },
-                                        })
-                                    }}
-                                    onUpload={async (scene, file) => uploadAsset(scene, file.type.startsWith('video/') ? 'video' : 'image', file)}
-                                />}
 
                                 <div className="px-5 space-y-2">
                                     <div className="flex items-center justify-between text-xs text-gray-400">
@@ -13022,7 +12985,6 @@ export default function StdPortalPage() {
                                 <div className="flex space-x-2 overflow-x-auto">
                                     {[
                                         { id: 'basic', label: ui("■■ 기본 설정") },
-                                        ...(workerWorkspace ? [{ id: 'video_models', label: ui("영상 생성 모델 / API") }] : []),
                                         { id: 'orgchart', label: ui("조직도") },
                                         { id: 'history', label: ui("수당 내역 (History)") },
                                         { id: 'withdrawal', label: ui("지갑 / 출금 (Wallet)") },
@@ -13046,7 +13008,6 @@ export default function StdPortalPage() {
 
                             {/* 3. 탭별 메인 컨텐츠 영역 */}
                             <div className="space-y-4 overflow-y-auto pb-10">
-                                {workerWorkspace && settingsSubTab === 'video_models' && <StdVideoModelSettings headers={authedJsonHeaders} />}
                                 {/* [탭 1: 기본 설정] */}
                                 {settingsSubTab === 'basic' && (
                                     <div className="space-y-5">

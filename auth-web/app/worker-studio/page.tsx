@@ -1,2 +1,5 @@
-// Authenticated workspace opened from the local unified worker console.
-export { default } from '../std/page'
+import { redirect } from 'next/navigation'
+
+export default function RetiredWorkerWorkspace() {
+    redirect('/std')
+}

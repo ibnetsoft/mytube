@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:worker-settings": "node ../scripts/build_local_production_ui.cjs",
     "typecheck": "tsc --noEmit --incremental false",
     "start": "next start",
     "lint": "node ./node_modules/eslint/bin/eslint.js --ext .js,.jsx,.ts,.tsx app components lib --ignore-pattern components/DashboardContent_backup.tsx"
@@ -38,6 +39,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "esbuild": "0.25.12",
     "eslint": "8.56.0",
     "eslint-config-next": "^14.2.35",
     "tailwindcss": "^4",
