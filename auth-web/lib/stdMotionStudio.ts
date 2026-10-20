@@ -1,3 +1,4 @@
+import {normalizeDirectionCues,type DirectionCue} from './stdWebtoonDirection'
 import {normalizeFinanceMotion,type FinanceMotion} from './stdFinanceMotion'
 import {normalizeWebTimeline,type MotionClip} from './stdMotionTimeline'
 import { AE_SCENE_EFFECTS } from './stdAeSceneEffects'
@@ -6,7 +7,7 @@ import {normalizeLayerAdvanced,normalizeNativeScene,type LayerAdvanced,type Nati
 export type MotionKey = { t: number; x: number; y: number; scale: number; rotation: number; opacity: number }
 export type MotionEffect = { type: string; start: number; end: number; intensity: number; center: [number, number]; radius: number; color: [number, number, number] }
 export type MotionLayer = { depth:number; keys:MotionKey[]; advanced?:LayerAdvanced }
-export type MotionScene = { finance?:FinanceMotion; source: 'auto' | 'image' | 'video' | 'psd'; fit: 'contain' | 'cover'; direction: string; keys: MotionKey[]; effects: MotionEffect[]; transition: 'cut' | 'fade' | 'flash'; layers?:Record<string,MotionLayer>;native?:NativeScene }
+export type MotionScene = { finance?:FinanceMotion; cues?:DirectionCue[]; source: 'auto' | 'image' | 'video' | 'psd'; fit: 'contain' | 'cover'; direction: string; keys: MotionKey[]; effects: MotionEffect[]; transition: 'cut' | 'fade' | 'flash'; layers?:Record<string,MotionLayer>;native?:NativeScene }
 export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: number; max_ai_seconds: number }
 export type WebMotionInsert = { job_id:string; start:number; duration:number }
 export type ProductionMethod = 'ae'|'motion_studio'
@@ -73,7 +74,7 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
                 layers[id]={depth:finite(layer.depth,0,1,'레이어 깊이'),keys:layerKeys,...(layer.advanced!==undefined?{advanced:normalizeLayerAdvanced(layer.advanced)}:{})}
             }
         }
-        scenes[number]={...(s.finance!==undefined?{finance:normalizeFinanceMotion(s.finance)}:{}),source:s.source,fit:s.fit,direction:s.direction,transition:s.transition,keys,effects,...(s.layers!==undefined?{layers}:{}),...(s.native!==undefined?{native:normalizeNativeScene(s.native)}:{})}
+        scenes[number]={...(s.cues!==undefined?{cues:normalizeDirectionCues(s.cues)}:{}),...(s.finance!==undefined?{finance:normalizeFinanceMotion(s.finance)}:{}),source:s.source,fit:s.fit,direction:s.direction,transition:s.transition,keys,effects,...(s.layers!==undefined?{layers}:{}),...(s.native!==undefined?{native:normalizeNativeScene(s.native)}:{})}
     }
     let automation: MotionAutomation | undefined
     if (raw.automation != null) {

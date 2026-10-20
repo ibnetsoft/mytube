@@ -180,3 +180,26 @@ AE selection and existing script/render workers remain independent.
 See MOTION_NATIVE_VERIFICATION.md for real-source comparisons. Two PSD scenes
 passed this bounded review; a third crossed-hand pose was rejected rather than
 silently accepted. No universal AE/Puppet quality percentage is established.
+
+
+## Dialogue direction and clip review (2026-10-20)
+
+The web studio displays finalized dialogue overlapping the selected timeline clip.
+Click dialogue to seek its absolute audio time, then add a direction cue. Cues
+store normalized source-scene times and target either the camera or a PSD layer.
+Push, reveal, and impact shake use the same deterministic renderer for preview
+and MP4. They remain attached to the original scene when a clip is split, trimmed,
+repeated, or moved. This does not generate facial expressions or new artwork.
+
+Boundary buttons play 1.5 seconds on either side of the chosen cut using finalized
+narration, stopping automatically at the end of the window. The selected clip can
+be exported separately for review without regenerating original artwork or voice.
+Its video/motion ranges, mixed audio, and overlapping subtitles are cropped and
+rebased to zero. Partial review files cannot be stored/submitted as the full final
+video. After repairs, export the full project to include the updated scene; this
+is not a persistent encoded-segment cache or an automatic output approval system.
+
+Validation: tests/std-webtoon-direction.cjs and
+ tests/std-webtoon-direction-browser.cjs cover source-range preservation, cue
+persistence, boundary playback, and actual 1080p partial MP4 decoding with audio
+and subtitle timing. Existing PSD/full-project output tests remain applicable.

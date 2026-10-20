@@ -1,3 +1,4 @@
+import {directionPose,validateDirectionTargets} from './stdWebtoonDirection'
 import {drawFinanceMotion} from './stdFinanceMotion'
 import { interpolateMotion, motionKey, type MotionScene } from './stdMotionStudio'
 import { applyPsdRasterMask } from './stdPsdMask'
@@ -59,12 +60,13 @@ export async function imageArtwork(blob:Blob):Promise<WebArtwork> {
 }
 
 export function drawWebMotion(canvas:HTMLCanvasElement,art:WebArtwork,scene:MotionScene,time:number,caption='',overlay?:CanvasImageSource) {
-    const ctx=canvas.getContext('2d')!,w=canvas.width,h=canvas.height,t=Math.max(0,Math.min(1,time)),camera=interpolateMotion(scene.keys,t)
+    validateDirectionTargets(scene.cues,art.layers.map(l=>l.id))
+    const ctx=canvas.getContext('2d')!,w=canvas.width,h=canvas.height,t=Math.max(0,Math.min(1,time)),camera=directionPose(interpolateMotion(scene.keys,t),scene.cues,'camera',t)
     ctx.save();ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.fillStyle='#0c1018';ctx.fillRect(0,0,w,h)
     const fit=(scene.fit==='cover'?Math.max(w/art.width,h/art.height):Math.min(w/art.width,h/art.height))*camera.scale
     ctx.save();ctx.translate(w/2,h/2);ctx.rotate(camera.rotation*Math.PI/180);ctx.scale(fit,fit);ctx.translate(-camera.x*art.width,-camera.y*art.height)
     for(const layer of art.layers){
-        const authored=scene.layers?.[layer.id],pose=authored?interpolateMotion(authored.keys,t):motionKey(t)
+        const authored=scene.layers?.[layer.id],pose=directionPose(authored?interpolateMotion(authored.keys,t):motionKey(t),scene.cues,layer.id,t)
         const depth=authored?.depth||0,dx=(pose.x-.5)*art.width+(camera.x-.5)*art.width*depth,dy=(pose.y-.5)*art.height+(camera.y-.5)*art.height*depth
         ctx.save();ctx.globalCompositeOperation=layer.blend;ctx.globalAlpha=layer.opacity*pose.opacity/100*camera.opacity/100
         const cx=layer.left+layer.canvas.width/2,cy=layer.top+layer.canvas.height/2
