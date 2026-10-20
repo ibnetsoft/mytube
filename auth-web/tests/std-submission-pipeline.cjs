@@ -10,6 +10,7 @@ function snapshot() {
   if (id.includes('stdAeScenePreparation')) return load('lib/stdAeScenePreparation.ts')
   if (id.includes('stdAeSceneReview')) return load('lib/stdAeSceneReview.ts')
   if (id.includes('stdAudioMix')) return load('lib/stdAudioMix.ts')
+  if (id.includes('stdWorkflowBoundary')) return load('lib/stdWorkflowBoundary.ts')
   if (id.includes('stdSfxCues')) return load('lib/stdSfxCues.ts')
   throw new Error(id)
  })

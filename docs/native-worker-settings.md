@@ -1,8 +1,8 @@
 # Local worker settings
 
-The unified worker at `http://127.0.0.1:3004/` owns the inline “제작 설정 · 영상 모델/API” panel. It mounts the existing production components inside the worker page; it does not open or embed another website.
+The script worker at `http://127.0.0.1:3003/` owns inline image, geometry, layer and AE direction preparation. The unified worker at `http://127.0.0.1:3004/` owns post-submission execution/review and video model/API settings. See [the workflow ownership contract](worker-workflow-boundary.md).
 
-Select a project to edit its production method, PSD/AE preparation, automation, timeline, comic mode, or account-scoped video provider settings. Production settings use the existing validators, preserve other project payload fields, and compare the loaded version before saving. Submitted projects remain locked. Saving settings does not submit a project or approve output.
+Select an unsubmitted project in the script worker to edit production method, PSD/AE preparation, planned execution mode and comic settings. Production settings use existing validators, preserve other payload fields, and compare the loaded version before saving. Submitted projects are locked. Select an account/project in the unified worker to inspect execution or manage account-scoped video providers. Saving settings does not submit a project or approve output.
 
 The local adapter allows only the required settings, media and preparation endpoints. The Host, Origin and per-process local token protect writes. Media uploads pass through loopback so storage CORS does not need to allow localhost. Service credentials remain in the backend.
 

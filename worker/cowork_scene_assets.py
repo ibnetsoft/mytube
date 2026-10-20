@@ -857,7 +857,7 @@ def parse_args() -> argparse.Namespace:
     publish_cmd.add_argument("--images-dir", type=Path, required=True)
     publish_cmd.add_argument("--create-bucket", action="store_true")
     publish_cmd.add_argument("--defer-layers", action="store_true",
-                             help="정지 이미지 업로드만 수행하고 PSD·AE 레이어 에셋 준비는 제출 후로 미룹니다")
+                             help="정지 이미지 업로드만 수행하고 PSD·AE 레이어 에셋은 별도 준비 작업으로 미룹니다. 유저웹 제출 전 완료해야 합니다")
     publish_cmd.add_argument("--reuse-existing", action="store_true",
                              help="기존 내용 해시 GCS 에셋의 크기와 MD5를 확인해 일치하면 재업로드를 건너뜁니다")
     prepare_cmd = commands.add_parser("prepare-layers", help="독립 PNG 레이어를 검수 대기 PSD 패키지로 만듭니다")

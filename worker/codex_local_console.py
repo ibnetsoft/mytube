@@ -225,24 +225,7 @@ def ae_review_target(source_type: str, identity: str, scene_number: int):
 
 
 def start_ae_worker_process():
-    if os.getenv('AIR_WORKER_ROLE') == 'script':
-        return {'success':False,'error':'AE는 리소스가 설치된 컴퓨터의 로컬 미디어 워커에서 실행해 주세요.'}
-    import worker_config
-    state_path=worker_config.STATE_DIR/'local-media/status.json'
-    try: state=json.loads(state_path.read_text(encoding='utf-8'))
-    except (OSError,ValueError):state={}
-    home=worker_config.STATE_DIR/'local-media';home.mkdir(parents=True,exist_ok=True)
-    (home/'highlight-enabled').touch()
-    if state.get('status')!='stopped' and state.get('updated_at'):
-        from datetime import datetime,timezone
-        if (datetime.now(timezone.utc)-datetime.fromisoformat(state['updated_at'])).total_seconds()<45:
-            return {'success':True,'already_running':True,'pid':state.get('pid'),'url':'http://127.0.0.1:3004'}
-    log_path=OUT/'local_media_supervisor.log';log_path.parent.mkdir(parents=True,exist_ok=True)
-    with log_path.open('a',encoding='utf-8') as log:
-        kwargs={'cwd':str(ROOT),'stdin':subprocess.DEVNULL,'stdout':log,'stderr':log}
-        if sys.platform=='win32':kwargs['creationflags']=subprocess.CREATE_NO_WINDOW
-        process=subprocess.Popen([sys.executable,'-u','-m','worker.local_media_supervisor'],**kwargs)
-    return {'success':True,'pid':process.pid,'log_path':str(log_path),'url':'http://127.0.0.1:3004'}
+    return {'success':False,'error':'제출 전 준비만 대본워커에서 수행합니다. 제출 후 실행은 통합워커를 사용하세요.'}
 
 
 def summary(row, kind):
@@ -576,14 +559,14 @@ jobs = Jobs(OUT, store)
 def start_subtitle_translations():
     from worker.codex_subtitle_translation import start_translation_loop
     app.state.subtitle_translation_stop = start_translation_loop(jobs)
-    from worker.sermon_queue import start_media_loop
-    app.state.sermon_media_stop = start_media_loop(jobs)
+    from worker.script_preparation import start_preparation_loop
+    app.state.preparation_stop = start_preparation_loop(jobs)
 
 
 @app.on_event('shutdown')
 def stop_subtitle_translations():
     app.state.subtitle_translation_stop.set()
-    app.state.sermon_media_stop.set()
+    app.state.preparation_stop.set()
 
 
 @app.middleware('http')
@@ -597,14 +580,17 @@ async def local_boundary(request: Request, call_next):
         return JSONResponse({'error': 'Origin denied'}, status_code=403)
     media_file = (request.method == 'GET' and re.fullmatch(r'/api/jobs/[a-f0-9]{32}/sermon-media', request.url.path)
                   and secrets.compare_digest(request.query_params.get('token', ''), TOKEN))
-    if request.url.path.startswith('/api/') and not media_file and not secrets.compare_digest(request.headers.get('x-codex-local', ''), TOKEN):
+    prepared_media = (request.method in ('GET','PUT') and ('/assets/file' in request.url.path or request.url.path=='/api/std/assets/gcs-file' or request.url.path.startswith('/api/local/uploads/')) and secrets.compare_digest(request.query_params.get('local_token',''),TOKEN))
+    if request.url.path.startswith('/api/') and not prepared_media and not media_file and not secrets.compare_digest(request.headers.get('x-codex-local', ''), TOKEN):
         return JSONResponse({'error': '로컬 화면을 새로고침하세요.'}, status_code=401)
+    if request.url.path.startswith('/api/ae-highlight'):
+        return JSONResponse({'error':'AE 실행·출력 검수는 제출 후 통합워커에서 담당합니다.'}, status_code=410)
     response = await call_next(request)
     response.headers['Cache-Control'] = 'no-store'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['Referrer-Policy'] = 'no-referrer'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: https:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
     return response
 
 
@@ -1225,13 +1211,7 @@ class SermonMediaRequest(BaseModel):
 
 @app.post('/api/jobs/{identity}/sermon-media')
 def resume_sermon_media(identity: str, request: SermonMediaRequest):
-    try:
-        from worker.sermon_queue import enqueue
-        return enqueue(jobs, identity, request.voice_id)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc))
-    except StoreUnavailable as exc:
-        raise HTTPException(502, str(exc))
+    raise HTTPException(410, '대본 승인은 영상 제출이 아닙니다. 유저웹에서 제출한 뒤 통합워커에서 설교 제작을 요청하세요.')
 
 
 @app.get('/api/jobs/{identity}/sermon-media')
@@ -1266,9 +1246,6 @@ def approve(identity: str, request: ApproveRequest):
         current = source(item['kind'], item['source_id']) if item['mode'] == 'repair' else None
         jobs.approve(identity, request.candidate_hash, current)
         bundle = jobs.load(identity)
-        if bundle['candidate'].get('sermon_plan') and bundle['request'].get('sermon_voice_id'):
-            from worker.sermon_queue import enqueue
-            enqueue(jobs, identity)
         return {'status': 'approved_pending_repair', 'published': False}
     except ValueError as exc:
         raise HTTPException(409, str(exc))
@@ -1276,6 +1253,10 @@ def approve(identity: str, request: ApproveRequest):
         raise HTTPException(502, str(exc))
     except Exception:
         raise HTTPException(502, '원본 재확인 실패. 승인하거나 덮어쓰지 않았습니다.')
+
+
+from worker.script_preparation_api import register as register_preparation_routes
+register_preparation_routes(app,TOKEN)
 
 
 if __name__ == '__main__':

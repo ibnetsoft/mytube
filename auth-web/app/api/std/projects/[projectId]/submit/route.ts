@@ -180,11 +180,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }, { status: 500 })
     }
 
-    // Automatic production starts from frozen originals and finalized voice; PSD preparation is a worker stage.
+    // Freeze prepared originals and finalized voice; the unified worker only executes them.
     if(motionAutomationEnabled(project)) {
         try { const run=await registerMotionAutomation(project,scenes,assets,auth.requester.user.id)
             return NextResponse.json({success:true,...run,postprocess_pending:true,motion_automation:true,
-                message:'제출 완료. Codex 연출 → 워커 제작 → 실제 출력 검수가 자동으로 진행됩니다.'},{status:202})
+                message:'제출 완료. 준비된 연출의 AE 실행 → 실제 출력 검수 → 최종 렌더가 진행됩니다.'},{status:202})
         } catch(error:any) { return NextResponse.json({success:false,error:error.message},{status:409}) }
     }
     let preparedScenes: Map<number, any>
@@ -206,7 +206,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (preparedScenes.has(sceneNumber)) return false
         if (isNonverbalProject(project)) return !hasReadyNonverbalPlan(project) || !visualAssets.some((a: any) =>
             Number(a.scene_number) === sceneNumber && a.asset_type === 'video' && hasStoredAssetFile(a)
-            && a.metadata?.postprocess_mode === 'region_motion' && a.metadata?.reviewed_by_user === true)
+            && !a.metadata?.region_motion_plan_id)
         return isStdVideoPromptScene(sceneNumber, project)
             ? !activeVideoSceneNumbers.has(sceneNumber)
             : !activeSceneNumbers.has(sceneNumber)

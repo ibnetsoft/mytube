@@ -35,11 +35,13 @@ def timeline(project, number):
     return {'duration':max((r['end'] for r in rows),default=0)-start,'subtitles':[{**r,'start':r['start']-start,'end':r['end']-start} for r in rows]}
 
 
-def process_one():
+def process_one(stage="postproduction"):
+    from worker.workflow_roles import PREPARATION, POSTPRODUCTION, asset_query, belongs, assert_project
+    if stage not in (PREPARATION,POSTPRODUCTION): raise ValueError("Unknown workflow owner")
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
-    jobs=ae._request('GET',url,headers,params={'select':'*','metadata->>kind':'in.(region_motion_plan,region_layer_package)','metadata->>state':'in.(queued,processing)','order':'created_at.asc','limit':'20'}).json()
+    jobs=ae._request('GET',url,headers,params=asset_query(stage, {'select':'*','metadata->>kind':'eq.region_layer_package' if stage==PREPARATION else 'eq.region_motion_plan','metadata->>state':'in.(queued,processing)','order':'created_at.asc','limit':'20'})).json()
     job=next((j for j in jobs if j['metadata']['state']=='queued' or (datetime.now(timezone.utc)-datetime.fromisoformat(j['updated_at'].replace('Z','+00:00'))).total_seconds()>1800),None)
-    if not job:return False
+    if not job or not belongs(job,stage):return False
     meta=copy.deepcopy(job['metadata']);is_layers=meta['kind']=='region_layer_package';lease=uuid.uuid4().hex
     meta.update(state='processing',lease=lease,error=None,progress='원본 확인')
     claimed=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':meta,'updated_at':ae._now()}).json()
@@ -59,6 +61,7 @@ def process_one():
         assets=[a for a in read_project_assets(ae._request,url,headers,job['project_id']) if a.get('status') in ('uploaded','assigned')]
         image=next((a for a in assets if a.get('asset_type')=='image' and a.get('scene_number')==meta['input']['number']),None)
         latest=next((a for a in assets if (a.get('metadata') or {}).get('kind')==meta['kind'] and a.get('scene_number')==meta['input']['number']),None)
+        if projects: assert_project(projects[0],stage)
         if not projects or projects[0].get('status')=='canceled' or not image or image['id']!=meta['input']['image']['id'] or not latest or latest['id']!=job['id'] or (not is_layers and timeline(projects[0],meta['input']['number'])!=meta['input']['timeline']):
             raise ValueError('설정·원본·자막 시간이 변경됐습니다. 다시 렌더링해 주세요.')
     try:
@@ -89,6 +92,8 @@ def process_one():
             current()
             save(state='prepared',progress='외곽선과 복원 배경 확인 필요',result={**prepared,'files':files})
             return True
+        if not meta['input'].get('layerPackage'):
+            raise ValueError('대본워커에서 검수한 레이어 패키지가 필요합니다. 제출 후에는 레이어를 생성하지 않습니다.')
         runtime=None
         if meta['input'].get('layerPackage'):
             package=meta['input']['layerPackage']

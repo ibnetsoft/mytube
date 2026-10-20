@@ -62,7 +62,9 @@ export default function StdSpeakerCoordinates({
     speakerProgress,
     onMotionApplied,
     locale = 'ko',
+    preparationOnly = false,
 }: {
+    preparationOnly?: boolean
     locale?: string
     projectId: string
     revision: string
@@ -273,7 +275,7 @@ export default function StdSpeakerCoordinates({
     const button = 'rounded-lg border border-white/20 px-3 py-2 text-sm disabled:opacity-40'
     return (
         <>
-            <StdMouthPreviews projectId={projectId} headers={headers} />
+            {!preparationOnly && <StdMouthPreviews projectId={projectId} headers={headers} />}
             <aside
                 aria-label={copy.title}
                 className="relative order-4 mt-3 w-full min-w-0 shrink-0 rounded-xl border border-cyan-500/40 bg-[#10252d] p-2 text-cyan-200 lg:order-none lg:mt-auto"
@@ -304,8 +306,8 @@ export default function StdSpeakerCoordinates({
                     >
                         {copy.position}
                     </button>
-                    <StdRegionMotionEditor locale={locale} projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} onApplied={onMotionApplied} />
-                    <StdEyeBlinkEditor locale={locale} projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} />
+                    {!preparationOnly && <StdRegionMotionEditor locale={locale} projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} onApplied={onMotionApplied} />}
+                    {!preparationOnly && <StdEyeBlinkEditor locale={locale} projectId={projectId} headers={headers} selectedSceneNumber={selectedSceneNumber} />}
                 </div>
             </aside>
             {open &&

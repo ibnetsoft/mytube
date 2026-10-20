@@ -13,6 +13,8 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'worker'))
 
 def render_preview(snapshot,directory,download):
+    if snapshot.get('task')=='direction' and snapshot['scene']['source']=='psd':
+        raise ValueError('PSD 연출은 대본워커의 PSD 준비 작업에서 저장하세요.')
     from moviepy import VideoClip
     from services.motion_render_service import MotionFrames
     from ae_media_utils import ref
@@ -65,6 +67,7 @@ def render_preview(snapshot,directory,download):
         if not isinstance(evidence,list) or not evidence or any(not isinstance(e,str) or not e.strip() for e in evidence):raise ValueError('Actual source inspection evidence is required')
         snapshot={**snapshot,'scene':proposed}
         (directory/'direction.json').write_text(json.dumps({'scene':proposed,'evidence':evidence},ensure_ascii=False),encoding='utf-8')
+        return reference,digest  # Planning never starts an encoder or AE.
     aspect=snapshot['aspect'];resolution=(360,640) if aspect=='9:16' else (640,360)
     number=int(source['scene_number']);duration=float(snapshot['duration'])
     if not 0<duration<=10:raise ValueError('Preview is limited to ten seconds')
@@ -80,14 +83,18 @@ def render_preview(snapshot,directory,download):
         frames.close()
     return output,digest
 
-def process_one():
+def process_one(stage="postproduction"):
+    from worker.workflow_roles import PREPARATION, POSTPRODUCTION, asset_query, belongs
+    if stage not in (PREPARATION,POSTPRODUCTION): raise ValueError("Unknown workflow owner")
     import worker_config
     import ae_highlight_worker as ae
     from ae_scene_preparation import claimable_filter
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
-    jobs=ae._request('GET',url,headers,params={'select':'*','metadata->>kind':'eq.motion_preview','metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1}).json()
+    jobs=ae._request('GET',url,headers,params=asset_query(stage, {'select':'*','metadata->>kind':'eq.motion_preview','metadata->input->>task':'eq.direction' if stage==PREPARATION else 'eq.preview','metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1})).json()
     if not jobs:return False
-    job=jobs[0];meta=copy.deepcopy(job['metadata']);token=uuid.uuid4().hex;stopped=threading.Event();lost=threading.Event();guard=threading.Lock()
+    job=jobs[0]
+    if not belongs(job,stage):return False
+    meta=copy.deepcopy(job['metadata']);token=uuid.uuid4().hex;stopped=threading.Event();lost=threading.Event();guard=threading.Lock()
     claimed=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':{**meta,'state':'processing','worker_token':token,'heartbeat_at':ae._now()},'updated_at':ae._now()}).json()
     if not claimed:return False
     meta=claimed[0]['metadata']
@@ -104,8 +111,15 @@ def process_one():
             except Exception:lost.set();return
     thread=threading.Thread(target=pulse,daemon=True);thread.start()
     try:
+        from worker.workflow_roles import assert_project
+        projects=ae._request('GET',base+'/rest/v1/std_projects',headers,params={'select':'id,submitted_at,status','id':'eq.'+job['project_id'],'limit':1}).json()
+        assert_project(projects[0] if projects else None,stage)
         output,source_hash=render_preview(meta['input'],worker_config.TEMP_DIR/'motion-previews'/job['id'],lambda b,k,p:ae._download_gcs_file(ae.GcsRef(b,k),p))
         if lost.is_set():raise RuntimeError('Preview lease lost')
+        if stage==PREPARATION:
+            suggestion=json.loads((output.parent/'direction.json').read_text(encoding='utf-8'))
+            save(state='ready',source_sha256=source_hash,suggestion=suggestion,error=None)
+            return True
         render_hash=hashlib.sha256(output.read_bytes()).hexdigest()
         bucket,key,_=ae._upload_gcs_file(output,f"std-motion/{job['project_id']}/{job['id']}/{render_hash}.mp4",'video/mp4')
         direction_file=output.parent/'direction.json'

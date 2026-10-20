@@ -1,4 +1,3 @@
-import { ensureSyncedMouthPreview } from '@/lib/stdSubmissionPipeline'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
@@ -47,10 +46,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const b = await bundle(req, params.projectId)
         if (b.response) return b.response
         const body = await req.json()
-        if (body.action === 'prepare_preview') {
-            const preview = await ensureSyncedMouthPreview(b.project, b.scenes!, b.assets!)
-            return NextResponse.json({ success: true, job_id: preview?.id, message: '음성 싱크 영상 준비를 시작했습니다.' })
-        }
+        if (body.action === 'prepare_preview') return NextResponse.json({error:'음성 생성만으로 AE를 실행하지 않습니다. 유저웹에서 확인 후 제출하세요.'},{status:410})
+        if(!b.project.submitted_at)return NextResponse.json({error:'유저웹에서 제출한 뒤 통합워커가 실행·검수합니다.'},{status:409})
         const { fingerprint } = aeMouthInput(b.project, b.scenes!, b.assets!)
         const job = currentAeMouthJob(b.project, b.scenes!, b.assets!)
         if (body.fingerprint !== (job?.metadata?.fingerprint || fingerprint)) throw new Error('음성·이미지·대본이 변경되었습니다. 작업 목록을 새로 확인해 주세요.')

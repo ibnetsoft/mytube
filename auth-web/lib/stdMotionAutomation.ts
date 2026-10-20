@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from './supabaseAdmin'
 import { motionForProject } from './stdMotionStudio'
-import { aeSceneSources } from './stdAeScenePreparation'
+import { aeSceneSources, preparedAeScenes } from './stdAeScenePreparation'
 import { selectNarrationAsset } from './stdContentIdentity'
 import { lipSyncPlan, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
 import { storageSourceForAsset } from './stdSceneMedia'
@@ -9,9 +9,11 @@ import { backgroundWindow } from './stdAudioMix'
 import { sfxNeedsReview, resolveSfxCues } from './stdSfxCues'
 import { persistTemplateOverlay, templateOverlayPng } from './stdTemplateOverlayPng'
 import { selectedVideoModel } from './stdVideoModelStore'
+import { assertPreparationFinished } from './stdWorkflowBoundary'
 
 export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string) {
+    assertPreparationFinished(assets)
     const motion=motionForProject(project)!
     if(!motion?.enabled || !motion.automation)throw new Error('자동 제작 모드를 선택해 주세요.')
     lipSyncPlan(project,scenes,assets) // Exact finalized voice, script, cast and timing identity.
@@ -21,6 +23,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const total=Number(timeline.at(-1)?.end)
     const active=assets.filter(a=>['uploaded','assigned'].includes(a.status)).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))
     const psds=aeSceneSources(active)
+    const prepared=preparedAeScenes(project,scenes,assets)
     const lipSync=reviewedLipSyncAssets(project,scenes,assets)
     const verticalOriginal=(project.project_payload?.render_settings?.comic||project.project_payload?.structure?.comic_plan?.render_settings)?.mode==='webtoon_video'
     const ordered=scenes.map((scene,index)=>{
@@ -33,7 +36,13 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         if(!source||!storageSourceForAsset(source))throw new Error(`${n}번 씬의 이미지·영상 또는 원본 PSD가 필요합니다.`)
         const start=index===0?0:starts[index],end=starts[index+1]??total
         if(!Number.isSafeInteger(n)||n<1||scenes.slice(0,index).some(s=>Number(s.scene_number)===n)||!Number.isFinite(start)||!Number.isFinite(end)||end-start<1/motion.fps)throw new Error(`${n}번 씬의 최종 음성 구간이 유효하지 않습니다.`)
-        return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',start,end,source,source_kind:source.asset_type==='original'?'psd':source.asset_type}
+        const preparation=source.asset_type==='original'?prepared.get(n):null
+        if(source.asset_type==='original'&&!preparation)throw new Error(`${n}번 PSD의 레이어·AE 연출을 대본워커에서 준비한 뒤 제출하세요.`)
+        const planned=project.project_payload?.structure?.scenes?.find((s:any)=>Number(s.scene_number||s.scene_order)===n)
+        return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
+            prepared_direction:motion.scenes[String(n)]||{source:source.asset_type==='original'?'psd':source.asset_type,fit:'contain',direction:'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
+            creative_reference:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
+            preparation,start,end,source,source_kind:source.asset_type==='original'?'psd':source.asset_type}
     })
     const settings=await persistTemplateOverlay(project.id,{...project.project_payload?.settings,...project.project_payload?.render_settings})
     await templateOverlayPng(settings)

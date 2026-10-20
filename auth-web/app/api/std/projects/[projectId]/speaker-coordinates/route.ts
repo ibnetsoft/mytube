@@ -56,6 +56,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (ctx.response) return ctx.response
         const { project, assets } = ctx,
             body = await req.json().catch(() => ({}))
+        if(project.submitted_at&&['analyze','prepare_video'].includes(body.action))return NextResponse.json({error:'제출 전 대본워커에서 좌표 준비를 완료하세요.'},{status:409})
         if (body.action === 'prepare_video') {
             const scene = coordinateScenes(project, assets).find(s => s.number === Number(body.sceneNumber))
             if (!scene?.video || body.videoId !== scene.video.id)
@@ -114,6 +115,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     try {
         const ctx = await context(req, params.projectId)
         if (ctx.response) return ctx.response
+        if(ctx.project.submitted_at)return NextResponse.json({error:'제출된 화자·좌표는 변경할 수 없습니다. 수정 후 다시 제출하세요.'},{status:409})
         const { project, assets, email } = ctx,
             body = await req.json()
         const scene = coordinateScenes(project, assets).find((s) => s.number === Number(body.sceneNumber))

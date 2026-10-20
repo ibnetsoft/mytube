@@ -139,6 +139,18 @@ class RemoteDriveWorker:
         rows = self._request("GET", self.queue_url, params=params) or []
         return len(rows)
 
+    def is_submitted_job(self, job):
+        from worker.workflow_roles import project_stage, POSTPRODUCTION
+        import uuid
+        project_id = (job.get('metadata') or {}).get('std_web_project_id')
+        try:
+            uuid.UUID(str(project_id))
+        except (ValueError, TypeError, AttributeError):
+            return False
+        rows = self._request('GET', self.supabase_url.rstrip('/')+'/rest/v1/std_projects',
+            params={'select':'id,submitted_at,status','id':'eq.'+str(project_id),'limit':'1'}) or []
+        return bool(rows and project_stage(rows[0]) == POSTPRODUCTION)
+
     def fetch_next_job(self):
         # A live encoder renews updated_at every 15s; only expired claims resume.
         stale = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=3)).isoformat()
@@ -146,6 +158,8 @@ class RemoteDriveWorker:
             'status':'eq.rendering','render_mode':'eq.gcs_api','updated_at':'lt.'+stale,
             'metadata->>pipeline_version':'eq.2','limit':'10'}) or []
         for row in expired:
+            if not self.is_submitted_job(row):
+                continue
             self._request('PATCH', self.queue_url, params={'id':'eq.'+row['id'],'updated_at':'eq.'+row['updated_at']},
                 json={'status':'pending','updated_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),
                       'message':'중단된 실행의 저장 지점에서 재개합니다.'})
@@ -156,11 +170,12 @@ class RemoteDriveWorker:
             "render_mode": "eq.gcs_api",
             "status": "eq.pending",
             "order": "created_at.asc",
-            "limit": "1",
+            "limit": "50",
+            "metadata->>std_web_project_id": "not.is.null",
             "or": f"(metadata->>retry_not_before.is.null,metadata->>retry_not_before.lt.{datetime.datetime.now(datetime.timezone.utc).isoformat()})",
         }
         rows = self._request("GET", self.queue_url, params=params) or []
-        return rows[0] if rows else None
+        return next((row for row in rows if self.is_submitted_job(row)), None)
 
     def get_job(self, job_id):
         rows = self._request(
@@ -186,6 +201,8 @@ class RemoteDriveWorker:
         return job
 
     def claim_job(self, job):
+        if not self.is_submitted_job(job):
+            return None
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         url = f"{self.queue_url}?id=eq.{job['id']}&status=eq.pending"
         rows = self._request("PATCH", url, json={
@@ -486,6 +503,8 @@ class RemoteDriveWorker:
                     message=f'파일 확보 {index}/{len(files)} (기존 파일 캐시 재사용)')
 
     def process_job(self, job):
+        if not self.is_submitted_job(job):
+            raise ValueError('유저웹에서 제출한 프로젝트만 통합워커가 렌더할 수 있습니다.')
         self._refresh_gcs_settings()
         job_id = job["id"]
         asset_file_id = job.get("asset_file_id")

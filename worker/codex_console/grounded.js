@@ -31,9 +31,9 @@ window.renderGroundedResult=data=>{
   const media=data.job.sermon_media||{};
   sermonResult.append(element('h3','장별 설교 · 통합 제작'),element('p',plan.chapters.length+'장 · 목표 '+Math.round(plan.target_duration_seconds/60)+'분 · '+(media.status||'대본 승인 대기')+' · 제작 완료 '+(media.completed_chapters||0)+'장'));
   if(media.error)sermonResult.append(element('p',media.error,'error'));
-  if(data.job.approved_hash&&!media.status){const label=element('label','ElevenLabs 설교 음성 ID'),voice=element('input');voice.maxLength=100;voice.placeholder='기존 음성 목록의 ID';label.append(voice);const create=element('button','통합워커 장별 제작 시작','primary');create.onclick=async()=>{try{if(!voice.value.trim())throw Error('설교 음성 ID를 입력하세요.');await api('jobs/'+data.job.id+'/sermon-media',{voice_id:voice.value.trim()});await showJob(data.job.id);}catch(e){error(e.message);}};sermonResult.append(label,create);}
+    if(data.job.approved_hash)sermonResult.append(element('p','대본 검토를 마쳤습니다. 원본 이미지·좌표·연출을 준비하고 유저웹에서 영상·화자·음성을 확인한 뒤 제출하세요. 최종 제작은 통합워커의 공통 제출 파이프라인에서 실행합니다.'));
   for(const chapter of plan.chapters){const detail=element('details');detail.append(element('summary',chapter.chapter_number+'장 · '+chapter.title+' · '+chapter.duration_minutes+'분 · 검토 완료'));detail.append(element('pre',chapter.package.script,'script'));sermonResult.append(detail);}
-  if(data.job.approved_hash&&['failed','interrupted'].includes(media.status)){const resume=element('button','통합워커 이어서 제작','primary');resume.onclick=async()=>{try{await api('jobs/'+data.job.id+'/sermon-media',{});await showJob(data.job.id);}catch(e){error(e.message);}};sermonResult.append(resume);}
+
   const mediaUrl='api/jobs/'+data.job.id+'/sermon-media?token='+encodeURIComponent(token);
   for(let n=1;n<=(media.completed_chapters||0);n++){const link=element('a',n+'장 영상 보기');link.href=mediaUrl+'&chapter='+n;link.target='_blank';link.rel='noreferrer';sermonResult.append(link,document.createTextNode(' · '));}
   if(media.status==='review_pending'){sermonResult.append(element('p','실제 재생시간 '+(media.duration_seconds/60).toFixed(1)+'분 · 최종 영상 출력 검토 대기'));const video=element('video');video.controls=true;video.preload='metadata';video.src=mediaUrl;video.style.width='100%';const download=element('a','최종 설교 영상 다운로드');download.href=mediaUrl;download.download='sermon-final.mp4';sermonResult.append(video,download);}

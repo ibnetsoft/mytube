@@ -286,15 +286,18 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
     report = report or (lambda **changes: None)
     should_stop = should_stop or (lambda: False)
     base, headers = ae._supabase()
-    jobs = ae._request('GET', base + '/rest/v1/std_project_assets', headers, params={
+    from worker.workflow_roles import POSTPRODUCTION, asset_query, belongs
+    jobs = ae._request('GET', base + '/rest/v1/std_project_assets', headers, params=asset_query(POSTPRODUCTION, {
         'select': '*', 'metadata->>kind': 'eq.ae_mouth_job',
         'or': claimable_filter(),
         'order': 'created_at.asc', 'limit': '1',
-        **({'id': 'eq.' + str(job_id)} if job_id else {'metadata->>pipeline_version':'eq.2'}),
-    }).json()
+        'metadata->>pipeline_version':'eq.2',
+        **({'id': 'eq.' + str(job_id)} if job_id else {}),
+    })).json()
     if not jobs:
         return False
     job = jobs[0]
+    if not belongs(job,POSTPRODUCTION) or job.get('metadata',{}).get('pipeline_version') != 2: return False
     meta = copy.deepcopy(job['metadata'])
     auto_phase = automatic_phase(meta)
     technical = assembly_only(meta)
@@ -314,6 +317,8 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
             'select': PREVIEW_PROJECT_SELECT if compact_preview else '*', 'id': 'eq.' + job['project_id']}).json()
         if compact_preview:
             projects = [preview_project_context(p) for p in projects]
+        from worker.workflow_roles import assert_project
+        if projects:assert_project(projects[0],POSTPRODUCTION)
         assets = [] if technical and not meta.get('preview_sync') else load_project_input_assets(ae._request, base, headers, job['project_id'])
         scenes = [] if technical and not meta.get('preview_sync') else ae._request('GET', scenes_url, headers, params={
             'select': 'scene_number,scene_text,image_prompt' if compact_preview else '*',
@@ -461,7 +466,7 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
                                   and (not render_phase or outcomes.get(number, {}).get('video_coordinate_asset_id')))
                 missing = None if auto_video or not dialogue else missing_geometry(scene, result['speakers'])
                 if missing:
-                    outcomes[number] = {**result, 'status': 'skipped', 'skip_reason': missing, 'reason': '저장된 화자 좌표 또는 기준 이미지가 없어 건너뜁니다.'}
+                    outcomes[number] = {**result, 'status': 'needs_review', 'reason': '대본워커에서 저장된 화자 좌표와 기준 이미지를 보완한 뒤 다시 제출하세요.', 'repair_reason': missing}
                     save(results=list(outcomes.values()))
                     continue
                 if not auto_video and not image.exists():
@@ -472,7 +477,7 @@ def process_one(report=None, should_stop=None, job_id=None) -> bool:
                     if auto_video:
                         video, image, visibility, speakers, tracking, coordinate_asset_id = prepare_submitted_video(
                             runner, job['project_id'], scene, dialogue, snapshot['cast'], scene_dir, fresh,
-                            allow_analyze=not render_phase)
+                            allow_analyze=False)
                         result['video_coordinate_asset_id'] = coordinate_asset_id
                         result['coordinate_state'] = 'ready'
                     elif dialogue:

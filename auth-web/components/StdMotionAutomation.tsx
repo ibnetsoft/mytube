@@ -1,13 +1,13 @@
 'use client'
 import { useEffect,useState } from 'react'
 import type { MotionDraft } from '@/lib/stdMotionStudio'
-export default function StdMotionAutomation({draft,onChange,onSave,disabled,busy,projectId,headers}:{draft:MotionDraft;onChange:(draft:MotionDraft)=>void;onSave:()=>void;disabled:boolean;busy:boolean;projectId:string;headers:Record<string,string>}) {
+export default function StdMotionAutomation({draft,onChange,onSave,disabled,busy,projectId,headers,planningOnly=false}:{draft:MotionDraft;onChange:(draft:MotionDraft)=>void;onSave:()=>void;disabled:boolean;busy:boolean;projectId:string;headers:Record<string,string>;planningOnly?:boolean}) {
     const [job,setJob]=useState<any>(null),[model,setModel]=useState(''),[error,setError]=useState('')
-    useEffect(()=>{let cancelled=false;const load=async()=>{try{const r=await fetch(`/api/std/projects/${projectId}/motion-automation`,{headers});const d=await r.json();if(!r.ok)throw Error(d.error);if(!cancelled){setJob(d.job);setError('')}}catch(e:any){if(!cancelled)setError(e.message)}};void load();const timer=setInterval(load,15000);return()=>{cancelled=true;clearInterval(timer)}},[projectId,headers])
-    useEffect(()=>{let live=true;void fetch('/api/std/video-models',{headers}).then(r=>r.json()).then(d=>{if(live)setModel(d.models?.find((m:any)=>m.id===d.active_id)?.name||'선택된 모델 없음')}).catch(()=>{if(live)setModel('모델 설정 조회 실패')});return()=>{live=false}},[headers])
+    useEffect(()=>{if(planningOnly)return;let cancelled=false;const load=async()=>{try{const r=await fetch(`/api/std/projects/${projectId}/motion-automation`,{headers});const d=await r.json();if(!r.ok)throw Error(d.error);if(!cancelled){setJob(d.job);setError('')}}catch(e:any){if(!cancelled)setError(e.message)}};void load();const timer=setInterval(load,15000);return()=>{cancelled=true;clearInterval(timer)}},[projectId,headers,planningOnly])
+    useEffect(()=>{if(planningOnly)return;let live=true;void fetch('/api/std/video-models',{headers}).then(r=>r.json()).then(d=>{if(live)setModel(d.models?.find((m:any)=>m.id===d.active_id)?.name||'선택된 모델 없음')}).catch(()=>{if(live)setModel('모델 설정 조회 실패')});return()=>{live=false}},[headers,planningOnly])
     const automation=draft.automation||{mode:'ae_only' as const,max_ai_clips:1,max_ai_seconds:5}
     return <section className="mx-5 rounded-xl border border-cyan-400/30 bg-[#101722] p-4 text-white space-y-3">
-        <h3 className="font-semibold text-cyan-200">기존 AE 제작 · Codex 자동 연출</h3>
+        <h3 className="font-semibold text-cyan-200">{planningOnly?'제출 후 실행 계획 · 사전 설정':'기존 AE 제작 · Codex 자동 연출'}</h3>
         <p className="text-sm text-slate-300">원본과 최종 음성을 저장한 뒤 제출하세요. Codex가 원본·음성 구간을 확인해 연출하고, 워커가 제작·실제 출력 검수를 진행합니다. 키프레임 편집은 필요하지 않습니다.</p>
         <fieldset disabled={disabled||busy} className="space-y-3">
             <label><input type="checkbox" checked={draft.enabled&&Boolean(draft.automation)} onChange={e=>onChange({...draft,enabled:e.target.checked,automation})}/> 제출 후 자동 제작 사용</label>

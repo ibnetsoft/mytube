@@ -16,10 +16,10 @@ _slots = threading.BoundedSemaphore(3)
 _sessions = {}  # Session tokens stay server-side; passwords are never retained.
 _uploads = {}
 
-def invoke(path, method='GET', body=None, project_id='', byte_range=None):
+def invoke(path, method='GET', body=None, project_id='', byte_range=None, worker_role='postproduction'):
     with _slots:
         result = subprocess.run([shutil.which('node') or 'node', str(ROOT/'scripts/local_worker_settings.cjs')],
-            input=json.dumps({'path':path,'method':method,'body':body,'project_id':project_id,'range':byte_range,'session_token':_sessions.get(project_id,'')}),
+            input=json.dumps({'path':path,'method':method,'body':body,'project_id':project_id,'range':byte_range,'session_token':_sessions.get(project_id,''),'worker_role':worker_role}),
             capture_output=True,text=True,encoding='utf-8',cwd=ROOT,timeout=180,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
     for line in reversed(result.stdout.splitlines()):
@@ -30,12 +30,24 @@ def invoke(path, method='GET', body=None, project_id='', byte_range=None):
             return value
     raise RuntimeError('제작 설정 처리에 실패했습니다. 로컬 Node 실행 환경을 확인하세요.')
 
-def media_urls(value, project_id):
-    if isinstance(value,dict):return {k:media_urls(v,project_id) for k,v in value.items()}
-    if isinstance(value,list):return [media_urls(v,project_id) for v in value]
+def media_urls(value, project_id, token=TOKEN):
+    if isinstance(value,dict):return {k:media_urls(v,project_id,token) for k,v in value.items()}
+    if isinstance(value,list):return [media_urls(v,project_id,token) for v in value]
     if isinstance(value,str) and value.startswith('/api/std/') and ('/assets/file?' in value or '/assets/gcs-file?' in value):
-        return value+'&'+urlencode({'local_token':TOKEN,'local_project':project_id})
+        return value+'&'+urlencode({'local_token':token,'local_project':project_id})
     return value
+
+def upload_result(result, body, token=TOKEN):
+    data=result.get('data') or {}
+    if result['status']==200 and data.get('storage_upload_url'):
+        target=urlsplit(data['storage_upload_url'])
+        if target.scheme!='https' or target.hostname!='storage.googleapis.com':raise ValueError('Unsupported upload storage')
+        for key,value in list(_uploads.items()):
+            if value['expires']<time.monotonic():_uploads.pop(key,None)
+        ticket=secrets.token_urlsafe(32)
+        _uploads[ticket]={'url':data['storage_upload_url'],'size':int(body['file_size']),'mime':body['mime_type'],'expires':time.monotonic()+900,'token':token}
+        data['storage_upload_url']='/api/local/uploads/'+ticket+'?'+urlencode({'local_token':token})
+    return result
 
 def handle(handler):
     """Host and Origin are checked by the enclosing loopback server."""
@@ -87,13 +99,7 @@ def handle(handler):
         # Browser uploads stay on loopback; signed storage URLs are consumed only
         # by the local backend, so bucket CORS need not trust a localhost origin.
         if url.path.endswith('/assets/init') and result['status']==200 and result.get('data',{}).get('storage_upload_url'):
-            data=result['data'];ticket=secrets.token_urlsafe(32)
-            target=urlsplit(data['storage_upload_url'])
-            if target.scheme!='https' or target.hostname!='storage.googleapis.com':raise ValueError('Unsupported upload storage')
-            for key,value in list(_uploads.items()):
-                if value['expires']<time.monotonic():_uploads.pop(key,None)
-            _uploads[ticket]={'url':data['storage_upload_url'],'size':int(body['file_size']),'mime':body['mime_type'],'expires':time.monotonic()+900}
-            data['storage_upload_url']='/api/local/uploads/'+ticket+'?'+urlencode({'local_token':TOKEN})
+            upload_result(result,body)
         file=None
         try:
             if result.get('file'):

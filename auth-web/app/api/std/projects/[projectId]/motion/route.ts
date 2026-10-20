@@ -26,9 +26,11 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}) {
 export async function POST(req:Request,{params}:{params:{projectId:string}}) {
     try{
         const ctx=await context(req,params.projectId);if(ctx.response)return ctx.response
-        if(ctx.project.submitted_at||['review_requested','approved','canceled'].includes(ctx.project.status))throw new Error('제출 전 프로젝트에서 미리보기를 요청해 주세요.')
+        const body=await req.json()
+        const planning=body.action==='direction'
+        if(['approved','canceled'].includes(ctx.project.status)||planning&&ctx.project.submitted_at||!planning&&!ctx.project.submitted_at)return NextResponse.json({error:'연출 준비는 제출 전 대본워커, 실제 미리보기·AE 실행은 제출 후 통합워커에서 담당합니다.'},{status:409})
         const draft=motionForProject(ctx.project);if(!draft?.enabled)throw new Error('Motion Studio 사용 설정을 저장해 주세요.')
-        const body=await req.json(),number=Number(body.scene_number)
+        const number=Number(body.scene_number)
         if(!Number.isInteger(number)||number<1)throw new Error('씬 번호를 확인해 주세요.')
         const query=await db.from('std_project_scenes').select('*').eq('project_id',params.projectId).eq('scene_number',number).maybeSingle()
         if(query.error)throw query.error;if(!query.data)throw new Error('프로젝트에 없는 씬입니다.')

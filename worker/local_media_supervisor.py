@@ -1,4 +1,4 @@
-"""One manager for web AE/geometry and final rendering; heavy jobs never overlap."""
+"""Post-submission AE, review and final rendering only; heavy jobs never overlap."""
 from __future__ import annotations
 import argparse, contextlib, json, os, signal, subprocess, sys, threading, time
 from pathlib import Path
@@ -49,39 +49,30 @@ def pending_roles():
     def exists(table,params):
         response=requests.get(base+'/rest/v1/'+table,headers=headers,params={'select':'id','limit':'1',**params},timeout=(5,15))
         response.raise_for_status();return bool(response.json())
+    from worker.workflow_roles import POSTPRODUCTION, asset_query
+    from ae_scene_preparation import claimable_filter as simple_filter
     roles=[]
-    from ae_scene_preparation import claimable_filter as automation_filter
-    if exists('std_project_assets', {'metadata->>kind':'eq.motion_automation','metadata->>enabled':'eq.true','or':automation_filter()}):
-        roles.append('motion_automation')
-    from ae_scene_preparation import claimable_filter as motion_filter
-    if exists('std_project_assets', {'metadata->>kind':'eq.motion_preview', 'metadata->>enabled':'eq.true','or':motion_filter()}):
-        roles.append('motion_preview')
-    from ae_scene_preparation import claimable_filter as scene_preparation_filter
-    if exists('std_project_assets', {'metadata->>kind':'eq.ae_scene_preparation',
-            'metadata->>enabled':'eq.true','or':scene_preparation_filter()}):
-        roles.append('preparation')
-    for kind in ('region_layer_package','region_motion_plan'):
-        if exists('std_project_assets',{'metadata->>kind':'eq.'+kind,'metadata->>state':'in.(queued,processing)'}):
-            roles.append('region');break
-    # Submitted mouth work is independent of optional coordinate analysis.
-    if exists('std_project_assets', {'metadata->>kind':'eq.ae_mouth_job','metadata->>pipeline_version':'eq.2','or':claimable_filter()}):
-        roles.append('ae')
-    if exists('std_project_assets', {'metadata->>kind':'eq.ae_speaker_coordinates','metadata->>state':'in.(queued,processing)'}):
-        roles.append('coordinates')
-    # Version two extends selected clips in the final composer; legacy model tail QA is not a submission stage.
-    if exists('remote_render_queue',{'render_mode':'eq.gcs_api','or':f"(status.eq.pending,and(status.eq.rendering,metadata->>pipeline_version.eq.2,updated_at.lt.{(datetime.now(timezone.utc)-__import__('datetime').timedelta(minutes=3)).isoformat()}))"}):roles.append('render')
+    for role,kind in [('motion_automation','motion_automation'),('motion_preview','motion_preview'),('region','region_motion_plan'),('ae','ae_mouth_job')]:
+        query={'metadata->>kind':'eq.'+kind,'or':claimable_filter() if role=='ae' else simple_filter()}
+        if role=='motion_preview':query['metadata->input->>task']='eq.preview'
+        if role in ('motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
+        if role=='ae':query['metadata->>pipeline_version']='eq.2'
+        if exists('std_project_assets',asset_query(POSTPRODUCTION,query)):roles.append(role)
+    response=requests.get(base+'/rest/v1/remote_render_queue',headers=headers,params={
+        'select':'metadata->std_web_project_id','limit':'1000','render_mode':'eq.gcs_api',
+        'metadata->>std_web_project_id':'not.is.null','or':f"(status.eq.pending,and(status.eq.rendering,metadata->>pipeline_version.eq.2,updated_at.lt.{(datetime.now(timezone.utc)-__import__('datetime').timedelta(minutes=3)).isoformat()}))"},timeout=(5,15))
+    response.raise_for_status()
+    import re
+    ids={row.get('std_web_project_id') for row in response.json() if re.fullmatch(r'[a-fA-F0-9-]{36}',str(row.get('std_web_project_id') or ''))}
+    if ids and exists('std_projects',{'id':'in.('+','.join(ids)+')','submitted_at':'not.is.null','status':'not.in.(approved,canceled,cancelled,completed,paid)'}):roles.append('render')
     return roles
 
 def role_command(role):
     if role=='motion_automation': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--once']
     if role=='motion_preview': return [sys.executable,'-u',str(ROOT/'worker/motion_preview_worker.py'),'--once']
-    if role=='preparation': return [sys.executable,'-u',str(ROOT/'worker/ae_scene_preparation.py'),'--once']
-    if role=='coordinates': return [sys.executable,'-u',str(ROOT/'worker/ae_speaker_coordinates.py'),'--once']
-    if role=='video_tail': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--video-tails-only','--max-scenes','1']
     if role=='region': return [sys.executable,'-u',str(ROOT/'worker/ae_region_motion_worker.py'),'--once']
     if role=='ae': return [sys.executable,'-u',str(ROOT/'worker/ae_mouth_worker.py'),'--once','--mouth-only']
     if role=='render': return [sys.executable,'-u',str(ROOT/'remote_drive_worker.py'),'--once']
-    if role=='highlight': return [sys.executable,'-u',str(ROOT/'worker/ae_highlight_worker.py'),'--max-scenes','1']
     raise ValueError('Unknown media role')
 
 def busy_processes():
@@ -128,7 +119,8 @@ class Supervisor:
         self.state={'service':'air-local-media','pipeline_version':2,'pid':os.getpid(),'status':'starting','active':None,'roles':{},'started_at':now()}
     def choose(self,roles):
         if (HOME/'pause-render').exists():roles=[r for r in roles if r!='render']
-        if self.include_highlight or (HOME/'highlight-enabled').exists():roles=[*roles,'highlight']
+        # Legacy topic/highlight discovery cannot bypass user submission.
+        roles=[r for r in roles if r in ('ae','render','region','motion_automation','motion_preview')]
         available=[r for r in roles if time.monotonic()>=self.retry_after.get(r,0)]
         if 'render' in available: return 'render'
         return next((r for r in available if r!=self.last_role),available[0] if available else None)
@@ -173,7 +165,7 @@ def main():
     parser.add_argument('--stop',action='store_true');parser.add_argument('--pause-render',action='store_true');parser.add_argument('--resume-render',action='store_true')
     parser.add_argument('--include-highlight',action='store_true');parser.add_argument('--enable-highlight',action='store_true');parser.add_argument('--port',type=int,default=3004);parser.add_argument('--poll',type=float,default=10)
     args=parser.parse_args();HOME.mkdir(parents=True,exist_ok=True)
-    if args.enable_highlight:(HOME/'highlight-enabled').touch();return
+    if args.enable_highlight or args.include_highlight:parser.error('기존 하이라이트 자동 탐색은 종료되었습니다. 유저웹에서 제출한 작업만 실행합니다.')
     if args.status:print((HOME/'status.json').read_text(encoding='utf-8') if (HOME/'status.json').exists() else '{"status":"not_started"}');return
     if args.stop:(HOME/'stop').touch();return
     if args.pause_render:(HOME/'pause-render').touch();return

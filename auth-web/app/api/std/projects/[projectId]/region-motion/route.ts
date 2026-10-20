@@ -148,6 +148,10 @@ export async function POST(
         const body = await req.json(),
             number = Number(body.sceneNumber),
             scene = scenes(ctx).find((s) => s.number === number)
+        if (body.action === 'save' && ctx.project.submitted_at)
+            return NextResponse.json({error:'제출 전 대본워커에서 연출을 준비하세요.'},{status:409})
+        if (['render','apply'].includes(body.action) && !ctx.project.submitted_at)
+            return NextResponse.json({error:'AE 실행·검수는 유저웹 제출 후 통합워커에서 진행합니다.'},{status:409})
         if (!scene) throw new Error('원본 이미지가 없습니다.')
         const image = ctx.assets!.find((a: any) => a.id === scene.imageId),
             source = coordinateSource(image)

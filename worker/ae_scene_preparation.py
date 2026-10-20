@@ -535,7 +535,9 @@ class LeaseLost(RuntimeError):
     pass
 
 
-def process_one():
+def process_one(stage="preparation"):
+    from worker.workflow_roles import PREPARATION, asset_query, belongs
+    if stage != PREPARATION: raise ValueError("PSD preparation belongs to the script worker")
     import ae_highlight_worker as ae
     from ae_media_utils import ref
     from codex_content_runner import CodexStagedContentRunner
@@ -543,11 +545,12 @@ def process_one():
     from project_assets import read_project_assets
     base, headers = ae._supabase()
     url = base + '/rest/v1/std_project_assets'
-    jobs = ae._request('GET', url, headers, params={'select': '*', 'metadata->>kind': 'eq.ae_scene_preparation',
-        'metadata->>enabled': 'eq.true', 'or': claimable_filter(), 'order': 'created_at.asc', 'limit': 1}).json()
+    jobs = ae._request('GET', url, headers, params=asset_query(stage, {'select': '*', 'metadata->>kind': 'eq.ae_scene_preparation',
+        'metadata->>enabled': 'eq.true', 'or': claimable_filter(), 'order': 'created_at.asc', 'limit': 1})).json()
     if not jobs:
         return False
     job = jobs[0]
+    if not belongs(job, stage): return False
     meta = copy.deepcopy(job['metadata'])
     snapshot = meta.get('input') or {}
     fingerprint = meta.get('fingerprint')
@@ -579,10 +582,12 @@ def process_one():
         if lost.is_set():
             raise LeaseLost('장면 준비 작업 소유권이 변경됐습니다.')
         projects = ae._request('GET', base + '/rest/v1/std_projects', headers,
-                              params={'select': 'id,status,project_payload', 'id': 'eq.' + job['project_id']}).json()
+                              params={'select': 'id,status,submitted_at,project_payload', 'id': 'eq.' + job['project_id']}).json()
         assets = read_project_assets(ae._request, url, headers, job['project_id'])
         scenes = ae._request('GET', base + '/rest/v1/std_project_scenes', headers,
                             params={'select': '*', 'project_id': 'eq.' + job['project_id']}).json()
+        from worker.workflow_roles import assert_project
+        if projects: assert_project(projects[0], stage)
         if not input_is_current(snapshot, job['id'], fingerprint, projects, assets, scenes):
             raise ValueError('원본·대본·연출·인접 씬이 변경됐습니다. 장면 준비를 다시 요청해 주세요.')
 

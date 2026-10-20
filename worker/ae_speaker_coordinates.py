@@ -1,4 +1,4 @@
-"""Prepare speaker geometry once before submission; do not generate new voices or mouth patches."""
+"""Prepare speaker geometry and reviewed mouth art before user submission."""
 import copy
 import dataclasses
 import argparse
@@ -20,16 +20,20 @@ class LeaseLost(RuntimeError):
     pass
 
 
-def process_one(should_stop=None):
+def process_one(should_stop=None, stage="preparation"):
+    from worker.workflow_roles import PREPARATION, asset_query, belongs
+    if stage != PREPARATION: raise ValueError("Image coordinates belong to the script worker")
     should_stop = should_stop or (lambda: False)
     import ae_highlight_worker as ae
     from ae_mouth import locate_speakers, digest
     from codex_content_runner import CodexStagedContentRunner
     base, headers = ae._supabase()
     url = base + '/rest/v1/std_project_assets'
-    jobs = ae._request('GET', url, headers, params={'select':'*','metadata->>kind':'eq.ae_speaker_coordinates','or':f"(metadata->>state.eq.queued,and(metadata->>state.eq.processing,updated_at.lt.{(datetime.now(timezone.utc)-timedelta(minutes=2)).isoformat()}))",'order':'created_at.asc','limit':'1'}).json()
+    jobs = ae._request('GET', url, headers, params=asset_query(stage, {'select':'*','metadata->>kind':'eq.ae_speaker_coordinates','or':f"(metadata->>state.eq.queued,and(metadata->>state.eq.processing,updated_at.lt.{(datetime.now(timezone.utc)-timedelta(minutes=2)).isoformat()}))",'order':'created_at.asc','limit':'1'})).json()
     if not jobs: return False
-    job = jobs[0]; meta = copy.deepcopy(job['metadata'])
+    job = jobs[0]
+    if not belongs(job,stage): return False
+    meta = copy.deepcopy(job['metadata'])
     lease = str(uuid.uuid4())
     claimed = ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':{**meta,'state':'processing','worker_token':lease,'error':None,'heartbeat_at':ae._now()},'updated_at':ae._now()}).json()
     if not claimed: return False
@@ -56,7 +60,12 @@ def process_one(should_stop=None):
                 return
     ticker = threading.Thread(target=heartbeat, daemon=True)
     ticker.start()
+    def current_stage():
+        from worker.workflow_roles import assert_project
+        projects=ae._request('GET',base+'/rest/v1/std_projects',headers,params={'select':'id,submitted_at,status','id':'eq.'+job['project_id'],'limit':1}).json()
+        assert_project(projects[0] if projects else None,stage)
     try:
+        current_stage()
         runner = CodexStagedContentRunner()
         runner.config = dataclasses.replace(runner.config, timeout_seconds=min(runner.config.timeout_seconds, 180))
         directory = Path(ae.ROOT if hasattr(ae,'ROOT') else Path(__file__).resolve().parents[1]) / 'output' / 'codex-local-console' / 'speaker-coordinates' / meta['fingerprint']
@@ -73,6 +82,7 @@ def process_one(should_stop=None):
                 return True
             save(current_scene=scene['number'])
             try:
+                current_stage()
                 bucket,path = image_reference(scene['image'])
                 image = directory / f"scene-{scene['number']}.png"
                 if not image.exists(): ae._download_gcs_file(ae.GcsRef(bucket,path),image)
@@ -96,14 +106,12 @@ def process_one(should_stop=None):
                     art = prepare_scene(image, geometry, technical=True)
                     preview = prepare_preview(job['project_id'], scene['number'], image, geometry, art)
                     results[scene['number']]['mouth_preparation'] = art
-                    if preview.get('state') == 'ready':
-                        ae._request('POST', url, {**headers,'Prefer':'return=representation'}, json={
-                            'project_id': job['project_id'], 'asset_type': 'other', 'status': 'uploaded',
-                            'scene_number': scene['number'], 'file_name': 'mouth-preview.mp4', 'mime_type': 'video/mp4',
-                            'metadata': {**preview,'source_image_id':scene['image']['id']}})
+                    results[scene['number']]['mouth_preparation_receipt'] = preview
                 except Exception as exc:
                     results[scene['number']]['preparation_error'] = str(exc)[:500]
+                    raise ValueError('Mouth preparation needs repair: '+str(exc)) from exc
                 failures.pop(scene['number'], None)
+                current_stage()
                 save(results=list(results.values()),failures=list(failures.values()))
             except LeaseLost:
                 raise

@@ -3,11 +3,13 @@ import { supabaseAdmin as db } from './supabaseAdmin'
 import { aeMouthApplicable, aeMouthInput, currentAeMouthJob } from './stdAeMouth'
 import { backgroundWindow } from './stdAudioMix'
 import { sfxNeedsReview, resolveSfxCues } from './stdSfxCues'
+import { assertPreparationFinished, assertPreparedMouthGeometry } from './stdWorkflowBoundary'
 import { hasAeSceneIntent } from './stdAeScenePreparation'
 import { aeSceneArtifactReviewMatches, aeSceneRenderReviewMatches } from './stdAeSceneReview'
 
 export const SUBMISSION_PIPELINE_VERSION = 2
 export function submissionSnapshot(project: any, scenes: any[], assets: any[], mouthRequired: boolean) {
+    assertPreparationFinished(assets)
     const frozen = JSON.parse(JSON.stringify({ project, scenes, assets }))
     frozen.project.project_payload = { ...frozen.project.project_payload, submission_pipeline_version: 2 }
     mouthRequired = mouthRequired || hasAeSceneIntent(frozen.project, frozen.scenes, frozen.assets)
@@ -28,6 +30,7 @@ export function submissionSnapshot(project: any, scenes: any[], assets: any[], m
         input: { project_id: project.id, scenes: [], subtitles: [], cast: {}, annotations: {} },
         fingerprint: createHash('sha256').update(`assembly:${project.id}:${project.updated_at}`).digest('hex'),
     }
+    if(mouthRequired)assertPreparedMouthGeometry(mouth.input)
     const previous = mouthRequired ? currentAeMouthJob(frozen.project, scenes, assets) : null
     if (mouthRequired) frozen.project.project_payload.ae_mouth = { ...frozen.project.project_payload.ae_mouth, enabled: true }
     const reusable = previous?.metadata?.fingerprint === mouth.fingerprint && previous.metadata?.pipeline_version === 2
@@ -75,39 +78,8 @@ export function submissionSnapshot(project: any, scenes: any[], assets: any[], m
 }
 
 /** Final voice exists now: queue synced scene previews, without submitting a final render. */
-export async function ensureSyncedMouthPreview(project: any, scenes: any[], assets: any[]) {
-    if (!scenes.length) return null
-    // Prepared scene production is explicitly submitted; saving TTS must not start it.
-    if (hasAeSceneIntent(project, scenes, assets)) return null
-    if (project.submitted_at || project.project_payload?.ae_mouth?.enabled === false || !aeMouthApplicable(project, scenes, assets)) return null
-    const { input, fingerprint } = aeMouthInput(project, scenes, assets)
-    const existing = assets.find(a => a.metadata?.kind === 'ae_mouth_job' && a.metadata.fingerprint === fingerprint && a.metadata.pipeline_version === 2)
-    if (existing) {
-        if (['failed','obsolete'].includes(existing.metadata.state)) {
-            const updated = await db.from('std_project_assets').update({
-                metadata: { ...existing.metadata, state: 'queued', phase: 'render', auto_pending: true,
-                    technical_attempts: 0, error: null, results: existing.metadata.results.filter((r: any) => r.status === 'artifact_ready') },
-                updated_at: new Date().toISOString(),
-            }).eq('id', existing.id).eq('updated_at', existing.updated_at).select('*').maybeSingle()
-            if (updated.error) throw updated.error
-            return updated.data || existing
-        }
-        return existing
-    }
-    const path = `std/${project.id}/mouth-preview-v2/${fingerprint}.json`
-    const claim = await db.storage.from('content-assets').upload(path, Buffer.from(JSON.stringify({ fingerprint })), { contentType: 'application/json', upsert: false })
-    if (claim.error) {
-        if (/already exists|duplicate/i.test(claim.error.message)) return null
-        throw claim.error
-    }
-    const inserted = await db.from('std_project_assets').insert({ project_id: project.id, asset_type: 'other', status: 'uploaded',
-        file_name: `synced-mouth-${fingerprint}.json`, mime_type: 'application/json',
-        metadata: { kind: 'ae_mouth_job', pipeline_version: 2, preview_sync: true,
-            state: 'queued', phase: 'render', automatic: true, auto_pending: true,
-            auto_video_coordinates: false, fingerprint, input, results: [] },
-    }).select('*').single()
-    if (inserted.error) { await db.storage.from('content-assets').remove([path]); throw inserted.error }
-    return inserted.data
+export async function ensureSyncedMouthPreview(_project: any, _scenes: any[], _assets: any[]) {
+    return null
 }
 
 export async function registerSubmissionPipeline(project: any, scenes: any[], assets: any[], userId: string, mouthRequired: boolean) {

@@ -60,11 +60,13 @@ def fetch_jobs():
     # Project only display fields; do not retrieve asset URLs, credentials or full input.
     select = 'id,project_id,scene_number,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes,total_scenes:metadata->total_scenes'
     # Input scenes can contain assets; select just counts on the server and never return them.
-    assets = query('std_project_assets', {'select':select,'metadata->>kind':'in.(ae_speaker_coordinates,ae_mouth_job,region_layer_package,region_motion_plan,motion_preview,motion_automation)', 'order':'created_at.desc','limit':'100'})
+    from worker.workflow_roles import POSTPRODUCTION, asset_query, belongs
+    assets = query('std_project_assets', asset_query(POSTPRODUCTION, {'select':select+',preview_sync:metadata->preview_sync,task:metadata->input->task','metadata->>kind':'in.(ae_mouth_job,region_motion_plan,motion_preview,motion_automation)', 'order':'created_at.desc','limit':'100'}))
     jobs = []
     for row in assets:
         row['metadata'] = {'state':row.get('metadata'), 'kind':row.get('kind'), 'phase':row.get('phase'),
-                           'results':row.get('results'), 'total_scenes':row.get('total_scenes'), 'input':{'scenes':row.get('scenes')}}
+                           'results':row.get('results'), 'preview_sync':row.get('preview_sync'), 'total_scenes':row.get('total_scenes'), 'input':{'scenes':row.get('scenes'),'task':row.get('task')}}
+        if not belongs(row,POSTPRODUCTION):continue
         jobs.append(summarize(row))
     renders = query('remote_render_queue', {'select':'id,project_id,project_name,status,progress,created_at,updated_at,web_id:metadata->std_web_project_id',
                                            'render_mode':'eq.gcs_api','order':'created_at.desc','limit':'100'})
@@ -72,7 +74,8 @@ def fetch_jobs():
         row['metadata'] = {'std_web_project_id':row.get('web_id')}
         jobs.append(summarize(row, True))
     ids = sorted({j['project_id'] for j in jobs if j['project_id'] and len(str(j['project_id'])) == 36})
-    titles = {p['id']:p.get('title') for p in query('std_projects', {'select':'id,title','id':'in.('+','.join(ids)+')'})} if ids else {}
+    titles = {p['id']:p.get('title') for p in query('std_projects', {'select':'id,title','id':'in.('+','.join(ids)+')','submitted_at':'not.is.null','status':'not.in.(approved,canceled,cancelled,completed,paid)'})} if ids else {}
+    jobs=[job for job in jobs if job['project_id'] in titles]
     for job in jobs: job['title'] = titles.get(job['project_id']) or job['title'] or '이름 없는 프로젝트'
     return sorted(jobs, key=lambda j:j['created_at'] or '', reverse=True)
 
