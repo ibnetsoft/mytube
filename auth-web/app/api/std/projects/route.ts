@@ -21,7 +21,10 @@ export async function GET(req: Request) {
     const projects = data || []
     let contexts: any[] = []
     try { contexts = projects.length ? await loadStdProjectStatusContext(supabaseAdmin, projects.map(project => project.id)) : [] }
-    catch { return NextResponse.json({ error: 'Could not load project completion status' }, { status: 503 }) }
+    catch (error: any) {
+        console.error('[STD projects] status context unavailable:', error?.code, error?.message)
+        return NextResponse.json({ error: 'Could not load project completion status' }, { status: 503 })
+    }
     const contextById = new Map(contexts.map(context => [context.id, context]))
     const assets: any[] = []
     const ids = projects.map(project => project.id)

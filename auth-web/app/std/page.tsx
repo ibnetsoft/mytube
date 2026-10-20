@@ -816,6 +816,7 @@ export default function StdPortalPage() {
     const [topics, setTopics] = useState<Topic[]>([])
     const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
+    const [projectsLoadError, setProjectsLoadError] = useState('')
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const comicProject = isComicProject(selectedProject?.project)
     const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
@@ -4514,8 +4515,14 @@ export default function StdPortalPage() {
             })
             setTopics(dedupedTopics)
 
-            const loadedProjects = Array.isArray(projectPayload?.projects) ? projectPayload.projects : []
-            setProjects(loadedProjects)
+            const projectListOk = projectsRes.status === 'fulfilled' && projectsRes.value.ok && Array.isArray(projectPayload?.projects)
+            const loadedProjects: StdProject[] = projectListOk ? projectPayload.projects : []
+            if (projectListOk) {
+                setProjects(loadedProjects)
+                setProjectsLoadError('')
+            } else {
+                setProjectsLoadError('프로젝트 목록을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.')
+            }
 
             // 1. 로컬 저장소에 저장된 활성 프로젝트 복원 시도 (임퍼소네이트 모드가 아닐 때만)
             const urlProjectId = readUrlProjectId()
@@ -4541,7 +4548,7 @@ export default function StdPortalPage() {
                 }
             } else if (loadedProjects.length > 0) {
                 await openProject(loadedProjects[0].id, accessToken, undefined, options.forceRefresh).catch(() => {})
-            } else if (savedProjectStateRaw) {
+            } else if (projectListOk && savedProjectStateRaw) {
                 try {
                     const parsed = JSON.parse(savedProjectStateRaw)
                     if (parsed?.project?.id && projectMatchesRequester(parsed, email || user?.email)) {
@@ -4569,7 +4576,7 @@ export default function StdPortalPage() {
                 } catch {
                     // Fallback to loadedProjects
                 }
-            } else if (loadedTopics.length > 0) {
+            } else if (projectListOk && loadedTopics.length > 0) {
                 const firstRealTopic = loadedTopics[0]
                 const loaded = buildProjectFromSupabaseTopic(firstRealTopic)
                 setSelectedProject(loaded)
@@ -5028,6 +5035,7 @@ export default function StdPortalPage() {
         setUser(null)
         setSelectedProject(null)
         setProjects([])
+        setProjectsLoadError('')
         setTopics([])
     }
 
@@ -8394,7 +8402,7 @@ export default function StdPortalPage() {
                                     >
                                         미완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'incomplete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projects.filter((p: any) => !p.submitted_at).length}</span>
+                                        }`}>{projectsLoadError && !projects.length ? '—' : projects.filter((p: any) => !p.submitted_at).length}</span>
                                     </button>
                                     <button
                                         type="button"
@@ -8407,7 +8415,7 @@ export default function StdPortalPage() {
                                     >
                                         완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'complete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projects.filter((p: any) => Boolean(p.submitted_at)).length}</span>
+                                        }`}>{projectsLoadError && !projects.length ? '—' : projects.filter((p: any) => Boolean(p.submitted_at)).length}</span>
                                     </button>
                                 </div>
                             </div>
@@ -8423,6 +8431,12 @@ export default function StdPortalPage() {
 
                         {/* 팝업 바디 (테이블) */}
                         <div className="overflow-auto flex-1 p-4 sm:p-6">
+                            {projectsLoadError && (
+                                <div role="alert" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
+                                    {projectsLoadError}
+                                    <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={() => void loadStdData(token, { forceRefresh: true })}>다시 불러오기</button>
+                                </div>
+                            )}
                             <div className="bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">
                                 <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1080px]">
                                     <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px] sticky top-0 z-10">
@@ -8650,7 +8664,7 @@ export default function StdPortalPage() {
                                                 </tr>
                                             )
                                         })}
-                                        {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).length === 0 && (
+                                        {!projectsLoadError && projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).length === 0 && (
                                             <tr>
                                                 <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
                                                     {projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}
