@@ -6907,6 +6907,10 @@ export default function StdPortalPage() {
 
     const handleFinalizeSubtitlesAndTts = async () => {
         const copy = ttsNoticeCopy(currentLocale)
+        if (dialogueSpeakerProgress.confirmed < dialogueSpeakerProgress.total) {
+            setMessage(ui('모든 대사의 화자를 지정한 후 저장+TTS를 실행해 주세요.'))
+            return
+        }
         if (!hasDistinctDialogueVoiceAssignment()) {
             const msg = copy.dialogueVoiceRequired
             setMessage(msg)
@@ -9022,7 +9026,9 @@ export default function StdPortalPage() {
                             is_hook_zone: true,
                         }
                         const narrationSubtitleCount = localSubtitles.filter(isSubtitleNarration).length
-                        const canFinalizeSubtitlesAndTts = localSubtitles.length > 0 && hasDistinctDialogueVoiceAssignment()
+                        const canFinalizeSubtitlesAndTts = localSubtitles.length > 0
+                            && dialogueSpeakerProgress.confirmed === dialogueSpeakerProgress.total
+                            && hasDistinctDialogueVoiceAssignment()
                         const selectedSubtitleSceneGroup = subtitleSceneGroups.find(group => (
                             selectedSubtitleSceneNumbers.includes(Number(group.scene_number))
                         ))
@@ -9584,7 +9590,9 @@ export default function StdPortalPage() {
                                                 }`}
                                                 title={canFinalizeSubtitlesAndTts
                                                     ? ttsNoticeCopy(currentLocale).saveTtsLabel
-                                                    : ttsNoticeCopy(currentLocale).dialogueVoiceRequired}
+                                                    : dialogueSpeakerProgress.confirmed < dialogueSpeakerProgress.total
+                                                        ? ui('모든 대사의 화자를 지정한 후 저장+TTS를 실행해 주세요.')
+                                                        : ttsNoticeCopy(currentLocale).dialogueVoiceRequired}
                                             >
                                                 {generatingTts ? <RefreshCw size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
                                                 <span>+TTS</span>

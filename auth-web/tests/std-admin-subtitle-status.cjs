@@ -23,10 +23,12 @@ test('Save + TTS records completion only after both saves succeed in the same pr
  const page=fs.readFileSync(path.join(__dirname,'../app/std/page.tsx'),'utf8')
  const a=page.indexOf('    const handleFinalizeSubtitlesAndTts ='),b=page.indexOf('    // 대본 속 인물',a)
  const code=ts.transpileModule(page.slice(a,b)+'; return handleFinalizeSubtitlesAndTts',{compilerOptions:{target:9}}).outputText
- for(const scenario of ['success','save-failed','tts-failed','changed-project']){
+ for(const scenario of ['success','save-failed','tts-failed','changed-project','missing-speaker']){
   const events=[];const noop=()=>{}
   const context={ttsNoticeCopy:()=>({}),currentLocale:'ko',hasDistinctDialogueVoiceAssignment:()=>true,setMessage:noop,alert:noop,mediaScopeRef:{current:{projectId:'p'}},setGeneratingTts:noop,setHighlightSaveTts:noop,setTtsNotice:noop,selectedProject:{project:{id:'p'}},getProjectSyncedTitle:()=> 'Project',handleSaveSubtitles:async()=>{events.push('save');return scenario!=='save-failed'},generateTts:async()=>{events.push('tts');return scenario!=='tts-failed'},isCurrentMediaScope:()=>scenario!=='changed-project',persistVrewVoiceSubtitles:async(rows,options)=>{assert.equal(options.subtitleTtsCompleted,true);events.push('complete')},speechSubtitlesRef:{current:[]},localizeStdActionError:()=> 'save failed',console:{warn:noop}}
+  context.dialogueSpeakerProgress=scenario==='missing-speaker'?{total:98,confirmed:96}:{total:98,confirmed:98}
+  context.ui=text=>text
   await new Function(...Object.keys(context),code)(...Object.values(context))()
-  assert.deepEqual(events,scenario==='success'?['save','tts','complete']:scenario==='save-failed'?['save']:['save','tts'])
+  assert.deepEqual(events,scenario==='missing-speaker'?[]:scenario==='success'?['save','tts','complete']:scenario==='save-failed'?['save']:['save','tts'])
  }
 })
