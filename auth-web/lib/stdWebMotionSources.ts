@@ -15,3 +15,12 @@ export function linkedWebPsdSources(projectId:string,assets:any[],direct:Map<num
     }
     return result
 }
+/** Prepared scene originals already referenced by the owned project snapshot. */
+export function preparedWebImage(project:any,scene:any){
+ const number=Number(scene.scene_number);if(!Number.isInteger(number)||number<1||(scene.project_id&&scene.project_id!==project.id))return null
+ const saved=(project.project_payload?.structure?.scenes||[]).find((s:any)=>Number(s.scene_number??s.scene_order)===number),image=saved?.metadata?.cowork_image_asset||scene.metadata?.metadata?.cowork_image_asset
+ if(!image)return null
+ const bucket=image.gcs_bucket||image.bucket,path=image.gcs_path,sha=image.sha256
+ if(typeof bucket!=='string'||!/^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$/.test(bucket)||typeof path!=='string'||!/^[a-f0-9]{64}$/.test(sha||'')||!/^topics\/prepared\/[a-f0-9-]+\/images\//.test(path)||path.split('/').some((v:string)=>v==='.'||v==='..')||!path.endsWith(`scene-${String(number).padStart(3,'0')}-${sha.slice(0,16)}.png`))throw Error(`${number}번 저장 원화의 연결·해시를 확인해 주세요.`)
+ return {id:`prepared-${number}-${sha}`,kind:'image',url:`/api/std/assets/gcs-file?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(path)}`,sha256:sha}
+}

@@ -9,7 +9,7 @@ import {resolveWebTimeline} from '@/lib/stdMotionTimeline'
 import StdMotionLayerTools,{NativeSceneTools} from './StdMotionLayerTools'
 import {normalizeLayerAdvanced,normalizeNativeScene} from '@/lib/stdMotionRig'
 
-type Scene={number:number;title:string;start:number;end:number;source:{id:string;kind:string;url:string}|null}
+type Scene={number:number;title:string;start:number;end:number;source:{id:string;kind:string;url:string;sha256?:string}|null}
 type Workspace={scenes:Scene[];audio:{id:string;url:string}|null;audio_error:string;subtitles:{start:number;end:number;text:string}[];ai_jobs:{id:string;number:number;state:string}[];finals?:{id:string;name:string;url:string;created_at:string}[];sounds?:{url:string;start:number;end:number;volume:number;loop:boolean;fadeIn:number;fadeOut:number}[];overlay?:string|null}
 const stable=(value:unknown)=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v)
 const workspaceSignature=(w:Workspace)=>stable({audio:w.audio,subtitles:w.subtitles,scenes:w.scenes,sounds:w.sounds,overlay:w.overlay})
@@ -44,6 +44,7 @@ export default function StdWebMotionStudio({draft,onChange,onSave,projectId,head
         if(artworks.current.has(s.number))return artworks.current.get(s.number)!
         if(!s.source)throw Error(`${s.number}번 씬에 PSD·이미지·영상 원본이 필요합니다.`)
         const blob=await fetchBlob(s.source.url)
+        if(s.source.sha256){const digest=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()),sha=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');if(sha!==s.source.sha256)throw Error(`${s.number}번 원화가 저장된 원본 해시와 다릅니다.`)}
         let artwork:WebArtwork
         if(s.source.kind==='psd')artwork=await readWebPsd(await blob.arrayBuffer())
         else if(s.source.kind==='video'){

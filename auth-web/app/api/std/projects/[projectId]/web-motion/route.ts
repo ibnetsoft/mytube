@@ -10,11 +10,11 @@ import { storageSourceForAsset } from '@/lib/stdSceneMedia'
 import { selectedVideoModel } from '@/lib/stdVideoModelStore'
 import { createProviderVideo,pollProviderVideo,outputVideoUrl } from '@/lib/stdMotionVideoProvider'
 import { createGcsSignedReadUrl, getGcsObjectMetadata, downloadGcsObjectViaSignedUrl } from '@/lib/gcsStorage'
-import {backgroundWindow,backgroundVolume} from '@/lib/stdAudioMix'
+import {backgroundWindow,backgroundVolume,soundCueVolume} from '@/lib/stdAudioMix'
 import {resolveSfxCues,sfxNeedsReview} from '@/lib/stdSfxCues'
 import {templateOverlayPng} from '@/lib/stdTemplateOverlayPng'
 import {motionProductionMethod} from '@/lib/stdMotionStudio'
-import {linkedWebPsd,linkedWebPsdSources} from '@/lib/stdWebMotionSources'
+import {linkedWebPsd,linkedWebPsdSources,preparedWebImage} from '@/lib/stdWebMotionSources'
 
 export const dynamic='force-dynamic'
 export const maxDuration=60
@@ -61,11 +61,11 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}){
         if(bgmId){const window=backgroundWindow(settings,subtitles,total);if(!bgm||!window.valid)audioError=audioError||'저장된 배경음·구간을 확인해 주세요.';else sounds.push({url:fileUrl(params.projectId,bgm),...window,volume:backgroundVolume(settings.bgm_volume),loop:settings.bgm_loop!==false})}
         const cues=(settings.sfx_cues||c.project.project_payload?.sfx_cues||[]).filter((c:any)=>c.enabled!==false)
         if(cues.some((c:any)=>sfxNeedsReview(c,subtitles)))audioError=audioError||'효과음 기준 자막이 변경되었습니다. 효과음 구간을 확인해 주세요.'
-        for(const cue of resolveSfxCues(cues,subtitles)){const asset=active.find(a=>a.id===cue.asset_id);if(!asset){audioError=audioError||'저장된 효과음을 확인해 주세요.';continue}sounds.push({url:fileUrl(params.projectId,asset),start:Number(cue.start),end:Math.min(total,Number(cue.start)+Number(cue.duration||asset.metadata?.duration_seconds||3)),volume:Number(cue.volume??.5),loop:false,fadeIn:0,fadeOut:.05})}
+        for(const cue of resolveSfxCues(cues,subtitles)){const asset=active.find(a=>a.id===cue.asset_id);if(!asset){audioError=audioError||'저장된 효과음을 확인해 주세요.';continue}sounds.push({url:fileUrl(params.projectId,asset),start:Number(cue.start),end:Math.min(total,Number(cue.start)+Number(cue.duration||asset.metadata?.duration_seconds||3)),volume:soundCueVolume(cue),loop:false,fadeIn:0,fadeOut:.05})}
         return NextResponse.json({audio:audio?{id:audio.id,url:fileUrl(params.projectId,audio)}:null,audio_error:audioError,subtitles,sounds,
             overlay:settings.std_template_overlay_png_data_url||settings.std_template_overlay_gcs?`/api/std/projects/${params.projectId}/web-motion?template=1`:null,
             scenes:(scenes.data||[]).map((s,i)=>{const linked=!psds.has(s.scene_number)&&linkedPsds.get(s.scene_number),candidate=psds.get(s.scene_number)||linked||active.find(a=>a.scene_number===s.scene_number&&a.asset_type==='image')||active.find(a=>a.scene_number===s.scene_number&&a.asset_type==='video'&&!a.metadata?.ae_mouth_fingerprint)
-                return {number:s.scene_number,title:s.scene_title,start:starts[i],end:starts[i+1]??subtitles.at(-1)?.end,source:candidate?{id:candidate.id,kind:linked||/\.psd$/i.test(candidate.file_name)?'psd':candidate.asset_type,url:linked?`/api/std/projects/${params.projectId}/web-motion?psd=${encodeURIComponent(candidate.id)}`:fileUrl(params.projectId,candidate)}:null}}),
+                return {number:s.scene_number,title:s.scene_title,start:starts[i],end:starts[i+1]??subtitles.at(-1)?.end,source:candidate?{id:candidate.id,kind:linked||/\.psd$/i.test(candidate.file_name)?'psd':candidate.asset_type,url:linked?`/api/std/projects/${params.projectId}/web-motion?psd=${encodeURIComponent(candidate.id)}`:fileUrl(params.projectId,candidate)}:preparedWebImage(c.project,s)}}),
             ai_jobs:active.filter(a=>a.metadata?.kind==='web_motion_ai').map(a=>({id:a.id,number:a.scene_number,state:a.metadata.state})),
             finals:active.filter(a=>a.asset_type==='video'&&a.scene_number==null&&String(a.file_name).startsWith('motion-web-final-')).slice(0,20).map(a=>({id:a.id,name:a.file_name,url:fileUrl(params.projectId,a),created_at:a.created_at})),
         },{headers:{'Cache-Control':'private, no-store'}})

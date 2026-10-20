@@ -64,3 +64,5 @@ export function backgroundWaveformPeaks(peaks: number[], duration: number, windo
     return peaks.map((peak, index) => peak * backgroundEnvelope(
         range.start + cycleStart + index / Math.max(1, peaks.length - 1) * duration, range))
 }
+/** Saved SFX may use linear gain or dB; honor the saved unit before mixing. */
+export function soundCueVolume(cue:any):number {const value=cue.volume!=null?Number(cue.volume):cue.volume_db!=null?10**(Number(cue.volume_db)/20):.5;return Number.isFinite(value)?Math.max(0,Math.min(1,value)):.5}

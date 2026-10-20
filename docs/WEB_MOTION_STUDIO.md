@@ -138,3 +138,19 @@ need no poll. Pending/short videos block output and never trigger generation.
 The original AE selection/worker submission path is unchanged and does not
 consume this optional web timeline. Timeline preview still shows native motion;
 review generated inserts separately and the rendered final video for the mix.
+
+## Form-preserving joints and full-length validation (2026-10-20)
+
+New rigs use planar dual-quaternion blending to preserve thickness during large
+joint rotations. The skeleton editor offers form-preserving or legacy linear
+blending; recipes without a deformation field retain their previous behavior.
+Rigid rigs use a finer adaptive render mesh. This reduces blend collapse but
+cannot reconstruct occluded artwork or guarantee against arbitrary folds.
+
+Prepared scene originals are available as an authenticated fallback with SHA256
+verification before decoding. Saved sound cues now respect volume_db when a
+linear volume is absent. Existing AE selection and worker execution are unchanged.
+
+A 26:54, 100-scene project was exported at 1920x1080/24fps with the finalized
+recording, 518 subtitles, three real PSDs and 97 prepared original images.
+See MOTION_NATIVE_VERIFICATION.md for evidence and scope limitations.

@@ -71,7 +71,7 @@ export function applyNativeEffects(source:HTMLCanvasElement,effects:NativeEffect
 export function renderAdvancedLayer(source:HTMLCanvasElement,advanced:LayerAdvanced|undefined,t:number){
     if(!advanced)return {canvas:source,left:0,top:0}
     let current=advanced.mask?maskCanvas(source,advanced.mask):source,left=0,top=0
-    if(advanced.rig||advanced.mesh?.pins.length){const m=advanced.rig?boneMatrices(advanced.rig,t,source.width,source.height):[],warped=warpCanvas(current,advanced.mesh?.columns||16,advanced.mesh?.rows||16,p=>deformPoint(p,advanced,t,source.width,source.height,m));current=warped.canvas;left=warped.left;top=warped.top}
+    if(advanced.rig||advanced.mesh?.pins.length){const m=advanced.rig?boneMatrices(advanced.rig,t,source.width,source.height):[],warped=warpCanvas(current,advanced.rig?.deformation==='rigid'?Math.min(64,Math.max(32,(advanced.mesh?.columns||16)*2,(advanced.rig.skin?.columns||16)*2)):advanced.mesh?.columns||16,advanced.rig?.deformation==='rigid'?Math.min(64,Math.max(32,(advanced.mesh?.rows||16)*2,(advanced.rig.skin?.rows||16)*2)):advanced.mesh?.rows||16,p=>deformPoint(p,advanced,t,source.width,source.height,m));current=warped.canvas;left=warped.left;top=warped.top}
     const style=advanced.style
     if(style&&(style.shadow||style.stroke)){
         const unit=Math.min(source.width,source.height),radius=style.shadow*unit,stroke=style.stroke*unit,dx=style.shadowX*source.width,dy=style.shadowY*source.height,pad=Math.ceil(Math.max(radius*3+Math.max(Math.abs(dx),Math.abs(dy)),stroke)+2),c=make(current.width+pad*2,current.height+pad*2),ctx=c.getContext('2d')!

@@ -1,3 +1,4 @@
+import {blendRigidPoint} from './stdMotionSkinning'
 // Native animation data. No AE project execution or expression evaluation.
 export type Point = [number,number]
 export type Interpolation = 'linear'|'ease'|'ease-in'|'ease-out'|'hold'|'bezier'
@@ -7,7 +8,7 @@ export type RigBone = {name:string;parent:number;start:Point;end:Point;keys:Valu
 export type IKChain = {root:number;child:number;bend:1|-1;target:PointKey[]}
 export type SkinInfluence = {bone:number;weight:number}
 export type SkinWeights = {columns:number;rows:number;weights:SkinInfluence[][]}
-export type MotionRig = {chains?:IKChain[];skin?:SkinWeights;bones:RigBone[];translation?:PointKey[];ik?:{root:number;child:number;bend:1|-1;target:PointKey[]}}
+export type MotionRig = {deformation?:'linear'|'rigid';chains?:IKChain[];skin?:SkinWeights;bones:RigBone[];translation?:PointKey[];ik?:{root:number;child:number;bend:1|-1;target:PointKey[]}}
 export type MeshPin = {position:Point;radius:number;keys:PointKey[];locked?:boolean}
 export type GlowSettings = {threshold:number;softKnee:number;basedOn:'luminance'|'alpha'}
 export type NativeEffect = {type:'blur'|'glow'|'fractal_noise'|'turbulent_displace'|'radial_wipe';amount:number;radius:number;seed:number;keys:ValueKey[];glow?:GlowSettings}
@@ -32,7 +33,7 @@ export function normalizeLayerAdvanced(v:any):LayerAdvanced {
     if(!v||typeof v!=='object'||Array.isArray(v))fail();const out:LayerAdvanced={}
     if(v.rig!==undefined){
         const bones:RigBone[]=list(v.rig?.bones,32).map((b,i)=>{if(typeof b?.name!=='string'||b.name.length>80||!Number.isInteger(b.parent)||b.parent< -1||b.parent>=i)fail();const start=point(b.start),end=point(b.end);if(Math.hypot(end[0]-start[0],end[1]-start[1])<.001)fail();let limits;if(b.limits!==undefined){limits={min:n(b.limits.min,-360,360),max:n(b.limits.max,-360,360)};if(limits.min>limits.max)fail()}return {name:b.name,parent:b.parent,start,end,keys:values(b.keys,-360,360),...(limits?{limits}:{})}})
-        if(!bones.length)fail();out.rig={bones};if(v.rig.translation!==undefined)out.rig.translation=positions(v.rig.translation)
+        if(!bones.length)fail();out.rig={bones};if(v.rig.deformation!==undefined){if(!['linear','rigid'].includes(v.rig.deformation))fail();out.rig.deformation=v.rig.deformation};if(v.rig.translation!==undefined)out.rig.translation=positions(v.rig.translation)
         if(v.rig.ik!==undefined){const ik=v.rig.ik;if(!Number.isInteger(ik.root)||!Number.isInteger(ik.child)||!bones[ik.root]||!bones[ik.child]||bones[ik.root].parent!==-1||bones[ik.child].parent!==ik.root||![1,-1].includes(ik.bend)||Math.hypot(bones[ik.root].end[0]-bones[ik.child].start[0],bones[ik.root].end[1]-bones[ik.child].start[1])>.001)fail();out.rig.ik={root:ik.root,child:ik.child,bend:ik.bend,target:positions(ik.target)}}
     }
     if(v.rig?.chains!==undefined){if(out.rig!.ik&&(!Array.isArray(v.rig.chains)||v.rig.chains.length))fail();const used=new Set<number>();out.rig!.chains=list(v.rig.chains,8).map(c=>{const bones=out.rig!.bones;if(!Number.isInteger(c.root)||!Number.isInteger(c.child)||!bones[c.root]||!bones[c.child]||bones[c.child].parent!==c.root||![1,-1].includes(c.bend)||used.has(c.root)||used.has(c.child)||Math.hypot(bones[c.root].end[0]-bones[c.child].start[0],bones[c.root].end[1]-bones[c.child].start[1])>.001)fail();used.add(c.root);used.add(c.child);return {root:c.root,child:c.child,bend:c.bend,target:positions(c.target)}})}
@@ -69,13 +70,16 @@ export function boneMatrices(rig:MotionRig,t:number,w:number,h:number):Matrix[]{
 function segmentDistance(p:Point,a:Point,b:Point){const dx=b[0]-a[0],dy=b[1]-a[1],u=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/(dx*dx+dy*dy)));return Math.hypot(p[0]-a[0]-u*dx,p[1]-a[1]-u*dy)}
 export function deformPoint(p:Point,advanced:LayerAdvanced,t:number,w:number,h:number,matrices=advanced.rig?boneMatrices(advanced.rig,t,w,h):[]):Point {
     let x=p[0],y=p[1]
-    if(advanced.rig){const painted=advanced.rig.skin?sampleSkin(advanced.rig.skin,p[0]/w,p[1]/h):null;const nearest=advanced.rig.bones.map((b,i)=>({i,d:segmentDistance(p,[b.start[0]*w,b.start[1]*h],[b.end[0]*w,b.end[1]*h])})).sort((a,b)=>a.d-b.d).slice(0,2),weights=nearest.map(b=>1/(1+b.d*b.d)),sum=weights.reduce((a,b)=>a+b,0);x=0;y=0;const influences=painted??nearest.map((b,i)=>({bone:b.i,weight:weights[i]/sum}));if(!influences.length){x=p[0];y=p[1]}for(const b of influences){const q=b.bone===-1?p:transform(matrices[b.bone],p);x+=q[0]*b.weight;y+=q[1]*b.weight}}
+    if(advanced.rig){let influences=advanced.rig.skin?sampleSkin(advanced.rig.skin,p[0]/w,p[1]/h):null
+        if(!influences){const nearest=advanced.rig.bones.map((b,i)=>({i,d:segmentDistance(p,[b.start[0]*w,b.start[1]*h],[b.end[0]*w,b.end[1]*h])})).sort((a,b)=>a.d-b.d).slice(0,2),weights=nearest.map(b=>1/(1+b.d*b.d)),sum=weights.reduce((a,b)=>a+b,0);influences=nearest.map((b,i)=>({bone:b.i,weight:weights[i]/sum}))}
+        if(advanced.rig.deformation==='rigid'){[x,y]=blendRigidPoint(p,matrices,influences)}else if(influences.length){x=0;y=0;for(const b of influences){const q=b.bone===-1?p:transform(matrices[b.bone],p);x+=q[0]*b.weight;y+=q[1]*b.weight}}
+    }
     for(const pin of advanced.mesh?.pins||[]){if(pin.locked)continue;const target=samplePoint(pin.keys,t),d=Math.hypot((p[0]/w-pin.position[0]),(p[1]/h-pin.position[1]))/pin.radius,weight=Math.max(0,1-d*d);x+=(target[0]-pin.position[0])*w*weight*weight;y+=(target[1]-pin.position[1])*h*weight*weight}
     // Stationary pins anchor the bind artwork, including deformation from the skeleton.
     let anchor=0;for(const pin of advanced.mesh?.pins||[]){if(!pin.locked)continue;const d=Math.hypot(p[0]/w-pin.position[0],p[1]/h-pin.position[1])/pin.radius;anchor=Math.max(anchor,Math.max(0,1-d*d)**2)}
     return [x+(p[0]-x)*anchor,y+(p[1]-y)*anchor]
 }
-export function defaultRig():MotionRig {return {bones:[{name:'상완',parent:-1,start:[.5,.2],end:[.5,.5],keys:valueKeys(0)},{name:'하완',parent:0,start:[.5,.5],end:[.5,.8],keys:valueKeys(25)}]}}
+export function defaultRig():MotionRig {return {deformation:'rigid',bones:[{name:'상완',parent:-1,start:[.5,.2],end:[.5,.5],keys:valueKeys(0)},{name:'하완',parent:0,start:[.5,.5],end:[.5,.8],keys:valueKeys(25)}]}}
 export const nativeEffect=(type:NativeEffect['type']):NativeEffect=>({type,amount:type==='radial_wipe'?100:35,radius:.05,seed:7,keys:valueKeys(1),...(type==='glow'?{glow:defaultGlow()}:{})})
 /** Calibrated on the retained 1080p violet-pulse AE reference, not universal AE parity. */
 export function referenceGlowEffects():NativeEffect[]{const keys=[{t:0,value:1},{t:1,value:1}];return [{...nativeEffect('glow'),amount:10,radius:10/1080,keys,glow:{threshold:0,softKnee:0,basedOn:'alpha'}},{...nativeEffect('blur'),amount:100,radius:5/1080,keys:keys.map(k=>({...k}))}]}
@@ -87,5 +91,5 @@ export function paintSkin(skin:SkinWeights,bone:number,x:number,y:number,radius:
 export function fullBodyRig():MotionRig {
     const bones:RigBone[]=[],add=(name:string,parent:number,start:Point,end:Point)=>{bones.push({name,parent,start,end,keys:valueKeys(0),limits:{min:-150,max:150}})}
     add('골반',-1,[.5,.55],[.5,.48]);add('척추',0,[.5,.48],[.5,.32]);add('목',1,[.5,.32],[.5,.24]);add('머리',2,[.5,.24],[.5,.12]);add('왼 상완',1,[.5,.32],[.29,.42]);add('왼 하완',4,[.29,.42],[.2,.58]);add('오른 상완',1,[.5,.32],[.71,.42]);add('오른 하완',6,[.71,.42],[.8,.58]);add('왼 허벅지',0,[.5,.55],[.38,.75]);add('왼 종아리',8,[.38,.75],[.35,.95]);add('오른 허벅지',0,[.5,.55],[.62,.75]);add('오른 종아리',10,[.62,.75],[.65,.95]);
-    return {bones,chains:[[4,5,-1],[6,7,1],[8,9,-1],[10,11,1]].map(([root,child,bend])=>({root,child,bend:bend as 1|-1,target:[{t:0,x:bones[child].end[0],y:bones[child].end[1]},{t:1,x:bones[child].end[0],y:bones[child].end[1]}]}))}
+    return {deformation:'rigid',bones,chains:[[4,5,-1],[6,7,1],[8,9,-1],[10,11,1]].map(([root,child,bend])=>({root,child,bend:bend as 1|-1,target:[{t:0,x:bones[child].end[0],y:bones[child].end[1]},{t:1,x:bones[child].end[0],y:bones[child].end[1]}]}))}
 }

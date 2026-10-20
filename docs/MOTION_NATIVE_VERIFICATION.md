@@ -246,3 +246,65 @@ the exact joined recording (correlation 0.9999863, 0ms lag at 1ms resolution,
 positions with mean RGB error 1.67 and 1.80/255 above the subtitle region.
 The original PSDs/recording and private frozen manifests remain uncommitted.
 Set `MOTION_FFMPEG` for browser/QA scripts; Python QA also requires NumPy.
+
+## Form-preserving joints and 26-minute export (2026-10-20)
+
+Planar dual-quaternion blending replaces linear skinning only for rigs explicitly
+marked rigid. New rigs default to rigid; old recipes preserve their behavior.
+Hemisphere alignment prevents opposite quaternion sign cancellation. Painted
+weights, bind influences, pins and existing constraints remain supported.
+The editor can select either mode; rigid rigs render a finer adaptive mesh.
+Controlled equal-weight bends at 90/120/150/180 degrees preserve a 20px
+cross-section, whereas linear blending collapses it. This is a controlled
+thickness test, not a guarantee for arbitrary weights, folds or occluded art.
+
+Project 3376 was rendered from its frozen finalized recording snapshot. All 518
+current subtitle texts/times matched the recording; recorded voice choices were
+used only in the isolated snapshot. The live project's different voice choices
+were not overwritten. All 100 prepared PNGs, three PSDs and the finalized MP3
+were SHA256-verified. Prepared-original API fallback now supplies otherwise
+missing scenes through the authenticated asset route; the browser verifies its
+hash. The saved footstep cue at 170.579592 seconds uses -26dB, including its
+saved fade; dB-only cue settings are now honored. No BGM/template was enabled.
+
+The full export contains three PSD scenes (19/25/29), 97 flattened originals,
+518 burned subtitles and the original narration. Scene 25 exercises an enlarged
+arm target. Feet are cropped in the source PSDs: walking/visible-foot anatomy
+was not validated. The 26-minute duration tests export stability; it is not 26
+minutes of continuous rig stress. Linear/rigid frames of the actual PSD were
+visually compared, with improved arm/hand thickness. Clothing folds and hidden
+pixels remain artist-review concerns; no equivalent AE Puppet reference exists.
+
+Output: output/motion-longform-validation/motion-studio-3376-full.mp4,
+1614.419592 seconds, 1920x1080, 24fps H.264/AAC, 1,642,359,629 bytes.
+SHA256: 837e02f944b68782569491641d2aff6ddb1c2aa88d159ddb93381285895ac4e4.
+Encoding took 175.2714 seconds on this machine, excluding preparation/download;
+this single measurement is not a general performance benchmark. All 100 scenes
+were lazily loaded and released, with OPFS disk streaming. Sampled JS heap
+peaked at 169.6MB, excluding native audio/GPU memory and process RSS.
+
+Full audio/video decoding passed without errors. All 38,747 expected video
+packets have unique PTS and monotonic DTS. Audio correlation against the exact
+final MP3 is 0.999968399, lag 0ms at 1ms resolution, padding 13.75ms; minimum
+minute-window correlation is 0.999965755. All 300 sampled frames (scene centers,
+cut boundaries and endpoints) are nonblank. 291 non-PSD frames match the correct
+original/camera position above captions: mean RGB MAE 3.279/255, max 4.419/255.
+All five encoded midpoint contact sheets and the actual PSD comparison were
+visually inspected. This is sampled visual review and full stream decoding,
+not continuous human viewing/listening or an AE pixel-equivalence measurement.
+
+Evidence in that output directory: source-manifest.json, render-draft.json,
+render-receipt.json, encoding-receipt.json, qa.json, frame-qa.json,
+large-motion-comparison.png and encoded-midpoints-0.jpg through -4.jpg.
+Reproduce with node scripts/render_motion_longform.cjs (or --preview), then
+python scripts/qa_motion_longform.py and python scripts/qa_motion_longform_frames.py.
+Set MOTION_FFMPEG to FFmpeg; Python QA needs NumPy/Pillow. Private assets and
+frozen manifests are intentionally uncommitted. Sandbox downloads failed even
+for 1MB OPFS probes; an approved unsandboxed probe and full rerender saved the
+file successfully. No production database edits, worker restarts, paid AI calls,
+external upload or administrator publishing occurred.
+
+Validation: 45 focused Node regression tests, TypeScript, focused ESLint,
+production build and fullbody/advanced/web export browser suites passed.
+The fullbody pointer test now scrolls the painting canvas into view before
+interaction. Existing AE selection/restoration tests still pass.

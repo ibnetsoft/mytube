@@ -67,3 +67,13 @@ one known project, not all listed projects or every effect. Native glow visibly
 differs, although the pulse ROI error is reduced by 50.8% at the calibration time.
 New rig/mesh output is rendered separately on the same real PSD because
 the existing AE reference has no skeleton or Puppet animation to compare.
+
+## Large joint rotations (2026-10-20)
+
+Optional planar dual-quaternion skinning preserves local thickness under large
+rigid bone rotations, with hemisphere-aligned quaternion blending and a finer
+mesh. Newly created rigs enable it; saved legacy rigs retain linear blending.
+Controlled equal-weight 90/120/150/180-degree tests preserve a 20px cross-section.
+This is not AE Puppet compatibility, a general cloth solver, or reconstruction
+of hidden artwork. Actual PSD comparison and full-length export evidence are
+recorded in MOTION_NATIVE_VERIFICATION.md.
