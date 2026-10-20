@@ -10,20 +10,20 @@ export type MotionLayer = { depth:number; keys:MotionKey[]; advanced?:LayerAdvan
 export type MotionScene = { finance?:FinanceMotion; cues?:DirectionCue[]; source: 'auto' | 'image' | 'video' | 'psd'; fit: 'contain' | 'cover'; direction: string; keys: MotionKey[]; effects: MotionEffect[]; transition: 'cut' | 'fade' | 'flash'; layers?:Record<string,MotionLayer>;native?:NativeScene }
 export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: number; max_ai_seconds: number }
 export type WebMotionInsert = { job_id:string; start:number; duration:number }
-export type ProductionMethod = 'ae'|'motion_studio'
+export type ProductionMethod = 'ae'|'motion_studio'|'effectcraft'
 type MotionConfig = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene>; automation?: MotionAutomation; web?:{timeline?:MotionClip[];mode:'web'|'hybrid';inserts:Record<string,WebMotionInsert>} }
 export type MotionDraft = MotionConfig & {production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
 
 export function motionProductionMethod(project:any):ProductionMethod {
     const raw=project?.project_payload?.render_settings?.motion
-    return raw?.production_method==='ae'?'ae':raw?.production_method==='motion_studio'||raw?.web?'motion_studio':'ae'
+    return raw?.production_method==='effectcraft'?'effectcraft':raw?.production_method==='ae'?'ae':raw?.production_method==='motion_studio'||raw?.web?'motion_studio':'ae'
 }
 export function switchMotionProduction(draft:MotionDraft,method:ProductionMethod):MotionDraft {
     const current=motionProductionMethod({project_payload:{render_settings:{motion:draft}}})
     if(current===method)return normalizeMotionDraft({...draft,production_method:method})
     const {production_method:_,alternatives:previous,...active}=draft
     const alternatives={...previous,[current]:active}
-    const target=alternatives[method]||{version:1,enabled:method==='motion_studio',aspect:draft.aspect,fps:draft.fps,scenes:{},...(method==='motion_studio'?{web:{mode:'web',inserts:{}}}:{})}
+    const target=alternatives[method]||{version:1,enabled:method!=='ae',aspect:draft.aspect,fps:draft.fps,scenes:{},...(method==='motion_studio'?{web:{mode:'web',inserts:{}}}:method==='effectcraft'?{automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}}:{})}
     return normalizeMotionDraft({...target,production_method:method,alternatives})
 }
 export const MOTION_PRESETS = [
@@ -92,12 +92,12 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
         }
         web={mode:raw.web.mode,inserts,...(raw.web.timeline!==undefined?{timeline:normalizeWebTimeline(raw.web.timeline)}:{})}
     }
-    if(raw.production_method!==undefined&&!['ae','motion_studio'].includes(raw.production_method))throw new Error('제작 방식을 확인해 주세요.')
+    if(raw.production_method!==undefined&&!['ae','motion_studio','effectcraft'].includes(raw.production_method))throw new Error('제작 방식을 확인해 주세요.')
     let alternatives:MotionDraft['alternatives']
     if(raw.alternatives!==undefined){
-        if(!raw.alternatives||typeof raw.alternatives!=='object'||Array.isArray(raw.alternatives)||Object.keys(raw.alternatives).some(k=>!['ae','motion_studio'].includes(k)))throw new Error('제작 방식별 설정을 확인해 주세요.')
+        if(!raw.alternatives||typeof raw.alternatives!=='object'||Array.isArray(raw.alternatives)||Object.keys(raw.alternatives).some(k=>!['ae','motion_studio','effectcraft'].includes(k)))throw new Error('제작 방식별 설정을 확인해 주세요.')
         alternatives={}
-        for(const method of ['ae','motion_studio'] as const){const config=raw.alternatives[method];if(config===undefined)continue
+        for(const method of ['ae','motion_studio','effectcraft'] as const){const config=raw.alternatives[method];if(config===undefined)continue
             if(config.alternatives!==undefined||config.production_method!==undefined)throw new Error('제작 설정을 중첩할 수 없습니다.')
             alternatives[method]=normalizeMotionDraft(config)
         }

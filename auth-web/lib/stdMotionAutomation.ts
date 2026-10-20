@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from './supabaseAdmin'
-import { motionForProject } from './stdMotionStudio'
+import { motionForProject, motionProductionMethod } from './stdMotionStudio'
+import effectcraftSource from './effectcraftSource.json'
 import { aeSceneSources, preparedAeScenes } from './stdAeScenePreparation'
 import { selectNarrationAsset } from './stdContentIdentity'
 import { lipSyncPlan, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
@@ -15,6 +16,8 @@ export function motionAutomationEnabled(project:any) { const m=motionForProject(
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string) {
     assertPreparationFinished(assets)
     const motion=motionForProject(project)!
+    const effectcraft=motionProductionMethod(project)==='effectcraft'
+    if(effectcraft&&motion.web)throw new Error('브라우저 전용 타임라인·삽입 설정은 EffectCraft로 자동 변환하지 않습니다. 해당 설정은 브라우저 제작 방식에서 사용해 주세요.')
     if(!motion?.enabled || !motion.automation)throw new Error('자동 제작 모드를 선택해 주세요.')
     lipSyncPlan(project,scenes,assets) // Exact finalized voice, script, cast and timing identity.
     const audio=selectNarrationAsset(project,assets)
@@ -39,6 +42,8 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const preparation=source.asset_type==='original'?prepared.get(n):null
         if(source.asset_type==='original'&&!preparation)throw new Error(`${n}번 PSD의 레이어·AE 연출을 대본워커에서 준비한 뒤 제출하세요.`)
         const planned=project.project_payload?.structure?.scenes?.find((s:any)=>Number(s.scene_number||s.scene_order)===n)
+        const authored=motion.scenes[String(n)]
+        if(effectcraft&&(authored?.finance||authored?.cues?.length||authored?.native?.paths?.length||authored?.native?.effects?.length||Object.values(authored?.layers||{}).some(l=>l.advanced)))throw new Error(`${n}번 씬의 웹 전용 리그·효과는 EffectCraft로 자동 변환하지 않습니다. 브라우저 제작 또는 기존 AE를 선택해 주세요.`)
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
             prepared_direction:motion.scenes[String(n)]||{source:source.asset_type==='original'?'psd':source.asset_type,fit:'contain',direction:'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
             creative_reference:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
@@ -56,13 +61,13 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const sounds=active.filter(a=>soundIds.has(a.id))
     if([...soundIds].filter(Boolean).some(id=>!sounds.some(a=>a.id===id)))throw new Error('선택한 배경음·효과음 파일을 확인해 주세요.')
     const selected=motion.automation.mode==='hybrid'?await selectedVideoModel(project.employee_email):null
-    const snapshot={version:1,project:{id:project.id,employee_email:project.employee_email},motion,settings,subtitles,audio,scenes:ordered,sounds,sfx_cues:resolveSfxCues(cues,subtitles),
+    const snapshot={version:1,...(effectcraft?{renderer:{engine:'effectcraft',revision:effectcraftSource.revision,version:effectcraftSource.version}}:{}),project:{id:project.id,employee_email:project.employee_email},motion,settings,subtitles,audio,scenes:ordered,sounds,sfx_cues:resolveSfxCues(cues,subtitles),
         model_ref:selected?{id:selected.config.id,fingerprint:selected.fingerprint,config:selected.config}:null}
     const snapshot_json=JSON.stringify(snapshot)
     if(Buffer.byteLength(snapshot_json)>4_000_000)throw new Error('제출 데이터가 너무 큽니다.')
     const fingerprint=createHash('sha256').update(snapshot_json).digest('hex')
     const manifest={version:1,project:{id:project.id},automation:{snapshot_json,fingerprint}}
-    const result=await db.rpc('register_std_motion_pipeline',{p_project_id:project.id,p_user_id:userId,p_updated_at:project.updated_at,
+    const result=await db.rpc(effectcraft?'register_std_effectcraft_pipeline':'register_std_motion_pipeline',{p_project_id:project.id,p_user_id:userId,p_updated_at:project.updated_at,
         p_run_id:randomUUID(),p_job_id:randomUUID(),p_manifest:manifest,p_hash:fingerprint})
     if(result.error)throw result.error
     return result.data

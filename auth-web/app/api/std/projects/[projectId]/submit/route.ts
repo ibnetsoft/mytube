@@ -117,6 +117,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             error: 'Motion Studio에서 최종 MP4를 제작·저장한 뒤 «관리자 검수 요청»을 눌러 주세요. 웹 제작은 로컬 AE 워커로 제출하지 않습니다.',
         }, { status: 409 })
     }
+    if (motionProductionMethod(project)==='effectcraft'&&!motionAutomationEnabled(project)) {
+        return NextResponse.json({success:false,error:'EffectCraft의 제출 후 자동 제작 설정을 켜고 저장해 주세요.'},{status:409})
+    }
     const thumbnailError = motionAutomationEnabled(project) ? null : editableThumbnailError(
         project.project_payload?.thumbnail_design || project.progress_payload?.thumbnail_design,
         project.project_payload?.thumbnail_url || project.progress_payload?.thumbnail_url,

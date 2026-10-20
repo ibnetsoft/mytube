@@ -52,10 +52,10 @@ def pending_roles():
     from worker.workflow_roles import POSTPRODUCTION, asset_query
     from ae_scene_preparation import claimable_filter as simple_filter
     roles=[]
-    for role,kind in [('motion_automation','motion_automation'),('motion_preview','motion_preview'),('region','region_motion_plan'),('ae','ae_mouth_job')]:
+    for role,kind in [('effectcraft','effectcraft_automation'),('motion_automation','motion_automation'),('motion_preview','motion_preview'),('region','region_motion_plan'),('ae','ae_mouth_job')]:
         query={'metadata->>kind':'eq.'+kind,'or':claimable_filter() if role=='ae' else simple_filter()}
         if role=='motion_preview':query['metadata->input->>task']='eq.preview'
-        if role in ('motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
+        if role in ('effectcraft','motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
         if role=='ae':query['metadata->>pipeline_version']='eq.2'
         if exists('std_project_assets',asset_query(POSTPRODUCTION,query)):roles.append(role)
     response=requests.get(base+'/rest/v1/remote_render_queue',headers=headers,params={
@@ -68,6 +68,7 @@ def pending_roles():
     return roles
 
 def role_command(role):
+    if role=='effectcraft': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--engine','effectcraft','--once']
     if role=='motion_automation': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--once']
     if role=='motion_preview': return [sys.executable,'-u',str(ROOT/'worker/motion_preview_worker.py'),'--once']
     if role=='region': return [sys.executable,'-u',str(ROOT/'worker/ae_region_motion_worker.py'),'--once']
@@ -77,7 +78,7 @@ def role_command(role):
 
 def busy_processes():
     if os.name!='nt':return []
-    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_scene_preparation|ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker|motion_automation_worker|motion_preview_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
+    script = "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('aerender.exe','effectcraft-cli.exe') -or ($_.Name -match '^python(w)?\\.exe$' -and $_.CommandLine -match '(ae_scene_preparation|ae_region_motion_worker|ae_mouth_worker|ae_highlight_worker|remote_render_source|remote_drive_worker|motion_automation_worker|motion_preview_worker)\\.py') } | Select-Object ProcessId,Name | ConvertTo-Json -Compress"
     result=subprocess.run(['powershell','-NoProfile','-Command',script],capture_output=True,text=True,creationflags=subprocess.CREATE_NO_WINDOW,timeout=15)
     if result.returncode:raise RuntimeError('Could not verify local media resources')
     rows=json.loads(result.stdout) if result.stdout.strip() else []
@@ -120,7 +121,7 @@ class Supervisor:
     def choose(self,roles):
         if (HOME/'pause-render').exists():roles=[r for r in roles if r!='render']
         # Legacy topic/highlight discovery cannot bypass user submission.
-        roles=[r for r in roles if r in ('ae','render','region','motion_automation','motion_preview')]
+        roles=[r for r in roles if r in ('ae','render','region','effectcraft','motion_automation','motion_preview')]
         available=[r for r in roles if time.monotonic()>=self.retry_after.get(r,0)]
         if 'render' in available: return 'render'
         return next((r for r in available if r!=self.last_role),available[0] if available else None)

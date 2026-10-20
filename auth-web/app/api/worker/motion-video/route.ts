@@ -14,7 +14,7 @@ export async function POST(req:Request) {
         const result=await db.from('std_project_assets').select('*').eq('id',String(body.job_id)).maybeSingle()
         if(result.error)throw result.error
         const job=result.data,m=job?.metadata
-        if(m?.kind!=='motion_automation'||m.state!=='processing'||m.worker_token!==body.worker_token)throw Error('유효한 자동 제작 워커 임대가 필요합니다.')
+        if(!['motion_automation','effectcraft_automation'].includes(m?.kind)||m.state!=='processing'||m.worker_token!==body.worker_token)throw Error('유효한 자동 제작 워커 임대가 필요합니다.')
         const frozen=m.input
         if(createHash('sha256').update(frozen.snapshot_json).digest('hex')!==frozen.fingerprint)throw Error('제출 원본 검증값이 다릅니다.')
         const input=JSON.parse(frozen.snapshot_json),number=Number(body.scene_number)

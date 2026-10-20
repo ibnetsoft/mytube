@@ -35,6 +35,11 @@ def unseal(envelope):
     if hashlib.sha256(raw.encode()).hexdigest()!=envelope['fingerprint']:raise NeedsReview('Frozen submission fingerprint changed')
     value=json.loads(raw)
     if value.get('version')!=1 or value['motion']['automation']['mode'] not in ('ae_only','hybrid') or not value.get('scenes'):raise NeedsReview('Invalid automatic production submission')
+    renderer=value.get('renderer')
+    if value['motion'].get('production_method')=='effectcraft':
+        from effectcraft_render import PIN
+        if not isinstance(renderer,dict) or renderer.get('engine')!='effectcraft' or renderer.get('revision')!=PIN['revision']:raise NeedsReview('EffectCraft renderer revision is not bound to the frozen submission')
+    elif renderer:raise NeedsReview('Renderer does not match the submitted production method')
     if value['motion']['automation']['mode']=='ae_only' and value.get('model_ref'):raise NeedsReview('AE-only mode cannot contain a video provider')
     if value['motion']['automation']['mode']=='hybrid' and not value.get('model_ref'):raise NeedsReview('Hybrid mode requires the selected video model')
     if len(value['scenes'])>1000:raise NeedsReview('Too many scenes')
@@ -170,6 +175,9 @@ AE-only mode MUST have ai:null. Hybrid mode should also prefer ai:null; use a sh
 
 
 def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
+    if snapshot.get('renderer',{}).get('engine')=='effectcraft':
+        from effectcraft_render import render_scene
+        return render_scene(snapshot,scene,plan,source,directory,fresh)
     from ae_media_utils import ffmpeg,run
     duration=scene['end']-scene['start']
     size=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080)
@@ -271,7 +279,7 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
     return {'passed':True,'render_sha256':digest(output),'source_preview_sha256':digest(reference),'final_voice_sha256':digest(voice),'audio_relative_error':relative_error,'batches':batches,'method':'sampled_actual_frames_and_decoded_voice'}
 
 
-def process_one():
+def process_one(engine='ae'):
     import worker_config
     import ae_highlight_worker as ae
     from ae_scene_preparation import claimable_filter
@@ -280,7 +288,8 @@ def process_one():
     from services.motion_render_service import render_motion
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
     from worker.workflow_roles import POSTPRODUCTION, asset_query, belongs
-    jobs=ae._request('GET',url,headers,params=asset_query(POSTPRODUCTION, {'select':'*','metadata->>kind':'eq.motion_automation','metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1})).json()
+    kind='effectcraft_automation' if engine=='effectcraft' else 'motion_automation'
+    jobs=ae._request('GET',url,headers,params=asset_query(POSTPRODUCTION, {'select':'*','metadata->>kind':'eq.'+kind,'metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1})).json()
     if not jobs:return False
     job=jobs[0]
     if not belongs(job,POSTPRODUCTION):return False
@@ -309,7 +318,12 @@ def process_one():
     # Codex CLI only accepts inspected media inside this existing restricted attachment root.
     directory=worker_config.PROJECT_ROOT/'output'/'codex-local-console'/'motion-automation'/job['id'];directory.mkdir(parents=True,exist_ok=True)
     try:
-        snapshot=unseal(meta['input']);runner=CodexStagedContentRunner()
+        snapshot=unseal(meta['input'])
+        if (snapshot.get('renderer',{}).get('engine')=='effectcraft')!=(engine=='effectcraft'):raise NeedsReview('Worker queue and renderer do not match')
+        if snapshot.get('renderer',{}).get('engine')=='effectcraft':
+            from effectcraft_render import binary
+            binary()  # Fail before source analysis or any optional paid insert if this host is not installed.
+        runner=CodexStagedContentRunner()
         save(total_scenes=len(snapshot['scenes']),phase='direction',progress='원본과 최종 음성 확인')
         def download(asset,name):
             bucket,key=ref(asset);suffix=Path(asset.get('file_name') or key).suffix or '.bin';target=directory/(name+suffix)
@@ -417,7 +431,7 @@ def process_one():
             final_reviews.append(response)
         fresh();output_hash=digest(output)
         bucket,key,_=ae._upload_gcs_file(output,f'std-motion/{job["id"]}/final/{output_hash}.mp4','video/mp4')
-        review={'passed':True,'render_sha256':output_hash,'final_voice_sha256':digest(voice),'scenes':final_reviews,'reviewer':'local_codex_cli','method':'actual_frames_and_decoded_voice'}
+        review={'passed':True,'render_sha256':output_hash,'final_voice_sha256':digest(voice),'scenes':final_reviews,'reviewer':'local_codex_cli','method':'actual_frames_and_decoded_voice',**({'renderer':snapshot['renderer']} if snapshot.get('renderer') else {})}
         save_json(final_dir/'automation-review.json',review)
         review_bucket,review_key,_=ae._upload_gcs_file(final_dir/'automation-review.json',f'std-motion/{job["id"]}/final/{output_hash}-review.json','application/json')
         # Stable asset ID permits safe recovery after upload without duplicate final assets.
@@ -440,9 +454,9 @@ def process_one():
 if __name__=='__main__':
     import worker_config
     from ae_mouth_runtime import instance_lock
-    parser=argparse.ArgumentParser();parser.add_argument('--once',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--once',action='store_true');parser.add_argument('--engine',choices=('ae','effectcraft'),default='ae');args=parser.parse_args()
     with instance_lock(worker_config.STATE_DIR/'motion_automation_worker.lock'):
         while True:
-            worked=process_one()
+            worked=process_one(args.engine)
             if args.once:break
             time.sleep(1 if worked else 10)
