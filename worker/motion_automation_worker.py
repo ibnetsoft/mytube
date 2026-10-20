@@ -252,6 +252,9 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
         ai=plan['ai']
         for t in (max(0,ai['start']-.05),ai['start']+.1,ai['start']+ai['duration']/2,ai['start']+ai['duration']-.1,min(duration-1/30,ai['start']+ai['duration']+.05)):times.add(t)
     # Seeking beyond the last encoded frame can succeed with no image written.
+    if plan.get('prepared_psd_execution_plan'):
+        from ae_scene_review_contract import sample_times
+        times.update(sample_times(plan['prepared_psd_execution_plan'],duration,plan['execution_fps']))
     times.update(p['time'] for p in cadence['abrupt_changes'])
     times.update(cadence['black_frames'])
     times=sorted({max(0,min(duration-1/12,t)) for t in times});batches=[]
@@ -366,7 +369,11 @@ def process_one(engine='ae'):
                 output=attempt_dir/'voice-synced.mp4'
                 run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
                 save(phase='review',progress=f'{index+1}/{len(snapshot["scenes"])}씬 실제 출력 검수')
-                try:review=review_output(runner,output,previews[number],voice,scene,plan,attempt_dir,fresh,previous);break
+                review_plan=plan
+                if snapshot.get('renderer',{}).get('engine')=='effectcraft':
+                    executed=(scene.get('preparation') or {}).get('metadata',{}).get('result',{}).get('plan')
+                    review_plan={**plan,'renderer':snapshot['renderer'],'prepared_psd_execution_plan':executed,'execution_fps':snapshot['motion']['fps']}
+                try:review=review_output(runner,output,previews[number],voice,scene,review_plan,attempt_dir,fresh,previous);break
                 except NeedsReview as error:
                     if attempt or plan.get('ai'):raise
                     prior=[p for p in plans if p['number'] in [s['number'] for s in snapshot['scenes'][:index]]]
