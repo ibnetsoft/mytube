@@ -41,3 +41,34 @@ for (const voice of ['', 'narrator']) {
     assert.ok(html.includes(voice ? '내레이션과 같은 성우를 쓰는 대사 1개' : '성우 미지정 대사 1개'));
 }
 console.log('PASS: voice status stays visible after resolution and during TTS in all four locales; unresolved issues retain navigation');
+const { missingSpeakerSubtitleIndexes, subtitleSpeakerProgress } = load('auth-web/lib/stdSubtitleSpeakerProgress.ts');
+const rows = [
+    { scene_number: 49, text: 'Narration', dialogue_override: false },
+    { scene_number: 49, text: 'Unassigned line', dialogue_override: true, voice_id: 'character' },
+    { scene_number: 50, text: 'Confirmed line', dialogue_override: true },
+    { scene_number: 51, text: 'Annotated line', voice_id: 'character' },
+];
+const parts = new Map([[3, [{ dialogue: true }]]]);
+const speakers = [null, null, { name: 'A' }, null];
+const indexes = missingSpeakerSubtitleIndexes(rows, parts, speakers);
+assert.deepEqual(indexes, [1, 3]);
+const progress = subtitleSpeakerProgress(rows, parts, speakers);
+assert.equal(progress.total - progress.confirmed, indexes.length);
+for (const locale of ['ko', 'en', 'vi', 'th']) {
+    const props = { subtitles: rows, missingSpeakerIndexes: indexes, readiness: { issues: [] }, busy: false, locale, voices: new Map(), onJump() {} };
+    const html = renderToStaticMarkup(React.createElement(Notice, props));
+    assert.ok(html.includes(stdUiText(locale, '화자 미지정 대사 {count}개', { count: 2 })));
+    assert.ok(html.includes(stdUiText(locale, '씬 {scene} · 자막 {subtitle}', { scene: 49, subtitle: 2 })));
+    assert.ok(html.includes('Unassigned line'));
+    if (locale !== 'ko') assert.ok(!/[가-힣]/.test(html));
+}
+const clicked = [];
+function clickAnchors(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'button') node.props.onClick();
+    React.Children.forEach(node.props?.children, clickAnchors);
+}
+clickAnchors(Notice({ subtitles: rows, missingSpeakerIndexes: indexes, readiness: { issues: [] }, busy: false, voices: new Map(), onJump: index => clicked.push(index) }));
+assert.deepEqual(clicked, [1, 3]);
+assert.deepEqual(missingSpeakerSubtitleIndexes(rows, parts, [null, { name: 'B' }, { name: 'A' }, { name: 'C' }]), []);
+console.log('PASS: speaker anchors match progress, retain exact subtitle indexes, and disappear after assignment');

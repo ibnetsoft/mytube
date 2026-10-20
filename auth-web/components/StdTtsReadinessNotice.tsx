@@ -2,9 +2,9 @@
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import { stdUiText } from '@/lib/stdUiText'
 import type { SupportedLocale } from '@/lib/i18n'
-export default function StdTtsReadinessNotice({ readiness, subtitles, busy, voices, onJump, compact = false, locale = 'ko' }: {
+export default function StdTtsReadinessNotice({ readiness, subtitles, busy, voices, onJump, missingSpeakerIndexes = [], compact = false, locale = 'ko' }: {
     readiness: ReturnType<typeof subtitleTtsReadiness>; subtitles: any[]; busy: boolean;
-    voices: ReadonlyMap<string, string>; onJump: (index: number) => void; compact?: boolean; locale?: SupportedLocale;
+    voices: ReadonlyMap<string, string>; onJump: (index: number) => void; missingSpeakerIndexes?: number[]; compact?: boolean; locale?: SupportedLocale;
 }) {
     if (!subtitles.length) return null
     const ui = (text: string, values?: Record<string, string | number>) => stdUiText(locale, text, values)
@@ -14,6 +14,16 @@ export default function StdTtsReadinessNotice({ readiness, subtitles, busy, voic
         ? 'mt-2 w-full shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/5 p-2 text-[9px] leading-snug'
         : 'mx-2 mb-2 shrink-0 rounded-lg border border-amber-400/30 bg-amber-500/5 p-3 text-[11px]'
     } role="status" aria-busy={busy}>
+        {missingSpeakerIndexes.length > 0 && <div className="mb-2 border-b border-amber-400/20 pb-2">
+            <p className="font-bold text-amber-200">{ui('화자 미지정 대사 {count}개', { count: missingSpeakerIndexes.length })}</p>
+            <div className="mt-1.5 max-h-56 space-y-1 overflow-y-auto std-sidebar-notice-scrollbar">
+                {missingSpeakerIndexes.map(index => <button key={index} type="button" onClick={() => onJump(index)}
+                    className="block w-full rounded border border-amber-400/25 bg-black/15 p-2 text-left hover:bg-amber-400/10 focus-visible:outline focus-visible:outline-amber-300">
+                    <span className="block font-bold text-cyan-200 underline">{ui('{location}로 이동 →', { location: location(index) })}</span>
+                    <span className="mt-1 block truncate text-gray-300" title={subtitles[index].text}>{subtitles[index].text}</span>
+                </button>)}
+            </div>
+        </div>}
         <details open>
             <summary className="cursor-pointer text-gray-300">{ui('성우 미지정 대사 {missing}개 · 내레이션과 같은 성우를 쓰는 대사 {shared}개', {
                 missing: readiness.issues.filter(i => i.reason === 'missing').length,

@@ -1,12 +1,18 @@
 import { scanDialogueQuoteState } from './stdDialogueQuoteState'
-export function subtitleSpeakerProgress(subtitles: any[], parts: Map<number, any[]>, speakers: any[]) {
-    return subtitles.reduce((count, row, index) => {
+function dialogueSubtitleIndexes(subtitles: any[], parts: Map<number, any[]>) {
+    return subtitles.flatMap((row, index) => {
         const annotated = parts.get(index)?.some(part => part.dialogue)
         const inferred = typeof row.dialogue_override === 'boolean' ? row.dialogue_override
             : Boolean(annotated || row.dialogue_speaker || row.editor_speaker?.name || scanDialogueQuoteState(row.text).isDialogue)
-        if (!annotated && !inferred) return count
-        return { total: count.total + 1, confirmed: count.confirmed + (speakers[index]?.name ? 1 : 0) }
-    }, { total: 0, confirmed: 0 })
+        return annotated || inferred ? [index] : []
+    })
+}
+export function missingSpeakerSubtitleIndexes(subtitles: any[], parts: Map<number, any[]>, speakers: any[]) {
+    return dialogueSubtitleIndexes(subtitles, parts).filter(index => !speakers[index]?.name)
+}
+export function subtitleSpeakerProgress(subtitles: any[], parts: Map<number, any[]>, speakers: any[]) {
+    const indexes = dialogueSubtitleIndexes(subtitles, parts)
+    return { total: indexes.length, confirmed: indexes.filter(index => speakers[index]?.name).length }
 }
 export function subtitleSpeechChanged(before: any[], after: any[]) {
     const input = (rows: any[]) => rows.map(row => [row.text, row.voice_id, row.dialogue_kind,

@@ -1,7 +1,7 @@
 'use client'
 import { mapVoicePerformance, voicePerformanceKey, elevenLabsVoiceSettings } from '@/lib/stdVoicePerformance'
 import { scanDialogueQuoteState } from '@/lib/stdDialogueQuoteState'
-import { subtitleSpeakerProgress } from '@/lib/stdSubtitleSpeakerProgress'
+import { subtitleSpeakerProgress, missingSpeakerSubtitleIndexes } from '@/lib/stdSubtitleSpeakerProgress'
 import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
@@ -8361,10 +8361,15 @@ export default function StdPortalPage() {
             busy={generatingTts}
             voices={voiceNameById}
             readiness={subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice)}
+            missingSpeakerIndexes={missingSpeakerSubtitleIndexes(localSubtitles, aiDialogueParts, subtitleSpeakers)}
             onJump={index => {
                 selectSubtitleBlock(index, false)
                 if (closeMobileMenu) setMobileMenuOpen(false)
-                requestAnimationFrame(() => document.querySelector(`[data-subtitle-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                requestAnimationFrame(() => {
+                    const row = document.querySelector<HTMLElement>(`[data-subtitle-index="${index}"]`)
+                    row?.focus({ preventScroll: true })
+                    row?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                })
             }}
         />
     ) : null
@@ -9839,6 +9844,7 @@ export default function StdPortalPage() {
                                                                             <div
                                                                                 key={item.id || `${sNum}-${lineIndex}`}
                                                                                 data-subtitle-index={item.subtitleIndex}
+                                                                                tabIndex={-1}
                                                                                 onClick={event => {
                                                                                     if ((event.target as HTMLElement).closest('button,select,input,textarea,a,[role="dialog"]')) return
                                                                                     event.stopPropagation()
