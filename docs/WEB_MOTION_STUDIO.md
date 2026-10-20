@@ -154,3 +154,29 @@ linear volume is absent. Existing AE selection and worker execution are unchange
 A 26:54, 100-scene project was exported at 1920x1080/24fps with the finalized
 recording, 518 subtitles, three real PSDs and 97 prepared original images.
 See MOTION_NATIVE_VERIFICATION.md for evidence and scope limitations.
+
+## Joint pose correction and protected regions (2026-10-20)
+
+The optional web rig now supports angle-driven shoulder/elbow/pelvis corrective
+poses. Edit the selected joint's trigger angle (positive and negative poses are
+separate), strength, elliptical influence radius, bind-space center, local scale
+and offset. Drivers use solved local rotation after IK, so parent rotation does
+not double-activate a child. Corrections respect bone ownership and locked pins.
+
+Protected rectangles override skin influences with soft boundaries. Assign the
+head bone to preserve facial shape while following the torso hierarchy, or bind
+artwork (-1) to keep another character stationary. Later rectangles take priority.
+The editor exposes bounds/feather and draws their outline over the weight canvas.
+These are authored regions, not automatic anatomy recognition or hidden-pixel
+reconstruction. They persist in the same validated web-only animation recipe.
+
+Per-bone depth tracks order mesh triangles at overlaps. Larger values render in
+front; use hold interpolation for intentional front/back switches. Rendering now
+uses premultiplied source-over alpha so transparent foreground texels cannot erase
+the background. Preview and export use the same corrected influences and ordering.
+Old recipes have no corrections/regions/depth tracks and retain their settings.
+AE selection and existing script/render workers remain independent.
+
+See MOTION_NATIVE_VERIFICATION.md for real-source comparisons. Two PSD scenes
+passed this bounded review; a third crossed-hand pose was rejected rather than
+silently accepted. No universal AE/Puppet quality percentage is established.

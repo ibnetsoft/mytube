@@ -308,3 +308,73 @@ Validation: 45 focused Node regression tests, TypeScript, focused ESLint,
 production build and fullbody/advanced/web export browser suites passed.
 The fullbody pointer test now scrolls the painting canvas into view before
 interaction. Existing AE selection/restoration tests still pass.
+
+## Corrective poses, overlap and protected characters (2026-10-20)
+
+Added solved-local-angle corrective poses, elliptical falloff, ownership gating,
+editable center/radius/scale/offset/strength, and feathered rigid/bind rectangles.
+Protected head regions follow their bone hierarchy; bind regions isolate another
+character sharing the same PSD layer. Per-bone depth keys sort mesh triangles;
+source-over premultiplied alpha prevents transparent texels from erasing lower
+triangles. New settings validate/persist through the active web recipe path.
+Existing AE method and script/render worker code/processes were not changed.
+
+Real-source review used the same PSDs and finalized recording from project 3376.
+Initial nine-pose diagnostic export exposed warped faces and movement of a second
+character. Rigid head/bind regions and corrected scene-29 bone fitting resolved
+those specific defects; hand regions preserve finger shapes. In scene 29, RGB
+MAE/255 against the original face ROI (1260,120)-(1530,350) fell from 80.9809 to
+0.3148 for shoulder rotation and from 31.0543 to 0.3148 for elbow rotation.
+The other character's face ROI (300,80)-(600,350) at pelvis rotation fell from
+80.3168 to 2.0472. These are authored source ROI checks, not general quality scores.
+Legacy/current rig fitting differs, so the improvement includes asset authoring.
+
+Scene 19 still tears at crossed hands in large poses: both hands are baked into
+one layer and the existing rig fit is inadequate. It was rejected and excluded
+from the accepted review, rather than described as repaired. Reusable original
+media remains intact. Clothing folds, crop edges and hidden pixels still require
+artist review. No large-motion result from this source was published/approved.
+
+A scripted AE Puppet probe created pins with vertex index -1; unchanged rest/peak
+frames confirmed it was NOT a valid deformation reference. Those results were
+rejected. CC Bend It experiments also differ in solver/control units and include
+an unchanged scene-19 elbow; they are diagnostics, not equivalent-pose quality
+benchmarks. The final independent reference uses AE native layer transforms:
+dominant-weight cutout parts, exact web global bone matrices and depth ordering,
+for six poses on PSD 25/29. This is matched FK/compositing evidence, not AE Puppet
+parity; hard cutout seams in that constructed reference must not be attributed
+to AE's capabilities. Both comparison sheets were visually inspected.
+
+AE now stays in one existing session. Comparison JSX never calls app.newProject
+or app.quit. Run reviewed JSX via File > Scripts in the current comparison project,
+then use aerender -reuse -project with its saved path. No -m launch or concurrent
+UI sessions. Existing production projects are protected by filename guards.
+No preference reset or security permission change was made. Local script file
+logging can fail in safe mode; that failure must not prevent project generation.
+
+Accepted output: output/motion-joint-comparison/joint-review-accepted.mp4,
+24.790204 seconds, six poses across PSD 25/29, seven recorded subtitle intervals,
+1920x1080/24fps H.264/AAC, 24,112,774 bytes. SHA256:
+b1c90c66fac188822b38f3a51a43a884935d9a1424b6af52862b2d9f262bd76d.
+This is a bounded verification export, not a new 26-minute production approval.
+Full decode passed; correlation with the exact joined finalized recording is
+0.999986276, lag 0ms at 1ms resolution, codec padding 20.5ms. All six peak frames
+were inspected. The earlier three-scene diagnostic video remains separate.
+No live database edits, worker changes/restarts, paid generation or publishing.
+
+Local evidence: poses.json, ae-rigid-reference.json, ae-rigid/*.mp4,
+ae-comparison-25.png, ae-comparison-29.png, ae-comparison-qa.json,
+protected-region-qa.json, joint-review-accepted-receipt.json, accepted-qa.json,
+encoded-accepted.png and correctives-editor.png. Private media/manifests stay
+uncommitted. Reproduce preparation with compare_motion_joints.cjs and
+prepare_ae_rigid_joint_reference.cjs; use the existing AE session for its JSX.
+Render with render_motion_joint_review.cjs --accepted, then run
+qa_motion_joint_review.py --accepted and qa_motion_ae_joints.py (MOTION_FFMPEG
+required; Python uses NumPy/Pillow). Exact private PSD/WAV snapshots are required.
+The browser harness uses OfflineAudioContext for decoding the joined recording;
+this avoids the stalled real-time audio service encountered in the first harness.
+
+Validation: 50 focused Node regressions, typecheck/production build, focused
+ESLint and browser checks for corrective/region editing, normalization, overlap
+ordering, transparent foreground, fullbody editing, and existing AE restoration/
+web export paths. No claim of 90% AE equivalence is supported by this evidence.

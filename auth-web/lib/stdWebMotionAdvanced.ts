@@ -1,4 +1,5 @@
-import {boneMatrices,deformPoint,sampleValue,defaultGlow,type GlowSettings,type Point,type LayerAdvanced,type NativeEffect,type NativePath} from './stdMotionRig'
+import {regionInfluences} from './stdMotionCorrectives'
+import {boneMatrices,deformPoint,sampleSkin,sampleValue,defaultGlow,type GlowSettings,type Point,type LayerAdvanced,type NativeEffect,type NativePath} from './stdMotionRig'
 const make=(w:number,h:number)=>{if(!Number.isFinite(w+h)||Math.ceil(w)*Math.ceil(h)>40_000_000)throw Error('효과·변형 캔버스가 너무 큽니다. 원본 크기나 이동 범위를 줄여 주세요.');const c=document.createElement('canvas');c.width=Math.max(1,Math.ceil(w));c.height=Math.max(1,Math.ceil(h));return c}
 type MeshGpu={canvas:HTMLCanvasElement;gl:WebGLRenderingContext;program:WebGLProgram;buffer:WebGLBuffer;texture:WebGLTexture;position:number;uv:number;resolution:WebGLUniformLocation|null}
 let meshGpu:MeshGpu|undefined
@@ -11,13 +12,15 @@ function gpu():MeshGpu {
     const program=gl.createProgram()!;gl.attachShader(program,vs);gl.attachShader(program,fs);gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error('메시 렌더러 초기화 실패');gl.deleteShader(vs);gl.deleteShader(fs)
     meshGpu={canvas,gl,program,buffer:gl.createBuffer()!,texture:gl.createTexture()!,position:gl.getAttribLocation(program,'position'),uv:gl.getAttribLocation(program,'uv'),resolution:gl.getUniformLocation(program,'resolution')};return meshGpu
 }
-function drawMesh(canvas:HTMLCanvasElement,source:HTMLCanvasElement,input:Point[],output:Point[],columns:number,rows:number,left:number,top:number){
+function drawMesh(canvas:HTMLCanvasElement,source:HTMLCanvasElement,input:Point[],output:Point[],columns:number,rows:number,left:number,top:number,priority?:(p:Point)=>number){
     const state=gpu(),{gl,program,buffer,texture,position,uv,resolution}=state,limit=Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE))
     if(Math.max(source.width,source.height,canvas.width,canvas.height)>limit)throw Error('그래픽 장치의 메시 크기 한도를 넘었습니다. 원본 크기를 줄여 주세요.')
     state.canvas.width=canvas.width;state.canvas.height=canvas.height
-    const vertices:number[]=[];for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){const a=y*(columns+1)+x,b=a+1,c=a+columns+1,d=c+1;for(const i of [a,b,d,a,d,c])vertices.push(output[i][0]-left,output[i][1]-top,input[i][0]/source.width,input[i][1]/source.height)}
+    const triangles:number[][]=[];for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){const a=y*(columns+1)+x,b=a+1,c=a+columns+1,d=c+1;triangles.push([a,b,d],[a,d,c])}
+    const ordered=priority?triangles.map(tri=>({tri,depth:priority([tri.reduce((v,i)=>v+input[i][0],0)/3,tri.reduce((v,i)=>v+input[i][1],0)/3])})).sort((a,b)=>a.depth-b.depth).map(v=>v.tri):triangles
+    const vertices:number[]=[];for(const tri of ordered)for(const i of tri)vertices.push(output[i][0]-left,output[i][1]-top,input[i][0]/source.width,input[i][1]/source.height)
     gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.useProgram(program);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STREAM_DRAW);gl.enableVertexAttribArray(position);gl.enableVertexAttribArray(uv);gl.vertexAttribPointer(position,2,gl.FLOAT,false,16,0);gl.vertexAttribPointer(uv,2,gl.FLOAT,false,16,8);gl.uniform2f(resolution,canvas.width,canvas.height)
-    gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source);gl.drawArrays(gl.TRIANGLES,0,vertices.length/4)
+    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,1);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source);gl.drawArrays(gl.TRIANGLES,0,vertices.length/4)
     if(gl.getError()!==gl.NO_ERROR)throw Error('메시 렌더링에 실패했습니다. 그래픽 장치·원본 크기를 확인해 주세요.')
     canvas.getContext('2d')!.drawImage(state.canvas,0,0)
 }
@@ -26,13 +29,13 @@ export function noise(x:number,y:number,z:number,seed:number):number {
     const plane=(k:number)=>lerp(lerp(hash(ix,iy,k),hash(ix+1,iy,k),fx),lerp(hash(ix,iy+1,k),hash(ix+1,iy+1,k),fx),fy)
     return lerp(plane(iz),plane(iz+1),fz)
 }
-export function warpCanvas(source:HTMLCanvasElement,columns:number,rows:number,warp:(p:Point)=>Point){
+export function warpCanvas(source:HTMLCanvasElement,columns:number,rows:number,warp:(p:Point)=>Point,priority?:(p:Point)=>number){
     const input:Point[]=[],output:Point[]=[];for(let y=0;y<=rows;y++)for(let x=0;x<=columns;x++){const p:Point=[x/columns*source.width,y/rows*source.height];input.push(p);output.push(warp(p))}
     if(output.every((p,i)=>Math.abs(p[0]-input[i][0])<1e-8&&Math.abs(p[1]-input[i][1])<1e-8))return {canvas:source,left:0,top:0}
     const left=Math.floor(Math.min(0,...output.map(p=>p[0])))-1,top=Math.floor(Math.min(0,...output.map(p=>p[1])))-1,right=Math.ceil(Math.max(source.width,...output.map(p=>p[0])))+1,bottom=Math.ceil(Math.max(source.height,...output.map(p=>p[1])))+1
     if((right-left)*(bottom-top)>40_000_000||!Number.isFinite(right+bottom+left+top))throw Error('변형 결과가 너무 큽니다. 관절·핀 이동 범위를 줄여 주세요.')
     const canvas=make(right-left,bottom-top)
-    drawMesh(canvas,source,input,output,columns,rows,left,top)
+    drawMesh(canvas,source,input,output,columns,rows,left,top,priority)
     return {canvas,left,top}
 }
 function maskCanvas(source:HTMLCanvasElement,mask:NonNullable<LayerAdvanced['mask']>){
@@ -71,7 +74,7 @@ export function applyNativeEffects(source:HTMLCanvasElement,effects:NativeEffect
 export function renderAdvancedLayer(source:HTMLCanvasElement,advanced:LayerAdvanced|undefined,t:number){
     if(!advanced)return {canvas:source,left:0,top:0}
     let current=advanced.mask?maskCanvas(source,advanced.mask):source,left=0,top=0
-    if(advanced.rig||advanced.mesh?.pins.length){const m=advanced.rig?boneMatrices(advanced.rig,t,source.width,source.height):[],warped=warpCanvas(current,advanced.rig?.deformation==='rigid'?Math.min(64,Math.max(32,(advanced.mesh?.columns||16)*2,(advanced.rig.skin?.columns||16)*2)):advanced.mesh?.columns||16,advanced.rig?.deformation==='rigid'?Math.min(64,Math.max(32,(advanced.mesh?.rows||16)*2,(advanced.rig.skin?.rows||16)*2)):advanced.mesh?.rows||16,p=>deformPoint(p,advanced,t,source.width,source.height,m));current=warped.canvas;left=warped.left;top=warped.top}
+    if(advanced.rig||advanced.mesh?.pins.length){const m=advanced.rig?boneMatrices(advanced.rig,t,source.width,source.height):[],warped=warpCanvas(current,advanced.rig?.deformation==='rigid'?Math.min(64,Math.max(32,(advanced.mesh?.columns||16)*2,(advanced.rig.skin?.columns||16)*2)):advanced.mesh?.columns||16,advanced.rig?.deformation==='rigid'?Math.min(64,Math.max(32,(advanced.mesh?.rows||16)*2,(advanced.rig.skin?.rows||16)*2)):advanced.mesh?.rows||16,p=>deformPoint(p,advanced,t,source.width,source.height,m),advanced.rig?.skin&&advanced.rig.bones.some(b=>b.depth)?p=>{const weights=regionInfluences(sampleSkin(advanced.rig!.skin!,p[0]/source.width,p[1]/source.height),advanced.rig!.regions,p[0]/source.width,p[1]/source.height);return weights.reduce((sum,v)=>sum+(v.bone<0?0:sampleValue(advanced.rig!.bones[v.bone].depth||[{t:0,value:0},{t:1,value:0}],t))*v.weight,0)}:undefined);current=warped.canvas;left=warped.left;top=warped.top}
     const style=advanced.style
     if(style&&(style.shadow||style.stroke)){
         const unit=Math.min(source.width,source.height),radius=style.shadow*unit,stroke=style.stroke*unit,dx=style.shadowX*source.width,dy=style.shadowY*source.height,pad=Math.ceil(Math.max(radius*3+Math.max(Math.abs(dx),Math.abs(dy)),stroke)+2),c=make(current.width+pad*2,current.height+pad*2),ctx=c.getContext('2d')!

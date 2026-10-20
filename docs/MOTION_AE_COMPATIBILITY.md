@@ -77,3 +77,14 @@ Controlled equal-weight 90/120/150/180-degree tests preserve a 20px cross-sectio
 This is not AE Puppet compatibility, a general cloth solver, or reconstruction
 of hidden artwork. Actual PSD comparison and full-length export evidence are
 recorded in MOTION_NATIVE_VERIFICATION.md.
+
+## Joint correction comparison scope (2026-10-20)
+
+The web engine now has solved-angle-driven corrective poses, authored rigid/bind
+protection regions, and animated per-bone mesh overlap priorities. These improve
+specific real-source defects but do not implement AE Puppet's solver or arbitrary
+pose-space sculpting. AE comparison uses actual native AE layer transforms with
+exactly the same global bone matrices/depth order on dominant-weight cutout parts.
+It checks matched FK poses and compositing; part seams are a limitation of that
+constructed reference, not a limitation of AE. Do not present it as an expertly
+authored Puppet reference or use pixel MAE as an AE quality score.
