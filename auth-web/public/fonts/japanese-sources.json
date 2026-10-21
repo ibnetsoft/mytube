@@ -1,0 +1,17 @@
+{
+  "NotoSansJP-Regular": {
+    "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf",
+    "sha256": "68a3fc98800b2a27b371f2fb79991daf3633bd89309d4ffaa6946fd587f375b5",
+    "glyphs": 44810
+  },
+  "NotoSansJP-Bold": {
+    "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Sans/OTF/Japanese/NotoSansCJKjp-Bold.otf",
+    "sha256": "e53dcb0dcb2922e45d01aae1ebd2f382bb81d4229b18b6b883bd170678af1f76",
+    "glyphs": 44810
+  },
+  "NotoSerifJP-Bold": {
+    "source": "https://raw.githubusercontent.com/notofonts/noto-cjk/f8d157532fbfaeda587e826d4cd5b21a49186f7c/Serif/OTF/Japanese/NotoSerifCJKjp-Bold.otf",
+    "sha256": "861a2b2c0e24b23745c262be8c3fdef63f12628f0492fb120ee51aa55c503af8",
+    "glyphs": 44777
+  }
+}

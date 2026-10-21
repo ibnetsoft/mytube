@@ -595,7 +595,12 @@ const ELEVENLABS_VOICES = [
     },
 ]
 
-const SUBTITLE_FONTS = [...Object.keys(subtitleFontCatalog).map(value => ({ value, label: value })),
+const JAPANESE_SUBTITLE_FONT_LABELS: Record<string, string> = {
+    'NotoSansJP-Regular': 'Noto Sans JP · 일본어 고딕 보통',
+    'NotoSansJP-Bold': 'Noto Sans JP · 일본어 고딕 굵게',
+    'NotoSerifJP-Bold': 'Noto Serif JP · 일본어 명조 굵게',
+}
+const SUBTITLE_FONTS = [...Object.keys(subtitleFontCatalog).map(value => ({ value, label: JAPANESE_SUBTITLE_FONT_LABELS[value] || value })),
     { value: 'Malgun Gothic', label: '맑은 고딕 (Malgun Gothic · 렌더 폰트)' }]
 
 const DEFAULT_SUBTITLE_PRESETS = [

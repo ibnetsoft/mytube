@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 
 const subtitleFonts = [
+    'NotoSansJP-Regular',
+    'NotoSansJP-Bold',
+    'NotoSerifJP-Bold',
     'GmarketSansBold',
     'TmonMonsori',
     'Jalnan',

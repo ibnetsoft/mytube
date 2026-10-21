@@ -1,6 +1,28 @@
 @import "tailwindcss";
 
 /* Sources shared with the render worker through fonts/catalog.json. */
+/* Distinct families preserve the selected weight even in bold subtitle UI. */
+@font-face {
+    font-family: 'NotoSansJP-Regular';
+    src: url('/fonts/NotoSansJP-Regular.woff') format('woff');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'NotoSansJP-Bold';
+    src: url('/fonts/NotoSansJP-Bold.woff') format('woff');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'NotoSerifJP-Bold';
+    src: url('/fonts/NotoSerifJP-Bold.woff') format('woff');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
 @font-face {
     font-family: 'CookieRun-Regular';
     src: url('/fonts/CookieRun-Regular.woff') format('woff');

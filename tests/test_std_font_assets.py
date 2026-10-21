@@ -9,12 +9,23 @@ GLOBAL_CSS = (ROOT / "auth-web" / "app" / "globals.css").read_text(encoding="utf
 FONT_DIR = ROOT / "auth-web" / "public" / "fonts"
 
 
+@pytest.mark.parametrize('family', ['NotoSansJP-Regular', 'NotoSansJP-Bold', 'NotoSerifJP-Bold'])
+def test_japanese_fonts_include_kana_and_complete_cjk_source(family):
+    from fontTools.ttLib import TTFont
+    catalog = json.loads((FONT_DIR / 'catalog.json').read_text())
+    font = TTFont(FONT_DIR / catalog[family])
+    cmap = font.getBestCmap()
+    assert len(cmap) > 40000
+    assert all(ord(char) in cmap for char in '漢字去際友あいうえおきぬはカタカナ櫃鍵髙﨑')
+    assert font['OS/2'].usWeightClass == (400 if family.endswith('Regular') else 700)
+
+
 def test_subtitle_fonts_are_served_locally_without_a_noonnu_cdn_request():
     assert "jsdelivr.net/gh/projectnoonnu" not in GLOBAL_CSS
     assert "font-family: 'Gungsuh'" not in GLOBAL_CSS
 
     expected_files = set(json.loads((FONT_DIR / 'catalog.json').read_text()).values())
-    assert len(expected_files) == 15
+    assert len(expected_files) == 18
     assert expected_files <= {path.name for path in FONT_DIR.iterdir() if path.is_file()}
     assert 'fonts.googleapis.com' not in GLOBAL_CSS
     for file_name in expected_files:
@@ -32,7 +43,8 @@ def test_every_web_font_is_selected_by_libass_without_korean_fallback(tmp_path, 
     font_file = next(Path(fonts).glob('*.ttf'))
     assert ImageFont.truetype(str(font_file), 32).getname()[0] == _ass_font_family(family)
     ass = tmp_path / 'font.ass'
-    _write_ass_file(ass, [{'start': 0, 'end': 1, 'text': '가나다라마바사 아침 햇살 ABC 123'}], settings, (1280, 720), fonts)
+    text = '漢字とひらがな、カタカナ。櫃の鍵 ABC 123' if family.startswith('Noto') else '가나다라마바사 아침 햇살 ABC 123'
+    _write_ass_file(ass, [{'start': 0, 'end': 1, 'text': text}], settings, (1280, 720), fonts)
     result = subprocess.run([
         _ffmpeg_executable(), '-hide_banner', '-f', 'lavfi', '-i', 'color=c=0x456789:s=1280x720',
         '-vf', f"subtitles=filename='{_filter_path(str(ass))}':fontsdir='{_filter_path(fonts)}'",
