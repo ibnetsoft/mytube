@@ -81,12 +81,14 @@ function harness(options = {}) {
             const reply = await send(body)
             return reply
         },
+        dialogueSpeakerProgress: { confirmed: 0, total: 0 }, ui: text => text,
+        subtitleFinalizeInFlightRef: { current: false },
         hasDistinctDialogueVoiceAssignment: () => options.assignment !== false,
         setHighlightSaveTts() {},
         speechSubtitlesRef: { current: [{ text: 'Saved script.' }] },
         applyRecordedSubtitleTiming: (rows, timeline) => rows.map((row, index) => ({ ...row, ...timeline[index] })),
         setLocalSubtitles: rows => { state.timedSubtitles = rows },
-        persistVrewVoiceSubtitles: async rows => { if (options.timingError) throw Error('Network unavailable'); state.persistedTiming = rows },
+        persistVrewVoiceSubtitles: async rows => { if (options.finalGate) { options.finalStarted.resolve(); await options.finalGate.promise } if (options.timingError) throw Error('Network unavailable'); state.persistedTiming = rows },
         handleSaveSubtitles: async () => {
             state.saves++
             if (options.saveGate) await options.saveGate.promise
@@ -407,3 +409,34 @@ test('mismatched audio ranges cannot produce a corrupt playable blob', async () 
     }, async () => {}), /invalid byte range/)
     assert.equal(calls, 1)
 })
+
+ test('rapid Save + TTS clicks start only one save and synthesis operation', async () => {
+    const saveGate = deferred(), h = harness({ saveGate })
+    const first = h.handleFinalizeSubtitlesAndTts()
+    const second = h.handleFinalizeSubtitlesAndTts()
+    assert.equal(h.state.saves, 1)
+    saveGate.resolve()
+    await Promise.all([first, second])
+    assert.equal(h.state.requests.filter(r => r.url.endsWith('/tts/generate')).length, 1)
+    assert.equal(h.state.spinning.at(-1), false)
+ })
+
+ test('Save + TTS stays busy and locked until final subtitle persistence finishes', async () => {
+    const finalGate = deferred(), finalStarted = deferred(), h = harness({ finalGate, finalStarted })
+    const running = h.handleFinalizeSubtitlesAndTts()
+    await finalStarted.promise
+    assert.equal(h.state.spinning.at(-1), true)
+    await h.handleFinalizeSubtitlesAndTts()
+    assert.equal(h.state.saves, 1)
+    finalGate.resolve()
+    await running
+    assert.equal(h.state.spinning.at(-1), false)
+ })
+ test('a failed save releases the Save + TTS click guard for retry', async () => {
+    const h = harness({ saveError: 'Save unavailable' })
+    await h.handleFinalizeSubtitlesAndTts()
+    await h.handleFinalizeSubtitlesAndTts()
+    assert.equal(h.state.saves, 2)
+    assert.equal(h.state.requests.length, 0)
+    assert.equal(h.state.spinning.at(-1), false)
+ })

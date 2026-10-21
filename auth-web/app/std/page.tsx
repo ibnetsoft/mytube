@@ -1029,6 +1029,7 @@ export default function StdPortalPage() {
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
+    const subtitleFinalizeInFlightRef = useRef(false)
     const [ttsNotice, setTtsNotice] = useState<TtsNotice | null>(null)
     const [musicMissions, setMusicMissions] = useState<MusicMission[]>([])
     const [musicMissionLoading, setMusicMissionLoading] = useState(false)
@@ -5510,7 +5511,7 @@ export default function StdPortalPage() {
         try {
             if (subtitleStyleSaveTimerRef.current) clearTimeout(subtitleStyleSaveTimerRef.current)
             subtitleStyleSaveTimerRef.current = null
-            const renderSettings = await templateOverlaySettings({ ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() })
+            const renderSettingsPromise = templateOverlaySettings({ ...(selectedProject?.project?.project_payload?.render_settings || {}), ...subtitleRenderSettings() })
             const subtitlesForStorage = matchSubtitlesToSceneVisuals(speechSubtitlesRef.current, selectedProject?.scenes || []).map((subtitle: any, index: number) => (
                 typeof isSubtitleDialogue === 'function' ? {
                     ...subtitle,
@@ -5519,6 +5520,7 @@ export default function StdPortalPage() {
                         ? subtitle.editor_speaker?.name || subtitleSpeakers[index]?.name || subtitle.dialogue_speaker || null : null,
                 } : subtitle
             ))
+            const renderSettings = await renderSettingsPromise
             await persistVrewVoiceSubtitles(subtitlesForStorage, {
                 strict: true,
                 renderSettings,
@@ -6756,7 +6758,7 @@ export default function StdPortalPage() {
             alert(`${copy.ttsFailedTitle}: ${errorMessage}`)
             return false
         } finally {
-            setGeneratingTts(false)
+            if (!subtitleFinalizeInFlightRef.current) setGeneratingTts(false)
         }
     }
 
@@ -6920,6 +6922,7 @@ export default function StdPortalPage() {
     }
 
     const handleFinalizeSubtitlesAndTts = async () => {
+        if (subtitleFinalizeInFlightRef.current) return
         const copy = ttsNoticeCopy(currentLocale)
         if (dialogueSpeakerProgress.confirmed < dialogueSpeakerProgress.total) {
             setMessage(ui('모든 대사의 화자를 지정한 후 저장+TTS를 실행해 주세요.'))
@@ -6931,6 +6934,7 @@ export default function StdPortalPage() {
             alert(msg)
             return
         }
+        subtitleFinalizeInFlightRef.current = true
         const requestScope = { ...mediaScopeRef.current }
         setGeneratingTts(true)
         setHighlightSaveTts(false)
@@ -6945,12 +6949,14 @@ export default function StdPortalPage() {
                 subtitleTtsCompleted: true,
             })
         } catch (error: any) {
-            setGeneratingTts(false)
             console.warn('[subtitle final save]', error?.message)
             const errorMessage = localizeStdActionError(error, currentLocale, 'subtitle_save')
             setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '', phase: 'error', detail: errorMessage })
             setMessage(`❌ ${errorMessage}`)
             alert(`${copy.finalSaveFailedTitle}: ${errorMessage}`)
+        } finally {
+            subtitleFinalizeInFlightRef.current = false
+            setGeneratingTts(false)
         }
     }
 

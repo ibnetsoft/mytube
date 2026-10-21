@@ -43,7 +43,7 @@ const rows = text => [{
     audio_asset_id: 'recording-4', audio_url: '/audio/recording-4', audio_duration: 3.25,
 }]
 
-function harness(locale = 'ko') {
+function harness(locale = 'ko', options = {}) {
     const initialRows = rows('元の字幕')
     const selectedProject = {
         project: { id: 'project-a', project_payload: { subtitles: initialRows, render_settings: { existing_setting: 'keep' } } },
@@ -83,7 +83,7 @@ function harness(locale = 'ko') {
         })
     const handleSaveSubtitles = extract('    const handleSaveSubtitles =', '    const openProject =', 'handleSaveSubtitles', {
         ...context, ...actions, matchSubtitlesToSceneVisuals,
-        templateOverlaySettings: async settings => settings,
+        templateOverlaySettings: async settings => { if (options.templateGate) await options.templateGate.promise; return settings },
         subtitleRenderSettings: () => ({ subtitle_font_family: 'NanumSquare', subtitle_font_size: 5.4 }),
     })
     function confirm(index) {
@@ -247,3 +247,17 @@ for (const locale of ['th', 'vi']) {
         assert.doesNotMatch(failed.state.notices.at(-1).detail, /[가-힣]/)
     })
 }
+
+test('manual save captures clicked subtitles before asynchronous template preparation', async () => {
+    let release
+    const templateGate = { promise: new Promise(resolve => { release = resolve }) }
+    const h = harness('ko', { templateGate })
+    h.updateSubtitleDraft(rows('Clicked project A text'))
+    const saving = h.handleSaveSubtitles()
+    h.speechSubtitlesRef.current = rows('Later project B text')
+    release()
+    await tick()
+    assert.equal(h.state.requests[0].body.project_payload.subtitles[0].text, 'Clicked project A text')
+    h.confirm(0)
+    await saving
+})
