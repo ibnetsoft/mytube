@@ -5,6 +5,7 @@ import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './std
 import { reviewedAeMouthAssets } from './stdAeMouth'
 import { comicSettingsForProject, isComicProject, isWebtoonVideoProject, selectComicMedia, comicSceneTimings } from './stdComic'
 import { motionForProject, motionOutputAspect } from './stdMotionStudio'
+import { assertRecordedSceneDirections } from './stdSceneExecution'
 import { subtitleGain } from './stdSpeechGain'
 import { preserveAudioAnchors } from './stdAudioAnchors'
 import { resolveSfxCues, sfxNeedsReview } from '@/lib/stdSfxCues'
@@ -929,6 +930,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
 export async function enqueueStdProjectRender(projectId: string, automatic?: { jobId: string; taskId: string }) {
     const { project, scenes, assets } = (automatic && await frozenRenderBundle(projectId, automatic.jobId)) || await loadBundle(projectId)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')
+    if(!motionForProject(project)?.enabled)assertRecordedSceneDirections(project)
 
     if (automatic) {
         const receipt = await supabaseAdmin.from('remote_render_queue').select('*').eq('id', automatic.taskId).maybeSingle()

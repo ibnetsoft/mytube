@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { aeSceneEffectSelection, aeSceneEffectsMatch } from './stdAeSceneEffects'
 import { motionForProject } from './stdMotionStudio'
+import { directedScene } from './stdSceneExecution'
 
 const active = (asset: any) => ['uploaded', 'assigned'].includes(asset?.status)
 const numberOf = (scene: any) => Number(scene?.scene_number ?? scene?.scene_order ?? scene?.number)
@@ -44,6 +45,7 @@ export function aeSceneContexts(project: any, scenes: any[]) {
             scene_text: String(scene.scene_text || authored.scene_text || authored.narration || authored.text || ''),
             image_prompt: String(scene.image_prompt || authored.image_prompt || ''),
             video_prompt: String(scene.video_prompt || authored.video_prompt || ''),
+            ...(directedScene(authored.scene_direction_plan) ? {creative_reference: authored.scene_direction_plan} : {}),
         }
     }).sort((a, b) => a.scene_number - b.scene_number)
 }

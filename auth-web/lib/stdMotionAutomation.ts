@@ -11,6 +11,7 @@ import { sfxNeedsReview, resolveSfxCues } from './stdSfxCues'
 import { persistTemplateOverlay, templateOverlayPng } from './stdTemplateOverlayPng'
 import { selectedVideoModel } from './stdVideoModelStore'
 import { assertPreparationFinished } from './stdWorkflowBoundary'
+import { bindSceneDirection, directedScene } from './stdSceneExecution'
 
 export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string) {
@@ -44,8 +45,18 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const planned=project.project_payload?.structure?.scenes?.find((s:any)=>Number(s.scene_number||s.scene_order)===n)
         const authored=motion.scenes[String(n)]
         if(effectcraft&&(authored?.finance||authored?.cues?.length||authored?.native?.paths?.length||authored?.native?.effects?.length||Object.values(authored?.layers||{}).some(l=>l.advanced)))throw new Error(`${n}번 씬의 웹 전용 리그·효과는 EffectCraft로 자동 변환하지 않습니다. 브라우저 제작 또는 기존 AE를 선택해 주세요.`)
+        const creative=planned?.scene_direction_plan||planned?.ae_directorial_plan||null
+        const sourceKind=source.asset_type==='original'?'psd':source.asset_type
+        const recordedRows=project.project_payload.subtitles.map((row:any,i:number)=>({...row,start:timeline[i].start,end:timeline[i].end})).filter((row:any)=>Number(row.scene_number)===n)
+        const reviewedCamera=preparation?.metadata?.result?.plan?.camera
+        const executable=directedScene(creative)&&Array.isArray(reviewedCamera)
+            ? {...creative,execution_design:{...creative.execution_design,camera:{...creative.execution_design.camera,keys:reviewedCamera.map((k:any)=>({...k,opacity:100}))}}}
+            : creative
+        const generated=bindSceneDirection(executable,sourceKind,recordedRows,start,end,motion.fps)
+        const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
-            prepared_direction:motion.scenes[String(n)]||{source:source.asset_type==='original'?'psd':source.asset_type,fit:'contain',direction:'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
+            ...(directedScene(creative)?{direction_contract:creative.contract}:{}),
+            prepared_direction:explicit||generated||motion.scenes[String(n)]||{source:sourceKind,fit:'contain',direction:'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
             creative_reference:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
             preparation,start,end,source,source_kind:source.asset_type==='original'?'psd':source.asset_type}
     })
