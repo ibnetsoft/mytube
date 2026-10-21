@@ -166,6 +166,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
         lambda style: "[Writing Style Directive]\n구수한 테스트 문체\nApply this style strictly throughout the script.",
     )
     calls = []
+    stage_tasks = {}
     import codex_character_assets
     def fake_characters(context, payload, config, output_dir):
         calls.append(("02e_character_images", context))
@@ -176,6 +177,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
 
     def fake_stage(self, job_id, name, context, task):
         calls.append((name, context))
+        stage_tasks[name] = task
         if name == "01_plan":
             return {
                 "narrative_blueprint": {"logline": "테스트 이야기"},
@@ -255,7 +257,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                     ],
                 })
             return {"scenes": [
-                    {"scene_order": i, "image_prompt": (f"Scene {i}: Detailed English image prompt with concrete subject action, period setting, lighting, composition, emotion, continuity wardrobe, and unique prop. " * 2), **({"video_prompt": (f"Scene {i}: A continuous period-drama shot showing a character discovering a concrete clue in a lantern-lit courtyard; slow push-in follows restrained hand movement, drifting smoke and fabric respond naturally, focus settles on the clue, then the character holds a stable final pose. no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio.")} if i <= 18 else {})}
+                    {"scene_order": i, "shot_design": ({"shot_size": "extreme_wide", "camera_angle": "high_angle", "subject_presence": "environment_only", "subject_scale": "none", "composition": "empty courtyard framed through a gate", "repetition_reason": ""} if i == 1 else None), "image_prompt": (f"Scene {i}: Detailed English image prompt with concrete subject action, period setting, lighting, composition, emotion, continuity wardrobe, and unique prop. " * 2), **({"video_prompt": (f"Scene {i}: A continuous period-drama shot showing a character discovering a concrete clue in a lantern-lit courtyard; slow push-in follows restrained hand movement, drifting smoke and fabric respond naturally, focus settles on the clue, then the character holds a stable final pose. no dialogue, no narration, no subtitles, no captions, no music, no sound effects, no audio.")} if i <= 18 else {})}
                 for i in range(1, scene_count + 1)
             ], "image_grid_prompts": grids}
         if name == "05_thumbnail_copy":
@@ -277,6 +279,11 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     package = runner_module.CodexStagedContentRunner().generate("staged-job", {"target_duration_seconds": 300, "upload_title": "테스트 제목", "title_generation": {"title_candidates": [{"title": "테스트 제목"}]}, "category_name": "옛날이야기", "script_style": "story"})
 
     scenes = package["structure"]["scenes"]
+    assert "subject_presence" in stage_tasks["03_media"]
+    assert "adjacent scenes" in stage_tasks["03_media"]
+    assert scenes[0]["shot_design"]["subject_presence"] == "environment_only"
+    assert "absolutely no people" in scenes[0]["image_prompt"]
+    assert all(scene["shot_design"]["shot_size"] for scene in scenes)
     assert package["structure"]["scene_visual_director_persona"] == "scene_visual_director"
     assert all(scene["ae_directorial_plan"]["timed_beats"] for scene in scenes)
     assert package["structure"]["scene_direction_plan_contract"] == "scene_direction_plan/v2"

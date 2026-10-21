@@ -91,6 +91,10 @@ import job_store
 from logging_setup import get_job_logger, get_logger
 from shutdown_flag import clear_shutdown_flag, is_shutdown_requested
 from worker_config import OUTPUT_DIR, PROJECT_ROOT, STATE_DIR, WORKER_ID, WORKER_INSTANCE_ID, ensure_project_root_on_path
+from scene_composition import (
+    apply_scene_shot_design as _apply_scene_shot_design,
+    normalize_scene_shot_design as _normalize_scene_shot_design,
+)
 
 STATE_FILE = STATE_DIR / "hermes_worker.json"
 PAUSE_FLAG_FILE = STATE_DIR / "hermes_worker.pause"
@@ -3326,10 +3330,13 @@ def _generate_direct_image_grid_prompts(
     image_style_directive: str,
     job_log,
     character_anchors_context: str = "",
+    checkpoint_callback=None,
+    existing_grids: list[dict] | None = None,
 ) -> list[dict]:
     """Generate 2x2 prompts directly instead of concatenating per-scene prompts."""
     from services.image_grid_prompts import (
         build_compact_image_grid_prompts,
+        ensure_prompt_mentions_image_style,
         grid_windows,
         validate_image_grid_prompt_readiness,
     )
@@ -3337,6 +3344,88 @@ def _generate_direct_image_grid_prompts(
     windows = grid_windows(len(scenes))
     if not windows:
         return []
+
+    # Generate bounded one-grid requests. This keeps long projects on the same
+    # authored shot-design path as short projects and carries composition from
+    # each completed grid into the next one for sequence-level variation.
+    if len(windows) > 1 or existing_grids:
+        existing_by_number = {}
+        for grid in existing_grids or []:
+            try:
+                existing_by_number[int(grid.get("grid_number") or 0)] = grid
+            except (AttributeError, TypeError, ValueError):
+                continue
+        completed = []
+        canonical_panels = {}
+        for grid_number, (start_index, end_index) in enumerate(windows, start=1):
+            grid = existing_by_number.get(grid_number)
+            if grid is None:
+                grid_scenes = [dict(scene) for scene in scenes[start_index:end_index]]
+                if start_index > 0 and grid_scenes:
+                    grid_scenes[0]["previous_shot_design"] = scenes[start_index - 1].get("shot_design")
+                generated = _generate_direct_image_grid_prompts(
+                    ai_router, model, topic, upload_title, grid_scenes,
+                    visual_direction_plan, image_style_key, image_style_directive,
+                    job_log, character_anchors_context,
+                )
+                if not generated:
+                    raise ValueError(f"image grid {grid_number} did not produce a prompt")
+                grid = dict(generated[0])
+            else:
+                grid = dict(grid)
+            grid["grid_number"] = grid_number
+            completed.append(grid)
+            panels = grid.get("panels") if isinstance(grid.get("panels"), list) else []
+            shared_style = str(grid.get("shared_style") or "").strip()
+            by_scene_number = {}
+            for panel in panels:
+                if not isinstance(panel, dict):
+                    continue
+                shot = _normalize_scene_shot_design(
+                    panel.get("shot_design"), panel.get("scene_number"),
+                    panel.get("panel_prompt") or "",
+                )
+                scene_key = str(panel.get("scene_number") or "")
+                if scene_key in canonical_panels:
+                    panel["shot_design"] = canonical_panels[scene_key]["shot_design"]
+                    panel["panel_prompt"] = canonical_panels[scene_key]["panel_prompt"]
+                    shot = panel["shot_design"]
+                else:
+                    panel["shot_design"] = shot
+                    panel["panel_prompt"] = _apply_scene_shot_design(
+                        panel.get("panel_prompt") or "", shot,
+                    )
+                    canonical_panels[scene_key] = {
+                        "shot_design": shot,
+                        "panel_prompt": panel["panel_prompt"],
+                    }
+                by_scene_number[scene_key] = shot
+                if checkpoint_callback:
+                    image_prompt = str(panel.get("panel_prompt") or "").strip()
+                    if shared_style:
+                        image_prompt = f"{shared_style}\nPanel image prompt: {image_prompt}"
+                    image_prompt = ensure_prompt_mentions_image_style(
+                        image_prompt, image_style_key, image_style_directive,
+                    )
+                    checkpoint_callback(
+                        stage="image_prompt",
+                        scene={**panel, "image_prompt": image_prompt},
+                        scene_numbers=[panel.get("scene_number")], status="ready",
+                    )
+            for scene in scenes[start_index:end_index]:
+                number = str(scene.get("scene_order") or scene.get("scene_number") or "")
+                if number in by_scene_number:
+                    scene["shot_design"] = by_scene_number[number]
+            if checkpoint_callback:
+                checkpoint_callback(stage="image_grid_prompt", grid=grid, scene_numbers=grid.get("scene_numbers", []), status="ready")
+        compact_grids = build_compact_image_grid_prompts(completed)
+        for grid in compact_grids:
+            grid["prompt"] = ensure_prompt_mentions_image_style(
+                grid.get("prompt", ""), image_style_key, image_style_directive,
+            )
+        validate_image_grid_prompt_readiness(scenes, compact_grids, status="ready", require_status="ready")
+        job_log.info(f"Prepared {len(compact_grids)} direct compact 2x2 image grid prompt(s)")
+        return compact_grids
 
     grid_inputs = []
     for grid_number, (start_index, end_index) in enumerate(windows, start=1):
@@ -3356,6 +3445,10 @@ def _generate_direct_image_grid_prompts(
                 "continuity_identity": scene.get("continuity_identity"),
                 "lighting_hint": scene.get("lighting_hint"),
                 "visual_style": scene.get("visual_style"),
+                "previous_shot_design": scene.get("previous_shot_design") or (
+                    scenes[start_index + panel_index - 2].get("shot_design")
+                    if start_index + panel_index - 2 >= 0 else None
+                ),
             })
         grid_inputs.append({
             "grid_number": grid_number,
@@ -3363,60 +3456,6 @@ def _generate_direct_image_grid_prompts(
             "scene_ids": [panel["scene_id"] for panel in panels if panel.get("scene_id")],
             "panels": panels,
         })
-
-    def _fallback_grids(reason: str) -> list[dict]:
-        job_log.warning(
-            "Rebuilding compact 2x2 image grid prompts without AI JSON "
-            f"({reason}). grid_count={len(grid_inputs)}"
-        )
-        fallback = []
-        for grid_input in grid_inputs:
-            panels = []
-            for panel in grid_input["panels"]:
-                scene_number = panel.get("scene_number")
-                scene_id = panel.get("scene_id")
-                position = panel.get("position")
-                excerpt = str(panel.get("script_excerpt") or "").strip()
-                situation = str(panel.get("scene_situation") or panel.get("scene_summary") or "").strip()
-                emotion = str(panel.get("scene_emotion") or "").strip()
-                anchor = str(panel.get("keyframe_subject") or panel.get("continuity_identity") or "").strip()
-                panel_prompt = (
-                    f"Scene {scene_number}: visualize the final narration beat. "
-                    f"Story excerpt: {excerpt[:360] or situation[:360]}. "
-                    f"Emotion: {emotion or 'quiet dramatic tension'}. "
-                    f"Unique visual anchor: {anchor or situation[:160] or 'period location and character action'}."
-                )
-                panels.append({
-                    "scene_number": scene_number,
-                    "scene_id": scene_id,
-                    "position": position,
-                    "panel_prompt": panel_prompt,
-                })
-            fallback.append({
-                "grid_number": grid_input["grid_number"],
-                "scene_numbers": grid_input["scene_numbers"],
-                "scene_ids": grid_input["scene_ids"],
-                "shared_style": (
-                    f"{image_style_key}: {image_style_directive} "
-                    f"{character_anchors_context} "
-                    "Keep recurring characters, wardrobe, era, lighting, palette, and location logic consistent."
-                ),
-                "negative_prompt": (
-                    "no text, no words, no letters, no labels, no captions, no watermarks, "
-                    "No borders, NO grid lines, no dividers, correct anatomy, no extra limbs"
-                ),
-                "panels": panels,
-            })
-        return fallback
-
-    # Longform jobs can have dozens of 2x2 grid windows. Asking the model to
-    # return all windows as one JSON document is brittle and often truncates.
-    if len(grid_inputs) > 12:
-        grids = _fallback_grids("large grid batch")
-        compact_grids = build_compact_image_grid_prompts(grids)
-        validate_image_grid_prompt_readiness(scenes, compact_grids, status="ready", require_status="ready")
-        job_log.info(f"Prepared {len(compact_grids)} direct compact 2x2 image grid prompt(s)")
-        return compact_grids
 
     prompt = f"""
 You are creating external image-generation prompts for a longform production workflow.
@@ -3440,12 +3479,14 @@ Rules:
 1. Return exactly one grid object for every GRID INPUT, preserving grid_number, scene_numbers, and scene_ids.
 2. Each grid has exactly 4 panels in these positions: Top-Left, Top-Right, Bottom-Left, Bottom-Right.
 3. Write one shared_style per grid covering recurring characters, wardrobe, era/location logic, lighting direction, color palette, and selected image style. Include the relevant CHARACTER DNA ANCHORS in compact English when a named/recurring character appears in that grid.
-4. Write each panel_prompt as a concise English visual beat: subject, action, setting, composition, emotion, and one unique prop or background anchor. Keep each panel_prompt under 70 words.
-5. The final prompt must be compact: common layout rules once, shared_style once, then the four panel briefs. Avoid repeating negative guardrails inside every panel.
-6. Every final prompt must include: "No borders", "NO grid lines", "no text", "no words", "no letters", "no captions", and "no watermarks".
-7. Ground every panel in script_excerpt first, then use scene_situation and keyframe_subject only as supporting context. Do not contradict the final narration.
-8. Every 2x2 grid prompt MUST strictly enforce a 16:9 widescreen canvas aspect ratio (16:9 aspect ratio, widescreen horizontal format).
-9. No Korean administrative commentary. Return ONLY valid JSON.
+4. For EVERY panel, author a structured shot_design with shot_size (extreme_wide, wide, medium, close_up, or detail), camera_angle (eye_level, high_angle, low_angle, overhead, or oblique), subject_presence (character_required, character_optional, environment_only, or object_insert), subject_scale (none, small, medium, large, or detail), composition (specific English placement/depth description), and repetition_reason (empty unless repeating the immediately previous scene's shot size and angle is story-motivated). Select these from the script beat, not a fixed sequence.
+5. Vary shot size, angle, and composition across adjacent scenes when the story permits. Establishing and transition beats may be environment_only with no people, silhouettes, faces, or human reflections. Use character_required only when the narration needs a visible person; character_optional when the person is not essential. Never insert a character just to fill the frame. Preserve named character identity only when present.
+6. Write each panel_prompt as a concise English visual beat: subject, action, setting, composition, emotion, and one unique prop or background anchor. Keep each panel_prompt under 70 words and make it obey shot_design exactly.
+7. The final prompt must be compact: common layout rules once, shared_style once, then the four panel briefs. Avoid repeating negative guardrails inside every panel.
+8. Every final prompt must include: "No borders", "NO grid lines", "no text", "no words", "no letters", "no captions", and "no watermarks".
+9. Ground every panel in script_excerpt first, then use scene_situation and keyframe_subject only as supporting context. Do not contradict the final narration.
+10. Every 2x2 grid prompt MUST strictly enforce a 16:9 widescreen canvas aspect ratio (16:9 aspect ratio, widescreen horizontal format).
+11. No Korean administrative commentary. Return ONLY valid JSON.
 
 Schema:
 {{
@@ -3457,35 +3498,41 @@ Schema:
       "shared_style": "compact English continuity/style block",
       "negative_prompt": "no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs",
       "panels": [
-        {{"scene_number": 1, "scene_id": "scene001", "position": "Top-Left", "panel_prompt": "concise English panel brief"}}
+        {{"scene_number": 1, "scene_id": "scene001", "position": "Top-Left", "shot_design": {{"shot_size": "wide", "camera_angle": "eye_level", "subject_presence": "environment_only", "subject_scale": "none", "composition": "empty room framed through doorway", "repetition_reason": ""}}, "panel_prompt": "concise English panel brief obeying shot_design"}}
       ],
       "prompt": "optional final compact 2x2 prompt; omit this if the fields above are enough"
     }}
   ]
 }}
 """
-    raw = asyncio.run(asyncio.wait_for(
-        ai_router.generate_text(
-            prompt,
-            model,
-            temperature=0.35,
-            max_tokens=12000,
-            task_type="image_grid_prompt_generation",
-        ),
-        timeout=90,
-    ))
-    try:
-        generated = _extract_json(raw)
-        grids = generated.get("grids") if isinstance(generated, dict) else None
-    except Exception as exc:
-        grids = _fallback_grids(f"AI JSON parse failed: {exc}")
-    if not isinstance(grids, list) or len(grids) != len(grid_inputs):
-        got_count = len(grids) if isinstance(grids, list) else 0
-        job_log.warning(
-            "Image grid prompt count mismatch from AI; rebuilding compact 2x2 prompts "
-            f"from grid inputs. expected={len(grid_inputs)}, got={got_count}"
-        )
-        grids = _fallback_grids("AI grid count mismatch")
+    grids = None
+    last_error = None
+    for attempt in range(2):
+        attempt_prompt = prompt
+        if last_error:
+            attempt_prompt += f"\nPrevious attempt failed JSON/contract validation: {last_error}. Return corrected complete JSON for this one grid only."
+        try:
+            raw = asyncio.run(asyncio.wait_for(
+                ai_router.generate_text(
+                    attempt_prompt,
+                    model,
+                    temperature=0.35,
+                    max_tokens=12000,
+                    task_type="image_grid_prompt_generation",
+                ),
+                timeout=90,
+            ))
+            generated = _extract_json(raw)
+            candidate = generated.get("grids") if isinstance(generated, dict) else None
+            if not isinstance(candidate, list) or len(candidate) != len(grid_inputs):
+                raise ValueError(f"expected {len(grid_inputs)} grid, got {len(candidate) if isinstance(candidate, list) else 0}")
+            grids = candidate
+            break
+        except Exception as exc:
+            last_error = exc
+            job_log.warning(f"Image grid prompt attempt {attempt + 1}/2 failed: {exc}")
+    if grids is None:
+        raise ValueError(f"image-grid prompt generation failed after retry: {last_error}")
 
     by_number = {int(spec["grid_number"]): spec for spec in grid_inputs}
     for grid in grids:
@@ -3505,8 +3552,20 @@ Schema:
                     if index < len(expected["scene_ids"]):
                         panel.setdefault("scene_id", expected["scene_ids"][index])
                     panel["position"] = ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"][index]
+                    shot_design = _normalize_scene_shot_design(
+                        panel.get("shot_design"), panel.get("scene_number"),
+                        panel.get("panel_prompt") or "",
+                    )
+                    panel["shot_design"] = shot_design
+                    panel["panel_prompt"] = _apply_scene_shot_design(
+                        panel.get("panel_prompt") or "", shot_design,
+                    )
 
     compact_grids = build_compact_image_grid_prompts(grids)
+    for grid in compact_grids:
+        grid["prompt"] = ensure_prompt_mentions_image_style(
+            grid.get("prompt", ""), image_style_key, image_style_directive,
+        )
     validate_image_grid_prompt_readiness(scenes, compact_grids, status="ready", require_status="ready")
     job_log.info(f"Prepared {len(compact_grids)} direct compact 2x2 image grid prompt(s)")
     return compact_grids
@@ -3757,17 +3816,24 @@ Return ONLY valid JSON in this shape:
                 scene_number = str(panel.get("scene_number") or "").strip()
                 panel_prompt = str(panel.get("panel_prompt") or panel.get("brief") or "").strip()
                 if scene_number and panel_prompt:
-                    image_prompt_by_scene[scene_number] = (
-                        f"{shared_style}\nPanel image prompt: {panel_prompt}".strip()
-                        if shared_style
-                        else panel_prompt
+                    shot_design = _normalize_scene_shot_design(
+                        panel.get("shot_design"), scene_number, panel_prompt,
                     )
+                    panel_prompt = _apply_scene_shot_design(panel_prompt, shot_design)
+                    image_prompt_by_scene[scene_number] = {
+                        "image_prompt": (
+                            f"{shared_style}\nPanel image prompt: {panel_prompt}".strip()
+                            if shared_style else panel_prompt
+                        ),
+                        "shot_design": shot_design,
+                    }
         if image_prompt_by_scene:
             for scene in enriched_scenes:
                 scene_number = str(scene.get("scene_order") or scene.get("scene_number") or "").strip()
-                image_prompt = image_prompt_by_scene.get(scene_number)
-                if image_prompt:
-                    scene["image_prompt"] = image_prompt
+                scene_media = image_prompt_by_scene.get(scene_number)
+                if scene_media:
+                    scene["image_prompt"] = scene_media["image_prompt"]
+                    scene["shot_design"] = scene_media["shot_design"]
 
         image_grid_prompt_mode = "direct_2x2_only"
         validate_image_grid_prompt_readiness(enriched_scenes, image_grid_prompts, status="ready", require_status="ready")

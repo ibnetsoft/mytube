@@ -17,6 +17,22 @@ FALLBACK_IMAGE_PROMPT_MARKERS = (
 )
 
 
+def ensure_prompt_mentions_image_style(prompt: str, image_style_key: str, image_style_directive: str = "") -> str:
+    """Keep the selected image style explicit when an authored prompt omits it."""
+    text = str(prompt or "").strip()
+    key = str(image_style_key or "").strip()
+    directive = str(image_style_directive or "").strip()
+    lowered = text.casefold()
+    missing_key = bool(key and key.casefold() not in lowered)
+    missing_directive = bool(directive and directive.casefold() not in lowered)
+    if not missing_key and not missing_directive:
+        return text
+    prefix = f"Selected image style: {key}. " if missing_key else ""
+    if missing_directive:
+        prefix += directive + " "
+    return f"{prefix}{text}".strip()
+
+
 def _scene_number(scene: Mapping[str, Any], fallback: int) -> int | str:
     value = scene.get("scene_order") or scene.get("scene_number") or fallback
     try:
@@ -96,6 +112,11 @@ def make_compact_image_grid_prompt(
             "no text, no words, no letters, no labels, no captions, no watermarks, "
             "no borders, no grid lines, no dividers, correct anatomy, no extra limbs"
         )
+    else:
+        required_guardrails = ("no text", "no words", "no letters", "no captions", "no watermarks")
+        missing = [item for item in required_guardrails if item.casefold() not in negative.casefold()]
+        if missing:
+            negative = f"{negative}, {', '.join(missing)}"
 
     return (
         "16:9 aspect ratio, widescreen 16:9 horizontal composition (--ar 16:9). "
@@ -183,16 +204,35 @@ def build_image_grid_prompts(scenes: Iterable[Mapping[str, Any]]) -> list[dict[s
                 "scene_number": _scene_number(scene, fallback_number),
                 "scene_id": str(scene.get("scene_id") or "").strip(),
                 "prompt": brief,
+                "shot_design": dict(scene.get("shot_design")) if isinstance(scene.get("shot_design"), Mapping) else {},
             }
         )
 
     grid_prompts: list[dict[str, Any]] = []
     for start_index, end_index in _grid_windows(len(ordered_scenes)):
         panels = ordered_scenes[start_index:end_index]
-        panel_lines = [
-            f"- Panel {index + 1} (Position: {GRID_PANEL_POSITIONS[index]}): {panel['prompt']}"
-            for index, panel in enumerate(panels)
-        ]
+        panel_lines = []
+        for index, panel in enumerate(panels):
+            shot = panel.get("shot_design") or {}
+            shot_text = ""
+            if shot:
+                presence = str(shot.get("subject_presence") or "character_optional")
+                exclusion = (
+                    "Absolutely no people, human silhouettes, faces, or human reflections. "
+                    if presence == "environment_only" else
+                    "Show only the story-relevant object detail; no people, hands, or faces. "
+                    if presence == "object_insert" else ""
+                )
+                shot_text = (
+                    f"Shot design: {shot.get('shot_size', 'wide')} framing, "
+                    f"{shot.get('camera_angle', 'eye_level')} angle, {presence}, "
+                    f"subject scale {shot.get('subject_scale', 'medium')}; "
+                    f"composition: {shot.get('composition', '')}. {exclusion}"
+                )
+            panel_lines.append(
+                f"- Panel {index + 1} (Position: {GRID_PANEL_POSITIONS[index]}): "
+                f"{shot_text}{panel['prompt']}"
+            )
         prompt = (
             "Create a strict 2x2 grid layout (exactly 2 columns and 2 rows, 4 equal-sized panels total). "
             "There must be NO borders, NO grid lines, NO white lines, and NO dividers/crosshairs between the panels. "

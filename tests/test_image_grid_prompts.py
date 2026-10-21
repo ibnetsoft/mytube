@@ -10,6 +10,8 @@ from services.image_grid_prompts import (
     normalize_image_grid_prompts,
     validate_image_grid_prompt_readiness,
 )
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
+from worker import hermes_worker
 
 
 def test_compact_grid_merges_required_guardrails_into_ai_negative_prompt():
@@ -38,9 +40,35 @@ def test_locked_image_style_is_prefixed_when_ai_omits_it():
     assert prompt.startswith("Selected image style: watercolor forest story.")
     assert "soft dreamlike watercolor folktale illustration" in prompt
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "worker"))
-from worker import hermes_worker
 
+def test_scene_shot_design_controls_framing_and_can_require_empty_background():
+    design = hermes_worker._normalize_scene_shot_design({
+        "shot_size": "extreme_wide",
+        "camera_angle": "high_angle",
+        "subject_presence": "environment_only",
+        "subject_scale": "large",
+        "composition": "empty inn interior seen from the street through an open doorway",
+    }, 4)
+
+    prompt = hermes_worker._apply_scene_shot_design("An inn interior after the guests have left.", design)
+    assert design["subject_scale"] == "none"
+    assert "extreme_wide framing" in prompt
+    assert "high_angle camera angle" in prompt
+    assert "absolutely no people" in prompt
+    assert "empty inn interior" in prompt
+
+    scenes = _scenes(4)
+    scenes[0]["shot_design"] = design
+    grid_prompt = build_image_grid_prompts(scenes)[0]["prompt"]
+    assert "Shot design: extreme_wide framing, high_angle angle, environment_only" in grid_prompt
+    assert "Absolutely no people" in grid_prompt
+
+
+def test_missing_shot_design_fallback_varies_distance_and_angle_by_scene():
+    first = hermes_worker._normalize_scene_shot_design(None, 1, "A person waits at the gate.")
+    second = hermes_worker._normalize_scene_shot_design(None, 2, "A person enters the house.")
+
+    assert (first["shot_size"], first["camera_angle"]) != (second["shot_size"], second["camera_angle"])
 
 def _scenes(count: int) -> list[dict]:
     return [
@@ -289,9 +317,11 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
     class FakeRouter:
         def __init__(self):
             self.calls = 0
+            self.prompts = []
 
-        async def generate_text(self, *_args, **_kwargs):
+        async def generate_text(self, prompt, *_args, **_kwargs):
             self.calls += 1
+            self.prompts.append(prompt)
             grid_number = self.calls
             return json.dumps({
                 "grids": [
@@ -339,8 +369,9 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
     ]
 
     checkpoints = []
+    router = FakeRouter()
     grids = hermes_worker._generate_direct_image_grid_prompts(
-        FakeRouter(),
+        router,
         "fake-model",
         "topic",
         "upload title",
@@ -356,11 +387,15 @@ def test_worker_rebuilds_missing_ai_grid_prompt_windows():
     assert [grid["scene_numbers"] for grid in grids] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert all(grid["template"] == "strict_2x2_compact_v1" for grid in grids)
     assert all("Selected image style: 3d_render." in grid["prompt"] for grid in grids)
+    assert all(panel.get("shot_design", {}).get("shot_size") for grid in grids for panel in grid["panels"])
+    assert "previous_shot_design" in router.prompts[1]
+    assert scenes[0]["shot_design"]["shot_size"]
     grid_checkpoints = [event for event in checkpoints if event["stage"] == "image_grid_prompt"]
     scene_checkpoints = [event for event in checkpoints if event["stage"] == "image_prompt"]
     assert [event["scene_numbers"] for event in grid_checkpoints] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert [event["scene_numbers"] for event in scene_checkpoints] == [[1], [2], [3], [4], [5], [6], [7], [8]]
     assert all("Selected image style: 3d_render." in event["scene"]["image_prompt"] for event in scene_checkpoints)
+    assert all("Shot contract:" in event["scene"]["image_prompt"] for event in scene_checkpoints)
     assert all(event["status"] == "ready" for event in checkpoints)
 
 
@@ -532,3 +567,58 @@ def test_worker_generates_large_image_grid_sets_in_bounded_ai_batches():
     assert router.calls == 13
     assert grids[-1]["scene_numbers"] == [49, 50, 51, 52]
     validate_image_grid_prompt_readiness(scenes, grids, status="ready", require_status="ready")
+
+
+def test_overlapping_tail_grid_reuses_the_same_scene_shot_design():
+    class Router:
+        def __init__(self):
+            self.calls = 0
+
+        async def generate_text(self, *_args, **_kwargs):
+            self.calls += 1
+            call = self.calls
+            numbers = list(range(1, 5)) if call == 1 else list(range(5, 9)) if call == 2 else list(range(6, 10))
+            positions = ["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"]
+            return json.dumps({"grids": [{
+                "grid_number": 1,
+                "scene_numbers": numbers,
+                "scene_ids": [f"scene{n:03d}" for n in numbers],
+                "shared_style": "consistent illustrated story style",
+                "panels": [{
+                    "scene_number": n,
+                    "scene_id": f"scene{n:03d}",
+                    "position": positions[i],
+                    "shot_design": {
+                        "shot_size": "wide" if call == 2 else "close_up",
+                        "camera_angle": "low_angle" if call == 2 else "high_angle",
+                        "subject_presence": "character_optional",
+                        "subject_scale": "medium",
+                        "composition": f"framing authored on request {call}",
+                    },
+                    "panel_prompt": f"Scene {n}: story-specific image with clear setting and action authored on request {call}.",
+                } for i, n in enumerate(numbers)],
+            }]})
+
+    class Log:
+        def info(self, *_args, **_kwargs): pass
+        def warning(self, *_args, **_kwargs): pass
+
+    scenes = _scenes(9)
+    grids = hermes_worker._generate_direct_image_grid_prompts(
+        Router(), "fake-model", "topic", "title", scenes, {},
+        "watercolor", "soft storybook watercolor", Log(),
+    )
+    panel_by_scene = {
+        str(panel["scene_number"]): panel
+        for grid in grids for panel in grid["panels"]
+    }
+    repeated = [
+        (left, right)
+        for left in grids[1]["panels"]
+        for right in grids[2]["panels"]
+        if left["scene_number"] == right["scene_number"]
+    ]
+    assert len(repeated) == 3
+    assert all(left["shot_design"] == right["shot_design"] for left, right in repeated)
+    assert all(left["panel_prompt"] == right["panel_prompt"] for left, right in repeated)
+    assert panel_by_scene["9"]["shot_design"]["shot_size"] == "close_up"

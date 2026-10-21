@@ -39,6 +39,7 @@ from scene_visual_director import PERSONA as SCENE_VISUAL_DIRECTOR_PERSONA, vali
 from scene_direction_policy import DIRECTING_TASK, is_directed, execution_capabilities
 from directing_profiles import resolve_directing_profile
 from character_continuity import validate_character_identity, scene_continuity_prompt, character_design_anchors
+from scene_composition import apply_scene_shot_design, normalize_scene_shot_design
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -2964,7 +2965,8 @@ class CodexStagedContentRunner:
             f"Create prompts only from each final scene_text. Story setting: {setting['setting_country_en']} ({setting['era_region']}). "
             f"Visual style: {setting['image_style_en']}. Maintain authentic local architecture, interior spaces, streetscape, vehicles, and props without caricature. "
             "Use scene_cast to include only the actual scene participants. Repeat each visible person's locked hair_design_en verbatim in their image/video prompt and applicable grid panel; do not improvise haircuts or redraw shaved areas. "
-            f"Return {{'scenes':[{{'scene_order':n,'image_prompt':'English'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','panel_prompt':'80+ character English visual beat'}}]}}]}}. "
+            "For every scene, choose a story-grounded shot design before writing the prompt: shot size (extreme_wide, wide, medium, close_up, detail), camera angle (eye_level, high_angle, low_angle, overhead, oblique), subject_presence (character_required, character_optional, environment_only, object_insert), subject_scale (none, small, medium, large, detail), and specific composition. Vary framing and angle between adjacent scenes when narration permits; repeat only for meaningful continuity and state repetition_reason. Allow environmental establishing/transition shots with no people; when environment_only, forbid people, silhouettes, faces, and human reflections. Never add a person just to fill the frame. "
+            f"Return {{'scenes':[{{'scene_order':n,'shot_design':{{'shot_size':'wide','camera_angle':'eye_level','subject_presence':'environment_only','subject_scale':'none','composition':'English placement/depth','repetition_reason':''}},'image_prompt':'English, explicitly following shot_design'}}], 'image_grid_prompts':[{{'grid_number':1,'scene_numbers':[1,2,3,4],'shared_style':'English continuity/style block','negative_prompt':'no text, no words, no letters, no labels, no captions, no watermarks, No borders, NO grid lines, no dividers, correct anatomy, no extra limbs','panels':[{{'scene_number':1,'scene_id':'scene001','position':'Top-Left','shot_design':{{'shot_size':'wide','camera_angle':'eye_level','subject_presence':'environment_only','subject_scale':'none','composition':'English placement/depth','repetition_reason':''}},'panel_prompt':'80+ character English visual beat obeying shot_design'}}]}}]}}. "
             f"Image layer mode is {image_layer_mode}: compose every still so foreground subject, background, props, fabric/hair, atmosphere and text-safe areas can be separated cleanly for AE layer work. "
             f"Explicit layer scene range is {json.dumps(image_layer_scene_range, ensure_ascii=False)}. Every existing scene inside that range must receive independently authored registered background and foreground PNG layers for PSD assembly; preserve the ordinary mode outside the range. "
             "Treat each scene's ae_directorial_plan as authoritative. For each directed_performance template, create separately authored full-canvas PNG role layers exactly matching asset_requirements.required_layers, including a complete independently generated clean background and aligned alternate pose/prop layers. Do not derive or inpaint hidden background pixels from the flattened scene. Keep separate actions and poses in separate files; do not bake them into one flattened still. "
@@ -2982,6 +2984,13 @@ class CodexStagedContentRunner:
                     image = str((item or {}).get("image_prompt") or "").strip() if isinstance(item, dict) else ""
                     if len(image) < 120:
                         raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
+                    shot_design = normalize_scene_shot_design(
+                        item.get("shot_design") if isinstance(item, dict) else None, index, image,
+                    )
+                    image = apply_scene_shot_design(image, shot_design)
+                    if isinstance(item, dict):
+                        item["shot_design"] = shot_design
+                        item["image_prompt"] = image
                     if index <= required_video_scene_count:
                         _validate_video_prompt(str(item.get("video_prompt") or "").strip(), index)
                 break
@@ -2998,13 +3007,17 @@ class CodexStagedContentRunner:
             image = str((item or {}).get("image_prompt") or "").strip() if isinstance(item, dict) else ""
             if len(image) < 120:
                 raise CodexContentError(f"media scene {index} image_prompt is shorter than 120 characters")
+            shot_design = normalize_scene_shot_design(
+                item.get("shot_design") if isinstance(item, dict) else None, index, image,
+            )
+            image = apply_scene_shot_design(image, shot_design)
             lock = scene_continuity_prompt(anchors, [index])
             from worker.japanese_domestic_drama import applies as domestic, apply_visual_base as domestic_visual
             if domestic(payload): image = domestic_visual(image)
             from worker.japanese_historical_documentary import applies, apply_visual_base
             if applies(payload):
                 image = apply_visual_base(image)
-            scenes[index - 1].update({"image_prompt": image + ("\n" + lock if lock else ""), "media_prompt_status": "ready"})
+            scenes[index - 1].update({"image_prompt": image + ("\n" + lock if lock else ""), "shot_design": shot_design, "media_prompt_status": "ready"})
             if index <= required_video_scene_count:
                 video = str(item.get("video_prompt") or "").strip()
                 _validate_video_prompt(video, index)
@@ -3034,6 +3047,10 @@ class CodexStagedContentRunner:
             validate_scene_image_prompt_readiness,
         )
         grid_inputs = media.get("image_grid_prompts") or []
+        shot_design_by_scene = {
+            str(scene.get("scene_order") or scene.get("scene_number") or index): scene.get("shot_design")
+            for index, scene in enumerate(scenes, 1)
+        }
         for grid in grid_inputs:
             if not isinstance(grid, dict):
                 continue
@@ -3042,6 +3059,16 @@ class CodexStagedContentRunner:
                 grid["shared_style"] = str(grid.get("shared_style") or "") + "\n" + lock
                 if grid.get("prompt"):
                     grid["prompt"] = str(grid["prompt"]) + "\n" + lock
+            for panel in grid.get("panels") or []:
+                if not isinstance(panel, dict):
+                    continue
+                scene_number = str(panel.get("scene_number") or "")
+                shot_design = shot_design_by_scene.get(scene_number)
+                if shot_design:
+                    panel["shot_design"] = shot_design
+                    panel["panel_prompt"] = apply_scene_shot_design(
+                        panel.get("panel_prompt") or "", shot_design,
+                    )
         grids = build_compact_image_grid_prompts(grid_inputs)
         validate_scene_image_prompt_readiness(scenes)
         try:
