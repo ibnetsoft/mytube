@@ -40,6 +40,20 @@ export async function GET(req: Request) {
         }
     }
     const topicQueueIds = [...new Set(projects.map((project: any) => Number(project.topic_queue_id)).filter(Number.isFinite))]
+    const { data: topicTitles, error: topicTitleError } = topicQueueIds.length
+        ? await supabaseAdmin.from('topics_queue')
+            .select('id,topic,generated_title,topic_en,topic_vi,topic_th,progress_title_translations:progress_payload->title_translations,structure_title_translations:pregenerated_structure->title_translations,metadata_title_translations:publish_metadata->title_translations')
+            .in('id', topicQueueIds)
+        : { data: [], error: null }
+    if (topicTitleError) return NextResponse.json({ success: false, error: 'Could not load project titles' }, { status: 500 })
+    const titleLocalizationByTopic = new Map((topicTitles || []).map((topic: any) => [Number(topic.id), {
+        topic: topic.topic,
+        generated_title: topic.generated_title,
+        topic_en: topic.topic_en,
+        topic_vi: topic.topic_vi,
+        topic_th: topic.topic_th,
+        title_translations: topic.progress_title_translations || topic.structure_title_translations || topic.metadata_title_translations || {},
+    }]))
     let sharedSubmissions: any[] = []
     if (topicQueueIds.length > 0) {
         const { data: submittedProjects, error: submittedProjectsError } = await supabaseAdmin
@@ -66,6 +80,7 @@ export async function GET(req: Request) {
             const context = contextById.get(project.id)
             return {
                 ...summary,
+                title_localization: titleLocalizationByTopic.get(Number(project.topic_queue_id)) || null,
                 progress_payload: protectCharacterReferenceUrls(context?.progress_payload, project.id),
                 step_status: summarizeStdProject(context || project, assets.filter(asset => asset.project_id === project.id)),
                 shared_submission: sharedSubmission && sharedSubmission.id !== project.id

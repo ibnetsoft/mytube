@@ -25,7 +25,7 @@ import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/c
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
 import { stdUiText } from '@/lib/stdUiText'
 import { topicUiText } from '@/lib/topicUiText'
-import { localizedTopicTitle, topicSourceTitle } from '@/lib/stdTopicTitle'
+import { localizedProjectTitle, localizedTopicTitle, topicSourceTitle } from '@/lib/stdTopicTitle'
 import { sceneClipTailStyle, playScenePreviewNarration, isWorkerSceneVideo, sceneVideoAssets, loadScenePreviewVideo, syncScenePreviewPlayback } from '@/lib/stdSceneVideo'
 import { downloadStdFile } from '@/lib/stdFileDownload'
 import { audioAssetRole, backgroundVolume, backgroundWindow, backgroundPlaybackWindow, backgroundEnvelope } from '@/lib/stdAudioMix'
@@ -2078,6 +2078,15 @@ export default function StdPortalPage() {
             projectPayload?.project?.project_payload?.video_title ||
             ''
         )
+    }
+
+    const projectTitleContent = (project: any, fallback: string) => {
+        const title = getProjectSyncedTitle(project) || fallback
+        const localizedTitle = localizedProjectTitle(project?.project || project, currentLocale)
+        return <>
+            <span className="block truncate">{title}</span>
+            {localizedTitle && <span className="mt-0.5 block truncate text-[10px] font-medium leading-4 text-blue-100/70">{localizedTitle}</span>}
+        </>
     }
 
     const persistProjectTitle = (projectId: string, title: string) => {
@@ -8478,6 +8487,7 @@ export default function StdPortalPage() {
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
                                         {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id
+                                            const localizedTitle = localizedProjectTitle(p, currentLocale)
                                             const projectCatName = (() => {
                                                 const explicitCategories = [
                                                     p.category_name,
@@ -8555,8 +8565,9 @@ export default function StdPortalPage() {
                                                     <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
                                                         {formatProjectListDate(submittedAt)}
                                                     </td>
-                                                    <td className="px-3 py-2 text-gray-300 max-w-sm truncate font-medium group-hover:text-blue-400 transition-colors" title={p.title}>
-                                                        {p.title}
+                                                    <td className="px-3 py-2 text-gray-300 max-w-sm font-medium group-hover:text-blue-400 transition-colors" title={localizedTitle ? `${p.title}\n${localizedTitle}` : p.title}>
+                                                        <div className="max-w-sm truncate">{p.title}</div>
+                                                        {localizedTitle && <div className="mt-0.5 max-w-sm truncate text-[10px] font-normal leading-4 text-gray-400">{localizedTitle}</div>}
                                                     </td>
                                                     {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
                                                     {(() => {
@@ -8854,8 +8865,8 @@ export default function StdPortalPage() {
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
                                 <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
-                                    className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
-                                    {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                                    className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
+                                    {projectTitleContent(selectedProject, t('nav_topics') || ui('주제'))}
                                 </button>
                             </div>
 
@@ -8952,8 +8963,8 @@ export default function StdPortalPage() {
 
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
                         <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
-                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25 truncate block">
-                            {getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
+                            className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
+                            {projectTitleContent(selectedProject, t('nav_topics') || ui('주제'))}
                         </button>
                     </div>
 

@@ -13,4 +13,6 @@ assert.match(title.localizedTopicTitle({ generated_title: '木曽路、藍の灯
 assert.equal(title.localizedTopicTitle({ generated_title: '原題', topic_th: 'ชื่อภาษาไทย' }, 'th'), 'ชื่อภาษาไทย')
 assert.equal(title.localizedTopicTitle({ generated_title: '原題', progress_payload: { title_translations: { en: 'English title' } } }, 'en'), 'English title')
 assert.equal(title.localizedTopicTitle({ generated_title: 'Same', topic_en: 'Same' }, 'en'), '')
+assert.equal(title.localizedProjectTitle({ title: '原題', title_localization: { topic_en: 'English project title' } }, 'en'), 'English project title')
+assert.equal(title.localizedProjectTitle({ title: '原題', source_payload: { progress_payload: { title_translations: { ko: '프로젝트 번역 제목' } } } }, 'ko'), '프로젝트 번역 제목')
 console.log('PASS: topic titles use saved locale translations with prepared Japanese fallbacks')
