@@ -523,7 +523,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         const current = project.project_payload?.render_settings || {}
         if (body.render_settings_scope === 'subtitle') {
             projectPayloadPatch.render_settings = { ...current,
-                ...Object.fromEntries(Object.entries(incoming).filter(([key]) => !audioKeys.includes(key))) }
+                ...Object.fromEntries(Object.entries(incoming).filter(([key]) => !audioKeys.includes(key) && !['motion', 'comic'].includes(key))) }
         } else {
             const settings = { ...current }
             for (const key of audioKeys) {
@@ -536,7 +536,9 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             projectPayloadPatch.render_settings = settings
         }
     }
-    if (projectPayloadPatch.render_settings?.motion !== undefined) {
+    // Scoped subtitle/audio saves carry full, possibly stale editor snapshots.
+    // Their motion comes from the stored row and must remain byte-for-byte unchanged.
+    if (!['audio', 'subtitle'].includes(body.render_settings_scope) && projectPayloadPatch.render_settings?.motion !== undefined) {
         try {
             const motion=normalizeMotionDraft(projectPayloadPatch.render_settings.motion)
             if (project.submitted_at && JSON.stringify(motion)!==JSON.stringify(project.project_payload?.render_settings?.motion)) {
