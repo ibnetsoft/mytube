@@ -1,7 +1,9 @@
 """Timed, asset-aware direction contracts shared by script, image, and AE workers."""
 from __future__ import annotations
 
+import copy
 from typing import Any
+from scene_direction_policy import CONTRACT as EXECUTION_CONTRACT, validate_topic, validate_execution
 
 
 PERSONA = """You are AIR Studio's Scene Visual Director. For each scene, interpret
@@ -163,12 +165,13 @@ def _eye_blink_plan(raw: Any, duration: float, eligible: bool) -> dict[str, Any]
 
 
 def validate_directorial_plans(
-    scenes: list[dict[str, Any]], result: Any, *, direction_profile: str = "standard",
+    scenes: list[dict[str, Any]], result: Any, *, direction_profile: str = "standard", require_execution: bool = False,
 ) -> list[dict[str, Any]]:
     """Validate timed directions without imposing generated storyboard frames."""
     plans = result.get("scene_directions") if isinstance(result, dict) else None
     if not isinstance(plans, list) or len(plans) != len(scenes):
         raise ValueError(f"visual director must return exactly {len(scenes)} scene_directions")
+    topic = validate_topic(result.get('topic_direction')) if require_execution else None
     normalized: list[dict[str, Any]] = []
     allowed = ALLOWED_OPERATIONS
     known_layers = {
@@ -183,6 +186,34 @@ def validate_directorial_plans(
     for index, (scene, raw) in enumerate(zip(scenes, plans), 1):
         if not isinstance(raw, dict):
             raise ValueError(f"visual direction {index} must be an object")
+        if require_execution:
+            # Normalize common structured-response aliases, then run the same strict
+            # validation used by production. This repairs field names only; it never
+            # changes the chosen effect, timing, camera path, or transition.
+            copy_direction=copy.deepcopy(raw)
+            beats=copy_direction.get('timed_beats') or copy_direction.get('beats')
+            if not copy_direction.get('timed_beats') and isinstance(beats,list):copy_direction['timed_beats']=beats
+            if not copy_direction.get('scene_role') and copy_direction.get('role'):copy_direction['scene_role']=copy_direction['role']
+            design=copy_direction.get('execution_design') if isinstance(copy_direction.get('execution_design'),dict) else {}
+            camera=design.get('camera') if isinstance(design.get('camera'),dict) else {}
+            transition=design.get('transition') if isinstance(design.get('transition'),dict) else {}
+            if not copy_direction.get('dramatic_intent'):
+                copy_direction['dramatic_intent']=str(scene.get('scene_purpose') or scene.get('scene_summary') or scene.get('scene_text') or '').strip()
+            if not copy_direction.get('visual_strategy'):
+                directions=[str(beat.get('direction') or beat.get('action') or '').strip() for beat in beats or [] if isinstance(beat,dict)]
+                directions.extend(str(x).strip() for x in (camera.get('reason'),transition.get('reason')) if str(x or '').strip())
+                copy_direction['visual_strategy']=' '.join(directions)[:1200]
+            if not isinstance(copy_direction.get('ae_operations'),list):
+                operations=['hold' if camera.get('kind')=='hold' else 'camera_move']
+                if transition.get('kind')=='crossfade':operations.append('transition')
+                copy_direction['ae_operations']=operations
+            if not isinstance(copy_direction.get('required_layers'),list):copy_direction['required_layers']=[]
+            if not isinstance(copy_direction.get('additional_keyframes'),list):
+                copy_direction['additional_keyframes']=copy_direction.get('keyframe_requests') if isinstance(copy_direction.get('keyframe_requests'),list) else []
+            if not isinstance(copy_direction.get('continuity_rules'),list):copy_direction['continuity_rules']=[]
+            if not isinstance(copy_direction.get('eye_blink_plan'),dict) and isinstance(copy_direction.get('eye_blink'),dict):
+                copy_direction['eye_blink_plan']=copy_direction['eye_blink']
+            raw=copy_direction
         try:
             duration = float(scene.get("duration_seconds") or scene.get("target_duration") or 0)
         except (TypeError, ValueError):
@@ -216,7 +247,7 @@ def validate_directorial_plans(
                 raise ValueError(f"visual direction {index} beat {beat_number} needs numeric start/end")
             action = str(beat.get("action") or "").strip()
             target = str(beat.get("target") or "").strip()
-            if start < 0 or end <= start or end > duration or start < last_time or not action or not target:
+            if start < 0 or end <= start or end > duration + 0.001 or start < last_time or not action or not target:
                 raise ValueError(f"visual direction {index} beat {beat_number} has invalid timing/action/target")
             clean_beats.append({**beat, "start_seconds": round(start, 3), "end_seconds": round(end, 3),
                                 "action": action, "target": target})
@@ -283,6 +314,26 @@ def validate_directorial_plans(
         }
         if not direction["visual_strategy"] or not direction["qa_assertions"]:
             raise ValueError(f"visual direction {index} needs visual_strategy and nonempty qa_assertions")
+        if topic is not None:
+            direction.update(contract=EXECUTION_CONTRACT, topic_direction=topic,
+                             execution_design=validate_execution(raw.get('execution_design'), topic, scene))
+            kind = direction['execution_design']['camera']['kind']
+            if kind != 'hold' and not set(operation_list).intersection({'camera_move','depth_parallax'}):
+                raise ValueError('A camera path must be declared in the scene operations')
+            poses=direction['execution_design']['camera']['keys']
+            if (max(k['scale'] for k in poses)-min(k['scale'] for k in poses) > direction['effect_limits']['max_scale_delta']+1e-7
+                    or any(max(k[f] for k in poses)-min(k[f] for k in poses) > direction['effect_limits']['max_move_ratio']+1e-7 for f in ('x','y'))):
+                raise ValueError('Camera path exceeds the directed intensity/movement limits')
+            if index >= 3 and kind != 'hold' and all(p.get('execution_design', {}).get('camera', {}).get('kind') == kind for p in normalized[-2:]):
+                raise ValueError('Three adjacent shots repeat the same camera move; review sequence rhythm')
+            effect_kinds={item['type'] for item in direction['execution_design'].get('effects',[])}
+            conspicuous={'impact_flash','impact_shake','shock_ring','light_sweep'}
+            if index >= 3 and any(
+                effect in conspicuous and all(effect in {item['type'] for item in prior.get('execution_design',{}).get('effects',[])}
+                                              for prior in normalized[-2:])
+                for effect in effect_kinds
+            ):
+                raise ValueError('Three adjacent shots repeat the same conspicuous finishing effect')
         scene["ae_directorial_plan"] = direction
         scene["scene_direction_plan"] = direction
         normalized.append(direction)

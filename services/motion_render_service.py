@@ -18,7 +18,8 @@ def validate_motion(value):
         if isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or not lo<=v<=hi: raise ValueError('Invalid Motion Studio numeric value')
     for identity,scene in scenes.items():
         if not isinstance(identity,str) or not identity.isdecimal() or int(identity)<1 or not isinstance(scene,dict): raise ValueError('Invalid scene number')
-        if scene.get('source') not in ('auto','image','video','psd') or scene.get('fit') not in ('contain','cover') or scene.get('transition') not in ('cut','fade','flash'): raise ValueError('Invalid source or transition')
+        if scene.get('source') not in ('auto','image','video','psd') or scene.get('fit') not in ('contain','cover') or scene.get('transition') not in ('cut','fade','flash','crossfade'): raise ValueError('Invalid source or transition')
+        if scene.get('transition')=='crossfade': number(scene.get('transition_seconds',.22),.12,.6)
         if not isinstance(scene.get('direction'),str) or len(scene['direction'])>4000: raise ValueError('Invalid scene direction')
         keys=scene.get('keys')
         if not isinstance(keys,list) or not 2<=len(keys)<=64: raise ValueError('Invalid motion keys')
@@ -99,11 +100,13 @@ class MotionFrames:
         self.options=validate_motion(settings['motion']);self.mode='motion_studio';self.turn=0;self.resolution=resolution
         if (resolution[0]<resolution[1])!=(self.options['aspect']=='9:16'):raise ValueError('Motion Studio output aspect mismatch')
         self.starts,self.pages,self.duration=build_timeline(durations,1,0,{},'single')
-        self.paths=images;self.numbers=scene_numbers or list(range(1,len(images)+1));self._current=-1;self._media=None;self._clip=None;self.balloons=[]
+        self.paths=images;self.numbers=scene_numbers or list(range(1,len(images)+1));self._current=-1;self._media=None;self._clip=None;self._still_frame=None
+        self._last_scene_index=-1;self._last_scene_frame=None;self._transition_source=None;self.balloons=[]
         for i in range(len(images)):
             blocks=[s for s in subtitles if self.starts[i]<=float(s.get('start',s.get('start_time',0)))<self.starts[i+1]]
             self.balloons.append(caption_layers(resolution,blocks,font_path,max(12,round(32*resolution[0]/1280)),'bottom'))
     def close(self):
+        self._still_frame=None
         if self._clip:self._clip.close();self._clip=None
         if self._media:self._media.close();self._media=None
     def page(self,index,source_time,all_balloons=False):
@@ -116,16 +119,34 @@ class MotionFrames:
                 with Image.open(path) as source:self._media=ImageOps.exif_transpose(source).convert('RGB')
             self._current=index
         local=max(0,source_time-self.starts[index]);duration=self.starts[index+1]-self.starts[index]
-        image=Image.fromarray(self._clip.get_frame(min(local,max(0,self._clip.duration-1/max(1,self._clip.fps))))) if self._clip else self._media
         scene=self.options['scenes'].get(str(self.numbers[index]),{'source':'auto','fit':'contain','keys':[dict(t=t,x=.5,y=.5,scale=1,rotation=0,opacity=100) for t in (0,1)],'effects':[],'transition':'cut'})
         if scene['source']=='psd':scene={**scene,'fit':'contain','keys':[dict(t=t,x=.5,y=.5,scale=1,rotation=0,opacity=100) for t in (0,1)],'effects':[],'transition':'cut'}
-        canvas=Image.fromarray(compose_frame(image,scene,min(1,local/duration),self.resolution)).convert('RGBA')
+        render_scene={**scene,'transition':'cut'} if scene['transition']=='crossfade' else scene
+        # Static original images need one affine composition, not one per output frame.
+        # Time-dependent effects, transitions and captions always take the original path.
+        still=not self._clip and not self.balloons[index] and not render_scene['effects'] and render_scene['transition']=='cut' and all(
+            all(key[field]==render_scene['keys'][0][field] for field in ('x','y','scale','rotation','opacity')) for key in render_scene['keys'])
+        if still and self._still_frame is not None:return self._still_frame
+        image=Image.fromarray(self._clip.get_frame(min(local,max(0,self._clip.duration-1/max(1,self._clip.fps))))) if self._clip else self._media
+        canvas=Image.fromarray(compose_frame(image,render_scene,min(1,local/duration),self.resolution)).convert('RGBA')
+        self._last_scene_frame=np.asarray(canvas.convert('RGB')).copy()
         for start,layer,position in self.balloons[index]:
             if all_balloons or source_time>=start:canvas.alpha_composite(layer,position)
-        return np.asarray(canvas.convert('RGB'))
+        result=np.asarray(canvas.convert('RGB'))
+        if still:self._still_frame=result
+        return result
     def frame(self,t):
         index=min(len(self.pages)-1,max(0,bisect.bisect_right(self.starts,t)-1))
-        return self.page(index,t)
+        if index!=self._last_scene_index:
+            self._transition_source=self._last_scene_frame.copy() if index>0 and self._last_scene_frame is not None else None
+            self._last_scene_index=index
+        frame=self.page(index,t)
+        scene=self.options['scenes'].get(str(self.numbers[index]),{})
+        local=max(0,t-self.starts[index]);transition_seconds=float(scene.get('transition_seconds',.22))
+        if scene.get('transition')=='crossfade' and self._transition_source is not None and local<transition_seconds:
+            alpha=min(1,max(0,local/transition_seconds))
+            frame=np.asarray(np.asarray(self._transition_source,dtype='float32')*(1-alpha)+np.asarray(frame,dtype='float32')*alpha,dtype='uint8')
+        return frame
 
 def render_motion(*,temp_dir,images,durations,audio_path,subtitles,settings,resolution,scene_numbers=None,sfx_cues=None,progress_callback=None,template_overlay_path=None):
     from moviepy import VideoClip

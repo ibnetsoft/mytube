@@ -665,14 +665,26 @@ def render_ffmpeg_slideshow(
         if extension in VIDEO_EXTENSIONS:
             source_duration = _media_duration(ffmpeg_exe, source_path)
             stretch = segment_duration / source_duration if source_duration > 0 else 0.0
-            if 1.0 < stretch <= 3.0:
+            missing_tail = segment_duration - source_duration
+            # Motion Studio can end a few milliseconds short of its requested
+            # duration because the final encoded frame is quantized to the FPS
+            # timebase. Stretching that video shifts every internal scene cut;
+            # clone only its final frame to fill a sub-two-frame muxing gap.
+            pad_short_tail = 0 < missing_tail <= 2.0 / fps
+            if pad_short_tail:
+                command.extend(["-i", source_path])
+                timing = "setpts=PTS-STARTPTS,"
+                tail = f"tpad=stop_mode=clone:stop_duration={missing_tail:.6f},"
+            elif 1.0 < stretch <= 3.0:
                 command.extend(["-i", source_path])
                 timing = f"setpts={stretch:.8f}*(PTS-STARTPTS),"
+                tail = ""
             else:
                 command.extend(["-stream_loop", "-1", "-i", source_path])
                 timing = "setpts=PTS-STARTPTS,"
+                tail = ""
             filters.append(
-                f"[{index}:v]{timing}fps={fps},scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"[{index}:v]{timing}fps={fps},{tail}scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},setsar=1,zoompan=z=1:d=1:s={width}x{height}:fps={fps},"
                 f"trim=duration={segment_duration:.3f},format=yuv420p[v{index}]"
             )

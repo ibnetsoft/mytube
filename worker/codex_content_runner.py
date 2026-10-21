@@ -36,6 +36,7 @@ from worker.content_language import (
     visual_setting_prompt,
 )
 from scene_visual_director import PERSONA as SCENE_VISUAL_DIRECTOR_PERSONA, validate_directorial_plans
+from scene_direction_policy import DIRECTING_TASK, is_directed, execution_capabilities
 from directing_profiles import resolve_directing_profile
 from character_continuity import validate_character_identity, scene_continuity_prompt, character_design_anchors
 
@@ -47,6 +48,11 @@ APPROVED_VIDEO_CAMERA_MOVEMENTS = (
 
 
 AE_EFFECT_PRESET_KEYWORDS = (
+    (
+        "webtoon_impact_beat_v1",
+        ("타격", "공격", "내리쳤", "내리꽂", "베어", "베었다", "충돌", "쾅", "강타", "일격", "strike", "impact", "hit", "slash"),
+        "After Effects highlight: anticipation push, impact flash, directional speedlines, short camera shake, impact hold, and recovery.",
+    ),
     (
         "wuxia_sword_aura",
         ("무협", "검", "검기", "칼", "비검", "문파", "무림", "내공", "기운", "혈투", "wuxia", "sword"),
@@ -70,6 +76,32 @@ AE_EFFECT_PRESET_KEYWORDS = (
 )
 
 AE_EFFECT_PRESET_DESIGN = {
+    "webtoon_speech_bubble_v1": {
+        "mood": "webtoon_dialogue",
+        "camera": "gentle_dialogue_hold",
+        "light": "neutral_comic_panel",
+        "vfx": ["webtoon_speech_bubbles"],
+        "primary_target": {"type": "speaker_face", "x": 0.50, "y": 0.46},
+        "secondary_target": {"type": "speech_bubble", "x": 0.72, "y": 0.25},
+        "palette": {"primary": [1.0, 1.0, 1.0], "accent": [0.08, 0.08, 0.08], "flash": [1.0, 1.0, 1.0]},
+        "intensity": 0.5,
+        "motion": {"push": 0.015, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.0},
+        "transition_in": "bubble_pop",
+        "transition_out": "panel_hold",
+    },
+    "webtoon_impact_beat_v1": {
+        "mood": "webtoon_action_impact",
+        "camera": "timed_impact_push_shake",
+        "light": "monochrome_white_flash",
+        "vfx": ["speedline_burst", "impact_camera_shake", "displacement_wave", "flash_cut", "impact_hold"],
+        "primary_target": {"type": "impact_focus", "x": 0.50, "y": 0.48},
+        "secondary_target": {"type": "motion_path", "x": 0.72, "y": 0.36},
+        "palette": {"primary": [0.96, 0.12, 0.08], "accent": [0.10, 0.10, 0.10], "flash": [1.0, 1.0, 1.0]},
+        "intensity": 0.72,
+        "motion": {"push": 0.055, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.025},
+        "transition_in": "anticipation_push",
+        "transition_out": "impact_recovery",
+    },
     "wuxia_sword_aura": {
         "mood": "contained_power",
         "camera": "slow_push_in",
@@ -632,6 +664,88 @@ def _ae_plan_design(preset: str, scene_blob: str, priority: int) -> dict[str, An
     return design
 
 
+def _webtoon_impact_parameters(scene: dict[str, Any], duration: float) -> dict[str, Any]:
+    """Normalize an optional scene-local impact cue for flattened-image AE rendering."""
+    existing = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+    requested = scene.get("ae_effect_parameters") if isinstance(scene.get("ae_effect_parameters"), dict) else {}
+    impact = requested.get("impact") if isinstance(requested.get("impact"), dict) else requested
+    if not impact:
+        impact = existing.get("impact") if isinstance(existing.get("impact"), dict) else {}
+    safe_duration = max(1.0, float(duration or 4.0))
+    latest = max(0.25, safe_duration - 0.65)
+    try:
+        at_seconds = float(impact.get("at_seconds", safe_duration * 0.38))
+    except (TypeError, ValueError):
+        at_seconds = safe_duration * 0.38
+    try:
+        x = float(impact.get("x", impact.get("focus_x", 0.5)))
+        y = float(impact.get("y", impact.get("focus_y", 0.48)))
+        intensity = float(impact.get("intensity", existing.get("intensity", 0.72)))
+    except (TypeError, ValueError):
+        x, y, intensity = 0.5, 0.48, 0.72
+    direction = str(impact.get("direction") or "center_out").strip().lower()
+    if direction not in {"left_to_right", "right_to_left", "center_out"}:
+        direction = "center_out"
+    return {
+        "at_seconds": round(max(0.25, min(at_seconds, latest)), 3),
+        "x": round(max(0.05, min(x, 0.95)), 3),
+        "y": round(max(0.05, min(y, 0.95)), 3),
+        "direction": direction,
+        "intensity": round(max(0.35, min(intensity, 1.0)), 2),
+    }
+
+
+def _webtoon_speech_bubbles(scene: dict[str, Any], duration: float) -> dict[str, Any]:
+    metadata = scene.get("metadata") if isinstance(scene.get("metadata"), dict) else {}
+    value = scene.get("ae_speech_bubbles") or metadata.get("ae_speech_bubbles")
+    if not isinstance(value, dict) or value.get("enabled") is not True:
+        return {}
+    safe_duration = max(1.0, float(duration or 4.0))
+    bubbles = []
+    for raw in (value.get("bubbles") if isinstance(value.get("bubbles"), list) else [])[:4]:
+        if not isinstance(raw, dict):
+            continue
+        text = re.sub(r"\s+", " ", str(raw.get("text") or "")).strip()
+        if not text:
+            continue
+        position = raw.get("position") if isinstance(raw.get("position"), (list, tuple)) else [0.72, 0.25]
+        try:
+            x, y = float(position[0]), float(position[1])
+            start = float(raw.get("start_seconds", 0.15))
+            end = float(raw.get("end_seconds", safe_duration - 0.1))
+        except (TypeError, ValueError, IndexError):
+            x, y, start, end = 0.72, 0.25, 0.15, safe_duration - 0.1
+        start = max(0.0, min(start, safe_duration - 0.25))
+        end = max(start + 0.25, min(end, safe_duration))
+        style = str(raw.get("style") or "auto").lower()
+        if style == "auto":
+            situation = _text_blob(scene.get("scene_emotion"), scene.get("scene_situation"),
+                                   scene.get("scene_summary"), scene.get("scene_text"), text)
+            if any(word in situation for word in ("생각", "속으로", "회상", "고민", "thought")):
+                style = "thought"
+            elif any(word in situation for word in ("속삭", "조용히", "비밀", "whisper")):
+                style = "whisper"
+            elif any(word in situation for word in ("공포", "충격", "경악", "비명", "절규", "fear", "shock")):
+                style = "shock"
+            elif any(word in situation for word in ("기계", "로봇", "방송", "통신", "system", "robot")):
+                style = "electronic"
+            elif any(word in situation for word in ("내레이션", "설명", "해설", "narration")):
+                style = "narration"
+            elif "!" in text or "！" in text:
+                style = "shout"
+            else:
+                style = "dialogue"
+        tail = str(raw.get("tail") or "left").lower()
+        bubbles.append({
+            "text": text[:90], "speaker": str(raw.get("speaker") or "")[:40],
+            "position": [round(max(0.16, min(x, 0.84)), 3), round(max(0.14, min(y, 0.82)), 3)],
+            "style": style if style in {"dialogue", "thought", "shout", "whisper", "shock", "narration", "electronic"} else "dialogue",
+            "tail": tail if tail in {"left", "right", "none"} else "left",
+            "start_seconds": round(start, 3), "end_seconds": round(end, 3),
+        })
+    return {"enabled": bool(bubbles), "bubbles": bubbles}
+
+
 def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Attach optional AE highlight render hints without making AE mandatory."""
     category_blob = _text_blob(
@@ -664,6 +778,11 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
         )
         directorial = _scene_direction(scene)
         existing_effect = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
+        speech_bubbles = _webtoon_speech_bubbles(scene, float(scene.get("duration_seconds") or scene.get("target_duration") or 4))
+        if is_directed(directorial):
+            graphic = directorial['execution_design']['graphics']
+            if speech_bubbles.get('enabled') and not graphic['speech_bubbles']:
+                speech_bubbles = {'enabled': False, 'bubbles': []}
         template = _manga_template_for_scene(scene)
         if directorial and not (
             scene.get("ae_template")
@@ -684,10 +803,27 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
         if requested_captions is not None and not template:
             raise ValueError("animated captions need an explicitly selected manga AE template")
         selected = None
+        explicit_preset = str(scene.get("ae_effect_preset") or existing_effect.get("preset") or "").strip()
+        if is_directed(directorial) and not template:
+            if not graphic['speech_bubbles'] and not graphic['speedlines']:
+                scene['ae_effect_plan'] = {'enabled': False, 'reason': 'explicit_scene_camera_plan'}
+                continue
+            if graphic['speech_bubbles'] and not speech_bubbles.get('enabled'):
+                raise ValueError('Directed speech bubbles need exact dialogue cues and speaker placement before production')
+            explicit_preset = 'webtoon_impact_beat_v1' if graphic['speedlines'] else 'webtoon_speech_bubble_v1'
+        if explicit_preset in AE_EFFECT_PRESET_DESIGN and not template:
+            selected = (explicit_preset, next((item[2] for item in AE_EFFECT_PRESET_KEYWORDS if item[0] == explicit_preset), ""))
+        if speech_bubbles.get("enabled") and not selected and not template:
+            selected = ("webtoon_speech_bubble_v1", "After Effects webtoon speech bubbles with timed pop-in and speaker tails.")
+        # This flattened-image preset is safe alongside a script-stage direction:
+        # it adds a brief event beat without replacing the director's scene plan.
+        impact_spec = AE_EFFECT_PRESET_KEYWORDS[0]
+        if not is_directed(directorial) and not selected and not template and any(keyword.lower() in scene_blob for keyword in impact_spec[1]):
+            selected = (impact_spec[0], impact_spec[2])
         if template:
             spec = AE_MANGA_TEMPLATES[template]
             selected = (spec["preset"], spec["direction"])
-        elif not directorial:
+        elif not directorial and not selected:
             for preset, keywords, direction in AE_EFFECT_PRESET_KEYWORDS:
                 if any(keyword.lower() in scene_blob for keyword in keywords):
                     selected = (preset, direction)
@@ -713,6 +849,16 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             else "anger_impact" if template else selected[0]
         )
         design = _ae_plan_design(design_preset, scene_blob, priority)
+        if speech_bubbles.get("enabled"):
+            design["vfx"] = list(dict.fromkeys([*design["vfx"], "webtoon_speech_bubbles"]))
+        impact_plan = {}
+        if selected[0] == "webtoon_impact_beat_v1" and not template:
+            impact_plan = {"impact": _webtoon_impact_parameters(scene, duration=float(scene.get("duration_seconds") or scene.get("target_duration") or 4))}
+            design["targets"] = [
+                {"type": "impact_focus", "x": impact_plan["impact"]["x"], "y": impact_plan["impact"]["y"]},
+                dict(design["secondary_target"]),
+            ]
+            design["intensity"] = impact_plan["impact"]["intensity"]
         if template == "directed_performance":
             existing = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
             design.update({"vfx": [], "targets": [{"type": "directed_focus", "x": 0.5, "y": 0.5}],
@@ -796,8 +942,15 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
             "transition_out": design["transition_out"],
             "quality_checks": design["quality_checks"],
             "fallback": "ffmpeg_basic_motion",
+            **({"speech_bubbles": speech_bubbles} if speech_bubbles.get("enabled") else {}),
+            **impact_plan,
             **template_plan,
+            **(_direction_render_fields(directorial) if is_directed(directorial) else {}),
         })
+        if is_directed(directorial):
+            plans[-1]['vfx'] = [v for v in plans[-1]['vfx'] if v not in {'cinematic_camera', 'approved_layer_parallax'}]
+            if graphic['speech_bubbles']: plans[-1]['vfx'].append('webtoon_speech_bubbles')
+            if graphic['speedlines']: plans[-1]['vfx'].append('speedline_burst')
 
     # A short passage can contain all three visually distinct beats. Preserve
     # those distinct directions even when the generic highlight quota is one.
@@ -818,6 +971,7 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
         raise ValueError("at most eight explicitly selected AE dialogue/caption highlights are supported")
     selected_numbers.update(caption_numbers)
     selected_numbers.update(sfx_text_numbers)
+    selected_numbers.update(int(plan['scene_number']) for plan in plans if is_directed(plan.get('scene_direction_plan')))
     selected_numbers.update(int(plan["scene_number"]) for plan in plans
                             if plan.get("template") == "directed_performance")
     max_highlights = max(max_highlights, len(selected_numbers))
@@ -1000,6 +1154,9 @@ def _direction_render_fields(direction: dict[str, Any]) -> dict[str, Any]:
         if operation in operations:
             vfx.append(effect)
     return {
+        **({'execution_design': direction['execution_design'],
+            'motion': {'push': 0.0, 'drift_x': 0.0, 'drift_y': 0.0, 'shake': 0.0},
+            'transition_in': 'none', 'transition_out': 'hold_frame'} if is_directed(direction) else {}),
         "scene_direction_plan": direction,
         "directorial_plan": direction,
         "scene_role": direction.get("scene_role") or "narration",
@@ -1317,6 +1474,10 @@ def _plan_image_generation_efficiency(
             continue
         number = int(scene.get("scene_number") or scene.get("scene_order") or index)
         blob = _scene_policy_blob(scene, category_blob)
+        directed = _scene_direction(scene)
+        explicit_layer = explicit_range and explicit_range['start'] <= number <= explicit_range['end']
+        if is_directed(directed) and not directed.get('requires_layered_assets') and image_layer_mode != 'full_psd' and not explicit_layer:
+            continue
         effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
         motion_plan = scene.get("ae_motion_plan") if isinstance(scene.get("ae_motion_plan"), dict) else {}
         score = 0
@@ -2363,7 +2524,7 @@ class CodexStagedContentRunner:
         work_dir.mkdir(parents=True, exist_ok=True)
         # Changed instructions, rewritten text and QA feedback must never hit an old response.
         cache_key = [SENIOR_PROFILE, "astra-dialogue-v1", model, context, task]
-        inline_visual = name == "03_ae_mouth_visibility"
+        inline_visual = name.startswith('03_ae_mouth') or name == '04_automatic_ae_review'
         if inline_visual:
             cache_key.append("inline-utf8-visual-v1")
         if reasoning:
@@ -2589,7 +2750,8 @@ class CodexStagedContentRunner:
                 review = self._stage(job_id, "02c_senior_review", _final_script_review_context(
                     script_context, qa_sections), "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
                    "Compare the cast, timeline, object custody, character knowledge and title promise across the entire script. Check factual claims against supplied evidence. "
-                   "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in category_narration_voice's senior listening contract." + _story_review_contract())
+                   "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in the following senior listening contract."
+                   + senior_contract(payload) + _story_review_contract())
                 qa["script_quality_report"] = review.get("script_quality_report")
                 rhythm_warnings += review_issues(qa["script_quality_report"]) + _story_review_issues(qa["script_quality_report"])
                 rhythm_warnings += _japanese_fidelity_review_issues(qa["script_quality_report"], payload)
@@ -2653,6 +2815,7 @@ class CodexStagedContentRunner:
         direction_profile = resolve_directing_profile(payload)
         visual_context = {
             **script_context,
+            "execution_capabilities": execution_capabilities(payload),
             "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
             "script": script,
             "scenes": [{
@@ -2698,11 +2861,11 @@ class CodexStagedContentRunner:
             "one generated image per frame or per second. Never claim AE can invent facial expressions or body "
             "actions from footage that does not show them. Every beat must fit its scene duration. Do not add "
             "decorative movement without a story reason. "
-            "Return {'scene_directions':[...]} only.",
+            + DIRECTING_TASK + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only.",
         )
         try:
             directorial_plans = validate_directorial_plans(
-                scenes, visual_result, direction_profile=direction_profile["id"]
+                scenes, visual_result, direction_profile=direction_profile["id"], require_execution=True
             )
         except ValueError as exc:
             raise CodexContentError(f"scene visual direction rejected: {exc}") from exc
@@ -2757,7 +2920,7 @@ class CodexStagedContentRunner:
                 "scene_visual_director_persona": "scene_visual_director",
                 "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
                 "scene_visual_direction_count": len(directorial_plans),
-                "scene_direction_plan_contract": "scene_direction_plan/v1",
+                "scene_direction_plan_contract": "scene_direction_plan/v2",
                 "scene_direction_plans": [
                     {"scene_number": int(scene.get("scene_number") or scene.get("scene_order") or index), **direction}
                     for index, (scene, direction) in enumerate(zip(scenes, directorial_plans), 1)
@@ -2920,7 +3083,7 @@ class CodexStagedContentRunner:
             "scene_visual_director_persona": "scene_visual_director",
             "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
             "scene_visual_direction_count": len(directorial_plans),
-            "scene_direction_plan_contract": "scene_direction_plan/v1",
+            "scene_direction_plan_contract": "scene_direction_plan/v2",
             "scene_direction_plans": [
                 {"scene_number": int(scene.get("scene_number") or scene.get("scene_order") or index), **direction}
                 for index, (scene, direction) in enumerate(zip(scenes, directorial_plans), 1)
