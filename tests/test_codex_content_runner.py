@@ -209,6 +209,8 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
             return {"script_quality_report": report}
         if name == '02e_dialogue':
             return {'scenes': [{'scene_number': i, 'spans': []} for i in range(1, scene_count + 1)]}
+        if name == '02j_v4_vocal_performance':
+            return {'scenes': [{'scene_number': i, 'cues': []} for i in range(1, scene_count + 1)]}
         if name == "02f_scene_visual_director":
             return {'topic_direction': {'genre': 'folktale', 'visual_language': 'illustrated_drama',
                     'reason': 'Restrained listening story', 'continuity_rules': ['Preserve screen direction']}, "scene_directions": [
@@ -280,7 +282,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert package["structure"]["scene_direction_plan_contract"] == "scene_direction_plan/v2"
     assert len(package["structure"]["scene_direction_plans"]) == scene_count
     assert all(scene["scene_direction_plan"]["primary_effect"] == "hold" for scene in scenes)
-    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02f_scene_visual_director", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02j_v4_vocal_performance", "02f_scene_visual_director", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
     assert package['structure']['dialogue_annotations']['model'] == 'gpt-6-astra'
     assert package["structure"]["character_reference_status"] == "ready"
     assert package["character_anchors"]["character_image_generation"]["status"] == "ready"
@@ -292,9 +294,9 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert len(scenes) == scene_count
     assert package["structure"]["image_layer_mode"] == "hybrid"
     assert package["structure"]["image_generation_policy"]["mode"] == "hybrid_ae_postprocess"
-    assert package["structure"]["psd_layer_prompt_status"] == "planned"
-    assert 0 < package["structure"]["psd_layer_scene_count"] < len(scenes)
-    assert any(scene["psd_layer_plan"]["enabled"] for scene in scenes)
+    assert package["structure"]["psd_layer_prompt_status"] == "not_required"
+    assert package["structure"]["psd_layer_scene_count"] == 0
+    assert not any(scene["psd_layer_plan"]["enabled"] for scene in scenes)
     assert any(not scene["psd_layer_plan"]["enabled"] for scene in scenes)
     assert [scene["duration_seconds"] for scene in scenes[:12]] == [5] * 12
     assert [scene["duration_seconds"] for scene in scenes[12:18]] == [5] * 6

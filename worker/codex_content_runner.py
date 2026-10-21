@@ -36,6 +36,7 @@ from worker.content_language import (
     visual_setting_prompt,
 )
 from scene_visual_director import PERSONA as SCENE_VISUAL_DIRECTOR_PERSONA, validate_directorial_plans
+from scene_direction_policy import DIRECTING_TASK, is_directed, execution_capabilities
 from directing_profiles import resolve_directing_profile
 from character_continuity import validate_character_identity, scene_continuity_prompt, character_design_anchors
 
