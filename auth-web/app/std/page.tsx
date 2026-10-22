@@ -8503,26 +8503,7 @@ export default function StdPortalPage() {
                                         {visibleProjects.map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id
                                             const localizedTitle = localizedProjectTitle(p, currentLocale)
-                                            const projectCatName = (() => {
-                                                const explicitCategories = [
-                                                    p.category_name,
-                                                    p.project_payload?.category_name,
-                                                    p.project_payload?.category,
-                                                    p.category,
-                                                ]
-                                                const explicitCategory = explicitCategories.find((name: unknown) =>
-                                                    STD_OFFICIAL_CATEGORIES.some(category => category.name === String(name || '').trim())
-                                                )
-                                                if (explicitCategory) return String(explicitCategory)
-                                                const title = p.title || ''
-                                                if (title.includes('무공') || title.includes('강호') || title.includes('낭인')) return '무협'
-                                                if (title.includes('야사') || title.includes('조선') || title.includes('옛날')) return '옛날이야기'
-                                                if (title.includes('19금') || title.includes('황혼') || title.includes('부부')) return '황혼19금'
-                                                if (title.includes('편지') || title.includes('첫사랑') || title.includes('장례식')) return '한국사연'
-                                                if (title.includes('탈북')) return '탈북사연'
-                                                if (title.includes('해외') || title.includes('감동')) return '해외감동'
-                                                return '옛날이야기'
-                                            })()
+                                            const projectCatName = String(p.category_name || '').trim() || '미분류'
                                             const projectThumbnailUrl = sanitizeAssetUrl(
                                                 p.progress_payload?.thumbnail_url
                                                 || p.project_payload?.thumbnail_url

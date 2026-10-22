@@ -40,6 +40,7 @@ test('project list calculates badges from projected status without downloading f
  }}
  const mocks={
   '@/lib/stdProjectStatusContext':{loadStdProjectStatusContext:async()=>[context]},
+  '@/lib/stdProjectCategories':load('lib/stdProjectCategories.ts'),
   '@/lib/stdProjectStepStatus':{summarizeStdProject:project=>{assert.equal(project,context);return{isSubtitlesDone:true}}},
   '@/lib/stdCharacterProtection':{protectCharacterReferenceUrls:value=>value},
   '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'owner'}})},

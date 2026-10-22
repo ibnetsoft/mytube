@@ -1,3 +1,4 @@
+import { attachStdProjectCategories } from '@/lib/stdProjectCategories'
 import { summarizeStdProject } from '@/lib/stdProjectStepStatus'
 import { loadStdProjectStatusContext } from '@/lib/stdProjectStatusContext'
 import { NextResponse } from 'next/server'
@@ -13,12 +14,14 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
         .from('std_projects')
-        .select('id,title,status,language,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at')
+        .select('id,title,status,language,category_id,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at')
         .eq('employee_email', auth.requester.email)
         .order('updated_at', { ascending: false })
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-    const projects = data || []
+    let projects: any[]
+    try { projects = await attachStdProjectCategories(supabaseAdmin, data || []) }
+    catch { return NextResponse.json({ success: false, error: 'Could not load project categories' }, { status: 503 }) }
     let contexts: any[] = []
     try { contexts = projects.length ? await loadStdProjectStatusContext(supabaseAdmin, projects.map(project => project.id)) : [] }
     catch (error: any) {
