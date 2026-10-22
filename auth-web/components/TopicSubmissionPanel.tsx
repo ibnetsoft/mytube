@@ -27,6 +27,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
     const [categories, setCategories] = useState<{ id: number; name: string }[]>([])
     const [images, setImages] = useState<{ name: string; data: string }[]>([])
     const [nonverbal, setNonverbal] = useState(false)
+    const [documentary, setDocumentary] = useState(false)
     const [busy, setBusy] = useState(false)
     const [reading, setReading] = useState(false)
     const [error, setError] = useState('')
@@ -80,13 +81,15 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
             event.preventDefault(); if (inFlight.current || reading) return
             const form = event.currentTarget
             const data = Object.fromEntries(new FormData(form).entries()); delete data.images
-            const body = JSON.stringify({ ...data, ae_scene_delivery: 'gcs', input_language: locale, duration_minutes: Number(data.duration_minutes), character_images: images })
+            const body = JSON.stringify({ ...data, language: documentary ? 'ja' : data.language,
+                production_mode: documentary ? 'standard' : data.production_mode,
+                ae_scene_delivery: 'gcs', input_language: locale, duration_minutes: Number(data.duration_minutes), character_images: images })
             if (submission.current.body !== body) submission.current = { key: crypto.randomUUID(), body }
             inFlight.current = true; setBusy(true); setError(''); setNotice('')
             try {
                 const res = await fetch('/api/std/topic-submissions', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Idempotency-Key': submission.current.key }, body })
                 const result = await res.json(); if (!res.ok) throw new Error(result.error)
-                form.reset(); setImages([]); setNonverbal(false); submission.current = { key: '', body: '' }
+                form.reset(); setImages([]); setNonverbal(false); setDocumentary(false); submission.current = { key: '', body: '' }
                 setNotice(ui('토픽을 등록했습니다. 로컬 대본워커의 승인 대기열에 표시됩니다.')); await load()
             } catch (e) { setError(e instanceof Error ? e.message : '등록 실패') }
             finally { inFlight.current = false; setBusy(false) }
@@ -95,7 +98,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                 <p className="text-sm text-gray-400">{ui('입력 내용은 태국어·베트남어로 작성할 수 있습니다. 최종 대본은 선택한 대본 언어로 각색합니다.')}</p>
                 <label className="block">{ui('토픽 제목 *')}<input name="title" required maxLength={200} className={input} placeholder={ui('이야기의 제목')} /></label>
                 <label className="block">{ui('유튜브 URL')}<input name="youtube_url" type="url" maxLength={2048} className={input} placeholder="https://www.youtube.com/watch?v=..." /></label>
-                <label className="block">{ui('스토리 개략적인 내용 *')}<textarea name="story" maxLength={2500} rows={5} className={input} placeholder={ui('주요 사건, 갈등, 반전과 원하는 결말을 적어주세요.')} /></label>
+                <label className="block">{ui(documentary ? '다룰 인물·시기·핵심 질문 *' : '스토리 개략적인 내용 *')}<textarea name="story" maxLength={2500} rows={5} className={input} placeholder={ui(documentary ? '다룰 인물, 시대와 지역, 확인하고 싶은 역사적 선택과 그 결과를 적어주세요.' : '주요 사건, 갈등, 반전과 원하는 결말을 적어주세요.')} /></label>
                 <div className="grid gap-4 sm:grid-cols-2">
                     <label>{ui('캐릭터 설명')}<textarea name="character_notes" maxLength={1500} rows={4} className={input} placeholder={ui('이름, 성격, 관계, 말투와 이미지별 캐릭터 이름')} /></label>
                     <label>{ui('캐릭터 이미지')}<input name="images" type="file" multiple accept="image/png,image/jpeg,image/webp" className={input} disabled={reading} onChange={e => void selectImages(e.target.files)} /><span className="block mt-2 text-gray-400">{ui('최대 3장 · 장당 500KB · PNG/JPEG/WebP')}</span></label>
@@ -104,13 +107,14 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                 <div className="grid gap-4 sm:grid-cols-3">
                     <label>{ui('카테고리 *')}<select name="category" required defaultValue="" className={input} onChange={event=>{
                         if(event.target.value!=='일본사건' || nonverbal || !topicForm.current)return
+                        setDocumentary(false)
                         const form=topicForm.current
                         const set=(name:string,value:string)=>{const el=form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;if(el)el.value=value}
                         set('language','ja');set('setting_country',ui('일본'));set('production_mode','standard');set('era_region',ui('현대 일본 · 도쿄 근교 주거지역'))
                         const radio=form.querySelector<HTMLInputElement>('input[value="jp_domestic_watercolor"]');if(radio)radio.checked=true
                     }}><option value="" disabled>{categories.length ? ui('카테고리를 선택하세요') : ui('카테고리 불러오는 중…')}</option>{categories.map(category => <option key={category.id} value={category.name}>{ui(category.name)}</option>)}</select></label>
-                    <label>{ui('분량 (분)')}<input name="duration_minutes" type="number" required min={1} max={nonverbal ? 10 : 60} defaultValue={15} className={input} /></label>
-                    <label>{ui(nonverbal ? '기획 설명 언어' : '대본 언어')}<select name="language" className={input} onChange={event => {
+                    <label>{ui('분량 (분)')}<input name="duration_minutes" type="number" required readOnly={documentary} min={1} max={nonverbal ? 10 : 60} defaultValue={15} className={input} /></label>
+                    <label>{ui(nonverbal ? '기획 설명 언어' : '대본 언어')}<select name="language" disabled={documentary} className={input} onChange={event => {
                         if (event.currentTarget.value !== 'ja') return
                         const form = event.currentTarget.form
                         const country = form?.elements.namedItem('setting_country') as HTMLInputElement | null
@@ -118,10 +122,11 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                         if (country?.value === ui('한국')) country.value = ui('일본')
                         if (era?.value === ui('현대 지방 소도시')) era.value = ui('시대 미상 · 자막·원전 근거 우선')
                     }}><option value="ko">{ui('한국어')}</option><option value="en">{ui('영어')}</option><option value="ja">{ui('일본어')}</option><option value="es">{ui('스페인어')}</option></select></label>
-                    <label>{ui('배경 국가 *')}<input name="setting_country" required defaultValue={ui('한국')} maxLength={80} className={input} /></label>
+                    <label>{ui('배경 국가 *')}<input name="setting_country" readOnly={documentary} required defaultValue={ui('한국')} maxLength={80} className={input} /></label>
                     <label>{ui('시대·지역 *')}<input name="era_region" required defaultValue={ui('현대 지방 소도시')} maxLength={120} className={input} /></label>
-                    <label>{ui('제작 모드')}<select name="production_mode" className={input} onChange={event => {
+                    <label>{ui('제작 모드')}<select name="production_mode" disabled={documentary} className={input} onChange={event => {
                         const enabled = event.target.value === 'nonverbal_preschool'; setNonverbal(enabled)
+                        if (enabled) setDocumentary(false)
                         if (enabled && topicForm.current) {
                             const form=topicForm.current
                             const duration=form.elements.namedItem('duration_minutes') as HTMLInputElement
@@ -138,6 +143,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
                         {imageStyles.map(style => <label key={style.key} className="relative cursor-pointer">
                             <input type="radio" name="image_style" value={style.key} defaultChecked={style.key === 'realistic'} disabled={nonverbal && ['jp_domestic_watercolor','sumi_e_ukiyo_e','jidaigeki_cel','realistic','cinematic','3d'].includes(style.key)} required onChange={() => {
+                                setDocumentary(style.key === 'sumi_e_ukiyo_e')
                                 if (!['jp_domestic_watercolor', 'sumi_e_ukiyo_e', 'jidaigeki_cel'].includes(style.key)) return
                                 const form = topicForm.current
                                 if (!form) return
@@ -164,6 +170,11 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                         </label>)}
                     </div>
                 </fieldset>
+                {documentary && <div className="space-y-3 rounded-lg border border-indigo-400/30 bg-indigo-500/10 p-4">
+                    <p role="status">{ui('일본어 30분 역사 다큐멘터리입니다. 공공기관·원사료·학술 자료를 조사하고 최종 대본을 출처와 대조합니다. 사료가 부족하면 보완이 필요합니다.')}</p>
+                    <p className="text-sm text-gray-300">{ui('수묵화·우키요에 재현화로 제작합니다. 확인된 사실과 이설·해석을 구분하고, 근거 없는 대사·사적 장면은 만들지 않습니다.')}</p>
+                    <label className="block">{ui('사료·참고 출처 (선택)')}<textarea name="historical_source_notes" maxLength={12000} rows={5} className={input} placeholder={ui('박물관·문서관·학술 자료 URL, 자료명, 원문 발췌와 확인할 쟁점을 적어주세요. 입력하지 않으면 워커가 자료를 조사합니다.')} /></label>
+                </div>}
                 <label className="block">{ui('필수·금지 사항')}<textarea name="requirements" maxLength={1000} rows={3} className={input} placeholder={ui('꼭 넣을 장면, 타깃 시청자, 원하는 분위기, 피할 표현')} /></label>
                 <details><summary className="cursor-pointer text-gray-300">{ui('참고 자막·영상 요약 직접 입력 (선택)')}</summary><textarea name="transcript" maxLength={40000} rows={6} className={input} placeholder={ui('유튜브 자막을 가져오지 못하는 경우 사용할 자료를 입력하세요.')} /><p className="mt-2 text-gray-400">{ui('URL을 입력하면 승인 후 자막을 수집합니다. 직접 입력한 자료가 있으면 이를 우선 사용합니다.')}</p></details>
                 <button disabled={busy || reading} className="rounded-lg bg-indigo-500 px-5 py-3 font-semibold text-white disabled:opacity-40">{busy ? ui('등록 중…') : reading ? ui('이미지 읽는 중…') : ui('토픽 등록 · 승인 요청')}</button>

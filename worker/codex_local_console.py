@@ -295,6 +295,7 @@ class StartRequest(BaseModel):
     youtube_url: str = Field(default='', max_length=2048)
     web_topic_id: str = Field(default='', max_length=36)
     web_brief: dict = Field(default_factory=dict)
+    historical_sources: list[dict] | None = Field(default=None, max_length=12)
     source_ids: list[str] = Field(default_factory=list, max_length=256)
     grounded_type: Literal['sermon', 'education'] = 'sermon'
     audience: str = Field(default='시니어 성도', max_length=200)
@@ -654,7 +655,8 @@ def script_settings_save(value: dict):
 
 @app.get('/health')
 def health():
-    return {'service': 'codex-local-console', 'port': PORT, 'legacy_dashboard': False}
+    return {'service': 'codex-local-console', 'port': PORT, 'legacy_dashboard': False,
+            'documentary_evidence_profile': 'japanese_documentary_evidence/v1'}
 
 
 class MouthPolicySettings(BaseModel):
