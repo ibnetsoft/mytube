@@ -1,6 +1,7 @@
 import { scanDialogueQuoteState } from './stdDialogueQuoteState'
 function dialogueSubtitleIndexes(subtitles: any[], parts: Map<number, any[]>) {
     return subtitles.flatMap((row, index) => {
+        if (row.dialogue_override === false) return []
         const annotated = parts.get(index)?.some(part => part.dialogue)
         const inferred = typeof row.dialogue_override === 'boolean' ? row.dialogue_override
             : Boolean(annotated || row.dialogue_speaker || row.editor_speaker?.name || scanDialogueQuoteState(row.text).isDialogue)
