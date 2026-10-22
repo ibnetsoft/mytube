@@ -7,14 +7,14 @@ import { characterImageContentType, gcsCharacterObjectFromUrl } from '@/lib/stdC
 
 export const dynamic = 'force-dynamic'
 
-function transformedSupabaseUrl(value: unknown): string {
+function transformedSupabaseUrl(value: unknown, preview = false): string {
     const raw = String(value || '').trim()
     if (!/^https:\/\//i.test(raw) || !raw.includes('.supabase.co/storage/v1/object/public/')) return ''
     const url = new URL(raw.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/'))
-    url.searchParams.set('width', '64')
-    url.searchParams.set('height', '64')
-    url.searchParams.set('resize', 'cover')
-    url.searchParams.set('quality', '35')
+    url.searchParams.set('width', preview ? '1024' : '64')
+    url.searchParams.set('height', preview ? '1024' : '64')
+    url.searchParams.set('resize', preview ? 'contain' : 'cover')
+    url.searchParams.set('quality', preview ? '85' : '35')
     return url.toString()
 }
 
@@ -75,7 +75,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         }
     }
 
-    const thumbnailUrl = transformedSupabaseUrl(imageUrl)
+    const thumbnailUrl = transformedSupabaseUrl(imageUrl, requestUrl.searchParams.get('preview') === '1')
     if (!thumbnailUrl) return new NextResponse(null, { status: 404 })
     try {
         const upstream = await fetch(thumbnailUrl, { cache: 'force-cache' })

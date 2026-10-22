@@ -12,6 +12,7 @@ const COPY = {
         unknown: 'Needs confirmation', male: 'Male', female: 'Female', custom: 'Enter a name',
         placeholder: 'Enter the original name', cancel: 'Cancel', save: 'Save', error: 'Failed to save.',
         translating: 'Loading name translations…', translationError: 'Could not load name translations.', retry: 'Retry',
+        enlarge: 'Enlarge character image', close: 'Close', imageError: 'Could not load the image.',
     },
     vi: {
         title: 'Xác nhận người nói', note: 'Chỉ dành cho biên tập. Không xuất hiện trong giọng nói hoặc phụ đề video.',
@@ -19,6 +20,7 @@ const COPY = {
         unknown: 'Cần xác nhận', male: 'Nam', female: 'Nữ', custom: 'Nhập tên',
         placeholder: 'Nhập tên gốc', cancel: 'Hủy', save: 'Lưu', error: 'Không lưu được.',
         translating: 'Đang tải bản dịch tên…', translationError: 'Không tải được bản dịch tên.', retry: 'Thử lại',
+        enlarge: 'Phóng to ảnh nhân vật', close: 'Đóng', imageError: 'Không tải được ảnh.',
     },
     ko: {
         title: '화자 확인', note: '편집용 정보입니다. TTS와 영상 자막에는 포함되지 않습니다.',
@@ -26,6 +28,7 @@ const COPY = {
         unknown: '확인 필요', male: '남성', female: '여성', custom: '이름 직접 입력',
         placeholder: '원어 이름 입력', cancel: '취소', save: '저장', error: '저장에 실패했습니다.',
         translating: '이름을 한국어로 번역하고 있습니다…', translationError: '이름 번역을 불러오지 못했습니다.', retry: '다시 시도',
+        enlarge: '캐릭터 이미지 확대', close: '닫기', imageError: '이미지를 불러오지 못했습니다.',
     },
     th: {
         title: 'ยืนยันผู้พูด', note: 'ข้อมูลสำหรับผู้ตัดต่อเท่านั้น ไม่อ่านออกเสียงและไม่แสดงในคำบรรยายวิดีโอ',
@@ -33,6 +36,7 @@ const COPY = {
         unknown: 'ต้องยืนยัน', male: 'ชาย', female: 'หญิง', custom: 'กรอกชื่อเอง',
         placeholder: 'กรอกชื่อในภาษาต้นฉบับ', cancel: 'ยกเลิก', save: 'บันทึก', error: 'บันทึกไม่สำเร็จ',
         translating: 'กำลังแปลชื่อเป็นภาษาไทย…', translationError: 'โหลดคำแปลชื่อไม่สำเร็จ', retry: 'ลองอีกครั้ง',
+        enlarge: 'ขยายภาพตัวละคร', close: 'ปิด', imageError: 'โหลดภาพไม่สำเร็จ',
     },
 }
 
@@ -52,6 +56,10 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
     const [translating, setTranslating] = useState(false), [translationError, setTranslationError] = useState(false)
     const [retry, setRetry] = useState(0)
     const [failedThumbnails, setFailedThumbnails] = useState<string[]>([])
+    const [preview, setPreview] = useState<{ url: string; name: string } | null>(null)
+    const [previewError, setPreviewError] = useState(false)
+    const previewTrigger = useRef<HTMLButtonElement | null>(null)
+    const closePreview = () => { setPreview(null); previewTrigger.current?.focus() }
     const onTranslationsRef = useRef(onTranslations)
     onTranslationsRef.current = onTranslations
     const optionNames = [...new Set([...names, speaker?.name || ''].map(value => value.trim()).filter(Boolean))]
@@ -113,7 +121,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
         : 'border-white/10 bg-black/15 text-gray-200 hover:border-white/30'
 
     return createPortal(<div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" onClick={e => e.stopPropagation()}>
-        <div role="dialog" aria-modal="true" aria-label={copy.title} lang={locale}
+        <div role="dialog" aria-modal={!preview} aria-hidden={preview ? true : undefined} aria-label={copy.title} lang={locale}
             className="flex max-h-[85dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-white/20 bg-[#1c2027] p-5 text-gray-100">
             <h2 className="font-bold">{copy.title}</h2>
             <p className="text-xs text-gray-400">{copy.note}</p>
@@ -132,16 +140,28 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
                         return <label key={value} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${radioStyle(!custom && name === value)}`}>
                         <input type="radio" name="subtitle-speaker-name" value={value} checked={!custom && name === value}
                             onChange={() => chooseName(value)} className="h-4 w-4 shrink-0 accent-sky-400" />
-                        <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-black/25 text-gray-500">
-                            {thumbnailUrl && !failedThumbnails.includes(thumbnailUrl) ? (
-                                // The saved character reference uses the authenticated thumbnail proxy.
-                                // eslint-disable-next-line @next/next/no-img-element
+                        {thumbnailUrl && !failedThumbnails.includes(thumbnailUrl) ? <button type="button"
+                            aria-label={`${speakerNameLabel(value, characters, locale, nameTranslations)}: ${copy.enlarge}`}
+                            className="h-10 w-10 shrink-0 cursor-zoom-in overflow-hidden rounded-md border border-white/10 bg-black/25 hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+                            onClick={event => {
+                                event.preventDefault(); event.stopPropagation()
+                                previewTrigger.current = event.currentTarget
+                                let url = thumbnailUrl
+                                if (/^\/api\/std\/projects\/[^/?#]+\/character-thumbnail(?:\?|$)/.test(url)) {
+                                    const proxy = new URL(url, 'http://localhost')
+                                    proxy.searchParams.set('preview', '1')
+                                    url = proxy.pathname + proxy.search
+                                }
+                                setPreviewError(false)
+                                setPreview({ url, name: speakerNameLabel(value, characters, locale, nameTranslations) })
+                            }}>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={thumbnailUrl} alt="" width={40} height={40} draggable={false}
                                     className="h-full w-full object-cover" onError={() => setFailedThumbnails(previous => [...previous, thumbnailUrl])} />
-                            ) : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6">
+                            </button> : <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/25 text-gray-500">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6">
                                 <circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" />
-                            </svg>}
-                        </span>
+                            </svg></span>}
                         <span className="min-w-0 break-words">{speakerNameLabel(value, characters, locale, nameTranslations)}</span>
                     </label>})}
                     <label className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${radioStyle(custom)}`}>
@@ -176,5 +196,24 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
                 </button>
             </div>
         </div>
+        {preview && <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/90 p-4" onClick={closePreview}
+            onKeyDown={event => {
+                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closePreview() }
+                if (event.key === 'Tab') event.preventDefault()
+            }}>
+            <div role="dialog" aria-modal="true" aria-label={`${preview.name}: ${copy.enlarge}`} lang={locale}
+                className="flex max-h-[90dvh] w-full max-w-4xl flex-col gap-3 rounded-xl border border-white/20 bg-[#1c2027] p-4 text-gray-100"
+                onClick={event => event.stopPropagation()}>
+                <div className="flex items-center justify-between gap-4">
+                    <p className="min-w-0 break-words font-semibold">{preview.name}</p>
+                    <button type="button" autoFocus onClick={closePreview} className="shrink-0 rounded-lg border border-white/20 px-4 py-2 text-sm">{copy.close}</button>
+                </div>
+                {previewError ? <p role="alert" className="p-8 text-center text-gray-300">{copy.imageError}</p> : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={preview.url} alt={preview.name} draggable={false} onError={() => setPreviewError(true)}
+                        className="min-h-0 w-full flex-1 object-contain max-h-[75dvh]" />
+                )}
+            </div>
+        </div>}
     </div>, document.body)
 }

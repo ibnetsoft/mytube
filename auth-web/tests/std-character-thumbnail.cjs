@@ -108,3 +108,21 @@ test('authentication and project ownership are checked before reading any charac
     assert.deepEqual(missingProject.filters, [['id', 'project-id'], ['employee_email', 'owner@example.com']])
     assert.equal(missingProject.downloads.length, 0)
 })
+
+test('expanded previews preserve authorization and request an uncropped larger image', async () => {
+    const originalFetch = global.fetch
+    const urls = []
+    global.fetch = async url => { urls.push(new URL(url)); return new Response(new Uint8Array([1]), { headers: { 'content-type': 'image/webp' } }) }
+    try {
+        const app = harness({ projectPayload: { main_character: { name: 'Portrait', image_url: 'https://example.supabase.co/storage/v1/object/public/images/portrait.png' } } })
+        assert.equal((await app.get('?slot=0')).status, 200)
+        assert.equal((await app.get('?slot=0&preview=1')).status, 200)
+        assert.equal(urls[0].searchParams.get('width'), '64')
+        assert.equal(urls[1].searchParams.get('width'), '1024')
+        assert.equal(urls[1].searchParams.get('resize'), 'contain')
+        assert(app.filters.some(([key, value]) => key === 'employee_email' && value === 'owner@example.com'))
+        const denied = harness({ authenticated: false })
+        assert.equal((await denied.get('?slot=0&preview=1')).status, 401)
+        assert.equal(urls.length, 2)
+    } finally { global.fetch = originalFetch }
+})
