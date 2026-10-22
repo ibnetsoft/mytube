@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SupportedLocale } from '@/lib/i18n'
+import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { normalizeSpeakerGender, speakerNameLabel, type SpeakerInfo, type SpeakerNameTranslations } from '@/lib/stdSpeakerAssignment'
 
 const COPY = {
@@ -50,6 +51,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
     const [translated, setTranslated] = useState<SpeakerNameTranslations>({})
     const [translating, setTranslating] = useState(false), [translationError, setTranslationError] = useState(false)
     const [retry, setRetry] = useState(0)
+    const [failedThumbnails, setFailedThumbnails] = useState<string[]>([])
     const onTranslationsRef = useRef(onTranslations)
     onTranslationsRef.current = onTranslations
     const optionNames = [...new Set([...names, speaker?.name || ''].map(value => value.trim()).filter(Boolean))]
@@ -118,11 +120,30 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
             <fieldset className="min-w-0 space-y-2">
                 <legend className="mb-2 text-sm font-semibold">{copy.name}</legend>
                 <div className="max-h-64 space-y-2 overflow-y-auto">
-                    {optionNames.map(value => <label key={value} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${radioStyle(!custom && name === value)}`}>
+                    {optionNames.map(value => {
+                        const character = characters.find(c => String(c.name || '').trim() === value)
+                        let thumbnailUrl = persistentThumbnailUrl(character?.image_url)
+                        const impersonate = headers?.['x-impersonate-email']
+                        if (thumbnailUrl && impersonate && /^\/api\/std\/projects\/[^/?#]+\/character-thumbnail(?:\?|$)/.test(thumbnailUrl)) {
+                            const proxy = new URL(thumbnailUrl, 'http://localhost')
+                            proxy.searchParams.set('impersonate', impersonate)
+                            thumbnailUrl = proxy.pathname + proxy.search
+                        }
+                        return <label key={value} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${radioStyle(!custom && name === value)}`}>
                         <input type="radio" name="subtitle-speaker-name" value={value} checked={!custom && name === value}
                             onChange={() => chooseName(value)} className="h-4 w-4 shrink-0 accent-sky-400" />
-                        <span className="break-words">{speakerNameLabel(value, characters, locale, nameTranslations)}</span>
-                    </label>)}
+                        <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-black/25 text-gray-500">
+                            {thumbnailUrl && !failedThumbnails.includes(thumbnailUrl) ? (
+                                // The saved character reference uses the authenticated thumbnail proxy.
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={thumbnailUrl} alt="" width={40} height={40} draggable={false}
+                                    className="h-full w-full object-cover" onError={() => setFailedThumbnails(previous => [...previous, thumbnailUrl])} />
+                            ) : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6">
+                                <circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" />
+                            </svg>}
+                        </span>
+                        <span className="min-w-0 break-words">{speakerNameLabel(value, characters, locale, nameTranslations)}</span>
+                    </label>})}
                     <label className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm ${radioStyle(custom)}`}>
                         <input type="radio" name="subtitle-speaker-name" value="__custom__" checked={custom}
                             onChange={() => { setCustom(true); setName(''); setGender('') }} className="h-4 w-4 accent-sky-400" />

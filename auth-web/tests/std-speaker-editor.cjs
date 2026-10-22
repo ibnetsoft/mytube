@@ -66,6 +66,25 @@ function harness(overrides = {}) {
 }
 
 (async () => {
+    const thumbnail = harness({
+        characters: [{ name: ' 仙太郎 ', image_url: '/api/std/projects/test/character-thumbnail?slot=0' },
+            { name: '花代', image_url: 'https://example.com/hanayo.png' }],
+        headers: { 'x-impersonate-email': 'viewer@example.com' },
+    });
+    let thumbnailTree = thumbnail.render();
+    const portraits = thumbnailTree.filter(node => node.type === 'img');
+    assert.equal(portraits.length, 2, 'Only characters with saved images show a portrait');
+    assert.equal(portraits[0].props.src, '/api/std/projects/test/character-thumbnail?slot=0&impersonate=viewer%40example.com');
+    assert.equal(portraits[1].props.src, 'https://example.com/hanayo.png', 'External URLs never receive impersonation data');
+    const row = thumbnailTree.find(node => node.type === 'label' && nodes(node).includes(portraits[0]));
+    assert(text(row).includes('仙太郎 (센타로)'), 'Portrait stays beside the canonical and translated name');
+    portraits[0].props.onError();
+    thumbnailTree = thumbnail.render();
+    assert.equal(thumbnailTree.filter(node => node.type === 'img').length, 1, 'Failed images fall back to a person icon');
+    assert.equal(thumbnailTree.filter(node => node.type === 'svg').length, 2, 'Missing and failed portraits use the fallback');
+    const temporary = harness({ characters: [{ name: '仙太郎', image_url: 'blob:expired' }] });
+    assert.equal(temporary.render().filter(node => node.type === 'img').length, 0, 'Expired browser-local images are not used');
+
     for (const [locale, title, save, cancel, localizedName] of [
         ['ko', '화자 확인', '저장', '취소', '센타로'],
         ['th', 'ยืนยันผู้พูด', 'บันทึก', 'ยกเลิก', 'เซ็นทาโร'],
