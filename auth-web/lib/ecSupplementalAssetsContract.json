@@ -1,0 +1,6 @@
+{
+  "contract": "ec_supplemental/v1",
+  "enabled": true,
+  "max_layers_per_scene": 4,
+  "max_attempts": 2
+}

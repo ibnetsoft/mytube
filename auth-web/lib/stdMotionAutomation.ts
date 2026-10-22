@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from './supabaseAdmin'
 import { motionForProject, motionProductionMethod } from './stdMotionStudio'
 import effectcraftSource from './effectcraftSource.json'
+import ecSupplementalAssetsContract from './ecSupplementalAssetsContract.json'
 import { aeSceneSources, preparedAeScenes } from './stdAeScenePreparation'
 import { selectNarrationAsset } from './stdContentIdentity'
 import { lipSyncPlan, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
@@ -74,6 +75,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const selected=motion.automation.mode==='hybrid'?await selectedVideoModel(project.employee_email):null
     const snapshot={version:1,...(effectcraft?{renderer:{engine:'effectcraft',revision:effectcraftSource.revision,version:effectcraftSource.version}}:{}),project:{id:project.id,employee_email:project.employee_email},motion,settings,subtitles,audio,scenes:ordered,sounds,sfx_cues:resolveSfxCues(cues,subtitles),
         model_ref:selected?{id:selected.config.id,fingerprint:selected.fingerprint,config:selected.config}:null}
+    if(effectcraft)Object.assign(snapshot,{supplemental_assets:ecSupplementalAssetsContract})
     const snapshot_json=JSON.stringify(snapshot)
     if(Buffer.byteLength(snapshot_json)>4_000_000)throw new Error('제출 데이터가 너무 큽니다.')
     const fingerprint=createHash('sha256').update(snapshot_json).digest('hex')

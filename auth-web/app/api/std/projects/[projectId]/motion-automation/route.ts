@@ -14,5 +14,7 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}) {
     try { if(JSON.parse(m?.input?.snapshot_json||'{}').renderer?.engine==='effectcraft')engine='effectcraft' } catch { /* Preserve status access for malformed legacy diagnostics. */ }
     return NextResponse.json({job:job?{id:job.id,engine,state:m.state,phase:m.phase,progress:m.progress,error:m.error,
         reviewed_scenes:(m.results||[]).length,total_scenes:m.total_scenes,
+        supplemental_scenes:new Set((m.supplemental_assets||[]).filter((a:any)=>a.reviewed===true).map((a:any)=>a.number)).size,
+        supplemental_files:(m.supplemental_assets||[]).filter((a:any)=>a.reviewed===true).reduce((sum:number,a:any)=>sum+(Number(a.file_count)||0),0),
         final_url:m.state==='complete'&&m.final?.gcs_path?`/api/std/assets/gcs-file?bucket=${encodeURIComponent(m.final.gcs_bucket)}&path=${encodeURIComponent(m.final.gcs_path)}`:null}:null},{headers:{'Cache-Control':'no-store'}})
 }

@@ -101,14 +101,19 @@ def render_scene(snapshot,scene,plan,source,directory,fresh):
         data={'plan':{'width':width,'height':height,'output':output,'layers':layers,'camera':motion['keys'],'effects':[{**e,'reason':motion['direction'] or 'Saved scene direction'} for e in motion['effects']],
               'lights':[],'transition':{'in':'cut','out':'cut','fraction':.08}},'layers':layers,'files':{'original':str(local)},'fit':motion['fit'],'generic':True,'opacity':opacity,'flash':motion['transition']=='flash'}
     data.update(duration=duration,fps=fps)
+    if plan.get('_supplemental_package'):
+        from ec_supplemental_assets import attach
+        data=attach(data,plan['_supplemental_package'],source,directory)
     script=directory/'scene.effectcraft.jsx';script.write_text(_scene_script(data),encoding='utf-8')
     project=directory/'scene.ecproj';output_file=directory/'base.mp4'
     for prior in (project,output_file):
         if prior.is_file():prior.replace(directory/(prior.stem+'-'+sha(prior)[:16]+'.previous'+prior.suffix))
-    fresh();_execute(cli,['script',str(script),'--empty','--save-as',str(project),'--json'],directory,'create-project')
+    fresh();_execute(cli,['script','--eval','null','--empty','--save-as',str(project),'--json'],directory,'initialize-project')
+    fresh();_execute(cli,['script',str(script),'--project',str(project),'--save','--json'],directory,'create-project')
     if not project.is_file():raise ValueError('EffectCraft did not save the editable project')
     fresh();_execute(cli,['render',str(project),'--comp','ae_scene','--out',str(output_file),'--format','h264','--audio','off','--fps',str(fps),'--json'],directory,'render-scene')
     if not output_file.is_file() or not output_file.stat().st_size:raise ValueError('EffectCraft produced no video')
-    receipt={'engine':'effectcraft','revision':PIN['revision'],'project':project.name,'project_sha256':sha(project),'output_sha256':sha(output_file),'review_status':'rendered_requires_actual_review'}
+    receipt={'engine':'effectcraft','revision':PIN['revision'],'project':project.name,'project_sha256':sha(project),'output_sha256':sha(output_file),'review_status':'rendered_requires_actual_review',
+             'supplemental_fingerprint':(plan.get('_supplemental_package') or {}).get('fingerprint')}
     (directory/'effectcraft-receipt.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
     fresh();return output_file

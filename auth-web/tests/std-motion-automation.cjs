@@ -3,11 +3,14 @@ function fixture(mode='ae_only') {
  const calls={models:0,voice:0,rpc:[]},exports={}
  const project={id:'qa-project',updated_at:'now',employee_email:'owner@test',project_payload:{render_settings:{motion:{version:1,enabled:true,aspect:'9:16',fps:24,scenes:{},automation:{mode,max_ai_clips:1,max_ai_seconds:5}}},subtitles:[{text:'Final voice',scene_number:1,start:0,end:20}]}}
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
- new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9}}).outputText)(exports,name=>{
+ new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
   if(name==='crypto')return crypto
+  if(name.endsWith('.json'))return JSON.parse(fs.readFileSync('lib/'+name.slice(2),'utf8'))
+  if(name.includes('stdWorkflowBoundary'))return {assertPreparationFinished:()=>{}}
+  if(name.includes('stdSceneExecution'))return {directedScene:()=>false,bindSceneDirection:()=>null}
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:{rpc:async(name,args)=>{calls.rpc.push({name,args});return {data:{job_id:'queued'},error:null}}}}
-  if(name.includes('stdMotionStudio'))return {motionForProject:p=>p.project_payload.render_settings.motion}
-  if(name.includes('stdAeScenePreparation'))return {aeSceneSources:()=>new Map()}
+  if(name.includes('stdMotionStudio'))return {motionForProject:p=>p.project_payload.render_settings.motion,motionProductionMethod:p=>p.project_payload.render_settings.motion.production_method||'after_effects'}
+  if(name.includes('stdAeScenePreparation'))return {aeSceneSources:()=>new Map(),preparedAeScenes:()=>new Map()}
   if(name.includes('stdContentIdentity'))return {selectNarrationAsset:()=>audio}
   if(name.includes('stdLipSync'))return {lipSyncPlan:()=>{calls.voice++},lipSyncSceneStarts:()=>[.005],reviewedLipSyncAssets:()=>new Map()}
   if(name.includes('stdSceneMedia'))return {storageSourceForAsset:a=>a.metadata.gcs_path}
@@ -39,4 +42,15 @@ test('existing manual video remains usable without an API; vertical webtoons ret
  await f.run();assert.equal(JSON.parse(f.calls.rpc.at(-1).args.p_manifest.automation.snapshot_json).scenes[0].source.id,'manual-video')
  f.project.project_payload.render_settings.comic={mode:'webtoon_video'};await f.run()
  assert.equal(JSON.parse(f.calls.rpc.at(-1).args.p_manifest.automation.snapshot_json).scenes[0].source.id,'image')
+})
+
+test('EffectCraft freezes bounded post-submission supplementation while final voice and subtitle times remain exact',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft'
+ await f.run()
+ const args=f.calls.rpc[0].args,s=JSON.parse(args.p_manifest.automation.snapshot_json)
+ assert.equal(f.calls.rpc[0].name,'register_std_effectcraft_pipeline')
+ assert.deepEqual(s.supplemental_assets,{contract:'ec_supplemental/v1',enabled:true,max_layers_per_scene:4,max_attempts:2})
+ assert.equal(s.audio.id,f.audio.id);assert.equal(s.scenes[0].source.id,f.image.id)
+ assert.deepEqual(s.subtitles.map(r=>[r.start,r.end]),[[0,20]])
+ assert.equal(f.calls.models,0)
 })
