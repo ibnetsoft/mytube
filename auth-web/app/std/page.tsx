@@ -9942,7 +9942,7 @@ export default function StdPortalPage() {
                                                                                                     : subtitleReviewCopy.pending)}
                                                                                         </div>
                                                                                     )}
-                                                                                    {(candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
+                                                                                    {(isDialogueBlock || candidates.length > 0 || typeof item.dialogue_override === 'boolean') && (
                                                                                         <span className="inline-flex shrink-0 items-center gap-2 text-[10px]">
                                                                                             {candidates.length > 0 && <span className="text-amber-300" title={candidates[0].reason}>{subtitleReviewCopy?.candidate || ui("대사 후보")}</span>}
                                                                                             <button type="button" className="text-emerald-300 underline" title={ui("이 자막 줄 전체를 대사로 지정합니다. 목소리는 대사 일괄 적용으로 선택하세요.")} onClick={() => {
