@@ -5,7 +5,7 @@ export type TopicSubmission = {
     title: string; youtube_url: string; story: string; character_notes: string;
     requirements: string; category: string; duration_minutes: number;
     language: string; input_language: string; setting_country: string; era_region: string; image_style: string;
-    script_style: string; production_mode: string; ae_scene_delivery: 'gcs'; transcript: string;
+    script_style: string; production_mode: string; ae_scene_delivery: 'gcs'; transcript: string; historical_source_notes: string;
     character_images: { name: string; data: string }[];
 }
 
@@ -64,6 +64,7 @@ export function validateTopicSubmission(input: any): TopicSubmission {
         character_notes: text('character_notes', 1500), requirements: text('requirements', 1000),
         category: domestic ? domesticStyle.category : text('category', 80, true), duration_minutes: documentary ? 30 : duration_minutes, language: domestic || documentary || folktale ? 'ja' : language, input_language, production_mode: domestic || documentary ? 'standard' : production_mode, ae_scene_delivery,
         script_style: nonverbal ? NONVERBAL_MODE : domestic ? domesticStyle.key : documentary ? documentaryStyle.key : 'story',
-        setting_country: domestic || documentary || folktale ? '일본' : text('setting_country', 80, true), era_region: domestic ? '현대 일본 · 도쿄 근교 주거지역' : text('era_region', 120, true),
+        setting_country: domestic || documentary || folktale ? '일본' : text('setting_country', 80, true), era_region: domestic ? '현대 일본 · 도쿄 근교 주거지역' : documentary && ['', '현대', '현대 지방 소도시'].includes(text('era_region', 120)) ? '주제 인물의 실제 생존 시대·지역' : text('era_region', 120, true),
+        historical_source_notes: documentary ? text('historical_source_notes', 12000) : '',
         image_style, transcript: text('transcript', 40000), character_images }
 }

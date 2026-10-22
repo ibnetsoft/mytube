@@ -66,6 +66,10 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     # The script/review/dialogue runner itself pins Astra; general model config
     # remains untouched for other existing content stages.
     runner = ReportingRunner(config)
+    old_structure = (snapshot or {}).get('structure') or {}
+    if request.get('mode') == 'repair' and old_structure.get('script_style') == 'japanese_historical_documentary':
+        request = {**request, 'script_style': old_structure['script_style'],
+                   'historical_sources': old_structure.get('historical_sources'), 'language': 'ja'}
     if request.get('youtube_url') and request.get('script_style')=='japanese_domestic_drama' and not request.get('web_brief'):
         request={**request,'web_topic_id':identity,'web_brief':{**request,'story':request.get('notes') or request.get('title','')}}
     if request.get('web_brief'):
@@ -99,7 +103,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     def finish(package, source=None):
         if moving:
             package = plan_comic(runner, identity, package, notify)
-        from worker.japanese_historical_documentary import enforce_package
+        from worker.japanese_historical_documentary import enforce_package, finalize_evidence
+        package = finalize_evidence(runner, 'local-' + identity, package, request)
         return enforce_package(finalize_sfx(runner, identity, package, notify, source), request)
     if request['mode'] == 'topics':
         from worker.source_topics import produce_topics
@@ -137,6 +142,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'user_direction': request['notes'],
                    'source_reference':{k:request.get('web_brief',{}).get(k) for k in ('youtube_url','source_video_id','source_duration_seconds','source_duration_verified')},
                    'source_localization_map':request.get('source_localization_map',[])}
+        if 'historical_sources' in request:
+            payload['historical_sources'] = request['historical_sources']
         package = runner.generate('local-' + identity, payload, script_only=True)
         package['language'] = setting['language']
         package['setting_country'] = setting['setting_country']
@@ -170,6 +177,10 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    category_id=project.get('category_id'), assigned_script_style=project.get('script_style') or 'story')
     category = request['category'] or str(row.get('category_id') or '')
     row['_material_repair_feedback'] = request['notes']
+    from worker.japanese_historical_documentary import applies as documentary, SOURCE_POLICY
+    if documentary(request):
+        row['assigned_script_style'] = request['script_style']
+        row['_material_repair_feedback'] += '\n' + SOURCE_POLICY + '\n' + str(request.get('historical_sources'))
     notify('Astra 수정안 작성 · 시니어 독립 검수')
     sections, report = _repair_with_codex(row, category, output, ASTRA_MODEL, force=True)
     scenes = copy.deepcopy(snapshot['structure']['scenes'])
@@ -180,9 +191,14 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                'user_direction': request['notes'],
                'source_reference':snapshot['structure'].get('source_reference') or {},
                'source_localization_map':snapshot['structure'].get('source_localization_map') or []}
+    if documentary(request):
+        payload.update(script_style=request['script_style'], language='ja',
+                       historical_sources=request.get('historical_sources'), documentary_source_policy=SOURCE_POLICY)
     budgets = _repair_scene_budgets(scenes, payload, [
         {**section, 'current_text': section['text']} for section in sections])
-    stage = lambda name, context, task: runner._stage('local-' + identity, name, context, task)
+    stage = lambda name, context, task: runner._stage('local-' + identity, name,
+        {**context, **({key: payload[key] for key in ('historical_sources', 'documentary_source_policy')}
+                      if documentary(request) else {})}, task)
     sections, listener = improve_for_listener(stage, snapshot['summary']['title'], sections, budgets)
     # Recheck final prose after listener revisions, without reusing author scores.
     context = {**payload, 'sections': sections, 'script': '\n\n'.join(s['text'] for s in sections),

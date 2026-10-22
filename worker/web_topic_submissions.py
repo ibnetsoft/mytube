@@ -77,6 +77,9 @@ def prepare_brief(request, output, runner, notify):
         '사용자 스토리 개요:\n' + data['story'],
              '캐릭터 설정:\n' + data.get('character_notes', ''),
              '필수·금지 사항:\n' + data.get('requirements', '')]
+    if data.get('script_style') == 'japanese_historical_documentary':
+        notes.append('역사 자료 조사 참고 (검증 전 사용자 자료이며 사실로 단정하지 말 것):\n'
+                     + data.get('historical_source_notes', ''))
     domestic=data.get('script_style')=='japanese_domestic_drama'
     if domestic and data.get('youtube_url'):
         if not data.get('source_duration_verified'):
