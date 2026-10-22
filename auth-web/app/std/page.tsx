@@ -219,6 +219,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
 import { sceneDirectionBadges } from '@/lib/stdSceneDirection'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
+import { assignSubtitleNarration, subtitleDialogueDisplayParts } from '@/lib/stdSubtitleNarration'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
@@ -2923,16 +2924,10 @@ export default function StdPortalPage() {
 
 
     const renderAiDialogue = (subtitle: any, index: number) => {
-        const parts = aiDialogueParts.get(index)
-        if (parts && parts.length > 0 && parts.some(p => p.dialogue)) {
-            return parts.map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
-                title={part.dialogue ? `AI 확인 대사 · ${part.speaker}` : undefined}>{part.text}</span>)
-        }
-        if (isSubtitleDialogue(subtitle, index)) {
-            const speakerName = subtitleSpeakers[index]?.name || subtitle?.dialogue_speaker || '대사'
-            return <span className="text-yellow-300" title={`대사 · ${speakerName}`}>{subtitle.text}</span>
-        }
-        return <span>{subtitle.text}</span>
+        const speakerName = subtitleSpeakers[index]?.name || subtitle?.dialogue_speaker || 'Dialogue'
+        return subtitleDialogueDisplayParts(subtitle, aiDialogueParts.get(index), isSubtitleDialogue(subtitle, index), speakerName)
+            .map((part, i) => <span key={i} className={part.dialogue ? 'text-yellow-300' : undefined}
+                title={part.dialogue ? `Dialogue: ${part.speaker || speakerName}` : undefined}>{part.text}</span>)
     }
 
     // No heuristic candidates. Keep existing manual override controls available.
@@ -9955,7 +9950,12 @@ export default function StdPortalPage() {
                                                                                                 void persistVrewVoiceSubtitles(updated)
                                                                                             }}>{subtitleReviewCopy?.markDialogue || ui("대사로 지정")}</button>
                                                                                             <button type="button" className="text-gray-400 underline" onClick={() => {
-                                                                                                const updated = localSubtitles.map((sub, index) => index === item.subtitleIndex ? { ...sub, dialogue_override: false } : sub)
+                                                                                                const current = speechSubtitlesRef.current
+                                                                                                const updated = assignSubtitleNarration(current, item.subtitleIndex, selectedVoice, voiceNameById, isSubtitleNarration)
+                                                                                                if (String(updated[item.subtitleIndex]?.voice_id || selectedVoice) !== String(current[item.subtitleIndex]?.voice_id || selectedVoice)) {
+                                                                                                    if (isPlayingPreview) stopVrewPlayback()
+                                                                                                    markVrewSegmentStale(updated[item.subtitleIndex], item.subtitleIndex)
+                                                                                                }
                                                                                                 void persistVrewVoiceSubtitles(updated)
                                                                                             }}>{subtitleReviewCopy?.markNarration || ui("내레이션")}</button>
                                                                                             {typeof item.dialogue_override === 'boolean' && <button type="button" className="text-amber-300 underline" onClick={() => {

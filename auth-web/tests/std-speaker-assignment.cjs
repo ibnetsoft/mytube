@@ -17,6 +17,6 @@ assert.equal(subtitleSpeaker(rows[0],[{dialogue:true,text:'A',speaker:'덕수'},
 // Execute the actual TTS segment builder: editorial attribution never reaches speech.
 const page=fs.readFileSync('auth-web/app/std/page.tsx','utf8');
 const source=page.slice(page.indexOf('    const subtitleVoiceSegments ='),page.indexOf('    const vrewSegmentCacheKey ='));
-const segments=new Function('localSubtitles','selectedVoice',ts.transpile(source+'; return subtitleVoiceSegments()', {target:7}))([manual, ...updated.slice(1)],'gemini:Charon');
+const segments=new Function('localSubtitles','selectedVoice','performanceForRow',ts.transpile(source+'; return subtitleVoiceSegments()', {target:7}))([manual, ...updated.slice(1)],'gemini:Charon',()=>null);
 assert.equal(segments[0].text,rows[0].text);assert(!JSON.stringify(segments).includes('덕수'));assert(!JSON.stringify(segments).includes('editor_speaker'));
 console.log('PASS: confirmed attribution, same-character scope, stale/ambiguous attribution, original subtitles and actual TTS input exclude speaker metadata');
