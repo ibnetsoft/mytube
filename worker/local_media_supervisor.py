@@ -12,6 +12,11 @@ HOME = worker_config.STATE_DIR / 'local-media'
 LOGS = worker_config.LOG_DIR / 'local-media'
 
 def now(): return datetime.now(timezone.utc).isoformat()
+def queue_poll_delay(poll, *, idle=False, failures=0):
+    """Keep active handoffs responsive; don't hammer an idle or unavailable DB."""
+    if failures:
+        return min(300, max(30, poll) * 2 ** min(failures - 1, 4))
+    return max(60, poll) if idle else poll
 def write_state(state):
     HOME.mkdir(parents=True,exist_ok=True)
     target=HOME/'status.json'; temp=HOME/'status.tmp'
@@ -145,10 +150,13 @@ class Supervisor:
     def run(self,once=False):
         with singleton():
             write_state(self.state)
+            queue_failures = 0
             try:
                 while not self.stop.is_set() and not (HOME/'stop').exists():
                     try:
                         roles=self.queue();role=self.choose(roles)
+                        queue_failures = 0
+                        delay = queue_poll_delay(self.poll, idle=not roles)
                         self.state.update(status='idle',pending_roles=roles,updated_at=now(),render_paused=(HOME/'pause-render').exists())
                         self.state.pop('queue_error',None);write_state(self.state)
                         if role:
@@ -156,9 +164,11 @@ class Supervisor:
                             if busy:self.state.update(status='resources_busy',busy_processes=busy);write_state(self.state)
                             else:self.execute(role)
                     except Exception as error:
+                        queue_failures += 1
+                        delay = queue_poll_delay(self.poll, failures=queue_failures)
                         self.state.update(status='connection_error',queue_error=type(error).__name__,updated_at=now());write_state(self.state)
                     if once:break
-                    self.stop.wait(self.poll)
+                    self.stop.wait(delay)
             finally:self.state.update(status='stopped',active=None,updated_at=now());write_state(self.state)
 
 def main():

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { startVisiblePolling } from '@/lib/stdVisiblePolling'
 
 export default function StdMouthPreviews({ projectId, headers }: { projectId: string; headers: Record<string, string> }) {
     const [data, setData] = useState<any>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false)
@@ -8,18 +9,20 @@ export default function StdMouthPreviews({ projectId, headers }: { projectId: st
     const signature = JSON.stringify(headers)
     useEffect(() => {
         const abort = new AbortController()
-        const read = async () => {
+        const read = async (signal: AbortSignal) => {
             try {
-                const response = await fetch(`/api/std/projects/${projectId}/ae-mouth`, { headers: JSON.parse(signature), signal: abort.signal })
+                const response = await fetch(`/api/std/projects/${projectId}/ae-mouth`, { headers: JSON.parse(signature), signal })
                 const next = await response.json()
-                if (response.ok) setData(next)
-                const run = await fetch(`/api/std/projects/${projectId}/pipeline`, { headers: JSON.parse(signature), signal: abort.signal })
-                if (run.ok) setPipeline(await run.json())
-            } catch {}
+                if (!response.ok) throw Error(next.error || 'State request failed')
+                if (!abort.signal.aborted && !signal.aborted) setData(next)
+                const run = await fetch(`/api/std/projects/${projectId}/pipeline`, { headers: JSON.parse(signature), signal })
+                if (!run.ok) throw Error('Pipeline request failed')
+                const pipeline = await run.json()
+                if (!abort.signal.aborted && !signal.aborted) setPipeline(pipeline)
+            } catch (error) { throw error }
         }
-        void read()
-        const timer = setInterval(read, 10000)
-        return () => { clearInterval(timer); abort.abort() }
+        const stop = startVisiblePolling(read, 15000)
+        return () => { stop(); abort.abort() }
     }, [projectId, signature])
     useEffect(() => () => { if (media) URL.revokeObjectURL(media.url) }, [media])
     const prepare = async () => {

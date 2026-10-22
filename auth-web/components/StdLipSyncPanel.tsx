@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { startVisiblePolling } from '@/lib/stdVisiblePolling'
 
 export default function StdLipSyncPanel({ projectId, headers, beforeSave }: {
     projectId: string; headers: Record<string, string>; beforeSave: () => Promise<any>
@@ -13,15 +14,15 @@ export default function StdLipSyncPanel({ projectId, headers, beforeSave }: {
         if (!open) return
         let live = true
         const controller = new AbortController()
-        const read = async () => {
+        const read = async (signal: AbortSignal) => {
             try {
-                const r = await fetch(endpoint, { headers: JSON.parse(key), signal: controller.signal }), d = await r.json()
-                if (live) { if (!r.ok) setError(d.error); else setData(d) }
-            } catch (e: any) { if (live) setError(e.message) }
+                const r = await fetch(endpoint, { headers: JSON.parse(key), signal }), d = await r.json()
+                if (!r.ok) throw Error(d.error || 'State request failed')
+                if (live && !signal.aborted) setData(d)
+            } catch (e: any) { if (live && !signal.aborted) setError(e.message); throw e }
         }
-        void read()
-        const timer = setInterval(read, 10000)
-        return () => { live = false; controller.abort(); clearInterval(timer) }
+        const stop = startVisiblePolling(read, 15000)
+        return () => { live = false; controller.abort(); stop() }
     }, [open, endpoint, key])
     const act = async (scene: any, action: string) => {
         setBusy(true); setError('')

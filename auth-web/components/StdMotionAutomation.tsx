@@ -1,9 +1,27 @@
 'use client'
 import { useEffect,useState } from 'react'
+import { startVisiblePolling } from '@/lib/stdVisiblePolling'
 import type { MotionDraft } from '@/lib/stdMotionStudio'
 export default function StdMotionAutomation({draft,onChange,onSave,disabled,busy,projectId,headers,planningOnly=false}:{draft:MotionDraft;onChange:(draft:MotionDraft)=>void;onSave:()=>void;disabled:boolean;busy:boolean;projectId:string;headers:Record<string,string>;planningOnly?:boolean}) {
     const [job,setJob]=useState<any>(null),[model,setModel]=useState(''),[error,setError]=useState('')
-    useEffect(()=>{if(planningOnly)return;let cancelled=false;const load=async()=>{try{const r=await fetch(`/api/std/projects/${projectId}/motion-automation`,{headers});const d=await r.json();if(!r.ok)throw Error(d.error);if(!cancelled){setJob(d.job);setError('')}}catch(e:any){if(!cancelled)setError(e.message)}};void load();const timer=setInterval(load,15000);return()=>{cancelled=true;clearInterval(timer)}},[projectId,headers,planningOnly])
+    const headerKey = JSON.stringify(headers)
+    useEffect(() => {
+        if (planningOnly) return
+        let cancelled = false
+        const stop = startVisiblePolling(async signal => {
+            try {
+                const response = await fetch(`/api/std/projects/${projectId}/motion-automation`, { headers: JSON.parse(headerKey), signal })
+                const data = await response.json()
+                if (!response.ok) throw Error(data.error || 'State request failed')
+                if (!cancelled && !signal.aborted) { setJob(data.job); setError('') }
+                return data.job && ['queued', 'processing'].includes(data.job.state) ? 15000 : 60000
+            } catch (error: any) {
+                if (!cancelled && !signal.aborted) setError(error.message)
+                throw error
+            }
+        }, 15000)
+        return () => { cancelled = true; stop() }
+    }, [projectId, headerKey, planningOnly])
     useEffect(()=>{if(planningOnly)return;let live=true;void fetch('/api/std/video-models',{headers}).then(r=>r.json()).then(d=>{if(live)setModel(d.models?.find((m:any)=>m.id===d.active_id)?.name||'선택된 모델 없음')}).catch(()=>{if(live)setModel('모델 설정 조회 실패')});return()=>{live=false}},[headers,planningOnly])
     const automation=draft.automation||{mode:'ae_only' as const,max_ai_clips:1,max_ai_seconds:5}
     const effectcraft=draft.production_method==='effectcraft'
