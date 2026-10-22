@@ -72,3 +72,20 @@ clickAnchors(Notice({ subtitles: rows, missingSpeakerIndexes: indexes, readiness
 assert.deepEqual(clicked, [1, 3]);
 assert.deepEqual(missingSpeakerSubtitleIndexes(rows, parts, [null, { name: 'B' }, { name: 'A' }, { name: 'C' }]), []);
 console.log('PASS: speaker anchors match progress, retain exact subtitle indexes, and disappear after assignment');
+
+const mixedRows = [
+    { scene_number: 1, text: 'Main narration', voice_id: 'Sulafat' },
+    { scene_number: 17, text: 'Character dialogue', voice_id: 'Yukari', dialogue: true },
+    { scene_number: 66, text: 'Narration with a leftover actor', voice_id: 'Yukari', dialogue_override: false },
+];
+const mixedReadiness = subtitleTtsReadiness(mixedRows, row => row.dialogue === true, 'Sulafat');
+assert.deepEqual(mixedReadiness.issues[0].narrationIndexes, [2]);
+const mixedHtml = renderToStaticMarkup(React.createElement(Notice, {
+    subtitles: mixedRows, readiness: mixedReadiness, busy: false, locale: 'ko',
+    voices: new Map([['Yukari', 'Yukari'], ['Sulafat', 'Sulafat']]), onJump() {},
+}));
+assert(mixedHtml.includes('나레이션으로 지정된 씬 66 · 자막 1에 Yukari 성우가 함께 지정'));
+assert(!mixedHtml.includes('캐릭터에 맞는 다른 성우를 선택'));
+const correctedRows = mixedRows.map((row, index) => index === 2 ? { ...row, voice_id: 'Sulafat' } : row);
+assert.equal(subtitleTtsReadiness(correctedRows, row => row.dialogue === true, 'Sulafat').issues.length, 0);
+console.log('PASS: a leftover actor on a narration row identifies its exact location; correcting that narration clears the warning without changing character voices');
