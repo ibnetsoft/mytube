@@ -7538,6 +7538,15 @@ export default function StdPortalPage() {
         }
     }
 
+    // Completion uses the same seven saved steps as the row indicators.
+    // A submission timestamp records history, not whether the current work is finished.
+    const getListedProjectStepStatus = (project: any) => selectedProject?.project?.id === project.id && !project.submitted_at
+        ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
+        : getProjectStepStatus(project)
+    const completeProjects = projects.filter((project: any) => getListedProjectStepStatus(project).allDone)
+    const incompleteProjects = projects.filter((project: any) => !getListedProjectStepStatus(project).allDone)
+    const visibleProjects = projectsTab === 'complete' ? completeProjects : incompleteProjects
+
     const activeTopicTitleKeys = useMemo(() => {
         const keys = new Set(
             projects.map(p => String(p.title || '').trim().toLowerCase().replace(/\s+/g, ''))
@@ -8431,7 +8440,7 @@ export default function StdPortalPage() {
                                     >
                                         미완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'incomplete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projectsLoadError && !projects.length ? '—' : projects.filter((p: any) => !p.submitted_at).length}</span>
+                                        }`}>{projectsLoadError && !projects.length ? '—' : incompleteProjects.length}</span>
                                     </button>
                                     <button
                                         type="button"
@@ -8444,7 +8453,7 @@ export default function StdPortalPage() {
                                     >
                                         완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'complete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projectsLoadError && !projects.length ? '—' : projects.filter((p: any) => Boolean(p.submitted_at)).length}</span>
+                                        }`}>{projectsLoadError && !projects.length ? '—' : completeProjects.length}</span>
                                     </button>
                                 </div>
                             </div>
@@ -8491,7 +8500,7 @@ export default function StdPortalPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
-                                        {projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).map((p: any, idx: number) => {
+                                        {visibleProjects.map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id
                                             const localizedTitle = localizedProjectTitle(p, currentLocale)
                                             const projectCatName = (() => {
@@ -8577,9 +8586,7 @@ export default function StdPortalPage() {
                                                     </td>
                                                     {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
                                                     {(() => {
-                                                        const pStatus = isSelectedProj && !p.submitted_at
-                                                             ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-                                                             : getProjectStepStatus(p)
+                                                        const pStatus = getListedProjectStepStatus(p)
                                                         const isSubmitted = Boolean(p.submitted_at)
                                                         const hasSharedSubmission = Boolean(p.shared_submission)
                                                         const submitBlockers = [
@@ -8695,7 +8702,7 @@ export default function StdPortalPage() {
                                                 </tr>
                                             )
                                         })}
-                                        {!projectsLoadError && projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at).length === 0 && (
+                                        {!projectsLoadError && visibleProjects.length === 0 && (
                                             <tr>
                                                 <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
                                                     {projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}
