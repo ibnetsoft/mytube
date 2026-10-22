@@ -220,6 +220,7 @@ import { findExactSubtitleScene } from '@/lib/stdSubtitleSceneIntegrity'
 import { sceneDirectionBadges } from '@/lib/stdSceneDirection'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { assignSubtitleNarration, subtitleDialogueDisplayParts } from '@/lib/stdSubtitleNarration'
+import { createSaveBeforeNavigationGuard } from '@/lib/stdSaveBeforeNavigation'
 import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
@@ -1004,7 +1005,22 @@ export default function StdPortalPage() {
         if (value === 'tts') return 'subtitle_vrew'
         return STD_NAV_KEYS.includes(value as StdNavKey) ? value as StdNavKey : null
     }
-    const [currentNav, setCurrentNav] = useState<StdNavKey>(() => {
+    const [subtitleNavigationBusy, setSubtitleNavigationBusy] = useState(false)
+    const navigationBusyPanelRef = useRef<HTMLDivElement | null>(null)
+    useEffect(() => {
+        if (!subtitleNavigationBusy) return
+        const previous = document.activeElement as HTMLElement | null
+        navigationBusyPanelRef.current?.focus()
+        return () => { if (previous?.isConnected) previous.focus() }
+    }, [subtitleNavigationBusy])
+    const navigationConfigRef = useRef({ needsSave: (): boolean => false, save: async (): Promise<boolean> => true, onError: (_error: unknown) => {} })
+    const guardedNavigation = useMemo(() => createSaveBeforeNavigationGuard({
+        needsSave: () => navigationConfigRef.current.needsSave(),
+        save: () => navigationConfigRef.current.save(),
+        onError: error => navigationConfigRef.current.onError(error),
+        onBusy: setSubtitleNavigationBusy,
+    }), [])
+    const [currentNav, setCurrentNavRaw] = useState<StdNavKey>(() => {
         if (typeof window === 'undefined') return 'topics'
         const params = new URLSearchParams(window.location.search)
         return normalizeStdNav(params.get('tab') || params.get('page'))
@@ -1192,8 +1208,25 @@ export default function StdPortalPage() {
         setVrewNarrationVoice(savedStudioNarrator?.voice_id || 'gemini:Charon')
         setVoiceStudioDirection(savedStudioNarrator?.voice_direction || '')
     }, [selectedProject?.project?.id, savedStudioNarrator?.voice_id, savedStudioNarrator?.voice_direction])
+    const setCurrentNav = (next: StdNavKey) => { void guardedNavigation(() => setCurrentNavRaw(next)) }
+    useEffect(() => {
+        const followLink = (event: MouseEvent) => {
+            if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+            const anchor = (event.target as Element)?.closest?.('a[href]') as HTMLAnchorElement | null
+            if (!anchor || anchor.hasAttribute('download') || (anchor.target && anchor.target !== '_self')) return
+            const url = new URL(anchor.href, window.location.href)
+            if (!['http:', 'https:'].includes(url.protocol) || url.href === window.location.href || (url.origin === window.location.origin && url.pathname === window.location.pathname && url.search === window.location.search)) return
+            if (!navigationConfigRef.current.needsSave()) return
+            event.preventDefault(); event.stopPropagation()
+            void guardedNavigation(() => { window.location.assign(url.href) })
+        }
+        document.addEventListener('click', followLink, true)
+        return () => document.removeEventListener('click', followLink, true)
+    }, [guardedNavigation])
     const [isSubtitleSaved, setIsSubtitleSaved] = useState<boolean>(false)
-    const [subtitleSaveState, setSubtitleSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
+    const [subtitleSaveState, setSubtitleSaveStateRaw] = useState<'idle' | 'dirty' | 'saving' | 'saved' | 'error'>('idle')
+    const subtitleSaveStateRef = useRef(subtitleSaveState)
+    const setSubtitleSaveState = (next: typeof subtitleSaveState) => { subtitleSaveStateRef.current = next; setSubtitleSaveStateRaw(next) }
     const subtitleSaveRevisionRef = useRef(0)
     const subtitleTextSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const subtitleActiveProjectRef = useRef(selectedProject?.project?.id)
@@ -5051,7 +5084,8 @@ export default function StdPortalPage() {
         }
     }
 
-    const signOut = async () => {
+    const signOut = async () => { await guardedNavigation(signOutAfterSave) }
+    const signOutAfterSave = async () => {
         mediaScopeRef.current = { session: '', projectId: '', generation: mediaScopeRef.current.generation + 1 }
         revokeProjectMediaObjectUrls()
         localStorage.removeItem('std_active_project_state')
@@ -5547,12 +5581,23 @@ export default function StdPortalPage() {
         }
     }
 
+    navigationConfigRef.current = {
+        needsSave: () => Boolean(selectedProject?.project?.id && (subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current || ['dirty', 'saving', 'error'].includes(subtitleSaveStateRef.current))),
+        save: () => handleSaveSubtitles(false),
+        onError: error => {
+            const detail = error instanceof Error ? error.message : '변경사항을 저장하지 못했습니다.'
+            setMessage(`저장에 실패해 현재 화면에 머물렀습니다. ${detail}`)
+            setTtsNotice({ projectId: selectedProject?.project?.id || '', projectTitle: getProjectSyncedTitle(selectedProject) || '프로젝트', kind: 'subtitles', phase: 'error', detail: `저장에 실패해 이동하지 않았습니다. ${detail}` })
+        },
+    }
     const openProject = async (projectId: string, overrideToken?: string, overrideImpEmail?: string, forceRefresh = false): Promise<SelectedProjectPayload | null> => {
+        let opened: SelectedProjectPayload | null = null
+        await guardedNavigation(async () => { opened = await openProjectAfterSave(projectId, overrideToken, overrideImpEmail, forceRefresh) })
+        return opened
+    }
+    const openProjectAfterSave = async (projectId: string, overrideToken?: string, overrideImpEmail?: string, forceRefresh = false): Promise<SelectedProjectPayload | null> => {
         const requestedProjectId = String(projectId || '').trim()
         if (!requestedProjectId) return null
-        if (subtitleTextSaveTimerRef.current || subtitleStyleSaveTimerRef.current || ['dirty', 'saving', 'error'].includes(subtitleSaveState)) {
-            try { await handleSaveSubtitles(false) } catch { return null }
-        }
         setProjectLoading(true)
         setMessage('')
         const targetToken = overrideToken || token
@@ -7787,7 +7832,7 @@ export default function StdPortalPage() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => window.location.href = '/dashboard'}
+                                onClick={() => { void guardedNavigation(() => { window.location.assign('/dashboard') }) }}
                                 className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl text-xs font-black transition border border-white/20"
                             >
                                 관리자 대시보드로 복귀
@@ -8407,6 +8452,9 @@ export default function StdPortalPage() {
 
     return (
         <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
+            {subtitleNavigationBusy && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" role="dialog" aria-modal="true" aria-label={ui('변경사항 저장 중')} aria-busy="true" tabIndex={-1} ref={navigationBusyPanelRef} onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>
+                <div role="status" aria-live="polite" className="rounded-xl border border-white/20 bg-[#1c2027] p-6 text-sm text-white">{ui('변경사항을 저장한 뒤 이동합니다. 잠시 기다려 주세요.')}</div>
+            </div>}
             <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
             {topicProjectOpen && (
@@ -8697,7 +8745,7 @@ export default function StdPortalPage() {
                         </button>
                         <button
                             type="button"
-                            onClick={() => window.location.href = '/dashboard'}
+                            onClick={() => { void guardedNavigation(() => { window.location.assign('/dashboard') }) }}
                             className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-black transition shadow"
                         >
                             관리자 대시보드로 복귀
