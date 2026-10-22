@@ -187,7 +187,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if(motionAutomationEnabled(project)) {
         try { const run=await registerMotionAutomation(project,scenes,assets,auth.requester.user.id)
             return NextResponse.json({success:true,...run,postprocess_pending:true,motion_automation:true,
-                message:'제출 완료. 준비된 연출의 AE 실행 → 실제 출력 검수 → 최종 렌더가 진행됩니다.'},{status:202})
+                message:'제출 완료. 저장된 영상·이미지로 EC 효과 작업 후 최종 렌더링을 자동 진행합니다.'},{status:202})
         } catch(error:any) { return NextResponse.json({success:false,error:error.message},{status:409}) }
     }
     let preparedScenes: Map<number, any>

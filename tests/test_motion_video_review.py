@@ -31,3 +31,23 @@ def test_video_review_receives_time_aligned_input_frames(tmp_path,monkeypatch):
     plan={'scene':{'keys':[{'t':0},{'t':1}],'effects':[]}}
     result=worker.review_output(Reviewer(),source,reference,source,{'number':1,'start':0,'end':.5,'_source_video_path':str(source)},plan,tmp_path,lambda:None)
     assert result['passed'] and seen
+
+
+def test_user_disabled_review_never_invokes_reviewer(tmp_path):
+    output=tmp_path/'output.mp4';output.write_bytes(b'output')
+    source=tmp_path/'source.png';source.write_bytes(b'source')
+    voice=tmp_path/'voice.wav';voice.write_bytes(b'voice')
+    class ForbiddenReviewer:
+        def _stage(self,*args,**kwargs):raise AssertionError('Review must not run')
+    result=worker.review_output(ForbiddenReviewer(),output,source,voice,{'_skip_review':True},{},tmp_path,lambda:None)
+    assert result['skipped'] is True
+    assert result['status']=='not_reviewed_user_requested'
+    assert result['batches']==[]
+
+def test_no_review_direct_keeps_saved_effects_and_source():
+    scene={'number':1,'source_kind':'video','_skip_review':True,'prepared_direction':{'source':'image','fit':'contain','direction':'saved','keys':[{'t':0},{'t':1}],'effects':[{'type':'subtle_vignette'}],'transition':'cut'}}
+    result=worker.direct(None,{},scene,None,None,None,[],[])
+    assert result['scene']['source']=='video'
+    assert result['scene']['effects']==scene['prepared_direction']['effects']
+    assert result['ai'] is None
+    assert result['review_skipped'] is True

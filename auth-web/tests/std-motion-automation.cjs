@@ -5,6 +5,7 @@ function fixture(mode='ae_only') {
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
   if(name==='crypto')return crypto
+  if(name.includes('stdMotionSourceReuse'))return {recordedMotionSourceReuse:()=>null}
   if(name.endsWith('.json'))return JSON.parse(fs.readFileSync('lib/'+name.slice(2),'utf8'))
   if(name.includes('stdWorkflowBoundary'))return {assertPreparationFinished:()=>{}}
   if(name.includes('stdSceneExecution'))return {directedScene:()=>false,bindSceneDirection:()=>null}
@@ -54,3 +55,16 @@ test('EffectCraft freezes bounded post-submission supplementation while final vo
  assert.deepEqual(s.subtitles.map(r=>[r.start,r.end]),[[0,20]])
  assert.equal(f.calls.models,0)
 })
+
+test('EC defaults to existing stored video despite stale image choice and freezes no-review policy',async()=>{
+ const f=fixture('hybrid');f.project.project_payload.render_settings.motion.production_method='effectcraft';f.project.project_payload.render_settings.motion.scenes['1']={source:'image'};
+ f.assets.push({...f.image,id:'stored-video',asset_type:'video',metadata:{gcs_path:'stored.mp4'}});
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
+ assert.equal(s.scenes[0].source.id,'stored-video');assert.equal(s.scenes[0].source_kind,'video');assert.equal(s.scenes[0].source_reference_image.id,'image');
+ assert.equal(s.execution_policy.review_policy,'skip_user_requested/v1');assert.equal(s.motion.automation.mode,'ae_only');assert.equal(f.calls.models,0);assert.equal(s.model_ref,null);
+ assert.deepEqual(s.subtitles.map(x=>[x.start,x.end]),[[0,20]]);
+});
+test('EC falls back to stored image when video has no storage',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft';f.assets.push({...f.image,id:'missing-video',asset_type:'video',metadata:{}});
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.scenes[0].source_kind,'image');
+});

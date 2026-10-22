@@ -220,6 +220,8 @@ def direct(runner,snapshot,scene,preview,waveform,audio_info,neighbors,prior,fee
     if not isinstance(prepared,dict) or not all(key in prepared for key in ('keys','effects','fit','transition','direction')):
         raise NeedsReview('대본워커에서 AE 연출 계획을 준비한 뒤 다시 제출하세요.')
     prepared['source']=scene['source_kind']
+    if scene.get('_skip_review'):
+        return dict(number=scene['number'],scene=prepared,ai=None,evidence=['Review disabled by submission policy'],continuity={k:'Saved source preserved; review skipped' for k in ('entry','exit','screen_direction','lighting')},review_skipped=True)
     context={'_local_image_paths':[str(preview.resolve()),str(waveform.resolve()),*[str(p.resolve()) for p in neighbors]],
         'image_labels':['actual source','actual finalized voice waveform','neighbor source images'],
         'scene':{k:v for k,v in scene.items() if k!='source'},'subtitles':[s for s in snapshot['subtitles'] if int(s.get('scene_number',0))==scene['number']],
@@ -338,6 +340,8 @@ def verify_recorded_source_reuse(scene,source,old_voice,voice,audio_id):
 
 
 def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previous=None):
+    if scene.get('_skip_review'):
+        return {'passed':None,'skipped':True,'status':'not_reviewed_user_requested','method':'user_requested_review_bypass','render_sha256':digest(output),'source_preview_sha256':digest(reference),'final_voice_sha256':digest(voice),'batches':[]}
     from ae_scene_review_contract import valid_review
     from ae_media_utils import ffmpeg,run
     import numpy as np
@@ -505,6 +509,9 @@ def process_one(engine='ae'):
     directory=worker_config.PROJECT_ROOT/'output'/'codex-local-console'/'motion-automation'/job['id'];directory.mkdir(parents=True,exist_ok=True)
     try:
         snapshot=unseal(meta['input'])
+        if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1':
+            from motion_media_storage import media_directory
+            directory=media_directory(directory)
         if (snapshot.get('renderer',{}).get('engine')=='effectcraft')!=(engine=='effectcraft'):raise NeedsReview('Worker queue and renderer do not match')
         if snapshot.get('renderer',{}).get('engine')=='effectcraft':
             from effectcraft_render import binary
@@ -524,6 +531,7 @@ def process_one(engine='ae'):
         voice=download(snapshot['audio'],'final-voice');sources={};previews={};references={}
         for scene in snapshot['scenes']:
             fresh();number=scene['number'];sources[number]=download(scene['source'],f'source-{number}')
+            scene['_skip_review']=(meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1'
             repair=(meta.get('source_repairs') or {}).get(str(number))
             if repair:
                 from motion_source_repair import validate_repair,verify_repair
@@ -560,7 +568,7 @@ def process_one(engine='ae'):
             receipt=work/'reviewed-receipt.json'
             old=json.loads(receipt.read_text(encoding='utf-8')) if receipt.exists() else None
             from ec_supplemental_assets import output_cache_is_current
-            if old and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and output_cache_is_current(old) and old.get('review',{}).get('passed') is True and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
+            if old and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and output_cache_is_current(old) and (old.get('review',{}).get('passed') is True or (scene.get('_skip_review') and old.get('review',{}).get('skipped') is True)) and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
                 results=[r for r in results if r['number']!=number]+[old]
                 previous=Path(old['last_frame']);continue
             plan=next((p for p in plans if p['number']==number),None)
@@ -590,7 +598,7 @@ def process_one(engine='ae'):
                     visual=insert_ai(visual,generated,plan['ai'],attempt_dir,snapshot['motion']['fps'])
                 output=media_directory(attempt_dir)/'voice-synced.mp4'
                 run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
-                save(phase='review',progress=f'{index+1}/{len(snapshot["scenes"])}씬 실제 출력 검수')
+                save(phase='production' if scene.get('_skip_review') else 'review',progress=f'{index+1}/{len(snapshot["scenes"])}씬 EC 작업 완료' if scene.get('_skip_review') else f'{index+1}/{len(snapshot["scenes"])}씬 실제 출력 검수')
                 review_plan=plan
                 if snapshot.get('renderer',{}).get('engine')=='effectcraft':
                     executed=(scene.get('preparation') or {}).get('metadata',{}).get('result',{}).get('plan')
@@ -653,6 +661,7 @@ def process_one(engine='ae'):
         if abs(len(final_audio)/8000-snapshot['scenes'][-1]['end'])>.12 or not math.isfinite(correlation) or correlation<.5:raise NeedsReview('Final soundtrack no longer preserves the recorded narration')
         final_reviews=[]
         for index,scene in enumerate(snapshot['scenes']):
+            if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1':continue
             segment=media_directory(final_dir)/f'review-{scene["number"]}.mp4'
             run([ffmpeg(),'-v','error','-y','-ss',str(scene['start']),'-i',str(output),'-t',str(scene['end']-scene['start']),'-c:v','libx264','-c:a','aac',str(segment)])
             # Final soundtrack may intentionally contain BGM/SFX; identity of voice is already checked per scene.
@@ -673,6 +682,7 @@ def process_one(engine='ae'):
         fresh();output_hash=digest(output)
         bucket,key,_=ae._upload_gcs_file(output,f'std-motion/{job["id"]}/final/{output_hash}.mp4','video/mp4')
         review={'passed':True,'render_sha256':output_hash,'final_voice_sha256':digest(voice),'scenes':final_reviews,'reviewer':'local_codex_cli','method':'actual_frames_and_decoded_voice',**({'renderer':snapshot['renderer']} if snapshot.get('renderer') else {})}
+        if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1':review.update(passed=None,skipped=True,status='not_reviewed_user_requested',reviewer=None,method='user_requested_review_bypass')
         save_json(final_dir/'automation-review.json',review)
         review_bucket,review_key,_=ae._upload_gcs_file(final_dir/'automation-review.json',f'std-motion/{job["id"]}/final/{output_hash}-review.json','application/json')
         # Stable asset ID permits safe recovery after upload without duplicate final assets.

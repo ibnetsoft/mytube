@@ -50,7 +50,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (motionAutomationEnabled(project)) {
             const run = await registerMotionAutomation(project, scenes.data || [], assets.data || [], auth.requester.user.id, true)
             return NextResponse.json({ success: true, ...run, postprocess_pending: true, motion_automation: true,
-                message: 'EC/AE 효과 생성과 실제 출력 검수 후 최종 렌더링이 진행됩니다.' }, { status: 202 })
+                message: '저장된 영상·이미지에 효과 작업 후 최종 렌더링이 자동으로 진행됩니다.' }, { status: 202 })
         }
         if (hasAeSceneIntent(project, scenes.data || [], assets.data || [])) {
             return NextResponse.json({ success: false, code: 'AE_SCENE_SUBMISSION_REQUIRED',
