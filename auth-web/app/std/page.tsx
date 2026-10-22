@@ -5,6 +5,7 @@ import { subtitleSpeakerProgress, missingSpeakerSubtitleIndexes } from '@/lib/st
 import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
+import { listedProjectStepStatus, projectListThumbnailUrl } from '@/lib/stdProjectListDisplay'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
@@ -822,6 +823,8 @@ export default function StdPortalPage() {
     const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
     const [projectsLoadError, setProjectsLoadError] = useState('')
+    const [projectsRefreshing, setProjectsRefreshing] = useState(false)
+    const [projectsRefreshKey, setProjectsRefreshKey] = useState(0)
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const comicProject = isComicProject(selectedProject?.project)
     const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
@@ -1784,6 +1787,29 @@ export default function StdPortalPage() {
         return headers
     }, [token, isImpersonating, impersonateEmail])
 
+    useEffect(() => {
+        if (!topicProjectOpen || !token) return
+        let active = true
+        const controller = new AbortController()
+        const timeout = window.setTimeout(() => controller.abort(), 15000)
+        setProjectsRefreshing(true)
+        setProjectsLoadError('')
+        void fetch('/api/std/projects', { headers: authedJsonHeaders, cache: 'no-store', signal: controller.signal })
+            .then(async response => {
+                const result = await response.json()
+                if (!response.ok || result.success !== true || !Array.isArray(result.projects)) throw new Error('Invalid project list')
+                if (active) setProjects(result.projects)
+            }).catch(() => {
+                if (active) setProjectsLoadError('프로젝트 목록을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.')
+            }).finally(() => {
+                window.clearTimeout(timeout)
+                if (active) setProjectsRefreshing(false)
+            })
+        return () => { active = false; controller.abort(); window.clearTimeout(timeout) }
+    }, [topicProjectOpen, token, authedJsonHeaders, projectsRefreshKey])
+
+    const openProjectList = () => { setProjectsRefreshing(true); setTopicProjectOpen(true) }
+
     const authedUploadHeaders = useMemo<Record<string, string>>(() => {
         const headers: Record<string, string> = {
             Authorization: `Bearer ${token}`,
@@ -2134,7 +2160,7 @@ export default function StdPortalPage() {
             rememberProjectState(updated)
             return updated
         })
-        setProjects(prev => prev.map(project => project.id === currentProjectId ? { ...project, title: nextTitle } : project))
+        // The project list reloads saved titles when opened; drafts stay in the editor.
 
         if (options.persist !== false) {
             persistProjectTitle(currentProjectId, nextTitle.trim() || 'Untitled Project')
@@ -4553,12 +4579,7 @@ export default function StdPortalPage() {
 
             if (preferredProjectId) {
                 const openedProject = await openProject(preferredProjectId, accessToken, undefined, options.forceRefresh).catch(() => null)
-                if (openedProject?.project?.id) {
-                    setProjects(prev => [
-                        openedProject.project,
-                        ...prev.filter(p => p.id !== openedProject.project.id),
-                    ])
-                } else if (!urlProjectId && loadedProjects.length > 0 && loadedProjects[0].id !== preferredProjectId) {
+                if (!openedProject?.project?.id && !urlProjectId && loadedProjects.length > 0 && loadedProjects[0].id !== preferredProjectId) {
                     await openProject(loadedProjects[0].id, accessToken, undefined, options.forceRefresh).catch(() => {})
                 }
             } else if (loadedProjects.length > 0) {
@@ -4581,10 +4602,6 @@ export default function StdPortalPage() {
                             })
                         }
                         setSelectedProject(cleanedProject)
-                        setProjects(prev => {
-                            const exists = prev.some(p => p.id === cleanedProject.project.id)
-                            return exists ? prev : [cleanedProject.project, ...prev]
-                        })
                         setCustomScriptText(cleanScriptContextText(cleanedProject.project.project_payload?.script || ''))
                         restorePersistedProjectMedia(cleanedProject, headers).catch(() => {})
                     }
@@ -4595,7 +4612,7 @@ export default function StdPortalPage() {
                 const firstRealTopic = loadedTopics[0]
                 const loaded = buildProjectFromSupabaseTopic(firstRealTopic)
                 setSelectedProject(loaded)
-                setProjects([loaded.project])
+                setProjects([])
                 setCustomScriptText(cleanScriptContextText(loaded.project.project_payload?.script || ''))
                 rememberProjectState(loaded)
             }
@@ -4679,7 +4696,7 @@ export default function StdPortalPage() {
                         const built = buildProjectFromSupabaseTopic(loadedTopics[0])
                         built.project.title = `[${cleanEmail.split('@')[0]}] ` + built.project.title
                         setSelectedProject(built)
-                        setProjects([built.project])
+                        setProjects([])
                         setCustomScriptText(cleanScriptContextText(built.project.project_payload?.script || ''))
                     }
                 } catch (err) {
@@ -7540,12 +7557,10 @@ export default function StdPortalPage() {
 
     // Completion uses the same seven saved steps as the row indicators.
     // A submission timestamp records history, not whether the current work is finished.
-    const getListedProjectStepStatus = (project: any) => selectedProject?.project?.id === project.id && !project.submitted_at
-        ? getProjectStepStatus(selectedProject, selectedProject?.scenes || [], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl)
-        : getProjectStepStatus(project)
+    const getListedProjectStepStatus = listedProjectStepStatus
     const completeProjects = projects.filter((project: any) => getListedProjectStepStatus(project).allDone)
     const incompleteProjects = projects.filter((project: any) => !getListedProjectStepStatus(project).allDone)
-    const visibleProjects = projectsTab === 'complete' ? completeProjects : incompleteProjects
+    const visibleProjects = projectsRefreshing || projectsLoadError ? [] : projectsTab === 'complete' ? completeProjects : incompleteProjects
 
     const activeTopicTitleKeys = useMemo(() => {
         const keys = new Set(
@@ -8440,7 +8455,7 @@ export default function StdPortalPage() {
                                     >
                                         미완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'incomplete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projectsLoadError && !projects.length ? '—' : incompleteProjects.length}</span>
+                                        }`}>{projectsRefreshing ? '…' : projectsLoadError ? '—' : incompleteProjects.length}</span>
                                     </button>
                                     <button
                                         type="button"
@@ -8453,7 +8468,7 @@ export default function StdPortalPage() {
                                     >
                                         완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'complete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projectsLoadError && !projects.length ? '—' : completeProjects.length}</span>
+                                        }`}>{projectsRefreshing ? '…' : projectsLoadError ? '—' : completeProjects.length}</span>
                                     </button>
                                 </div>
                             </div>
@@ -8472,7 +8487,7 @@ export default function StdPortalPage() {
                             {projectsLoadError && (
                                 <div role="alert" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
                                     {projectsLoadError}
-                                    <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={() => void loadStdData(token, { forceRefresh: true })}>다시 불러오기</button>
+                                    <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={() => setProjectsRefreshKey(value => value + 1)}>다시 불러오기</button>
                                 </div>
                             )}
                             <div className="bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">
@@ -8504,18 +8519,8 @@ export default function StdPortalPage() {
                                             const isSelectedProj = selectedProject?.project?.id === p.id
                                             const localizedTitle = localizedProjectTitle(p, currentLocale)
                                             const projectCatName = String(p.category_name || '').trim() || '미분류'
-                                            const projectThumbnailUrl = sanitizeAssetUrl(
-                                                p.progress_payload?.thumbnail_url
-                                                || p.project_payload?.thumbnail_url
-                                                || p.project_payload?.thumbnail_design?.thumbnail_url
-                                                || p.project_payload?.thumbnail_design?.bg_url
-                                            )
-                                            const submittedAt = p.submitted_at || p.shared_submission?.submitted_at
-                                            const latestSubmittedVersion = Math.max(
-                                                0,
-                                                Number(p.progress_payload?.latest_render_version) || 0,
-                                                submittedAt ? 1 : 0,
-                                            )
+                                            const projectThumbnailUrl = projectListThumbnailUrl(p.thumbnail_url, isImpersonating ? impersonateEmail : null)
+                                            const latestSubmittedVersion = Number(p.latest_render_version) || 0
                                             const isRenderSuccessHighlighted = renderSubmissionNotice?.phase === 'success' && renderSubmissionNotice.projectId === String(p.id)
                                             return (
                                                 <tr
@@ -8531,18 +8536,11 @@ export default function StdPortalPage() {
                                                     }`}
                                                 >
                                                     <td className="px-2 py-1.5 text-center">
-                                                        {projectThumbnailUrl ? (
-                                                            <img
-                                                                src={projectThumbnailUrl}
-                                                                alt=""
-                                                                className="w-9 h-7 object-cover rounded border border-white/10 mx-auto"
-                                                                onError={event => { event.currentTarget.style.display = 'none' }}
-                                                            />
-                                                        ) : (
-                                                            <div className="w-9 h-7 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto">
-                                                                <ImageIcon className="w-3.5 h-3.5" />
-                                                            </div>
-                                                        )}
+                                                        <div className="relative w-9 h-7 rounded border border-white/10 bg-[#14181f] text-gray-600 flex items-center justify-center mx-auto overflow-hidden">
+                                                            <ImageIcon className="w-3.5 h-3.5" />
+                                                            {projectThumbnailUrl && <img key={projectThumbnailUrl} src={projectThumbnailUrl} alt="" className="absolute inset-0 h-full w-full object-cover"
+                                                                onError={event => { event.currentTarget.style.display = 'none' }} />}
+                                                        </div>
                                                     </td>
                                                     <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
                                                         <input type="checkbox" className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
@@ -8559,7 +8557,7 @@ export default function StdPortalPage() {
                                                         {formatProjectListDate(p.created_at)}
                                                     </td>
                                                     <td className="px-2 py-2 text-center text-gray-400 font-mono text-[11px] whitespace-nowrap">
-                                                        {formatProjectListDate(submittedAt)}
+                                                        {formatProjectListDate(p.updated_at)}
                                                     </td>
                                                     <td className="px-3 py-2 text-gray-300 max-w-sm font-medium group-hover:text-blue-400 transition-colors" title={localizedTitle ? `${p.title}\n${localizedTitle}` : p.title}>
                                                         <div className="max-w-sm truncate">{p.title}</div>
@@ -8627,7 +8625,7 @@ export default function StdPortalPage() {
                                                                                     ? 'border-emerald-300/70 bg-emerald-500/25 text-emerald-100 shadow-emerald-500/30 ring-2 ring-emerald-300/40 animate-pulse'
                                                                                     : 'border-indigo-400/40 bg-indigo-500/15 text-indigo-200 shadow-indigo-950/30 hover:border-indigo-300/70 hover:bg-indigo-500/30 hover:text-white'
                                                                             }`}
-                                                                            title="완료 상태를 유지한 채 새 렌더 버전을 원격 렌더 큐에 등록합니다."
+                                                                            title="현재 저장된 프로젝트의 새 렌더 버전을 요청합니다. 필수 조건을 다시 확인합니다."
                                                                         >
                                                                             {isRenderSuccessHighlighted ? (
                                                                                 <Check className="h-3.5 w-3.5 animate-in zoom-in-50 duration-150" />
@@ -8683,9 +8681,10 @@ export default function StdPortalPage() {
                                                 </tr>
                                             )
                                         })}
-                                        {!projectsLoadError && visibleProjects.length === 0 && (
+                                        {projectsRefreshing && <tr><td colSpan={16} className="px-4 py-10 text-center text-gray-400" role="status">최신 저장 상태를 불러오는 중…</td></tr>}
+                                        {!projectsRefreshing && !projectsLoadError && visibleProjects.length === 0 && (
                                             <tr>
-                                                <td colSpan={15} className="px-4 py-10 text-center text-xs text-gray-500">
+                                                <td colSpan={16} className="px-4 py-10 text-center text-xs text-gray-500">
                                                     {projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}
                                                 </td>
                                             </tr>
@@ -8743,7 +8742,7 @@ export default function StdPortalPage() {
                         <span className="text-xs text-gray-400 font-bold">·</span>
                         <button
                             type="button"
-                            onClick={() => setTopicProjectOpen(true)}
+                            onClick={openProjectList}
                             className="text-xs font-bold text-gray-200 truncate hover:text-blue-300 transition-colors text-left"
                             title={getProjectSyncedTitle(selectedProject) || t('nav_topics') || ui('주제')}
                         >
@@ -8858,7 +8857,7 @@ export default function StdPortalPage() {
                             </div>
 
                             <div className="p-3 border-b border-white/5 bg-[#13171e]">
-                                <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
+                                <button type="button" onClick={() => { openProjectList(); setMobileMenuOpen(false) }}
                                     className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
                                     {projectTitleContent(selectedProject, t('nav_topics') || ui('주제'))}
                                 </button>
@@ -8956,7 +8955,7 @@ export default function StdPortalPage() {
                     </div>
 
                     <div className="p-3 border-b border-white/5 bg-[#13171e]">
-                        <button type="button" onClick={() => { setTopicProjectOpen(true); setMobileMenuOpen(false) }}
+                        <button type="button" onClick={() => { openProjectList(); setMobileMenuOpen(false) }}
                             className="w-full rounded-lg border border-blue-400/40 bg-blue-500/15 px-3 py-2 text-left text-sm font-bold text-blue-200 hover:bg-blue-500/25">
                             {projectTitleContent(selectedProject, t('nav_topics') || ui('주제'))}
                         </button>
@@ -9012,7 +9011,7 @@ export default function StdPortalPage() {
                                 <button className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white" onClick={() => {
                                     const projectId = readUrlProjectId() || projects[0]?.id
                                     if (projectId) void openProject(projectId)
-                                    else setTopicProjectOpen(true)
+                                    else openProjectList()
                                 }}>
                                     {{ ko: '다시 불러오기', en: 'Reload project', vi: 'Tải lại dự án', th: 'โหลดโปรเจกต์อีกครั้ง' }[currentLocale]}
                                 </button>

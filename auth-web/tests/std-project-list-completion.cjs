@@ -3,15 +3,15 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const ts = require('typescript')
+const { listedProjectStepStatus } = require('./load-ts.cjs')(path.join(__dirname, '../lib/stdProjectListDisplay.ts'))
 
 const page = fs.readFileSync(path.join(__dirname, '../app/std/page.tsx'), 'utf8')
 const start = page.indexOf('    const getListedProjectStepStatus =')
 const end = page.indexOf('    const activeTopicTitleKeys =', start)
 assert(start >= 0 && end > start)
 const code = ts.transpileModule(page.slice(start, end) + '\nreturn { completeProjects, incompleteProjects, visibleProjects, getListedProjectStepStatus }', { compilerOptions: { target: 9 } }).outputText
-function classify(projects, projectsTab, selectedProject = null) {
-    const getProjectStepStatus = p => p.project?.step_status || p.step_status
-    return new Function('projects', 'projectsTab', 'selectedProject', 'getProjectStepStatus', 'audioResultUrl', 'customScriptText', 'localSubtitles', 'thumbBgUrl', code)(projects, projectsTab, selectedProject, getProjectStepStatus, '', '', [], '')
+function classify(projects, projectsTab, selectedProject = null, projectsRefreshing = false, projectsLoadError = '') {
+    return new Function('projects', 'projectsTab', 'selectedProject', 'listedProjectStepStatus', 'projectsRefreshing', 'projectsLoadError', code)(projects, projectsTab, selectedProject, listedProjectStepStatus, projectsRefreshing, projectsLoadError)
 }
 const project = (id, submitted_at, allDone) => ({ id, submitted_at, step_status: { allDone } })
 
@@ -28,10 +28,16 @@ test('submitted projects with missing steps stay unfinished; fully ready work is
     assert.deepEqual(classify(rows, 'incomplete').visibleProjects, result.incompleteProjects)
 })
 
-test('active project classification uses the same status as its row indicators', () => {
+test('opening an editor or changing its draft does not override saved list completion', () => {
     const row = project('active', null, true)
     const result = classify([row], 'incomplete', { project: project('active', null, false) })
-    assert.equal(result.getListedProjectStepStatus(row).allDone, false)
-    assert.deepEqual(result.visibleProjects, [row])
-    assert.equal(result.completeProjects.length, 0)
+    assert.equal(result.getListedProjectStepStatus(row).allDone, true)
+    assert.deepEqual(result.visibleProjects, [])
+    assert.equal(result.completeProjects.length, 1)
+})
+
+test('refresh and failure states hide stale rows instead of claiming an empty or current list', () => {
+    const row = project('old', null, true)
+    assert.deepEqual(classify([row], 'complete', null, true).visibleProjects, [])
+    assert.deepEqual(classify([row], 'complete', null, false, 'unavailable').visibleProjects, [])
 })
