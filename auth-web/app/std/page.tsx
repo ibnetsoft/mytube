@@ -7834,29 +7834,9 @@ export default function StdPortalPage() {
                             ))}
                         </div>
 
-                        <h1 className="text-2xl font-black text-white mb-6">
-                            {authMode === 'login' ? t('auth_login_title') : t('auth_signup_title')}
-                        </h1>
-
-                        <div className="-mt-4 mb-5 flex items-center gap-3 text-[11px] font-bold text-cyan-300">
-                            <a
-                                href="/terms"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline underline-offset-4 hover:text-cyan-200"
-                            >
-                                서비스 이용약관
-                            </a>
-                            <span aria-hidden="true" className="text-cyan-500/70">·</span>
-                            <a
-                                href="/privacy"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="underline underline-offset-4 hover:text-cyan-200"
-                            >
-                                개인정보처리방침
-                            </a>
-                        </div>
+                        {authMode !== 'login' && <h1 className="text-2xl font-black text-white mb-6">
+                            {t('auth_signup_title')}
+                        </h1>}
 
                         {/* 탭 전환 (로그인 / 회원가입 신청) */}
                         <div className="grid grid-cols-2 gap-2 w-full mb-6">
@@ -7954,7 +7934,7 @@ export default function StdPortalPage() {
                                 </button>
 
                                 {/* 비밀번호 찾기 */}
-                                <div className="text-center pt-1">
+                                <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 pt-1 text-xs font-normal text-gray-400">
                                     <button
                                         type="button"
                                         onClick={() => setForgotModalOpen(true)}
@@ -7962,6 +7942,14 @@ export default function StdPortalPage() {
                                     >
                                         {t('auth_btn_forgot')}
                                     </button>
+                                    <span aria-hidden="true">·</span>
+                                    <a href="/terms" target="_blank" rel="noreferrer" className="text-xs text-gray-400 hover:text-blue-400 transition underline underline-offset-2">
+                                        서비스 이용약관
+                                    </a>
+                                    <span aria-hidden="true">·</span>
+                                    <a href="/privacy" target="_blank" rel="noreferrer" className="text-xs text-gray-400 hover:text-blue-400 transition underline underline-offset-2">
+                                        개인정보처리방침
+                                    </a>
                                 </div>
                             </form>
                         ) : (

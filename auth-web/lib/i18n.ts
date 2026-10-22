@@ -22,7 +22,7 @@ export const I18N_DICTIONARY: Record<SupportedLocale, LocaleStrings> = {
         auth_remember_pw: '비밀번호 저장',
         auth_btn_login: '로그인',
         auth_btn_logging_in: '로그인 처리 중...',
-        auth_btn_forgot: '비밀번호를 잊으셨나요?',
+        auth_btn_forgot: '비밀번호찾기',
         auth_ph_name: '이름 / Full name',
         auth_ph_contact: '연락처 / Phone, Zalo, Kakao',
         auth_btn_send_verify: '인증 발송',
