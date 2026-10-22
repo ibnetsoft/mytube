@@ -654,7 +654,7 @@ def process_one(engine='ae'):
         output=Path(render_motion(temp_dir=str(final_dir),images=[r['path'] for r in ordered],durations=[s['end']-s['start'] for s in snapshot['scenes']],
             audio_path=str(voice),subtitles=snapshot['subtitles'],settings=settings,resolution=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080),scene_numbers=[s['number'] for s in snapshot['scenes']],sfx_cues=cues,template_overlay_path=str(overlay) if overlay else None))
         # Review the actual assembled output as well; captions/boundaries can fail after good individual clips.
-        save(phase='final_review',progress='최종 자막·장면 연결·음향 검수')
+        save(phase='finalizing' if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1' else 'final_review',progress='최종 파일 저장 준비' if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1' else '최종 자막·장면 연결·음향 검수')
         import numpy as np
         source_audio=pcm(voice);final_audio=pcm(output);length=min(len(source_audio),len(final_audio))
         correlation=float(np.corrcoef(source_audio[:length],final_audio[:length])[0,1]) if np.std(source_audio[:length])>1 else 1.
