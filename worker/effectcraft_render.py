@@ -61,6 +61,8 @@ def _scene_script(data):
         # Generic effect coordinates are in the output viewport, unlike prepared PSD source coordinates.
         body+='\nW=O.width;H=O.height;applySceneEffects(comp,{original:view});\n'
         body+='\nfor(var o=0;o<S.opacity.length;o++){key(opacity,S.opacity[o].t,S.opacity[o].opacity);}linear(opacity);\n'
+        if data.get('video_tail'):
+            body+='\nvar tail=source.layers.add(app.project.importFile(new ImportOptions(new File(S.video_tail.path))));tail.name="original_last_frame_hold";tail.inPoint=S.video_tail.start;tail.outPoint=S.duration;\n'
         if data.get('flash'):
             body+='\nvar flash=comp.layers.addSolid([1,1,1],"entry_flash",O.width,O.height,1,S.duration);var alpha=flash.transform.opacity;key(alpha,0,100);key(alpha,.08,0);linear(alpha);\n'
     return 'var S='+json.dumps(data,ensure_ascii=True,allow_nan=False)+';\n(function(){\n'+helpers+body+'\n})();\n'
@@ -82,12 +84,22 @@ def render_scene(snapshot,scene,plan,source,directory,fresh):
         if prepared['plan']['output']!=output:raise ValueError('Prepared PSD output differs from submitted orientation')
         data={'plan':prepared['plan'],'layers':resolved_layers(prepared['plan']),'files':{key:str(path.resolve()) for key,path in prepared['layers'].items()},'fit':'cover'}
     else:
-        source=Path(source);local=directory/('original'+source.suffix.lower());shutil.copy2(source,local)
+        source=Path(source);local=directory/('original'+source.suffix.lower())
+        if not local.exists():
+            try:os.link(source,local)
+            except OSError:shutil.copy2(source,local)
+        video_tail=None
         if scene['source_kind']=='video':
             from moviepy import VideoFileClip
             with VideoFileClip(str(local),audio=False) as video:
                 width,height=map(int,video.size)
-                if video.duration+1/fps<duration:raise ValueError('기존 영상이 확정 음성 구간보다 짧습니다. 부족한 프레임을 임의 생성하지 않습니다.')
+                if video.duration+1/fps<duration:
+                    # Preserve original playback and the finalized voice clock; only
+                    # hold the real last frame, never loop or invent body motion.
+                    from PIL import Image
+                    last=directory/'original-last-frame.png'
+                    Image.fromarray(video.get_frame(max(0,video.duration-1/video.fps))).save(last)
+                    video_tail={'path':str(last),'start':video.duration,'policy':'hold_original_last_frame'}
         else:
             from PIL import Image,ImageOps
             with Image.open(local) as image:
@@ -100,14 +112,16 @@ def render_scene(snapshot,scene,plan,source,directory,fresh):
         opacity=[dict(t=t,opacity=pose_at(motion['keys'],t)['opacity']*(min(1,t/.08) if motion['transition']=='fade' else 1)) for t in opacity_times]
         data={'plan':{'width':width,'height':height,'output':output,'layers':layers,'camera':motion['keys'],'effects':[{**e,'reason':motion['direction'] or 'Saved scene direction'} for e in motion['effects']],
               'lights':[],'transition':{'in':'cut','out':'cut','fraction':.08}},'layers':layers,'files':{'original':str(local)},'fit':motion['fit'],'generic':True,'opacity':opacity,'flash':motion['transition']=='flash'}
+        if video_tail:data['video_tail']=video_tail
     data.update(duration=duration,fps=fps)
     if plan.get('_supplemental_package'):
         from ec_supplemental_assets import attach
         data=attach(data,plan['_supplemental_package'],source,directory)
     script=directory/'scene.effectcraft.jsx';script.write_text(_scene_script(data),encoding='utf-8')
-    project=directory/'scene.ecproj';output_file=directory/'base.mp4'
+    from motion_media_storage import media_directory
+    project=directory/'scene.ecproj';output_file=media_directory(directory)/'base.mp4'
     for prior in (project,output_file):
-        if prior.is_file():prior.replace(directory/(prior.stem+'-'+sha(prior)[:16]+'.previous'+prior.suffix))
+        if prior.is_file():prior.replace(prior.with_name(prior.stem+'-'+sha(prior)[:16]+'.previous'+prior.suffix))
     fresh();_execute(cli,['script','--eval','null','--empty','--save-as',str(project),'--json'],directory,'initialize-project')
     fresh();_execute(cli,['script',str(script),'--project',str(project),'--save','--json'],directory,'create-project')
     if not project.is_file():raise ValueError('EffectCraft did not save the editable project')
