@@ -8,6 +8,16 @@ const ffmpeg=req('ffmpeg-static');
 (async()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'air-mp3-test-'));try{
 const clips=[44100,24000,44100].map((rate,i)=>{const file=path.join(dir,i+'.mp3');cp.execFileSync(ffmpeg,['-v','error','-f','lavfi','-i',`sine=frequency=${440+i*220}:duration=0.6:sample_rate=${rate}`,'-ac',i===2?'2':'1','-b:a',rate===24000?'64k':'128k',file]);return fs.readFileSync(file)});
 const result=await finalizeNarrationMp3(clips),total=result.durations.reduce((a,b)=>a+b,0),frames=joinMp3Segments([result.audioBuffer]);
+const {prepareStoredNarration,assembleStoredNarration}=load(path.resolve(__dirname,'../lib/stdStoredNarration.ts'));
+const segments=clips.map((_,i)=>({text:`segment ${i}`,voiceId:'saved-voice'}));
+let downloads=0;
+const resolve=async(_s,index,cacheOnly)=>{assert(cacheOnly,'Saved audio must not be regenerated');return {asset:{index},cached:true}};
+assert.deepEqual(await prepareStoredNarration(segments,resolve),{prepared:3,reused:3,generated:0});
+assert.equal(downloads,0);
+const final=await assembleStoredNarration(segments,{resolve,read:async asset=>{downloads++;return clips[asset.index]}},{allowGenerate:false});
+assert.equal(downloads,3,'Only final assembly reads each source recording once');
+assert.deepEqual(final.audioBuffer,result.audioBuffer,'Metadata-only preparation keeps final MP3 bytes identical');
+assert.deepEqual(final.timeline.map(row=>row.end-row.start).map(n=>Math.round(n*1e8)),result.durations.map(n=>Math.round(n*1e8)),'Each subtitle keeps the same frame-derived duration');
 assert.ok(Math.abs(mp3FrameDuration(frames)-total)<0.00001);
 assert.ok(result.audioBuffer.includes(Buffer.from('Info'))||result.audioBuffer.includes(Buffer.from('Xing')),'final join must contain a duration/seek header');
 const file=path.join(dir,'final.mp3');fs.writeFileSync(file,result.audioBuffer);

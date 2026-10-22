@@ -5,7 +5,7 @@ import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { assetContentIdentity, bindProjectContent, persistContentRevision, fileContentHash } from '@/lib/stdContentIdentity'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { NextResponse } from 'next/server'
-import { assembleStoredNarration } from '@/lib/stdStoredNarration'
+import { assembleStoredNarration, prepareStoredNarration } from '@/lib/stdStoredNarration'
 import { NARRATION_BATCH_SIZE } from '@/lib/stdNarrationBatch'
 import { completedScriptTtsProgress } from '@/lib/stdTtsCompletion'
 import { createHash, randomUUID } from 'crypto'
@@ -904,7 +904,7 @@ async function runTts(body: any, auth: any, project: any) {
                     }
                 }
             }
-            const assembled = await assembleStoredNarration(voiceSegments, {
+            const narrationIo: Parameters<typeof assembleStoredNarration>[1] = {
                 resolve: async (segment, index, cacheOnly) => {
                     if (assembleOnly) {
                         const asset = preparedAssets.get(segmentKey(segment))
@@ -957,14 +957,17 @@ async function runTts(body: any, auth: any, project: any) {
                     }
                     throw new Error('저장된 음성 파일을 읽을 수 없습니다.')
                 },
-            }, { allowGenerate: !assembleOnly })
+            }
+            if (prepareOnly) {
+                stage = 'prepare_segment_references'
+                const prepared = await prepareStoredNarration(voiceSegments, narrationIo.resolve)
+                return NextResponse.json({ success: true, prepared: prepared.prepared,
+                    segment_reuse: { reused: prepared.reused, generated: prepared.generated } })
+            }
+            const assembled = await assembleStoredNarration(voiceSegments, narrationIo, { allowGenerate: !assembleOnly })
             audioBuffer = assembled.audioBuffer
             subtitleTimeline = assembled.timeline
             segmentReuse = { reused: assembled.reused, generated: assembled.generated }
-            if (prepareOnly) {
-                // No full narration asset or project completion update until the final join.
-                return NextResponse.json({ success: true, prepared: voiceSegments.length, segment_reuse: segmentReuse })
-            }
         } else if (provider === 'google_free' || voiceId.startsWith('google_')) {
             stage = 'generate_google_free'
             const projectLang = String(

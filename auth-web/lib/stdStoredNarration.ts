@@ -17,6 +17,48 @@ async function boundedWork(count: number, concurrency: number, work: (index: num
     if (failure) throw failure
 }
 
+const segmentIdentity = (s: Segment) => JSON.stringify([s.voiceId, s.direction || '', s.text, ...(s.performance ? [s.performance] : [])])
+
+/** Prepare asset references only. Audio bytes and MP3 work belong to the final join. */
+export async function prepareStoredNarration(segments: Segment[], resolve: (
+    segment: Segment, index: number, cacheOnly: boolean,
+) => Promise<Resolved | null>) {
+    const deadline = Date.now() + 270_000
+    const assets: (Resolved | null)[] = Array(segments.length).fill(null)
+    const lookups = new Map<string, Promise<Resolved | null>>()
+    const generatedAssets = new Map<string, Promise<Resolved>>()
+    let reused = 0, generated = 0
+    const checkTime = () => {
+        if (Date.now() > deadline) throw new Error('음성 준비 시간이 초과되었습니다. 저장된 조각은 재사용됩니다.')
+    }
+    await boundedWork(segments.length, 8, async index => {
+        checkTime()
+        const segment = segments[index], key = segmentIdentity(segment)
+        let task = lookups.get(key)
+        if (!task) { task = resolve(segment, index, true); lookups.set(key, task) }
+        assets[index] = await task
+        if (assets[index]) reused++
+    })
+    const missing = segments.map((_, index) => index).filter(index => !assets[index])
+    await boundedWork(missing.length, 4, async position => {
+        checkTime()
+        const index = missing[position], segment = segments[index], key = segmentIdentity(segment)
+        let task = generatedAssets.get(key)
+        const initiator = !task
+        if (!task) {
+            task = resolve(segment, index, false).then(result => {
+                if (!result?.asset) throw new Error('구간 음성이 저장되지 않았습니다.')
+                return result
+            })
+            generatedAssets.set(key, task)
+        }
+        assets[index] = await task
+        if (initiator && !assets[index]!.cached) generated++
+        else reused++
+    })
+    return { prepared: segments.length, reused, generated }
+}
+
 // A missing cache entry permits generation; a failed lookup/download does not.
 export async function assembleStoredNarration(segments: Segment[], io: {
     resolve: (segment: Segment, index: number, cacheOnly: boolean) => Promise<Resolved | null>
@@ -28,7 +70,7 @@ export async function assembleStoredNarration(segments: Segment[], io: {
     const checkTime = () => {
         if (Date.now() > deadline) throw new Error('저장된 음성 준비 시간이 초과되었습니다. 완료된 조각은 보존되어 다시 시도할 때 재사용됩니다.')
     }
-    const key = (s: Segment) => JSON.stringify([s.voiceId, s.direction || '', s.text, ...(s.performance ? [s.performance] : [])])
+    const key = segmentIdentity
     const cached = new Map<string, Promise<Buffer | null>>()
     const read = async (asset: any) => {
         const buffer = await io.read(asset)

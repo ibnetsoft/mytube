@@ -6,7 +6,8 @@ function load(file, deps = {}) {
     return exports
 }
 const mp3 = load('auth-web/lib/stdJoinMp3.ts')
-const { assembleStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', { './stdNarrationMp3': { finalizeNarrationMp3: async buffers => ({ audioBuffer: mp3.joinMp3Segments(buffers), durations: buffers.map(() => 1) }) } })
+let finalizations = 0
+const { assembleStoredNarration, prepareStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', { './stdNarrationMp3': { finalizeNarrationMp3: async buffers => { finalizations++; return { audioBuffer: mp3.joinMp3Segments(buffers), durations: buffers.map(() => 1) } } } })
 ;(async () => {
     const saved = new Map([['first', Buffer.from('A')], ['last', Buffer.from('C')]])
     let generated = 0, fail = true
@@ -62,7 +63,7 @@ const { assembleStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', {
     const { generateNarrationInBatches, NARRATION_BATCH_SIZE } = load('auth-web/lib/stdNarrationBatch.ts')
     const long = Array.from({ length: 17 }, (_, i) => ({ text: String(i), voiceId: 'v' }))
     const originalNow = Date.now
-    let now = 0, calls = 0
+    let now = 0, calls = 0, downloads = 0
     let recordings = new Map()
     Date.now = () => now
     const slowIo = {
@@ -75,25 +76,31 @@ const { assembleStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', {
             recordings.set(s.text, Buffer.from(s.text + ','))
             return { asset: s.text, cached: false }
         },
-        read: async asset => recordings.get(asset),
+        read: async asset => { downloads++; return recordings.get(asset) },
     }
     try {
         await assert.rejects(assembleStoredNarration(long, slowIo), /초과/)
-        now = 0; calls = 0; recordings = new Map()
+        now = 0; calls = 0; downloads = 0; recordings = new Map()
+        const beforeFinalizations = finalizations
         const progress = [], sizes = []
         const result = await generateNarrationInBatches({ voice_segments: long }, async body => {
             const prepare = body.mode === 'prepare_narration_segments'
             if (prepare) sizes.push(body.voice_segments.length)
-            const out = await assembleStoredNarration(body.voice_segments, slowIo, { allowGenerate: prepare })
+            const out = prepare ? await prepareStoredNarration(body.voice_segments, slowIo.resolve)
+                : await assembleStoredNarration(body.voice_segments, slowIo, { allowGenerate: false })
             return { res: { ok: true, status: 200 }, payload: { success: true,
                 prepared: prepare ? body.voice_segments.length : undefined,
-                audio: out.audioBuffer.toString(), segment_reuse: { generated: out.generated, reused: out.reused } } }
+                audio: out.audioBuffer?.toString(), segment_reuse: { generated: out.generated, reused: out.reused } } }
         }, ready => progress.push(ready))
         assert(now > 270000, 'Total job exceeds old single-request deadline')
         assert(sizes.every(n => n <= NARRATION_BATCH_SIZE))
         assert.deepEqual(progress, [4, 8, 12, 16, 17])
         assert.equal(result.payload.audio, long.map(s => s.text + ',').join(''))
         assert.equal(calls, 17)
+        assert.equal(downloads, 17, 'Only the final join downloads audio; preparation never downloads it')
+        assert.equal(finalizations - beforeFinalizations, 1, 'All batches together finalize the MP3 exactly once')
+        const reread = await assembleStoredNarration(long, slowIo, { allowGenerate: false })
+        assert.deepEqual(reread.timeline, long.map((s, i) => ({text:s.text,voice_id:'v',start:i,end:i+1})), 'Final timeline remains based on ordered audio durations')
         assert.deepEqual(result.payload.segment_reuse, { generated: 17, reused: 0 })
     } finally { Date.now = originalNow }
     let requests = 0
@@ -102,6 +109,16 @@ const { assembleStoredNarration } = load('auth-web/lib/stdStoredNarration.ts', {
         return { res: { ok: false, status: 409 }, payload: { error: 'generation claimed' } }
     }, () => {}), /generation claimed/)
     assert.equal(requests, 1, 'No final join or automatic paid retry after uncertain failure')
+    let paid = 0
+    const beforePrepare = finalizations
+    const prepared = await prepareStoredNarration([segments[0], segments[0]], async () => ({asset:'saved',cached:true}))
+    assert.deepEqual(prepared,{prepared:2,reused:2,generated:0})
+    assert.equal(finalizations,beforePrepare,'Cache-only preparation never runs MP3 finalization')
+    await assert.rejects(prepareStoredNarration(segments,async(_s,_i,cacheOnly)=>{
+        if(cacheOnly)throw Error('lookup failed')
+        paid++;return {asset:'new',cached:false}
+    }),/lookup failed/)
+    assert.equal(paid,0,'Lookup failures must not trigger new synthesis')
 
     // MPEG1 layer III, 128 kbps, 44.1 kHz mono, with a per-file Info frame.
     const seek = Buffer.alloc(417); seek.set([0xff, 0xfb, 0x90, 0xc0]); seek.write('Info', 21)
