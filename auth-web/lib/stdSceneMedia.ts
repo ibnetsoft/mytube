@@ -1,3 +1,4 @@
+import { recordedMotionSourceReuse } from './stdMotionSourceReuse'
 import { comicSettingsForProject, selectComicMedia } from './stdComic'
 import { reviewedVideoTail } from './stdVideoTail'
 import { motionForProject } from './stdMotionStudio'
@@ -64,8 +65,9 @@ export function reviewedScenePostprocessAsset(project: any, sceneNumber: number)
 /** One authoritative visual selector for frozen continuity review and final composition. */
 export function resolveSceneMedia(project: any, scene: any, assets: any[], override?: any) {
     const number = Number(scene.scene_number)
+    const draft = motionForProject(project)
     const originals = [...assets].filter(a => ['uploaded', 'assigned'].includes(String(a.status || ''))
-        && Number(a.scene_number) === number && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint)
+        && Number(a.scene_number) === number && (!a.metadata?.ae_mouth_fingerprint || (draft?.enabled && recordedMotionSourceReuse(project,a,assets,assets.find(a=>a.id===project.progress_payload?.tts_asset_id)))) && !a.metadata?.lipsync_fingerprint)
         .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))
     const image = originals.find(a => String(a.asset_type).toLowerCase() === 'image')
     const video = originals.find(a => String(a.asset_type).toLowerCase() === 'video')
@@ -75,7 +77,6 @@ export function resolveSceneMedia(project: any, scene: any, assets: any[], overr
             throw Object.assign(new Error(`${number}번 검수 영상의 원본 자산이 현재 씬과 다릅니다.`), { code: 'CONTENT_IDENTITY_MISMATCH' })
         return override
     }
-    const draft = motionForProject(project)
     if (draft?.enabled) {
         const choice=draft.scenes[String(number)]?.source || 'auto'
         if (choice==='psd') {

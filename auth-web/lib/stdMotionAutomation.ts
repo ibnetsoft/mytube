@@ -1,3 +1,4 @@
+import { recordedMotionSourceReuse } from './stdMotionSourceReuse'
 import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from './supabaseAdmin'
 import { motionForProject, motionProductionMethod } from './stdMotionStudio'
@@ -33,7 +34,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const verticalOriginal=(project.project_payload?.render_settings?.comic||project.project_payload?.structure?.comic_plan?.render_settings)?.mode==='webtoon_video'
     const ordered=scenes.map((scene,index)=>{
         const n=Number(scene.scene_number)
-        const candidates=active.filter(a=>Number(a.scene_number)===n && !a.metadata?.ae_mouth_fingerprint && !a.metadata?.lipsync_fingerprint)
+        const candidates=active.filter(a=>Number(a.scene_number)===n && (!a.metadata?.ae_mouth_fingerprint || recordedMotionSourceReuse(project,a,assets,audio)) && !a.metadata?.lipsync_fingerprint)
         const image=candidates.find(a=>a.asset_type==='image'),video=candidates.find(a=>a.asset_type==='video')
         const choice=motion.scenes[String(n)]?.source||'auto'
         const selected=choice==='psd'?psds.get(n):choice==='image'?image:choice==='video'?video:psds.get(n)||(verticalOriginal?image||video:video||image)
@@ -59,7 +60,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
             ...(directedScene(creative)?{direction_contract:creative.contract}:{}),
             prepared_direction:explicit||generated||motion.scenes[String(n)]||{source:sourceKind,fit:'contain',direction:'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
             creative_reference:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
-            preparation,start,end,source,source_kind:source.asset_type==='original'?'psd':source.asset_type}
+            preparation,start,end,source,...(source.asset_type==='video'&&image?{source_reference_image:image}:{}),...(source.metadata?.ae_mouth_fingerprint?{recorded_source_reuse:recordedMotionSourceReuse(project,source,assets,audio)}:{}),source_kind:source.asset_type==='original'?'psd':source.asset_type}
     })
     const settings=await persistTemplateOverlay(project.id,{...project.project_payload?.settings,...project.project_payload?.render_settings})
     await templateOverlayPng(settings)
