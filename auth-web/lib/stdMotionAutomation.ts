@@ -15,7 +15,7 @@ import { assertPreparationFinished } from './stdWorkflowBoundary'
 import { bindSceneDirection, directedScene } from './stdSceneExecution'
 
 export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation) }
-export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string) {
+export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
     assertPreparationFinished(assets)
     const motion=motionForProject(project)!
     const effectcraft=motionProductionMethod(project)==='effectcraft'
@@ -80,8 +80,8 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     if(Buffer.byteLength(snapshot_json)>4_000_000)throw new Error('제출 데이터가 너무 큽니다.')
     const fingerprint=createHash('sha256').update(snapshot_json).digest('hex')
     const manifest={version:1,project:{id:project.id},automation:{snapshot_json,fingerprint}}
-    const result=await db.rpc(effectcraft?'register_std_effectcraft_pipeline':'register_std_motion_pipeline',{p_project_id:project.id,p_user_id:userId,p_updated_at:project.updated_at,
-        p_run_id:randomUUID(),p_job_id:randomUUID(),p_manifest:manifest,p_hash:fingerprint})
+    const result=await db.rpc(resubmission?'register_std_motion_resubmission':effectcraft?'register_std_effectcraft_pipeline':'register_std_motion_pipeline',{p_project_id:project.id,p_user_id:userId,p_updated_at:project.updated_at,
+        p_run_id:randomUUID(),p_job_id:randomUUID(),p_manifest:manifest,p_hash:fingerprint,...(resubmission?{p_engine:effectcraft?'effectcraft':'ae'}:{})})
     if(result.error)throw result.error
     return result.data
 }

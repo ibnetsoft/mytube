@@ -1,3 +1,4 @@
+import { motionAutomationEnabled, registerMotionAutomation } from '@/lib/stdMotionAutomation'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { aeMouthApplicable } from '@/lib/stdAeMouth'
 import { ensureAeMouthJob } from '@/lib/stdAeMouthQueue'
@@ -46,6 +47,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             loadStdProjectAssets(supabaseAdmin, project.id, '*'),
         ])
         if (scenes.error || assets.error) throw scenes.error || assets.error
+        if (motionAutomationEnabled(project)) {
+            const run = await registerMotionAutomation(project, scenes.data || [], assets.data || [], auth.requester.user.id, true)
+            return NextResponse.json({ success: true, ...run, postprocess_pending: true, motion_automation: true,
+                message: 'EC/AE 효과 생성과 실제 출력 검수 후 최종 렌더링이 진행됩니다.' }, { status: 202 })
+        }
         if (hasAeSceneIntent(project, scenes.data || [], assets.data || [])) {
             return NextResponse.json({ success: false, code: 'AE_SCENE_SUBMISSION_REQUIRED',
                 error: 'AE 장면은 원본·음성·연출을 확정한 제출 작업에서 제작해야 합니다. 프로젝트를 저장한 뒤 제출 단계에서 진행해 주세요.' }, { status: 409 })
