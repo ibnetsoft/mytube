@@ -243,6 +243,9 @@ Use exact supplied source_kind as scene.source. Preserve exact original identity
 Keep 2..8 camera keys, increasing normalized t from 0 to 1; x/y 0..1, scale1..2, rotation -8..8, opacity0..100. At most 5 effects from atmospheric_haze,warm_dust_motes,focus_glow,light_sweep,impact_flash,subtle_vignette,speedline_burst,impact_shake,shock_ring,energy_trail,particle_burst,debris_burst. Each effect needs 0<=start<end<=1,intensity .05..1,center and RGB0..1,radius .02..1. Do not add effects just to fill a quota; choose restrained drama/edit rhythm.
 AE-only mode MUST have ai:null. Hybrid mode should also prefer ai:null; use a short AI insert only when it materially helps the story and actual source can retain identity. Respect remaining maximum clips, seconds, and total20% limit. AI prompt must specify original identity, exact style, modest local motion, stable anatomy/background, no lip speech and no text. AI motion must fit current finalized narration scene; no audio generation. Never approve output before actual rendering."""
     task+='\nThis stage approves provisional execution only, never the final video. Supplied uploaded-video start/middle/end samples and measured duration establish source evidence. Keep its original playback rate; if shorter than the finalized scene, hold its ACTUAL last frame through the remaining narration (no interpolation, looping, new poses or audio retiming). The actual rendered full-frame decode and independent output review must still pass.'
+    if scene.get('_source_repair'):
+        context['supervised_source_repair']=scene['_source_repair']
+        task+='\nThe supplied execution video is an independently pixel-verified original prefix followed by its actual last valid frame. Judge the depicted moment for consistency with narration and adjacent shots. A held relevant moment may accompany narrated action; do not demand invented body poses or proof that every narrated action visibly completes. Reject contradictory action, identity/style changes or an unsuitable held frame. This repair is not final-output approval.'
     from ec_supplemental_assets import policy as supplement_policy
     if supplement_policy(snapshot):
         task+='''
@@ -521,6 +524,14 @@ def process_one(engine='ae'):
         voice=download(snapshot['audio'],'final-voice');sources={};previews={};references={}
         for scene in snapshot['scenes']:
             fresh();number=scene['number'];sources[number]=download(scene['source'],f'source-{number}')
+            repair=(meta.get('source_repairs') or {}).get(str(number))
+            if repair:
+                from motion_source_repair import validate_repair,verify_repair
+                validate_repair(repair,scene,sources[number],snapshot['audio']['id'])
+                repaired=download(repair['asset'],f'repaired-source-{number}-{repair["sha256"][:16]}')
+                verified=verify_repair(repair,sources[number],repaired)
+                scene['_source_repair']={**repair,'verification':verified}
+                sources[number]=repaired
             previews[number]=original_preview(sources[number],scene['source_kind'],directory/f'original-{number}.png')
             if scene.get('source_reference_image'):
                 reference=download(scene['source_reference_image'],f'reference-{number}')
@@ -549,7 +560,7 @@ def process_one(engine='ae'):
             receipt=work/'reviewed-receipt.json'
             old=json.loads(receipt.read_text(encoding='utf-8')) if receipt.exists() else None
             from ec_supplemental_assets import output_cache_is_current
-            if old and output_cache_is_current(old) and old.get('review',{}).get('passed') is True and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
+            if old and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and output_cache_is_current(old) and old.get('review',{}).get('passed') is True and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
                 results=[r for r in results if r['number']!=number]+[old]
                 previous=Path(old['last_frame']);continue
             plan=next((p for p in plans if p['number']==number),None)
@@ -592,6 +603,7 @@ def process_one(engine='ae'):
                     plans=[p if p['number']!=number else plan for p in plans];save(plans=plans)
             last=work/'reviewed-last-frame.png';run([ffmpeg(),'-v','error','-y','-sseof','-0.1','-i',str(output),'-frames:v','1',str(last)])
             previous=last;record={'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
+            if scene.get('_source_repair'):record.update(source_execution_sha256=digest(sources[number]),source_repair=scene['_source_repair'])
             if plan.get('_supplemental_package'):
                 package=plan['_supplemental_package']
                 record.update(supplemental_receipt=package['receipt_path'],supplemental_receipt_sha256=digest(package['receipt_path']),supplemental_fingerprint=package['fingerprint'])
