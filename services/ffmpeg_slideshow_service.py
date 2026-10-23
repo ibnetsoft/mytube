@@ -654,7 +654,7 @@ def render_ffmpeg_slideshow(
     filters = []
     transition_durations = []
     for index in range(len(images)):
-        transition = 0.001 if index == len(images) - 1 else 0.5
+        transition = 0.0 if index == len(images) - 1 or str((transition_effects or ['none']*len(images))[index+1] if index+1<len(transition_effects or []) else 'none').lower()=='none' else 0.5
         transition_durations.append(transition)
 
     for index, (source_path, base_duration) in enumerate(zip(images, durations)):
@@ -664,25 +664,11 @@ def render_ffmpeg_slideshow(
         extension = os.path.splitext(source_path)[1].lower()
         if extension in VIDEO_EXTENSIONS:
             source_duration = _media_duration(ffmpeg_exe, source_path)
-            stretch = segment_duration / source_duration if source_duration > 0 else 0.0
-            missing_tail = segment_duration - source_duration
-            # Motion Studio can end a few milliseconds short of its requested
-            # duration because the final encoded frame is quantized to the FPS
-            # timebase. Stretching that video shifts every internal scene cut;
-            # clone only its final frame to fill a sub-two-frame muxing gap.
-            pad_short_tail = 0 < missing_tail <= 2.0 / fps
-            if pad_short_tail:
-                command.extend(["-i", source_path])
-                timing = "setpts=PTS-STARTPTS,"
-                tail = f"tpad=stop_mode=clone:stop_duration={missing_tail:.6f},"
-            elif 1.0 < stretch <= 3.0:
-                command.extend(["-i", source_path])
-                timing = f"setpts={stretch:.8f}*(PTS-STARTPTS),"
-                tail = ""
-            else:
-                command.extend(["-stream_loop", "-1", "-i", source_path])
-                timing = "setpts=PTS-STARTPTS,"
-                tail = ""
+            from services.video_playback_policy import require_video_duration
+            require_video_duration(source_duration,segment_duration,fps,index+1)
+            command.extend(['-i',source_path])
+            timing='setpts=PTS-STARTPTS,'
+            tail=''
             filters.append(
                 f"[{index}:v]{timing}fps={fps},{tail}scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},setsar=1,zoompan=z=1:d=1:s={width}x{height}:fps={fps},"
@@ -702,6 +688,11 @@ def render_ffmpeg_slideshow(
         transition_name = _transition_name(transition_value)
         duration = 0.001 if str(transition_value or "").strip().lower() == "none" else 0.5
         output_label = f"x{index}"
+        if str(transition_value or '').strip().lower()=='none':
+            filters.append(f'[{current_label}][v{index}]concat=n=2:v=1:a=0[{output_label}]')
+            current_label=output_label
+            timeline+=float(durations[index])
+            continue
         filters.append(
             f"[{current_label}][v{index}]xfade=transition={transition_name}:duration={duration:.3f}:"
             f"offset={timeline:.3f}[{output_label}]"

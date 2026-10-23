@@ -578,18 +578,8 @@ def mouth_jsx(runtime: dict) -> str:
     originalMouthPlate.audioEnabled = false;
     if (mouthRuntime.video_source) {
       originalMouthPlate.stretch = 100;
-      if (DUR > footage.duration) {
-        originalMouthPlate.timeRemapEnabled = true;
-        var plateRemap = originalMouthPlate.property("ADBE Time Remapping");
-        // AE disables Time Remapping when its last key is removed.
-        // Keep the initial key while replacing the default end key.
-        while (plateRemap.numKeys > 1) plateRemap.removeKey(plateRemap.numKeys);
-        var lastFrame = Math.max(0, footage.duration - footage.frameDuration);
-        plateRemap.setValueAtTime(0, 0);
-        plateRemap.setValueAtTime(lastFrame, lastFrame);
-        plateRemap.setValueAtTime(DUR, lastFrame);
-        for (var pr = 1; pr <= plateRemap.numKeys; pr++) plateRemap.setInterpolationTypeAtKey(pr, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
-      }
+      if (DUR > footage.duration + (footage.frameDuration || 1/24) + .001)
+        throw new Error("Video duration insufficient: freeze and loop prohibited; provide original footage covering narration");
       originalMouthPlate.outPoint = DUR;
     }
     var mouthPoses = ["closed", "half", "open"];

@@ -1,3 +1,4 @@
+import pytest
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'worker'))
@@ -14,19 +15,16 @@ def test_recorded_timing_replaces_five_second_draft():
     assert recorded_scene_duration({}, 14, 5) == 5
 
 
-def test_submission_schedules_tail_once_and_waits_for_review():
+def test_submission_reports_short_video_instead_of_scheduling_freeze():
+    from services.video_playback_policy import VideoPlaybackError
     scene={'scene_number':14,'visual_type':'video','duration_seconds':5,'ae_motion_plan':{'enabled':True}}
     payload={'subtitles':[{'scene_number':14,'start':10,'end':18}]}
-    assert pending_video_tail(scene,payload)
-    scene['metadata']={'ae_motion_asset':{'status':'review_pending','duration_seconds':8,'video_tail_policy':VIDEO_TAIL_POLICY}}
-    assert not pending_video_tail(scene,payload)
-    payload['subtitles'][0]['end']=19
-    assert pending_video_tail(scene,payload)
-    payload['subtitles'][0]['dialogue_kind']='dialogue'
+    with pytest.raises(VideoPlaybackError,match='길이가 부족'):pending_video_tail(scene,payload)
+    scene['duration_seconds']=9
     assert not pending_video_tail(scene,payload)
 
 
-def test_video_jsx_keeps_speed_and_holds_last_frame_then_zooms(tmp_path):
+def test_video_jsx_keeps_speed_and_rejects_short_clip(tmp_path):
     job = ae.SceneJob(topic_id='topic', topic_title='Topic', structure={'scenes': []},
         scene_index=0, scene={'ae_motion_plan': {'enabled': True}}, scene_number=14,
         plan_kind='motion', preset='hold', duration_seconds=7.94,
@@ -37,11 +35,11 @@ def test_video_jsx_keeps_speed_and_holds_last_frame_then_zooms(tmp_path):
     assert 'var DUR = 7.940;' in script
     assert video_tail_jsx() in script
     assert 'bg.stretch = 100' in script
-    assert 'remap.setValueAtTime(sourceEnd, sourceEnd)' in script
-    assert 'remap.setValueAtTime(DUR, sourceEnd)' in script
-    assert 'videoScale.setValueAtTime(sourceDuration, [scale, scale])' in script
-    assert 'needsTail && !mouthRuntime.video_source && (mouthRuntime.enabled || false)' in script
-    assert 'mouthRuntime.enabled || true' in video_tail_jsx(True)
+    assert 'timeRemapEnabled' not in video_tail_jsx()
+    assert 'setValueAtTime(DUR, sourceEnd)' not in script
+    assert 'freeze and loop prohibited' in video_tail_jsx(True)
+    assert 'freeze and loop prohibited' in video_tail_jsx(directed=True)
+
 
 
 def test_automatic_tail_approval_requires_real_source_and_output_checks():

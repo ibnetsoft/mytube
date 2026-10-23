@@ -252,7 +252,7 @@ Return {status:'ready'|'needs_repair',reason?:string,scene:{source:'image'|'vide
 Use exact supplied source_kind as scene.source. Preserve exact original identity/drawing; no invented limbs, face changes, unsupported anatomical movements, reverse screen direction or abrupt lighting jumps. Static art uses saved camera/effect motion; PSD uses the prepared, reviewed layers. Unsupported required motion => needs_repair. Final voice is immutable; do not rewrite narration or invent hearing from waveform.
 Keep 2..8 camera keys, increasing normalized t from 0 to 1; x/y 0..1, scale1..2, rotation -8..8, opacity0..100. At most 5 effects from atmospheric_haze,warm_dust_motes,focus_glow,light_sweep,impact_flash,subtle_vignette,speedline_burst,impact_shake,shock_ring,energy_trail,particle_burst,debris_burst. Each effect needs 0<=start<end<=1,intensity .05..1,center and RGB0..1,radius .02..1. Do not add effects just to fill a quota; choose restrained drama/edit rhythm.
 AE-only mode MUST have ai:null. Hybrid mode should also prefer ai:null; use a short AI insert only when it materially helps the story and actual source can retain identity. Respect remaining maximum clips, seconds, and total20% limit. AI prompt must specify original identity, exact style, modest local motion, stable anatomy/background, no lip speech and no text. AI motion must fit current finalized narration scene; no audio generation. Never approve output before actual rendering."""
-    task+='\nThis stage approves provisional execution only, never the final video. Supplied uploaded-video start/middle/end samples and measured duration establish source evidence. Keep its original playback rate; if shorter than the finalized scene, hold its ACTUAL last frame through the remaining narration (no interpolation, looping, new poses or audio retiming). The actual rendered full-frame decode and independent output review must still pass.'
+    task+='\nThis stage approves provisional execution only, never the final video. Supplied uploaded-video start/middle/end samples and measured duration establish source evidence. Keep its original playback rate; if shorter than the finalized scene, stop and report the scene number and missing duration. Never hold, loop, interpolate or retime video or narration. The actual rendered full-frame decode and independent output review must still pass.'
     if scene.get('_source_repair'):
         context['supervised_source_repair']=scene['_source_repair']
         task+='\nThe supplied execution video is an independently pixel-verified original prefix followed by its actual last valid frame. Judge the depicted moment for consistency with narration and adjacent shots. A held relevant moment may accompany narrated action; do not demand invented body poses or proof that every narrated action visibly completes. Reject contradictory action, identity/style changes or an unsuitable held frame. This repair is not final-output approval.'
@@ -563,14 +563,14 @@ def process_one(engine='ae'):
         for scene in snapshot['scenes']:
             fresh();number=scene['number'];sources[number]=download(scene['source'],f'source-{number}')
             scene['_skip_review']=(meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1'
+            if scene['source_kind']=='video':
+                from services.video_playback_policy import require_original_video_asset,require_video_duration
+                require_original_video_asset(scene['source'],number)
+                from moviepy import VideoFileClip
+                with VideoFileClip(str(sources[number]),audio=False) as playback:
+                    require_video_duration(playback.duration,scene['end']-scene['start'],playback.fps,number)
             repair=(meta.get('source_repairs') or {}).get(str(number))
-            if repair:
-                from motion_source_repair import validate_repair,verify_repair
-                validate_repair(repair,scene,sources[number],snapshot['audio']['id'])
-                repaired=download(repair['asset'],f'repaired-source-{number}-{repair["sha256"][:16]}')
-                verified=verify_repair(repair,sources[number],repaired)
-                scene['_source_repair']={**repair,'verification':verified}
-                sources[number]=repaired
+            if repair:raise NeedsReview(f'{number}번 씬: 영상 정지 수정본은 사용하지 않습니다. 원본 영상이 필요합니다.')
             previews[number]=original_preview(sources[number],scene['source_kind'],directory/f'original-{number}.png')
             if scene.get('source_reference_image'):
                 reference=download(scene['source_reference_image'],f'reference-{number}')
@@ -642,6 +642,8 @@ def process_one(engine='ae'):
                     plans=[p if p['number']!=number else plan for p in plans];save(plans=plans)
             last=work/'reviewed-last-frame.png';run([ffmpeg(),'-v','error','-y','-sseof','-0.1','-i',str(output),'-frames:v','1',str(last)])
             previous=last;record={'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
+            from services.video_playback_policy import POLICY
+            record['video_playback_policy']=POLICY
             if scene.get('_source_repair'):record.update(source_execution_sha256=digest(sources[number]),source_repair=scene['_source_repair'])
             if plan.get('_supplemental_package'):
                 package=plan['_supplemental_package']

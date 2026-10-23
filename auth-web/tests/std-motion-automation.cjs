@@ -77,3 +77,15 @@ test('EC falls back to stored image when video has no storage',async()=>{
  const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft';f.assets.push({...f.image,id:'missing-video',asset_type:'video',metadata:{}});
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.scenes[0].source_kind,'image');
 });
+
+test('frozen derivatives are excluded in favor of original stored video',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft';
+ f.assets.push({...f.image,id:'original-video',asset_type:'video',metadata:{gcs_path:'original.mp4'}});
+ f.assets.unshift({...f.image,id:'frozen-video',asset_type:'video',created_at:'zz',metadata:{gcs_path:'frozen.mp4',kind:'repaired_source_clip'}});
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
+ assert.equal(s.scenes[0].source.id,'original-video');assert.equal(s.execution_policy.video_playback_policy,'original_speed_no_freeze_no_loop/v1');
+});
+test('only frozen video is reported instead of silently substituting image',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft';f.assets.push({...f.image,id:'frozen-video',asset_type:'video',metadata:{gcs_path:'frozen.mp4',tail_policy:'hold_last_frame'}});
+ await assert.rejects(f.run(),/원본 영상/);assert.equal(f.calls.rpc.length,0);
+});

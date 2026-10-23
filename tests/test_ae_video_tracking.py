@@ -49,11 +49,13 @@ def test_scene_cut_cannot_silently_reassign_the_speaker(tmp_path):
         track_video(video,reference,speakers,tmp_path/'track',1.2)
 
 
-def test_video_plate_freezes_but_mouth_animation_does_not():
+def test_video_plate_never_freezes_and_mouth_tracking_remains():
     jsx=mouth_jsx({'enabled':True,'video_source':True,'speakers':[]})
     assert 'originalMouthPlate.stretch = 100' in jsx
-    assert 'plateRemap.setValueAtTime(DUR, lastFrame)' in jsx
+    assert 'plateRemap.setValueAtTime(DUR, lastFrame)' not in jsx
+    assert 'freeze and loop prohibited' in jsx
     assert 'motion.offset[0]' in jsx
     tail=video_tail_jsx()
-    assert 'needsTail && !mouthRuntime.video_source' in tail
-    assert 'videoScale.setValueAtTime(sourceDuration' in tail
+    assert 'timeRemapEnabled' not in tail
+    assert 'freeze and loop prohibited' in tail
+    assert 'videoScale.setValueAtTime(sourceDuration' not in tail

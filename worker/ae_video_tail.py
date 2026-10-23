@@ -1,7 +1,7 @@
-"""Preserve video speed; extend only its final frame in After Effects."""
+"""Preserve original playback; reject video extension instead of freezing it."""
 import math
 
-VIDEO_TAIL_POLICY = "normal_speed_ae_freeze_zoom_v1"
+VIDEO_TAIL_POLICY = "original_speed_no_freeze_no_loop_v1"
 
 
 def pending_video_tail(scene, payload):
@@ -11,16 +11,15 @@ def pending_video_tail(scene, payload):
     number = int(scene.get('scene_number') or scene.get('scene_order') or 0)
     if number not in (payload or {}).get('ae_mouth_effect_excluded_scenes', []) and any(int(r.get('scene_number') or 0) == number and r.get('dialogue_kind') == 'dialogue'
            for r in (payload or {}).get('subtitles',[])):
-        return False  # Tracked-mouth rendering already owns this video's frozen zoom tail.
+        return False  # Tracked-mouth rendering enforces the same source-length policy.
     source_duration = float(scene.get('duration_seconds') or plan.get('duration_seconds') or 5)
     duration = recorded_scene_duration(payload, number, source_duration)
     asset = (scene.get('metadata') or {}).get('ae_motion_asset') or {}
     if duration <= source_duration + .12 or asset.get('status') in {'needs_attention', 'rendering'}:
         return False
-    current = asset.get('video_tail_policy') == VIDEO_TAIL_POLICY and abs(float(asset.get('duration_seconds') or 0) - duration) <= .12
-    if current and asset.get('status') == 'review_pending' and ((payload or {}).get('ae_mouth', {}).get('enabled') or (payload or {}).get('content_recovery', {}).get('supervised_repair')):
-        return True  # Reuse checkpoint and inspect output automatically after updating the worker.
-    return not (current and asset.get('status') in {'ready', 'review_pending'})
+    from services.video_playback_policy import require_video_duration
+    require_video_duration(source_duration,duration,24,number)
+    return False
 
 
 def recorded_scene_duration(payload, number, fallback):
@@ -36,41 +35,18 @@ def recorded_scene_duration(payload, number, fallback):
     return max(end for _, end in rows) - min(start for start, _ in rows) if rows else fallback
 
 
-def video_tail_jsx(timing_locked=False):
+def video_tail_jsx(timing_locked=False, directed=False):
     return '''
   var sourceVideo = (footage instanceof FootageItem && !footage.mainSource.isStill) || mouthRuntime.video_source;
-  if (sourceVideo) {
-    var sourceEnd = Math.max(0, footage.duration - footage.frameDuration);
+  if(sourceVideo) {
     var sourceDuration = mouthRuntime.video_source ? mouthRuntime.video_duration : footage.duration;
-    var needsTail = DUR > sourceDuration + 0.12;
-    if (needsTail && !mouthRuntime.video_source && (mouthRuntime.enabled || TAIL_TIMING_LOCKED)) throw new Error("Speaking clip needs finalized mouth animation through the full dialogue interval");
+    if(DUR > sourceDuration + (footage.frameDuration || 1/24) + .001)
+      throw new Error("Video duration insufficient: original-speed playback only; freeze and loop prohibited");
     bg.stretch = 100;
     bg.startTime = 0;
-    if (needsTail && !mouthRuntime.video_source) {
-      bg.timeRemapEnabled = true;
-      var remap = bg.property("ADBE Time Remapping");
-      remap.setValueAtTime(0, 0);
-      remap.setValueAtTime(sourceEnd, sourceEnd);
-      remap.setValueAtTime(DUR, sourceEnd);
-      for (var dk = remap.numKeys; dk >= 1; dk--) {
-        var kt = remap.keyTime(dk);
-        if (Math.abs(kt) > 0.001 && Math.abs(kt - sourceEnd) > 0.001 && Math.abs(kt - DUR) > 0.001) remap.removeKey(dk);
-      }
-      for (var rk = 1; rk <= remap.numKeys; rk++) remap.setInterpolationTypeAtKey(rk, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
-    }
     bg.outPoint = DUR;
-    var videoScale = bg.property("Scale"), videoPosition = bg.property("Position");
-    while (videoScale.numKeys > 0) videoScale.removeKey(1);
-    while (videoPosition.numKeys > 0) videoPosition.removeKey(1);
-    videoScale.setValue([scale, scale]);
-    videoPosition.setValue([W / 2, H / 2]);
-    if (needsTail) {
-      videoScale.setValueAtTime(sourceDuration, [scale, scale]);
-      videoScale.setValueAtTime(DUR, [scale * 1.06, scale * 1.06]);
-      for (var sk = 1; sk <= videoScale.numKeys; sk++) videoScale.setInterpolationTypeAtKey(sk, KeyframeInterpolationType.LINEAR, KeyframeInterpolationType.LINEAR);
-    }
   }
-'''.replace('TAIL_TIMING_LOCKED', 'true' if timing_locked else 'false')
+'''
 
 
 def automatic_tail_review(payload, result):

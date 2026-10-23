@@ -115,6 +115,8 @@ class MotionFrames:
             if Path(path).suffix.lower() in ('.mp4','.mov','.webm','.mkv','.m4v','.avi'):
                 from moviepy import VideoFileClip
                 self._clip=VideoFileClip(path,audio=False)
+                from services.video_playback_policy import require_video_duration
+                require_video_duration(self._clip.duration,self.starts[index+1]-self.starts[index],self._clip.fps,self.numbers[index])
             else:
                 with Image.open(path) as source:self._media=ImageOps.exif_transpose(source).convert('RGB')
             self._current=index

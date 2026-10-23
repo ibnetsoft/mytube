@@ -62,7 +62,7 @@ def _scene_script(data):
         body+='\nW=O.width;H=O.height;applySceneEffects(comp,{original:view});\n'
         body+='\nfor(var o=0;o<S.opacity.length;o++){key(opacity,S.opacity[o].t,S.opacity[o].opacity);}linear(opacity);\n'
         if data.get('video_tail'):
-            body+='\nvar tail=source.layers.add(app.project.importFile(new ImportOptions(new File(S.video_tail.path))));tail.name="original_last_frame_hold";tail.inPoint=S.video_tail.start;tail.outPoint=S.duration;\n'
+            raise ValueError('Video frame holds are prohibited')
         if data.get('flash'):
             body+='\nvar flash=comp.layers.addSolid([1,1,1],"entry_flash",O.width,O.height,1,S.duration);var alpha=flash.transform.opacity;key(alpha,0,100);key(alpha,.08,0);linear(alpha);\n'
     return 'var S='+json.dumps(data,ensure_ascii=True,allow_nan=False)+';\n(function(){\n'+helpers+body+'\n})();\n'
@@ -93,13 +93,8 @@ def render_scene(snapshot,scene,plan,source,directory,fresh):
             from moviepy import VideoFileClip
             with VideoFileClip(str(local),audio=False) as video:
                 width,height=map(int,video.size)
-                if video.duration+1/fps<duration:
-                    # Preserve original playback and the finalized voice clock; only
-                    # hold the real last frame, never loop or invent body motion.
-                    from PIL import Image
-                    last=directory/'original-last-frame.png'
-                    Image.fromarray(video.get_frame(max(0,video.duration-1/video.fps))).save(last)
-                    video_tail={'path':str(last),'start':video.duration,'policy':'hold_original_last_frame'}
+                from services.video_playback_policy import require_video_duration
+                require_video_duration(video.duration,duration,video.fps,scene['number'])
         else:
             from PIL import Image,ImageOps
             with Image.open(local) as image:
