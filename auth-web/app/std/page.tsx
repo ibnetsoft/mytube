@@ -10,6 +10,7 @@ import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
 import StdNonverbalPlan from '@/components/StdNonverbalPlan'
+import StdHorizontalWebtoonMode from '@/components/StdHorizontalWebtoonMode'
 import { isNonverbalProject } from '@/lib/stdNonverbal'
 import TopicSubmissionPanel from '@/components/TopicSubmissionPanel'
 import { isComicProject, isWebtoonVideoProject, comicSettingsForProject, comicSettingsWithUploadedVideo } from '@/lib/stdComic'
@@ -9050,6 +9051,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
+                    {selectedProject && ['image_gen','subtitle_vrew'].includes(currentNav) && <StdHorizontalWebtoonMode project={selectedProject.project} headers={authedJsonHeaders} onSaved={()=>openProject(selectedProject.project.id,undefined,undefined,true)}/>}
                     {selectedProject && isNonverbalProject(selectedProject.project) && ['script_plan','script_gen','tts','subtitle_vrew'].includes(currentNav) && <StdNonverbalPlan project={selectedProject.project} headers={authedJsonHeaders} locale={currentLocale} onApplied={() => void openProject(selectedProject.project.id, undefined, undefined, true)} />}
                     {currentNav === 'subtitle_vrew' && selectedProject && !isNonverbalProject(selectedProject.project) && (() => {
                         const isVrewSubtitleMode = true

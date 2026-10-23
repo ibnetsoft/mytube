@@ -7,7 +7,7 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}) {
     const project=await db.from('std_projects').select('id').eq('id',params.projectId).eq('employee_email',auth.requester.email).maybeSingle()
     if(project.error)return NextResponse.json({error:'상태를 조회하지 못했습니다.'},{status:503})
     if(!project.data)return NextResponse.json({error:'Project not found'},{status:404})
-    const result=await db.from('std_project_assets').select('id,kind:metadata->>kind,state:metadata->>state,phase:metadata->>phase,progress:metadata->progress,error:metadata->>error,results:metadata->results,total_scenes:metadata->total_scenes,supplemental_assets:metadata->supplemental_assets,final:metadata->final').eq('project_id',params.projectId).in('metadata->>kind',['motion_automation','effectcraft_automation']).order('created_at',{ascending:false}).limit(1).maybeSingle()
+    const result=await db.from('std_project_assets').select('id,kind:metadata->>kind,state:metadata->>state,phase:metadata->>phase,progress:metadata->progress,error:metadata->>error,results:metadata->results,total_scenes:metadata->total_scenes,supplemental_assets:metadata->supplemental_assets,final:metadata->final').eq('project_id',params.projectId).in('metadata->>kind',['motion_automation','effectcraft_automation','filmcraft_automation','horizontal_webtoon_automation']).order('created_at',{ascending:false}).limit(1).maybeSingle()
     if(result.error)return NextResponse.json({error:'작업 상태를 조회하지 못했습니다.'},{status:503})
     const job=result.data,m:any=job||{}
     const engine=m?.kind==='effectcraft_automation'?'effectcraft':m?.kind==='filmcraft_automation'?'filmcraft':'ae'

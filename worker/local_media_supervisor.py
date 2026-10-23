@@ -57,10 +57,10 @@ def pending_roles():
     from worker.workflow_roles import POSTPRODUCTION, asset_query
     from ae_scene_preparation import claimable_filter as simple_filter
     roles=[]
-    for role,kind in [('effectcraft','effectcraft_automation'),('motion_automation','motion_automation'),('motion_preview','motion_preview'),('region','region_motion_plan'),('ae','ae_mouth_job')]:
+    for role,kind in [('webtoon','horizontal_webtoon_automation'),('effectcraft','effectcraft_automation'),('motion_automation','motion_automation'),('motion_preview','motion_preview'),('region','region_motion_plan'),('ae','ae_mouth_job')]:
         query={'metadata->>kind':'eq.'+kind,'or':claimable_filter() if role=='ae' else simple_filter()}
         if role=='motion_preview':query['metadata->input->>task']='eq.preview'
-        if role in ('effectcraft','motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
+        if role in ('webtoon','effectcraft','motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
         if role=='ae':query['metadata->>pipeline_version']='eq.2'
         if exists('std_project_assets',asset_query(POSTPRODUCTION,query)):roles.append(role)
     response=requests.get(base+'/rest/v1/remote_render_queue',headers=headers,params={
@@ -73,6 +73,7 @@ def pending_roles():
     return roles
 
 def role_command(role):
+    if role=='webtoon': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--engine','webtoon','--once']
     if role=='effectcraft': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--engine','effectcraft','--once']
     if role=='motion_automation': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--once']
     if role=='motion_preview': return [sys.executable,'-u',str(ROOT/'worker/motion_preview_worker.py'),'--once']
@@ -126,7 +127,7 @@ class Supervisor:
     def choose(self,roles):
         if (HOME/'pause-render').exists():roles=[r for r in roles if r!='render']
         # Legacy topic/highlight discovery cannot bypass user submission.
-        roles=[r for r in roles if r in ('ae','render','region','effectcraft','motion_automation','motion_preview')]
+        roles=[r for r in roles if r in ('ae','render','region','webtoon','effectcraft','motion_automation','motion_preview')]
         available=[r for r in roles if time.monotonic()>=self.retry_after.get(r,0)]
         if 'render' in available: return 'render'
         return next((r for r in available if r!=self.last_role),available[0] if available else None)

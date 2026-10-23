@@ -13,6 +13,18 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT));sys.path.insert(0,str(ROOT/'worker'))
 
 def render_preview(snapshot,directory,download):
+    if snapshot.get('horizontal_webtoon'):
+        if snapshot.get('task')!='direction':raise ValueError('Webtoon planning belongs to the script worker')
+        from ae_media_utils import ref
+        from horizontal_webtoon import prepare
+        from codex_content_runner import CodexStagedContentRunner
+        asset=snapshot['asset'];bucket,key=ref(asset)
+        suffix=Path(asset.get('file_name') or key).suffix.lower()
+        if suffix not in ('.png','.jpg','.jpeg','.webp','.psd'):raise ValueError('원본 PNG·JPG·WebP·PSD가 필요합니다.')
+        directory.mkdir(parents=True,exist_ok=True);source=directory/('source'+suffix);download(bucket,key,source)
+        expected=(asset.get('metadata') or {}).get('sha256')
+        if expected and hashlib.sha256(source.read_bytes()).hexdigest()!=expected:raise ValueError('Original source checksum changed')
+        return prepare(snapshot,source,directory,CodexStagedContentRunner())
     if snapshot.get('task')=='direction' and snapshot['scene']['source']=='psd':
         raise ValueError('PSD 연출은 대본워커의 PSD 준비 작업에서 저장하세요.')
     from moviepy import VideoClip
@@ -114,7 +126,8 @@ def process_one(stage="postproduction"):
         from worker.workflow_roles import assert_project
         projects=ae._request('GET',base+'/rest/v1/std_projects',headers,params={'select':'id,submitted_at,status','id':'eq.'+job['project_id'],'limit':1}).json()
         assert_project(projects[0] if projects else None,stage)
-        output,source_hash=render_preview(meta['input'],worker_config.TEMP_DIR/'motion-previews'/job['id'],lambda b,k,p:ae._download_gcs_file(ae.GcsRef(b,k),p))
+        directory=(ROOT/'output'/'codex-local-console'/'motion-previews'/job['id']) if stage==PREPARATION else worker_config.TEMP_DIR/'motion-previews'/job['id']
+        output,source_hash=render_preview(meta['input'],directory,lambda b,k,p:ae._download_gcs_file(ae.GcsRef(b,k),p))
         if lost.is_set():raise RuntimeError('Preview lease lost')
         if stage==PREPARATION:
             suggestion=json.loads((output.parent/'direction.json').read_text(encoding='utf-8'))

@@ -17,7 +17,7 @@ def asset_stage(row):
         return PREPARATION if (meta.get('input') or {}).get('task') == 'direction' else POSTPRODUCTION
     if kind == 'ae_mouth_job' and meta.get('preview_sync'):
         return None  # Retired pre-submit AE queue, never a final-submission job.
-    return POSTPRODUCTION if kind in ('ae_mouth_job','motion_automation','effectcraft_automation','region_motion_plan') else None
+    return POSTPRODUCTION if kind in ('ae_mouth_job','motion_automation','effectcraft_automation','horizontal_webtoon_automation','region_motion_plan') else None
 
 def asset_query(stage, params):
     if stage not in (PREPARATION, POSTPRODUCTION):

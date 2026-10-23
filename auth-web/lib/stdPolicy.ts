@@ -78,6 +78,7 @@ export function isStdRequiredVideoScene(sceneNumber: any, project?: any): boolea
 }
 
 export function isStdRequiredClipScene(sceneNumber: any, project?: any): boolean {
+    if(project?.project_payload?.render_settings?.motion?.enabled===true && project.project_payload.render_settings.motion.edit_mode==='horizontal_webtoon')return false
     if (isComicProject(project)) return false
     const parsed = Number(sceneNumber)
     return Number.isFinite(parsed) && parsed >= 1 && parsed <= stdRequiredVideoSceneCount(project)

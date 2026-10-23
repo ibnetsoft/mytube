@@ -12,7 +12,7 @@ export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: numbe
 export type WebMotionInsert = { job_id:string; start:number; duration:number }
 export type ProductionMethod = 'ae'|'motion_studio'|'effectcraft'
 type MotionConfig = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene>; automation?: MotionAutomation; web?:{timeline?:MotionClip[];mode:'web'|'hybrid';inserts:Record<string,WebMotionInsert>} }
-export type MotionDraft = MotionConfig & {production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
+export type MotionDraft = MotionConfig & {edit_mode?:'horizontal_webtoon'; production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
 
 export function motionProductionMethod(project:any):ProductionMethod {
     const raw=project?.project_payload?.render_settings?.motion
@@ -24,7 +24,7 @@ export function switchMotionProduction(draft:MotionDraft,method:ProductionMethod
     const {production_method:_,alternatives:previous,...active}=draft
     const alternatives={...previous,[current]:active}
     const target=alternatives[method]||{version:1,enabled:method!=='ae',aspect:draft.aspect,fps:draft.fps,scenes:{},...(method==='motion_studio'?{web:{mode:'web',inserts:{}}}:method==='effectcraft'?{automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}}:{})}
-    return normalizeMotionDraft({...target,production_method:method,alternatives})
+    return normalizeMotionDraft({...target,...(method==='ae'&&draft.edit_mode?{edit_mode:draft.edit_mode}:{}),production_method:method,alternatives})
 }
 export const MOTION_PRESETS = [
     { id: 'still', label: '원본 유지', effects: [] },
@@ -102,7 +102,9 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
             alternatives[method]=normalizeMotionDraft(config)
         }
     }
-    return {version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes,...(automation?{automation}:{}),...(web?{web}:{}),...(raw.production_method?{production_method:raw.production_method}:{}),...(alternatives?{alternatives}:{})}
+    if(raw.edit_mode!==undefined && raw.edit_mode!=='horizontal_webtoon')throw new Error('연출 모드를 확인해 주세요.')
+    if(raw.edit_mode && (raw.aspect!=='16:9'||raw.web||raw.production_method==='effectcraft'||raw.production_method==='motion_studio'||!automation||automation.mode!=='ae_only'))throw new Error('가로 웹툰 컷 모드는 가로 16:9·AE·영상 생성 미사용으로 저장해 주세요.')
+    return {version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes,...(raw.edit_mode?{edit_mode:raw.edit_mode}:{}),...(automation?{automation}:{}),...(web?{web}:{}),...(raw.production_method?{production_method:raw.production_method}:{}),...(alternatives?{alternatives}:{})}
 }
 export function motionForProject(project: any): MotionDraft | null {
     const raw=project?.project_payload?.render_settings?.motion

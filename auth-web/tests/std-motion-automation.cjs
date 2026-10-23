@@ -11,6 +11,7 @@ function fixture(mode='ae_only') {
   if(name.includes('stdSceneExecution'))return {directedScene:()=>false,bindSceneDirection:()=>null}
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:{rpc:async(name,args)=>{calls.rpc.push({name,args});return {data:{job_id:'queued'},error:null}}}}
   if(name.includes('stdMotionStudio'))return {motionForProject:p=>p.project_payload.render_settings.motion,motionProductionMethod:p=>p.project_payload.render_settings.motion.production_method||'after_effects'}
+  if(name.includes('stdHorizontalWebtoon'))return {horizontalWebtoon:p=>p.project_payload.render_settings.motion.edit_mode==='horizontal_webtoon',webtoonInputs:()=>[{number:1,asset:image,start:0,end:20}],readyWebtoonPlan:()=>({source_sha256:'a'.repeat(64),plan:{version:1,shots:[{start:0,end:1,panels:[]}],evidence:['fixture']}})}
   if(name.includes('stdAeScenePreparation'))return {aeSceneSources:()=>new Map(),preparedAeScenes:()=>new Map()}
   if(name.includes('stdContentIdentity'))return {selectNarrationAsset:()=>audio}
   if(name.includes('stdLipSync'))return {lipSyncPlan:()=>{calls.voice++},lipSyncSceneStarts:()=>[.005],reviewedLipSyncAssets:()=>new Map()}
@@ -29,6 +30,14 @@ test('AE-only submission freezes voice and original without reading a provider k
  const args=f.calls.rpc[0].args,raw=args.p_manifest.automation.snapshot_json,s=JSON.parse(raw)
  assert.equal(s.scenes[0].start,0);assert.equal(s.audio.id,'voice');assert.equal(s.scenes[0].source.id,'image');assert.equal(s.model_ref,null)
  assert.equal(crypto.createHash('sha256').update(raw).digest('hex'),args.p_hash)
+})
+test('horizontal webtoon freezes the inspected plan and uses a queue older workers cannot claim',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.edit_mode='horizontal_webtoon'
+ f.project.project_payload.render_settings.motion.aspect='16:9'
+ await f.run();const call=f.calls.rpc[0],s=JSON.parse(call.args.p_manifest.automation.snapshot_json)
+ assert.equal(call.name,'register_std_horizontal_webtoon_pipeline');assert.deepEqual(s.renderer,{engine:'ae_horizontal_webtoon',version:1})
+ assert.equal(s.scenes[0].source.id,'image');assert.equal(s.scenes[0].webtoon.source_sha256,'a'.repeat(64));assert.equal(f.calls.models,0)
+ assert.equal(s.execution_policy,undefined)
 })
 test('hybrid freezes selected model configuration but excludes its secret',async()=>{
  const f=fixture('hybrid');await f.run();assert.equal(f.calls.models,1)
