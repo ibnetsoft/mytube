@@ -1,6 +1,6 @@
 'use client'
 import {useEffect,useState} from 'react'
-import {motionForProject,normalizeMotionDraft,switchMotionProduction} from '@/lib/stdMotionStudio'
+import {normalizeMotionDraft,switchHorizontalWebtoon} from '@/lib/stdMotionStudio'
 import StdHorizontalWebtoon from './StdHorizontalWebtoon'
 export default function StdHorizontalWebtoonMode({project,headers,onSaved}:{project:any;headers:Record<string,string>;onSaved:()=>Promise<unknown>}) {
  const saved=project.project_payload?.render_settings?.motion
@@ -8,9 +8,8 @@ export default function StdHorizontalWebtoonMode({project,headers,onSaved}:{proj
  useEffect(()=>{setMode(saved?.edit_mode||'standard');setError('')},[project.id,JSON.stringify(saved)])
  const disabled=Boolean(project.submitted_at)||['approved','canceled'].includes(project.status)
  const save=async()=>{setBusy(true);setError('');try{
-  const previous=motionForProject(project)||{version:1 as const,enabled:false,aspect:'16:9' as const,fps:24 as const,scenes:{}}
-  const base=mode==='horizontal_webtoon'?switchMotionProduction(previous,'ae'):previous
-  const motion=normalizeMotionDraft({...base,edit_mode:mode==='horizontal_webtoon'?'horizontal_webtoon':undefined,...(mode==='horizontal_webtoon'?{enabled:true,production_method:'ae',aspect:'16:9',automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}}:{})})
+  const previous=saved?normalizeMotionDraft(saved):{version:1 as const,enabled:false,aspect:'16:9' as const,fps:24 as const,scenes:{}}
+  const motion=switchHorizontalWebtoon(previous,mode==='horizontal_webtoon')
   const response=await fetch(`/api/std/projects/${project.id}`,{method:'PATCH',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({project_payload:{render_settings:{...project.project_payload?.render_settings,motion}}})})
   const data=await response.json();if(!response.ok)throw Error(data.error||'제작 모드 저장 실패');await onSaved()
  }catch(e:any){setError(e.message)}finally{setBusy(false)}}

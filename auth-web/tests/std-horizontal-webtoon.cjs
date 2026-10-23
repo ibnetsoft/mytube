@@ -7,6 +7,15 @@ const ex={};new Function('exports','require',ts.transpileModule(fs.readFileSync(
 }[id]||require(id)));
 const panel=()=>({crop:[0,0,1,1],frame:[0,0,1,1],reveal:0,zoom_from:1,zoom_to:1.05});
 const plan=()=>({version:1,evidence:['Full face and speech balloon visible'],shots:[{start:0,end:1,panels:[panel()]}]});
+test('horizontal mode preserves and restores the original production settings',()=>{
+ const load=require('./load-ts-module.cjs');const lib=load(path.resolve(__dirname,'../lib/stdMotionStudio.ts'));
+ const original=lib.normalizeMotionDraft({version:1,enabled:false,aspect:'9:16',fps:30,scenes:{}});
+ const horizontal=lib.switchHorizontalWebtoon(original,true);
+ assert.equal(horizontal.edit_mode,'horizontal_webtoon');assert.equal(horizontal.aspect,'16:9');assert.equal(horizontal.automation.mode,'ae_only');
+ assert.deepEqual(lib.switchHorizontalWebtoon(horizontal,false),original);
+ const effectcraft=lib.switchMotionProduction(horizontal,'effectcraft');assert.equal(effectcraft.edit_mode,undefined);
+ assert.equal(lib.switchMotionProduction(effectcraft,'ae').edit_mode,'horizontal_webtoon');
+});
 test('safe full panel and nonoverlapping side-by-side layouts validate',()=>{
  assert.equal(ex.validateWebtoonPlan(plan()).shots.length,1);
  const p=plan();p.shots[0].panels=[{...panel(),frame:[0,0,.5,1]},{...panel(),frame:[.5,0,.5,1],reveal:.3}];assert.equal(ex.validateWebtoonPlan(p).shots[0].panels.length,2);

@@ -12,7 +12,14 @@ export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: numbe
 export type WebMotionInsert = { job_id:string; start:number; duration:number }
 export type ProductionMethod = 'ae'|'motion_studio'|'effectcraft'
 type MotionConfig = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene>; automation?: MotionAutomation; web?:{timeline?:MotionClip[];mode:'web'|'hybrid';inserts:Record<string,WebMotionInsert>} }
-export type MotionDraft = MotionConfig & {edit_mode?:'horizontal_webtoon'; production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
+export type MotionDraft = MotionConfig & {edit_mode?:'horizontal_webtoon'; webtoon_baseline?:MotionDraft; production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
+
+export function switchHorizontalWebtoon(previous:MotionDraft,enabled:boolean):MotionDraft {
+    if(!enabled)return normalizeMotionDraft(previous.webtoon_baseline?{...previous.webtoon_baseline,alternatives:previous.alternatives}:{...previous,edit_mode:undefined})
+    const {alternatives:_,webtoon_baseline:__,edit_mode:___,...baseline}=previous
+    const active=switchMotionProduction(previous,'ae')
+    return normalizeMotionDraft({...active,edit_mode:'horizontal_webtoon',webtoon_baseline:previous.webtoon_baseline||baseline,enabled:true,production_method:'ae',aspect:'16:9',automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}})
+}
 
 export function motionProductionMethod(project:any):ProductionMethod {
     const raw=project?.project_payload?.render_settings?.motion
@@ -103,8 +110,13 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
         }
     }
     if(raw.edit_mode!==undefined && raw.edit_mode!=='horizontal_webtoon')throw new Error('연출 모드를 확인해 주세요.')
+    let webtoon_baseline:MotionDraft|undefined
+    if(raw.webtoon_baseline!==undefined){
+        if(!raw.webtoon_baseline||raw.webtoon_baseline.webtoon_baseline!==undefined||raw.webtoon_baseline.alternatives!==undefined||raw.webtoon_baseline.edit_mode!==undefined)throw new Error('웹툰 이전 제작 설정을 확인해 주세요.')
+        webtoon_baseline=normalizeMotionDraft(raw.webtoon_baseline)
+    }
     if(raw.edit_mode && (raw.aspect!=='16:9'||raw.web||raw.production_method==='effectcraft'||raw.production_method==='motion_studio'||!automation||automation.mode!=='ae_only'))throw new Error('가로 웹툰 컷 모드는 가로 16:9·AE·영상 생성 미사용으로 저장해 주세요.')
-    return {version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes,...(raw.edit_mode?{edit_mode:raw.edit_mode}:{}),...(automation?{automation}:{}),...(web?{web}:{}),...(raw.production_method?{production_method:raw.production_method}:{}),...(alternatives?{alternatives}:{})}
+    return {version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes,...(raw.edit_mode?{edit_mode:raw.edit_mode}:{}),...(webtoon_baseline?{webtoon_baseline}:{}),...(automation?{automation}:{}),...(web?{web}:{}),...(raw.production_method?{production_method:raw.production_method}:{}),...(alternatives?{alternatives}:{})}
 }
 export function motionForProject(project: any): MotionDraft | null {
     const raw=project?.project_payload?.render_settings?.motion
