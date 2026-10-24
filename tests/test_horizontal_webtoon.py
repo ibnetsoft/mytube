@@ -18,6 +18,9 @@ def test_native_script_preserves_crops_and_voice_clock(tmp_path):
     assert Image.open(tmp_path/'panel-0-1.png').getpixel((50,50))==(0,0,255)
     data=json.loads(jsx.read_text().split(';\n',1)[0][6:])
     assert data['duration']==5 and data['panels'][1]['reveal']==.3
+    assert data['status']==str((tmp_path/'webtoon.status.txt').resolve())
+    assert "reportStatus('success|'" in jsx.read_text()
+    assert "reportStatus('error|'" in jsx.read_text()
     assert 'Math.max(p.zoom_from,p.zoom_to)' in jsx.read_text()  # Contain even at maximum zoom.
     assert project.suffix=='.aep' and native.suffix=='.avi'
     receipt=json.loads((tmp_path/'webtoon-execution.json').read_text())

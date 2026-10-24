@@ -73,13 +73,18 @@ def write_jsx(source,plan,directory,duration,fps):
             if box[2]<=box[0] or box[3]<=box[1]:raise ValueError('Source crop is smaller than one pixel')
             path=directory/f'panel-{i}-{j}.png';image.crop(box).save(path)
             panels.append({**p,'path':str(path.resolve()),'start':shot['start']*duration,'end':shot['end']*duration})
-    data={'duration':duration,'fps':fps,'panels':panels,'project':str((directory/'webtoon.aep').resolve()),'output':str((directory/'native.avi').resolve())}
+    data={'duration':duration,'fps':fps,'panels':panels,'project':str((directory/'webtoon.aep').resolve()),'output':str((directory/'native.avi').resolve()),'status':str((directory/'webtoon.status.txt').resolve())}
     jsx=directory/'webtoon.jsx'
     jsx.write_text('var P='+json.dumps(data,ensure_ascii=True)+';\n'+JSX,encoding='utf-8')
     (directory/'webtoon-execution.json').write_text(json.dumps({'plan':plan,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'duration':duration,'fps':fps},ensure_ascii=False),encoding='utf-8')
     return jsx,Path(data['project']),Path(data['output'])
 
 JSX=r'''
+function reportStatus(message) {
+ var status=new File(P.status);status.encoding='UTF-8';
+ if(!status.open('w'))throw new Error('Cannot write webtoon execution status');
+ status.write(message);status.close();
+}
 app.beginSuppressDialogs();app.newProject();
 try {
  var C=app.project.items.addComp('horizontal_webtoon',1920,1080,1,P.duration,P.fps);C.bgColor=[0,0,0];
@@ -97,7 +102,9 @@ try {
  }
  var rq=app.project.renderQueue.items.add(C);rq.outputModule(1).file=new File(P.output);
  app.project.save(new File(P.project));
-} finally {app.endSuppressDialogs(false);}
+ reportStatus('success|'+P.project);
+} catch(error) {reportStatus('error|'+String(error));throw error;}
+finally {app.endSuppressDialogs(false);}
 '''
 
 def render(source,bound,directory,duration,fps,fresh):
