@@ -13,7 +13,7 @@ export default function StdCharacterReferences({ payload, impersonateEmail, loca
             <h3 className="font-bold text-white">{ui('캐릭터 기준 이미지')}</h3>
             <p className="text-xs text-gray-400 mt-1">{ui('주요 캐릭터와 2개 이상 씬에 등장하는 인물의 얼굴·머리·변발·상투·의상을 저장해 같은 디자인을 유지하는 기준입니다. 설명문만 있으면 기준 이미지 생성 대기 상태입니다.')}</p>
             {!characters.length && <p className="text-sm text-amber-300 mt-3">{ui('캐릭터 기준 이미지 생성 대기')}</p>}
-            <div className="grid grid-cols-2 gap-2 mt-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 mt-3 lg:grid-cols-2">
                 {characters.map((character: any, index: number) => {
                     let url = persistentThumbnailUrl(character.image_url)
                     if (url && impersonateEmail && /^\/api\/std\/projects\/[^/?#]+\/character-thumbnail(?:\?|$)/.test(url)) {
@@ -24,7 +24,15 @@ export default function StdCharacterReferences({ payload, impersonateEmail, loca
                     const sceneCount = Array.isArray(character.scene_numbers)
                         ? new Set(character.scene_numbers.map(Number).filter((number: number) => Number.isSafeInteger(number) && number > 0)).size
                         : 0
-                    return <div key={character.character_key || `${character.name}-${index}`} className="flex min-w-0 items-center gap-2 rounded-lg bg-black/20 p-2">
+                    const sheetLabels: Record<string, string> = {
+                        design: ui('기본 디자인'), expression: ui('얼굴 연기'),
+                        lipsync: ui('입모양'), wardrobe_action: ui('의상·동작'),
+                    }
+                    const sheets = Array.isArray(character.character_sheet_assets) && character.character_sheet_assets.length
+                        ? character.character_sheet_assets
+                        : (url ? [{ type: 'design', image_url: url }] : [])
+                    return <div key={character.character_key || `${character.name}-${index}`} className="min-w-0 rounded-lg bg-black/20 p-3">
+                        <div className="flex min-w-0 items-center gap-2">
                         {url ? <div className="h-14 w-14 shrink-0 overflow-hidden rounded">
                             {/* The authenticated proxy already returns a fixed 64px asset. */}
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -42,6 +50,24 @@ export default function StdCharacterReferences({ payload, impersonateEmail, loca
                             <p className="line-clamp-2 text-[10px] leading-tight text-gray-400">{character.role || ''}</p>
                             {sceneCount > 0 && <p className="text-[10px] text-sky-300">{ui('{count}개 씬 등장', { count: sceneCount })}</p>}
                         </div>
+                        </div>
+                        {sheets.length > 0 && <div className="mt-3 grid grid-cols-4 gap-2">
+                            {sheets.map((sheet: any, sheetIndex: number) => {
+                                let sheetUrl = persistentThumbnailUrl(sheet.image_url)
+                                if (sheetUrl && impersonateEmail && /^\/api\/std\/projects\/[^/?#]+\/character-thumbnail(?:\?|$)/.test(sheetUrl)) {
+                                    const thumbnail = new URL(sheetUrl, 'http://localhost')
+                                    thumbnail.searchParams.set('impersonate', impersonateEmail)
+                                    sheetUrl = `${thumbnail.pathname}${thumbnail.search}`
+                                }
+                                return <div key={`${sheet.type || 'sheet'}-${sheetIndex}`} className="min-w-0">
+                                    {sheetUrl && <a href={sheetUrl} target="_blank" rel="noreferrer" className="block aspect-square overflow-hidden rounded border border-white/10 bg-black/30">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={sheetUrl} alt={`${character.name || ui('캐릭터')} ${sheetLabels[sheet.type] || ui('캐릭터 시트')}`} className="h-full w-full object-cover" draggable={false} />
+                                    </a>}
+                                    <p className="mt-1 truncate text-center text-[9px] text-gray-400">{sheetLabels[sheet.type] || ui('캐릭터 시트')}</p>
+                                </div>
+                            })}
+                        </div>}
                     </div>
                 })}
             </div>

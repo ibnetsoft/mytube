@@ -896,6 +896,12 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
         config_path = os.path.join(temp_dir, 'config.json')
         with open(config_path, 'r', encoding='utf-8') as f_conf:
             metadata = json.load(f_conf)
+        if metadata.get('final_renderer')=='filmcraft':
+            import sys
+            worker_path=str(Path(__file__).resolve().parents[1]/'worker')
+            if worker_path not in sys.path:sys.path.insert(0,worker_path)
+            from filmcraft_render import CONTRACT
+            if metadata.get('final_renderer_contract')!=CONTRACT:raise ValueError('FilmCraft final contract differs from the submitted package')
 
         aspect_ratio = metadata.get('aspect_ratio', '16:9')
         resolution = metadata.get('resolution', '1080p')
@@ -1069,7 +1075,7 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             render_settings = retime_bgm_settings(render_settings, subs, audio_duration)
         update_progress(22, '저장된 자막 타이밍 적용 중...')
         cached_visual = os.path.join(temp_dir, 'cached-visual.mp4')
-        if metadata.get('pipeline_version') == 2 and os.path.isfile(cached_visual):
+        if metadata.get('pipeline_version') == 2 and metadata.get('final_renderer')!='filmcraft' and os.path.isfile(cached_visual):
             from worker.render_audio_reuse import remux_audio_only
             update_progress(50, '기존 영상 화면을 유지하고 저장된 음향만 교체 중...')
             remux_audio_only(cached_visual,audio_path,temp_dir,audio_duration,render_settings,sfx_cues)
@@ -1090,6 +1096,17 @@ def remote_render_executor_func(task_id: str, temp_dir: str, use_gpu: bool = Fal
             raise Exception('원격 렌더링에 사용할 이미지 리소스를 찾을 수 없습니다.')
 
         durations = _compute_image_durations(image_timing_starts, len(images), audio_duration)
+        if metadata.get('final_renderer')=='filmcraft':
+            from services.filmcraft_final_service import render_final
+            overlay_name=metadata.get('template_overlay_filename')
+            overlay=os.path.join(temp_dir,'overlays',overlay_name) if overlay_name else None
+            if not overlay or not os.path.isfile(overlay):overlay=_render_std_template_overlay_png(render_settings,temp_dir,target_resolution)
+            render_final(temp_dir=temp_dir,images=images,durations=durations,audio_path=audio_path,
+                subtitles=subs if metadata.get('use_subtitles') else [],settings=render_settings,resolution=target_resolution,
+                scene_numbers=metadata.get('scene_numbers'),sfx_cues=sfx_cues,template_overlay_path=overlay,
+                image_effects=image_effects,transition_effects=transition_effects,progress_callback=update_progress,
+                intro_video_path=os.path.join(temp_dir,metadata['intro_filename']) if metadata.get('intro_filename') else None)
+            return
         if isinstance(render_settings.get('motion'), dict) and render_settings['motion'].get('enabled') is True:
             from services.motion_render_service import render_motion
             motion_overlay_name=metadata.get('template_overlay_filename')

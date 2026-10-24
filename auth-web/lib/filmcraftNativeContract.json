@@ -1,0 +1,12 @@
+{
+  "adapter": "filmcraft-native-timeline-gpu-v3-balanced",
+  "profile": "legacy-matched-1080p24-v1",
+  "encoding": {"bitrateMode":"vbr1Pass","bitrateKbps":1540,"maxBitrateKbps":2000,"hardwareEncoding":"auto","audio":{"bitrateKbps":192,"channels":1,"sampleRate":48000}},
+  "captions": "legacy-static-face-metrics-v1",
+  "gpu_composition": "required",
+  "effects": [
+    "atmospheric_haze", "warm_dust_motes", "focus_glow", "light_sweep",
+    "impact_flash", "subtle_vignette", "speedline_burst", "impact_shake",
+    "shock_ring", "energy_trail", "particle_burst", "debris_burst"
+  ]
+}

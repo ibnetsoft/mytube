@@ -127,6 +127,11 @@ def character_continuity_prompt(character):
     if _text(character.get("hair_design_en")):
         parts.append(f"Exact hair design: {character['hair_design_en']}")
     parts.extend([f"Wardrobe: {_text(character.get('wardrobe_en'))}",
+                  f"Facial signature: {_text(character.get('facial_signature'))}" if _text(character.get('facial_signature')) else "",
+                  f"Silhouette signature: {_text(character.get('silhouette_signature'))}" if _text(character.get('silhouette_signature')) else "",
+                  f"Signature prop or behavior: {_text(character.get('prop_behavior_signature'))}" if _text(character.get('prop_behavior_signature')) else "",
+                  ("Production palette: " + ", ".join(str(color) for color in character.get("palette", []) if _text(color))) if isinstance(character.get("palette"), list) else "",
+                  f"Allowed scene variation: {_text(character.get('scene_variation_rules'))}" if _text(character.get('scene_variation_rules')) else "",
                   _text(character.get("continuity_instruction")),
                   "Preserve the same hairline, shaved-scalp area, hair length, and knot/braid shape, position and direction. "
                   "Never swap another person's hairstyle or face. Only a story-explicit approved variant may change them."])

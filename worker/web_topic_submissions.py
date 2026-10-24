@@ -126,6 +126,8 @@ def prepare_brief(request, output, runner, notify):
         if not isinstance(summary, str) or not summary.strip() or len(summary) > 6000:
             raise ValueError('참고 영상 분석 결과가 올바르지 않습니다.')
         if domestic:
+            # Downstream planning must retain the actual evidence, not only its summary.
+            request['source_transcript'] = transcript
             mapping=analysis.get('localization_map')
             if not isinstance(mapping,list) or not mapping or any(not isinstance(m,dict) or any(not isinstance(m.get(k),str) or not m[k].strip() for k in ('source','japanese','kind','reason')) for m in mapping):
                 raise ValueError('한국 사건의 일본 현지화 대응표가 필요합니다.')

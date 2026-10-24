@@ -182,7 +182,16 @@ async function showJob(id,origin='dedicated'){const revision=++resultRevision;tr
   if(window.renderTopicResult)window.renderTopicResult(data);
 }catch(e){error(e.message);}}
 $('approve').onclick=async()=>{if(!selectedJob||!confirm('표시된 대본 버전에 승인 기록을 남길까요? 운영 대본 적용은 실행하지 않습니다.'))return;try{await api('jobs/'+selectedJob.id+'/approve',{candidate_hash:selectedJob.candidate_hash});notice('승인 기록을 저장했습니다. 연관 자료 검증과 운영 적용은 남아 있습니다.');await showJob(selectedJob.id,selectedJob.origin);refresh();}catch(e){error(e.message);}};
-window.categoriesReady=api('categories').then(data=>{const options=data.items.map(c=>{const o=element('option',c.name);o.value=c.name;o.dataset.id=c.id;return o;});const custom=element('option','직접 입력');custom.value='';$('category').replaceChildren(...options,custom);}).catch(e=>error(e.message));
+window.categoriesReady=api('categories').then(data=>{
+  const excluded=new Set(['경제','노후금융']);
+  const categories=data.items.filter(c=>!excluded.has(c.name));
+  for(const name of ['판타지/SF','일상/웹툰','지식/미스터리','힐링/동화']){
+    if(!categories.some(c=>c.name===name))categories.push({name,id:''});
+  }
+  const options=categories.map(c=>{const o=element('option',c.name);o.value=c.name;o.dataset.id=c.id;return o;});
+  const custom=element('option','직접 입력');custom.value='';
+  $('category').replaceChildren(...options,custom);
+}).catch(e=>error(e.message));
 refresh();setInterval(()=>{if(document.hidden)return;refresh();if(selectedJob&&!$('view-jobs').hidden)showJob(selectedJob.id,selectedJob.origin);},10000);
 
 if ($('new-script-style')) $('new-script-style').onchange = () => {

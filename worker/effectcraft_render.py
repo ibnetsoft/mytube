@@ -14,6 +14,17 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 PIN=json.loads((ROOT/'auth-web/lib/effectcraftSource.json').read_text(encoding='utf-8'))
+# The base is encoded again during final composition; retain detail on the first
+# keyframe as well as subsequent frames instead of using the native 15 Mbps default.
+INTERMEDIATE_BITRATE_KBPS=40000
+
+
+def render_native_video(cli,project,comp,output,fps,directory,execute=None):
+    execute=execute or _execute
+    execute(cli,['render',str(project),'--comp',comp,'--out',str(output),'--format','h264',
+                 '--bitrate',str(INTERMEDIATE_BITRATE_KBPS),'--audio','off','--fps',str(fps),'--json'],
+            directory,'render-scene')
+    return {'format':'h264','bitrate_kbps':INTERMEDIATE_BITRATE_KBPS,'color_matrix':'bt709','range':'limited'}
 
 def sha(path):
     value=hashlib.sha256()
@@ -81,6 +92,8 @@ def render_scene(snapshot,scene,plan,source,directory,fresh):
         from ae_scene_animation import resolved_layers
         if not scene.get('preparation'):raise ValueError('검수한 PSD 레이어·연출 패키지가 필요합니다. 제출 전 대본워커에서 준비해 주세요.')
         prepared=load_preparation({'number':scene['number'],'ae_scene':scene['preparation']},directory/'preparation',fresh)
+        from scene_direction_policy import bind_prepared_camera
+        prepared=bind_prepared_camera(prepared,scene,motion)
         if prepared['plan']['output']!=output:raise ValueError('Prepared PSD output differs from submitted orientation')
         data={'plan':prepared['plan'],'layers':resolved_layers(prepared['plan']),'files':{key:str(path.resolve()) for key,path in prepared['layers'].items()},'fit':'cover'}
     else:
@@ -117,12 +130,17 @@ def render_scene(snapshot,scene,plan,source,directory,fresh):
     project=directory/'scene.ecproj';output_file=media_directory(directory)/'base.mp4'
     for prior in (project,output_file):
         if prior.is_file():prior.replace(prior.with_name(prior.stem+'-'+sha(prior)[:16]+'.previous'+prior.suffix))
+
     fresh();_execute(cli,['script','--eval','null','--empty','--save-as',str(project),'--json'],directory,'initialize-project')
     fresh();_execute(cli,['script',str(script),'--project',str(project),'--save','--json'],directory,'create-project')
     if not project.is_file():raise ValueError('EffectCraft did not save the editable project')
-    fresh();_execute(cli,['render',str(project),'--comp','ae_scene','--out',str(output_file),'--format','h264','--audio','off','--fps',str(fps),'--json'],directory,'render-scene')
+    from effectcraft_compatibility import prepare_project
+    # _scene_script emits straight spatial motion explicitly; do not apply this
+    # declaration to arbitrary user-authored native projects with auto curves.
+    fresh();compatibility=prepare_project(cli,project,directory,_execute,linear_positions=True)
+    fresh();export=render_native_video(cli,project,'ae_scene',output_file,fps,directory)
     if not output_file.is_file() or not output_file.stat().st_size:raise ValueError('EffectCraft produced no video')
-    receipt={'engine':'effectcraft','revision':PIN['revision'],'project':project.name,'project_sha256':sha(project),'output_sha256':sha(output_file),'review_status':'rendered_requires_actual_review',
+    receipt={'engine':'effectcraft','revision':PIN['revision'],'compatibility':compatibility,'export':export,'project':project.name,'project_sha256':sha(project),'output_sha256':sha(output_file),'review_status':'rendered_requires_actual_review',
              'supplemental_fingerprint':(plan.get('_supplemental_package') or {}).get('fingerprint')}
     (directory/'effectcraft-receipt.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
     fresh();return output_file

@@ -238,17 +238,21 @@ def _run_comfy_prompt(base_url: str, graph: dict[str, Any], timeout_seconds: int
 
 
 def _register_video(project: dict[str, Any], scene: dict[str, Any], scene_row: dict[str, Any] | None,
-                    scene_number: int, gcs_bucket: str, gcs_path: str, file_path: Path) -> None:
+                    scene_number: int, gcs_bucket: str, gcs_path: str, file_path: Path, source_asset_id: str | None = None) -> None:
     base_url, headers = _supabase()
     project_id = str(project["id"])
     scene_id = scene_row.get("id") if scene_row else None
     timestamp = _now()
+    from content_identity import asset_identity
+    import hashlib
     asset_metadata = {
+        'content_identity': asset_identity(project, 'video', {**scene, 'id': scene_id, 'scene_number': scene_number}, job_id=timestamp, parents=[source_asset_id] if source_asset_id else []),
         "storage_provider": "gcs", "storage_bucket": gcs_bucket, "storage_path": gcs_path,
         "gcs_bucket": gcs_bucket, "gcs_path": gcs_path,
         "storage_public_url": f"/api/std/assets/gcs-file?bucket={quote(gcs_bucket, safe='')}&path={quote(gcs_path, safe='')}",
         "upload_mode": "local_comfyui_wan22_i2v", "generator": "ComfyUI Wan 2.2 TI2V 5B",
         "duration_seconds": SCENE_SECONDS, "fps": VIDEO_FPS, "width": VIDEO_WIDTH, "height": VIDEO_HEIGHT,
+        "sha256": hashlib.sha256(file_path.read_bytes()).hexdigest(),
         "video_prompt": str(scene.get("video_prompt") or "")[:20000],
     }
     asset_row = {
@@ -340,7 +344,7 @@ def process_one() -> bool:
     base_url, headers = _supabase()
     comfy_url = DEFAULT_COMFY_URL
     projects_response = _request("GET", f"{base_url}/rest/v1/std_projects", headers, params={
-        "select": "id,title,status,submitted_at,updated_at,project_payload", "status": "in.(claimed,in_progress)",
+        "select": "id,topic_queue_id,title,status,submitted_at,updated_at,project_payload", "status": "in.(claimed,in_progress)",
         "submitted_at": "is.null", "order": "updated_at.asc", "limit": "30",
     })
     projects = projects_response.json()
@@ -395,13 +399,16 @@ def process_one() -> bool:
                 bucket, image_object = image_source
                 _download_gcs(bucket, image_object, local_input)
                 comfy_image = _comfy_upload_image(comfy_url, local_input, f"air_studio/{project_id}")
-                object_path = f"std-projects/{project_id}/scene_{number:03d}_comfyui.mp4"
+                import hashlib
                 prefix = f"air_studio/{project_id}/scene_{number:03d}_comfyui"
                 graph = build_wan22_i2v_prompt(comfy_image, prompt, prefix)
                 raw_video_path = _run_comfy_prompt(comfy_url, graph, int(os.getenv("COMFYUI_JOB_TIMEOUT_SECONDS", "3600")))
                 video_path = _upscale_video(raw_video_path, raw_video_path.with_name(raw_video_path.stem + "_1080p.mp4"))
+                output_sha = hashlib.sha256(video_path.read_bytes()).hexdigest()
+                object_path = f"std-projects/{project_id}/scene-{number:03d}/comfyui-{output_sha}.mp4"
                 gcs_bucket, gcs_path = _upload_gcs(video_path, object_path)
-                _register_video(project, scene, scene_row, number, gcs_bucket, gcs_path, video_path)
+                _register_video(project, scene, scene_row, number, gcs_bucket, gcs_path, video_path,
+                    source_asset_id=next((a.get("id") for a in assets if a.get("asset_type") == "image" and int(a.get("scene_number") or 0) == number), None))
                 _write_state("idle")
                 print(f"[ComfyUI] Ready project={project_id} scene={number} gcs={gcs_path}", flush=True)
                 return True

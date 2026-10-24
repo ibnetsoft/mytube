@@ -6,12 +6,12 @@ import StdMotionAutomation from './StdMotionAutomation'
 import StdProductionMethodSelector from './StdProductionMethodSelector'
 const StdWebMotionStudio=dynamic(()=>import('./StdWebMotionStudio'),{ssr:false})
 import { AE_SCENE_EFFECTS } from '../lib/stdAeSceneEffects'
-import { interpolateMotion, MotionDraft, MotionKey, motionKey, motionPreset, motionScene, MOTION_PRESETS, normalizeMotionDraft, motionProductionMethod, switchMotionProduction, type ProductionMethod } from '../lib/stdMotionStudio'
+import { interpolateMotion, MotionDraft, MotionKey, motionKey, motionPreset, motionScene, MOTION_PRESETS, normalizeMotionDraft, defaultMotionDraft, motionProductionMethod, switchMotionProduction, type ProductionMethod } from '../lib/stdMotionStudio'
 
 export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpload, projectId, headers, renderHistory=[], defaultAspect='16:9', aePreparation, preparationOnly=false }: {
     value: any; scenes: any[]; disabled: boolean; onSave: (draft: MotionDraft) => Promise<void>; onUpload: (scene: any, file: File) => Promise<unknown>; projectId: string; headers: Record<string,string>; renderHistory?:any[]; defaultAspect?:MotionDraft['aspect']; aePreparation?:ReactNode; preparationOnly?:boolean
 }) {
-    const [draft,setDraft]=useState<MotionDraft>(()=>value ? normalizeMotionDraft(value) : {version:1,enabled:false,aspect:defaultAspect,fps:24,scenes:{}})
+    const [draft,setDraft]=useState<MotionDraft>(()=>defaultMotionDraft(value,defaultAspect))
     const [index,setIndex]=useState(0), [time,setTime]=useState(0), [playing,setPlaying]=useState(false), [busy,setBusy]=useState(false), [error,setError]=useState(''), [notice,setNotice]=useState('')
     const [jobs,setJobs]=useState<any[]>([]), [open,setOpen]=useState(false)
     const [preparations,setPreparations]=useState<any[]>([])
@@ -22,8 +22,8 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
     const update=(changes: Partial<typeof scene>)=>setDraft(d=>({...d,scenes:{...d.scenes,[number]:{...scene,...changes}}}))
     const serialized=JSON.stringify(value)
     const method=motionProductionMethod({project_payload:{render_settings:{motion:draft}}})
-    const selectMethod=async(next:ProductionMethod)=>{if(next===method)return;setBusy(true);setError('');try{const updated=switchMotionProduction(draft,next);await onSave(updated);setDraft(updated);setNotice(next==='ae'?'기존 AE 제작 방식으로 저장했습니다.':'Motion Studio 추가 옵션으로 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
-    useEffect(()=>{ if(serialized) setDraft(normalizeMotionDraft(JSON.parse(serialized))) },[serialized]) // saved server snapshot
+    const selectMethod=async(next:ProductionMethod)=>{if(next===method)return;setBusy(true);setError('');try{const updated=switchMotionProduction(draft,next);await onSave(updated);setDraft(updated);setNotice(next==='ae'?'기존 AE 제작 방식으로 저장했습니다.':next==='filmcraft'?'FilmCraft 렌더 방식으로 저장했습니다.':'Motion Studio 추가 옵션으로 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+    useEffect(()=>{ setDraft(defaultMotionDraft(serialized?JSON.parse(serialized):undefined,defaultAspect)) },[serialized,defaultAspect]) // saved server snapshot
     useEffect(()=>{setTime(0);setPlaying(false)},[index])
     useEffect(()=>{
         if(!playing)return
@@ -48,10 +48,15 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
         ctx.fillStyle='#22d3ee';ctx.font='11px sans-serif';ctx.fillText('자막·주요 피사체 안전 영역',c.width*.08,c.height*.1-6)
     }
     useEffect(()=>{draw()},[draft,time,index,source,open])
-    const save=async()=>{setBusy(true);setError('');try{await onSave(normalizeMotionDraft(draft));setNotice(method==='effectcraft'?'EffectCraft 제작 설정 저장 완료':'AE 제작 설정 저장 완료')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+    const save=async()=>{setBusy(true);setError('');try{await onSave(normalizeMotionDraft(draft));setNotice(method==='filmcraft'?'FilmCraft 제작 설정 저장 완료':method==='effectcraft'?'EffectCraft 제작 설정 저장 완료':'AE 제작 설정 저장 완료')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const previews=async(action:'read'|'preview'|'direction')=>{setError('');setBusy(true);try{if(action!=='read')await onSave(normalizeMotionDraft(draft));const response=await fetch(`/api/std/projects/${projectId}/motion`,{method:action==='read'?'GET':'POST',headers:{...headers,'Content-Type':'application/json'},...(action!=='read'?{body:JSON.stringify({scene_number:number,action})}:{})});const data=await response.json();if(!response.ok)throw new Error(data.error);setJobs(data.jobs||[]);setPreparations(data.preparations||[]);if(action!=='read')setNotice('워커 작업 요청 완료. 처리 후 상태를 새로고침해 주세요.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     const keyField=(k:MotionKey,field:keyof MotionKey,label:string,min:number,max:number,step:number)=> <label key={field} className="text-xs">{label}<input aria-label={`${Math.round(k.t*100)}% ${label}`} type="number" value={k[field]} min={min} max={max} step={step} disabled={disabled||busy} onChange={e=>update({keys:scene.keys.map(item=>item===k?{...k,[field]:Number(e.target.value)}:item)})} className="ml-1 w-20 rounded bg-slate-800 p-1"/></label>
     return <><StdProductionMethodSelector method={method} disabled={disabled||busy} onSelect={next=>void selectMethod(next)}/>
+        <fieldset disabled={disabled||busy} className="mx-5 space-y-3 rounded-xl border border-cyan-500/30 bg-[#101722] p-4 text-white">
+            <legend className="px-2 font-semibold">최종 렌더러</legend>
+            <p className="text-sm text-slate-300">효과 제작이 끝난 씬 영상에 자막·음성·배경음·효과음을 합성합니다.</p>
+            {(['python','filmcraft'] as const).map(renderer=><label key={renderer} className="mr-5 inline-block"><input type="radio" name="final-renderer" value={renderer} checked={(draft.final_renderer||'python')===renderer} onChange={async()=>{setBusy(true);setError('');try{const updated=normalizeMotionDraft({...draft,final_renderer:renderer});await onSave(updated);setDraft(updated);setNotice('최종 렌더러 설정을 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}}/> {renderer==='python'?'Python / FFmpeg · 기본':'FilmCraft · 추가 옵션'}</label>)}
+        </fieldset>
         {(method==='ae'||method==='effectcraft')&&aePreparation}
         {method==='motion_studio'&&preparationOnly?<p className="mx-5 text-sm text-cyan-100">원본·레이어·연출 준비를 저장합니다. 영상 제작과 화자 지정은 유저웹에서 진행하고, 제출 후 통합워커가 AE를 실행합니다.</p>:method==='motion_studio'?<StdWebMotionStudio draft={draft} onChange={setDraft} onSave={onSave} disabled={disabled||busy} projectId={projectId} headers={headers}/>:<StdMotionAutomation planningOnly={preparationOnly} draft={draft} onChange={setDraft} onSave={()=>void save()} disabled={disabled} busy={busy} projectId={projectId} headers={headers}/>}
         {notice&&<p role="status" className="mx-5 text-xs text-cyan-200">{notice}</p>}{error&&<p role="alert" className="mx-5 text-sm text-red-300">{error}</p>}

@@ -141,7 +141,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
                    'user_direction': request['notes'],
                    'source_reference':{k:request.get('web_brief',{}).get(k) for k in ('youtube_url','source_video_id','source_duration_seconds','source_duration_verified')},
-                   'source_localization_map':request.get('source_localization_map',[])}
+                   'source_localization_map':request.get('source_localization_map',[]),
+                   'source_transcript':request.get('source_transcript','')}
         if 'historical_sources' in request:
             payload['historical_sources'] = request['historical_sources']
         package = runner.generate('local-' + identity, payload, script_only=True)

@@ -1,0 +1,56 @@
+diff --git a/apps/filmcraft-cli/src/main.rs b/apps/filmcraft-cli/src/main.rs
+index b57f188..647ece2 100644
+--- a/apps/filmcraft-cli/src/main.rs
++++ b/apps/filmcraft-cli/src/main.rs
+@@ -451,7 +451,24 @@ async fn cli() {
+                 b.exec("file.exportMedia", p).await
+             };
+             match r {
+-                Ok(v) => {
++                Ok(mut v) => {
++                    // AIR adapter receipt: distinguish actual GPU composition from CPU fallbacks.
++                    // gpu_render_stats counts frames returned by the registered renderer, including
++                    // pre-rendered CPU images; timing::frames counts only real GPU submissions.
++                    let stats = filmcraft_export::gpu_render_stats();
++                    let timing = filmcraft_gpu::export_renderer::timing::get();
++                    if let Some(object) = v.as_object_mut() {
++                        object.insert("gpuComposition".into(), json!({
++                            "compositedFrames": timing.frames,
++                            "rendererFrames": stats.frames,
++                            "fallbackFrames": stats.fallbacks,
++                            "adapter": filmcraft_gpu::export_renderer::adapter_info().map(|info| json!({
++                                "name": info.name,
++                                "backend": format!("{:?}", info.backend),
++                                "deviceType": format!("{:?}", info.device_type),
++                            })),
++                        }));
++                    }
+                     print(&a, &v);
+                     let written = written_paths(&v, out).join(", ");
+                     check_offline(&a, &offline_media(&v), &format!("export: {written}"));
+diff --git a/crates/gpu/src/export_renderer.rs b/crates/gpu/src/export_renderer.rs
+index f86f51a..bbaf8fd 100644
+--- a/crates/gpu/src/export_renderer.rs
++++ b/crates/gpu/src/export_renderer.rs
+@@ -88,6 +88,13 @@ fn device_failed() -> bool {
+     DEVICE_FAILED.load(std::sync::atomic::Ordering::SeqCst)
+ }
+ 
++static ADAPTER_INFO: std::sync::OnceLock<wgpu::AdapterInfo> = std::sync::OnceLock::new();
++
++/// Device selected for native export composition; no device is created by this query.
++pub fn adapter_info() -> Option<wgpu::AdapterInfo> {
++    ADAPTER_INFO.get().cloned()
++}
++
+ pub struct ExportRenderer {
+     _instance: wgpu::Instance,
+     #[expect(dead_code, reason = "kept for future frame-accuracy flows (readback fences)")]
+@@ -113,6 +120,7 @@ impl ExportRenderer {
+                 }
+                 let instance = wgpu::Instance::default();
+                 let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).ok()?;
++                let _ = ADAPTER_INFO.set(adapter.get_info());
+                 let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).ok()?;
+                 // wgpu's default handler panics on a validation or out-of-memory error; log it and
+                 // send the remaining frames to the CPU instead.

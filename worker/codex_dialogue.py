@@ -1,7 +1,7 @@
 """AI-authored dialogue annotations. Code validates provenance, not speech semantics."""
 import hashlib
 
-ASTRA_MODEL = 'gpt-6-astra'
+ASTRA_MODEL = 'gpt-6.1-sol'
 DIALOGUE_TASK = """Read the entire FINAL script and cast in context. Identify only words actually
 spoken aloud by a character. Narration about speaking, indirect speech, document/letter text,
 inscriptions and inner thoughts are not automatically spoken dialogue. Decide from meaning,

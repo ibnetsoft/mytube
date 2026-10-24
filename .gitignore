@@ -92,6 +92,7 @@ rebuild_*_log.txt
 .vercel
 .env*
 .codex-temp/
+/_dev/filmcraft-upstream/
 .deploy-production/
 .mcp.json
 

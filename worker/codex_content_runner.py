@@ -40,6 +40,7 @@ from scene_direction_policy import DIRECTING_TASK, is_directed, execution_capabi
 from directing_profiles import resolve_directing_profile
 from character_continuity import validate_character_identity, scene_continuity_prompt, character_design_anchors
 from scene_composition import apply_scene_shot_design, normalize_scene_shot_design
+from character_diversity import diversity_contract, enrich_and_validate, record_designs
 
 
 APPROVED_VIDEO_CAMERA_MOVEMENTS = (
@@ -49,6 +50,11 @@ APPROVED_VIDEO_CAMERA_MOVEMENTS = (
 
 
 AE_EFFECT_PRESET_KEYWORDS = (
+    (
+        "webtoon_impact_beat_v1",
+        ("타격", "공격", "내리쳤", "내리꽂", "베어", "베었다", "충돌", "쾅", "강타", "일격", "strike", "impact", "hit", "slash"),
+        "After Effects highlight: anticipation push, impact flash, directional speedlines, short camera shake, impact hold, and recovery.",
+    ),
     (
         "webtoon_impact_beat_v1",
         ("타격", "공격", "내리쳤", "내리꽂", "베어", "베었다", "충돌", "쾅", "강타", "일격", "strike", "impact", "hit", "slash"),
@@ -745,8 +751,6 @@ def _webtoon_speech_bubbles(scene: dict[str, Any], duration: float) -> dict[str,
             "start_seconds": round(start, 3), "end_seconds": round(end, 3),
         })
     return {"enabled": bool(bubbles), "bubbles": bubbles}
-
-
 def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Attach optional AE highlight render hints without making AE mandatory."""
     category_blob = _text_blob(
@@ -2635,17 +2639,20 @@ class CodexStagedContentRunner:
             "Only a story-explicit separately identified age/costume variant may differ; do not invent appearance changes. "
             f"Story setting is {setting['setting_country_en']} ({setting['era_region']}); selected image style is {setting['image_style_en']}. "
             "Respect the exact historical region and era rather than imposing a generic national costume or hairstyle. "
+            + diversity_contract(context) + " "
             "These persistent definitions will control reference portraits and every applicable scene image."
         )
         for identity_attempt in range(2):
             identity = self._stage(job_id, "02d_character_identity", context, identity_task)
             try:
                 identity = validate_character_identity(identity, context["scenes"], context.get("existing_character_anchors") or {})
+                identity = enrich_and_validate(identity, context, context.get("existing_character_anchors") or {})
                 break
             except ValueError as exc:
                 if identity_attempt:
                     raise CodexContentError(f"character identity rejected: {exc}") from exc
                 context["character_identity_validation_feedback"] = str(exc)
+        record_designs(identity, context)
         return identity
 
     def generate(self, job_id: str, payload: dict[str, Any], *, script_only: bool = False) -> dict[str, Any]:

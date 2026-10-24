@@ -10,7 +10,7 @@ function fixture(mode='ae_only') {
   if(name.includes('stdWorkflowBoundary'))return {assertPreparationFinished:()=>{}}
   if(name.includes('stdSceneExecution'))return {directedScene:()=>false,bindSceneDirection:()=>null}
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:{rpc:async(name,args)=>{calls.rpc.push({name,args});return {data:{job_id:'queued'},error:null}}}}
-  if(name.includes('stdMotionStudio'))return {motionForProject:p=>p.project_payload.render_settings.motion,motionProductionMethod:p=>p.project_payload.render_settings.motion.production_method||'after_effects'}
+  if(name.includes('stdMotionStudio'))return {...require('./load-ts-module.cjs')('lib/stdMotionStudio.ts'),motionForProject:p=>p.project_payload.render_settings.motion}
   if(name.includes('stdHorizontalWebtoon'))return {horizontalWebtoon:p=>p.project_payload.render_settings.motion.edit_mode==='horizontal_webtoon',webtoonInputs:()=>[{number:1,asset:image,start:0,end:20}],readyWebtoonPlan:()=>({source_sha256:'a'.repeat(64),plan:{version:1,shots:[{start:0,end:1,panels:[]}],evidence:['fixture']}})}
   if(name.includes('stdAeScenePreparation'))return {aeSceneSources:()=>new Map(),preparedAeScenes:()=>new Map()}
   if(name.includes('stdContentIdentity'))return {selectNarrationAsset:()=>audio}
@@ -42,6 +42,17 @@ test('horizontal webtoon freezes the inspected plan and uses a queue older worke
 test('hybrid freezes selected model configuration but excludes its secret',async()=>{
  const f=fixture('hybrid');await f.run();assert.equal(f.calls.models,1)
  const args=f.calls.rpc[0].args;assert.ok(!JSON.stringify(args).includes('never-copy-this'));assert.equal(JSON.parse(args.p_manifest.automation.snapshot_json).model_ref.id,'model')
+})
+
+test('EffectCraft freezes bounded post-submission supplementation while final voice and subtitle times remain exact',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft'
+ await f.run()
+ const args=f.calls.rpc[0].args,s=JSON.parse(args.p_manifest.automation.snapshot_json)
+ assert.equal(f.calls.rpc[0].name,'register_std_effectcraft_pipeline')
+ assert.deepEqual(s.supplemental_assets,{contract:'ec_supplemental/v1',enabled:true,max_layers_per_scene:4,max_attempts:2})
+ assert.equal(s.audio.id,f.audio.id);assert.equal(s.scenes[0].source.id,f.image.id)
+ assert.deepEqual(s.subtitles.map(r=>[r.start,r.end]),[[0,20]])
+ assert.equal(f.calls.models,0)
 })
 test('resolved sound cues and background audio survive automatic submission',async()=>{
  const f=fixture();f.project.project_payload.render_settings.sfx_cues=[{library_key:'wind.wav',word_boundary:0}]

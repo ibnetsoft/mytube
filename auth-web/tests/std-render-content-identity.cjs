@@ -5,6 +5,7 @@ function renderer(){
  const ex={}; const source=fs.readFileSync(path.join(webRoot,'lib/stdRenderQueue.ts'),'utf8')+'\nexport const previewForTest = buildGcsRenderConfig;'
  new Function('exports','require',ts.transpile(source,{module:1,target:7}))(ex,name=>{
   if(name==='crypto')return require('crypto')
+  if(name==='./filmcraftNativeContract.json')return {default:JSON.parse(fs.readFileSync(path.join(webRoot,'lib/filmcraftNativeContract.json'),'utf8'))}
   if(name.includes('stdContentIdentity'))return identity
   if(name.includes('stdMotionStudio'))return load('lib/stdMotionStudio.ts')
   if(name.includes('stdSceneMedia'))return load('lib/stdSceneMedia.ts')
@@ -31,6 +32,15 @@ function fixture(){const rows=[{text:'原本。',voice_id:'v',start_num:0,end_nu
  const image={id:'image',project_id:'p',scene_id:'scene',scene_number:19,asset_type:'image',status:'assigned',file_name:'original.png',metadata:{gcs_bucket:'bucket',gcs_path:'topics/3373/image.png'}}
  return {p,scene,audio,image}
 }
+test('final package defaults to Python and FilmCraft is an independent opt-in',async()=>{
+ const f=fixture();const config=await renderer()(f.p,[f.scene],[f.audio,f.image],1000003373)
+ assert.equal(load('lib/stdMotionStudio.ts').motionProductionMethod(f.p),'ae')
+ assert.equal(config.final_renderer,'python');assert.equal(config.final_renderer_contract,undefined)
+ f.p.project_payload.render_settings={motion:{version:1,enabled:false,aspect:'16:9',fps:24,scenes:{},final_renderer:'filmcraft'}}
+ const optional=await renderer()(f.p,[f.scene],[f.audio,f.image],1000003373)
+ assert.equal(optional.final_renderer,'filmcraft');assert.equal(optional.final_renderer_contract.profile,'legacy-matched-1080p24-v1')
+ assert.equal(load('lib/stdMotionStudio.ts').motionProductionMethod(f.p),'ae')
+})
 test('final GCS composition uses the same frozen comic neighbor source selector',async()=>{
  const f=fixture()
  f.p.project_payload.submission_pipeline_version=2

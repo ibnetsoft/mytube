@@ -777,7 +777,7 @@ export default function StdPortalPage() {
 
     // 1.1 언어 (i18n) 상태 (한국어, 영어, 베트남어, 태국어)
     const [currentLocale, setCurrentLocale] = useState<SupportedLocale>('ko')
-    
+
     useEffect(() => {
         let interval: any = null
         if (verifyCodeSent && !emailVerified && verifyTimer > 0) {
@@ -1278,7 +1278,7 @@ export default function StdPortalPage() {
     }, [isSubtitleTextEditing, selectedSubIndex])
 
     // 6. 설정(Settings) 페이지 전용 상태 (유저앱 settings.html 100% 동일 구현)
-    
+
     // 7. 렌더(Render) 탭 전용 상태 (유저앱 render.html 100% 동일 구현)
     const [renderResolution, setRenderResolution] = useState<'1080p' | '720p'>('1080p')
     const [renderUseSubtitles, setRenderUseSubtitles] = useState(true)
@@ -1596,7 +1596,7 @@ export default function StdPortalPage() {
                 'Photorealistic Korean longform story scene, consistent characters, cinematic lighting, no text, no captions, no subtitles, no logos.',
             ].join(' ')
         }
-        
+
         const syncedAt = new Date().toISOString()
         const updatedScenes = Array.from({ length: totalCount }, (_, i) => selectedProject.scenes[i] || ({
             id: `generated-${i + 1}`,
@@ -1631,7 +1631,7 @@ export default function StdPortalPage() {
                 },
             }
         })
-        
+
         const updatedSubs = generateSynchronizedSubtitles(scriptToUse, updatedScenes, Number(subMaxChars) || 20)
         const persistedScenes = updatedScenes.map((scene: any, index: number) => ({
             scene_number: Number(scene?.scene_number || scene?.scene_order || index + 1),
@@ -1655,7 +1655,7 @@ export default function StdPortalPage() {
             ...(selectedProject.project?.project_payload?.structure || {}),
             scenes: updatedScenes,
         }
-        
+
         const updatedProject = {
             ...selectedProject,
             scenes: updatedScenes,
@@ -1672,7 +1672,7 @@ export default function StdPortalPage() {
                 }
             }
         }
-        
+
         setSelectedProject(updatedProject)
         setCustomScriptText(scriptToUse)
         setLocalSubtitles(updatedSubs)
@@ -4357,7 +4357,7 @@ export default function StdPortalPage() {
         const dummyId = `proj-${topic.id || Date.now()}`
         const sampleTopicTitle = topic.generated_title || topic.topic || '새로운 영상 프로젝트'
         const struct = topic.pregenerated_structure || topic.structure || {}
-        
+
         const realDefaultNarratives = [
             "글쎄, 장례식이 끝나고 조문객들이 하나둘 돌아간 뒤였어요.",
             "영정사진 앞에 홀로 앉은 늙은 남편이,",
@@ -4909,7 +4909,7 @@ export default function StdPortalPage() {
                 body: JSON.stringify({ email: targetEmail, password }),
             })
             const result = await res.json().catch(() => { throw new Error('로그인 서버가 정상 응답을 보내지 않았습니다. 잠시 후 다시 시도해 주세요.') })
-            
+
             if (!res.ok || !result.success || !result.session_token || !result.user?.id) {
                 throw new Error(result.error || '로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요.')
             }
@@ -4982,7 +4982,7 @@ export default function StdPortalPage() {
         }
     }, [settingsSubTab, user?.email, token, loadStdWallet])
 
-    
+
     const sendVerificationCode = async () => {
         const cleanEmail = email.trim().toLowerCase()
         if (!cleanEmail || !cleanEmail.includes('@')) {
@@ -5143,8 +5143,8 @@ export default function StdPortalPage() {
         }
     }
 
-    
-    
+
+
     const saveProfileSettings = async () => {
         const targetEmail = isImpersonating ? impersonateEmail : (user?.email || email)
         if (!targetEmail) return
@@ -7560,7 +7560,7 @@ export default function StdPortalPage() {
         ? selectedProject?.assets?.find((asset: any) => asset.id === currentSfxCue.asset_id)
         : null
 
-    
+
     // 7대 필수 단계 완료 여부 동적 계산 헬퍼 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일)
     const getProjectStepStatus = (proj: any, scenesList: any[] = [], currentAudio?: string, currentScript?: string, currentSubs?: any[], currentThumb?: string) => {
         const p = proj?.project || proj || {}
@@ -7576,7 +7576,7 @@ export default function StdPortalPage() {
 
         // 3. 대본 (Script)
         const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt || s.text)))
-        
+
         // Read the same saved visual/output status as the project list and admin queue.
         const { isImageDone, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
 
@@ -7750,7 +7750,7 @@ export default function StdPortalPage() {
                     <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
                     <p className="text-xs font-black tracking-widest text-blue-400 uppercase">AIR STUDIO STD Loading...</p>
                 </div>
-            
+
                 {/* 이용약관 & 개인정보처리방침 팝업 모달 */}
                 {legalModalType && (
                     <div
@@ -8321,7 +8321,7 @@ export default function StdPortalPage() {
                         </div>
                     </div>
                 )}
-            
+
                 {/* 이용약관 & 개인정보처리방침 팝업 모달 */}
                 {legalModalType && (
                     <div
@@ -12673,9 +12673,9 @@ export default function StdPortalPage() {
                     )}
 
                     {/* [설정 탭 (유저앱 settings.html과 100% 동일 구현)] */}
-                    
+
                     {/* [설정 탭 (유저앱 settings.html과 100% 동일 구현)] */}
-                    
+
                     {/* [기획 탭 (유저앱 script_plan.html 완벽 대응)] */}
                     {currentNav === 'script_plan' && selectedProject && !isNonverbalProject(selectedProject.project) && (
                         <div className="space-y-5 max-w-7xl mx-auto w-full flex flex-col h-full pb-10">
@@ -13681,7 +13681,7 @@ export default function StdPortalPage() {
                             </div>
                         </div>
                     )}
-                
+
                 {/* 이용약관 & 개인정보처리방침 팝업 모달 */}
                 {legalModalType && (
                     <div

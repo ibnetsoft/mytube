@@ -472,7 +472,7 @@ class RemoteDriveWorker:
 
         self.visual_cache_dir = None
         visual_hash = packaged_config.get('visual_recipe_sha256')
-        if visual_hash and len(visual_hash) == 64 and all(c in '0123456789abcdef' for c in visual_hash):
+        if packaged_config.get('final_renderer')!='filmcraft' and visual_hash and len(visual_hash) == 64 and all(c in '0123456789abcdef' for c in visual_hash):
             from pathlib import Path
             self.visual_cache_dir = Path.home() / '.air-studio' / 'visual-cache' / visual_hash
             cached = self.visual_cache_dir / 'output.mp4'

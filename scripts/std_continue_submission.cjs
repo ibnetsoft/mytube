@@ -27,7 +27,7 @@ async function main() {
   load('stdProjectAssets').loadStdProjectAssets(db, id, '*'),
  ])
  if (s.error || a.error) throw s.error || a.error
- const automatic = (a.data || []).filter(asset => ['motion_automation','effectcraft_automation','horizontal_webtoon_automation'].includes(asset.metadata?.kind))
+ const automatic = (a.data || []).filter(asset => ['motion_automation','effectcraft_automation','horizontal_webtoon_automation','filmcraft_automation'].includes(asset.metadata?.kind))
   .sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)))[0]
  if (automatic) {
   const m=automatic.metadata,final=m.final

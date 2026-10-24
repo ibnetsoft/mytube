@@ -304,7 +304,12 @@ for each effect add QA assertions for visibility, timing, readability and preser
 If selected effects cannot safely fit the scene, return needs_repair, never omit a requested effect.
 Use parallax=0 unless source separation and camera movement visibly justify it. Fade affects visual only.
 If original cannot support requested direction, status=needs_repair with precise required artwork, never silently
-downgrade requested action or approve unsupported movement. qa_assertions must state what output review checks.'''
+downgrade requested action or approve unsupported movement. qa_assertions must state what output review checks.
+When input.scene_context.creative_reference is scene_direction_plan/v2, preserve its topic visual language,
+shot purpose, quoted cue and camera direction; adapt framing only to actual visible source evidence. Use one
+camera and depth-derived parallax, not independent alternating layer moves. No return path without a named
+visible action; source uncertainty requires needs_repair. No synthetic attention glow or decorative speedlines.
+This normalized preproduction path still needs binding to actual recorded subtitle intervals before final output.'''
 
 
 def apply_motion_layer_edits(plan, scene):
@@ -363,6 +368,14 @@ def prepare(source, snapshot, directory, runner, generator, current=lambda: None
             raise ValueError('원화/연출 보완 필요: ' + str(directed.get('reason') or '지원 가능한 레이어 움직임을 확인하지 못했습니다.')[:1200])
         try:
             plan = apply_motion_layer_edits(directed.get('plan'), snapshot.get('motion_scene'))
+            from scene_direction_policy import is_directed, validate_keys
+            creative = (snapshot.get('scene_context') or {}).get('creative_reference')
+            if is_directed(creative):
+                plan['direction_policy'] = copy.deepcopy(creative)
+                validate_keys([{**k, 'opacity': 100} for k in plan['camera']], creative['execution_design']['camera'].get('reversal_reason', ''))
+                for layer in plan.get('layers', []):
+                    if layer.get('motion'):
+                        raise ValueError('New topic depth must derive from one camera and parallax; independent layer motion requires an explicit acting rig review')
             plan = validate_plan(plan, catalog['width'], catalog['height'])
             if snapshot.get('motion_output') and plan.get('output') != snapshot['motion_output']:
                 raise ValueError('Motion Studio 출력 비율이 연출 계획과 다릅니다.')
@@ -401,6 +414,8 @@ def prepare(source, snapshot, directory, runner, generator, current=lambda: None
         'properly separated moving parts, valid anchors/bend axes, no body holes under planned motion, complete '
         'background without duplicate character remnants, source-consistent perspective/light, and continuity '
         'with provided neighbor context. Check every requested finishing effect, target, window and intensity: '
+        'For v2 creative_reference compare its topic visual language, actual visible focus and motivated camera direction. '
+        'No generic reversal, alternating layer drift, synthetic depth or automatic speedlines. '
         'effects must preserve faces/text and match the scene, not obscure important artwork. This reviews preproduction only; final narration/output need later review. '
         'If any needed art, motion exposure, background quality or continuity is uncertain, passed=false. '
         'Never approve from metadata or a successful generation alone. Return JSON '

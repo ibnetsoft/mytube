@@ -37,7 +37,16 @@ def unseal(envelope):
     value=json.loads(raw)
     if value.get('version')!=1 or value['motion']['automation']['mode'] not in ('ae_only','hybrid') or not value.get('scenes'):raise NeedsReview('Invalid automatic production submission')
     renderer=value.get('renderer')
-    if value['motion'].get('production_method')=='effectcraft':
+    final_renderer=value.get('final_renderer')
+    if final_renderer:
+        from filmcraft_render import VERSION,CONTRACT
+        if final_renderer!={'engine':'filmcraft','adapter':VERSION,'profile':CONTRACT['profile']}:raise NeedsReview('Final assembly renderer/profile does not match frozen submission')
+    if value['motion'].get('production_method')=='filmcraft':
+        from filmcraft_render import PIN, VERSION, CONTRACT
+        if isinstance(renderer,dict) and (renderer.get('adapter')!=VERSION or renderer.get('profile')!=CONTRACT['profile']):raise NeedsReview('FilmCraft native adapter/profile does not match frozen submission; resubmit with the current profile')
+        if not isinstance(renderer,dict) or renderer.get('engine')!='filmcraft' or renderer.get('revision')!=PIN['revision']:raise NeedsReview('FilmCraft renderer revision is not bound to the frozen submission')
+        if any(scene.get('source_kind') not in ('image','video') for scene in value['scenes']):raise NeedsReview('FilmCraft requires prepared image/video sources')
+    elif value['motion'].get('production_method')=='effectcraft':
         from effectcraft_render import PIN
         if not isinstance(renderer,dict) or renderer.get('engine')!='effectcraft' or renderer.get('revision')!=PIN['revision']:raise NeedsReview('EffectCraft renderer revision is not bound to the frozen submission')
     elif value['motion'].get('edit_mode')=='horizontal_webtoon':
@@ -256,6 +265,9 @@ AE-only mode MUST have ai:null. Hybrid mode should also prefer ai:null; use a sh
     if scene.get('_source_repair'):
         context['supervised_source_repair']=scene['_source_repair']
         task+='\nThe supplied execution video is an independently pixel-verified original prefix followed by its actual last valid frame. Judge the depicted moment for consistency with narration and adjacent shots. A held relevant moment may accompany narrated action; do not demand invented body poses or proof that every narrated action visibly completes. Reject contradictory action, identity/style changes or an unsuitable held frame. This repair is not final-output approval.'
+    if scene.get('_preserve_uploaded_video') and scene.get('source_kind')=='video':
+        context['user_source_policy']='preserve_uploaded_video/v1'
+        task+='\nUSER APPROVED SOURCE POLICY: use this existing uploaded video as illustrative footage. Missing literal completion of narrated actions, pre-existing source acting, or differences from the saved still are accepted source content, not reasons to repair, replace, trim or reject it. Preserve original playback speed and the immutable final audio/subtitle clock. Standard timeline editing is authorized: use source from t=0 through min(source duration, finalized scene duration), then cut at the exact finalized scene boundary. A source longer than its scene is expected; unused trailing footage is not a defect and must not block execution. For a shorter source stop and report insufficient duration; do not hold its final frame. Never speed up, loop or retime narration. Do not generate replacement footage or new artwork. Still reject renderer-introduced identity/style changes, corruption, missing media, timing errors and altered narration. This overrides earlier requirements to repair baked source/narration mismatches; report such observations honestly without treating them as output defects.'
     from ec_supplemental_assets import policy as supplement_policy
     if supplement_policy(snapshot):
         task+='''
@@ -279,12 +291,29 @@ This capability supersedes the prohibition on requesting supplemental artwork ab
     raise NeedsReview(str(last))
 
 
+def renderer_cache_is_current(snapshot,record):
+    from services.video_playback_policy import POLICY
+    if record.get('video_playback_policy')!=POLICY:return False
+    if snapshot.get('renderer',{}).get('engine')=='filmcraft':
+        from filmcraft_render import VERSION
+        from filmcraft_native import cache_is_current
+        return record.get('filmcraft_adapter')==VERSION and cache_is_current(record)
+    if snapshot.get('renderer',{}).get('engine')!='effectcraft':return True
+    from ec_supplemental_assets import output_cache_is_current
+    if not output_cache_is_current(record):return False
+    from effectcraft_compatibility import VERSION
+    return record.get('effectcraft_compatibility')==VERSION
+
+
 def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
     if scene.get('webtoon'):
         if snapshot['motion'].get('edit_mode')!='horizontal_webtoon' or snapshot['motion']['aspect']!='16:9' or snapshot.get('renderer',{}).get('engine')!='ae_horizontal_webtoon':
             raise NeedsReview('Horizontal webtoon requires native AE and landscape output')
         from horizontal_webtoon import render
         return render(source,scene['webtoon'],directory,scene['end']-scene['start'],snapshot['motion']['fps'],fresh)
+    if snapshot.get('renderer',{}).get('engine')=='filmcraft':
+        from filmcraft_render import render_scene
+        return render_scene(snapshot,scene,plan,source,directory,fresh)
     if snapshot.get('renderer',{}).get('engine')=='effectcraft':
         from effectcraft_render import render_scene
         return render_scene(snapshot,scene,plan,source,directory,fresh)
@@ -311,6 +340,27 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         try:clip.write_videofile(str(output),fps=snapshot['motion']['fps'],codec='libx264',audio=False,preset='veryfast',threads=2,logger=None)
         finally:clip.close();frames.close()
     fresh();return output
+
+
+
+def assemble_master(snapshot,*,sources,plans,voice,ordered,settings,cues,overlay,final_dir,fresh,ai_sources):
+    """Use the selected final composer after scene effects have been reviewed."""
+    if snapshot.get('final_renderer') and snapshot.get('renderer',{}).get('engine')=='filmcraft':
+        from filmcraft_render import render_master
+        return render_master(snapshot,sources=sources,plans=plans,voice=voice,directory=final_dir/'filmcraft-master',
+            fresh=fresh,settings=settings,sfx_cues=cues,template_overlay_path=overlay,ai_sources=ai_sources)
+    if not snapshot.get('final_renderer'):
+        from services.ffmpeg_slideshow_service import render_ffmpeg_slideshow
+        return Path(render_ffmpeg_slideshow(temp_dir=str(final_dir),images=[r['path'] for r in ordered],durations=[s['end']-s['start'] for s in snapshot['scenes']],
+            audio_path=str(voice),subtitles=snapshot['subtitles'],subtitle_settings=settings,
+            image_effects=['none']*len(ordered),transition_effects=['none']*len(ordered),
+            resolution=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080),
+            use_gpu=os.getenv('USE_GPU_RENDER','true').lower() in ('true','1','yes'),
+            sfx_cues=cues,template_overlay_path=str(overlay) if overlay else None))
+    from services.filmcraft_final_service import render_final
+    return Path(render_final(temp_dir=str(final_dir),images=[r['path'] for r in ordered],durations=[s['end']-s['start'] for s in snapshot['scenes']],
+        audio_path=str(voice),subtitles=snapshot['subtitles'],settings=settings,resolution=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080),
+        scene_numbers=[s['number'] for s in snapshot['scenes']],sfx_cues=cues,template_overlay_path=str(overlay) if overlay else None,fresh=fresh))
 
 
 def insert_ai(base,generated,plan,directory,fps):
@@ -448,6 +498,7 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
             'Check exact identity/drawing, clean layer seams and complete background, correct camera/effects, no observed deformation/flicker/text corruption, continuity of screen direction/light, timed transitions, preserved final narration. '
             'Use full-frame temporal measurements together with actual sample pixels; judge this sampled review, never claim exhaustive pixel or audio audition. Check continuity against an actual predecessor only when supplied; the first scene has none. Later/final reviews check the next boundary. '
             'For a video source, compare EACH rendered sample with its supplied time-aligned ACTUAL INPUT VIDEO sample for preservation of drawing and baked motion. The saved still reference constrains character identity, style, setting and narrative action; do not require an animated mouth, cloth fold, basket weave or camera pose to equal a different instant in a still drawing. Reject renderer-introduced changes, or source action/identity conflicts with the narration, without confusing normal source animation with a new rendering defect. '
+            +('USER APPROVED SOURCE POLICY: preserve existing illustrative footage, including baked source action and differences from still/narration. Do not fail missing literal narrated action or pre-existing source acting. Fail renderer-introduced defects, corruption or changed audio/timing. Do not claim source/narration correspondence that is absent. ' if scene.get('_preserve_uploaded_video') and scene.get('source_kind')=='video' else '')+
             'For supplemental_assets compare the appended approved layers with their actual rendered placement and quoted subtitle window: reject changed faces/style, duplicate subjects, bad alpha edges, missing backgrounds and occluded text. '
             'For recorded_mouth_timing inspect the actual mouth samples around each supplied recorded dialogue/narration interval: the visible correct speaker may move during dialogue, must settle during narration and other speakers; require the decoded old/current recording comparison. Old artifact readiness is not current approval. '
             'For ai_segment inspect actual generated frames and both insert boundaries; if absent confirm no generated segment. Uncertain identity, hidden effects, unsupported motion or absent evidence must fail. Never infer approval from a successful renderer. Audio measurements are not listening.')
@@ -502,10 +553,9 @@ def process_one(engine='ae'):
     from ae_scene_preparation import claimable_filter
     from ae_media_utils import ref,ffmpeg,run
     from codex_content_runner import CodexStagedContentRunner
-    from services.motion_render_service import render_motion
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
     from worker.workflow_roles import POSTPRODUCTION, asset_query, belongs
-    kind='horizontal_webtoon_automation' if engine=='webtoon' else 'effectcraft_automation' if engine=='effectcraft' else 'motion_automation'
+    kind={'webtoon':'horizontal_webtoon_automation','ae':'motion_automation','effectcraft':'effectcraft_automation','filmcraft':'filmcraft_automation'}[engine]
     jobs=ae._request('GET',url,headers,params=asset_query(POSTPRODUCTION, {'select':'*','metadata->>kind':'eq.'+kind,'metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1})).json()
     if not jobs:return False
     job=jobs[0]
@@ -543,7 +593,10 @@ def process_one(engine='ae'):
         if snapshot['motion'].get('edit_mode')=='horizontal_webtoon':
             from adobe_tools import find_afterfx,find_aerender
             if not find_afterfx() or not find_aerender():raise NeedsReview('가로 웹툰 컷 제작 워커에 AE와 aerender가 필요합니다.')
-        if (snapshot.get('renderer',{}).get('engine')=='effectcraft')!=(engine=='effectcraft'):raise NeedsReview('Worker queue and renderer do not match')
+        if engine!='webtoon' and snapshot.get('renderer',{}).get('engine','ae')!=engine:raise NeedsReview('Worker queue and renderer do not match')
+        if engine=='filmcraft':
+            from filmcraft_native import preflight_gpu
+            preflight_gpu(directory/'gpu-preflight',fresh,snapshot['motion']['fps'])
         if snapshot.get('renderer',{}).get('engine')=='effectcraft':
             from effectcraft_render import binary
             binary()  # Fail before source analysis or any optional paid insert if this host is not installed.
@@ -559,10 +612,11 @@ def process_one(engine='ae'):
             if receipt.exists() and receipt.read_text()!=actual:raise NeedsReview('Preserved source changed during recovery')
             receipt.write_text(actual)
             return target
-        voice=download(snapshot['audio'],'final-voice');sources={};previews={};references={}
+        voice=download(snapshot['audio'],'final-voice');sources={};previews={};references={};filmcraft_ai_sources={}
         for scene in snapshot['scenes']:
             fresh();number=scene['number'];sources[number]=download(scene['source'],f'source-{number}')
             scene['_skip_review']=(meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1'
+            scene['_preserve_uploaded_video']=meta.get('source_policy')=='preserve_uploaded_video/v1'
             if scene['source_kind']=='video':
                 from services.video_playback_policy import require_original_video_asset,require_video_duration
                 require_original_video_asset(scene['source'],number)
@@ -598,9 +652,9 @@ def process_one(engine='ae'):
                 scene['_recorded_reuse_verification']=verified
             receipt=work/'reviewed-receipt.json'
             old=json.loads(receipt.read_text(encoding='utf-8')) if receipt.exists() else None
-            from ec_supplemental_assets import output_cache_is_current
-            if old and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and output_cache_is_current(old) and (old.get('review',{}).get('passed') is True or (scene.get('_skip_review') and old.get('review',{}).get('skipped') is True)) and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
+            if old and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and renderer_cache_is_current(snapshot,old) and (old.get('review',{}).get('passed') is True or (scene.get('_skip_review') and old.get('review',{}).get('skipped') is True)) and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
                 results=[r for r in results if r['number']!=number]+[old]
+                if engine=='filmcraft' and old.get('filmcraft_ai_source'):filmcraft_ai_sources[number]=Path(old['filmcraft_ai_source'])
                 previous=Path(old['last_frame']);continue
             plan=next((p for p in plans if p['number']==number),None)
             if not plan:
@@ -621,14 +675,26 @@ def process_one(engine='ae'):
                             summaries.append(publish_supplemental(package,job,number,ae,base,headers,fresh));save(supplemental_assets=summaries)
                         plan={**plan,'_supplemental_package':package}
                 save(phase='production',progress=f'{index+1}/{len(snapshot["scenes"])}씬 제작')
-                visual=render_base(snapshot,scene,plan,sources[number],previews[number],runner,attempt_dir,fresh)
-                if plan.get('ai'):
-                    if snapshot['motion']['automation']['mode']!='hybrid':raise NeedsReview('AE-only mode cannot generate video')
-                    from motion_video_client import generated_insert
-                    generated=generated_insert(job,token,scene,plan,previews[number],work,headers,save,fresh)
-                    visual=insert_ai(visual,generated,plan['ai'],attempt_dir,snapshot['motion']['fps'])
-                output=media_directory(attempt_dir)/'voice-synced.mp4'
-                run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
+                if engine=='filmcraft':
+                    from filmcraft_native import validate_scene
+                    validate_scene(snapshot,scene,plan['scene'])
+                    if plan.get('ai'):
+                        if snapshot['motion']['automation']['mode']!='hybrid':raise NeedsReview('AE-only mode cannot generate video')
+                        from motion_video_client import generated_insert
+                        filmcraft_ai_sources[number]=generated_insert(job,token,scene,plan,previews[number],work,headers,save,fresh)
+                    from filmcraft_render import render_scene
+                    output=render_scene(snapshot,scene,plan,sources[number],attempt_dir,fresh,
+                        voice=voice,ai_source=filmcraft_ai_sources.get(number))
+                else:
+                    visual=render_base(snapshot,scene,plan,sources[number],previews[number],runner,attempt_dir,fresh)
+                    if plan.get('ai'):
+                        if snapshot['motion']['automation']['mode']!='hybrid':raise NeedsReview('AE-only mode cannot generate video')
+                        from motion_video_client import generated_insert
+                        generated=generated_insert(job,token,scene,plan,previews[number],work,headers,save,fresh)
+                        visual=insert_ai(visual,generated,plan['ai'],attempt_dir,snapshot['motion']['fps'])
+                    from motion_media_storage import media_directory
+                    output=media_directory(attempt_dir)/'voice-synced.mp4'
+                    run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
                 save(phase='production' if scene.get('_skip_review') else 'review',progress=f'{index+1}/{len(snapshot["scenes"])}씬 EC 작업 완료' if scene.get('_skip_review') else f'{index+1}/{len(snapshot["scenes"])}씬 실제 출력 검수')
                 review_plan=plan
                 if snapshot.get('renderer',{}).get('engine')=='effectcraft':
@@ -645,9 +711,22 @@ def process_one(engine='ae'):
             from services.video_playback_policy import POLICY
             record['video_playback_policy']=POLICY
             if scene.get('_source_repair'):record.update(source_execution_sha256=digest(sources[number]),source_repair=scene['_source_repair'])
-            if plan.get('_supplemental_package'):
-                package=plan['_supplemental_package']
-                record.update(supplemental_receipt=package['receipt_path'],supplemental_receipt_sha256=digest(package['receipt_path']),supplemental_fingerprint=package['fingerprint'])
+            if snapshot.get('renderer',{}).get('engine')=='effectcraft':
+                from effectcraft_compatibility import VERSION
+                record['effectcraft_compatibility']=VERSION
+                if plan.get('_supplemental_package'):
+                    package=plan['_supplemental_package']
+                    record.update(supplemental_receipt=package['receipt_path'],supplemental_receipt_sha256=digest(package['receipt_path']),supplemental_fingerprint=package['fingerprint'])
+            if snapshot.get('renderer',{}).get('engine')=='filmcraft':
+                from filmcraft_render import VERSION
+                record['filmcraft_adapter']=VERSION
+                record['filmcraft_project']=str(attempt_dir/'timeline.fcproj')
+                record['filmcraft_project_sha256']=digest(attempt_dir/'timeline.fcproj')
+                record['filmcraft_receipt']=str(attempt_dir/'filmcraft-receipt.json')
+                record['filmcraft_receipt_sha256']=digest(attempt_dir/'filmcraft-receipt.json')
+                if number in filmcraft_ai_sources:
+                    record['filmcraft_ai_source']=str(filmcraft_ai_sources[number])
+                    record['filmcraft_ai_sha256']=digest(filmcraft_ai_sources[number])
             save_json(receipt,record);results=[r for r in results if r['number']!=number]+[record]
             save(results=results)
         fresh();save(phase='assembly',progress='확정 음성·자막·음향 최종 합성')
@@ -684,8 +763,8 @@ def process_one(engine='ae'):
             overlay=_render_std_template_overlay_png(settings,str(final_dir),(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080))
             if not overlay:raise NeedsReview('Saved template could not be rendered')
         ordered=[next(r for r in results if r['number']==s['number']) for s in snapshot['scenes']]
-        output=Path(render_motion(temp_dir=str(final_dir),images=[r['path'] for r in ordered],durations=[s['end']-s['start'] for s in snapshot['scenes']],
-            audio_path=str(voice),subtitles=snapshot['subtitles'],settings=settings,resolution=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080),scene_numbers=[s['number'] for s in snapshot['scenes']],sfx_cues=cues,template_overlay_path=str(overlay) if overlay else None))
+        output=assemble_master(snapshot,sources=sources,plans=plans,voice=voice,ordered=ordered,settings=settings,
+            cues=cues,overlay=overlay,final_dir=media_directory(final_dir),fresh=fresh,ai_sources=filmcraft_ai_sources)
         # Review the actual assembled output as well; captions/boundaries can fail after good individual clips.
         save(phase='finalizing' if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1' else 'final_review',progress='최종 파일 저장 준비' if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1' else '최종 자막·장면 연결·음향 검수')
         import numpy as np
@@ -716,6 +795,12 @@ def process_one(engine='ae'):
         bucket,key,_=ae._upload_gcs_file(output,f'std-motion/{job["id"]}/final/{output_hash}.mp4','video/mp4')
         review={'passed':True,'render_sha256':output_hash,'final_voice_sha256':digest(voice),'scenes':final_reviews,'reviewer':'local_codex_cli','method':'actual_frames_and_decoded_voice',**({'renderer':snapshot['renderer']} if snapshot.get('renderer') else {})}
         if (meta.get('review_policy') or snapshot.get('execution_policy',{}).get('review_policy'))=='skip_user_requested/v1':review.update(passed=None,skipped=True,status='not_reviewed_user_requested',reviewer=None,method='user_requested_review_bypass')
+        if snapshot.get('final_renderer'):
+            native_receipt=final_dir/('filmcraft-master/filmcraft-receipt.json' if engine=='filmcraft' else 'filmcraft-final/filmcraft-receipt.json')
+            native=json.loads(native_receipt.read_text(encoding='utf-8'))
+            review['filmcraft_native']={k:native[k] for k in ('adapter','profile','encoding','native_timeline','gpu_composition','project_sha256','output_sha256')}
+            review['filmcraft_native']['source_sha256']=[asset['sha256'] for asset in native['inputs']]
+            review['final_renderer']=snapshot.get('final_renderer') or snapshot['renderer']
         save_json(final_dir/'automation-review.json',review)
         review_bucket,review_key,_=ae._upload_gcs_file(final_dir/'automation-review.json',f'std-motion/{job["id"]}/final/{output_hash}-review.json','application/json')
         # Stable asset ID permits safe recovery after upload without duplicate final assets.
@@ -738,7 +823,7 @@ def process_one(engine='ae'):
 if __name__=='__main__':
     import worker_config
     from ae_mouth_runtime import instance_lock
-    parser=argparse.ArgumentParser();parser.add_argument('--once',action='store_true');parser.add_argument('--engine',choices=('ae','effectcraft','webtoon'),default='ae');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--once',action='store_true');parser.add_argument('--engine',choices=('ae','effectcraft','filmcraft','webtoon'),default='ae');args=parser.parse_args()
     with instance_lock(worker_config.STATE_DIR/'motion_automation_worker.lock'):
         while True:
             worked=process_one(args.engine)

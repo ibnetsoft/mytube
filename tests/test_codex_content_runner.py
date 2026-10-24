@@ -160,6 +160,9 @@ def test_visual_pacing_uses_eighteen_second_cuts_after_scene_sixty():
 @pytest.mark.parametrize("review_failure", [None, "verdict", "evidence", "story_score", "missing_story_score"])
 def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_path, review_failure):
     monkeypatch.setattr(runner_module, "OUTPUT_DIR", tmp_path)
+    # Dependency-chain fixtures must not depend on this computer's recent cast history.
+    monkeypatch.setattr(runner_module, 'enrich_and_validate', lambda identity, *_: identity)
+    monkeypatch.setattr(runner_module, 'record_designs', lambda *_: None)
     monkeypatch.setattr(
         runner_module,
         "_resolve_script_style_directive",
@@ -290,7 +293,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert len(package["structure"]["scene_direction_plans"]) == scene_count
     assert all(scene["scene_direction_plan"]["primary_effect"] == "hold" for scene in scenes)
     assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02j_v4_vocal_performance", "02f_scene_visual_director", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
-    assert package['structure']['dialogue_annotations']['model'] == 'gpt-6-astra'
+    assert package['structure']['dialogue_annotations']['model'] == runner_module.ASTRA_MODEL
     assert package["structure"]["character_reference_status"] == "ready"
     assert package["character_anchors"]["character_image_generation"]["status"] == "ready"
     assert package["structure"]["image_grid_prompts"][0]["character_references"][0]["image_url"]
@@ -338,8 +341,8 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
         "target_duration_seconds": 300, "upload_title": "테스트 제목", "category_id": 2,
     }, script_only=True)
     assert draft["production_ready"] is False
-    assert draft["script_model"] == "gpt-6-astra"
-    assert draft["structure"]["dialogue_annotations"]["model"] == "gpt-6-astra"
+    assert draft["script_model"] == runner_module.ASTRA_MODEL
+    assert draft["structure"]["dialogue_annotations"]["model"] == runner_module.ASTRA_MODEL
     assert len(draft["structure"]["scenes"]) == scene_count
     assert any(name == '02d_character_identity' for name, _ in calls)
     assert not any(name in ("02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy") for name, _ in calls)
@@ -436,7 +439,8 @@ def test_final_package_rejects_missing_story_review():
         runner_module._validate_package(package)
 
 
-def test_image_analysis_prompt_is_not_consumed_as_an_image_argument(monkeypatch, tmp_path):
+@pytest.mark.parametrize('stage', ['03_ae_mouth_visibility', '04_automatic_ae_review'])
+def test_image_analysis_prompt_is_not_consumed_as_an_image_argument(monkeypatch, tmp_path, stage):
     monkeypatch.setattr(runner_module, 'PROJECT_ROOT', tmp_path)
     monkeypatch.setattr(runner_module, 'OUTPUT_DIR', tmp_path/'worker-output')
     image = tmp_path/'output/codex-local-console/speaker-coordinates/scene.png'
@@ -451,7 +455,7 @@ def test_image_analysis_prompt_is_not_consumed_as_an_image_argument(monkeypatch,
         return subprocess.CompletedProcess(command,0)
     monkeypatch.setattr(runner_module.subprocess, 'run', fake_run)
     runner = runner_module.CodexStagedContentRunner(runner_module.CodexContentConfig('codex','',60))
-    assert runner._stage('scene','03_ae_mouth_visibility',{'_local_image_paths':[str(image)],'speakers':['大五郎']},'顔を確認してください') == {'speakers':[]}
+    assert runner._stage('scene',stage,{'_local_image_paths':[str(image)],'speakers':['大五郎']},'顔を確認してください') == {'speakers':[]}
     assert captured['command'].index('-') < captured['command'].index('--image')
     assert captured['command'][-1] == str(image)
     assert '顔を確認してください' in captured['prompt']

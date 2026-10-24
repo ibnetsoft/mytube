@@ -195,6 +195,24 @@ function finiteNumber(value, fallback, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, number));
 }
 function animateParallaxLayer(layer, role, fallbackDepth) {
+  var directed=PLAN.scene_direction_plan||PLAN.directorial_plan||{};
+  if(directed.contract=="scene_direction_plan/v2") {
+    var poses=directed.execution_design.camera.keys;
+    var depth=role=="background"?0:(role=="foreground"?1:.6);
+    var props=[layer.property("Position"),layer.property("Scale"),layer.property("Rotation")];
+    for(var p=0;p<props.length;p++)while(props[p].numKeys)props[p].removeKey(1);
+    for(var n=0;n<poses.length;n++) {
+      var k=poses[n], factor=1+depth*.08;
+      props[0].setValueAtTime(k.t*DUR,[W*(.5+(k.x-.5)*factor),H*(.5+(k.y-.5)*factor)]);
+      props[1].setValueAtTime(k.t*DUR,[100*(1+(k.scale-1)*factor),100*(1+(k.scale-1)*factor)]);
+      props[2].setValueAtTime(k.t*DUR,k.rotation);
+    }
+    for(var a=0;a<props.length;a++)for(var b=1;b<=props[a].numKeys;b++) {
+      props[a].setInterpolationTypeAtKey(b,KeyframeInterpolationType.LINEAR,KeyframeInterpolationType.LINEAR);
+      if(a==0) {props[a].setSpatialAutoBezierAtKey(b,false);props[a].setSpatialTangentsAtKey(b,[0,0],[0,0]);}
+    }
+    return;
+  }
   var animation = PLAN.layer_animation || {};
   var camera = animation.camera || {};
   var values = animation[role] || {};
@@ -204,12 +222,62 @@ function animateParallaxLayer(layer, role, fallbackDepth) {
   var moveX = finiteNumber(values.move_x, finiteNumber(camera.pan_x, 0.006, -0.03, 0.03) * depth, -0.03, 0.03);
   var moveY = finiteNumber(values.move_y, finiteNumber(camera.pan_y, -0.003, -0.03, 0.03) * depth, -0.03, 0.03);
   var rotation = finiteNumber(values.rotation, 0, -1.0, 1.0);
+  var revealSeconds = finiteNumber(camera.reveal_seconds, DUR, 0.35, DUR);
+  var holdAfterReveal = camera.hold_after_reveal === true;
+  var revealRatio = holdAfterReveal ? 1.0 : (revealSeconds < DUR ? 0.78 : 1.0);
+  var oneWaySeconds = finiteNumber(camera.one_way_seconds, 0, 0, DUR);
+  if (oneWaySeconds >= 3.0) {
+    var baseScale = finiteNumber(values.base_scale, 100, 100, 140);
+    var endScale = finiteNumber(values.end_scale, baseScale + scaleMove * 100, baseScale, 150);
+    var travelX = finiteNumber(values.travel_x, moveX, -0.14, 0.14);
+    var travelY = finiteNumber(values.travel_y, moveY, -0.08, 0.08);
+    layer.property("Scale").setValueAtTime(0, [baseScale,baseScale]);
+    layer.property("Scale").setValueAtTime(oneWaySeconds, [endScale,endScale]);
+    layer.property("Scale").setValueAtTime(DUR, [endScale,endScale]);
+    layer.property("Position").setValueAtTime(0, [W/2 - travelX * W/2,H/2 - travelY * H/2]);
+    layer.property("Position").setValueAtTime(oneWaySeconds, [W/2 + travelX * W/2,H/2 + travelY * H/2]);
+    layer.property("Position").setValueAtTime(DUR, [W/2 + travelX * W/2,H/2 + travelY * H/2]);
+    if (rotation) {
+      layer.property("Rotation").setValueAtTime(0, -rotation / 2);
+      layer.property("Rotation").setValueAtTime(oneWaySeconds, rotation / 2);
+      layer.property("Rotation").setValueAtTime(DUR, rotation / 2);
+    }
+    return;
+  }
+  var sustainedSeconds = finiteNumber(camera.sustained_seconds, 0, 0, DUR);
+  if (sustainedSeconds >= 3.0) {
+    var q = sustainedSeconds / 4;
+    layer.property("Scale").setValueAtTime(0, [100,100]);
+    layer.property("Scale").setValueAtTime(q, [100 + scaleMove * 100,100 + scaleMove * 100]);
+    layer.property("Scale").setValueAtTime(q * 2, [100 + scaleMove * 84,100 + scaleMove * 84]);
+    layer.property("Scale").setValueAtTime(q * 3, [100 + scaleMove * 96,100 + scaleMove * 96]);
+    layer.property("Scale").setValueAtTime(sustainedSeconds, [100 + scaleMove * 100,100 + scaleMove * 100]);
+    layer.property("Scale").setValueAtTime(DUR, [100 + scaleMove * 100,100 + scaleMove * 100]);
+    layer.property("Position").setValueAtTime(0, [W/2 - moveX * W/2,H/2 - moveY * H/2]);
+    layer.property("Position").setValueAtTime(q, [W/2 + moveX * W/2,H/2 + moveY * H/2]);
+    layer.property("Position").setValueAtTime(q * 2, [W/2 - moveX * W/3,H/2 + moveY * H/1.8]);
+    layer.property("Position").setValueAtTime(q * 3, [W/2 + moveX * W/2.4,H/2 - moveY * H/2]);
+    layer.property("Position").setValueAtTime(sustainedSeconds, [W/2 + moveX * W/2,H/2 + moveY * H/2]);
+    layer.property("Position").setValueAtTime(DUR, [W/2 + moveX * W/2,H/2 + moveY * H/2]);
+    if (rotation) {
+      layer.property("Rotation").setValueAtTime(0, -rotation / 2);
+      layer.property("Rotation").setValueAtTime(q, rotation / 2);
+      layer.property("Rotation").setValueAtTime(q * 2, -rotation / 3);
+      layer.property("Rotation").setValueAtTime(q * 3, rotation / 3);
+      layer.property("Rotation").setValueAtTime(sustainedSeconds, rotation / 2);
+      layer.property("Rotation").setValueAtTime(DUR, rotation / 2);
+    }
+    return;
+  }
   layer.property("Scale").setValueAtTime(0, [100,100]);
+  if (revealSeconds < DUR) layer.property("Scale").setValueAtTime(revealSeconds, [100 + scaleMove * 100 * revealRatio,100 + scaleMove * 100 * revealRatio]);
   layer.property("Scale").setValueAtTime(DUR, [100 + scaleMove * 100,100 + scaleMove * 100]);
   layer.property("Position").setValueAtTime(0, [W/2 - moveX * W/2,H/2 - moveY * H/2]);
+  if (revealSeconds < DUR) layer.property("Position").setValueAtTime(revealSeconds, [W/2 + moveX * W/2 * (2 * revealRatio - 1),H/2 + moveY * H/2 * (2 * revealRatio - 1)]);
   layer.property("Position").setValueAtTime(DUR, [W/2 + moveX * W/2,H/2 + moveY * H/2]);
   if (rotation) {
     layer.property("Rotation").setValueAtTime(0, -rotation / 2);
+    if (revealSeconds < DUR) layer.property("Rotation").setValueAtTime(revealSeconds, rotation * (revealRatio - 0.5));
     layer.property("Rotation").setValueAtTime(DUR, rotation / 2);
   }
 }
@@ -811,7 +879,7 @@ function directedPerformance(comp) {
     var role = String(required[i]);
     if (role == "background") continue;
     var layer = layerByRole(comp, role, true);
-    layer.property("Opacity").setValue(0);
+    layer.property("Opacity").setValue((PLAN.scene_direction_plan||{}).contract=="scene_direction_plan/v2" && role.indexOf("pose_")!==0 ? 100 : 0);
     if (role.indexOf("pose_") === 0) poses.push({role: role, layer: layer});
     if (role == "blanket" || role == "shoji" || role == "character") {
       layer.property("Opacity").setValue(100);
@@ -841,7 +909,7 @@ function directedPerformance(comp) {
       prop.property("Opacity").setValueAtTime(when, 100);
     }
     var focus = beat.attention_target;
-    if (focus && focus.length == 2) {
+    if (focus && focus.length == 2 && (PLAN.scene_direction_plan||{}).contract!="scene_direction_plan/v2") {
       var cue = comp.layers.addShape();
       cue.name = "directorial_attention_" + b;
       var cueGroup = cue.property("Contents").addProperty("ADBE Vector Group");
@@ -894,6 +962,11 @@ try {
   else if (CFG.template == "backlit_hand_reveal") backlitHand(comp);
   else if (CFG.template == "directed_performance") directedPerformance(comp);
   else throw "Unknown manga template: " + CFG.template;
+  if((PLAN.scene_direction_plan||{}).contract=="scene_direction_plan/v2" && CFG.template!="parallax_layered_scene") {
+    for(var dl=1;dl<=comp.numLayers;dl++) {
+      var art=comp.layer(dl);if(SOURCES[String(art.name).toLowerCase()])animateParallaxLayer(art,String(art.name).toLowerCase(),.6);
+    }
+  }
   animatedCaptions(comp);
   animatedSfxText(comp);
   var rq = app.project.renderQueue.items.add(comp);

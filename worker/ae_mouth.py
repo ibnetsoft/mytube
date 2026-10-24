@@ -286,9 +286,16 @@ def normalize_patch(source: Path, target: Path, reference: Path, box: list[float
         rgba = patch.convert('RGBA').resize((width, height), Image.Resampling.LANCZOS)
         if rgba.getchannel('A').getextrema() != (255, 255):
             raise ValueError('Replacement must cover the original feature with opaque matching skin')
+        # Leave a genuinely transparent falloff around the generated skin patch.
+        # A nearly opaque edge exposes the rectangular crop whenever the model's
+        # skin tone differs by even one or two values from the source image.
+        feather = max(4, min(12, round(min(width, height) * .16)))
         mask = Image.new('L', (width, height))
-        ImageDraw.Draw(mask).rounded_rectangle((1, 1, width - 2, height - 2), radius=max(2, min(width, height) // 5), fill=255)
-        mask = mask.filter(ImageFilter.GaussianBlur(min(2, height / 12)))
+        ImageDraw.Draw(mask).rounded_rectangle(
+            (feather, feather, width - 1 - feather, height - 1 - feather),
+            radius=max(2, min(width, height) // 4), fill=255,
+        )
+        mask = mask.filter(ImageFilter.GaussianBlur(max(2, feather * .7)))
         rgba.putalpha(mask)
         target.parent.mkdir(parents=True, exist_ok=True)
         rgba.save(target)

@@ -625,6 +625,10 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                     video_prompt: (requiresVideoPrompt || isComicProject(project)) ? String(scene?.video_prompt || '').slice(0, 20000) : '',
                     ...(imageUrl ? { image_url: imageUrl } : {}),
                     ...(videoUrl ? { video_url: videoUrl } : {}),
+                    ...(scene?.ae_effect_plan && typeof scene.ae_effect_plan === 'object'
+                        ? { ae_effect_plan: scene.ae_effect_plan } : {}),
+                    ...(scene?.ae_speech_bubbles && typeof scene.ae_speech_bubbles === 'object'
+                        ? { ae_speech_bubbles: scene.ae_speech_bubbles } : {}),
                     metadata: {
                         ...(scene?.metadata || {}),
                         script_excerpt: scene?.script_excerpt || scene?.text || scene?.scene_text || '',

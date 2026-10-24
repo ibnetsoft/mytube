@@ -10,9 +10,10 @@ export type MotionLayer = { depth:number; keys:MotionKey[]; advanced?:LayerAdvan
 export type MotionScene = { finance?:FinanceMotion; cues?:DirectionCue[]; source: 'auto' | 'image' | 'video' | 'psd'; fit: 'contain' | 'cover'; direction: string; keys: MotionKey[]; effects: MotionEffect[]; transition: 'cut' | 'fade' | 'flash'; layers?:Record<string,MotionLayer>;native?:NativeScene }
 export type MotionAutomation = { mode: 'ae_only' | 'hybrid'; max_ai_clips: number; max_ai_seconds: number }
 export type WebMotionInsert = { job_id:string; start:number; duration:number }
-export type ProductionMethod = 'ae'|'motion_studio'|'effectcraft'
+export type ProductionMethod = 'ae'|'motion_studio'|'effectcraft'|'filmcraft'
 type MotionConfig = { version: 1; enabled: boolean; aspect: '16:9' | '9:16'; fps: 24 | 30; scenes: Record<string, MotionScene>; automation?: MotionAutomation; web?:{timeline?:MotionClip[];mode:'web'|'hybrid';inserts:Record<string,WebMotionInsert>} }
-export type MotionDraft = MotionConfig & {edit_mode?:'horizontal_webtoon'; webtoon_baseline?:MotionDraft; production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
+export type FinalRenderer = 'python'|'filmcraft'
+export type MotionDraft = MotionConfig & {final_renderer?:FinalRenderer; edit_mode?:'horizontal_webtoon'; webtoon_baseline?:MotionDraft; production_method?:ProductionMethod; alternatives?:Partial<Record<ProductionMethod,MotionConfig>>}
 
 export function switchHorizontalWebtoon(previous:MotionDraft,enabled:boolean):MotionDraft {
     if(!enabled)return normalizeMotionDraft(previous.webtoon_baseline?{...previous.webtoon_baseline,alternatives:previous.alternatives}:{...previous,edit_mode:undefined})
@@ -23,15 +24,22 @@ export function switchHorizontalWebtoon(previous:MotionDraft,enabled:boolean):Mo
 
 export function motionProductionMethod(project:any):ProductionMethod {
     const raw=project?.project_payload?.render_settings?.motion
-    return raw?.production_method==='effectcraft'?'effectcraft':raw?.production_method==='ae'?'ae':raw?.production_method==='motion_studio'||raw?.web?'motion_studio':'ae'
+    return raw?.production_method==='filmcraft'?'filmcraft':raw?.production_method==='effectcraft'?'effectcraft':raw?.production_method==='ae'?'ae':raw?.production_method==='motion_studio'||raw?.web?'motion_studio':'ae'
+}
+export function finalRenderMethod(project:any):FinalRenderer {
+    return project?.project_payload?.render_settings?.motion?.final_renderer==='filmcraft'?'filmcraft':'python'
+}
+export function defaultMotionDraft(raw:any,aspect:'16:9'|'9:16'='16:9'):MotionDraft {
+    return raw?normalizeMotionDraft(raw):{version:1,enabled:false,aspect,fps:24,scenes:{}}
 }
 export function switchMotionProduction(draft:MotionDraft,method:ProductionMethod):MotionDraft {
+    draft=defaultMotionDraft(draft)
     const current=motionProductionMethod({project_payload:{render_settings:{motion:draft}}})
     if(current===method)return normalizeMotionDraft({...draft,production_method:method})
-    const {production_method:_,alternatives:previous,...active}=draft
+    const {production_method:_,alternatives:previous,final_renderer,...active}=draft
     const alternatives={...previous,[current]:active}
-    const target=alternatives[method]||{version:1,enabled:method!=='ae',aspect:draft.aspect,fps:draft.fps,scenes:{},...(method==='motion_studio'?{web:{mode:'web',inserts:{}}}:method==='effectcraft'?{automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}}:{})}
-    return normalizeMotionDraft({...target,...(method==='ae'&&draft.edit_mode?{edit_mode:draft.edit_mode}:{}),production_method:method,alternatives})
+    const target=alternatives[method]||{version:1,enabled:method!=='ae',aspect:draft.aspect,fps:draft.fps,scenes:{},...(method==='motion_studio'?{web:{mode:'web',inserts:{}}}:(method==='effectcraft'||method==='filmcraft')?{automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}}:{})}
+    return normalizeMotionDraft({...target,...(method==='ae'&&draft.edit_mode?{edit_mode:draft.edit_mode}:{}),production_method:method,alternatives,...(final_renderer?{final_renderer}:{})})
 }
 export const MOTION_PRESETS = [
     { id: 'still', label: '원본 유지', effects: [] },
@@ -99,13 +107,14 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
         }
         web={mode:raw.web.mode,inserts,...(raw.web.timeline!==undefined?{timeline:normalizeWebTimeline(raw.web.timeline)}:{})}
     }
-    if(raw.production_method!==undefined&&!['ae','motion_studio','effectcraft'].includes(raw.production_method))throw new Error('제작 방식을 확인해 주세요.')
+    if(raw.final_renderer!==undefined&&!['python','filmcraft'].includes(raw.final_renderer))throw new Error('최종 렌더러를 확인해 주세요.')
+    if(raw.production_method!==undefined&&!['ae','motion_studio','effectcraft','filmcraft'].includes(raw.production_method))throw new Error('제작 방식을 확인해 주세요.')
     let alternatives:MotionDraft['alternatives']
     if(raw.alternatives!==undefined){
-        if(!raw.alternatives||typeof raw.alternatives!=='object'||Array.isArray(raw.alternatives)||Object.keys(raw.alternatives).some(k=>!['ae','motion_studio','effectcraft'].includes(k)))throw new Error('제작 방식별 설정을 확인해 주세요.')
+        if(!raw.alternatives||typeof raw.alternatives!=='object'||Array.isArray(raw.alternatives)||Object.keys(raw.alternatives).some(k=>!['ae','motion_studio','effectcraft','filmcraft'].includes(k)))throw new Error('제작 방식별 설정을 확인해 주세요.')
         alternatives={}
-        for(const method of ['ae','motion_studio','effectcraft'] as const){const config=raw.alternatives[method];if(config===undefined)continue
-            if(config.alternatives!==undefined||config.production_method!==undefined)throw new Error('제작 설정을 중첩할 수 없습니다.')
+        for(const method of ['ae','motion_studio','effectcraft','filmcraft'] as const){const config=raw.alternatives[method];if(config===undefined)continue
+            if(config.alternatives!==undefined||config.production_method!==undefined||config.final_renderer!==undefined)throw new Error('제작 설정을 중첩할 수 없습니다.')
             alternatives[method]=normalizeMotionDraft(config)
         }
     }
@@ -116,11 +125,11 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
         webtoon_baseline=normalizeMotionDraft(raw.webtoon_baseline)
     }
     if(raw.edit_mode && (raw.aspect!=='16:9'||raw.web||raw.production_method==='effectcraft'||raw.production_method==='motion_studio'||!automation||automation.mode!=='ae_only'))throw new Error('가로 웹툰 컷 모드는 가로 16:9·AE·영상 생성 미사용으로 저장해 주세요.')
-    return {version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes,...(raw.edit_mode?{edit_mode:raw.edit_mode}:{}),...(webtoon_baseline?{webtoon_baseline}:{}),...(automation?{automation}:{}),...(web?{web}:{}),...(raw.production_method?{production_method:raw.production_method}:{}),...(alternatives?{alternatives}:{})}
+    return {...(raw.final_renderer?{final_renderer:raw.final_renderer}:{}),version:1,enabled:raw.enabled,aspect:raw.aspect,fps:raw.fps,scenes,...(raw.edit_mode?{edit_mode:raw.edit_mode}:{}),...(webtoon_baseline?{webtoon_baseline}:{}),...(automation?{automation}:{}),...(web?{web}:{}),...(raw.production_method?{production_method:raw.production_method}:{}),...(alternatives?{alternatives}:{})}
 }
 export function motionForProject(project: any): MotionDraft | null {
     const raw=project?.project_payload?.render_settings?.motion
-    return raw == null ? null : normalizeMotionDraft(raw)
+    return raw==null?null:normalizeMotionDraft(raw)
 }
 export function motionOutputAspect(project: any, fallback: '16:9'|'9:16' = '16:9') {
     const motion=motionForProject(project)

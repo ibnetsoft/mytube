@@ -64,6 +64,34 @@ def test_generation_and_storage_are_mandatory(tmp_path):
             {"topic_queue_id": 3197}, None, tmp_path, generator=Generator(), store=BrokenStore())
 
 
+def test_major_character_generates_and_persists_all_four_character_sheets(tmp_path):
+    prompts = []
+    class Generator:
+        def generate(self, prompt, reference_path=None):
+            prompts.append((prompt, reference_path))
+            path = tmp_path / f"sheet-{len(prompts)}.png"
+            Image.new("RGB", (512, 512), (20 * len(prompts), 40, 80)).save(path)
+            return path
+    class Store:
+        def publish(self, topic, c, path, fingerprint, payload):
+            return {**c, "character_key": "lead", "image_url": "/design.png",
+                    "gcs_bucket": "bucket", "gcs_path": "design.png"}
+        def publish_sheet(self, topic, c, sheet_type, path):
+            return {"type": sheet_type, "image_url": f"/{sheet_type}.png", "status": "ready"}
+        def save_design(self, topic, result, fingerprint, payload):
+            assert result["character_sheet_status"] == "ready"
+    result = assets.generate_character_references(
+        {"script": "final", "main_character": character()}, {"topic_queue_id": 3197},
+        None, tmp_path, generator=Generator(), store=Store())
+    lead = result["main_character"]
+    assert [sheet["type"] for sheet in lead["character_sheet_assets"]] == [
+        "design", "expression", "lipsync", "wardrobe_action"]
+    assert len(prompts) == 4
+    assert prompts[0][1] is None
+    assert all(reference == tmp_path / "sheet-1.png" for _, reference in prompts[1:])
+    assert "REST, A, E, I, O, U" in prompts[2][0]
+
+
 def test_rejects_missing_final_script_or_character_dna(tmp_path):
     with pytest.raises(RuntimeError, match="Final script"):
         assets.generate_character_references({}, {}, None, tmp_path)

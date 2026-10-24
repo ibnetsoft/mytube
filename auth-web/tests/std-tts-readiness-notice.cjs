@@ -72,7 +72,6 @@ clickAnchors(Notice({ subtitles: rows, missingSpeakerIndexes: indexes, readiness
 assert.deepEqual(clicked, [1, 3]);
 assert.deepEqual(missingSpeakerSubtitleIndexes(rows, parts, [null, { name: 'B' }, { name: 'A' }, { name: 'C' }]), []);
 console.log('PASS: speaker anchors match progress, retain exact subtitle indexes, and disappear after assignment');
-
 const mixedRows = [
     { scene_number: 1, text: 'Main narration', voice_id: 'Sulafat' },
     { scene_number: 17, text: 'Character dialogue', voice_id: 'Yukari', dialogue: true },

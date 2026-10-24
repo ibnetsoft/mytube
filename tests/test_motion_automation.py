@@ -7,7 +7,18 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'worker'))
-from motion_automation_worker import NeedsReview, unseal, validate_direction
+from motion_automation_worker import NeedsReview, unseal, validate_direction, renderer_cache_is_current
+
+
+def test_effectcraft_recovery_rejects_old_visuals_without_invalidating_ae():
+    from effectcraft_compatibility import VERSION
+    from services.video_playback_policy import POLICY
+    frozen={'renderer':{'engine':'effectcraft'}}
+    assert not renderer_cache_is_current(frozen,{})
+    assert not renderer_cache_is_current(frozen,{'effectcraft_compatibility':'previous'})
+    assert renderer_cache_is_current(frozen,{'effectcraft_compatibility':VERSION,'video_playback_policy':POLICY})
+    assert not renderer_cache_is_current({'renderer':{'engine':'ae'}},{})
+    assert renderer_cache_is_current({'renderer':{'engine':'ae'}},{'video_playback_policy':POLICY})
 
 def snapshot(mode='ae_only'):
     return {'version':1,'motion':{'version':1,'enabled':True,'aspect':'9:16','fps':24,'automation':{'mode':mode,'max_ai_clips':1,'max_ai_seconds':5}},
@@ -55,7 +66,10 @@ def test_dashboard_counts_only_reviewed_automatic_outputs():
 def test_supervisor_dispatches_automation_without_a_manual_editor():
     from worker.local_media_supervisor import role_command
     command=role_command('motion_automation')
-    assert command[-1]=='--once' and command[-2].endswith('motion_automation_worker.py')
+    assert command[-1]=='--once' and command[2].endswith('motion_automation_worker.py')
+    assert command[command.index('--engine')+1]=='ae'  # Existing frozen queue keeps its engine.
+    filmcraft=role_command('filmcraft')
+    assert filmcraft[filmcraft.index('--engine')+1]=='filmcraft'
 
 def test_local_psd_preparation_supplies_native_layer_paths_and_rejects_changes(tmp_path):
     from PIL import Image

@@ -11,3 +11,4 @@ google-auth>=2,<3
 google-cloud-storage>=2,<4
 youtube-transcript-api>=1.2,<2
 beautifulsoup4>=4.12,<5
+fonttools>=4.50,<5

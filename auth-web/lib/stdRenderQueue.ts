@@ -4,7 +4,8 @@ import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
 import { reviewedAeMouthAssets } from './stdAeMouth'
 import { comicSettingsForProject, isComicProject, isWebtoonVideoProject, selectComicMedia, comicSceneTimings } from './stdComic'
-import { motionForProject, motionOutputAspect } from './stdMotionStudio'
+import { motionForProject, motionOutputAspect, finalRenderMethod } from './stdMotionStudio'
+import filmcraftFinalContract from './filmcraftNativeContract.json'
 import { assertRecordedSceneDirections } from './stdSceneExecution'
 import { subtitleGain } from './stdSpeechGain'
 import { preserveAudioAnchors } from './stdAudioAnchors'
@@ -865,6 +866,8 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
     }
 
     const finalConfig = {
+        final_renderer:finalRenderMethod(project),
+        ...(finalRenderMethod(project)==='filmcraft'?{final_renderer_contract:filmcraftFinalContract}:{}),
         project_id: pseudoProjectId,
         project_name: project.title || `Project ${pseudoProjectId}`,
         email: project.employee_email || 'unknown',
@@ -915,6 +918,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         const hash = (v: any) => createHash('sha256').update(JSON.stringify(stable(v))).digest('hex')
         const visualSettings = Object.fromEntries(Object.entries(resolved.render_settings).filter(([key]) => !key.startsWith('bgm_') && !key.startsWith('sfx_')))
         resolved.visual_recipe_sha256 = hash({ images: resolved.images, starts: resolved.image_timing_starts,
+            final_renderer:resolved.final_renderer,final_renderer_contract:resolved.final_renderer_contract,
             subtitles: resolved.subtitles.map(({ volume, voice_id, voice_name, ...row }: any) => row),
             effects: resolved.image_effects, transitions: resolved.transition_effects, settings: visualSettings,
             duration: resolved.audio_duration, resolution: resolved.resolution, aspect: resolved.aspect_ratio,
@@ -997,6 +1001,8 @@ export async function enqueueStdProjectRender(projectId: string, automatic?: { j
     }
 
     const metadata = {
+        final_renderer:renderConfig.final_renderer,
+        final_renderer_profile:renderConfig.final_renderer_contract?.profile,
         ...(automatic ? { ae_mouth_job_id: automatic.jobId } : {}),
         ...(project.project_payload?.submission_pipeline_version === 2 ? { pipeline_version: 2, pipeline_run_id: project.progress_payload?.pipeline_run_id } : {}),
         queue_scope: 'remote_render',

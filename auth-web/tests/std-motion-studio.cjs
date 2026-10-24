@@ -28,13 +28,27 @@ test('web hybrid assignments survive save and reject invalid provider references
  v.web.inserts[1].start=-1;assert.throws(()=>lib.normalizeMotionDraft(v));v.web.inserts[1].start=0
  v.web.inserts[1].job_id='https://arbitrary.example/';assert.throws(()=>lib.normalizeMotionDraft(v))
 })
-test('AE remains the default and switching stores independent drafts with lossless return',()=>{
+test('AE effects remain the default and engine choices preserve their own drafts',()=>{
  const original=draft('16:9');original.automation={mode:'ae_only',max_ai_clips:1,max_ai_seconds:5};original.scenes[1]=lib.motionPreset('impact')
  assert.equal(lib.motionProductionMethod({}), 'ae')
- const studio=lib.switchMotionProduction(original,'motion_studio');assert.equal(studio.production_method,'motion_studio');assert.deepEqual(studio.alternatives.ae,original)
+ const preserved=lib.defaultMotionDraft({...original,production_method:'ae'});assert.equal(preserved.production_method,'ae');assert.deepEqual(preserved.scenes,original.scenes)
+ const studio=lib.switchMotionProduction(original,'motion_studio');assert.equal(studio.production_method,'motion_studio');assert.deepEqual(studio.alternatives.ae.scenes,original.scenes)
  studio.scenes[1]=lib.motionPreset('light');studio.web.mode='hybrid'
  const ae=lib.switchMotionProduction(studio,'ae');assert.deepEqual(ae.scenes,original.scenes);assert.deepEqual(ae.automation,original.automation)
- assert.equal(lib.motionProductionMethod({project_payload:{render_settings:{motion:{...ae,web:studio.web}}}}),'ae')
+ assert.equal(lib.motionProductionMethod({project_payload:{render_settings:{motion:ae}}}),'ae')
  const restored=lib.switchMotionProduction(ae,'motion_studio');assert.deepEqual(restored.scenes,studio.scenes);assert.equal(restored.web.mode,'hybrid')
  assert.throws(()=>lib.normalizeMotionDraft({...original,alternatives:{ae:{...original,alternatives:{}}}}))
 })
+
+ test('final renderer defaults to Python and survives effect engine switches independently',()=>{
+ const m=require('./load-ts-module.cjs')(require('node:path').resolve(__dirname,'../lib/stdMotionStudio.ts'))
+ const initial=m.defaultMotionDraft(null)
+ assert.equal(m.finalRenderMethod({}),'python')
+ let selected=m.normalizeMotionDraft({...initial,final_renderer:'filmcraft'})
+ for(const method of ['effectcraft','filmcraft','ae']){
+  selected=m.switchMotionProduction(selected,method)
+  assert.equal(selected.final_renderer,'filmcraft')
+  assert.equal(m.motionProductionMethod({project_payload:{render_settings:{motion:selected}}}),method)
+ }
+ assert.throws(()=>m.normalizeMotionDraft({...initial,final_renderer:'unknown'}))
+ })
