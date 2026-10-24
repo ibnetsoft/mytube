@@ -3008,9 +3008,10 @@ export default function StdPortalPage() {
         setPlaybackTime(Number.isFinite(start) ? Math.max(0, start) : 0)
     }
 
-    const selectSubtitleBlock = (subtitleIndex: number, shiftKey: boolean) => {
+    const selectSubtitleBlock = (subtitleIndex: number, shiftKey: boolean, toggleKey = false) => {
         const targetIndex = Number(subtitleIndex)
         if (!Number.isFinite(targetIndex) || targetIndex < 0 || targetIndex >= localSubtitles.length) return
+        setMessage('')
 
         const anchorIndex = subtitleBlockSelectionAnchorRef.current
         if (shiftKey && anchorIndex !== null && localSubtitles[anchorIndex]) {
@@ -3025,6 +3026,11 @@ export default function StdPortalPage() {
                 subtitleBlockSelectionAnchorRef.current = targetIndex
                 setMessage('자막 합치기는 같은 씬 안에서 선택해 주세요.')
             }
+        } else if (toggleKey) {
+            setSelectedSubtitleBlockIndexes(prev => prev.includes(targetIndex)
+                ? prev.filter(index => index !== targetIndex)
+                : [...prev, targetIndex].sort((a, b) => a - b))
+            subtitleBlockSelectionAnchorRef.current = targetIndex
         } else {
             setSelectedSubtitleBlockIndexes([targetIndex])
             subtitleBlockSelectionAnchorRef.current = targetIndex
@@ -6863,8 +6869,16 @@ export default function StdPortalPage() {
                 === (subtitleSpeakers[firstIndex]?.name || aiDialogueParts.get(firstIndex)?.find(p => p.dialogue)?.speaker))
         ))
 
-        if (!isContiguous || !isSameScene || !isSameVoiceType) {
-            setMessage('같은 씬의 연속된 내레이션끼리 또는 같은 화자의 대사끼리만 합칠 수 있습니다.')
+        if (!isContiguous) {
+            setMessage(ui('사이에 빠진 자막이 있습니다. 첫 자막을 클릭한 뒤 Shift+클릭으로 마지막 자막까지 선택해 주세요.'))
+            return
+        }
+        if (!isSameScene) {
+            setMessage(ui('자막 합치기는 같은 씬 안에서 선택해 주세요.'))
+            return
+        }
+        if (!isSameVoiceType) {
+            setMessage(ui('같은 씬의 연속된 내레이션끼리 또는 같은 화자의 대사끼리만 합칠 수 있습니다.'))
             return
         }
 
@@ -9513,6 +9527,7 @@ export default function StdPortalPage() {
                                                             className="ml-0.5 inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 sm:px-2.5 text-[10px] font-bold text-cyan-200 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-35"
                                                         >
                                                             <Combine size={13} /> {t('sub_merge_action')}
+                                                            {selectedSubtitleBlockIndexes.length > 1 && <span className="tabular-nums">({selectedSubtitleBlockIndexes.length})</span>}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -9641,6 +9656,13 @@ export default function StdPortalPage() {
                                             </button>
                                         </div>
                                     </div>
+
+                                    {isVrewSubtitleMode && message && (
+                                        <div role="status" aria-live="polite" data-subtitle-action-status
+                                            className="shrink-0 border-b border-cyan-400/20 bg-[#172333] px-3 py-2 text-xs text-cyan-100">
+                                            {message}
+                                        </div>
+                                    )}
 
                                     {/* 자막 카드 목록 */}
                                     <div className="flex flex-1 overflow-hidden">
@@ -9898,7 +9920,7 @@ export default function StdPortalPage() {
                                                                                 onClick={event => {
                                                                                     if ((event.target as HTMLElement).closest('button,select,input,textarea,a,[role="dialog"]')) return
                                                                                     event.stopPropagation()
-                                                                                    selectSubtitleBlock(item.subtitleIndex, event.shiftKey)
+                                                                                    selectSubtitleBlock(item.subtitleIndex, event.shiftKey, event.ctrlKey || event.metaKey)
                                                                                 }}
                                                                                 onMouseDown={event => { if (event.shiftKey) event.preventDefault() }}
                                                                                 title={ui("클릭하여 선택 · Shift+클릭으로 연속된 자막 선택")}
@@ -9914,10 +9936,10 @@ export default function StdPortalPage() {
                                                                                     type="button"
                                                                                     onClick={(event) => {
                                                                                         event.stopPropagation()
-                                                                                        selectSubtitleBlock(item.subtitleIndex, event.shiftKey)
+                                                                                        selectSubtitleBlock(item.subtitleIndex, event.shiftKey, true)
                                                                                     }}
                                                                                     aria-pressed={isBlockSelected}
-                                                                                    title={ui("클릭하여 선택, Shift+클릭하여 범위 선택")}
+                                                                                    title={ui("번호를 클릭하여 선택·해제 · Shift+클릭으로 범위 선택")}
                                                                                     className={`h-5 rounded border text-[9px] font-bold transition-all ${
                                                                                         isBlockSelected
                                                                                             ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'

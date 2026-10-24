@@ -1,6 +1,10 @@
 // Static interface copy only. Content, identifiers and saved design text are never translated.
 export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
   "en": {
+    "번호를 클릭하여 선택·해제 · Shift+클릭으로 범위 선택": "Click a number to select or deselect · Shift-click to select a range",
+    "사이에 빠진 자막이 있습니다. 첫 자막을 클릭한 뒤 Shift+클릭으로 마지막 자막까지 선택해 주세요.": "Some subtitles in between are not selected. Click the first subtitle, then Shift-click the last.",
+    "자막 합치기는 같은 씬 안에서 선택해 주세요.": "Select subtitles within the same scene to merge.",
+    "같은 씬의 연속된 내레이션끼리 또는 같은 화자의 대사끼리만 합칠 수 있습니다.": "Merge consecutive narration lines or dialogue from the same speaker within one scene.",
     "숨김": "Hide",
     "펼침": "Expand",
     "글자색": "Text color",
@@ -300,6 +304,10 @@ export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
     "대사 화자 지정 {confirmed}/{total}개 자막": "Dialogue speakers assigned: {confirmed}/{total} subtitles"
   },
   "vi": {
+    "번호를 클릭하여 선택·해제 · Shift+클릭으로 범위 선택": "Nhấp số để chọn hoặc bỏ chọn · Shift+nhấp để chọn một khoảng",
+    "사이에 빠진 자막이 있습니다. 첫 자막을 클릭한 뒤 Shift+클릭으로 마지막 자막까지 선택해 주세요.": "Có phụ đề ở giữa chưa được chọn. Nhấp phụ đề đầu, rồi giữ Shift và nhấp phụ đề cuối.",
+    "자막 합치기는 같은 씬 안에서 선택해 주세요.": "Chọn các phụ đề trong cùng một cảnh để gộp.",
+    "같은 씬의 연속된 내레이션끼리 또는 같은 화자의 대사끼리만 합칠 수 있습니다.": "Chỉ gộp các dòng dẫn chuyện liên tiếp hoặc lời thoại của cùng một nhân vật trong cùng một cảnh.",
     "숨김": "Ẩn",
     "펼침": "Mở rộng",
     "글자색": "Màu chữ",
@@ -599,6 +607,10 @@ export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
     "대사 화자 지정 {confirmed}/{total}개 자막": "Đã gán người nói: {confirmed}/{total} phụ đề"
   },
   "th": {
+    "번호를 클릭하여 선택·해제 · Shift+클릭으로 범위 선택": "คลิกหมายเลขเพื่อเลือกหรือยกเลิก · Shift+คลิกเพื่อเลือกช่วง",
+    "사이에 빠진 자막이 있습니다. 첫 자막을 클릭한 뒤 Shift+클릭으로 마지막 자막까지 선택해 주세요.": "ยังไม่ได้เลือกคำบรรยายบางรายการที่อยู่ระหว่างกลาง คลิกรายการแรก แล้วกด Shift ค้างและคลิกรายการสุดท้าย",
+    "자막 합치기는 같은 씬 안에서 선택해 주세요.": "เลือกคำบรรยายภายในฉากเดียวกันเพื่อรวม",
+    "같은 씬의 연속된 내레이션끼리 또는 같은 화자의 대사끼리만 합칠 수 있습니다.": "รวมได้เฉพาะคำบรรยายต่อเนื่องหรือบทพูดของผู้พูดเดียวกันภายในฉากเดียวกัน",
     "숨김": "ซ่อน",
     "펼침": "ขยาย",
     "글자색": "สีตัวอักษร",
