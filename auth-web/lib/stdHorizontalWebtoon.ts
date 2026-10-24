@@ -3,9 +3,20 @@ import { motionForProject, motionProductionMethod } from './stdMotionStudio'
 import { selectNarrationAsset } from './stdContentIdentity'
 import { lipSyncPlan, lipSyncSceneStarts } from './stdLipSync'
 import { storageSourceForAsset } from './stdSceneMedia'
+import { recordedMotionSourceReuse } from './stdMotionSourceReuse'
 
 export const horizontalWebtoon = (project:any) => motionForProject(project)?.edit_mode === 'horizontal_webtoon'
 export function validateWebtoonPlan(plan:any) {
+    const point=(p:any,limit:number)=>Array.isArray(p)&&p.length===2&&p.every((v:any)=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<=limit)
+    if(plan?.layer_motion!==undefined){
+        if(!Array.isArray(plan.layer_motion)||plan.layer_motion.length>32)throw Error('인물 레이어 동작이 유효하지 않습니다.')
+        const ids=new Set()
+        for(const m of plan.layer_motion){
+            if(!Number.isInteger(m.layer)||m.layer<1||ids.has(m.layer)||!point(m.anchor,1)||m.anchor.some((n:number)=>n<0))throw Error('분리된 인물 레이어를 지정해 주세요.')
+            ids.add(m.layer)
+            for(const k of ['from','to'])if(!point(m[k]?.offset,.03)||typeof m[k]?.rotation!=='number'||!Number.isFinite(m[k].rotation)||Math.abs(m[k].rotation)>4)throw Error('인물 동작 범위를 확인해 주세요.')
+        }
+    }
     const rect=(r:any)=>Array.isArray(r)&&r.length===4&&r.every((n:any)=>typeof n==='number'&&Number.isFinite(n))&&r[0]>=0&&r[1]>=0&&r[2]>.01&&r[3]>.01&&r[0]+r[2]<=1.000001&&r[1]+r[3]<=1.000001
     if(plan?.version!==1||!Array.isArray(plan.shots)||!plan.shots.length||plan.shots.length>32||!Array.isArray(plan.evidence)||!plan.evidence.length||plan.evidence.some((s:any)=>typeof s!=='string'||!s.trim()||s.length>2000))throw Error('웹툰 컷 분석·시각 근거가 없습니다.')
     let cursor=0
@@ -32,12 +43,13 @@ export function webtoonInputs(project:any,scenes:any[],assets:any[]) {
     return scenes.map((scene,i)=>{
         const number=Number(scene.scene_number)
         const choices=assets.filter(a=>Number(a.scene_number)===number&&['uploaded','assigned'].includes(a.status)&&storageSourceForAsset(a)).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))
-        const asset=choices.find(a=>a.asset_type==='original'&&/\.psd$/i.test(a.file_name||''))||choices.find(a=>a.asset_type==='image')
-        if(!asset)throw Error(`${number}번 씬에 원본 이미지 또는 PSD를 등록해 주세요.`)
+        const video=choices.find(a=>a.asset_type==='video'&&!a.metadata?.lipsync_fingerprint&&(!a.metadata?.ae_mouth_fingerprint||recordedMotionSourceReuse(project,a,assets,audio))&&!['repaired_source_clip','motion_source_repair'].includes(a.metadata?.kind)&&!a.metadata?.source_repair&&!/(hold|freeze|loop)/i.test(String(a.metadata?.video_tail_policy||a.metadata?.tail_policy||'')))
+        const asset=video||choices.find(a=>a.asset_type==='original'&&/\.psd$/i.test(a.file_name||''))||choices.find(a=>a.asset_type==='image')
+        if(!asset)throw Error(`${number}번 씬에 원본 영상·이미지 또는 PSD를 등록해 주세요.`)
         const start=i===0?0:starts[i],end=starts[i+1]??total
         if(!Number.isFinite(start+end)||end<=start)throw Error(`${number}번 씬의 확정 음성 구간을 확인해 주세요.`)
         const subtitles=timeline.flatMap((t:any,index:number)=>Number(project.project_payload.subtitles[index]?.scene_number)===number?[{text:t.text,start:Math.max(0,t.start-start),end:Math.min(end-start,t.end-start)}]:[])
-        const input={version:1,task:'direction',horizontal_webtoon:true,aspect:'16:9',fps:motion!.fps,asset,scene:{number},duration:end-start,subtitles,audio_identity:{id:audio.id,fingerprint:createHash('sha256').update(JSON.stringify(audio.metadata)).digest('hex')},start,end}
+        const input={version:1,motion_capability_version:2,task:'direction',horizontal_webtoon:true,aspect:'16:9',fps:motion!.fps,asset,scene:{number},duration:end-start,subtitles,audio_identity:{id:audio.id,fingerprint:createHash('sha256').update(JSON.stringify(audio.metadata)).digest('hex')},start,end}
         const fingerprint=createHash('sha256').update(JSON.stringify(input)).digest('hex')
         return {number,input,fingerprint,asset,start,end}
     })

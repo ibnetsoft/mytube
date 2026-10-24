@@ -4,6 +4,7 @@ const ex={};new Function('exports','require',ts.transpileModule(fs.readFileSync(
  './stdContentIdentity':{selectNarrationAsset:(_,assets)=>assets.find(a=>a.asset_type==='audio')},
  './stdLipSync':{lipSyncPlan:()=>{},lipSyncSceneStarts:()=>[0]},
  './stdSceneMedia':{storageSourceForAsset:a=>a.metadata?.gcs_path},
+ './stdMotionSourceReuse':{recordedMotionSourceReuse:()=>false},
 }[id]||require(id)));
 const panel=()=>({crop:[0,0,1,1],frame:[0,0,1,1],reveal:0,zoom_from:1,zoom_to:1.05});
 const plan=()=>({version:1,evidence:['Full face and speech balloon visible'],shots:[{start:0,end:1,panels:[panel()]}]});
@@ -23,12 +24,21 @@ test('safe full panel and nonoverlapping side-by-side layouts validate',()=>{
 test('gaps, cropped outside artwork, blank starts, excessive zoom and overlap fail',()=>{
  for(const mutate of [p=>p.shots[0].start=.1,p=>p.shots[0].end=.9,p=>p.shots[0].panels[0].crop=[.9,0,.2,1],p=>p.shots[0].panels[0].reveal=.2,p=>p.shots[0].panels[0].zoom_to=2,p=>p.shots[0].panels.push(panel())]){const p=plan();mutate(p);assert.throws(()=>ex.validateWebtoonPlan(p));}
 });
-test('changing source or final voice invalidates prepared direction; image precedes incidental video',()=>{
+test('existing video motion is selected and changing source or voice invalidates direction',()=>{
  const project={project_payload:{render_settings:{motion:{enabled:true,edit_mode:'horizontal_webtoon',aspect:'16:9',fps:24}},subtitles:[{scene_number:1}]}},scenes=[{scene_number:1}];
  const assets=[{id:'voice',asset_type:'audio',metadata:{subtitle_timeline:[{text:'line',start:0,end:5}]}},{id:'image',asset_type:'image',scene_number:1,status:'uploaded',metadata:{gcs_path:'image.png'}},{id:'clip',asset_type:'video',scene_number:1,status:'uploaded',metadata:{gcs_path:'clip.mp4'}}];
- const first=ex.webtoonInputs(project,scenes,assets)[0];assert.equal(first.asset.id,'image');
+ const first=ex.webtoonInputs(project,scenes,assets)[0];assert.equal(first.asset.id,'clip');
  const job={id:'job',metadata:{kind:'motion_preview',state:'ready',fingerprint:first.fingerprint,source_sha256:'a'.repeat(64),suggestion:{webtoon:plan()}}};
  assert.equal(ex.readyWebtoonPlan(first,[job]).job_id,'job');
  assets[0].metadata.subtitle_timeline[0].text='changed';const changed=ex.webtoonInputs(project,scenes,assets)[0];assert.notEqual(changed.fingerprint,first.fingerprint);assert.throws(()=>ex.readyWebtoonPlan(changed,[job]));
- assets[1].metadata.gcs_path='replacement.png';assert.notEqual(ex.webtoonInputs(project,scenes,assets)[0].fingerprint,changed.fingerprint);
+ assets[2].metadata.gcs_path='replacement.mp4';assert.notEqual(ex.webtoonInputs(project,scenes,assets)[0].fingerprint,changed.fingerprint);
+ assets[2].metadata.kind='repaired_source_clip';assert.equal(ex.webtoonInputs(project,scenes,assets)[0].asset.id,'image');
+ delete assets[2].metadata.kind;assets[2].metadata.ae_mouth_fingerprint='outdated';assert.equal(ex.webtoonInputs(project,scenes,assets)[0].asset.id,'image');
+});
+
+test('character layer motion has bounded pivots and no background targets',()=>{
+ const p=plan();p.layer_motion=[{layer:1,anchor:[.5,.6],from:{offset:[0,0],rotation:0},to:{offset:[.01,0],rotation:2}}];
+ assert.equal(ex.validateWebtoonPlan(p),p);
+ for(const bad of [0,-1,true]){p.layer_motion[0].layer=bad;assert.throws(()=>ex.validateWebtoonPlan(p));}
+ p.layer_motion[0].layer=1;p.layer_motion[0].to.offset=[.5,0];assert.throws(()=>ex.validateWebtoonPlan(p));
 });

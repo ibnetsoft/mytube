@@ -20,7 +20,7 @@ def render_preview(snapshot,directory,download):
         from codex_content_runner import CodexStagedContentRunner
         asset=snapshot['asset'];bucket,key=ref(asset)
         suffix=Path(asset.get('file_name') or key).suffix.lower()
-        if suffix not in ('.png','.jpg','.jpeg','.webp','.psd'):raise ValueError('원본 PNG·JPG·WebP·PSD가 필요합니다.')
+        if suffix not in ('.png','.jpg','.jpeg','.webp','.psd','.mp4','.mov','.webm','.mkv','.avi','.m4v'):raise ValueError('원본 이미지·PSD 또는 영상이 필요합니다.')
         directory.mkdir(parents=True,exist_ok=True);source=directory/('source'+suffix);download(bucket,key,source)
         expected=(asset.get('metadata') or {}).get('sha256')
         if expected and hashlib.sha256(source.read_bytes()).hexdigest()!=expected:raise ValueError('Original source checksum changed')

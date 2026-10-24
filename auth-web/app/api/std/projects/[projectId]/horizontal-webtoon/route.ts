@@ -33,7 +33,7 @@ async function handle(req:Request,id:string,enqueue:boolean) {
                 if(insert.error&&insert.error.code!=='23505')throw insert.error
                 if(insert.error){const existing=await db.from('std_project_assets').select('*').eq('id',jobId).single();if(existing.error)throw existing.error;job=existing.data}else job=insert.data
             }
-            result.push({number:item.number,state:job?.metadata?.state||'not_prepared',error:job?.metadata?.error||null,shots:job?.metadata?.suggestion?.webtoon?.shots?.length||0})
+            result.push({number:item.number,state:job?.metadata?.state||'not_prepared',error:job?.metadata?.error||null,shots:job?.metadata?.suggestion?.webtoon?.shots?.length||0,motion_capability:job?.metadata?.suggestion?.webtoon?.motion_capability||(item.asset.asset_type==='video'?'existing_video':'pending')})
         }
         return NextResponse.json({scenes:result,ready:result.filter(s=>s.state==='ready').length,total:result.length},{headers:{'Cache-Control':'private, no-store'}})
     }catch(e:any){return NextResponse.json({error:e.message},{status:400})}

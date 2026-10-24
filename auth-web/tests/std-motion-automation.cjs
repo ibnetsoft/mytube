@@ -37,7 +37,7 @@ test('horizontal webtoon freezes the inspected plan and uses a queue older worke
  await f.run();const call=f.calls.rpc[0],s=JSON.parse(call.args.p_manifest.automation.snapshot_json)
  assert.equal(call.name,'register_std_horizontal_webtoon_pipeline');assert.deepEqual(s.renderer,{engine:'ae_horizontal_webtoon',version:1})
  assert.equal(s.scenes[0].source.id,'image');assert.equal(s.scenes[0].webtoon.source_sha256,'a'.repeat(64));assert.equal(f.calls.models,0)
- assert.equal(s.execution_policy,undefined)
+ assert.equal(s.execution_policy.review_policy,'skip_user_requested/v1');assert.equal(s.execution_policy.video_playback_policy,'original_speed_no_freeze_no_loop/v1')
 })
 test('hybrid freezes selected model configuration but excludes its secret',async()=>{
  const f=fixture('hybrid');await f.run();assert.equal(f.calls.models,1)
