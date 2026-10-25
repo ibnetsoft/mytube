@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'crypto'
 import { NextResponse } from 'next/server'
 import { processTtsJobs } from '@/lib/stdTtsJobs'
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 export const maxDuration = 300
 export async function GET(req: Request) {
     const expected = process.env.CRON_SECRET ? `Bearer ${process.env.CRON_SECRET}` : ''
