@@ -9065,7 +9065,7 @@ export default function StdPortalPage() {
                         </div>
                     )}
                     {/* [자막 생성 탭 (유저앱 subtitle_gen.html과 100% 동일 구현)] */}
-                    {selectedProject && ['image_gen','subtitle_vrew'].includes(currentNav) && <StdHorizontalWebtoonMode project={selectedProject.project} headers={authedJsonHeaders} onSaved={()=>openProject(selectedProject.project.id,undefined,undefined,true)}/>}
+                    {selectedProject && currentNav === 'image_gen' && <StdHorizontalWebtoonMode project={selectedProject.project} headers={authedJsonHeaders} onSaved={()=>openProject(selectedProject.project.id,undefined,undefined,true)}/>}
                     {selectedProject && isNonverbalProject(selectedProject.project) && ['script_plan','script_gen','tts','subtitle_vrew'].includes(currentNav) && <StdNonverbalPlan project={selectedProject.project} headers={authedJsonHeaders} locale={currentLocale} onApplied={() => void openProject(selectedProject.project.id, undefined, undefined, true)} />}
                     {currentNav === 'subtitle_vrew' && selectedProject && !isNonverbalProject(selectedProject.project) && (() => {
                         const isVrewSubtitleMode = true
