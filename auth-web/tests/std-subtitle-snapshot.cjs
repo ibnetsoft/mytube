@@ -74,3 +74,22 @@ assert.equal(subtitleSpeaker(restoreSavedSubtitleSnapshot(stale, initial)[0], un
 for (const absent of [undefined, null, [], {}]) assert.deepEqual(restoreSavedSubtitleSnapshot(absent, initial), [{ text: 'Generated draft', scene_number: 1 }]);
 assert.equal(generated, 4, 'Generation is restricted to projects without a saved snapshot');
 console.log('PASS: authoritative saved edits survive scene gaps, changed text, custom timing, split/merged rows and voice metadata; punctuation keeps speaker and recorded narration; empty projects still generate');
+
+const quoteTail = [
+ {id:'sub-71-4',scene_number:71,text:'困った時は人に頼ります」',voice_id:'actor',dialogue_kind:'dialogue',dialogue_speaker:'お紬',start_num:10,end_num:12},
+ {id:'sub-71-4-quote-2',scene_number:71,text:'言',voice_id:'narrator',dialogue_kind:'narration',start_num:12,end_num:12.7,start:12,end:12.7},
+ {id:'sub-71-5',scene_number:71,text:'い終えると涙が落ちた。',voice_id:'narrator',dialogue_kind:'narration',start_num:12.7,end_num:15,start:12.7,end:15},
+];
+const forward=restoreSavedSubtitleSnapshot(quoteTail,initial);
+assert.equal(forward.length,2);
+assert.equal(forward[0].text,quoteTail[0].text,'Do not append narration to dialogue');
+assert.equal(forward[1].text,'言い終えると涙が落ちた。');
+assert.equal(forward[1].voice_id,'narrator');assert.equal(forward[1].start_num,12);assert.equal(forward[1].end_num,15);assert.equal(forward[1].end,15);
+assert.equal(quoteTail[1].text,'言','Never mutate saved input');
+assert.deepEqual(restoreSavedSubtitleSnapshot(forward,initial),forward);
+for(const modify of [r=>r[1].id='intentional-single',r=>r[2].voice_id='different',r=>r[2].scene_number=72,r=>r[2].start_num=14,r=>r[1].dialogue_kind='dialogue']){
+ const rows=structuredClone(quoteTail);modify(rows);assert.equal(restoreSavedSubtitleSnapshot(rows,initial).length,3);
+}
+const voiceTimeline=quoteTail.map(r=>({text:r.text,voice_id:r.voice_id,start:r.start_num-10,end:r.end_num-10}));
+assert(alignedNarrationSubtitles(forward,voiceTimeline),'Final recorded voice stays reusable when adjacent narration rows merge');
+console.log('PASS: quote-split kanji attaches to following narration with exact recorded bounds; intentional splits, other speakers and scenes survive');

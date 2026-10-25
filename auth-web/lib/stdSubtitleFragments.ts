@@ -12,8 +12,35 @@ export function normalizeSubtitleFragments<T extends { text?: string; scene_numb
             editor_speaker: { ...item.editor_speaker, text },
         } : {}),
     })
+    // Quote splitting can strand the first kanji of the following narration:
+    // ...頼ります」言 / い終えると... . Attach it FORWARD, never to the actor.
+    // Restrict saved-row repair to generated quote fragments, not intentional
+    // single-character dialogue, labels, or user-created subtitle splits.
+    const repaired: T[] = []
+    for (let i = 0; i < subtitles.length; i++) {
+        const current = subtitles[i], next = subtitles[i + 1]
+        const text = String(current.text || '').trim()
+        const narration = (row: T) => row.dialogue_override !== true && row.dialogue_kind !== 'dialogue'
+            && !row.dialogue_speaker && !row.editor_speaker?.name
+        const end = Number(current.end_num ?? current.end_time ?? current.end)
+        const start = Number(next?.start_num ?? next?.start_time ?? next?.start)
+        if (next && /-quote-\d+$/.test(String(current.id || '')) && /^\p{Script=Han}$/u.test(text)
+            && /^\p{Script=Hiragana}/u.test(String(next.text || '').trim())
+            && Number(current.scene_number) === Number(next.scene_number) && narration(current) && narration(next)
+            && (current.voice_id || null) === (next.voice_id || null)
+            && (!Number.isFinite(end + start) || Math.abs(end - start) <= .05)) {
+            const merged = withText(current, text + String(next.text || '').trimStart())
+            for (const key of ['end_num', 'end_time', 'end']) if (next[key] !== undefined) (merged as any)[key] = next[key]
+            for (const key of ['audio_url', 'tts_url', 'audio_asset_id', 'tts_asset_id', 'audio_duration']) {
+                if (current[key] || next[key]) merged.audio_regeneration_required = true
+                delete merged[key]
+            }
+            repaired.push(merged)
+            i++
+        } else repaired.push(current)
+    }
     const result: T[] = []
-    for (const source of subtitles) {
+    for (const source of repaired) {
         let item = { ...source }
         let text = String(item.text || '').trim()
         const previous = result[result.length - 1]
