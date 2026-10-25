@@ -46,8 +46,9 @@ function harness(options = {}) {
     const context = {
         loadSavedTtsAudio: (url, headers, read) => loadSavedTtsAudio(url, headers, read, async () => {}),
         selectedProject, mediaScopeRef, isCurrentMediaScope, assetBelongsToProject, currentLocale: options.locale || 'ko', ttsNoticeCopy, localizeStdActionError,
-        currentNav: options.nav || 'subtitle_vrew',
+        currentNav: options.nav || 'tts',
         getProjectSyncedTitle: p => p?.project?.title || '',
+        setBackgroundTtsActive: value => { state.background = value }, setTtsJobRefreshKey() {},
         setTtsNotice: notice => state.notices.push(notice), setGeneratingTts: value => state.spinning.push(value),
         setMessage: value => state.messages.push(value), setAudioResultUrl: value => { state.audio = value },
         setSelectedProject: next => { state.project = typeof next === 'function' ? next(state.project) : next },
@@ -67,6 +68,7 @@ function harness(options = {}) {
         console: { warn() {} },
         fetch: async (url, init) => {
             state.requests.push({ url, init })
+            if (url.endsWith('/tts/jobs')) return { ok: true, payload: { job: { id: 'queued', ready: 0, total: 1 } } }
             if (url.endsWith('/tts/generate')) return { ok: options.status !== 500, status: options.status || 200, payload: options.payload ?? successfulPayload() }
             if (url === '/api/std/tts-proxy') return { ok: true, arrayBuffer: async () => new Uint8Array(300).buffer }
             if (url === '/saved-audio' && options.playbackFailures > 0) { options.playbackFailures--; throw new TypeError('Failed to fetch') }
@@ -440,3 +442,15 @@ test('mismatched audio ranges cannot produce a corrupt playable blob', async () 
     assert.equal(h.state.requests.length, 0)
     assert.equal(h.state.spinning.at(-1), false)
  })
+
+test('subtitle Save + TTS registers one durable job and returns without generating or joining in the browser', async () => {
+    const h = harness({ nav: 'subtitle_vrew' })
+    await h.handleFinalizeSubtitlesAndTts()
+    assert.equal(h.state.saves, 1)
+    assert.equal(h.state.requests.filter(r => r.url.endsWith('/tts/jobs')).length, 1)
+    assert.equal(h.state.requests.filter(r => r.url.endsWith('/tts/generate')).length, 0)
+    assert.equal(h.state.background, true)
+    assert.equal(h.state.notices.at(-1).background, true)
+    assert.equal(terminal(h).length, 0, 'Queue acceptance is not completion')
+    assert.equal(h.state.persistedTiming, undefined)
+})

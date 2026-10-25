@@ -1,6 +1,7 @@
 import { AlertCircle, CheckCircle2, RefreshCw, X } from 'lucide-react'
 
 export type TtsNotice = {
+    background?: boolean
     kind?: 'tts' | 'subtitles'
     projectId: string
     projectTitle: string
@@ -107,7 +108,7 @@ export default function StdTtsNotice({ notice, locale, onDismiss }: { notice: Tt
                     <h2 className="text-sm font-bold text-white">{title}</h2>
                     <p className="mt-1 truncate text-xs text-gray-300" title={notice.projectTitle}>{notice.projectTitle}</p>
                     <p className="mt-2 break-words text-xs leading-relaxed text-gray-100">{notice.detail}</p>
-                    {running && <p className="mt-2 text-xs leading-relaxed text-cyan-200">{copy.navigation}</p>}
+                    {running && <p className="mt-2 text-xs leading-relaxed text-cyan-200">{notice.background ? ({ ko: '서버에서 계속 처리합니다. 탭을 닫거나 새로고침해도 됩니다. 다시 접속하면 진행 상태를 확인할 수 있습니다.', en: 'Processing continues on the server. You can close or refresh this tab and return to check progress.', th: 'เซิร์ฟเวอร์จะทำงานต่อ ปิดหรือรีเฟรชแท็บได้ กลับมาเพื่อตรวจสอบความคืบหน้า', vi: 'Máy chủ tiếp tục xử lý. Bạn có thể đóng hoặc tải lại thẻ và quay lại xem tiến độ.' }[locale] || 'Processing continues on the server. You can close this tab.') : copy.navigation}</p>}
                 </div>
                 {!running && <button type="button" onClick={onDismiss} aria-label={copy.close} className="shrink-0 rounded p-1 text-gray-300 hover:bg-white/10 hover:text-white"><X size={18} aria-hidden="true" /></button>}
             </div>

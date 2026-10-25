@@ -22,6 +22,7 @@ import { loadSavedTtsAudio } from '@/lib/stdTtsPlayback'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import { localizeStdActionError } from '@/lib/stdActionFeedback'
 import { isTemplateBackgroundTransparent } from '@/lib/stdTemplateBackground'
+import StdBackgroundTts from '@/components/StdBackgroundTts'
 import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotice'
 import StdSubmissionNotice, { SubmissionNotice, submissionNoticeCopy } from '@/components/StdSubmissionNotice'
 import StdCollapsibleSidebar from '@/components/StdCollapsibleSidebar'
@@ -1050,6 +1051,8 @@ export default function StdPortalPage() {
     // 4. 에셋 및 작업 제어 상태
     const [uploadingKey, setUploadingKey] = useState('')
     const [generatingTts, setGeneratingTts] = useState(false)
+    const [backgroundTtsActive, setBackgroundTtsActive] = useState(false)
+    const [ttsJobRefreshKey, setTtsJobRefreshKey] = useState(0)
     const subtitleFinalizeInFlightRef = useRef(false)
     const [ttsNotice, setTtsNotice] = useState<TtsNotice | null>(null)
     const [musicMissions, setMusicMissions] = useState<MusicMission[]>([])
@@ -6660,6 +6663,17 @@ export default function StdPortalPage() {
                     voice_map: finalVoiceMap,
                     voice_segments: useSubtitleVoiceSegments ? voiceSegments : [],
                 }
+                if (useSubtitleVoiceSegments) {
+                    const response = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/jobs`, {
+                        method: 'POST', headers: authedJsonHeaders, body: JSON.stringify(requestBody),
+                    })
+                    const result = await safeParseJson(response, 'TTS 작업 등록 실패')
+                    if (!response.ok || !result?.job) throw new Error(result?.error || 'TTS 작업 등록 실패')
+                    setBackgroundTtsActive(true)
+                    setTtsJobRefreshKey(key => key + 1)
+                    setTtsNotice({ ...noticeProject, phase: 'running', background: true, detail: copy.progress(result.job.ready, result.job.total) })
+                    return false // Finalization and completion flags are owned by the server job.
+                }
                 const { res, payload } = await generateNarrationInBatches(requestBody, async batchBody => {
                     const response = await fetch(`/api/std/projects/${selectedProject.project.id}/tts/generate`, {
                         method: 'POST',
@@ -8449,7 +8463,7 @@ export default function StdPortalPage() {
             locale={currentLocale}
             compact
             subtitles={localSubtitles}
-            busy={generatingTts}
+            busy={(generatingTts || backgroundTtsActive)}
             voices={voiceNameById}
             readiness={subtitleTtsReadiness(localSubtitles, isSubtitleDialogue, selectedVoice)}
             missingSpeakerIndexes={missingSpeakerSubtitleIndexes(localSubtitles, aiDialogueParts, subtitleSpeakers)}
@@ -8470,6 +8484,10 @@ export default function StdPortalPage() {
             {subtitleNavigationBusy && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" role="dialog" aria-modal="true" aria-label={ui('변경사항 저장 중')} aria-busy="true" tabIndex={-1} ref={navigationBusyPanelRef} onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>
                 <div role="status" aria-live="polite" className="rounded-xl border border-white/20 bg-[#1c2027] p-6 text-sm text-white">{ui('변경사항을 저장한 뒤 이동합니다. 잠시 기다려 주세요.')}</div>
             </div>}
+            <StdBackgroundTts projectId={selectedProject?.project?.id || ''} projectTitle={selectedProject?.project?.title || ''}
+                headers={authedJsonHeaders} locale={currentLocale} refreshKey={ttsJobRefreshKey}
+                onBusy={setBackgroundTtsActive} onNotice={setTtsNotice}
+                onComplete={() => { if (selectedProject && !['dirty', 'saving', 'error'].includes(subtitleSaveState)) void openProjectAfterSave(selectedProject.project.id, undefined, undefined, true) }} />
             <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
             {topicProjectOpen && (
@@ -9636,10 +9654,10 @@ export default function StdPortalPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => void handleFinalizeSubtitlesAndTts()}
-                                                disabled={generatingTts || !canFinalizeSubtitlesAndTts}
-                                                aria-label={generatingTts ? ttsNoticeCopy(currentLocale).running : ttsNoticeCopy(currentLocale).saveTtsLabel}
+                                                disabled={(generatingTts || backgroundTtsActive) || !canFinalizeSubtitlesAndTts}
+                                                aria-label={(generatingTts || backgroundTtsActive) ? ttsNoticeCopy(currentLocale).running : ttsNoticeCopy(currentLocale).saveTtsLabel}
                                                 className={`inline-flex h-7 shrink-0 items-center justify-center gap-1 whitespace-nowrap text-[10px] font-bold px-2 rounded-md text-white transition-colors duration-300 ${
-                                                    generatingTts || !canFinalizeSubtitlesAndTts
+                                                    (generatingTts || backgroundTtsActive) || !canFinalizeSubtitlesAndTts
                                                         ? 'bg-gray-700 cursor-not-allowed opacity-60'
                                                         : highlightSaveTts
                                                         ? 'bg-gradient-to-r from-violet-600 via-pink-500 via-amber-400 to-violet-600 animate-gradient-shift ring-2 ring-pink-400/90'
@@ -9651,7 +9669,7 @@ export default function StdPortalPage() {
                                                         ? ui('모든 대사의 화자를 지정한 후 저장+TTS를 실행해 주세요.')
                                                         : ttsNoticeCopy(currentLocale).dialogueVoiceRequired}
                                             >
-                                                {generatingTts ? <RefreshCw size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
+                                                {(generatingTts || backgroundTtsActive) ? <RefreshCw size={14} className="animate-spin" aria-hidden="true" /> : <Save size={14} aria-hidden="true" />}
                                                 <span>+TTS</span>
                                             </button>
                                         </div>
@@ -10643,11 +10661,11 @@ export default function StdPortalPage() {
                                     </button>
                                     <button
                                         onClick={() => void generateTts()}
-                                        disabled={generatingTts}
+                                        disabled={(generatingTts || backgroundTtsActive)}
                                         className="px-4 py-1.5 text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
                                     >
-                                        <Volume2 className={`h-3.5 w-3.5 ${generatingTts ? 'animate-bounce' : ''}`} />
-                                        {generatingTts ? ui('음성 생성 중...') : ui('음성 생성')}
+                                        <Volume2 className={`h-3.5 w-3.5 ${(generatingTts || backgroundTtsActive) ? 'animate-bounce' : ''}`} />
+                                        {(generatingTts || backgroundTtsActive) ? ui('음성 생성 중...') : ui('음성 생성')}
                                     </button>
                                 </div>
                             </div>

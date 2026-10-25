@@ -23,7 +23,7 @@ const db={storage:{from:()=>({
         stored.set(path,buffer);uploads++;return {error:failUpload?{message:'offline'}:null};
     }
 })},from(table){let filters=[],inserted;const q={select(){return q},eq(k,v){filters.push([k,v]);return q},in(k,v){if(k==='metadata->>cache_key')filters.push([k,v]);return q},neq(){return q},update(){return q},then(resolve){return Promise.resolve({data:table==='std_project_assets'?assets.filter(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v))):[],error:null}).then(resolve)},order(){return q},limit(){return q},insert(v){inserted=v;return q},async single(){const a={...inserted,id:String(assets.length+1)};assets.push(a);return {data:a}},async maybeSingle(){return {data:table==='std_projects'?project:assets.find(a=>filters.every(([k,v])=>(Array.isArray(v)?v.includes(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k]):(k.startsWith('metadata->>')?a.metadata[k.slice(11)]:a[k])===v)))||null}}};return q}};
-function route(){return load('auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts',{
+function route(){return load('auth-web/lib/stdTtsGenerate.ts',{
     '@/lib/stdAudioAnchors':{preserveAudioAnchors:(_,next)=>next},
     '@/lib/stdSubmissionPipeline':{ensureSyncedMouthPreview:async()=>{}},
     '@/lib/stdProjectAssets':{loadStdProjectAssets:async()=>({data:assets,error:null})},
