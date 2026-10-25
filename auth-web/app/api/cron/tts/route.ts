@@ -6,7 +6,8 @@ export const maxDuration = 300
 export async function GET(req: Request) {
     const expected = process.env.CRON_SECRET ? `Bearer ${process.env.CRON_SECRET}` : ''
     const actual = req.headers.get('authorization') || ''
-    if (!expected || actual.length !== expected.length || !timingSafeEqual(Buffer.from(actual), Buffer.from(expected))) {
+    const actualBytes = Buffer.from(actual), expectedBytes = Buffer.from(expected)
+    if (!expected || actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     return NextResponse.json(await processTtsJobs())

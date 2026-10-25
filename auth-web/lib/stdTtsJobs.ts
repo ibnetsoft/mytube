@@ -5,7 +5,10 @@ import { BACKGROUND_NARRATION_BATCH_SIZE } from './stdNarrationBatch'
 
 export const ttsJobFingerprint = (body: any) => createHash('sha256').update(JSON.stringify(body)).digest('hex')
 export const ttsSourceHash = (project: any) => ttsJobFingerprint([
-    project.project_payload?.script, project.project_payload?.subtitles,
+    project.project_payload?.script, (project.project_payload?.subtitles || []).map((s: any) => [
+        s.text, s.voice_id, s.voice_direction, s.voice_performance, s.dialogue_kind,
+        s.dialogue_override, s.dialogue_speaker, s.editor_speaker?.name,
+    ]),
     project.project_payload?.voice_id, project.project_payload?.tts_speed,
 ])
 export function publicTtsJob(job: any) {

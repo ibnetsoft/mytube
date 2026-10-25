@@ -47,6 +47,8 @@ function setup() {
     job.attempts = 2; await api.processTtsJobs(); assert.equal(job.status, 'failed')
     setup(); project.project_payload.subtitles[0].text = 'edited'; await api.processTtsJobs()
     assert.equal(calls.length, 0, 'Edited source must not generate or attach stale audio')
+    setup(); project.project_payload.subtitles[0].ko_text = '번역'; project.project_payload.subtitles[0].start_num = 3
+    await api.processTtsJobs(); assert.equal(job.status, 'completed', 'Review translation and display timing do not change spoken content')
     setup(); project.progress_payload = { background_tts_job_id: 'job', subtitle_tts_completed: true, tts_asset_id: 'saved' }
     await api.processTtsJobs(); assert.equal(calls.length, 0); assert.equal(job.result.asset_id, 'saved')
     assert.equal(api.publicTtsJob(job).request, undefined)
