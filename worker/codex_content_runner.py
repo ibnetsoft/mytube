@@ -1406,6 +1406,13 @@ def _psd_layer_prompt(scene: dict[str, Any], outputs: list[str], mode: str) -> s
     effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
     template = str(effect_plan.get("template") or "") if effect_plan.get("enabled") else ""
     if template in AE_MANGA_TEMPLATES:
+        if template == "parallax_layered_scene":
+            return (f"Prepare three independently registered PNG layers for scene {scene_number}: background, character, foreground. "
+                    "Use the final scene PNG as the common canvas and composition reference. Reconstruct the full clean background behind cutouts. "
+                    "Keep the character on the middle plane and near foreground on separate transparent layers at their original pixel positions. "
+                    "No layer sheet, replacement full-frame views, invented objects, duplicated flattened scenes, text or watermark. "
+                    f"Per-plane script instructions: {json.dumps((scene.get('parallax_plan') or {}).get('layers') or [], ensure_ascii=False)}. "
+                    f"Source scene prompt: {image_prompt}")
         if template == "directed_performance":
             director = scene.get("ae_directorial_plan") if isinstance(scene.get("ae_directorial_plan"), dict) else {}
             return (
@@ -1451,6 +1458,16 @@ def _plan_image_generation_efficiency(
     ae_effect_plans: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Plan image credits while sending every scene through AE post-production."""
+    from script_parallax import bind_packages
+    script_parallax_numbers = set(bind_packages(scenes))
+    if script_parallax_numbers:
+        for scene in scenes:
+            if int(scene.get('scene_number') or scene.get('scene_order') or 0) in script_parallax_numbers:
+                plan=scene['ae_effect_plan']
+                plan.update(_manga_template_plan('parallax_layered_scene',scene,plan['duration_seconds']))
+                plan['asset_requirements']['optional_layers']=[]
+        ae_effect_plans[:] = [p for p in ae_effect_plans if int(p.get('scene_number') or 0) not in script_parallax_numbers]
+        ae_effect_plans.extend(dict(s['ae_effect_plan'],scene_number=int(s.get('scene_number') or s.get('scene_order'))) for s in scenes if int(s.get('scene_number') or s.get('scene_order') or 0) in script_parallax_numbers)
     scene_count = len([scene for scene in scenes if isinstance(scene, dict)])
     image_layer_mode = _resolve_image_layer_mode(payload)
     explicit_range = _resolve_image_layer_scene_range(payload)
@@ -1511,6 +1528,7 @@ def _plan_image_generation_efficiency(
         if explicit_range and explicit_range["start"] <= number <= explicit_range["end"]
     }
     psd_numbers.update(explicit_range_numbers)
+    psd_numbers.update(script_parallax_numbers)
     psd_numbers.update(
         int(scene.get("scene_number") or scene.get("scene_order") or index)
         for index, scene in enumerate(scenes, 1)
@@ -1542,7 +1560,7 @@ def _plan_image_generation_efficiency(
         local_layers = number in layer_numbers
         multi_image = number in multi_numbers
         psd_required = number in psd_numbers
-        explicitly_layered = number in explicit_range_numbers
+        explicitly_layered = number in explicit_range_numbers or number in script_parallax_numbers
         psd_outputs = (
             list(template_assets.get("required_layers") or [])
             + [item for item in template_assets.get("optional_layers") or []
@@ -1551,7 +1569,7 @@ def _plan_image_generation_efficiency(
             if isinstance(template_assets, dict) and template
             else _psd_layer_targets(scene_blob, targets if isinstance(targets, list) else [])
         )
-        psd_units = 1.0 if psd_required else 0.0
+        psd_units = 3.0 if number in script_parallax_numbers else 1.0 if psd_required else 0.0
         ae_postprocess_kind = "effect" if effect_plan.get("enabled") else "motion"
         policy = {
             "scene_number": number,
@@ -1569,7 +1587,7 @@ def _plan_image_generation_efficiency(
             "local_layer_separation": local_layers,
             "local_layer_source": "derived_from_single_scene_image_no_generation_credit",
             "psd_layer_package_required": psd_required,
-            "psd_layer_generation_unit": "additional_psd_style_2x2_layer_sheet" if psd_required else "none",
+            "psd_layer_generation_unit": "registered_individual_layer_pngs" if number in script_parallax_numbers else "additional_psd_style_2x2_layer_sheet" if psd_required else "none",
             "psd_layer_generation_units_estimate": psd_units,
             "psd_layer_package_reason": (
                 "ae_manga_template_required" if template and psd_required
@@ -1610,10 +1628,10 @@ def _plan_image_generation_efficiency(
         scene["psd_layer_plan"] = {
             "enabled": psd_required,
             "mode": image_layer_mode,
-            "selection_source": "explicit_scene_range" if explicitly_layered else "automatic_policy",
+            "selection_source": "scene_visual_director" if number in script_parallax_numbers else "explicit_scene_range" if explicitly_layered else "automatic_policy",
             "scene_range": explicit_range if explicitly_layered else None,
             "source": "additional_layer_sheet_generation" if psd_required else "none",
-            "method": "psd_style_2x2_layer_sheet" if psd_required else "disabled_unreviewed_segmentation",
+            "method": "registered_individual_layer_pngs" if number in script_parallax_numbers else "psd_style_2x2_layer_sheet" if psd_required else "disabled_unreviewed_segmentation",
             "outputs": psd_outputs if psd_required else [],
             "template": package_template,
             "required_layers": package_required_layers,
@@ -1654,7 +1672,7 @@ def _plan_image_generation_efficiency(
                 "scene_number": number,
                 "scene_id": scene.get("scene_id") or f"scene{number:03d}",
                 "mode": image_layer_mode,
-                "selection_source": "explicit_scene_range" if explicitly_layered else "automatic_policy",
+                "selection_source": "scene_visual_director" if number in script_parallax_numbers else "explicit_scene_range" if explicitly_layered else "automatic_policy",
                 "scene_range": explicit_range if explicitly_layered else None,
                 "template": package_template,
                 "outputs": psd_outputs,
@@ -3163,6 +3181,7 @@ class CodexStagedContentRunner:
             "image_layer_scene_range": image_efficiency_policy.get("image_layer_scene_range"),
             "psd_layer_prompt_status": "planned" if image_efficiency_policy.get("psd_layer_prompts") else "not_required",
             "psd_layer_scene_count": image_efficiency_policy.get("psd_layer_scene_count") or 0,
+            "parallax_scene_numbers": [int(s.get("scene_number") or s.get("scene_order")) for s in scenes if (s.get("parallax_plan") or {}).get("enabled")],
             "psd_layer_prompts": image_efficiency_policy.get("psd_layer_prompts") or [],
             "image_generation_policy": image_efficiency_policy,
         })

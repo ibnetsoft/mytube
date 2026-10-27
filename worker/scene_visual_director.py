@@ -6,6 +6,8 @@ from typing import Any
 from scene_direction_policy import CONTRACT as EXECUTION_CONTRACT, validate_topic, validate_execution
 
 
+from script_parallax import TASK as PARALLAX_TASK, selection as parallax_selection
+
 PERSONA = """You are AIR Studio's Scene Visual Director. For each scene, interpret
 its dramatic purpose, narration, emotional change, neighboring-scene context,
 and the uploaded source clip when clip keyframes are provided. The uploaded
@@ -60,6 +62,8 @@ Return exact irregular cue times, never a repeating interval. The final image
 analyzer must still verify the named character and both eye boxes; uncertainty
 skips only the blink effect."""
 
+
+PERSONA += "\n\n" + PARALLAX_TASK
 
 ALLOWED_OPERATIONS = {
     "camera_move", "hold", "light_flicker", "atmosphere_drift", "depth_parallax",
@@ -314,6 +318,7 @@ def validate_directorial_plans(
         }
         if not direction["visual_strategy"] or not direction["qa_assertions"]:
             raise ValueError(f"visual direction {index} needs visual_strategy and nonempty qa_assertions")
+        direction['parallax_plan'] = parallax_selection(scene, direction)
         if topic is not None:
             direction.update(contract=EXECUTION_CONTRACT, topic_direction=topic,
                              execution_design=validate_execution(raw.get('execution_design'), topic, scene))

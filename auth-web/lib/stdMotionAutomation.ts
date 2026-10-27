@@ -65,6 +65,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const preparation=source.asset_type==='original'&&!horizontal?prepared.get(n):null
         if(source.asset_type==='original'&&!horizontal&&!preparation)throw new Error(`${n}번 PSD의 레이어·AE 연출을 대본워커에서 준비한 뒤 제출하세요.`)
         const planned=project.project_payload?.structure?.scenes?.find((s:any)=>Number(s.scene_number||s.scene_order)===n)
+        if(planned?.parallax_plan?.enabled && source.asset_type!=='original')throw new Error(`${n}번 패럴럭스 씬은 배경·캐릭터·전경 레이어 PSD를 준비·검수한 뒤 제출하세요.`)
         const authored=motion.scenes[String(n)]
         if((effectcraft||filmcraft)&&(authored?.finance||authored?.cues?.length||authored?.native?.paths?.length||authored?.native?.effects?.length||Object.values(authored?.layers||{}).some(l=>l.advanced)))throw new Error(`${n}번 씬의 웹 전용 리그·효과는 선택한 렌더러로 자동 변환하지 않습니다. 브라우저 제작 또는 기존 AE를 선택해 주세요.`)
         const creative=planned?.scene_direction_plan||planned?.ae_directorial_plan||null

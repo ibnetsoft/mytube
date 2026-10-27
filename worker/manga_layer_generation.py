@@ -196,6 +196,14 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
     if role not in directions:
         raise ValueError(f"unsupported required layer role: {role}")
     direction = directions[role]
+    parallax=scene.get('parallax_plan') or {}
+    if spec.get('template')=='parallax_layered_scene' and parallax.get('enabled'):
+        layer=next((l for l in parallax['layers'] if l['role']==role),None)
+        if not layer:raise ValueError('Script-selected parallax layer instruction missing')
+        source['script_layer']=layer
+        direction += ' Script-directed plane: '+layer['image_prompt']+' Purpose: '+layer['purpose']
+        direction += ' Use the attached final scene as exact pixel registration. Reconstruct occluded background only; transparent cutouts must retain original positions. Never flatten the full scene into this layer.'
+
     if role in IDENTITY_ROLES and reference and reference.get("character_key"):
         source["verified_character"] = {"key": reference["character_key"], "name": reference["name"],
             **{field: reference[field] for field in (

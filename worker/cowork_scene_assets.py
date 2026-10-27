@@ -423,6 +423,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
                          "ae_effect_plan": s.get("ae_effect_plan") if isinstance(s.get("ae_effect_plan"), dict) else {},
                          "image_generation_policy": s.get("image_generation_policy") if isinstance(s.get("image_generation_policy"), dict) else {},
                          "local_layer_plan": s.get("local_layer_plan") if isinstance(s.get("local_layer_plan"), dict) else {},
+                         "parallax_plan": s.get("parallax_plan") if isinstance(s.get("parallax_plan"), dict) else {},
                          "psd_layer_plan": s.get("psd_layer_plan") if isinstance(s.get("psd_layer_plan"), dict) else {}}
                         for i, s in enumerate(scenes, 1)],
         "image_layer_mode": structure.get("image_layer_mode") or (structure.get("image_generation_policy") or {}).get("image_layer_mode") or "hybrid",
@@ -592,6 +593,8 @@ def crop_grids(
 def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
             defer_layers: bool = False, reuse_existing: bool = False) -> list[str]:
     manifest = _manifest(manifest_path)
+    if defer_layers and any((s.get('parallax_plan') or {}).get('enabled') for s in manifest.get('scene_specs',[])):
+        raise ValueError('Script-selected parallax requires reviewed separated layers before publishing')
     recovery_path = image_recovery.state_path(manifest_path)
     if manifest.get('recovery_policy') and not recovery_path.exists():
         raise ValueError('Recovery state missing; cannot publish')
