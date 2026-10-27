@@ -2837,6 +2837,7 @@ class CodexStagedContentRunner:
             dialogue_result = self._stage(job_id, '02e_dialogue', dialogue_context, DIALOGUE_TASK)
             try:
                 structure['dialogue_annotations'] = validate_dialogue(dialogue_result, scenes)
+                structure['video_dialogue_postwork_index'] = structure['dialogue_annotations']['video_dialogue_postwork_index']
                 structure['script_model'] = ASTRA_MODEL
                 break
             except ValueError as exc:

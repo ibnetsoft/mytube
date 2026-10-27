@@ -99,7 +99,9 @@ def test_actual_video_preparation_is_reviewed_and_cues_use_final_voice(monkeypat
         path=tmp_path/(pose+'.png');Image.new('RGB',(10,10),'red').save(path);layers[pose]=str(path)
     speaker={'speaker':'hero','status':'visible','mouth_box':[.2,.2,.3,.3]}
     calls=[]
+    scene['_dialogue_target']={'dialogue':[dict(scene['postwork']['dialogue'][0],local_start=0.,local_end=1.)]}
     def track(*args,**kwargs):
+        assert args[2]['source']['id']=='source' and args[3][0]['local_start']==0. and args[3][0]['local_end']==1.
         assert kwargs['local_video']==source and kwargs['allow_analyze'] is True
         return source,image,[speaker],[copy.deepcopy(speaker)],{'source_duration':1},'coordinates'
     monkeypatch.setattr(coordinates,'prepare_submitted_video',track)
@@ -116,3 +118,19 @@ def test_actual_video_preparation_is_reviewed_and_cues_use_final_voice(monkeypat
     assert source.read_bytes()==b'unchanged source fixture'
     scene['postwork']['mouth_required']=False
     assert p.prepare_mouth(None,{},scene,snapshot,source,voice,tmp_path,lambda:None) is None
+
+
+def test_direct_dialogue_targets_reject_wrong_scene_source_or_local_clock():
+    scene,snapshot,_=fixture()
+    target=dict(scene_number=1,source_video_id='source',scene_start=0.,scene_end=1.,dialogue=[dict(text=r['text'],speaker=r['speaker'],voice_id=r['voice_id'],start=r['start'],end=r['end'],local_start=r['start'],local_end=r['end']) for r in scene['postwork']['dialogue']])
+    snapshot['video_dialogue_targets']=dict(contract='video_dialogue_targets/v1',scenes=[target])
+    p.validate_input(snapshot)
+    assert scene['_dialogue_target']==target
+    for key,value in [('scene_number',18),('source_video_id','wrong')]:
+        old=target[key];target[key]=value
+        with pytest.raises(ValueError,match='target'):p.validate_input(snapshot)
+        target[key]=old
+    target['dialogue'][0]['local_start']=.2
+    with pytest.raises(ValueError,match='target'):p.validate_input(snapshot)
+    snapshot['video_dialogue_targets']['scenes']=[]
+    with pytest.raises(ValueError,match='target'):p.validate_input(snapshot)

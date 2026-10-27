@@ -25,9 +25,17 @@ export function freezeVideoPostwork(project:any,number:number,source:any,rows:an
     // An unrelated generation still must never seed coordinates on the uploaded video.
     const videoBound=reference?.metadata?.source_video_sha256 && (reference.metadata.source_video_id===source.id || reference.metadata.source_video_sha256===(source.metadata?.sha256||source.metadata?.render_sha256))
     const regions=videoBound?savedSpeakerGeometry(assets,coordinateCast(project),{number,image:reference,rows:dialogue.map(r=>({speaker:r.speaker}))}):null
+    const scriptIndex=project.project_payload?.structure?.video_dialogue_postwork_index || project.project_payload?.structure?.dialogue_annotations?.video_dialogue_postwork_index
+    const scriptScene=scriptIndex?.scenes?.find((s:any)=>Number(s.scene_number)===number)
+    if(scriptScene?.status==='needs_review')throw Error(`${number}번 씬의 대본 대사·화자 판별을 확인한 뒤 제출하세요.`)
+    const compact=(text:string)=>text.replace(/[\s\p{P}]/gu,'')
+    for(const span of scriptScene?.dialogue||[]) {
+        if(span.status==='confirmed' && !compact(dialogue.filter(r=>r.speaker===span.speaker).map(r=>r.text).join('')).includes(compact(span.text)))
+            throw Error(`${number}번 씬의 대본 대사와 확정 자막·화자 연결이 다릅니다. 대사 정보를 확인하세요.`)
+    }
     const saved=creative?.submitted_video_postwork
     return {contract:VIDEO_POSTWORK_CONTRACT,source_video_id:source.id,mouth_required:dialogue.length>0,dialogue,
-        cast:coordinateCast(project),image:videoBound?reference:null,speaker_regions:regions||null,
+        script_dialogue:scriptScene||null,cast:coordinateCast(project),image:videoBound?reference:null,speaker_regions:regions||null,
         requested_effects:saved?.effects||[],transition:saved?.transition||null,
         playback_rate:1,preserve_source_motion:true,review_required:true,failure_policy:'needs_review',
         source_preparation:'local_codex_actual_submitted_video'}
@@ -56,4 +64,14 @@ export function freezePreparedStillMouth(project:any,number:number,source:any,ro
     const regions=savedSpeakerGeometry(assets,coordinateCast(project),{number,image:source,rows:dialogue.map(r=>({speaker:r.speaker}))})
     if(dialogue.some(r=>!r.speaker||!regions?.speakers?.some((s:any)=>s.speaker===r.speaker)))throw Error(`${number}번 씬의 기존 입모양 좌표·소재 준비를 완료한 뒤 제출하세요.`)
     return {contract:'prepared_still_mouth/v1',mouth_required:true,dialogue,image:source,speaker_regions:regions,cast:coordinateCast(project)}
+}
+
+// Script offsets identify dialogue before audio exists. Bind seconds only to finalized voice.
+export function videoDialoguePostworkTargets(scenes:any[]) {
+    return {contract:'video_dialogue_targets/v1', scenes:scenes.filter(s=>s.postwork?.mouth_required).map(s=>({
+        scene_number:s.number,source_video_id:s.source.id,scene_start:s.start,scene_end:s.end,
+        script_dialogue:s.postwork.script_dialogue||null,
+        dialogue:s.postwork.dialogue.map((r:any)=>({text:r.text,speaker:r.speaker,voice_id:r.voice_id||'',
+            start:r.start,end:r.end,local_start:r.start-s.start,local_end:r.end-s.start}))
+    }))}
 }

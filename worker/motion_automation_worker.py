@@ -687,7 +687,7 @@ def process_one(engine='ae'):
                 plans.append(plan);save(plans=plans)
             if video_postwork_enabled(scene) or scene.get('still_mouth'):
                 from submitted_video_postwork import prepare_mouth, protect_faces
-                save(phase='mouth_preparation',progress=f'{number}씬 실제 영상의 화자 추적·입모양 소재 준비 및 검수')
+                save(phase='mouth_preparation',progress=f'{number}씬 대사 작업 목록으로 이동 · 확정 구간 화자 추적·입모양 검수')
                 mouth_receipt=prepare_mouth(runner,job,scene,snapshot,sources[number],voice,work/'mouth',fresh)
                 scene['_postwork_receipt']=mouth_receipt
                 if mouth_receipt:scene['_mouth_runtime']=mouth_receipt['runtime']

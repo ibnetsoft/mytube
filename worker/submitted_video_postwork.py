@@ -92,6 +92,11 @@ def prepare_mouth(runner,job,scene,snapshot,source,voice,directory,fresh):
     from ae_media_utils import ffmpeg
     from manga_layer_generation import NativeCodexLayerGenerator
     rows=copy.deepcopy(postwork['dialogue'])
+    target=scene.get('_dialogue_target')
+    if target:
+        # Jump directly by source asset and local clip clock; do not rediscover dialogue.
+        rows=[{**r,**t} for r,t in zip(rows,target['dialogue'])]
+
     input_scene={**scene,'original_video':scene['source'],'image':postwork.get('image'),'speaker_regions':postwork.get('speaker_regions')}
     if scene.get('still_mouth'):
         from ae_mouth import visible_speakers
@@ -177,6 +182,19 @@ def validate_input(snapshot):
     if not required_review(snapshot):return
     targets=[s for s in snapshot['scenes'] if enabled(s)]
     if not targets:raise ValueError('Submitted video contract has no target scenes')
+    manifest=snapshot.get('video_dialogue_targets')
+    if manifest is not None:
+        expected=[s for s in targets if s['postwork']['mouth_required']]
+        entries=manifest.get('scenes') or []
+        if manifest.get('contract')!='video_dialogue_targets/v1' or [r.get('scene_number') for r in entries]!=[s['number'] for s in expected]:raise ValueError('Dialogue target scene index differs from frozen submission')
+        for scene,target in zip(expected,entries):
+            if target.get('source_video_id')!=scene['source']['id'] or target.get('scene_start')!=scene['start'] or target.get('scene_end')!=scene['end']:raise ValueError('Dialogue target points to a different source or scene clock')
+            rows=scene['postwork']['dialogue'];timed=target.get('dialogue') or []
+            if len(rows)!=len(timed):raise ValueError('Dialogue target intervals missing')
+            for row,interval in zip(rows,timed):
+                if any(interval.get(k)!=row.get(k,'') for k in ('text','speaker','voice_id','start','end')) or abs(interval.get('local_start',-1)-(row['start']-scene['start']))>.000001 or abs(interval.get('local_end',-1)-(row['end']-scene['start']))>.000001:raise ValueError('Dialogue target timing or speaker changed')
+            scene['_dialogue_target']=copy.deepcopy(target)
+
     for scene in targets:
         p=scene['postwork']
         if not 1<=scene['number']<=18 or scene['source_kind']!='video' or p.get('source_video_id')!=scene['source']['id'] or p.get('playback_rate')!=1 or p.get('review_required') is not True:

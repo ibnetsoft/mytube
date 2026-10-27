@@ -64,3 +64,9 @@ AE는 통합워커의 실행 기능이다. AE를 위한 이미지 관찰·얼굴
 핵심 코드: `auth-web/lib/stdSubmittedVideoPostwork.ts`, `worker/submitted_video_postwork.py`, `worker/ae_flat_scene.py`, `worker/ae_scene_effects.py`. 이 구조는 실패한 작업의 원본·음성·완료 결과를 보존하며 재시도에서 지문이 일치하는 결과만 재사용한다.
 
 이 계약의 DB 완료 함수는 실제 씬 검수·필수 입모양·최종 경계·음성 시간 영수증을 요구한다. 워커나 저장된 과거 정책에 검수 생략 값이 있어도 새 계약에는 적용하지 않는다. 마이그레이션 `submitted_video_postwork_review_gate`와 순수 JSON SQL 회귀 검증을 함께 관리한다.
+
+### Script-worker dialogue jump index (scenes 1–18)
+
+- The final-script dialogue analysis publishes `structure.video_dialogue_postwork_index` (`script_video_dialogue_index/v1`). Each target contains scene number, exact source hash, speaker, verbatim quote, Unicode code-point offsets, stable dialogue ID and confirmation/evidence. Scenes without dialogue are absent; scene 19+ stays in its existing preparation flow.
+- Script generation never guesses audio seconds. Submission binds these script targets to the actual source video ID and finalized narration rows in `snapshot.video_dialogue_targets` (`video_dialogue_targets/v1`), including global and clip-local start/end times. Ambiguous speakers or disconnected confirmed script dialogue stop submission.
+- The integrated worker validates complete target coverage, scene/video identity, speaker and exact voice clock before work. It jumps to the indexed source scene and consumes its frozen intervals for mouth preparation; it does not rediscover which scene contains dialogue. Actual face/visibility tracking and output review remain mandatory. Old snapshots without this additive index retain their frozen behavior; re-generated scripts and new submissions receive it.

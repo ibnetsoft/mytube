@@ -47,7 +47,15 @@ def validate_dialogue(result, scenes):
         annotations.append({'scene_number': number, 'source_text': source,
                             'source_sha256': hashlib.sha256(source.encode()).hexdigest(),
                             'spans': sorted(spans, key=lambda s: s['start'])})
-    return {'version': 1, 'source': 'codex-ai', 'model': ASTRA_MODEL,
+    targets = [dict(scene_number=r['scene_number'], source_sha256=r['source_sha256'],
+                    speakers=list(dict.fromkeys(s['speaker'] for s in r['spans'] if s['status']=='confirmed')),
+                    status='needs_review' if any(s['status']=='uncertain' for s in r['spans']) else 'confirmed',
+                    dialogue=[dict(s, dialogue_id=f"{r['source_sha256']}:{s['start']}:{s['end']}") for s in r['spans']])
+               for r in annotations if 1 <= r['scene_number'] <= 18 and r['spans']]
+    return {'video_dialogue_postwork_index': {'contract':'script_video_dialogue_index/v1',
+                'source':'codex-ai', 'offset_unit':'unicode-codepoint', 'scene_numbers':[r['scene_number'] for r in targets],
+                'scene_count':len(targets), 'dialogue_count':sum(len(r['dialogue']) for r in targets), 'scenes':targets, 'timing_policy':'bind_final_voice_on_submission'},
+            'version': 1, 'source': 'codex-ai', 'model': ASTRA_MODEL,
             'offset_unit': 'unicode-codepoint', 'scenes': annotations,
             'dialogue_scene_index': {'version': 1, 'scene_numbers': [r['scene_number'] for r in annotations if r['spans']],
                 'scene_count': sum(bool(r['spans']) for r in annotations),
