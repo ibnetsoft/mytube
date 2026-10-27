@@ -233,7 +233,7 @@ def require_reviewed_outputs(snapshot,results,voice_hash):
             raise ValueError('최종 조립 전에 모든 씬의 실제 출력·음성 검수가 필요합니다.')
         if scene.get('speech_bubble_plan',{}).get('cues'):
             keys=('bubble_readability','bubble_speaker_tail','bubble_occlusion')
-            if not row.get('speech_bubble_layout') or not review.get('batches') or any(not all(any(c.get('id')==key and c.get('passed') is True and str(c.get('evidence') or '').strip() for c in b.get('checks',[])) for key in keys) for b in review['batches']):raise ValueError('Actual bubble placement and output review evidence required')
+            if (row.get('speech_bubble_layout') or {}).get('render_version')!=2 or not review.get('batches') or any(not all(any(c.get('id')==key and c.get('passed') is True and str(c.get('evidence') or '').strip() for c in b.get('checks',[])) for key in keys) for b in review['batches']):raise ValueError('Actual bubble placement and output review evidence required')
         if __import__('purpose_direction').active(scene):
             if not review.get('batches') or any(not all(any(c.get('id')==key and c.get('passed') is True and str(c.get('evidence') or '').strip() for c in b.get('checks',[])) for key in ('purpose_fit','sequence_rhythm')) for b in review['batches']):raise ValueError('Scene purpose and sequence output review evidence is required')
         if not enabled(scene) and not (scene.get('still_mouth') or scene.get('parallax_mouth')):continue

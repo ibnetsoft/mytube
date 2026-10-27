@@ -308,7 +308,7 @@ This capability supersedes the prohibition on requesting supplemental artwork ab
 def renderer_cache_is_current(snapshot,record):
     from services.video_playback_policy import POLICY
     if record.get('video_playback_policy')!=POLICY:return False
-    if any(s.get('number')==record.get('number') and s.get('speech_bubble_plan',{}).get('cues') for s in snapshot.get('scenes',[])) and not record.get('speech_bubble_layout'):return False
+    if any(s.get('number')==record.get('number') and s.get('speech_bubble_plan',{}).get('cues') for s in snapshot.get('scenes',[])) and (record.get('speech_bubble_layout') or {}).get('render_version')!=2:return False
     if snapshot.get('renderer',{}).get('engine')=='filmcraft':
         from filmcraft_render import VERSION
         from filmcraft_native import cache_is_current
