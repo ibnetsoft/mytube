@@ -103,7 +103,7 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
                 <fieldset disabled={locked} className="space-y-2">
                     <legend className="text-xs text-gray-300">{ui('AE 추가 효과')}</legend>
                     <div className="flex flex-wrap gap-2">{EFFECT_PRESETS.map(preset => <button key={preset.label} type="button" disabled={locked} onClick={() => applyPreset(preset)} className="rounded border border-cyan-500/40 px-2 py-1 text-xs text-cyan-100 disabled:opacity-40">{ui(preset.label)}</button>)}</div>
-                    <div className="flex flex-wrap gap-3">{AE_SCENE_EFFECTS.map(effect => <label key={effect.id} className="flex items-center gap-1 text-xs text-gray-200">
+                    <div className="flex flex-wrap gap-3">{AE_SCENE_EFFECTS.filter(effect=>effect.id!=='fireflies').map(effect => <label key={effect.id} className="flex items-center gap-1 text-xs text-gray-200">
                         <input type="checkbox" checked={effects.includes(effect.id)} onChange={e => setEffectDrafts(d => ({ ...d,
                             [scene.number]: e.target.checked ? [...effects, effect.id] : effects.filter(id => id !== effect.id),
                         }))} />{ui(effect.label)}

@@ -41,9 +41,16 @@ def prepare(source, scene, motion, direction):
         raise ValueError('Unsupported final frame rate')
     size = (1080,1920) if motion['aspect'] == '9:16' else (1920,1080)
     identity = [{'t':t,'x':0,'y':0,'scale':1,'rotation':0,'opacity':100} for t in (0,1)]
+    runtime=scene.get('_mouth_runtime') or {}
+    if runtime.get('enabled'):
+        from ae_mouth import digest
+        for speaker in runtime.get('speakers',[]):
+            for pose in ('closed','half','open'):
+                if digest(Path(speaker['layers'][pose]))!=speaker['layer_sha256'][pose]:raise ValueError('Reviewed mouth patch changed before AE rendering')
     plan = {'width':width,'height':height,'output':{'width':size[0],'height':size[1]},
             'camera':keys,'fit':direction['fit'],'layers':[{'id':'original','role':'background','motion':identity}],
             'effects':copy.deepcopy(direction.get('effects',[])),'lights':[],
+            'mouth_runtime':copy.deepcopy(scene.get('_mouth_runtime')),
             'transition':{'in':'none','out':'none','fraction':0}}
     from ae_scene_effects import validate_effects
     validate_effects(plan)
@@ -59,6 +66,9 @@ def write_jsx(plan, layer_paths, project, native, jsx, duration, fps=24):
             'duration':duration,'fps':fps,'project':str(project.resolve()),'native':str(native.resolve()),
             'status':str(jsx.with_suffix('.status.txt').resolve())}
     script = SCENE_JSX.replace('/* SCENE_EFFECTS */', EFFECTS_JSX)
+    if plan.get('mouth_runtime'):
+        from ae_mouth import mouth_jsx
+        script=script.replace('var footage=app.project.importFile(new ImportOptions(f));', 'var footage=app.project.importFile(new ImportOptions(f)); footage=(function(footage){var DUR=S.duration,FPS=S.fps;'+mouth_jsx(plan['mouth_runtime'])+' return footage;})(footage);')
     # Original footage remains at 1x; only saved camera transforms are animated.
     script = script.replace('layer.outPoint=S.duration;', 'layer.outPoint=S.duration; if(layer.hasAudio) layer.audioEnabled=false;')
     if plan['fit'] == 'contain':

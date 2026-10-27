@@ -12,6 +12,7 @@ from test_ae_scene_preparation import plan
 
 
 def effect(kind='focus_glow'):
+    if kind=='fireflies':return dict(type=kind,start=.1,end=.9,intensity=.2,center=[.2,.2],color=[1,.9,.3],radius=.15,reason='Actual firefly scene',story_quote='반딧불이 빛났다',count=8,size=.002,speed=.01,protected_regions=[])
     return dict(type=kind, start=.31, end=.39, intensity=.4, center=[.5, .5],
                 color=[1, .8, .5], radius=.2, reason='Light from the visible lantern.')
 

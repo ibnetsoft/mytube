@@ -17,15 +17,15 @@ def fingerprint(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
-def prepare_submitted_video(runner, project_id, scene, rows, cast, directory, fresh, allow_analyze=True):
+def prepare_submitted_video(runner, project_id, scene, rows, cast, directory, fresh, allow_analyze=True, local_video=None):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     base, headers = ae._supabase()
     source = scene['original_video']
     bucket, path = ref(source)
-    video = directory / 'original-video.mp4'
+    video = Path(local_video) if local_video else directory / 'original-video.mp4'
     # Validate current bytes even on resume; an object may have been replaced at the same path.
-    ae._download_gcs_file(ae.GcsRef(bucket, path), video)
+    if local_video is None:ae._download_gcs_file(ae.GcsRef(bucket, path), video)
     video_hash = digest(video)
     names = list(dict.fromkeys(r['speaker'] for r in rows))
     manual = scene.get('speaker_regions') or {}

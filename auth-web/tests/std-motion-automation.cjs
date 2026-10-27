@@ -5,6 +5,7 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
  if(name.includes('stdProductionEnginePolicy'))return alternativesEnabled?{productionEngineError:()=>null}:require('./load-ts-module.cjs')('lib/stdProductionEnginePolicy.ts');
+  if(name.includes('stdSubmittedVideoPostwork'))return require('./load-ts-module.cjs')('lib/stdSubmittedVideoPostwork.ts')
   if(name==='crypto')return crypto
   if(name.includes('stdMotionSourceReuse'))return {recordedMotionSourceReuse:()=>null}
   if(name.endsWith('.json'))return JSON.parse(fs.readFileSync('lib/'+name.slice(2),'utf8'))
@@ -59,11 +60,11 @@ test('resolved sound cues and background audio survive automatic submission',asy
  const f=fixture();f.project.project_payload.render_settings.sfx_cues=[{library_key:'wind.wav',word_boundary:0}]
  await f.run();assert.equal(JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json).sfx_cues[0].start,3)
 })
-test('existing manual video remains usable without an API; vertical webtoons retain originals',async()=>{
+test('uploaded scenes 1..18 retain their actual video even when a legacy still default exists',async()=>{
  const f=fixture();f.assets.push({...f.image,id:'manual-video',asset_type:'video',metadata:{gcs_path:'manual.mp4'}})
  await f.run();assert.equal(JSON.parse(f.calls.rpc.at(-1).args.p_manifest.automation.snapshot_json).scenes[0].source.id,'manual-video')
  f.project.project_payload.render_settings.comic={mode:'webtoon_video'};await f.run()
- assert.equal(JSON.parse(f.calls.rpc.at(-1).args.p_manifest.automation.snapshot_json).scenes[0].source.id,'image')
+ assert.equal(JSON.parse(f.calls.rpc.at(-1).args.p_manifest.automation.snapshot_json).scenes[0].source.id,'manual-video')
 })
 
 test('EffectCraft freezes bounded post-submission supplementation while final voice and subtitle times remain exact',async()=>{
@@ -103,3 +104,5 @@ test('only frozen video is reported instead of silently substituting image',asyn
 });
 
 test('disabled alternatives cannot register a queue or read provider secrets',async()=>{for(const method of ['effectcraft','filmcraft','motion_studio']){const f=fixture();f.project.project_payload.render_settings.motion.production_method=method;await assert.rejects(f.run(),/비활성화/);assert.equal(f.calls.rpc.length,0);assert.equal(f.calls.models,0)}});
+
+test('ordinary uploaded dialogue videos enter mandatory reviewed postwork even with automation disabled',async()=>{const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;delete f.project.project_payload.render_settings.motion.automation;f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='주인공';f.assets.push({...f.image,id:'submitted-clip',asset_type:'video',metadata:{gcs_path:'clip.mp4',video_tail_policy:'original_speed_no_freeze_no_loop/v1'}});await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.submitted_video_postwork,'submitted_video_postwork/v1');assert.equal(s.scenes[0].source.id,'submitted-clip');assert.equal(s.scenes[0].postwork.mouth_required,true);assert.equal(s.scenes[0].postwork.dialogue[0].end,20);assert.equal(s.motion.automation.mode,'ae_only');assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1');assert.equal(f.calls.models,0);});

@@ -36,6 +36,7 @@ from worker.content_language import (
     visual_setting_prompt,
 )
 from scene_visual_director import PERSONA as SCENE_VISUAL_DIRECTOR_PERSONA, validate_directorial_plans
+from submitted_video_postwork import DIRECTOR_TASK as VIDEO_POSTWORK_DIRECTOR_TASK
 from scene_direction_policy import DIRECTING_TASK, is_directed, execution_capabilities
 from directing_profiles import resolve_directing_profile
 from character_continuity import validate_character_identity, scene_continuity_prompt, character_design_anchors
@@ -2893,7 +2894,7 @@ class CodexStagedContentRunner:
             "one generated image per frame or per second. Never claim AE can invent facial expressions or body "
             "actions from footage that does not show them. Every beat must fit its scene duration. Do not add "
             "decorative movement without a story reason. "
-            + DIRECTING_TASK + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only.",
+            + DIRECTING_TASK + "\n" + VIDEO_POSTWORK_DIRECTOR_TASK + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only.",
         )
         try:
             directorial_plans = validate_directorial_plans(

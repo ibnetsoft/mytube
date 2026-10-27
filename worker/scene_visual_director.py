@@ -334,6 +334,11 @@ def validate_directorial_plans(
                 for effect in effect_kinds
             ):
                 raise ValueError('Three adjacent shots repeat the same conspicuous finishing effect')
+        if 1<=int(scene.get('scene_number') or scene.get('scene_order') or index)<=18:
+            from submitted_video_postwork import validate_preparation
+            narration=str(scene.get('scene_text') or scene.get('narration') or '')
+            value=raw.get('submitted_video_postwork') or {'effects':[],'transition':{'kind':'cut','reason':'Preserve original uploaded clip and narration clock','duration_seconds':0}}
+            direction['submitted_video_postwork']=validate_preparation(value,narration)
         scene["ae_directorial_plan"] = direction
         scene["scene_direction_plan"] = direction
         normalized.append(direction)

@@ -1,3 +1,4 @@
+import { submittedPostworkSummary } from '@/lib/stdSubmittedVideoPostwork'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
@@ -25,6 +26,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     try {
         const b = await bundle(req, params.projectId)
         if (b.response) return b.response
+        const postwork=submittedPostworkSummary(b.project,b.scenes!,b.assets!)
+        if(postwork)return NextResponse.json(postwork,{headers:{'Cache-Control':'no-store'}})
         if (!aeMouthApplicable(b.project, b.scenes!, b.assets!)) return NextResponse.json({ applicable: false })
         let job: any, error = ''
         try { job = currentAeMouthJob(b.project, b.scenes!, b.assets!) } catch (e: any) { error = e.message }

@@ -68,8 +68,8 @@ def test_supervisor_dispatches_automation_without_a_manual_editor():
     command=role_command('motion_automation')
     assert command[-1]=='--once' and command[2].endswith('motion_automation_worker.py')
     assert command[command.index('--engine')+1]=='ae'  # Existing frozen queue keeps its engine.
-    filmcraft=role_command('filmcraft')
-    assert filmcraft[filmcraft.index('--engine')+1]=='filmcraft'
+    with pytest.raises(ValueError,match='비활성화'):
+        role_command('filmcraft')
 
 def test_local_psd_preparation_supplies_native_layer_paths_and_rejects_changes(tmp_path):
     from PIL import Image

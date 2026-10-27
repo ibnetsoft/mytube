@@ -84,12 +84,12 @@ export function hasAeSceneIntent(_project: any, scenes: any[], assets: any[]): b
 }
 
 /** Never silently fall back to a flattened clip when an AE scene was requested. */
-export function preparedAeScenes(project: any, scenes: any[], assets: any[]): Map<number, any> {
+export function preparedAeScenes(project: any, scenes: any[], assets: any[], ignored: ReadonlySet<number> = new Set()): Map<number, any> {
     const result = new Map<number, any>()
     const numbers = new Set(scenes.map(numberOf))
     for (const [number, asset] of aeSceneSelections(assets)) {
         const meta = asset.metadata
-        if (!numbers.has(number) || meta.enabled === false) continue
+        if (ignored.has(number) || !numbers.has(number) || meta.enabled === false) continue
         const fail = (reason: string): never => { throw new Error(`${number}번 씬 AE 연출: ${reason}`) }
         if (meta.state !== 'prepared') fail(meta.state === 'failed' ? '준비 작업을 수정한 뒤 다시 요청해 주세요.' : 'PSD와 연출 준비가 끝난 뒤 제출해 주세요.')
         const expected = aeScenePreparationInput(project, scenes, assets, number, String(meta.input?.direction_text || ''), meta.input?.requested_effects)

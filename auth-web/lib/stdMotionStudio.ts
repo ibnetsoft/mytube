@@ -72,6 +72,7 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
         if (keys[0].t !== 0 || keys[keys.length-1].t !== 1 || keys.some((k,i) => i > 0 && k.t <= keys[i-1].t)) throw new Error('키프레임은 0~100%를 순서대로 포함해야 합니다.')
         if (!Array.isArray(s.effects) || s.effects.length > AE_SCENE_EFFECTS.length) throw new Error('씬 효과 목록을 확인해 주세요.')
         const effects: MotionEffect[] = s.effects.map((e: any) => {
+            if(e.type==='fireflies')throw new Error('반딧불은 제출 영상의 대본·실제 화면을 확인한 후작업에서 적용합니다.')
             if (!AE_SCENE_EFFECTS.some(item => item.id === e.type) || e.type === 'heat_distortion') throw new Error('열 왜곡은 분리된 PSD의 AE 준비 화면에서 선택해 주세요.')
             const start=finite(e.start,0,1,'효과 시작'), end=finite(e.end,0,1,'효과 종료')
             if (end <= start || !Array.isArray(e.center) || e.center.length !== 2 || !Array.isArray(e.color) || e.color.length !== 3) throw new Error('효과 위치·시간·색상을 확인해 주세요.')
