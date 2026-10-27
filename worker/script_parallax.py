@@ -53,8 +53,11 @@ def require_depth_motion(plan):
     from ae_scene_animation import resolved_layers
     layers=resolved_layers(plan)
     if not set(ROLES).issubset({l['role'] for l in layers}):raise ValueError('Parallax requires three actual separated depth planes')
+    from ae_scene_animation import _interpolate
+    planes=[l for l in layers if l['role'] in ROLES]
+    times=sorted({k['t'] for l in planes for k in l['motion']})
     def travel(layer):
-        keys=layer['motion'];first=keys[0]
-        return [(round(k['t'],6),round(k['x']-first['x'],7),round(k['y']-first['y'],7),round(k['scale']-first['scale'],7)) for k in keys]
-    tracks=[travel(l) for l in layers if l['role'] in ROLES]
+        first=layer['motion'][0]
+        return [tuple(round(_interpolate(layer['motion'],t,('x','y','scale'))[axis]-first[axis],7) for axis in ('x','y','scale')) for t in times]
+    tracks=[travel(l) for l in planes]
     if len({str(t) for t in tracks})<2:raise ValueError('Parallax needs real relative plane movement, not a flat camera zoom')

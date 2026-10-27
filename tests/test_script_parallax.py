@@ -108,5 +108,7 @@ def test_actual_depth_gate_rejects_flat_zoom_and_accepts_distinct_planes():
     from script_parallax import require_depth_motion
     plan={'camera':[dict(t=t,x=.5,y=.5,scale=1+t*.02,rotation=0) for t in (0,1)],'layers':[{'role':role,'z_index':i,'parallax':0 if i==0 else i*.3} for i,role in enumerate(ROLES)]}
     with pytest.raises(ValueError,match='relative plane'):require_depth_motion(plan)
+    plan['layers'][2]['motion']=[dict(t=t,x=0,y=0,scale=1,rotation=0,opacity=100) for t in (0,.5,1)]
+    with pytest.raises(ValueError,match='relative plane'):require_depth_motion(plan)
     plan['camera'][1]['x']=.52
     require_depth_motion(plan)
