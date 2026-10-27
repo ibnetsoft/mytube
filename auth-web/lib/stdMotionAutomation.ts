@@ -75,6 +75,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const creative=planned?.scene_direction_plan||planned?.ae_directorial_plan||null
         const sourceKind=source.asset_type==='original'?(horizontal?'image':'psd'):source.asset_type
         const recordedRows=project.project_payload.subtitles.map((row:any,i:number)=>({...row,start:timeline[i].start,end:timeline[i].end,voice_id:timeline[i].voice_id||row.voice_id||''})).filter((row:any)=>Number(row.scene_number)===n)
+        const reviewedDepth=(preparation?.metadata?.result?.plan?.effects||[]).filter((e:any)=>['depth_background_blur','depth_foreground_blur','depth_background_haze'].includes(e.type))
         const reviewedCamera=preparation?.metadata?.result?.plan?.camera
         const executable=directedScene(creative)&&Array.isArray(reviewedCamera)
             ? {...creative,execution_design:{...creative.execution_design,camera:{...creative.execution_design.camera,keys:reviewedCamera.map((k:any)=>({...k,opacity:100}))}}}
@@ -84,6 +85,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const stillMouth=!allParallax&&videoPostwork&&!postwork?freezePreparedStillMouth(project,n,source,recordedRows,assets,scenes):null
         const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
+            ...(reviewedDepth.length?{reviewed_depth_effects:reviewedDepth}:{}),
             ...(allParallax?{parallax_plan:planned.parallax_plan,parallax_mouth:freezeParallaxMouth(project,recordedRows)}:{}),
             ...(postwork?{direction_contract:VIDEO_POSTWORK_CONTRACT,postwork}:!horizontal&&directedScene(creative)?{direction_contract:creative.contract}:{}),
             prepared_direction:postwork?postworkDirection(sourceKind,postwork):(!horizontal&&(explicit||generated||motion.scenes[String(n)]))||{source:sourceKind,fit:'contain',direction:horizontal?'고정 가로 웹툰 컷 계획 · 원본 말풍선 유지':'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},

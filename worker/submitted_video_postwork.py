@@ -228,6 +228,7 @@ def require_reviewed_outputs(snapshot,results,voice_hash):
             raise ValueError('최종 조립 전에 모든 씬의 실제 출력·음성 검수가 필요합니다.')
         if not enabled(scene) and not (scene.get('still_mouth') or scene.get('parallax_mouth')):continue
         required=['postwork_narrative_fit','source_playback_preserved','transition_plan']
+        if scene.get('reviewed_depth_effects'):required+=['depth_finishing']
         mouth=(scene.get('postwork') or scene.get('still_mouth') or scene.get('parallax_mouth'))
         if mouth['mouth_required']:required+=['dialogue_mouth_timing','tracked_mouth_alignment']
         if not review.get('batches') or not all(isinstance(b,dict) and isinstance(b.get('checks'),list) and set(required).issubset({c.get('id') for c in b['checks'] if isinstance(c,dict)}) and valid_review(b,[c.get('id') for c in b['checks'] if isinstance(c,dict)]) for b in review['batches']):raise ValueError('입모양·효과·원본 동작의 실제 출력 검수 영수증이 없습니다.')
@@ -239,7 +240,7 @@ def require_reviewed_outputs(snapshot,results,voice_hash):
 def require_final_reviews(snapshot,reviews):
     if not required_review(snapshot):return
     from ae_scene_review_contract import valid_review
-    if len(reviews)!=len(snapshot['scenes']) or not all(valid_review(r,['captions','scene_boundary','visual_quality','postwork_continuity','voice_clock_preserved']) for r in reviews):raise ValueError('최종 장면 전환·자막·음성 시간 검수가 필요합니다.')
+    if len(reviews)!=len(snapshot['scenes']) or not all(valid_review(r,['captions','scene_boundary','visual_quality','postwork_continuity','voice_clock_preserved']+(['depth_finishing'] if scene.get('reviewed_depth_effects') else [])) for scene,r in zip(snapshot['scenes'],reviews)):raise ValueError('최종 장면 전환·자막·음성 시간 검수가 필요합니다.')
 
 
 def apply_transitions(snapshot,ordered,plans,directory,fresh):

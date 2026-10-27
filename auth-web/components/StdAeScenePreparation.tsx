@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AE_SCENE_EFFECTS } from '../lib/stdAeSceneEffects'
 
 type Scene = {
-    depth_effects?: string[]; number: number; title: string; source: { id: string; file_name: string } | null
+    depth_effects_reason?: string; depth_effects?: string[]; number: number; title: string; source: { id: string; file_name: string } | null
     preparation: { id: string; enabled: boolean; state: string; direction_text: string; requested_effects?: string[]; error: string; progress: string; plan: any } | null
 }
 type Data = { editable: boolean; scenes: Scene[] }
@@ -103,6 +103,7 @@ export default function StdAeScenePreparation({ projectId, headers, onPreparedSc
                 </label>
                 <fieldset disabled={locked} className="space-y-2">
                     <legend className="text-xs text-gray-300">{ui('AE 추가 효과')}</legend>
+                    {scene.depth_effects_reason&&<p className="text-xs text-cyan-100">{ui('대본의 깊이 판단')}: {scene.depth_effects_reason}</p>}
                     <div className="flex flex-wrap gap-2">{EFFECT_PRESETS.map(preset => <button key={preset.label} type="button" disabled={locked} onClick={() => applyPreset(preset)} className="rounded border border-cyan-500/40 px-2 py-1 text-xs text-cyan-100 disabled:opacity-40">{ui(preset.label)}</button>)}</div>
                     <div className="flex flex-wrap gap-3">{AE_SCENE_EFFECTS.filter(effect=>effect.id!=='fireflies').map(effect => <label key={effect.id} className="flex items-center gap-1 text-xs text-gray-200">
                         <input type="checkbox" checked={effects.includes(effect.id)} onChange={e => setEffectDrafts(d => ({ ...d,

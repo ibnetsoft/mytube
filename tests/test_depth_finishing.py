@@ -30,3 +30,19 @@ def test_foreground_occlusion_order_cannot_invert():
 def test_no_full_frame_blur_disguised_as_background():
     p=plan();p['layers']=p['layers'][:1];p['effects']=[depth()]
     with pytest.raises(ValueError,match='flattened'):validate_effects(p)
+
+
+def test_all_scene_mode_cannot_silently_omit_the_finishing_decision():
+    scene={'parallax_mode':'all_scenes','visual_type':'image'}
+    for raw in ({},{'depth_effects':[]}):
+        with pytest.raises(ValueError,match='explicit depth'):normalize(raw,scene,[])
+    assert normalize({'depth_effects':[],'depth_effects_reason':'The character and distant sign both need sharp detail.'},scene,[])==[]
+    raw={'depth_effects':[depth()],'depth_effects_reason':'Defocus the distant garden without hiding the subject.'}
+    assert len(normalize(raw,scene,[{'role':'background'}]))==1
+
+
+def test_reviewed_effect_cannot_disappear_during_render_binding():
+    from depth_finishing import assert_applied
+    p=plan();p['effects']=[depth()];assert_applied([depth()],p)
+    p['effects']=[]
+    with pytest.raises(ValueError,match='dropped'):assert_applied([depth()],p)

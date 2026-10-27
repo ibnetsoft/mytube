@@ -114,7 +114,9 @@ test('all-scene parallax automatically registers prepared PSD with exact dialogu
  f.project.project_payload.structure={parallax_mode:'all_scenes',scenes:[{scene_number:1,parallax_plan:{enabled:true}}]};
  f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='hero';
  f.calls.psds.set(1,{id:'psd',scene_number:1,asset_type:'original',status:'uploaded',metadata:{gcs_path:'layers.psd'}});
- f.calls.prepared.set(1,{metadata:{state:'prepared',result:{plan:{camera:[{t:0,x:.5,y:.5,scale:1,rotation:0},{t:1,x:.5,y:.5,scale:1,rotation:0}]}}}});
+ const approvedDepth={type:'depth_background_blur',target_layer:'background',blur_pixels:6,start:0,end:1,intensity:.2,reason:'Reviewed distant garden'};
+ f.calls.prepared.set(1,{metadata:{state:'prepared',result:{plan:{effects:[approvedDepth],camera:[{t:0,x:.5,y:.5,scale:1,rotation:0},{t:1,x:.5,y:.5,scale:1,rotation:0}]}}}});
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
+ assert.deepEqual(s.scenes[0].reviewed_depth_effects,[approvedDepth]);
  assert.equal(s.all_scene_parallax,'all_scene_parallax/v1');assert.equal(s.scenes[0].source_kind,'psd');assert.equal(s.scenes[0].parallax_mouth.dialogue[0].start,0);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].end,20);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].speaker,'hero');assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1');assert.equal(f.calls.models,0);
 });

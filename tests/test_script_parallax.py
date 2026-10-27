@@ -61,6 +61,12 @@ def test_visual_director_normalization_marks_selected_still_and_rejects_video():
         'qa_assertions':['No holes behind moved character; preserve source layout.']}
     result=validate_directorial_plans([scene],{'scene_directions':[raw]})
     assert result[0]['parallax_plan']['enabled'] is True
+    scene['parallax_mode']='all_scenes';scene['scene_number']=1
+    raw['depth_effects']=[];raw['depth_effects_reason']='Both the nearby character and distant clue should stay clear.'
+    all_result=validate_directorial_plans([scene],{'scene_directions':[raw]})
+    assert all_result[0]['depth_effects_reason']==raw['depth_effects_reason']
+    assert all_result[0]['depth_effects']==[]
+    scene.pop('parallax_mode')
     scene['scene_number']=1
     with pytest.raises(ValueError,match='still'):validate_directorial_plans([scene],{'scene_directions':[raw]})
 

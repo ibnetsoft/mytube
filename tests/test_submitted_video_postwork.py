@@ -146,3 +146,16 @@ def test_all_parallax_requires_prepared_psds_and_preserves_dialogue_review():
     with pytest.raises(ValueError,match='final voice'):p.validate_input(snapshot)
     scene['source_kind']='image'
     with pytest.raises(ValueError,match='PSDs'):p.validate_input(snapshot)
+
+
+def test_depth_output_requires_explicit_scene_and_final_visual_review():
+    scene,snapshot,_=fixture(False);scene['reviewed_depth_effects']=[{'type':'depth_background_haze'}]
+    voice='a'*64;sha='b'*64
+    ids=['source_identity','postwork_narrative_fit','source_playback_preserved','transition_plan']
+    proof=dict(contract=p.CONTRACT,source_sha256='c'*64,final_voice_sha256=voice,playback_rate=1,mouth_required=False,mouth_applied=False)
+    result=dict(number=1,sha256=sha,review=dict(passed=True,render_sha256=sha,final_voice_sha256=voice,batches=[review(ids)]),submitted_video_postwork=proof)
+    with pytest.raises(ValueError,match='검수'):p.require_reviewed_outputs(snapshot,[result],voice)
+    result['review']['batches']=[review(ids+['depth_finishing'])];p.require_reviewed_outputs(snapshot,[result],voice)
+    final_ids=['captions','scene_boundary','visual_quality','postwork_continuity','voice_clock_preserved']
+    with pytest.raises(ValueError,match='검수'):p.require_final_reviews(snapshot,[review(final_ids)])
+    p.require_final_reviews(snapshot,[review(final_ids+['depth_finishing'])])

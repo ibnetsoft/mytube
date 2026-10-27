@@ -320,6 +320,7 @@ def validate_directorial_plans(
         if not direction["visual_strategy"] or not direction["qa_assertions"]:
             raise ValueError(f"visual direction {index} needs visual_strategy and nonempty qa_assertions")
         direction['depth_effects'] = normalize_depth_finishing(raw,scene,layers)
+        direction['depth_effects_reason'] = str(raw.get('depth_effects_reason') or '').strip()
         direction['parallax_plan'] = parallax_selection(scene, direction)
         if topic is not None:
             direction.update(contract=EXECUTION_CONTRACT, topic_direction=topic,
