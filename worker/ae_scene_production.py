@@ -180,7 +180,11 @@ def _render_native(prepared, directory, duration):
     for old in directory.glob('native.*'):
         if old.suffix.lower() in ('.avi', '.mov', '.mp4', '.mxf'):
             old.unlink()
-    write_scene_jsx(prepared['plan'], prepared['layers'], project, native, jsx, duration)
+    writer = write_scene_jsx
+    if prepared.get('flat_media'):
+        from ae_flat_scene import write_jsx
+        writer = write_jsx
+    writer(prepared['plan'], prepared['layers'], project, native, jsx, duration, prepared.get('fps', 24))
     ae._run_afterfx_script(afterfx, jsx, project, timeout=240)
     ae._run_checked([str(aerender), '-project', str(project), '-comp', 'ae_scene', '-output', str(native)], timeout=1200)
     candidates = [path for path in directory.glob('native.*')

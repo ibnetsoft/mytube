@@ -1,9 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript'),crypto=require('crypto')
-function fixture(mode='ae_only') {
+function fixture(mode='ae_only', alternativesEnabled=false) {
  const calls={models:0,voice:0,rpc:[]},exports={}
  const project={id:'qa-project',updated_at:'now',employee_email:'owner@test',project_payload:{render_settings:{motion:{version:1,enabled:true,aspect:'9:16',fps:24,scenes:{},automation:{mode,max_ai_clips:1,max_ai_seconds:5}}},subtitles:[{text:'Final voice',scene_number:1,start:0,end:20}]}}
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
+ if(name.includes('stdProductionEnginePolicy'))return alternativesEnabled?{productionEngineError:()=>null}:require('./load-ts-module.cjs')('lib/stdProductionEnginePolicy.ts');
   if(name==='crypto')return crypto
   if(name.includes('stdMotionSourceReuse'))return {recordedMotionSourceReuse:()=>null}
   if(name.endsWith('.json'))return JSON.parse(fs.readFileSync('lib/'+name.slice(2),'utf8'))
@@ -45,7 +46,7 @@ test('hybrid freezes selected model configuration but excludes its secret',async
 })
 
 test('EffectCraft freezes bounded post-submission supplementation while final voice and subtitle times remain exact',async()=>{
- const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft'
+ const f=fixture('ae_only',true);f.project.project_payload.render_settings.motion.production_method='effectcraft'
  await f.run()
  const args=f.calls.rpc[0].args,s=JSON.parse(args.p_manifest.automation.snapshot_json)
  assert.equal(f.calls.rpc[0].name,'register_std_effectcraft_pipeline')
@@ -66,7 +67,7 @@ test('existing manual video remains usable without an API; vertical webtoons ret
 })
 
 test('EffectCraft freezes bounded post-submission supplementation while final voice and subtitle times remain exact',async()=>{
- const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft'
+ const f=fixture('ae_only',true);f.project.project_payload.render_settings.motion.production_method='effectcraft'
  await f.run()
  const args=f.calls.rpc[0].args,s=JSON.parse(args.p_manifest.automation.snapshot_json)
  assert.equal(f.calls.rpc[0].name,'register_std_effectcraft_pipeline')
@@ -77,7 +78,7 @@ test('EffectCraft freezes bounded post-submission supplementation while final vo
 })
 
 test('EC defaults to existing stored video despite stale image choice and freezes no-review policy',async()=>{
- const f=fixture('hybrid');f.project.project_payload.render_settings.motion.production_method='effectcraft';f.project.project_payload.render_settings.motion.scenes['1']={source:'image'};
+ const f=fixture('hybrid',true);f.project.project_payload.render_settings.motion.production_method='effectcraft';f.project.project_payload.render_settings.motion.scenes['1']={source:'image'};
  f.assets.push({...f.image,id:'stored-video',asset_type:'video',metadata:{gcs_path:'stored.mp4'}});
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
  assert.equal(s.scenes[0].source.id,'stored-video');assert.equal(s.scenes[0].source_kind,'video');assert.equal(s.scenes[0].source_reference_image.id,'image');
@@ -85,18 +86,20 @@ test('EC defaults to existing stored video despite stale image choice and freeze
  assert.deepEqual(s.subtitles.map(x=>[x.start,x.end]),[[0,20]]);
 });
 test('EC falls back to stored image when video has no storage',async()=>{
- const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft';f.assets.push({...f.image,id:'missing-video',asset_type:'video',metadata:{}});
+ const f=fixture('ae_only',true);f.project.project_payload.render_settings.motion.production_method='effectcraft';f.assets.push({...f.image,id:'missing-video',asset_type:'video',metadata:{}});
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.scenes[0].source_kind,'image');
 });
 
 test('frozen derivatives are excluded in favor of original stored video',async()=>{
- const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft';
+ const f=fixture('ae_only',true);f.project.project_payload.render_settings.motion.production_method='effectcraft';
  f.assets.push({...f.image,id:'original-video',asset_type:'video',metadata:{gcs_path:'original.mp4'}});
  f.assets.unshift({...f.image,id:'frozen-video',asset_type:'video',created_at:'zz',metadata:{gcs_path:'frozen.mp4',kind:'repaired_source_clip'}});
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
  assert.equal(s.scenes[0].source.id,'original-video');assert.equal(s.execution_policy.video_playback_policy,'original_speed_no_freeze_no_loop/v1');
 });
 test('only frozen video is reported instead of silently substituting image',async()=>{
- const f=fixture();f.project.project_payload.render_settings.motion.production_method='effectcraft';f.assets.push({...f.image,id:'frozen-video',asset_type:'video',metadata:{gcs_path:'frozen.mp4',tail_policy:'hold_last_frame'}});
+ const f=fixture('ae_only',true);f.project.project_payload.render_settings.motion.production_method='effectcraft';f.assets.push({...f.image,id:'frozen-video',asset_type:'video',metadata:{gcs_path:'frozen.mp4',tail_policy:'hold_last_frame'}});
  await assert.rejects(f.run(),/원본 영상/);assert.equal(f.calls.rpc.length,0);
 });
+
+test('disabled alternatives cannot register a queue or read provider secrets',async()=>{for(const method of ['effectcraft','filmcraft','motion_studio']){const f=fixture();f.project.project_payload.render_settings.motion.production_method=method;await assert.rejects(f.run(),/비활성화/);assert.equal(f.calls.rpc.length,0);assert.equal(f.calls.models,0)}});

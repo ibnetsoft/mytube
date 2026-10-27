@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import dynamic from 'next/dynamic'
 import StdMotionAutomation from './StdMotionAutomation'
+import { alternativeEnginesEnabled } from '../lib/stdProductionEnginePolicy'
 import StdProductionMethodSelector from './StdProductionMethodSelector'
 const StdWebMotionStudio=dynamic(()=>import('./StdWebMotionStudio'),{ssr:false})
 import { AE_SCENE_EFFECTS } from '../lib/stdAeSceneEffects'
@@ -22,7 +23,7 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
     const update=(changes: Partial<typeof scene>)=>setDraft(d=>({...d,scenes:{...d.scenes,[number]:{...scene,...changes}}}))
     const serialized=JSON.stringify(value)
     const method=motionProductionMethod({project_payload:{render_settings:{motion:draft}}})
-    const selectMethod=async(next:ProductionMethod)=>{if(next===method)return;setBusy(true);setError('');try{const updated=switchMotionProduction(draft,next);await onSave(updated);setDraft(updated);setNotice(next==='ae'?'기존 AE 제작 방식으로 저장했습니다.':next==='filmcraft'?'FilmCraft 렌더 방식으로 저장했습니다.':'Motion Studio 추가 옵션으로 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
+    const selectMethod=async(next:ProductionMethod)=>{if(next===method)return;setBusy(true);setError('');try{const updated={...switchMotionProduction(draft,next),...(next==='ae'?{final_renderer:'python' as const}:{})};await onSave(updated);setDraft(updated);setNotice(next==='ae'?'기존 AE 제작 방식으로 저장했습니다.':next==='filmcraft'?'FilmCraft 렌더 방식으로 저장했습니다.':'Motion Studio 추가 옵션으로 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}
     useEffect(()=>{ setDraft(defaultMotionDraft(serialized?JSON.parse(serialized):undefined,defaultAspect)) },[serialized,defaultAspect]) // saved server snapshot
     useEffect(()=>{setTime(0);setPlaying(false)},[index])
     useEffect(()=>{
@@ -53,12 +54,12 @@ export default function StdMotionStudio({ value, scenes, disabled, onSave, onUpl
     const keyField=(k:MotionKey,field:keyof MotionKey,label:string,min:number,max:number,step:number)=> <label key={field} className="text-xs">{label}<input aria-label={`${Math.round(k.t*100)}% ${label}`} type="number" value={k[field]} min={min} max={max} step={step} disabled={disabled||busy} onChange={e=>update({keys:scene.keys.map(item=>item===k?{...k,[field]:Number(e.target.value)}:item)})} className="ml-1 w-20 rounded bg-slate-800 p-1"/></label>
     return <><StdProductionMethodSelector method={method} disabled={disabled||busy} onSelect={next=>void selectMethod(next)}/>
         <fieldset disabled={disabled||busy} className="mx-5 space-y-3 rounded-xl border border-cyan-500/30 bg-[#101722] p-4 text-white">
-            <legend className="px-2 font-semibold">최종 렌더러</legend>
+            <legend className="px-2 font-semibold">최종 영상 조립</legend>
             <p className="text-sm text-slate-300">효과 제작이 끝난 씬 영상에 자막·음성·배경음·효과음을 합성합니다.</p>
-            {(['python','filmcraft'] as const).map(renderer=><label key={renderer} className="mr-5 inline-block"><input type="radio" name="final-renderer" value={renderer} checked={(draft.final_renderer||'python')===renderer} onChange={async()=>{setBusy(true);setError('');try{const updated=normalizeMotionDraft({...draft,final_renderer:renderer});await onSave(updated);setDraft(updated);setNotice('최종 렌더러 설정을 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}}/> {renderer==='python'?'Python / FFmpeg · 기본':'FilmCraft · 추가 옵션'}</label>)}
+            {(['python','filmcraft'] as const).map(renderer=><label key={renderer} className="mr-5 inline-block"><input type="radio" name="final-renderer" disabled={renderer==='filmcraft'&&!alternativeEnginesEnabled} value={renderer} checked={(draft.final_renderer||'python')===renderer} onChange={async()=>{setBusy(true);setError('');try{const updated=normalizeMotionDraft({...draft,final_renderer:renderer});await onSave(updated);setDraft(updated);setNotice('최종 렌더러 설정을 저장했습니다.')}catch(e:any){setError(e.message)}finally{setBusy(false)}}}/> {renderer==='python'?'Python / FFmpeg · 기본':'FilmCraft · 별도 옵션 (현재 비활성)'}</label>)}
         </fieldset>
         {(method==='ae'||method==='effectcraft')&&aePreparation}
-        {method==='motion_studio'&&preparationOnly?<p className="mx-5 text-sm text-cyan-100">원본·레이어·연출 준비를 저장합니다. 영상 제작과 화자 지정은 유저웹에서 진행하고, 제출 후 통합워커가 AE를 실행합니다.</p>:method==='motion_studio'?<StdWebMotionStudio draft={draft} onChange={setDraft} onSave={onSave} disabled={disabled||busy} projectId={projectId} headers={headers}/>:<StdMotionAutomation planningOnly={preparationOnly} draft={draft} onChange={setDraft} onSave={()=>void save()} disabled={disabled} busy={busy} projectId={projectId} headers={headers}/>}
+        {!alternativeEnginesEnabled&&method!=='ae'?<p role="status" className="mx-5 text-amber-200">저장된 대체 제작 방식은 현재 사용할 수 없습니다. After Effects를 선택하면 기존 설정을 별도로 보존하고 AE 방식으로 전환합니다.</p>:method==='motion_studio'&&preparationOnly?<p className="mx-5 text-sm text-cyan-100">원본·레이어·연출 준비를 저장합니다. 영상 제작과 화자 지정은 유저웹에서 진행하고, 제출 후 통합워커가 AE를 실행합니다.</p>:method==='motion_studio'?<StdWebMotionStudio draft={draft} onChange={setDraft} onSave={onSave} disabled={disabled||busy} projectId={projectId} headers={headers}/>:<StdMotionAutomation planningOnly={preparationOnly} draft={draft} onChange={setDraft} onSave={()=>void save()} disabled={disabled} busy={busy} projectId={projectId} headers={headers}/>}
         {notice&&<p role="status" className="mx-5 text-xs text-cyan-200">{notice}</p>}{error&&<p role="alert" className="mx-5 text-sm text-red-300">{error}</p>}
         {method==='ae'&&<details className="mx-5 rounded-xl border border-cyan-400/30 bg-[#101722] p-4 text-white" onToggle={e=>setOpen(e.currentTarget.open)}>
         <summary className="cursor-pointer font-semibold text-cyan-200">고급 타임라인 · 기존 워커 작업</summary>

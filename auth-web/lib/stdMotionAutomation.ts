@@ -1,3 +1,4 @@
+import { productionEngineError } from './stdProductionEnginePolicy'
 import { recordedMotionSourceReuse } from './stdMotionSourceReuse'
 import { createHash, randomUUID } from 'crypto'
 import { supabaseAdmin as db } from './supabaseAdmin'
@@ -22,6 +23,8 @@ export function nativeVideoEligible(asset:any) { const m=asset?.metadata||{};ret
 
 export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
+    const engineError=productionEngineError(project)
+    if(engineError)throw new Error(engineError)
     assertPreparationFinished(assets)
     const motion=motionForProject(project)!
     const horizontal=horizontalWebtoon(project)

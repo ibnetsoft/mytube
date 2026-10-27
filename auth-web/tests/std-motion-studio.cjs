@@ -40,14 +40,14 @@ test('AE effects remain the default and engine choices preserve their own drafts
  assert.throws(()=>lib.normalizeMotionDraft({...original,alternatives:{ae:{...original,alternatives:{}}}}))
 })
 
- test('final renderer defaults to Python and survives effect engine switches independently',()=>{
+ test('final renderer defaults to FFmpeg and returning to AE clears the alternative assembler',()=>{
  const m=require('./load-ts-module.cjs')(require('node:path').resolve(__dirname,'../lib/stdMotionStudio.ts'))
  const initial=m.defaultMotionDraft(null)
  assert.equal(m.finalRenderMethod({}),'python')
  let selected=m.normalizeMotionDraft({...initial,final_renderer:'filmcraft'})
  for(const method of ['effectcraft','filmcraft','ae']){
   selected=m.switchMotionProduction(selected,method)
-  assert.equal(selected.final_renderer,'filmcraft')
+  assert.equal(selected.final_renderer,method==='ae'?'python':'filmcraft')
   assert.equal(m.motionProductionMethod({project_payload:{render_settings:{motion:selected}}}),method)
  }
  assert.throws(()=>m.normalizeMotionDraft({...initial,final_renderer:'unknown'}))

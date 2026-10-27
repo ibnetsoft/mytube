@@ -5,7 +5,7 @@
 main{padding:16px 24px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}.topbar nav,.top-actions{display:flex;align-items:center;gap:8px}.topbar nav button{font-weight:600}.topbar .pill{padding:6px 10px}.topbar #refresh{width:34px;height:34px;padding:7px;display:inline-flex;align-items:center;justify-content:center}.topbar #refresh:disabled svg{animation:refresh-spin 1s linear infinite}@keyframes refresh-spin{to{transform:rotate(360deg)}}.cards{margin:14px 0;gap:8px}.stat{padding:12px 14px}.stat strong{font-size:25px;margin-top:5px}.toolbar{margin:14px 0 10px}.list-info{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}.worker-info h2{font-size:13px;margin:10px 0 5px}@media(max-width:680px){main{padding:12px}.topbar{flex-wrap:wrap}.top-actions{margin-left:auto}.stat{padding:10px}.stat span{font-size:11px}.cards{grid-template-columns:repeat(5,minmax(0,1fr))}.topbar nav button{padding:9px 12px;font-size:13px}}
 #production-settings-root input[type=checkbox],#production-settings-root input[type=radio]{width:auto}#production-settings-root details{font-size:inherit;color:inherit}#production-settings-root select,#production-settings-root textarea{font:inherit;color:#e6edf9}#production-settings-root select{max-width:100%}#production-settings-root{overflow-wrap:anywhere}#production-settings-root p{color:inherit}
 </style>
-<main><div class="topbar"><nav id="tabs" aria-label="작업 종류"><button data-tab="ae" aria-pressed="true" class="selected">AE 후작업</button><button data-tab="render" aria-pressed="false">렌더링</button></nav><div class="top-actions"><span id="connection" class="pill">연결 확인 중</span><button id="refresh" aria-label="새로고침" title="새로고침"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9"/></svg></button></div></div>
+<main><div class="topbar"><nav id="tabs" aria-label="작업 종류"><button data-tab="ae" aria-pressed="true" class="selected">AE 제작</button><button data-tab="render" aria-pressed="false">렌더링</button></nav><div class="top-actions"><span id="connection" class="pill">연결 확인 중</span><button id="refresh" aria-label="새로고침" title="새로고침"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6.1 6.1A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.9"/></svg></button></div></div>
 <details id="local-production-settings" class="banner"><summary style="cursor:pointer;font-size:17px;font-weight:700;color:#85eedb">제출 후 실행·검수 · 영상 모델/API</summary><p>유저웹에서 제출한 작업의 AE 실행·출력 검수·최종 렌더와 영상 모델/API를 관리합니다. 제출 전 이미지·좌표·연출 준비는 대본워커에서 담당합니다.</p><div id="production-settings-root"></div></details>
 <div id="error" class="error" hidden role="alert"></div>
 <div class="toolbar"><div id="filters" class="filters"></div><input id="search" placeholder="프로젝트 이름 검색" aria-label="프로젝트 검색"></div>
@@ -13,16 +13,16 @@ main{padding:16px 24px}.topbar{display:flex;align-items:center;justify-content:s
 <details class="worker-info"><summary>워커 실행 정보</summary><h2 id="manager">워커 상태 확인 중…</h2><div class="subtle" id="activity"></div><pre id="diagnostic"></pre></details></main>
 <script>
 const labels={all:'전체',waiting:'큐 대기',working:'진행 중',review:'보관',completed:'완료',failed:'실패 / 종료'};
-const states={prepared:'준비 자료 · 보관',approved:'레이어 확정',queued:'큐 대기',pending:'큐 대기',processing:'작업 진행 중',rendering:'렌더링 중',direction_approved:'실행 대기',direction_pending:'작성된 지침 · 보관',review_pending:'생성 완료 · 보관',needs_review:'자동 처리 제외',ready:'좌표 준비 완료',reviewed:'AE 검수 완료',completed:'렌더 완료',failed:'작업 실패',obsolete:'이전 버전',cancelled:'취소됨'};
-const kinds={region_layer_package:'영역 분리 · 배경 복원',region_motion_plan:'영역 동작 AE 렌더',ae_speaker_coordinates:'얼굴 · 입 좌표 준비',ae_mouth_job:'AE 입모양',render:'최종 렌더'};
+const states={prepared:'준비 자료 · 보관',approved:'레이어 확정',queued:'큐 대기',pending:'큐 대기',processing:'작업 진행 중',rendering:'렌더링 중',direction_approved:'실행 대기',direction_pending:'실행 검증 대기',review_pending:'출력 검수 대기',needs_review:'보완 필요',ready:'준비 완료',reviewed:'AE 검수 완료',completed:'렌더 완료',failed:'작업 실패',obsolete:'이전 버전',cancelled:'취소됨'};
+const kinds={motion_automation:'AE 모션 제작',horizontal_webtoon_automation:'AE 가로 웹툰 제작',motion_preview:'실행 미리보기',effectcraft_automation:'EffectCraft · 비활성 옵션',filmcraft_automation:'FilmCraft · 비활성 옵션',region_layer_package:'영역 분리 · 배경 복원',region_motion_plan:'영역 동작 AE 렌더',ae_speaker_coordinates:'얼굴 · 입 좌표 준비',ae_mouth_job:'AE 입모양',render:'최종 렌더'};
 let jobs=[],filter='all',running=false,tab='ae',workerStatus=null;
-const tabName=()=>tab==='render'?'렌더링':'AE 후작업';
+const tabName=()=>tab==='render'?'렌더링':'AE 제작';
 function stateLabel(j){
  if(j.kind==='ae_mouth_job' && j.state==='reviewed' && !j.generated && j.skipped===j.total)return '효과 제외 처리 완료';
  if(j.state==='draft')return '계획 초안 · 보관';
- if(j.group==='waiting')return (j.kind==='render'?'렌더링':'AE 후작업')+' '+(j.state==='direction_approved'?'실행 대기':'큐 대기');
- if(j.state==='processing')return j.kind==='render'?'렌더링 진행 중':'AE 후작업 진행 중';
- if(j.state==='failed')return j.kind==='render'?'렌더링 실패':'AE 후작업 실패';
+ if(j.group==='waiting')return (j.kind==='render'?'렌더링':'AE 제작')+' '+(j.state==='direction_approved'?'실행 대기':'큐 대기');
+ if(j.state==='processing')return j.kind==='render'?'렌더링 진행 중':'AE 제작 진행 중';
+ if(j.state==='failed')return j.kind==='render'?'렌더링 실패':'AE 제작 실패';
  return states[j.state]||j.state;
 }
 const el=id=>document.getElementById(id);
@@ -49,7 +49,7 @@ function drawStatus(){
  const current=s.active?(s.active.role==='render'?'render':'ae'):null;
  const name=tabName();
  el('manager').textContent=current===tab?name+' 작업을 처리하고 있습니다':current?name+' 작업이 다른 작업의 종료를 기다립니다':({idle:name+' · 다음 작업을 기다리고 있습니다',starting:'워커를 시작하고 있습니다',resources_busy:name+' · 다른 미디어 작업이 끝나기를 기다립니다',connection_error:'작업 큐 연결을 확인해 주세요',stopped:'워커가 중지되었습니다'})[s.status]||'워커 준비 중';
- el('activity').textContent=(s.active?`현재 실행: ${current==='render'?'최종 렌더링':'AE 후작업'} · 시작 ${stamp(s.active.started_at)}`:name+' 목록과 상태만 표시합니다.')+(s.render_paused?' · 렌더링 실행 일시중지':'');
+ el('activity').textContent=(s.active?`현재 실행: ${current==='render'?'최종 렌더링':'AE 제작'} · 시작 ${stamp(s.active.started_at)}`:name+' 목록과 상태만 표시합니다.')+(s.render_paused?' · 렌더링 실행 일시중지':'');
 }
 async function refresh(){if(running)return;running=true;el('refresh').disabled=true;
  try{const statusResponse=await fetch('/status');if(!statusResponse.ok)throw Error();const s=await statusResponse.json();const stale=s.updated_at&&Date.now()-Date.parse(s.updated_at)>45000;

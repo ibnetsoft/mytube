@@ -298,7 +298,11 @@ def renderer_cache_is_current(snapshot,record):
         from filmcraft_render import VERSION
         from filmcraft_native import cache_is_current
         return record.get('filmcraft_adapter')==VERSION and cache_is_current(record)
-    if snapshot.get('renderer',{}).get('engine')!='effectcraft':return True
+    if snapshot.get('renderer',{}).get('engine')!='effectcraft':
+        if any(s.get('number')==record.get('number') and s.get('source_kind') in ('image','video') and not s.get('webtoon') for s in snapshot.get('scenes',[])):
+            from ae_flat_scene import VERSION
+            return record.get('adobe_flat_renderer')==VERSION
+        return True
     from ec_supplemental_assets import output_cache_is_current
     if not output_cache_is_current(record):return False
     from effectcraft_compatibility import VERSION
@@ -330,15 +334,11 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         native=_render_native(prepared,directory,duration)
         run([ffmpeg(),'-v','error','-y','-i',str(native),'-an','-t',str(duration),'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
     else:
-        from moviepy import VideoClip
-        from services.motion_render_service import MotionFrames
-        scene_plan=plan['scene']
-        if scene.get('direction_contract')=='scene_direction_plan/v2':scene_plan={**scene_plan,'transition':'cut'}
-        motion={**snapshot['motion'],'scenes':{str(scene['number']):scene_plan}}
-        frames=MotionFrames([str(source)],[duration],[],{'motion':motion},size,'',scene_numbers=[scene['number']])
-        clip=VideoClip(frames.frame,duration=duration)
-        try:clip.write_videofile(str(output),fps=snapshot['motion']['fps'],codec='libx264',audio=False,preset='veryfast',threads=2,logger=None)
-        finally:clip.close();frames.close()
+        from ae_flat_scene import prepare
+        from ae_scene_production import _render_native
+        prepared=prepare(source,scene,snapshot['motion'],plan['scene'])
+        native=_render_native(prepared,directory,duration)
+        run([ffmpeg(),'-v','error','-y','-i',str(native),'-an','-t',str(duration),'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
     fresh();return output
 
 
@@ -548,6 +548,8 @@ def publish_supplemental(package,job,number,ae,base,headers,fresh):
 
 
 def process_one(engine='ae'):
+    from worker.production_engine_policy import require_engine
+    require_engine(engine)
     import worker_config
     import ae_highlight_worker as ae
     from ae_scene_preparation import claimable_filter
@@ -561,6 +563,8 @@ def process_one(engine='ae'):
     job=jobs[0]
     if not belongs(job,POSTPRODUCTION):return False
     meta=job['metadata'];token=uuid.uuid4().hex
+    frozen=json.loads(meta.get('snapshot_json') or meta.get('input',{}).get('snapshot_json') or '{}')
+    require_engine(engine, (frozen.get('final_renderer') or {}).get('engine','python'))
     rows=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':{**meta,'state':'processing','worker_token':token,'heartbeat_at':ae._now()},'updated_at':ae._now()}).json()
     if not rows:return False
     meta=rows[0]['metadata'];stopped=threading.Event();lost=threading.Event();lock=threading.Lock()
@@ -710,6 +714,9 @@ def process_one(engine='ae'):
             previous=last;record={'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
             from services.video_playback_policy import POLICY
             record['video_playback_policy']=POLICY
+            if snapshot.get('renderer',{}).get('engine') not in ('effectcraft','filmcraft') and scene.get('source_kind') in ('image','video') and not scene.get('webtoon'):
+                from ae_flat_scene import VERSION
+                record['adobe_flat_renderer']=VERSION
             if scene.get('_source_repair'):record.update(source_execution_sha256=digest(sources[number]),source_repair=scene['_source_repair'])
             if snapshot.get('renderer',{}).get('engine')=='effectcraft':
                 from effectcraft_compatibility import VERSION

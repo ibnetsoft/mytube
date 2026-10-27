@@ -13,3 +13,5 @@ The script worker at `http://127.0.0.1:3003/` owns “대본 설정” and the e
 After editing shared production components, run `npm run build:worker-settings` from `auth-web/` and commit the generated `worker/local_production_ui/production-settings.js` and `.css`. This is a local UI asset build, not a Windows installer release.
 
 Validation: `node --test tests/local-production-settings-api.cjs` and `node tests/native-worker-settings-browser.cjs` from `auth-web/`; `python -m pytest tests/test_native_worker_settings.py` from the repository root. Browser tests use API fixtures and perform no paid generation.
+
+Current production policy: After Effects scene production and default FFmpeg final assembly. Alternative engines are retained in a separate disabled options panel. The unified worker direction stage is execution validation and bounded finishing refinement, not a second creative camera plan. See the ownership contract for exact v2 permissions.

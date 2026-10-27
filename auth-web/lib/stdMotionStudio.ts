@@ -39,7 +39,7 @@ export function switchMotionProduction(draft:MotionDraft,method:ProductionMethod
     const {production_method:_,alternatives:previous,final_renderer,...active}=draft
     const alternatives={...previous,[current]:active}
     const target=alternatives[method]||{version:1,enabled:method!=='ae',aspect:draft.aspect,fps:draft.fps,scenes:{},...(method==='motion_studio'?{web:{mode:'web',inserts:{}}}:(method==='effectcraft'||method==='filmcraft')?{automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}}:{})}
-    return normalizeMotionDraft({...target,...(method==='ae'&&draft.edit_mode?{edit_mode:draft.edit_mode}:{}),production_method:method,alternatives,...(final_renderer?{final_renderer}:{})})
+    return normalizeMotionDraft({...target,...(method==='ae'&&draft.edit_mode?{edit_mode:draft.edit_mode}:{}),production_method:method,alternatives,...(method==='ae'?{final_renderer:'python'}:final_renderer?{final_renderer}:{})})
 }
 export const MOTION_PRESETS = [
     { id: 'still', label: '원본 유지', effects: [] },

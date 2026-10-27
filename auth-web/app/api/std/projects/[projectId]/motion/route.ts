@@ -1,3 +1,4 @@
+import { productionEngineError } from '@/lib/stdProductionEnginePolicy'
 import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
@@ -26,6 +27,7 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}) {
 export async function POST(req:Request,{params}:{params:{projectId:string}}) {
     try{
         const ctx=await context(req,params.projectId);if(ctx.response)return ctx.response
+        const engineError=productionEngineError(ctx.project);if(engineError)return NextResponse.json({error:engineError},{status:409})
         const body=await req.json()
         const planning=body.action==='direction'
         if(['approved','canceled'].includes(ctx.project.status)||planning&&ctx.project.submitted_at||!planning&&!ctx.project.submitted_at)return NextResponse.json({error:'연출 준비는 제출 전 대본워커, 실제 미리보기·AE 실행은 제출 후 통합워커에서 담당합니다.'},{status:409})

@@ -28,9 +28,9 @@ export default function StdMotionAutomation({draft,onChange,onSave,disabled,busy
     const effectcraft=draft.production_method==='effectcraft'
     const filmcraft=draft.production_method==='filmcraft'
     return <section className="mx-5 rounded-xl border border-cyan-400/30 bg-[#101722] p-4 text-white space-y-3">
-        <h3 className="font-semibold text-cyan-200">{planningOnly?'제출 후 실행 계획 · 사전 설정':filmcraft?'FilmCraft 자동 제작':effectcraft?'Motion Studio · EffectCraft 자동 제작':'기존 AE 제작 · Codex 자동 연출'}</h3>
+        <h3 className="font-semibold text-cyan-200">{planningOnly?'AE 연출 준비 · 제출 전':filmcraft?'FilmCraft 자동 제작':effectcraft?'Motion Studio · EffectCraft 자동 제작':'After Effects · 제출 후 실행'}</h3>
         {effectcraft&&<p className="text-sm text-slate-300">제출 후 효과에 필요한 이미지·레이어가 부족하면 자동으로 보완하고 검수한 뒤 EffectCraft 제작을 계속합니다. 기존 원화의 캐릭터·화풍과 확정 음성·자막 타이밍을 유지하며, 검수에 실패하면 보완 상태로 보존됩니다.</p>}
-        <p className="text-sm text-slate-300">원본과 최종 음성을 저장한 뒤 제출하세요. Codex가 원본·음성 구간을 확인해 연출하고, 워커가 제작·실제 출력 검수를 진행합니다. 키프레임 편집은 필요하지 않습니다.</p>
+        <p className="text-sm text-slate-300">원본과 최종 음성을 저장한 뒤 제출하세요. 대본워커가 연출을 준비합니다. 제출 후 통합워커가 원본·확정 음성으로 실행을 검증하고, 허용된 효과·전환 보정과 AE 제작·출력 검수를 진행합니다. 키프레임 편집은 필요하지 않습니다.</p>
         <fieldset disabled={disabled||busy} className="space-y-3">
             <label><input type="checkbox" checked={draft.enabled&&Boolean(draft.automation)} onChange={e=>onChange({...draft,enabled:e.target.checked,automation})}/> 제출 후 자동 제작 사용</label>
             <div className="flex flex-wrap gap-4">{([['ae_only',filmcraft?'FilmCraft 자동 제작 · 영상 생성 API 미사용':effectcraft?'EffectCraft 자동 제작 · 영상 생성 API 미사용':'AE 중심 자동 제작 · 영상 생성 API 미사용'],['hybrid','AI 영상 혼합 자동 제작 · 필요한 짧은 구간만 생성']] as const).map(([mode,label])=><label key={mode}><input type="radio" name={`motion-mode-${projectId}`} disabled={draft.edit_mode==='horizontal_webtoon'&&mode==='hybrid'} checked={automation.mode===mode} onChange={()=>onChange({...draft,automation:{...automation,mode}})}/> {label}</label>)}</div>
