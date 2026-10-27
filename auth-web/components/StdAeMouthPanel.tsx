@@ -41,8 +41,8 @@ export default function StdAeMouthPanel({ projectId, headers }: { projectId: str
             <p className="text-sm">{r.number}번 씬 · {r.speakers.join(', ') || '화자 없음'} · {r.status === 'approved' ? '승인 완료' : r.status === 'skipped' ? '입모양 제외' : r.status === 'needs_review' ? '화자·입 위치 검토 필요' : r.status === 'direction_pending' ? '지침 승인 대기' : '검수 대기'}</p>
             <p className="mt-1 text-sm text-gray-400">{r.reason || r.direction}</p>
             {r.videoUrl && <video className="mt-2 w-full max-w-2xl" controls preload="metadata" src={r.videoUrl} />}
-            {!automaticRunning && r.status === 'review_pending' && <button disabled={busy} onClick={() => void action('review', r.number)} className="mt-2 rounded bg-indigo-600 px-3 py-2 text-sm">입모양·AE 결과 승인</button>}
-            {data.status !== 'processing' && r.status === 'needs_review' && <button disabled={busy} onClick={() => void action('exclude', r.number)} className="mt-2 rounded bg-white/10 px-3 py-2 text-sm">제외 사유 기록</button>}
+            {!data.postwork && !automaticRunning && r.status === 'review_pending' && <button disabled={busy} onClick={() => void action('review', r.number)} className="mt-2 rounded bg-indigo-600 px-3 py-2 text-sm">입모양·AE 결과 승인</button>}
+            {!data.postwork && data.status !== 'processing' && r.status === 'needs_review' && <button disabled={busy} onClick={() => void action('exclude', r.number)} className="mt-2 rounded bg-white/10 px-3 py-2 text-sm">제외 사유 기록</button>}
         </article>)}
         {!automaticRunning && data.status === 'direction_pending' && <button disabled={busy || data.results.some((r: any) => r.status === 'needs_review')} onClick={() => void action('approve_direction')} className="mt-3 rounded bg-indigo-600 px-3 py-2 text-sm">표시된 지침 승인 · AE 작업 시작</button>}
         {!data.automatic && data.status === 'reviewed' && <p className="mt-3 text-sm text-green-400">검수가 완료되었습니다. 제출 버튼으로 최종 렌더링을 진행할 수 있습니다.</p>}
