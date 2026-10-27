@@ -159,3 +159,12 @@ def test_depth_output_requires_explicit_scene_and_final_visual_review():
     final_ids=['captions','scene_boundary','visual_quality','postwork_continuity','voice_clock_preserved']
     with pytest.raises(ValueError,match='검수'):p.require_final_reviews(snapshot,[review(final_ids)])
     p.require_final_reviews(snapshot,[review(final_ids+['depth_finishing'])])
+
+
+def test_purpose_policy_cannot_skip_or_complete_without_sequence_review():
+    import purpose_direction
+    scene,snapshot,_=fixture(False);scene['purpose_policy']=purpose_direction.policy({},'location')
+    assert not p.review_bypass({'review_policy':'skip_user_requested/v1'},snapshot)
+    ids=['captions','scene_boundary','visual_quality','postwork_continuity','voice_clock_preserved']
+    with pytest.raises(ValueError):p.require_final_reviews(snapshot,[review(ids)])
+    p.require_final_reviews(snapshot,[review(ids+['purpose_fit','sequence_rhythm'])])

@@ -1,3 +1,4 @@
+import scenePurposePolicy from './scenePurposePolicy.json'
 import { hasAllSceneParallax, freezeParallaxMouth } from './stdSubmittedVideoPostwork'
 import { videoDialoguePostworkTargets } from './stdSubmittedVideoPostwork'
 import { hasSubmittedVideoPostwork, postworkMotion, originalPostworkVideo, freezeVideoPostwork, freezePreparedStillMouth, postworkDirection, VIDEO_POSTWORK_CONTRACT } from './stdSubmittedVideoPostwork'
@@ -73,9 +74,11 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const authored=motion.scenes[String(n)]
         if((effectcraft||filmcraft)&&(authored?.finance||authored?.cues?.length||authored?.native?.paths?.length||authored?.native?.effects?.length||Object.values(authored?.layers||{}).some(l=>l.advanced)))throw new Error(`${n}번 씬의 웹 전용 리그·효과는 선택한 렌더러로 자동 변환하지 않습니다. 브라우저 제작 또는 기존 AE를 선택해 주세요.`)
         const creative=planned?.scene_direction_plan||planned?.ae_directorial_plan||null
+        const purpose=creative?.purpose_policy
         const sourceKind=source.asset_type==='original'?(horizontal?'image':'psd'):source.asset_type
         const recordedRows=project.project_payload.subtitles.map((row:any,i:number)=>({...row,start:timeline[i].start,end:timeline[i].end,voice_id:timeline[i].voice_id||row.voice_id||''})).filter((row:any)=>Number(row.scene_number)===n)
         const reviewedDepth=(preparation?.metadata?.result?.plan?.effects||[]).filter((e:any)=>['depth_background_blur','depth_foreground_blur','depth_background_haze'].includes(e.type))
+        const effectivePurpose=purpose?{...purpose,...(recordedRows.some((r:any)=>r.dialogue_kind==='dialogue')?{...scenePurposePolicy.roles.dialogue,role:'dialogue'}:{})}:null
         const reviewedCamera=preparation?.metadata?.result?.plan?.camera
         const executable=directedScene(creative)&&Array.isArray(reviewedCamera)
             ? {...creative,execution_design:{...creative.execution_design,camera:{...creative.execution_design.camera,keys:reviewedCamera.map((k:any)=>({...k,opacity:100}))}}}
@@ -85,6 +88,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const stillMouth=!allParallax&&videoPostwork&&!postwork?freezePreparedStillMouth(project,n,source,recordedRows,assets,scenes):null
         const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
+            ...(effectivePurpose?{purpose_policy:effectivePurpose}:{}),
             ...(reviewedDepth.length?{reviewed_depth_effects:reviewedDepth}:{}),
             ...(allParallax?{parallax_plan:planned.parallax_plan,parallax_mouth:freezeParallaxMouth(project,recordedRows)}:{}),
             ...(postwork?{direction_contract:VIDEO_POSTWORK_CONTRACT,postwork}:!horizontal&&directedScene(creative)?{direction_contract:creative.contract}:{}),

@@ -309,6 +309,7 @@ If requested_effects is provided, it is authoritative. Missing separated planes 
 Other effects are source-space overlays and must omit target_layer. Keep effects subtle and motivated by the scene;
 for each effect add QA assertions for visibility, timing, readability and preserved character identity.
 If selected effects cannot safely fit the scene, return needs_repair, never omit a requested effect.
+If creative_reference.purpose_policy exists, obey its camera/layer travel, scale, rotation and intensity caps. Lighting opacity keys must not exceed intensity*100; lights plus effects must fit max_effects. Dialogue must stay quiet.
 Use parallax=0 unless source separation and camera movement visibly justify it. Fade affects visual only.
 If original cannot support requested direction, status=needs_repair with precise required artwork, never silently
 downgrade requested action or approve unsupported movement. qa_assertions must state what output review checks.
@@ -387,6 +388,8 @@ def prepare(source, snapshot, directory, runner, generator, current=lambda: None
             if snapshot.get('motion_output') and plan.get('output') != snapshot['motion_output']:
                 raise ValueError('Motion Studio 출력 비율이 연출 계획과 다릅니다.')
             validate_effects(plan, snapshot.get('requested_effects'))
+            from purpose_direction import validate_native as validate_purpose_native
+            validate_purpose_native({'creative_reference':creative},plan)
             if plan.get('contract') != CONTRACT or plan.get('schema_version') != CONTRACT or plan.get('timing') != 'normalized':
                 raise ValueError('정규화된 AE 장면 연출 계약이 필요합니다.')
             if (not isinstance(plan.get('qa_assertions'), list) or not plan['qa_assertions']

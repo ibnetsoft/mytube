@@ -28,7 +28,7 @@ export default function StdAeMouthPanel({ projectId, headers }: { projectId: str
     if (!data?.applicable) return null
     const status: Record<string, string> = { complete:'최종 영상 저장 완료',needs_review:'후작업 보완 필요',not_started: '제출 후 시작', queued: '작업 대기', processing: '대사 판별·AE 처리 중', direction_pending: '씬별 작업 지침 승인 필요', direction_approved: 'AE 작업 대기', review_pending: '결과 검수 필요', reviewed: '검수 완료', failed: '작업 실패', obsolete: '원본 변경 · 다시 제출 필요' }
     const automaticRunning = data.automatic && (data.autoPending || data.status === 'processing')
-    const automaticStatus: Record<string, string> = { direction:'실제 영상·대본 연출 확인 중',mouth_preparation:'화자 추적·입모양 소재 준비 및 검수 중',production:'AE 입모양·효과 합성 중',review:'씬 출력 검수 중',assembly:'자막·음향·장면 전환 최종 조립 중',final_review:'최종 영상 검수 중',auto_direction: '원본·연출 자동 검수 중', auto_review: 'AIR 결과 자동 검수 중', auto_enqueue: '최종 렌더 자동 등록 중' }
+    const automaticStatus: Record<string, string> = { auto_repair:'씬 목적·앞뒤 흐름에 맞춰 연출 자동 보완 중',direction:'실제 영상·대본 연출 확인 중',mouth_preparation:'화자 추적·입모양 소재 준비 및 검수 중',production:'AE 입모양·효과 합성 중',review:'씬 출력 검수 중',assembly:'자막·음향·장면 전환 최종 조립 중',final_review:'최종 영상 검수 중',auto_direction: '원본·연출 자동 검수 중', auto_review: 'AIR 결과 자동 검수 중', auto_enqueue: '최종 렌더 자동 등록 중' }
     return <section className="my-4 rounded-xl border border-white/15 p-4">
         <h3 className="font-semibold">{data.allParallax?'전체 씬 패럴럭스 · AE 영상 제작':data.postwork?'1~18씬 영상 후작업 · 입모양·반딧불·전환':'AIR 입모양 후작업 · 이미지와 대사 영상'}</h3>
         <p className="mt-2 text-sm text-gray-400">{data.allParallax?'검수된 분리 레이어를 AE에서 움직여 모든 씬을 영상으로 만들고, 대사 씬은 움직인 영상의 입을 추적해 후작업합니다.':'제출 후 실제 영상의 화자·입을 추적하고 대본에 근거한 효과를 AE로 합성합니다.'} 원본 영상 1배속과 확정 음성을 유지하며, 검수 통과 후 최종 영상까지 자동 저장합니다. 불확실한 씬은 보완 사유를 표시하고 멈춥니다.</p>

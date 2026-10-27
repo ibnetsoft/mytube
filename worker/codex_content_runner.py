@@ -2746,9 +2746,13 @@ class CodexStagedContentRunner:
             scene.update({"scene_order": index, "scene_number": index, "duration_seconds": timing["duration_seconds"], "target_duration": timing["duration_seconds"], "video_prompt_required": index <= required_video_scene_count,
                           "visual_type": "video" if index <= required_video_scene_count else "image",
                           "video_generation_mode": "user_upload" if index <= required_video_scene_count else "image"})
+        from purpose_direction import CONTRACT as PURPOSE_CONTRACT
+        for scene in scenes:
+            scene['direction_policy_version']=PURPOSE_CONTRACT
+            scene['parallax_mode']=payload.get('parallax_mode','selective')
         _normalize_video_transition_plans(scenes, required_video_scene_count)
         structure = {"scene_count": len(scenes), "required_video_scene_count": required_video_scene_count,
-                     "video_scenes": required_video_scene_count, "parallax_mode":payload.get("parallax_mode","selective"), "scenes": scenes, "story_core": plan.get("story_core") or {}}
+                     "video_scenes": required_video_scene_count, "direction_policy_version":PURPOSE_CONTRACT, "parallax_mode":payload.get("parallax_mode","selective"), "scenes": scenes, "story_core": plan.get("story_core") or {}}
         if payload.get('historical_sources'):
             structure.update(historical_sources=payload['historical_sources'], script_style=payload['script_style'],
                              documentary_source_policy=payload['documentary_source_policy'],
@@ -2865,25 +2869,28 @@ class CodexStagedContentRunner:
                 if attempt:
                     raise CodexContentError(str(exc)) from exc
                 dialogue_context['validation_feedback'] = str(exc)
+        for scene,annotation in zip(scenes,structure['dialogue_annotations']['scenes']):
+            scene['has_character_dialogue']=bool(annotation['spans'])
         from worker.elevenlabs_performance import plan_performance
         structure['audio_performance'] = plan_performance(self._stage, job_id, scenes, setting['language'])
         direction_profile = resolve_directing_profile(payload)
+        from purpose_direction import TASK as PURPOSE_TASK, CONFIG as PURPOSE_CONFIG
         visual_context = {
+            "purpose_direction_limits":PURPOSE_CONFIG,
             **script_context,
             "execution_capabilities": execution_capabilities(payload),
             "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
             "script": script,
             "scenes": [{
                 **{key: scene.get(key) for key in (
-                    "scene_number", "duration_seconds", "scene_summary", "scene_situation",
+                    "scene_number", "duration_seconds", "scene_summary", "scene_situation", "parallax_mode", "has_character_dialogue", "direction_policy_version",
                     "scene_purpose", "scene_emotion", "character_choice", "emotional_shift",
                     "reveal_or_question", "scene_text", "narration",
                 )},
                 "eligible_for_eye_blink": int(scene.get("scene_number") or scene.get("scene_order") or 0) >= 19,
             } for scene in scenes],
         }
-        visual_result = self._stage(
-            job_id, "02f_scene_visual_director", visual_context,
+        visual_task = (
             (SCENE_VISUAL_DIRECTOR_PERSONA if payload.get("parallax_mode")!="all_scenes" else __import__("script_parallax").ALL_TASK) + "\n\nACTIVE DIRECTING PROFILE — "
             + direction_profile["label"] + " (" + direction_profile["id"] + "):\n"
             + direction_profile["directive"] + "\n\nFor every supplied scene return one scene_directions item "
@@ -2916,14 +2923,14 @@ class CodexStagedContentRunner:
             "one generated image per frame or per second. Never claim AE can invent facial expressions or body "
             "actions from footage that does not show them. Every beat must fit its scene duration. Do not add "
             "decorative movement without a story reason. "
-            + DIRECTING_TASK + "\n" + (VIDEO_POSTWORK_DIRECTOR_TASK if required_video_scene_count else "") + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only.",
+            + DIRECTING_TASK + "\n" + (VIDEO_POSTWORK_DIRECTOR_TASK if required_video_scene_count else "") + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only."
+            + "\n" + PURPOSE_TASK
         )
+        from purpose_direction import direct_with_repair
         try:
-            directorial_plans = validate_directorial_plans(
-                scenes, visual_result, direction_profile=direction_profile["id"], require_execution=True
-            )
-        except ValueError as exc:
-            raise CodexContentError(f"scene visual direction rejected: {exc}") from exc
+            directorial_plans=direct_with_repair(self._stage,job_id,visual_context,visual_task,
+                lambda result:validate_directorial_plans(scenes,result,direction_profile=direction_profile['id'],require_execution=True))
+        except ValueError as error:raise CodexContentError(str(error)) from error
         for scene, direction in zip(scenes, directorial_plans):
             if direction["requires_layered_assets"]:
                 scene["ae_effect_plan"] = {

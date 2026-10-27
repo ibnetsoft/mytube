@@ -6,6 +6,7 @@ from typing import Any
 from scene_direction_policy import CONTRACT as EXECUTION_CONTRACT, validate_topic, validate_execution
 
 
+from purpose_direction import validate_script as validate_purpose_script
 from depth_finishing import TASK as DEPTH_TASK, normalize as normalize_depth_finishing
 from script_parallax import TASK as PARALLAX_TASK, selection as parallax_selection
 
@@ -77,7 +78,7 @@ PRIMARY_EFFECT_PRIORITY = (
 SECONDARY_EFFECTS = {"camera_move", "light_flicker", "atmosphere_drift", "transition"}
 SCENE_ROLES = {
     "dialogue", "reaction", "clue_reveal", "location", "tension", "transition",
-    "resolution", "narration", "hold",
+    "resolution", "narration", "hold", "action",
 }
 
 
@@ -347,6 +348,7 @@ def validate_directorial_plans(
             narration=str(scene.get('scene_text') or scene.get('narration') or '')
             value=raw.get('submitted_video_postwork') or {'effects':[],'transition':{'kind':'cut','reason':'Preserve original uploaded clip and narration clock','duration_seconds':0}}
             direction['submitted_video_postwork']=validate_preparation(value,narration)
+        validate_purpose_script(scene,direction)
         scene["ae_directorial_plan"] = direction
         scene["scene_direction_plan"] = direction
         normalized.append(direction)

@@ -13,7 +13,8 @@ def enabled(scene):
     return (scene.get('postwork') or {}).get('contract') == CONTRACT
 
 def required_review(snapshot):
-    return snapshot.get('submitted_video_postwork') == CONTRACT or snapshot.get('all_scene_parallax')=='all_scene_parallax/v1'
+    from purpose_direction import active as purpose_active
+    return snapshot.get('submitted_video_postwork') == CONTRACT or snapshot.get('all_scene_parallax')=='all_scene_parallax/v1' or any(purpose_active(s) for s in snapshot.get('scenes',[]))
 
 def validate_preparation(value,narration):
     if not isinstance(value,dict):
@@ -73,6 +74,8 @@ def validate_direction(response,scene,snapshot):
     if plan['transition']=='fade_black':
         next_scene=next(s for s in snapshot['scenes'] if s['start']>=scene['end']-.001 and s['number']!=scene['number'])
         if seconds>min(duration,next_scene['end']-next_scene['start'])/2:raise ValueError('Transition exceeds adjacent recorded scene duration')
+    from purpose_direction import active as purpose_active, validate_design as validate_purpose_design
+    if purpose_active(scene):validate_purpose_design(scene.get('purpose_policy') or scene['creative_reference']['purpose_policy'],plan['keys'],plan['effects'])
     return {'number':scene['number'],'scene':plan,'ai':None,'evidence':response['evidence'],'continuity':continuity}
 
 def direct(runner,snapshot,scene,preview,waveform,audio_info,neighbors,prior,feedback=None):
@@ -190,7 +193,9 @@ def validate_input(snapshot):
             if mouth.get('mouth_required')!=bool(actual) or sig(actual)!=sig(rows) or any(not r.get('speaker') for r in rows):raise ValueError('Parallax mouth dialogue differs from final voice')
         return
     targets=[s for s in snapshot['scenes'] if enabled(s)]
-    if not targets:raise ValueError('Submitted video contract has no target scenes')
+    if not targets:
+        if any(__import__('purpose_direction').active(s) for s in snapshot.get('scenes',[])):return
+        raise ValueError('Submitted video contract has no target scenes')
     manifest=snapshot.get('video_dialogue_targets')
     if manifest is not None:
         expected=[s for s in targets if s['postwork']['mouth_required']]
@@ -226,8 +231,12 @@ def require_reviewed_outputs(snapshot,results,voice_hash):
         review=(row or {}).get('review') or {}
         if not row or review.get('passed') is not True or review.get('skipped') or review.get('render_sha256')!=row.get('sha256') or review.get('final_voice_sha256')!=voice_hash:
             raise ValueError('최종 조립 전에 모든 씬의 실제 출력·음성 검수가 필요합니다.')
+        if __import__('purpose_direction').active(scene):
+            if not review.get('batches') or any(not all(any(c.get('id')==key and c.get('passed') is True and str(c.get('evidence') or '').strip() for c in b.get('checks',[])) for key in ('purpose_fit','sequence_rhythm')) for b in review['batches']):raise ValueError('Scene purpose and sequence output review evidence is required')
         if not enabled(scene) and not (scene.get('still_mouth') or scene.get('parallax_mouth')):continue
         required=['postwork_narrative_fit','source_playback_preserved','transition_plan']
+        from purpose_direction import active as purpose_active
+        if purpose_active(scene):required+=['purpose_fit','sequence_rhythm']
         if scene.get('reviewed_depth_effects'):required+=['depth_finishing']
         mouth=(scene.get('postwork') or scene.get('still_mouth') or scene.get('parallax_mouth'))
         if mouth['mouth_required']:required+=['dialogue_mouth_timing','tracked_mouth_alignment']
@@ -240,7 +249,7 @@ def require_reviewed_outputs(snapshot,results,voice_hash):
 def require_final_reviews(snapshot,reviews):
     if not required_review(snapshot):return
     from ae_scene_review_contract import valid_review
-    if len(reviews)!=len(snapshot['scenes']) or not all(valid_review(r,['captions','scene_boundary','visual_quality','postwork_continuity','voice_clock_preserved']+(['depth_finishing'] if scene.get('reviewed_depth_effects') else [])) for scene,r in zip(snapshot['scenes'],reviews)):raise ValueError('최종 장면 전환·자막·음성 시간 검수가 필요합니다.')
+    if len(reviews)!=len(snapshot['scenes']) or not all(valid_review(r,['captions','scene_boundary','visual_quality','postwork_continuity','voice_clock_preserved']+(['depth_finishing'] if scene.get('reviewed_depth_effects') else [])+(['purpose_fit','sequence_rhythm'] if __import__('purpose_direction').active(scene) else [])) for scene,r in zip(snapshot['scenes'],reviews)):raise ValueError('최종 장면 전환·자막·음성 시간 검수가 필요합니다.')
 
 
 def apply_transitions(snapshot,ordered,plans,directory,fresh):

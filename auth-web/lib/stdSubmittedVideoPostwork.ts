@@ -52,7 +52,7 @@ export function submittedPostworkSummary(project:any,scenes:any[],assets:any[]) 
     }):undefined
     if(!job&&!hasSubmittedVideoPostwork(project,scenes,assets)&&!hasAllSceneParallax(project))return null
     const m=job?.metadata||{}
-    return {applicable:true,postwork:true,allParallax:hasAllSceneParallax(project),status:m.state||'not_started',phase:m.phase||'',automatic:true,autoPending:['queued','processing'].includes(m.state),error:m.error||'',results:(m.results||[]).map((r:any)=>({number:r.number,status:r.review?.passed===true?'approved':'needs_review',speakers:r.submitted_video_postwork?.speakers||[],direction:'원본 영상 1배속·확정 음성 유지 · AE 후작업 출력 검수',reason:r.reason||''})),
+    return {applicable:true,postwork:true,allParallax:hasAllSceneParallax(project),status:m.state||'not_started',phase:m.phase||'',automatic:true,autoPending:['queued','processing'].includes(m.state),error:m.error||'',results:(m.results||[]).map((r:any)=>({number:r.number,status:r.review?.passed===true?'approved':'needs_review',speakers:r.submitted_video_postwork?.speakers||[],direction:r.purpose_policy?`씬 목적: ${({dialogue:'대사 우선',reaction:'반응',clue_reveal:'단서 발견',location:'장소 소개',tension:'긴장',transition:'전환',resolution:'여운·마무리',narration:'설명',hold:'정적 장면',action:'사건·행동'} as Record<string,string>)[r.purpose_policy.role as string]||r.purpose_policy.role} · 목적·흐름 검수 ${r.review?.passed===true?'완료':'대기'}${r.purpose_repair?` · 자동 보완 ${r.purpose_repair.attempt}회`:''}`:'원본 영상 1배속·확정 음성 유지 · AE 후작업 출력 검수',reason:r.reason||''})),
         finalUrl:m.state==='complete'&&m.final?.gcs_path?`/api/std/assets/gcs-file?bucket=${encodeURIComponent(m.final.gcs_bucket)}&path=${encodeURIComponent(m.final.gcs_path)}`:null}
 }
 
