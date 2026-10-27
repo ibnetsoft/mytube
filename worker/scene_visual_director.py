@@ -6,6 +6,7 @@ from typing import Any
 from scene_direction_policy import CONTRACT as EXECUTION_CONTRACT, validate_topic, validate_execution
 
 
+from depth_finishing import TASK as DEPTH_TASK, normalize as normalize_depth_finishing
 from script_parallax import TASK as PARALLAX_TASK, selection as parallax_selection
 
 PERSONA = """You are AIR Studio's Scene Visual Director. For each scene, interpret
@@ -63,7 +64,7 @@ analyzer must still verify the named character and both eye boxes; uncertainty
 skips only the blink effect."""
 
 
-PERSONA += "\n\n" + PARALLAX_TASK
+PERSONA += "\n\n" + PARALLAX_TASK + "\n" + DEPTH_TASK
 
 ALLOWED_OPERATIONS = {
     "camera_move", "hold", "light_flicker", "atmosphere_drift", "depth_parallax",
@@ -318,6 +319,7 @@ def validate_directorial_plans(
         }
         if not direction["visual_strategy"] or not direction["qa_assertions"]:
             raise ValueError(f"visual direction {index} needs visual_strategy and nonempty qa_assertions")
+        direction['depth_effects'] = normalize_depth_finishing(raw,scene,layers)
         direction['parallax_plan'] = parallax_selection(scene, direction)
         if topic is not None:
             direction.update(contract=EXECUTION_CONTRACT, topic_direction=topic,

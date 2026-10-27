@@ -194,7 +194,9 @@ def bind_prepared_camera(prepared, scene, execution):
     require_execution_match(scene['creative_reference'], execution['keys'], execution.get('effects', []))
     result = {**prepared, 'plan': copy.deepcopy(prepared['plan'])}
     result['plan']['camera'] = [{k: row[k] for k in ('t', 'x', 'y', 'scale', 'rotation')} for row in execution['keys']]
-    result['plan']['effects'] = copy.deepcopy(execution.get('effects', []))
+    from ae_scene_effects import DEPTH_EFFECT_TYPES
+    depth=[e for e in prepared['plan'].get('effects',[]) if e['type'] in DEPTH_EFFECT_TYPES]
+    result['plan']['effects'] = copy.deepcopy([e for e in execution.get('effects', []) if e['type'] not in DEPTH_EFFECT_TYPES]+depth)
     transition=execution.get('transition', 'cut')
     result['plan']['transition']={'in':'cut','out':'cut','fraction':0}
     from ae_scene_animation import validate_plan

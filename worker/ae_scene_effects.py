@@ -5,7 +5,9 @@ No effect may replace source artwork or silently skip missing AE capabilities.
 """
 import math
 
-EFFECT_TYPES = frozenset({
+DEPTH_EFFECT_TYPES = frozenset({'depth_background_blur','depth_foreground_blur','depth_background_haze'})
+
+EFFECT_TYPES = DEPTH_EFFECT_TYPES | frozenset({
     'atmospheric_haze', 'warm_dust_motes', 'focus_glow', 'light_sweep',
     'impact_flash', 'heat_distortion', 'subtle_vignette', 'speedline_burst',
     'impact_shake', 'shock_ring', 'energy_trail', 'particle_burst', 'debris_burst', 'fireflies',
@@ -49,7 +51,17 @@ def validate_effects(plan, requested=None):
             if not number(effect.get('size'),.001,.004) or not number(effect.get('speed'),.005,.03) or not number(effect.get('radius'),.05,.4) or not number(effect.get('intensity'),.05,.35):raise ValueError('Fireflies must use restrained size, speed, radius and intensity')
             protected=effect.get('protected_regions')
             if not isinstance(protected,list) or len(protected)>40 or any(not isinstance(b,list) or len(b)!=4 or not all(number(v,0,1) for v in b) or b[2]<=b[0] or b[3]<=b[1] for b in protected):raise ValueError('Firefly face/text protection regions are invalid')
-        if kind == 'heat_distortion':
+        if kind in DEPTH_EFFECT_TYPES:
+            if len(layers)<2:raise ValueError('Depth finishing cannot filter a flattened full-scene image')
+            target=layers.get(effect.get('target_layer'),{})
+            expected='foreground' if kind=='depth_foreground_blur' else 'background'
+            if target.get('role')!=expected:raise ValueError('Depth finishing requires the matching separated plane, never a character')
+            if not number(effect['intensity'],.05,.35):raise ValueError('Depth finishing must remain restrained')
+            if kind.endswith('_blur') and not number(effect.get('blur_pixels'),1,12):raise ValueError('Depth blur needs 1..12 source pixels')
+            foreground=[l['z_index'] for l in layers.values() if l.get('role')=='foreground']
+            characters=[l['z_index'] for l in layers.values() if l.get('role')=='character']
+            if foreground and characters and min(foreground)<=max(characters):raise ValueError('Foreground occlusion must remain above characters')
+        elif kind == 'heat_distortion':
             target = effect.get('target_layer')
             if not isinstance(target, str) or layers.get(target, {}).get('role') not in ('background', 'prop'):
                 raise ValueError('Heat distortion requires a separated background or prop, never a character')
@@ -116,6 +128,20 @@ function applySceneEffects(source,layers) {
   var effects=S.plan.effects||[];
   for(var e=0;e<effects.length;e++) {
     var E=effects[e],layer,fx,opacity,span=E.end-E.start;
+    if(E.type==="depth_background_blur" || E.type==="depth_foreground_blur") {
+      layer=layers[E.target_layer];if(!layer)throw new Error("Missing separated depth blur plane");
+      fx=sceneFx(layer,"ADBE Gaussian Blur 2");
+      fx.property(3).setValue(true);
+      effectEnvelope(fx.property(1),E,E.blur_pixels*E.intensity);
+      continue;
+    }
+    if(E.type==="depth_background_haze") {
+      var backdrop=layers[E.target_layer];if(!backdrop)throw new Error("Missing separated haze background");
+      layer=source.layers.addSolid(E.color,"ae_effect_depth_background_haze",W,H,1,S.duration);
+      layer.moveBefore(backdrop);effectMask(layer,E,false);
+      effectEnvelope(layer.property("ADBE Transform Group").property("ADBE Opacity"),E,25*E.intensity);
+      continue;
+    }
     if(E.type==="fireflies") {
       var made=0,protect=(E.protected_regions||[]).concat([[0,.78,1,1]]);
       for(var attempt=0;attempt<240 && made<E.count;attempt++) {

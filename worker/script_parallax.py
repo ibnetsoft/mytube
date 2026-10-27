@@ -46,7 +46,11 @@ def bind_packages(scenes):
     return selected
 
 
+from depth_finishing import TASK as DEPTH_TASK
+
 ALL_TASK = """The user selected parallax_mode=all_scenes. This overrides selective scene limits: EVERY scene, including 1..18, is an authored still image with three registered depth planes and is animated in AE. No uploaded/generated video is required. Select depth_parallax as every scene's primary effect; keep moves restrained and vary movement direction/speed according to the script without arbitrary drama. Use a small lateral depth move or distinct plane motion; a uniform scale zoom alone is insufficient. Supply background, character (middle-plane subject; never invent a person in an empty scene), foreground with per-plane purpose/image_prompt. Compose plausible near/middle/far depth at initial artwork creation; no flat duplicate layers or invented unrelated props. Preserve dialogue and finalized audio timing; missing or ambiguous separation must stop for repair. Use cut transitions so the immutable narration clock is preserved. No extra action/pose simulation. All layers and composites require actual visual review."""
+
+ALL_TASK += "\n" + DEPTH_TASK
 
 
 def require_depth_motion(plan):

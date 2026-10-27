@@ -31,7 +31,8 @@ function summary(ctx: any) {
             try { preparedAeScenes(ctx.project, ctx.scenes, sceneAssets(ctx.assets, number)) }
             catch (error: any) { issue = error.message }
         }
-        return { number, title: scene.scene_title, source: source ? { id: source.id, file_name: source.file_name } : null,
+        const authored=(ctx.project.project_payload?.structure?.scenes||[]).find((s:any)=>Number(s.scene_number||s.scene_order)===number)
+        return { depth_effects:(authored?.scene_direction_plan?.depth_effects||[]).map((e:any)=>e.type), number, title: scene.scene_title, source: source ? { id: source.id, file_name: source.file_name } : null,
             preparation: selection ? { id: selection.id, enabled: selection.metadata.enabled !== false, state: issue ? 'stale' : selection.metadata.state,
                 direction_text: selection.metadata.input?.direction_text || '', requested_effects: selection.metadata.input?.requested_effects, error: issue || selection.metadata.error || '',
                 progress: selection.metadata.progress || '', plan: selection.metadata.result?.plan || null } : null }

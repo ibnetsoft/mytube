@@ -1,5 +1,8 @@
 /** Effects supported by the reviewed PSD renderer; IDs match ae_scene_effects.py. */
 export const AE_SCENE_EFFECTS = [
+    { id: 'depth_background_blur', label: '깊이 · 먼 배경 흐림' },
+    { id: 'depth_foreground_blur', label: '깊이 · 가까운 전경 흐림' },
+    { id: 'depth_background_haze', label: '깊이 · 먼 배경 안개' },
     { id: 'impact_shake', label: '타격 카메라 흔들림' },
     { id: 'atmospheric_haze', label: '안개' },
     { id: 'warm_dust_motes', label: '떠다니는 먼지' },

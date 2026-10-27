@@ -143,3 +143,13 @@ def test_reviewed_psd_receives_only_the_bound_effects_and_final_sequence_transit
     assert result['plan']['effects']==effects
     assert result['plan']['transition']=={'in':'cut','out':'cut','fraction':0}
     assert prepared==before
+
+
+def test_reviewed_depth_finishing_survives_final_voice_camera_binding():
+    from test_ae_scene_preparation import plan
+    direction={'contract':CONTRACT,'execution_design':design()}
+    depth={'type':'depth_background_blur','target_layer':'background','blur_pixels':6,'start':0,'end':1,'intensity':.2,'center':[.5,.5],'radius':.5,'color':[.8,.8,.9],'reason':'Keep distant garden behind sharp character.'}
+    prepared={'plan':{**plan(),'direction_policy':direction,'effects':[depth]}}
+    result=bind_prepared_camera(prepared,{'creative_reference':direction},{'keys':design()['camera']['keys'],'effects':[],'transition':'cut'})
+    assert result['plan']['effects']==[depth]
+    assert result['plan']['effects'] is not prepared['plan']['effects']

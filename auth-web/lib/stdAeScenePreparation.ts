@@ -69,10 +69,12 @@ export function aeScenePreparationInput(project: any, scenes: any[], assets: any
     const selectedEffects = motionScene?.source==='psd'
         ? [...new Set([...(aeSceneEffectSelection(effects) || []),...motionScene.effects.map(e=>e.type)])].sort()
         : effects
+    const plannedDepth=(contexts[index].creative_reference?.depth_effects||[]).map((e:any)=>e.type)
+    const requested=selectedEffects===undefined&&plannedDepth.length?plannedDepth:selectedEffects
     return {
         number, source_psd: reference(source), direction_text: direction.trim(),
         ...(motion?.enabled ? {motion_output:{width:motion.aspect==='9:16'?1080:1920,height:motion.aspect==='9:16'?1920:1080},motion_scene:motion.scenes[String(number)] || null} : {}),
-        ...(selectedEffects === undefined ? {} : { requested_effects: aeSceneEffectSelection(selectedEffects) }),
+        ...(requested === undefined ? {} : { requested_effects: aeSceneEffectSelection(requested) }),
         scene_context: contexts[index], neighbors: contexts.filter((_, i) => Math.abs(i - index) === 1),
         ...(visuals.find(a => a.asset_type === 'image') ? { reference_image: reference(visuals.find(a => a.asset_type === 'image')) } : {}),
         ...(visuals.find(a => a.asset_type === 'video') ? { reference_video: reference(visuals.find(a => a.asset_type === 'video')) } : {}),

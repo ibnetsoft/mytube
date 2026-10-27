@@ -79,3 +79,10 @@ test('selected effects are frozen and a missing or substituted effect blocks sub
     r.plan_sha256 = r.review.plan_sha256 = aeSceneHash(r.plan)
     assert.throws(() => preparedAeScenes(f.project, f.scenes, f.assets), /선택한 효과/)
 })
+
+test('script depth finishing defaults are frozen while an explicit empty selection disables them',()=>{
+ const f=fixture();f.project.project_payload.structure.scenes=[{scene_number:1,scene_direction_plan:{contract:'scene_direction_plan/v2',depth_effects:[{type:'depth_background_blur',reason:'Keep subject clear'}],execution_design:{}}}];
+ const input=aeScenePreparationInput(f.project,f.scenes,f.assets,1,'Depth');
+ assert.deepEqual(input.requested_effects,['depth_background_blur']);
+ assert.deepEqual(aeScenePreparationInput(f.project,f.scenes,f.assets,1,'Depth',[]).requested_effects,[]);
+});
