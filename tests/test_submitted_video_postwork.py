@@ -134,3 +134,15 @@ def test_direct_dialogue_targets_reject_wrong_scene_source_or_local_clock():
     with pytest.raises(ValueError,match='target'):p.validate_input(snapshot)
     snapshot['video_dialogue_targets']['scenes']=[]
     with pytest.raises(ValueError,match='target'):p.validate_input(snapshot)
+
+
+def test_all_parallax_requires_prepared_psds_and_preserves_dialogue_review():
+    scene,snapshot,_=fixture();snapshot.pop('submitted_video_postwork');snapshot['all_scene_parallax']='all_scene_parallax/v1'
+    scene.update(source_kind='psd',preparation={'ready':True},parallax_plan={'enabled':True},parallax_mouth=scene.pop('postwork'))
+    assert p.required_review(snapshot)
+    assert not p.review_bypass({'review_policy':'skip_user_requested/v1'},snapshot)
+    p.validate_input(snapshot)
+    scene['parallax_mouth']['dialogue'][0]['end']=.7
+    with pytest.raises(ValueError,match='final voice'):p.validate_input(snapshot)
+    scene['source_kind']='image'
+    with pytest.raises(ValueError,match='PSDs'):p.validate_input(snapshot)

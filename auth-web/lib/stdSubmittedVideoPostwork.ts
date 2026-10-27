@@ -9,6 +9,7 @@ export function originalPostworkVideo(asset:any) {
     return asset?.asset_type==='video' && ['uploaded','assigned'].includes(asset.status) && !m.ae_mouth_fingerprint && !m.lipsync_fingerprint && !m.submitted_video_postwork && !m.source_repair && !m.motion_source_repair && !['repaired_source_clip','motion_source_repair'].includes(m.kind)
 }
 export function hasSubmittedVideoPostwork(project:any,scenes:any[],assets:any[]) {
+    if(hasAllSceneParallax(project))return false
     if(motionProductionMethod(project)!=='ae' || project.project_payload?.render_settings?.motion?.edit_mode==='horizontal_webtoon')return false
     const numbers=new Set(scenes.map(s=>Number(s.scene_number)).filter(n=>n>=1&&n<=18))
     return assets.some(a=>numbers.has(Number(a.scene_number))&&originalPostworkVideo(a))
@@ -47,11 +48,11 @@ export function postworkDirection(sourceKind:string,postwork:any) {
 
 export function submittedPostworkSummary(project:any,scenes:any[],assets:any[]) {
     const job=project.submitted_at?[...assets].filter(a=>a.metadata?.kind==='motion_automation'&&['uploaded','assigned'].includes(a.status)&&(!project.progress_payload?.motion_automation_job_id||a.id===project.progress_payload.motion_automation_job_id)).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).find(a=>{
-        try{return JSON.parse(a.metadata.input?.snapshot_json||'{}').submitted_video_postwork===VIDEO_POSTWORK_CONTRACT}catch{return false}
+        try{const snapshot=JSON.parse(a.metadata.input?.snapshot_json||'{}');return snapshot.submitted_video_postwork===VIDEO_POSTWORK_CONTRACT||snapshot.all_scene_parallax==='all_scene_parallax/v1'}catch{return false}
     }):undefined
-    if(!job&&!hasSubmittedVideoPostwork(project,scenes,assets))return null
+    if(!job&&!hasSubmittedVideoPostwork(project,scenes,assets)&&!hasAllSceneParallax(project))return null
     const m=job?.metadata||{}
-    return {applicable:true,postwork:true,status:m.state||'not_started',phase:m.phase||'',automatic:true,autoPending:['queued','processing'].includes(m.state),error:m.error||'',results:(m.results||[]).map((r:any)=>({number:r.number,status:r.review?.passed===true?'approved':'needs_review',speakers:r.submitted_video_postwork?.speakers||[],direction:'원본 영상 1배속·확정 음성 유지 · AE 후작업 출력 검수',reason:r.reason||''})),
+    return {applicable:true,postwork:true,allParallax:hasAllSceneParallax(project),status:m.state||'not_started',phase:m.phase||'',automatic:true,autoPending:['queued','processing'].includes(m.state),error:m.error||'',results:(m.results||[]).map((r:any)=>({number:r.number,status:r.review?.passed===true?'approved':'needs_review',speakers:r.submitted_video_postwork?.speakers||[],direction:'원본 영상 1배속·확정 음성 유지 · AE 후작업 출력 검수',reason:r.reason||''})),
         finalUrl:m.state==='complete'&&m.final?.gcs_path?`/api/std/assets/gcs-file?bucket=${encodeURIComponent(m.final.gcs_bucket)}&path=${encodeURIComponent(m.final.gcs_path)}`:null}
 }
 
@@ -74,4 +75,13 @@ export function videoDialoguePostworkTargets(scenes:any[]) {
         dialogue:s.postwork.dialogue.map((r:any)=>({text:r.text,speaker:r.speaker,voice_id:r.voice_id||'',
             start:r.start,end:r.end,local_start:r.start-s.start,local_end:r.end-s.start}))
     }))}
+}
+
+export function hasAllSceneParallax(project:any) {
+    return project.project_payload?.structure?.parallax_mode==='all_scenes'
+}
+export function freezeParallaxMouth(project:any,rows:any[]) {
+    const dialogue=rows.filter(r=>r.dialogue_kind==='dialogue'&&String(r.text||'').trim()).map(r=>({...r,kind:'dialogue',speaker:subtitleDialogueSpeakerName(r)}))
+    if(dialogue.some(r=>!r.speaker))throw Error('패럴럭스 대사 씬의 화자를 지정하세요.')
+    return {mouth_required:dialogue.length>0,dialogue,cast:coordinateCast(project),image:null,speaker_regions:null}
 }

@@ -72,6 +72,8 @@ def unseal(envelope):
 
 def validate_direction(response,scene,snapshot,previous_plans):
     from services.motion_render_service import validate_motion
+    if snapshot.get('all_scene_parallax')=='all_scene_parallax/v1':
+        task+='\nAll-scene parallax uses cut transitions only. Preserve the reviewed layered depth plan and exact final voice clock; do not choose crossfade or AI inserts.'
     from ec_supplemental_assets import policy as supplement_policy, requests as supplement_requests
     supplements=supplement_requests(snapshot,scene,response.get('supplemental_assets'))
     if response.get('status')!='ready' and not (response.get('status')=='needs_assets' and supplements and supplement_policy(snapshot)):
@@ -337,6 +339,9 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         prepared=load_preparation({'number':scene['number'],'ae_scene':scene['preparation']},directory/'preparation',fresh)
         from scene_direction_policy import bind_prepared_camera
         prepared=bind_prepared_camera(prepared,scene,plan['scene'])
+        if snapshot.get('all_scene_parallax'):
+            from script_parallax import require_depth_motion
+            require_depth_motion(prepared['plan'])
         native=_render_native(prepared,directory,duration)
         run([ffmpeg(),'-v','error','-y','-i',str(native),'-an','-t',str(duration),'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
     else:
@@ -440,10 +445,10 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
     reuse=scene.get('recorded_source_reuse')
     if reuse:required_checks+=('recorded_mouth_timing',)
     times={0.,min(duration-1/30,duration*.5),max(0,duration-1/30)}
-    if video_postwork_enabled(scene) or scene.get('still_mouth'):
+    if video_postwork_enabled(scene) or scene.get('still_mouth') or scene.get('parallax_mouth'):
         required_checks+=('postwork_narrative_fit','source_playback_preserved','transition_plan')
-        if (scene.get('postwork') or scene.get('still_mouth')).get('mouth_required'):required_checks+=('dialogue_mouth_timing','tracked_mouth_alignment')
-        for row in (scene.get('postwork') or scene.get('still_mouth'))['dialogue']:
+        if (scene.get('postwork') or scene.get('still_mouth') or scene.get('parallax_mouth')).get('mouth_required'):required_checks+=('dialogue_mouth_timing','tracked_mouth_alignment')
+        for row in (scene.get('postwork') or scene.get('still_mouth') or scene.get('parallax_mouth'))['dialogue']:
             a,b=row['start']-scene['start'],row['end']-scene['start']
             times.update((max(0,a-.05),a+(b-a)*.25,a+(b-a)*.75,min(duration,b+.05)))
     if reuse:
@@ -494,7 +499,7 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
                     for panel_index,_ in enumerate(shot['panels']):
                         crop=directory/f'panel-{shot_index}-{panel_index}.png'
                         if crop.is_file():source_crops.append(crop)
-        if (video_postwork_enabled(scene) or scene.get('still_mouth')) and source_frames:
+        if (video_postwork_enabled(scene) or scene.get('still_mouth') or scene.get('parallax_mouth')) and source_frames:
             from submitted_video_postwork import mouth_review_crops
             source_crops.extend(mouth_review_crops(scene,frames,source_frames,paired_times,directory))
         paths=[reference,*([previous] if previous else []),*frames,*source_frames,*source_crops,*([Path(f['path']) for f in package['files']] if package else [])]
@@ -727,6 +732,9 @@ def process_one(engine='ae'):
                         from motion_video_client import generated_insert
                         generated=generated_insert(job,token,scene,plan,previews[number],work,headers,save,fresh)
                         visual=insert_ai(visual,generated,plan['ai'],attempt_dir,snapshot['motion']['fps'])
+                    if scene.get('parallax_mouth'):
+                        from parallax_mouth_postwork import apply as apply_parallax_mouth
+                        visual=apply_parallax_mouth(runner,job,snapshot,scene,visual,voice,attempt_dir,fresh)
                     from motion_media_storage import media_directory
                     output=media_directory(attempt_dir)/'voice-synced.mp4'
                     run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
@@ -845,7 +853,8 @@ def process_one(engine='ae'):
         fresh();output_hash=digest(output)
         bucket,key,_=ae._upload_gcs_file(output,f'std-motion/{job["id"]}/final/{output_hash}.mp4','video/mp4')
         review={'passed':True,'render_sha256':output_hash,'final_voice_sha256':digest(voice),'scenes':final_reviews,'reviewer':'local_codex_cli','method':'actual_frames_and_decoded_voice',**({'renderer':snapshot['renderer']} if snapshot.get('renderer') else {})}
-        if video_postwork_required_review(snapshot):review['submitted_video_postwork_contract']='submitted_video_postwork/v1'
+        if snapshot.get('submitted_video_postwork'):review['submitted_video_postwork_contract']='submitted_video_postwork/v1'
+        if snapshot.get('all_scene_parallax'):review['all_scene_parallax_contract']='all_scene_parallax/v1'
         if video_postwork_review_bypass(meta,snapshot):review.update(passed=None,skipped=True,status='not_reviewed_user_requested',reviewer=None,method='user_requested_review_bypass')
         if snapshot.get('final_renderer'):
             native_receipt=final_dir/('filmcraft-master/filmcraft-receipt.json' if engine=='filmcraft' else 'filmcraft-final/filmcraft-receipt.json')

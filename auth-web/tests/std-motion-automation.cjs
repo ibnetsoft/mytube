@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript'),crypto=require('crypto')
 function fixture(mode='ae_only', alternativesEnabled=false) {
- const calls={models:0,voice:0,rpc:[]},exports={}
+ const calls={models:0,voice:0,rpc:[],psds:new Map(),prepared:new Map()},exports={}
  const project={id:'qa-project',updated_at:'now',employee_email:'owner@test',project_payload:{render_settings:{motion:{version:1,enabled:true,aspect:'9:16',fps:24,scenes:{},automation:{mode,max_ai_clips:1,max_ai_seconds:5}}},subtitles:[{text:'Final voice',scene_number:1,start:0,end:20}]}}
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
@@ -14,7 +14,7 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:{rpc:async(name,args)=>{calls.rpc.push({name,args});return {data:{job_id:'queued'},error:null}}}}
   if(name.includes('stdMotionStudio'))return {...require('./load-ts-module.cjs')('lib/stdMotionStudio.ts'),motionForProject:p=>p.project_payload.render_settings.motion}
   if(name.includes('stdHorizontalWebtoon'))return {horizontalWebtoon:p=>p.project_payload.render_settings.motion.edit_mode==='horizontal_webtoon',webtoonInputs:()=>[{number:1,asset:image,start:0,end:20}],readyWebtoonPlan:()=>({source_sha256:'a'.repeat(64),plan:{version:1,shots:[{start:0,end:1,panels:[]}],evidence:['fixture']}})}
-  if(name.includes('stdAeScenePreparation'))return {aeSceneSources:()=>new Map(),preparedAeScenes:()=>new Map()}
+  if(name.includes('stdAeScenePreparation'))return {aeSceneSources:()=>calls.psds,preparedAeScenes:()=>calls.prepared}
   if(name.includes('stdContentIdentity'))return {selectNarrationAsset:()=>audio}
   if(name.includes('stdLipSync'))return {lipSyncPlan:()=>{calls.voice++},lipSyncSceneStarts:()=>[.005],reviewedLipSyncAssets:()=>new Map()}
   if(name.includes('stdSceneMedia'))return {storageSourceForAsset:a=>a.metadata.gcs_path}
@@ -108,3 +108,13 @@ test('disabled alternatives cannot register a queue or read provider secrets',as
 test('ordinary uploaded dialogue videos enter mandatory reviewed postwork even with automation disabled',async()=>{const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;delete f.project.project_payload.render_settings.motion.automation;f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='주인공';f.assets.push({...f.image,id:'submitted-clip',asset_type:'video',metadata:{gcs_path:'clip.mp4',video_tail_policy:'original_speed_no_freeze_no_loop/v1'}});await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.submitted_video_postwork,'submitted_video_postwork/v1');assert.equal(s.scenes[0].source.id,'submitted-clip');assert.equal(s.scenes[0].postwork.mouth_required,true);assert.equal(s.scenes[0].postwork.dialogue[0].end,20);assert.equal(s.motion.automation.mode,'ae_only');assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1');assert.equal(f.calls.models,0);});
 
 test('script-selected parallax never silently submits a flattened image',async()=>{const f=fixture();f.project.project_payload.structure={scenes:[{scene_number:1,parallax_plan:{enabled:true}}]};await assert.rejects(f.run(),/패럴럭스.*PSD/);assert.equal(f.calls.rpc.length,0);});
+
+test('all-scene parallax automatically registers prepared PSD with exact dialogue clock and no uploaded video',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;
+ f.project.project_payload.structure={parallax_mode:'all_scenes',scenes:[{scene_number:1,parallax_plan:{enabled:true}}]};
+ f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='hero';
+ f.calls.psds.set(1,{id:'psd',scene_number:1,asset_type:'original',status:'uploaded',metadata:{gcs_path:'layers.psd'}});
+ f.calls.prepared.set(1,{metadata:{state:'prepared',result:{plan:{camera:[{t:0,x:.5,y:.5,scale:1,rotation:0},{t:1,x:.5,y:.5,scale:1,rotation:0}]}}}});
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
+ assert.equal(s.all_scene_parallax,'all_scene_parallax/v1');assert.equal(s.scenes[0].source_kind,'psd');assert.equal(s.scenes[0].parallax_mouth.dialogue[0].start,0);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].end,20);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].speaker,'hero');assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1');assert.equal(f.calls.models,0);
+});

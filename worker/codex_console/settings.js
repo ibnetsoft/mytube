@@ -12,7 +12,7 @@
     ['category','카테고리'], ['production_mode','제작 모드'], ['script_style','대본 스타일'],
     ['duration_minutes','분량 (분)','duration'], ['language','대본 언어'], ['setting_country','배경 국가'],
     ['era_region','시대·지역'], ['image_style','이미지 스타일'], ['image_layer_mode','이미지 레이어'],
-    ['direction_profile','연출 프로필'], ['image_layer_scene_start','레이어 시작 씬 (선택)'],
+    ['direction_profile','연출 프로필'], ['parallax_mode','패럴럭스 제작'], ['image_layer_scene_start','레이어 시작 씬 (선택)'],
     ['image_layer_scene_end','레이어 종료 씬 (선택)'], ['required_video_scene_count','필수 영상 씬 수'],
     ['generate_bgm_prompt','배경음악 프롬프트 생성'], ['notes','기본 작성 방향']
   ];

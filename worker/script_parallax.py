@@ -6,10 +6,12 @@ TASK = """For still-image scenes 19 onward, explicitly consider depth_parallax o
 
 
 def selection(scene, direction):
+    all_scenes=scene.get('parallax_mode')=='all_scenes'
+    if all_scenes and 'depth_parallax' not in direction.get('ae_operations',[]):raise ValueError('All-scene parallax requires depth direction on every scene')
     if 'depth_parallax' not in direction.get('ae_operations', []):
         return {'enabled': False, 'reason': 'No script-selected depth operation'}
     number = int(scene.get('scene_number') or scene.get('scene_order') or 0)
-    if number < 19 or scene.get('visual_type') == 'video' or scene.get('video_generation_mode') == 'user_upload':
+    if (number < 19 and not all_scenes) or scene.get('visual_type') == 'video' or scene.get('video_generation_mode') == 'user_upload':
         raise ValueError('Parallax requires a still scene 19 onward; preserve uploaded video motion')
     if direction.get('primary_effect') != 'depth_parallax' or set(direction['ae_operations']) & {'pose_change','prop_motion','shot_sequence'}:
         raise ValueError('Parallax must be a distinct primary still-scene direction')
@@ -42,3 +44,17 @@ def bind_packages(scenes):
             'vfx':['approved_layer_parallax'],'fallback':'needs_repair'}
         selected.append(int(scene.get('scene_number') or scene.get('scene_order')))
     return selected
+
+
+ALL_TASK = """The user selected parallax_mode=all_scenes. This overrides selective scene limits: EVERY scene, including 1..18, is an authored still image with three registered depth planes and is animated in AE. No uploaded/generated video is required. Select depth_parallax as every scene's primary effect; keep moves restrained and vary movement direction/speed according to the script without arbitrary drama. Use a small lateral depth move or distinct plane motion; a uniform scale zoom alone is insufficient. Supply background, character (middle-plane subject; never invent a person in an empty scene), foreground with per-plane purpose/image_prompt. Compose plausible near/middle/far depth at initial artwork creation; no flat duplicate layers or invented unrelated props. Preserve dialogue and finalized audio timing; missing or ambiguous separation must stop for repair. Use cut transitions so the immutable narration clock is preserved. No extra action/pose simulation. All layers and composites require actual visual review."""
+
+
+def require_depth_motion(plan):
+    from ae_scene_animation import resolved_layers
+    layers=resolved_layers(plan)
+    if not set(ROLES).issubset({l['role'] for l in layers}):raise ValueError('Parallax requires three actual separated depth planes')
+    def travel(layer):
+        keys=layer['motion'];first=keys[0]
+        return [(round(k['t'],6),round(k['x']-first['x'],7),round(k['y']-first['y'],7),round(k['scale']-first['scale'],7)) for k in keys]
+    tracks=[travel(l) for l in layers if l['role'] in ROLES]
+    if len({str(t) for t in tracks})<2:raise ValueError('Parallax needs real relative plane movement, not a flat camera zoom')

@@ -71,3 +71,42 @@ def test_publish_cannot_defer_script_selected_layers(monkeypatch,tmp_path):
     monkeypatch.setattr(publisher,'_manifest',lambda _: {'scene_specs':[scene]})
     monkeypatch.setattr(publisher,'_topic',lambda _: pytest.fail('Must stop before external read/write'))
     with pytest.raises(ValueError,match='requires reviewed separated layers'):publisher.publish(tmp_path/'manifest.json',tmp_path,False,defer_layers=True)
+
+
+def test_all_scene_mode_includes_first_18_but_never_double_moves_video():
+    from codex_content_runner import _required_video_scene_count,_resolve_image_layer_mode
+    assert _required_video_scene_count({'parallax_mode':'all_scenes','required_video_scene_count':18},30)==0
+    assert _resolve_image_layer_mode({'parallax_mode':'all_scenes'})=='full_psd'
+    scenes=[]
+    for number in (1,18,19,40):
+        scene,_=fixture();scene.update(scene_number=number,parallax_mode='all_scenes');scenes.append(scene)
+    assert bind_packages(scenes)==[1,18,19,40]
+    scenes[0]['visual_type']='video'
+    with pytest.raises(ValueError,match='still'):selection(scenes[0],scenes[0]['scene_direction_plan'])
+
+
+def test_parallax_mouth_tracks_already_rendered_depth_output_without_second_move(monkeypatch,tmp_path):
+    import parallax_mouth_postwork as flow,submitted_video_postwork,ae_flat_scene,ae_scene_production
+    original=tmp_path/'depth-render.mp4';original.write_bytes(b'depth video')
+    scene={'number':1,'start':3.,'end':4.,'source_kind':'psd','source':{'id':'psd'},'parallax_mouth':{'mouth_required':True,'dialogue':[{'speaker':'hero','start':3.,'end':4.}],'cast':{}}}
+    seen=[]
+    def mouth(*args):
+        assert args[4]==original and args[2]['source_kind']=='video'
+        return {'runtime':{'enabled':True,'speakers':[{'speaker':'hero'}]}}
+    def prepare(source,working,motion,direction):
+        assert source==original and working['_mouth_runtime']['enabled']
+        assert all(k['scale']==1 and k['x']==.5 and k['y']==.5 for k in direction['keys'])
+        assert direction['effects']==[];seen.append('identity mouth pass');return {}
+    monkeypatch.setattr(submitted_video_postwork,'prepare_mouth',mouth)
+    monkeypatch.setattr(ae_flat_scene,'prepare',prepare)
+    monkeypatch.setattr(ae_scene_production,'_render_native',lambda *args: tmp_path/'mouth-output.mp4')
+    assert flow.apply(None,{}, {'motion':{'fps':24}},scene,original,tmp_path/'voice.wav',tmp_path,lambda:None)==tmp_path/'mouth-output.mp4'
+    assert seen==['identity mouth pass'] and scene['_postwork_receipt']['runtime']['enabled']
+
+
+def test_actual_depth_gate_rejects_flat_zoom_and_accepts_distinct_planes():
+    from script_parallax import require_depth_motion
+    plan={'camera':[dict(t=t,x=.5,y=.5,scale=1+t*.02,rotation=0) for t in (0,1)],'layers':[{'role':role,'z_index':i,'parallax':0 if i==0 else i*.3} for i,role in enumerate(ROLES)]}
+    with pytest.raises(ValueError,match='relative plane'):require_depth_motion(plan)
+    plan['camera'][1]['x']=.52
+    require_depth_motion(plan)

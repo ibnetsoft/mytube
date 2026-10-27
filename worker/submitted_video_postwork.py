@@ -13,7 +13,7 @@ def enabled(scene):
     return (scene.get('postwork') or {}).get('contract') == CONTRACT
 
 def required_review(snapshot):
-    return snapshot.get('submitted_video_postwork') == CONTRACT
+    return snapshot.get('submitted_video_postwork') == CONTRACT or snapshot.get('all_scene_parallax')=='all_scene_parallax/v1'
 
 def validate_preparation(value,narration):
     if not isinstance(value,dict):
@@ -163,7 +163,7 @@ def mouth_review_crops(scene,frames,source_frames,times,directory):
     paths=[]
     for i,speaker in enumerate(runtime.get('speakers',[])):
         if not times:break
-        intervals=[(r['start']-scene['start'],r['end']-scene['start']) for r in (scene.get('postwork') or scene.get('still_mouth'))['dialogue'] if r['speaker']==speaker['speaker']]
+        intervals=[(r['start']-scene['start'],r['end']-scene['start']) for r in (scene.get('postwork') or scene.get('still_mouth') or scene.get('parallax_mouth'))['dialogue'] if r['speaker']==speaker['speaker']]
         index=next((j for j,t in enumerate(times) if any(a<=t<=b for a,b in intervals)),0)
         t=times[index];sample=min(speaker.get('tracking') or [{'at_seconds':0,'mouth_box':speaker['mouth_box']}],key=lambda r:abs(r['at_seconds']-t))
         box=sample.get('mouth_box') or speaker['mouth_box'];cx=(box[0]+box[2])/2;cy=(box[1]+box[3])/2;rx=max(.025,(box[2]-box[0])*1.5);ry=max(.025,(box[3]-box[1])*2)
@@ -180,6 +180,15 @@ def mouth_review_crops(scene,frames,source_frames,times,directory):
 
 def validate_input(snapshot):
     if not required_review(snapshot):return
+    if snapshot.get('all_scene_parallax')=='all_scene_parallax/v1':
+        if not snapshot.get('scenes') or any(s['source_kind']!='psd' or not s.get('preparation') or not (s.get('parallax_plan') or {}).get('enabled') for s in snapshot['scenes']):raise ValueError('All-scene parallax requires prepared layered PSDs for every scene')
+        for scene in snapshot['scenes']:
+            mouth=scene.get('parallax_mouth') or {}
+            actual=[r for r in snapshot['subtitles'] if int(r.get('scene_number',0))==scene['number'] and r.get('dialogue_kind')=='dialogue' and str(r.get('text') or '').strip()]
+            rows=mouth.get('dialogue') or []
+            sig=lambda entries:[(r.get('text'),r.get('start'),r.get('end'),r.get('voice_id')) for r in entries]
+            if mouth.get('mouth_required')!=bool(actual) or sig(actual)!=sig(rows) or any(not r.get('speaker') for r in rows):raise ValueError('Parallax mouth dialogue differs from final voice')
+        return
     targets=[s for s in snapshot['scenes'] if enabled(s)]
     if not targets:raise ValueError('Submitted video contract has no target scenes')
     manifest=snapshot.get('video_dialogue_targets')
@@ -217,9 +226,9 @@ def require_reviewed_outputs(snapshot,results,voice_hash):
         review=(row or {}).get('review') or {}
         if not row or review.get('passed') is not True or review.get('skipped') or review.get('render_sha256')!=row.get('sha256') or review.get('final_voice_sha256')!=voice_hash:
             raise ValueError('최종 조립 전에 모든 씬의 실제 출력·음성 검수가 필요합니다.')
-        if not enabled(scene) and not scene.get('still_mouth'):continue
+        if not enabled(scene) and not (scene.get('still_mouth') or scene.get('parallax_mouth')):continue
         required=['postwork_narrative_fit','source_playback_preserved','transition_plan']
-        mouth=(scene.get('postwork') or scene.get('still_mouth'))
+        mouth=(scene.get('postwork') or scene.get('still_mouth') or scene.get('parallax_mouth'))
         if mouth['mouth_required']:required+=['dialogue_mouth_timing','tracked_mouth_alignment']
         if not review.get('batches') or not all(isinstance(b,dict) and isinstance(b.get('checks'),list) and set(required).issubset({c.get('id') for c in b['checks'] if isinstance(c,dict)}) and valid_review(b,[c.get('id') for c in b['checks'] if isinstance(c,dict)]) for b in review['batches']):raise ValueError('입모양·효과·원본 동작의 실제 출력 검수 영수증이 없습니다.')
         if enabled(scene):

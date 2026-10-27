@@ -285,6 +285,7 @@ class StartRequest(BaseModel):
     script_style: Literal['story', 'japanese_historical_documentary', 'japanese_domestic_drama', 'nonverbal_preschool'] = 'story'
     production_mode: Literal['standard', 'moving_comic', 'nonverbal_preschool'] = 'standard'
     direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
+    parallax_mode: Literal['selective', 'all_scenes'] = 'selective'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)
@@ -316,6 +317,12 @@ class StartRequest(BaseModel):
             self.script_style = 'nonverbal_preschool'
             self.required_video_scene_count = 0
             self.image_layer_mode = 'full_psd'
+        if self.parallax_mode == 'all_scenes':
+            if self.production_mode != 'standard':raise ValueError('전체 패럴럭스는 기본 제작 모드에서 선택하세요.')
+            self.required_video_scene_count=0
+            self.image_layer_mode='full_psd'
+            self.image_layer_scene_start=None
+            self.image_layer_scene_end=None
         start, end = self.image_layer_scene_start, self.image_layer_scene_end
         if (start is None) != (end is None):
             raise ValueError('레이어 생성 시작 씬과 종료 씬을 함께 입력하세요.')
@@ -609,7 +616,7 @@ def asset(name: str):
 
 SCRIPT_SETTING_FIELDS = frozenset(('category', 'category_id', 'duration_minutes', 'language',
     'setting_country', 'era_region', 'image_style', 'script_style', 'production_mode',
-    'direction_profile', 'image_layer_mode', 'image_layer_scene_start', 'image_layer_scene_end',
+    'direction_profile', 'parallax_mode', 'image_layer_mode', 'image_layer_scene_start', 'image_layer_scene_end',
     'required_video_scene_count', 'generate_bgm_prompt', 'notes'))
 SCRIPT_SETTINGS_KEY = 'codex_script_defaults_' + WORKER_ID
 

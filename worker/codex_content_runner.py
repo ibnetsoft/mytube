@@ -1308,6 +1308,7 @@ def _scene_has_character_focus(blob: str) -> bool:
 
 
 def _resolve_image_layer_mode(payload: dict[str, Any] | None) -> str:
+    if (payload or {}).get("parallax_mode")=="all_scenes":return "full_psd"
     raw = str((payload or {}).get("image_layer_mode") or "").strip().lower().replace("-", "_")
     if raw in {"full", "full_psd", "psd", "all", "all_psd", "full_layers", "all_layers"}:
         return "full_psd"
@@ -1336,6 +1337,7 @@ def _resolve_image_layer_scene_range(payload: dict[str, Any] | None) -> dict[str
 
 
 def _required_video_scene_count(payload: dict[str, Any] | None, scene_count: int | None = None) -> int:
+    if (payload or {}).get("parallax_mode")=="all_scenes":return 0
     raw = (payload or {}).get("required_video_scene_count", (payload or {}).get("video_scenes", 18))
     try:
         count = int(raw)
@@ -2255,6 +2257,7 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
             scene["video_generation_mode"] = "user_upload" if required else "image"
             if not required:
                 scene.pop("video_prompt", None)
+        for scene in scenes:scene["parallax_mode"]=payload.get("parallax_mode","selective")
         _normalize_video_transition_plans(scenes, required_video_scene_count)
         package["structure"] = structure
         return package
@@ -2745,7 +2748,7 @@ class CodexStagedContentRunner:
                           "video_generation_mode": "user_upload" if index <= required_video_scene_count else "image"})
         _normalize_video_transition_plans(scenes, required_video_scene_count)
         structure = {"scene_count": len(scenes), "required_video_scene_count": required_video_scene_count,
-                     "video_scenes": required_video_scene_count, "scenes": scenes, "story_core": plan.get("story_core") or {}}
+                     "video_scenes": required_video_scene_count, "parallax_mode":payload.get("parallax_mode","selective"), "scenes": scenes, "story_core": plan.get("story_core") or {}}
         if payload.get('historical_sources'):
             structure.update(historical_sources=payload['historical_sources'], script_style=payload['script_style'],
                              documentary_source_policy=payload['documentary_source_policy'],
@@ -2881,7 +2884,7 @@ class CodexStagedContentRunner:
         }
         visual_result = self._stage(
             job_id, "02f_scene_visual_director", visual_context,
-            SCENE_VISUAL_DIRECTOR_PERSONA + "\n\nACTIVE DIRECTING PROFILE — "
+            (SCENE_VISUAL_DIRECTOR_PERSONA if payload.get("parallax_mode")!="all_scenes" else __import__("script_parallax").ALL_TASK) + "\n\nACTIVE DIRECTING PROFILE — "
             + direction_profile["label"] + " (" + direction_profile["id"] + "):\n"
             + direction_profile["directive"] + "\n\nFor every supplied scene return one scene_directions item "
             "in order. Each item must contain dramatic_intent, visual_strategy, timed_beats (start_seconds, "
@@ -2913,7 +2916,7 @@ class CodexStagedContentRunner:
             "one generated image per frame or per second. Never claim AE can invent facial expressions or body "
             "actions from footage that does not show them. Every beat must fit its scene duration. Do not add "
             "decorative movement without a story reason. "
-            + DIRECTING_TASK + "\n" + VIDEO_POSTWORK_DIRECTOR_TASK + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only.",
+            + DIRECTING_TASK + "\n" + (VIDEO_POSTWORK_DIRECTOR_TASK if required_video_scene_count else "") + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only.",
         )
         try:
             directorial_plans = validate_directorial_plans(

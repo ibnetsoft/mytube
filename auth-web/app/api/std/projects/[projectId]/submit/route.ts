@@ -1,4 +1,4 @@
-import { hasSubmittedVideoPostwork } from '@/lib/stdSubmittedVideoPostwork'
+import { hasAllSceneParallax, hasSubmittedVideoPostwork } from '@/lib/stdSubmittedVideoPostwork'
 import { isNonverbalProject, hasReadyNonverbalPlan } from '@/lib/stdNonverbal'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { NextResponse } from 'next/server'
@@ -178,7 +178,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     let assets = loadedAssets || []
     try {
-        if(!motionAutomationEnabled(project)&&!hasSubmittedVideoPostwork(project,scenes||[],assets)) assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
+        if(!motionAutomationEnabled(project)&&!hasAllSceneParallax(project)&&!hasSubmittedVideoPostwork(project,scenes||[],assets)) assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
         if (!isNonverbalProject(project)) assets = await recoverStoredTtsAsset(project, assets)
     } catch (archiveError: any) {
         return NextResponse.json({
@@ -188,7 +188,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     }
 
     // Freeze prepared originals and finalized voice; the unified worker only executes them.
-    if(motionAutomationEnabled(project)||hasSubmittedVideoPostwork(project,scenes||[],assets)) {
+    if(motionAutomationEnabled(project)||hasAllSceneParallax(project)||hasSubmittedVideoPostwork(project,scenes||[],assets)) {
         try { const run=await registerMotionAutomation(project,scenes,assets,auth.requester.user.id)
             return NextResponse.json({success:true,...run,postprocess_pending:true,motion_automation:true,
                 message:'제출 완료. 원본 영상·확정 음성을 유지해 AE 입모양·효과를 후작업하고 검수 통과 후 최종 렌더링을 자동 진행합니다.'},{status:202})
