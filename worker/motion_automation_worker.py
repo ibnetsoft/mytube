@@ -308,6 +308,7 @@ This capability supersedes the prohibition on requesting supplemental artwork ab
 def renderer_cache_is_current(snapshot,record):
     from services.video_playback_policy import POLICY
     if record.get('video_playback_policy')!=POLICY:return False
+    if any(s.get('number')==record.get('number') and s.get('speech_bubble_plan',{}).get('cues') for s in snapshot.get('scenes',[])) and not record.get('speech_bubble_layout'):return False
     if snapshot.get('renderer',{}).get('engine')=='filmcraft':
         from filmcraft_render import VERSION
         from filmcraft_native import cache_is_current
@@ -456,6 +457,7 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
     package=plan.get('_supplemental_package')
     required_checks=CHECKS+('supplemental_assets',) if package else CHECKS
     if purpose_active(scene):required_checks+=('purpose_fit','sequence_rhythm')
+    if scene.get('speech_bubble_plan',{}).get('cues'):required_checks+=('bubble_readability','bubble_speaker_tail','bubble_occlusion')
     if scene.get('reviewed_depth_effects'):required_checks+=('depth_finishing',)
     reuse=scene.get('recorded_source_reuse')
     if reuse:required_checks+=('recorded_mouth_timing',)
@@ -476,6 +478,8 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
         for item in package['files']:
             a,b=item['motion']['start'],item['motion']['end']
             times.update(t*duration for t in (a,a+(b-a)*.15,(a+b)/2,b-(b-a)*.15,b))
+    for cue in (scene.get('_bubble_layout') or {}).get('bubbles',[]):
+        a,b=cue['start_seconds'],cue['end_seconds'];times.update((a+.08,(a+b)/2,b-.08))
     for key in plan['scene']['keys']:times.add(min(duration-1/30,key['t']*duration))
     for effect in plan['scene']['effects']:
         for t in (effect['start'],effect['start']+(effect['end']-effect['start'])*.4,effect['end']):times.add(min(duration-1/30,t*duration))
@@ -524,7 +528,7 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
                 'next_boundary':'reviewed on the next scene entry and final assembly; do not infer unseen next frames'},
             'paired_source_times':paired_times,'temporal_evidence':cadence,'audio_evidence':{'final_voice_sha256':digest(voice),'output_sha256':digest(output),'relative_pcm_error':relative_error,
                 'source_decoded_samples':len(source_pcm),'output_decoded_samples':len(out_pcm),'sample_rate':8000,'expected_duration':duration,'extracted_source_start':scene['start'],
-                'output_duration':len(out_pcm)/8000,'method':'decoded_pcm_not_listening'},'required_checks':required_checks}
+                'output_duration':len(out_pcm)/8000,'method':'decoded_pcm_not_listening'},'required_checks':required_checks,'speech_bubble_plan':scene.get('speech_bubble_plan'),'bubble_layout':scene.get('_bubble_layout')}
         context['webtoon_reference_crops']=[str(p) for p in source_crops]
         context['image_labels']=['saved source reference',*(['previous rendered end'] if previous else []),*([f'actual output {t:.6f}s' for t in paired_times] if paired_times else ['actual output sample']*len(frames)),*[f'actual input video {t:.6f}s' for t in paired_times],*['source/output tracked mouth or panel detail' for _ in source_crops],*(['approved supplemental asset']*len(package['files']) if package else [])]
         context['purpose_policy']=scene.get('purpose_policy') or (scene.get('creative_reference') or {}).get('purpose_policy')
@@ -541,6 +545,7 @@ def review_output(runner,output,reference,voice,scene,plan,directory,fresh,previ
             'For a video source, compare EACH rendered sample with its supplied time-aligned ACTUAL INPUT VIDEO sample for preservation of drawing and baked motion. The saved still reference constrains character identity, style, setting and narrative action; do not require an animated mouth, cloth fold, basket weave or camera pose to equal a different instant in a still drawing. Reject renderer-introduced changes, or source action/identity conflicts with the narration, without confusing normal source animation with a new rendering defect. '
             +('USER APPROVED SOURCE POLICY: preserve existing illustrative footage, including baked source action and differences from still/narration. Do not fail missing literal narrated action or pre-existing source acting. Fail renderer-introduced defects, corruption or changed audio/timing. Do not claim source/narration correspondence that is absent. ' if scene.get('_preserve_uploaded_video') and scene.get('source_kind')=='video' else '')+
             'For supplemental_assets compare the appended approved layers with their actual rendered placement and quoted subtitle window: reject changed faces/style, duplicate subjects, bad alpha edges, missing backgrounds and occluded text. '
+            'For bubble_readability, bubble_speaker_tail and bubble_occlusion inspect each actual cue: exact legible text, script-selected silhouette, connected tail pointing at the identified speaker throughout, and no face, focal object or subtitle occlusion. Fail clipping, duplicate baked bubbles, guessed/offscreen speakers and moving speakers whose tail drifts. Never approve a missing bubble. '
             'For submitted_video_postwork inspect source/output mouth closeups against exact finalized dialogue intervals and tracked face geometry. Only the identified speaking character may animate; narration/other speakers stay closed and confirmed offscreen speakers remain untouched. Validated mouth patches are the only permitted local face changes. Verify no duplicate lips, drifting patches, wrong identity, arbitrary camera or changed baked source motion. For postwork_narrative_fit verify visible fireflies occur only with their exact narrative cue, stay restrained and avoid faces/captions. transition_plan checks the requested outgoing edit; final assembly must independently check the rendered boundary. Metadata or a successful AE run never proves these checks. '
             'For recorded_mouth_timing inspect the actual mouth samples around each supplied recorded dialogue/narration interval: the visible correct speaker may move during dialogue, must settle during narration and other speakers; require the decoded old/current recording comparison. Old artifact readiness is not current approval. '
             'For ai_segment inspect actual generated frames and both insert boundaries; if absent confirm no generated segment. Uncertain identity, hidden effects, unsupported motion or absent evidence must fail. Never infer approval from a successful renderer. Audio measurements are not listening.')
@@ -766,6 +771,8 @@ def process_one(engine='ae'):
                     if scene.get('parallax_mouth'):
                         from parallax_mouth_postwork import apply as apply_parallax_mouth
                         visual=apply_parallax_mouth(runner,job,snapshot,scene,visual,voice,attempt_dir,fresh)
+                    from speech_bubbles import apply as apply_speech_bubbles
+                    visual=apply_speech_bubbles(runner,snapshot,scene,visual,attempt_dir,fresh)
                     from motion_media_storage import media_directory
                     output=media_directory(attempt_dir)/'voice-synced.mp4'
                     run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
@@ -789,7 +796,7 @@ def process_one(engine='ae'):
                     if repair_receipt:plan['purpose_repair']=repair_receipt
                     plans=[p if p['number']!=number else plan for p in plans];save(plans=plans)
             last=work/'reviewed-last-frame.png';run([ffmpeg(),'-v','error','-y','-sseof','-0.1','-i',str(output),'-frames:v','1',str(last)])
-            previous=last;record={'purpose_policy':scene.get('purpose_policy'),'purpose_repair':plan.get('purpose_repair'),'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
+            previous=last;record={'purpose_policy':scene.get('purpose_policy'),'purpose_repair':plan.get('purpose_repair'),'speech_bubble_layout':scene.get('_bubble_layout'),'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
             from services.video_playback_policy import POLICY
             record['video_playback_policy']=POLICY
             if video_postwork_enabled(scene):
@@ -874,6 +881,12 @@ def process_one(engine='ae'):
             final_fractions={.01,.1,.5,.9,.99}
             for effect in scene.get('reviewed_depth_effects',[]):
                 final_fractions.update((effect['start'],effect['start']+(effect['end']-effect['start'])*.4,effect['end']))
+            if scene.get('speech_bubble_plan',{}).get('cues'):
+                from speech_bubbles import bind as bind_bubble_times
+                bubble_rows=[r for r in snapshot['subtitles'] if int(r.get('scene_number') or 0)==scene['number']]
+                for cue in bind_bubble_times(scene['speech_bubble_plan'],bubble_rows,scene['start'],scene['end'])['cues']:
+                    a,b=cue['start_seconds'],cue['end_seconds']
+                    final_fractions.update(t/(scene['end']-scene['start']) for t in (a+.08,(a+b)/2,b-.08))
             for fraction in sorted(final_fractions):
                 t=max(0,min(scene['end']-scene['start']-2/snapshot['motion']['fps'],fraction*(scene['end']-scene['start'])))
                 frame=final_dir/f'final-{scene["number"]}-{fraction}.png';run([ffmpeg(),'-v','error','-y','-ss',str(t),'-i',str(segment),'-frames:v','1',str(frame)]);context['_local_image_paths'].append(str(frame.resolve()))
@@ -894,7 +907,10 @@ def process_one(engine='ae'):
             if scene.get('reviewed_depth_effects'):
                 context['required_checks']+=['depth_finishing']
                 context['reviewed_depth_effects']=scene['reviewed_depth_effects']
-            response=runner._stage('motion-final-'+digest(output)[:20],f'motion_final_review_{scene["number"]}',context,'Inspect actual final frames and captions, no metadata-only approval. Return {passed,repair_scope:direction_only|source_material|uncertain,critical_issues:[],checks:[{id:each required_checks,passed,evidence:specific actual pixels}]}. Fail clipping, unreadable/incorrect captions, unexpected black frames, identity defects or missing output. A planned fade_black intentionally reaches black exactly at the recorded boundary; inspect its adjacent frames and do not mistake planned black for corruption. Verify no shift of narration, subtitles or clip clock. For purpose_fit and sequence_rhythm judge actual boundary frames against adjacent script purposes: quiet dialogue, justified escalation, gaze/screen direction, lighting and restrained rhythm. repair_scope=direction_only is allowed only for added camera/effect strength or a cut; wrong source artwork, missing layers and uncertain defects require source_material/uncertain. For depth_finishing inspect actual final pixels for the selected per-plane blur/haze, sharp faces/captions and correct occlusion; fail missing or over-applied depth effects.')
+            if scene.get('speech_bubble_plan',{}).get('cues'):
+                context['required_checks']+=['bubble_readability','bubble_speaker_tail','bubble_occlusion']
+                context['speech_bubble_plan']=scene['speech_bubble_plan']
+            response=runner._stage('motion-final-'+digest(output)[:20],f'motion_final_review_{scene["number"]}',context,'Inspect actual final frames and captions, no metadata-only approval. For bubble checks verify exact readable dialogue and prescribed shape, connected speaker tail and no face/essential-object/caption occlusion; reject any uncertainty. Return {passed,repair_scope:direction_only|source_material|uncertain,critical_issues:[],checks:[{id:each required_checks,passed,evidence:specific actual pixels}]}. Fail clipping, unreadable/incorrect captions, unexpected black frames, identity defects or missing output. A planned fade_black intentionally reaches black exactly at the recorded boundary; inspect its adjacent frames and do not mistake planned black for corruption. Verify no shift of narration, subtitles or clip clock. For purpose_fit and sequence_rhythm judge actual boundary frames against adjacent script purposes: quiet dialogue, justified escalation, gaze/screen direction, lighting and restrained rhythm. repair_scope=direction_only is allowed only for added camera/effect strength or a cut; wrong source artwork, missing layers and uncertain defects require source_material/uncertain. For depth_finishing inspect actual final pixels for the selected per-plane blur/haze, sharp faces/captions and correct occlusion; fail missing or over-applied depth effects.')
             if not valid_review(response,context['required_checks']):
                 issue='Final assembled output needs repair: '+json.dumps(response.get('critical_issues'),ensure_ascii=False)
                 target=next(p for p in plans if p['number']==scene['number'])

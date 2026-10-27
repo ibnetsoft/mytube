@@ -1,5 +1,5 @@
 import scenePurposePolicy from './scenePurposePolicy.json'
-import { hasAllSceneParallax, freezeParallaxMouth } from './stdSubmittedVideoPostwork'
+import { hasScriptSpeechBubbles, hasAllSceneParallax, freezeParallaxMouth } from './stdSubmittedVideoPostwork'
 import { videoDialoguePostworkTargets } from './stdSubmittedVideoPostwork'
 import { hasSubmittedVideoPostwork, postworkMotion, originalPostworkVideo, freezeVideoPostwork, freezePreparedStillMouth, postworkDirection, VIDEO_POSTWORK_CONTRACT } from './stdSubmittedVideoPostwork'
 import { productionEngineError } from './stdProductionEnginePolicy'
@@ -25,7 +25,7 @@ import { horizontalWebtoon, webtoonInputs, readyWebtoonPlan } from './stdHorizon
 
 export function nativeVideoEligible(asset:any) { const m=asset?.metadata||{};return !['repaired_source_clip','motion_source_repair'].includes(m.kind)&&!m.source_repair&&(['original_speed_no_freeze_no_loop_v1','original_speed_no_freeze_no_loop/v1'].includes(String(m.video_tail_policy||m.tail_policy))||!/(hold|freeze|loop)/i.test(String(m.video_tail_policy||m.tail_policy||''))) }
 
-export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation) }
+export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
     const engineError=productionEngineError(project)
     if(engineError)throw new Error(engineError)
@@ -33,7 +33,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const videoPostwork=hasSubmittedVideoPostwork(project,scenes,assets)
     const postworkNumbers=new Set(videoPostwork?assets.filter(a=>originalPostworkVideo(a)&&Number(a.scene_number)>=1&&Number(a.scene_number)<=18).map(a=>Number(a.scene_number)):[])
     assertPreparationFinished(assets.filter(a=>!postworkNumbers.has(Number(a.scene_number))))
-    const motion=videoPostwork||allParallax?postworkMotion(project):motionForProject(project)!
+    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)?postworkMotion(project):motionForProject(project)!
     if(allParallax)motion.edit_mode=undefined
     const horizontal=!allParallax&&horizontalWebtoon(project)
     const horizontalInputs=horizontal?webtoonInputs(project,scenes,assets):[]
@@ -89,6 +89,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
             ...(effectivePurpose?{purpose_policy:effectivePurpose}:{}),
+            ...(creative?.speech_bubble_plan?.contract==='speech_bubble_presets/v1'?{speech_bubble_plan:creative.speech_bubble_plan}:{}),
             ...(reviewedDepth.length?{reviewed_depth_effects:reviewedDepth}:{}),
             ...(allParallax?{parallax_plan:planned.parallax_plan,parallax_mouth:freezeParallaxMouth(project,recordedRows)}:{}),
             ...(postwork?{direction_contract:VIDEO_POSTWORK_CONTRACT,postwork}:!horizontal&&directedScene(creative)?{direction_contract:creative.contract}:{}),
@@ -110,6 +111,10 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const selected=!effectcraft&&motion.automation.mode==='hybrid'?await selectedVideoModel(project.employee_email):null
     const snapshot={version:1,...(allParallax?{all_scene_parallax:'all_scene_parallax/v1',execution_policy:{review_policy:'required_actual_source_output/v1'}}:{}),...(videoPostwork?{submitted_video_postwork:VIDEO_POSTWORK_CONTRACT,video_dialogue_targets:videoDialoguePostworkTargets(ordered),execution_policy:{review_policy:'required_actual_source_output/v1',video_playback_policy:'original_speed_no_freeze_no_loop/v1'}}:{}),...(motion.final_renderer==='filmcraft'?{final_renderer:{engine:'filmcraft',adapter:filmcraftNativeContract.adapter,profile:filmcraftNativeContract.profile}}:{}),...(effectcraft?{renderer:{engine:'effectcraft',revision:effectcraftSource.revision,version:effectcraftSource.version}}:filmcraft?{renderer:{engine:'filmcraft',revision:filmcraftSource.revision,version:filmcraftSource.version,adapter:filmcraftNativeContract.adapter,profile:filmcraftNativeContract.profile,gpu_composition:filmcraftNativeContract.gpu_composition}}:horizontal?{renderer:{engine:'ae_horizontal_webtoon',version:1}}:{}),project:{id:project.id,employee_email:project.employee_email},motion:effectcraft?{...motion,automation:{...motion.automation,mode:'ae_only'}}:motion,...((effectcraft||horizontal)?{execution_policy:{video_playback_policy:'original_speed_no_freeze_no_loop/v1',review_policy:'skip_user_requested/v1',source_policy:'preserve_uploaded_video/v1',authorization:'default_submission_existing_assets_without_review'}}:{}),settings,subtitles,audio,scenes:ordered,sounds,sfx_cues:resolveSfxCues(cues,subtitles),
         model_ref:selected?{id:selected.config.id,fingerprint:selected.fingerprint,config:selected.config}:null}
+    if(ordered.some(s=>s.speech_bubble_plan?.cues?.length)){
+        if(effectcraft||filmcraft)throw new Error('새 말풍선 프리셋은 After Effects 렌더러로 제출해 주세요.')
+        Object.assign(snapshot,{execution_policy:{review_policy:'required_actual_source_output/v1',video_playback_policy:'original_speed_no_freeze_no_loop/v1'}})
+    }
     if(effectcraft)Object.assign(snapshot,{supplemental_assets:ecSupplementalAssetsContract})
     const snapshot_json=JSON.stringify(snapshot)
     if(Buffer.byteLength(snapshot_json)>4_000_000)throw new Error('제출 데이터가 너무 큽니다.')

@@ -120,3 +120,20 @@ test('all-scene parallax automatically registers prepared PSD with exact dialogu
  assert.deepEqual(s.scenes[0].reviewed_depth_effects,[approvedDepth]);assert.equal(s.scenes[0].purpose_policy.role,'dialogue');assert.equal(s.scenes[0].purpose_policy.max_move_ratio,.006);
  assert.equal(s.all_scene_parallax,'all_scene_parallax/v1');assert.equal(s.scenes[0].source_kind,'psd');assert.equal(s.scenes[0].parallax_mouth.dialogue[0].start,0);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].end,20);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].speaker,'hero');assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1');assert.equal(f.calls.models,0);
 });
+
+test('script bubble choices freeze into the AE scene with mandatory output review',async()=>{
+ const f=fixture();const plan={contract:'speech_bubble_presets/v1',cues:[{text:'Final voice',speaker:'A',style:'dialogue',reason:'ordinary speech'}]}
+ f.project.project_payload.structure={scenes:[{scene_number:1,scene_direction_plan:{speech_bubble_plan:plan}}]}
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json)
+ assert.deepEqual(s.scenes[0].speech_bubble_plan,plan)
+ assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1')
+ assert.equal(s.scenes[0].start,0);assert.equal(s.scenes[0].end,20)
+})
+
+test('script bubble-only still projects automatically enter native AE without motion editor opt-in',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.enabled=false
+ f.project.project_payload.structure={scenes:[{scene_number:1,scene_direction_plan:{speech_bubble_plan:{contract:'speech_bubble_presets/v1',cues:[{text:'Final voice',speaker:'A',style:'dialogue',reason:'spoken'}]}}}]}
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json)
+ assert.equal(s.motion.enabled,true);assert.equal(s.motion.automation.mode,'ae_only')
+ assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1')
+})

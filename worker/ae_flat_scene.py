@@ -79,4 +79,7 @@ def write_jsx(plan, layer_paths, project, native, jsx, duration, fps=24):
     for(var a=0;a<P.camera.length;a++) key(opacity,P.camera[a].t,P.camera[a].opacity);
     linear(opacity);
 ''' + script[end:]
+    if plan.get('speech_bubbles'):
+        from speech_bubble_shapes import BUBBLE_JSX
+        script=script.replace('    var item=app.project.renderQueue.items.add(comp);', BUBBLE_JSX+'\n    var item=app.project.renderQueue.items.add(comp);')
     jsx.write_text('var S = '+json.dumps(data,ensure_ascii=True,allow_nan=False)+';\n'+script,encoding='utf-8')

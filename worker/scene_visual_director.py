@@ -320,6 +320,9 @@ def validate_directorial_plans(
         }
         if not direction["visual_strategy"] or not direction["qa_assertions"]:
             raise ValueError(f"visual direction {index} needs visual_strategy and nonempty qa_assertions")
+        from speech_bubbles import validate_script as validate_bubbles
+        bubble_plan=validate_bubbles(raw,scene)
+        if bubble_plan is not None:direction['speech_bubble_plan']=bubble_plan
         direction['depth_effects'] = normalize_depth_finishing(raw,scene,layers)
         direction['depth_effects_reason'] = str(raw.get('depth_effects_reason') or '').strip()
         direction['parallax_plan'] = parallax_selection(scene, direction)

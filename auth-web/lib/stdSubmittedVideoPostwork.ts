@@ -14,6 +14,9 @@ export function hasSubmittedVideoPostwork(project:any,scenes:any[],assets:any[])
     const numbers=new Set(scenes.map(s=>Number(s.scene_number)).filter(n=>n>=1&&n<=18))
     return assets.some(a=>numbers.has(Number(a.scene_number))&&originalPostworkVideo(a))
 }
+export function hasScriptSpeechBubbles(project:any) {
+    return motionProductionMethod(project)==='ae' && (project.project_payload?.structure?.scenes||[]).some((s:any)=>(s.scene_direction_plan||s.ae_directorial_plan)?.speech_bubble_plan?.contract==='speech_bubble_presets/v1'&&(s.scene_direction_plan||s.ae_directorial_plan).speech_bubble_plan.cues?.length>0)
+}
 export function postworkMotion(project:any) {
     const draft=defaultMotionDraft(project.project_payload?.render_settings?.motion)
     return {...draft,enabled:true,production_method:'ae' as const,automation:{mode:'ae_only' as const,max_ai_clips:1,max_ai_seconds:5}}

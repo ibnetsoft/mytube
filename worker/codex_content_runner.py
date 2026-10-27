@@ -2871,6 +2871,7 @@ class CodexStagedContentRunner:
                 dialogue_context['validation_feedback'] = str(exc)
         for scene,annotation in zip(scenes,structure['dialogue_annotations']['scenes']):
             scene['has_character_dialogue']=bool(annotation['spans'])
+            scene['dialogue_spans']=annotation['spans']
         from worker.elevenlabs_performance import plan_performance
         structure['audio_performance'] = plan_performance(self._stage, job_id, scenes, setting['language'])
         direction_profile = resolve_directing_profile(payload)
@@ -2883,7 +2884,7 @@ class CodexStagedContentRunner:
             "script": script,
             "scenes": [{
                 **{key: scene.get(key) for key in (
-                    "scene_number", "duration_seconds", "scene_summary", "scene_situation", "parallax_mode", "has_character_dialogue", "direction_policy_version",
+                    "scene_number", "duration_seconds", "scene_summary", "scene_situation", "parallax_mode", "has_character_dialogue", "direction_policy_version", "dialogue_spans",
                     "scene_purpose", "scene_emotion", "character_choice", "emotional_shift",
                     "reveal_or_question", "scene_text", "narration",
                 )},
@@ -2893,7 +2894,7 @@ class CodexStagedContentRunner:
         visual_task = (
             (SCENE_VISUAL_DIRECTOR_PERSONA if payload.get("parallax_mode")!="all_scenes" else __import__("script_parallax").ALL_TASK) + "\n\nACTIVE DIRECTING PROFILE — "
             + direction_profile["label"] + " (" + direction_profile["id"] + "):\n"
-            + direction_profile["directive"] + "\n\nFor every supplied scene return one scene_directions item "
+            + direction_profile["directive"] + "\n" + __import__("speech_bubbles").TASK + "\n\nFor every supplied scene return one scene_directions item "
             "in order. Each item must contain dramatic_intent, visual_strategy, timed_beats (start_seconds, "
             "end_seconds, action, target, optional attention_target), required_layers (empty when no separated "
             "asset is needed), optional additional_keyframes (only individually justified layers, never a timed "
