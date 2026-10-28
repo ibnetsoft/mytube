@@ -41,6 +41,21 @@ def test_frozen_input_and_mode_boundaries():
     for mutate in [lambda s:s.update(model_ref={'id':'x'}),lambda s:s['scenes'][0].update(start=.01),lambda s:s['scenes'][0].update(source_kind='unknown'),lambda s:s['scenes'].append(s['scenes'][0].copy())]:
         value=copy.deepcopy(s);mutate(value);pytest.raises(NeedsReview,unseal,sealed(value))
 
+
+@pytest.mark.parametrize('duration', [18, 180])
+def test_paragraph_scene_recorded_timing_accepts_inclusive_bounds(duration):
+    s=snapshot()
+    s['scenes'][0].update(end=duration, creative_reference={'paragraph_scene_timing': {'min_seconds':18,'max_seconds':180}})
+    assert unseal(sealed(s)) == s
+
+
+@pytest.mark.parametrize('duration', [17.99, 180.01, 240])
+def test_paragraph_scene_recorded_timing_blocks_out_of_bounds_before_production(duration):
+    s=snapshot()
+    s['scenes'][0].update(end=duration, creative_reference={'paragraph_scene_timing': {'min_seconds':18,'max_seconds':180}})
+    with pytest.raises(NeedsReview, match='18~180'):
+        unseal(sealed(s))
+
 def test_ae_only_never_accepts_generated_insert():
     s=snapshot();response=direction();assert validate_direction(response,s['scenes'][0],s,[])['ai'] is None
     response['ai']={'start':0,'duration':3,'prompt':'Keep exact identity; wind only.'}
@@ -68,8 +83,8 @@ def test_supervisor_dispatches_automation_without_a_manual_editor():
     command=role_command('motion_automation')
     assert command[-1]=='--once' and command[2].endswith('motion_automation_worker.py')
     assert command[command.index('--engine')+1]=='ae'  # Existing frozen queue keeps its engine.
-    filmcraft=role_command('filmcraft')
-    assert filmcraft[filmcraft.index('--engine')+1]=='filmcraft'
+    with pytest.raises(ValueError,match='비활성화'):
+        role_command('filmcraft')
 
 def test_local_psd_preparation_supplies_native_layer_paths_and_rejects_changes(tmp_path):
     from PIL import Image

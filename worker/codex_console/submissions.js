@@ -8,11 +8,17 @@
   const panel = element('article', undefined, 'panel');
   panel.append(element('h2', '사용자 등록 토픽'), element('p', '내용을 확인하고 승인하면 대본 작성을 시작합니다. 승인 전에는 실행되지 않습니다.'));
   const toolbar = element('div', undefined, 'toolbar'), state = element('select');
+  state.id='web-topic-state';state.setAttribute('aria-label','웹 토픽 승인 상태');
   for (const [value, text] of [['pending', '승인 대기'], ['approved', '승인됨'], ['rejected', '반려']]) {
     const option = element('option', text); option.value = value; state.append(option);
   }
   const reload = element('button', '새로고침'), list = element('div'), detail = element('article', undefined, 'panel');
-  detail.hidden = true; toolbar.append(state, reload); panel.append(toolbar, list); section.append(panel, detail);
+  const search=element('input'),searchStatus=element('p',undefined,'muted');
+  search.placeholder='원문·한국어 번역·토픽 번호 검색';search.setAttribute('aria-label','웹 토픽 검색');
+  function filterRows(){const term=search.value.trim().toLocaleLowerCase();let count=0;for(const row of list.querySelectorAll('[data-topic-row]')){row.hidden=!row.textContent.toLocaleLowerCase().includes(term);if(!row.hidden)count++;}searchStatus.textContent=term?'검색 결과 '+count+'건':'';}
+  search.oninput=filterRows;list.addEventListener('console-title-updated',filterRows);
+  search.id='web-topic-search';bindConsoleSearch(search,filterRows);
+  detail.hidden = true; toolbar.append(state, search, reload); panel.append(toolbar, searchStatus, list); section.append(panel, detail);
   document.querySelector('main').append(section);
   let loading = false, reviewing = false, revision = 0;
   async function load() {
@@ -21,8 +27,8 @@
       const data = await api('web-topics?state=' + state.value); list.replaceChildren();
       if (!data.items.length) list.append(element('p', '등록된 토픽이 없습니다.', 'muted'));
       for (const item of data.items) {
-        const row = element('div', undefined, 'toolbar');
-        row.append(element('strong', item.title), element('span', item.owner_email + ' · ' + new Date(item.created_at).toLocaleString(), 'muted'));
+        const row = element('div', undefined, 'toolbar');row.dataset.topicRow='true';
+        row.append(titleNode(item), element('span', item.owner_email + ' · ' + new Date(item.created_at).toLocaleString(), 'muted'));
         const open = element('button', '내용 보기'); open.onclick = () => show(item.id); row.append(open);
         if (item.job_id) {
           const result = element('button', '작업 상태 · 결과');
@@ -31,6 +37,7 @@
         }
         list.append(row);
       }
+      filterRows();
     } catch (e) { error(e.message); }
     finally { loading = false; }
   }
@@ -38,8 +45,8 @@
     const current = ++revision; detail.hidden = true;
     try {
       const row = await api('web-topics/' + id); if (current !== revision) return;
-      const brief = row.request_data; detail.replaceChildren(element('h2', row.title), element('p', row.owner_email));
-      const translatedNodes = {title: detail.querySelector('h2')};
+      const brief = row.request_data; detail.replaceChildren(titleNode(row,'h2'), element('p', row.owner_email));
+      const translatedNodes = {};
       const translationStatus = element('p', '한국어 번역 중… (로컬 Codex)', 'muted');
       detail.append(translationStatus);
       const original = element('details'); original.append(element('summary', '원문 보기'), element('h3', row.title));

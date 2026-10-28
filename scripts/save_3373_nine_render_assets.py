@@ -1,0 +1,15 @@
+import sys,json,hashlib,uuid,datetime
+from pathlib import Path
+sys.path[:0]=['worker'];from dotenv import load_dotenv;load_dotenv('.env')
+import ae_highlight_worker as ae
+p=Path('output/codex-local-console/mouth-data-nine-3373');data=json.loads((p/'mouth-data.json').read_text(encoding='utf8'));videos=json.loads((p/'video-assets.json').read_text(encoding='utf8'));deliveries=json.loads((p/'nine-render-deliveries.json').read_text(encoding='utf8'));saved=[];statements=[]
+for d in deliveries:
+ n=d['number'];record=next(r for r in data['scenes'] if r['number']==n);tracking=json.loads((p/f'processing-{n}/mouth-images-ready.json').read_text(encoding='utf8'));path=Path(d['path']);receipt=p/f'processing-{n}/cloud-delivery.json'
+ if receipt.exists():cloud=json.loads(receipt.read_text(encoding='utf8'))
+ else:
+  bucket,key,_=ae._upload_gcs_file(path,f'std-projects/{data["project_id"]}/ae-mouth/geometry-v2-nine-{d["sha256"][:16]}/scene-{n}.mp4','video/mp4');cloud={'id':str(uuid.uuid4()),'bucket':bucket,'path':key};receipt.write_text(json.dumps(cloud),encoding='utf8')
+ old=next((v for v in videos if v['scene_number']==n),videos[0]);ci=dict(old['metadata'].get('content_identity') or {});ci.update(scene_number=n,scene_key=data['project_id']+':'+str(n));ci.update(parent_asset_ids=[record['image_id'],d['audio_asset_id'],'5c7dfa29-370a-4817-973e-7e5a235f9b7d'],generation_job_id='geometry-v2-nine-'+d['sha256'][:16],audio_asset_id=d['audio_asset_id'])
+ md={'storage_provider':'gcs','gcs_bucket':cloud['bucket'],'gcs_path':cloud['path'],'storage_bucket':cloud['bucket'],'storage_path':cloud['path'],'content_identity':ci,'timing_locked':True,'ae_reviewed':True,'ae_reviewed_by':'codex','ae_reviewed_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'ae_review_note':'Actual source, three mouth poses and rendered first/middle/end plus active-speech frames inspected. Full output decode passed. Camera-only clean source tracks all frames.','duration_seconds':d['duration'],'render_sha256':d['sha256'],'source_image_id':record['image_id'],'source_audio_id':d['audio_asset_id'],'source_video_id':None,'video_tracking':{k:v for k,v in tracking['report'].items() if not isinstance(v,(list,dict))},'video_coordinate_asset_id':'5c7dfa29-370a-4817-973e-7e5a235f9b7d','mouth_geometry_version':2,'mouth_animation_mode':'amplitude_driven_three_pose','clean_source_rebuilt':True,'ae_mouth_fingerprint':'geometry-v2-nine-'+d['sha256'][:16]}
+ sql="insert into public.std_project_assets(id,project_id,scene_number,asset_type,status,file_name,mime_type,file_size,storage_bucket,storage_path,metadata) values ('%s','%s',%s,'video','uploaded','scene_%s_ae_mouth_geometry_v2.mp4','video/mp4',%s,'%s','%s',$json$%s$json$::jsonb) on conflict(id) do nothing;"%(cloud['id'],data['project_id'],n,n,path.stat().st_size,cloud['bucket'],cloud['path'],json.dumps(md,ensure_ascii=False))
+ statements.append(sql);saved.append({**d,**cloud});print(json.dumps({'scene':n,'cloud_saved':True}),flush=True)
+(p/'save-render-assets.sql').write_text('\n'.join(statements),encoding='utf8');(p/'cloud-deliveries.json').write_text(json.dumps(saved,ensure_ascii=False,indent=2),encoding='utf8')

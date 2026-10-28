@@ -1,0 +1,25 @@
+const fs=require('node:fs'),path=require('node:path');
+const rt=require('../scripts/std_web_runtime.cjs');
+const db=rt.load('supabaseAdmin').supabaseAdmin;
+const {normalizeSubtitleFragments}=rt.load('stdSubtitleFragments');
+(async()=>{
+ const id='dcf670cc-ace7-4c3f-861f-186441724d08';
+ const {data:p,error}=await db.from('std_projects').select('*').eq('id',id).single();if(error)throw error;
+ if(p.submitted_at)throw Error('Project was submitted; do not alter frozen work');
+ const rows=p.project_payload.subtitles,index=rows.findIndex(r=>r.id==='sub-71-4-quote-2'&&r.text==='言');
+ if(index<0)throw Error('Expected original fragment is absent; inspect before retrying');
+ if(rows[index+1]?.text!=='い終えると涙が落ちた。'||rows[index+1].scene_number!==71)throw Error('Adjacent narration changed');
+ const pair=normalizeSubtitleFragments(rows.slice(index,index+2),20,{punctuationOnly:true});
+ if(pair.length!==1||pair[0].text!=='言い終えると涙が落ちた。')throw Error('Repair did not preserve original text');
+ const next=[...rows.slice(0,index),pair[0],...rows.slice(index+2)];
+ if(next.map(r=>r.text).join('')!==rows.map(r=>r.text).join(''))throw Error('Spoken text changed');
+ const dir='D:/AIRStudio/verification/subtitle-kanji-20261025';fs.mkdirSync(dir,{recursive:true});
+ fs.writeFileSync(path.join(dir,'project-before.json'),JSON.stringify(p,null,2));
+ const result=await db.from('std_projects').update({project_payload:{...p.project_payload,subtitles:next},updated_at:new Date().toISOString()}).eq('id',id).eq('updated_at',p.updated_at).select('id,updated_at');
+ if(result.error)throw result.error;if(result.data.length!==1)throw Error('Concurrent project edit; no repair applied');
+ const verify=await db.from('std_projects').select('project_payload').eq('id',id).single();if(verify.error)throw verify.error;
+ const saved=verify.data.project_payload.subtitles.find(r=>r.id===pair[0].id);
+ if(saved.text!==pair[0].text||saved.start_num!==rows[index].start_num||saved.end_num!==rows[index+1].end_num)throw Error('Stored repair verification failed');
+ const proof={project:id,scene:71,before_rows:rows.length,after_rows:next.length,text:saved.text,voice_id:saved.voice_id,start:saved.start_num,end:saved.end_num,audio_files_unchanged:true};
+ fs.writeFileSync(path.join(dir,'verification.json'),JSON.stringify(proof,null,2));console.log(JSON.stringify(proof));
+})().catch(e=>{console.error(e.message);process.exitCode=1});

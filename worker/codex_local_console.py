@@ -34,6 +34,7 @@ sys.path.insert(0, str(ROOT / 'worker'))
 from dotenv import load_dotenv
 for env_path in (ROOT / '.env', ROOT / '.env.local', ROOT / 'auth-web/.env.local'):
     load_dotenv(env_path, override=False)
+import worker_config as local_worker_config  # Configure the worker data/scratch drive before any jobs start.
 
 PORT = 3003
 ORIGIN = f'http://127.0.0.1:{PORT}'
@@ -285,6 +286,7 @@ class StartRequest(BaseModel):
     script_style: Literal['story', 'japanese_historical_documentary', 'japanese_domestic_drama', 'nonverbal_preschool'] = 'story'
     production_mode: Literal['standard', 'moving_comic', 'nonverbal_preschool'] = 'standard'
     direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
+    parallax_mode: Literal['selective', 'all_scenes'] = 'selective'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)
@@ -308,14 +310,25 @@ class StartRequest(BaseModel):
     @model_validator(mode='after')
     def validate_image_layer_scene_range(self):
         long_sermon = self.mode == 'grounded' and self.grounded_type == 'sermon'
-        if not long_sermon and (self.duration_minutes > 60 or len(self.source_ids) > 12):
-            raise ValueError('설교 외 모드는 최대 60분·자료 12개입니다.')
+        from worker.story_chapters import applies as long_story
+        if not long_sermon and ((self.duration_minutes > 60 and not long_story(self.model_dump())) or len(self.source_ids) > 12):
+            raise ValueError('일반 모드는 최대 60분입니다. 일본어·이야기·기존 영상 신규 생성은 장별 야담으로 최대 180분까지 가능합니다.')
+        if long_story(self.model_dump()) and (self.duration_seconds is not None or self.youtube_url):
+            raise ValueError('장편 야담은 분 단위 목표와 직접 입력한 이야기로 제작하세요. 원본 영상 길이 지정과 함께 사용할 수 없습니다.')
+        if long_story(self.model_dump()) and self.chapter_minutes < 15:
+            raise ValueError('장편 야담은 장별 목표를 15~20분으로 설정하세요.')
         if self.production_mode == 'nonverbal_preschool':
             if self.duration_minutes > 10 or (self.duration_seconds and self.duration_seconds > 600):
                 raise ValueError('논버벌 유아 애니메이션은 1~10분으로 설정하세요.')
             self.script_style = 'nonverbal_preschool'
             self.required_video_scene_count = 0
             self.image_layer_mode = 'full_psd'
+        if self.parallax_mode == 'all_scenes':
+            if self.production_mode != 'standard':raise ValueError('전체 패럴럭스는 기본 제작 모드에서 선택하세요.')
+            self.required_video_scene_count=0
+            self.image_layer_mode='full_psd'
+            self.image_layer_scene_start=None
+            self.image_layer_scene_end=None
         start, end = self.image_layer_scene_start, self.image_layer_scene_end
         if (start is None) != (end is None):
             raise ValueError('레이어 생성 시작 씬과 종료 씬을 함께 입력하세요.')
@@ -608,8 +621,9 @@ def asset(name: str):
 
 
 SCRIPT_SETTING_FIELDS = frozenset(('category', 'category_id', 'duration_minutes', 'language',
+    'chapter_minutes',
     'setting_country', 'era_region', 'image_style', 'script_style', 'production_mode',
-    'direction_profile', 'image_layer_mode', 'image_layer_scene_start', 'image_layer_scene_end',
+    'direction_profile', 'parallax_mode', 'image_layer_mode', 'image_layer_scene_start', 'image_layer_scene_end',
     'required_video_scene_count', 'generate_bgm_prompt', 'notes'))
 SCRIPT_SETTINGS_KEY = 'codex_script_defaults_' + WORKER_ID
 
@@ -842,19 +856,33 @@ def catalog(kind: str = 'topic', page: int = 0, q: str = ''):
               'id,title,status,employee_email,topic_queue_id,submitted_at,project_payload,progress_payload',
               'order': 'id.desc' if topic else 'updated_at.desc', 'offset': page * 40, 'limit': 40}
     if q.strip():
-        # Quote reserved PostgREST characters instead of accepting filter syntax.
-        safe = q.strip().replace('\\', '\\\\').replace('"', '\\"').replace('*', '').replace('%', '').replace('_', '')
-        fields = ['topic', 'generated_title'] if topic else ['title', 'employee_email']
-        clauses = [f'{field}.ilike."*{safe}*"' for field in fields]
-        if topic and q.isdigit():
-            clauses.append(f'id.eq.{int(q)}')
-        params['or'] = '(' + ','.join(clauses) + ')'
+        from worker.console_title_search import catalog_filter
+        params['or'] = catalog_filter(q, kind, jobs.root)
     try:
         rows, total = db_read('topics_queue' if topic else 'std_projects', **params)
         return {'items': [summary(row, kind) for row in rows], 'total': total, 'page': page,
                 'has_more': len(rows) == 40 if total is None else (page + 1) * 40 < total}
     except Exception:
         raise HTTPException(502, '목록을 읽지 못했습니다. DB 연결/설정을 확인하세요. 0건으로 처리하지 않습니다.')
+
+
+class TitleDisplayItem(BaseModel):
+    title: str = Field(max_length=2000)
+    topic_id: str | int | None = None
+    project_id: str | None = None
+
+
+class TitleDisplayRequest(BaseModel):
+    items: list[TitleDisplayItem] = Field(max_length=100)
+
+
+@app.post('/api/title-display')
+def title_display(request: TitleDisplayRequest):
+    from worker.console_title_display import display_titles
+    try:
+        return display_titles([item.model_dump() for item in request.items], store, jobs)
+    except StoreUnavailable as exc:
+        raise HTTPException(502, str(exc))
 
 
 @app.get('/api/categories')
@@ -1002,6 +1030,8 @@ def job_detail(bundle):
     candidate = bundle.get('candidate') or {}
     snapshot = bundle.get('source') or {}
     job_row = dict(bundle['job'])
+    from worker.story_chapters import progress as story_progress
+    chapter_progress = story_progress(jobs.root / job_row['id']) if re.fullmatch(r'[a-f0-9]{32}', job_row['id']) else None
     from worker.content_language import resolve_setting
     content_setting = candidate.get('content_setting') or job_row.get('content_setting')
     if not content_setting and (job_row.get('language') or job_row.get('setting_country')):
@@ -1011,7 +1041,7 @@ def job_detail(bundle):
         'label': '배경 설정 저장 완료 (실제 이미지 생성은 후속 단계에서 적용)',
         'summary': content_setting.get('summary_label') if content_setting else '',
     }
-    return {'job': job_row, 'script': candidate.get('action_script') or candidate.get('script', ''),
+    return {'job': job_row, 'story_progress': chapter_progress, 'script': candidate.get('action_script') or candidate.get('script', ''),
             'content_setting': content_setting, 'image_stage_info': image_stage_info,
             'sfx_summary': {'status': (candidate.get('sfx_plan') or {}).get('status', 'not_run'),
                             'count': len(candidate.get('sfx_cues') or []),
@@ -1034,7 +1064,7 @@ def history(page: int = 0, origin: Literal['all', 'dedicated', 'legacy'] = 'all'
             'completed', 'awaiting_approval', 'approved_pending_repair', 'canceled'):
         raise HTTPException(400, '조회 조건을 확인하세요.')
     try:
-        return store.history(page, origin, q, state)
+        return store.history(page, origin, q, state, translation_root=jobs.root)
     except StoreUnavailable as exc:
         raise HTTPException(502, str(exc))
 
@@ -1103,7 +1133,8 @@ def retry_job(identity: str):
             current = source(request.kind, request.source_id)
             if not snapshot or snapshot['fingerprint'] != current['fingerprint']:
                 raise ValueError('원본이 변경됐습니다. 대본 보관함에서 새 수정 작업을 시작하세요.')
-        if request.mode == 'grounded' and request.grounded_type == 'sermon':
+        from worker.story_chapters import applies as long_story
+        if (request.mode == 'grounded' and request.grounded_type == 'sermon') or long_story(request.model_dump()):
             # Resume in the SAME directory: chapter files and fingerprints stay intact.
             return jobs.start(request, snapshot, bundle['references'], retry_of=identity, identity=identity)
         return jobs.start(request, snapshot, bundle['references'], retry_of=identity)

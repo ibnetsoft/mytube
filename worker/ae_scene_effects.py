@@ -5,10 +5,12 @@ No effect may replace source artwork or silently skip missing AE capabilities.
 """
 import math
 
-EFFECT_TYPES = frozenset({
+DEPTH_EFFECT_TYPES = frozenset({'depth_background_blur','depth_foreground_blur','depth_background_haze'})
+
+EFFECT_TYPES = DEPTH_EFFECT_TYPES | frozenset({
     'atmospheric_haze', 'warm_dust_motes', 'focus_glow', 'light_sweep',
     'impact_flash', 'heat_distortion', 'subtle_vignette', 'speedline_burst',
-    'impact_shake', 'shock_ring', 'energy_trail', 'particle_burst', 'debris_burst',
+    'impact_shake', 'shock_ring', 'energy_trail', 'particle_burst', 'debris_burst', 'fireflies',
 })
 
 
@@ -41,7 +43,25 @@ def validate_effects(plan, requested=None):
             raise ValueError('AE effect radius must be within 0.02..1')
         if not isinstance(effect.get('reason'), str) or not effect['reason'].strip():
             raise ValueError('AE effect needs a scene-grounded reason')
-        if kind == 'heat_distortion':
+        if kind == 'fireflies':
+            from submitted_video_postwork import FIREFLY_WORDS
+            if not FIREFLY_WORDS.search(str(effect.get('story_quote') or '')):raise ValueError('Fireflies need an explicit narrative cue')
+            count=effect.get('count')
+            if isinstance(count,bool) or not isinstance(count,int) or not 4<=count<=24:raise ValueError('Firefly count must be 4..24')
+            if not number(effect.get('size'),.001,.004) or not number(effect.get('speed'),.005,.03) or not number(effect.get('radius'),.05,.4) or not number(effect.get('intensity'),.05,.35):raise ValueError('Fireflies must use restrained size, speed, radius and intensity')
+            protected=effect.get('protected_regions')
+            if not isinstance(protected,list) or len(protected)>40 or any(not isinstance(b,list) or len(b)!=4 or not all(number(v,0,1) for v in b) or b[2]<=b[0] or b[3]<=b[1] for b in protected):raise ValueError('Firefly face/text protection regions are invalid')
+        if kind in DEPTH_EFFECT_TYPES:
+            if len(layers)<2:raise ValueError('Depth finishing cannot filter a flattened full-scene image')
+            target=layers.get(effect.get('target_layer'),{})
+            expected='foreground' if kind=='depth_foreground_blur' else 'background'
+            if target.get('role')!=expected:raise ValueError('Depth finishing requires the matching separated plane, never a character')
+            if not number(effect['intensity'],.05,.35):raise ValueError('Depth finishing must remain restrained')
+            if kind.endswith('_blur') and not number(effect.get('blur_pixels'),1,12):raise ValueError('Depth blur needs 1..12 source pixels')
+            foreground=[l['z_index'] for l in layers.values() if l.get('role')=='foreground']
+            characters=[l['z_index'] for l in layers.values() if l.get('role')=='character']
+            if foreground and characters and min(foreground)<=max(characters):raise ValueError('Foreground occlusion must remain above characters')
+        elif kind == 'heat_distortion':
             target = effect.get('target_layer')
             if not isinstance(target, str) or layers.get(target, {}).get('role') not in ('background', 'prop'):
                 raise ValueError('Heat distortion requires a separated background or prop, never a character')
@@ -108,6 +128,45 @@ function applySceneEffects(source,layers) {
   var effects=S.plan.effects||[];
   for(var e=0;e<effects.length;e++) {
     var E=effects[e],layer,fx,opacity,span=E.end-E.start;
+    if(E.type==="depth_background_blur" || E.type==="depth_foreground_blur") {
+      layer=layers[E.target_layer];if(!layer)throw new Error("Missing separated depth blur plane");
+      fx=sceneFx(layer,"ADBE Gaussian Blur 2");
+      fx.property(3).setValue(true);
+      effectEnvelope(fx.property(1),E,E.blur_pixels*E.intensity);
+      continue;
+    }
+    if(E.type==="depth_background_haze") {
+      var backdrop=layers[E.target_layer];if(!backdrop)throw new Error("Missing separated haze background");
+      layer=source.layers.addSolid(E.color,"ae_effect_depth_background_haze",W,H,1,S.duration);
+      layer.moveBefore(backdrop);effectMask(layer,E,false);
+      effectEnvelope(layer.property("ADBE Transform Group").property("ADBE Opacity"),E,25*E.intensity);
+      continue;
+    }
+    if(E.type==="fireflies") {
+      var made=0,protect=(E.protected_regions||[]).concat([[0,.78,1,1]]);
+      for(var attempt=0;attempt<240 && made<E.count;attempt++) {
+        var angle=attempt*2.3999632297,dist=E.radius*Math.sqrt(((attempt*37)%101)/101);
+        var px=E.center[0]+Math.cos(angle)*dist,py=E.center[1]+Math.sin(angle)*dist;
+        var dx=Math.sin(attempt*1.7)*E.speed,dy=-E.speed*(.4+(attempt%5)*.12),safe=true;
+        if(Math.min(px,px+dx)<.01 || Math.max(px,px+dx)>.99 || Math.min(py,py+dy)<.01 || Math.max(py,py+dy)>.77)continue;
+        for(var pr=0;pr<protect.length;pr++){var B=protect[pr],pad=E.size*4;
+          if(Math.max(px,px+dx)+pad>B[0]&&Math.min(px,px+dx)-pad<B[2]&&Math.max(py,py+dy)+pad>B[1]&&Math.min(py,py+dy)-pad<B[3])safe=false;}
+        if(!safe)continue;
+        layer=source.layers.addShape();layer.name="ae_effect_firefly_"+made;
+        var contents=layer.property("ADBE Root Vectors Group"),size=Math.max(1,Math.min(W,H)*E.size);
+        for(var halo=0;halo<2;halo++) {
+          var group=contents.addProperty("ADBE Vector Group"),shapes=group.property("ADBE Vectors Group");
+          var ellipse=shapes.addProperty("ADBE Vector Shape - Ellipse");ellipse.property("ADBE Vector Ellipse Size").setValue([size*(halo?1:3),size*(halo?1:3)]);
+          var fill=shapes.addProperty("ADBE Vector Graphic - Fill");fill.property("ADBE Vector Fill Color").setValue(E.color);fill.property("ADBE Vector Fill Opacity").setValue(halo?100:15);
+        }
+        layer.blendingMode=BlendingMode.SCREEN;
+        var tr=layer.property("ADBE Transform Group");key(tr.property("ADBE Position"),E.start,[px*W,py*H]);key(tr.property("ADBE Position"),E.end,[(px+dx)*W,(py+dy)*H]);linear(tr.property("ADBE Position"));
+        var op=tr.property("ADBE Opacity"),steps=Math.max(4,Math.ceil((E.end-E.start)*S.duration*3));
+        for(var pulse=0;pulse<=steps;pulse++){var at=E.start+(E.end-E.start)*pulse/steps;key(op,at,(pulse===0||pulse===steps)?0:E.intensity*(35+65*(.5+.5*Math.sin(pulse*1.6+made*2.1))));}linear(op);made++;
+      }
+      if(made!==E.count)throw new Error("Firefly region cannot avoid protected faces/text; repair direction");
+      continue;
+    }
     if(E.type==="heat_distortion") {
       layer=layers[E.target_layer];
       if(!layer) throw new Error("Missing reviewed distortion target");

@@ -8,7 +8,15 @@
 | 사용자 확인 | 유저웹 | 이미지의 영상화·업로드, 최종 화자 지정, 음성·자막 확인과 제출. 화자가 바뀌어 준비 좌표와 일치하지 않으면 준비를 보완한 뒤 제출 |
 | 제출 후 제작 | 통합워커 `http://127.0.0.1:3004` | `제출 후 실행·검수 상태`: 준비한 소재와 연출로 AE 실행, 최종 음성에 시간 맞춤, 실제 출력 검수, 최종 렌더. `영상 생성 모델 · API`: 제공자·모델·키 설정 |
 
-AE는 통합워커의 실행 기능이다. AE를 위한 이미지 관찰·얼굴/입 좌표·입모양 소재·레이어·창작 연출 계획은 대본워커가 준비한다. 통합워커는 준비된 연출의 타이밍을 최종 음성에 맞추며, 누락된 소재나 좌표를 임의로 새로 생성하지 않는다. 필요한 준비가 없으면 수정 필요 상태로 남긴다.
+AE는 통합워커의 실행 기능이다. AE를 위한 이미지 관찰·얼굴/입 좌표·입모양 소재·레이어·창작 연출 계획은 대본워커가 준비한다. 통합워커는 준비된 연출의 타이밍을 최종 음성에 맞추며 실행을 검증한다. `motion_automation_worker.py`의 `direction` 단계는 화면에서 **실행 검증·마무리 보정**으로 표시한다. `scene_direction_plan/v2`에서는 준비된 카메라·주요 연출을 유지하면서 마무리 효과 0~2개와 컷·크로스페이드를 보정할 수 있다. 구형 계약은 효과·전환까지 유지한다. 누락된 기본 소재·좌표는 대본워커에서 보완하고 다시 제출한다.
+
+대본·씬의 창작 연출 의도는 `worker/codex_content_runner.py`, 실제 원본·PSD를 확인한 실행 계획은 `worker/ae_scene_preparation.py`와 `motion_preview_worker.py`의 direction 작업에서 준비한다. 실제 `AfterFX`·`aerender`는 통합워커가 있는 Windows 컴퓨터에서 실행한다. Vercel과 웹어드민은 AE 실행기가 아니다.
+
+## 제작 상태와 웹어드민
+
+`/admin/ae-worker`의 **After Effects 제작 현황**은 프로젝트별로 제출 전 연출·좌표·레이어 준비, 제출 후 입모양·모션·가로 웹툰·영역 AE 실행, 최종 조립을 함께 표시한다. 활성 작업은 페이지로 모두 수집하고, 이력은 준비·제작 큐와 최종 렌더 큐 각각 100건씩 페이지로 조회한다. 컴퓨터 온라인 여부·씬 제작 완료·검수 완료·최종 영상 완료는 구분한다. 관리자 게시·YouTube 업로드는 별도다.
+
+실행 계열은 현재 유지한다. `motion_automation`은 연출 실행 검증·마무리 보정과 정책에 따른 출력 검수를 수행한다. `ae_mouth_job` 공통 파이프라인 v2는 제출 고정본을 기술적으로 조립하며 과거 자동 연출·미관 검수 단계를 모두 반복하지 않는다. 최종 조립은 `remote_render_queue`가 담당한다. 이번 현황 정리는 작업을 다시 제출하거나 큐를 자동 변환하지 않는다.
 
 ## 코드와 저장소
 
@@ -33,6 +41,64 @@ AE는 통합워커의 실행 기능이다. AE를 위한 이미지 관찰·얼굴
 
 다시 준비해야 할 경우 제출을 취소하거나 프로젝트를 재개한 뒤 대본워커에서 수정하고 유저웹에서 다시 확인·제출한다. 관리자 게시와 YouTube 업로드는 별도 절차다.
 
-## EffectCraft 추가 엔진
+## 별도 제작 옵션 · 현재 비활성
 
-기존 AE를 기본으로 유지하며, Motion Studio에서 명시적으로 선택한 EffectCraft 작업만 `effectcraft_automation` 전용 큐로 등록한다. 이 큐는 통합워커가 같은 모션 제작 실행기를 `--engine effectcraft`로 호출해 처리한다. 대본워커의 준비·검수 패키지와 최종 음성 고정, 출력 검수·관리자 검토 경계는 그대로다. 구버전 AE 워커는 이 큐를 가져오지 않는다. 엔진 빌드·설치와 미검증 범위는 [EFFECTCRAFT_INTEGRATION.md](EFFECTCRAFT_INTEGRATION.md)에 기록한다.
+2026-10-27부터 After Effects 씬 제작과 기본 FFmpeg 최종 조립을 사용한다. `auth-web/lib/productionEnginePolicy.json`의 `alternative_engines_enabled=false`가 공통 릴리스 정책이다. EffectCraft·FilmCraft·브라우저 Motion Studio는 접힌 별도 옵션으로 분리하며 선택·신규 제출·실행을 차단한다. FFmpeg는 기본 영상 조립 구성요소이므로 중지 대상이 아니다.
+
+기존 대체 엔진의 설정·큐·결과는 보존하며 AE로 자동 변환하지 않는다. 미제출 프로젝트에서 After Effects와 기본 조립으로 전환·저장하고 필요하면 다시 제출한다. 통합워커는 비활성 대체 큐를 소비하지 않는다. 재활성화는 별도 릴리스로 웹·워커의 정책을 함께 검증해야 한다. 과거 통합 기록은 [EFFECTCRAFT_INTEGRATION.md](EFFECTCRAFT_INTEGRATION.md)를 참조한다.
+
+일반 이미지·영상의 모션 제작도 `worker/ae_flat_scene.py`를 통해 실제 Adobe AE로 실행한다. 기존 MoviePy 프레임 제작 분기는 사용하지 않는다. 원본 단일 레이어와 저장된 카메라·효과만 전달하며, 영상은 1배속을 유지한다. 원본 영상이 확정 씬보다 짧으면 보완 상태로 중지한다. 최종 인코딩·조립은 FFmpeg가 담당한다. 이전 Python 모션 캐시는 새 AE 실행 결과로 간주하지 않으며, 사용자가 선택한 기존 소스 파일은 보존한다.
+
+
+## 1~18씬 제출 영상 후작업 · 2026-10-27
+
+`submitted_video_postwork/v1`은 사용자가 제출한 1~18씬 원본 영상에 적용한다. 일반 AE 설정이 꺼져 있어도 이 구간의 업로드 영상은 제출 시 `motion_automation` 공통 실행기로 등록한다. 프로젝트를 다시 제출하지 않는 기존 고정 작업은 자동 변경하지 않는다.
+
+- 대본워커: 씬 대본의 정확한 문구를 근거로 `submitted_video_postwork` 효과·전환 지침을 작성한다. 반딧불은 해당 문구에 반딧불이 명시될 때만 요청한다. 밤이라는 이유만으로 넣지 않는다. 영상의 기존 카메라·몸동작은 유지한다.
+- 유저웹: 원본 영상·대사 화자·확정 녹음·음향을 확인해 제출한다. 내레이션에는 입모양을 요청하지 않는다. 기존 19씬 이후 정지 이미지의 준비된 입모양 대상·소재는 유지한다.
+- 통합워커: 실제 제출 영상의 화자를 로컬 Codex CLI로 확인하고 이동·크기·회전을 추적한다. **사용자가 명시적으로 요청한 제출 후 준비의 예외**로, 실제 기준 프레임에서 필요한 입 상태 패치만 준비하고 원본·닫힘·중간·열림 합성 검수를 통과시킨다. 다른 원화·동작·음성을 생성하는 권한은 아니다. 기존 정지 이미지 입모양은 사전 검수한 소재만 재사용한다.
+- AE: 추적 입모양과 반딧불을 동일 원본 프리컴프에 한 번 합성한다. 추가 카메라·오디오 반응 조명은 넣지 않는다. 반딧불은 느리고 작은 광점으로 제한하고 화자 이동 범위와 자막·글자 영역을 피한다.
+- 최종 조립: 이 제출 계약은 컷·짧은 암전 전환(`fade_black`)을 인접 씬 경계에서 한 번만 적용한다. 암전은 고정된 경계 전·후의 밝기만 조절하며 클립을 겹쳐 길이를 줄이지 않는다. 소스 핸들이 없는 크로스페이드를 정지·반복·시각 이동으로 흉내 내지 않는다. 영상 1배속과 확정 음성·자막 시간은 바꾸지 않는다. 영상이 짧으면 정지·반복·속도 변경으로 메우지 않고 보완 상태로 중지한다.
+- 검수: 원본/출력의 같은 시각 프레임과 입 주변 확대, 정확한 대사 구간, 효과의 대본 근거와 위치, 전환·최종 음성 시간을 확인한다. 이 계약에는 검수 생략이나 필수 입모양의 원본 대체 정책을 적용할 수 없다. 실제 출력 검수 영수증이 없으면 최종 조립으로 넘어가지 않으며, 최종 경계·자막·음향 검수를 통과한 파일만 완료로 저장한다.
+
+핵심 코드: `auth-web/lib/stdSubmittedVideoPostwork.ts`, `worker/submitted_video_postwork.py`, `worker/ae_flat_scene.py`, `worker/ae_scene_effects.py`. 이 구조는 실패한 작업의 원본·음성·완료 결과를 보존하며 재시도에서 지문이 일치하는 결과만 재사용한다.
+
+이 계약의 DB 완료 함수는 실제 씬 검수·필수 입모양·최종 경계·음성 시간 영수증을 요구한다. 워커나 저장된 과거 정책에 검수 생략 값이 있어도 새 계약에는 적용하지 않는다. 마이그레이션 `submitted_video_postwork_review_gate`와 순수 JSON SQL 회귀 검증을 함께 관리한다.
+
+### Script-worker dialogue jump index (scenes 1–18)
+
+- The final-script dialogue analysis publishes `structure.video_dialogue_postwork_index` (`script_video_dialogue_index/v1`). Each target contains scene number, exact source hash, speaker, verbatim quote, Unicode code-point offsets, stable dialogue ID and confirmation/evidence. Scenes without dialogue are absent; scene 19+ stays in its existing preparation flow.
+- Script generation never guesses audio seconds. Submission binds these script targets to the actual source video ID and finalized narration rows in `snapshot.video_dialogue_targets` (`video_dialogue_targets/v1`), including global and clip-local start/end times. Ambiguous speakers or disconnected confirmed script dialogue stop submission.
+- The integrated worker validates complete target coverage, scene/video identity, speaker and exact voice clock before work. It jumps to the indexed source scene and consumes its frozen intervals for mouth preparation; it does not rediscover which scene contains dialogue. Actual face/visibility tracking and output review remain mandatory. Old snapshots without this additive index retain their frozen behavior; re-generated scripts and new submissions receive it.
+
+### Script-selected still parallax
+
+The scene visual director may explicitly select `depth_parallax` for still scenes 19 onward when the script calls for a meaningful depth reveal. `parallax_plan` records intent and exactly three layer instructions: full-canvas clean background with occluded areas reconstructed, transparent middle-plane character, and transparent foreground. Uploaded video scenes are ineligible. Unsupported separation requires repair, never a flattened-copy depth proxy or a generic zoom fallback.
+
+Script selections enter `parallax_scene_numbers` and force `parallax_layered_scene` PSD preparation independent of manual scene ranges and automatic credit ranking. Each required PNG is generated against the same finalized scene PNG with original coordinates, camera, identity and lighting; instructions travel in the exported scene-assets manifest. The estimate records three individual generation units, plus the existing source-image share. Existing alpha/registration checks, PSD assembly and actual visual layer review still gate publishing. The web submission rejects a selected parallax scene whose reviewed PSD source is missing; existing mouth/PSD compatibility checks also remain active.
+
+### Optional all-scene parallax production
+
+Choose **전체 씬 · 분리 레이어로 AE 영상 제작** under **패럴럭스 제작** in the script worker (also available in saved defaults). `parallax_mode=all_scenes` sets required uploaded video scenes to zero and uses full PSD preparation. Every scene, including 1–18, must have a script-grounded three-plane plan, registered source artwork and reviewed separated materials. This is an alternative image-to-AE production mode; it does not modify existing uploaded videos or resubmit projects.
+
+Submission automatically selects each prepared PSD, requires actual relative plane motion rather than a uniform flat zoom, preserves final voice/subtitle times, and requires scene/final review. Dialogue is processed after the depth render: the local worker tracks the speaker in that moving result and performs an identity-camera mouth-only AE pass. It never applies the depth move a second time. Missing layers, unsupported separation or uncertain speakers stop for repair. Existing selective mode remains the default. Character denotes the middle-plane subject; empty landscapes must not acquire invented people. Source artwork and three individual layer generations per scene increase material preparation work.
+
+### Optional depth-plane finishing
+
+Script directions can select `depth_effects` independently for separated still artwork: `depth_background_blur`, `depth_foreground_blur`, `depth_background_haze`. They are optional even in all-scene parallax mode. The PSD preparation panel exposes the same individual choices and a **공간 깊이** preset; explicit user selection overrides the script default. Gaussian blur is bounded to 1–12 source pixels scaled by restrained intensity and can target only its background/foreground plane. Haze is inserted immediately above the background, below characters and foreground; the original foreground occlusion order must remain valid. Faces/characters are never blur targets; readable artwork must remain legible in actual-art review.
+
+These are layered PSD effects, not whole-video filters. Generic flat-image/video motion controls cannot select them. Missing layers, excessive strength, an inverted foreground order or unavailable native AE effects fail preparation. Reviewed depth finishing survives final voice-bound camera/effect binding and is rendered once; scene and final output QA still govern completion. No source dialogue or narration clock is changed.
+
+### Automatic all-scene depth finishing review
+
+For newly generated all-scene parallax scripts, every scene must explicitly supply `depth_effects` plus `depth_effects_reason`. An empty list with a scene-specific reason is valid; an omitted decision is rejected. PSD preparation uses the script choices by default, and the UI displays the reasoning. Actual-image review may repair unsuitable strength/planes before approval; explicit user overrides remain authoritative.
+
+Submission freezes the approved per-plane effect parameters as `reviewed_depth_effects`. Native execution rejects missing/changed reviewed depth effects after camera binding. Scene review requires a named `depth_finishing` check; final review samples effect-on times and checks the same effect, face/caption clarity and original occlusion. Missing these evidence-backed checks blocks final completion even if the generic review says passed. Narration/subtitle timing remains unchanged. Existing frozen jobs are not rewritten; new scripts/submissions receive these stronger contracts.
+
+### Purpose-directed intensity and supervised automatic repair
+
+New script generation marks `scene_purpose_direction/v1`. The script director receives shared role limits from `auth-web/lib/scenePurposePolicy.json`; confirmed/uncertain character speech from the validated dialogue analysis takes precedence over a dramatic role. Dialogue camera travel is capped at 0.006 canvas units, scale change at 0.012, rotation at 0.2 degrees, and finishing intensity at 0.12. Location/clue/action/reaction/resolution/hold have their own bounds and effect allowlists. Action-only impacts still require the original exact event cue. The real new-script path propagates parallax mode to every scene, including 1–18 in all-scene mode. Script direction validation may ask Codex to repair only direction up to twice without rewriting narration or dialogue.
+
+Final submission freezes purpose limits using finalized dialogue attribution. Prepared PSD and flat AE execution validate actual camera, resolved layer movement and effects against those limits. Scene reviews receive previous rendered end, next source preview, adjacent script text and explicit `purpose_fit` / `sequence_rhythm` checks. Final review inspects actual boundary frames and requires the same checks.
+
+Automatic output repair is limited to evidence-backed direction-only defects (camera/effect strength, excessive rhythm, or a cut), at most twice per scene across scene and final reviews. Each retry halves added movement, removes optional finishing and reduces retained depth/required firefly intensity within safe bounds; it never retimes speech, changes artwork, removes required mouth work or alters baked source video movement. Original approved preparation files remain immutable; runtime amendments are recorded in `purpose_repair` and every repaired output must pass fresh review. Final-review repairs requeue the same frozen job and invalidate only the affected scene receipt, preserving voice, inputs and other reviewed outputs. Missing review evidence, failed source/audio/caption integrity, uncertain scope, missing layers and exhausted attempts stop for repair/escalation, never automatic approval. The user/admin screens display the automatic repair phase. Existing frozen jobs retain their original contract.

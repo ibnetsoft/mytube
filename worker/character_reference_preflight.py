@@ -48,6 +48,8 @@ def _ready_identity(identity: dict, scenes: list[dict]) -> dict | None:
             or any(not character.get("image_url") or not (character.get("gcs_path")
                        or character.get("storage_object_path")) for character in characters)):
         return None
+    from worker.character_face_distinctness import current_cast
+    if not current_cast(characters):return None
     return character_design_anchors(validated)
 
 
@@ -89,6 +91,11 @@ def ensure_character_references(row: dict, structure: dict, output_dir: Path, *,
     if not isinstance(scenes, list) or not scenes or any(not isinstance(scene, dict) for scene in scenes):
         raise RuntimeError("Final scenes are required before character reference preflight")
     topic_id = int(row["id"])
+    from worker.character_model_sheet import has_model_sheet
+    setting_payload = {**row, **structure, **(structure.get('content_setting') or {}), 'topic_queue_id': topic_id}
+    setting_payload['image_style'] = setting_payload.get('image_style') or row.get('assigned_image_style') or 'realistic'
+    def sheets_ready(ready):
+        return all(has_model_sheet(c, setting_payload) for c in _characters(ready))
     fingerprint = census_fingerprint(script, scenes)
     anchors = structure.get("character_anchors") or {
         "main_character": structure.get("main_character"),
@@ -98,7 +105,7 @@ def ensure_character_references(row: dict, structure: dict, output_dir: Path, *,
     census = anchors.get("cast_census") or {}
     if census.get("fingerprint") == fingerprint and census.get("reference_policy") == POLICY:
         ready = _ready_identity({**anchors, "scene_cast": census.get("scene_cast")}, scenes)
-        if ready:
+        if ready and sheets_ready(ready):
             return _apply(structure, ready)
 
     if store is None:
@@ -122,7 +129,7 @@ def ensure_character_references(row: dict, structure: dict, output_dir: Path, *,
         ready = _ready_identity({"main_character": ordered[0], "supporting_characters": ordered[1:],
                                  "scene_cast": census.get("scene_cast"), "cast_census": census,
                                  "reference_policy": POLICY}, scenes)
-        if ready:
+        if ready and sheets_ready(ready):
             store.sync_matching_projects(topic_id, script, ready, output_dir / "project-link-backups")
             return _apply(structure, ready)
 

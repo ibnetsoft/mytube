@@ -27,18 +27,25 @@ const payload = {
     structure: { character_anchors: { main_character: characters[0], supporting_characters: characters.slice(1) } },
 }
 
-function harness({ projectPayload = payload, authenticated = true } = {}) {
+function harness({ projectPayload = payload, authenticated = true, imageBytes = new Uint8Array([1, 2, 3]), registry = null } = {}) {
     const filters = []
     const downloads = []
     let queries = 0
     const query = {
         select: () => query,
         eq: (key, value) => { filters.push([key, value]); return query },
-        maybeSingle: async () => ({ data: projectPayload ? { project_payload: projectPayload } : null, error: null }),
+        order: () => query, limit: () => query,
+        maybeSingle: async () => ({ data: projectPayload ? { project_payload: projectPayload, ...(registry ? { topic_queue_id: 42 } : {}) } : null, error: null }),
     }
     const route = load('app/api/std/projects/[projectId]/character-thumbnail/route.ts', {
         'next/server': { NextResponse: Response },
-        '@/lib/supabaseAdmin': { supabaseAdmin: { from: () => { queries += 1; return query } } },
+        '@/lib/supabaseAdmin': { supabaseAdmin: { from: table => {
+            queries += 1
+            if (table !== 'topic_character_assets') return query
+            const reference = { select: () => reference, eq: () => reference, order: () => reference,
+                limit: () => reference, maybeSingle: async () => ({ data: registry, error: null }) }
+            return reference
+        } } },
         '@/lib/stdWeb': {
             requireStdUser: async () => authenticated
                 ? { ok: true, requester: { email: 'owner@example.com' } }
@@ -46,10 +53,11 @@ function harness({ projectPayload = payload, authenticated = true } = {}) {
         },
         '@/lib/stdCharacterProtection': characterProtection,
         '@/lib/stdCharacterThumbnail': characterThumbnail,
+        'sharp': { default: require('sharp') },
         '@/lib/gcsStorage': {
             getGcsConfig: async () => ({}),
             gcsBucketName: () => 'studio-assets',
-            downloadGcsObject: async object => { downloads.push(object); return new Uint8Array([1, 2, 3]) },
+            downloadGcsObject: async object => { downloads.push(object); return imageBytes },
         },
     })
     return {
@@ -97,6 +105,39 @@ test('slots are bounded by the actual authorized character list', async () => {
     assert.equal((await app.get('?slot=23')).status, 400)
     assert.equal(app.queries(), 1)
     assert.equal(app.downloads.length, 0)
+})
+
+test('model sheets are reduced to small WebP images without cropping or exposing originals', async () => {
+    const sharp = require('sharp')
+    const imageBytes = await sharp({ create: { width: 2048, height: 1152, channels: 3, background: '#557766' } }).png().toBuffer()
+    const character = { name: 'Lead', character_key: 'lead', image_url: '/portrait.png', character_sheet_assets: [{
+        type: 'model_sheet', status: 'ready', profile: 'turnaround', fingerprint: 'version-one',
+        image_url: '/api/std/assets/gcs-file?bucket=studio-assets&path=topics/42/characters/lead/sheets/model.png',
+        gcs_bucket: 'studio-assets', gcs_path: 'topics/42/characters/lead/sheets/model.png',
+    }] }
+    const projectPayload = { structure: { main_character: character } }
+    const app = harness({ projectPayload, imageBytes })
+    const response = await app.get('?slot=0&sheet=model_sheet&preview=1')
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('content-type'), 'image/webp')
+    const result = await sharp(Buffer.from(await response.arrayBuffer())).metadata()
+    assert.equal(result.width, 160)
+    assert.equal(result.height, 90)
+    const safe = characterProtection.protectCharacterReferenceUrls(projectPayload, 'project-id')
+    const sheet = safe.structure.main_character.character_sheet_assets[0]
+    assert.match(sheet.image_url, /slot=0&sheet=model_sheet&v=version-one/)
+    assert.equal(sheet.gcs_path, undefined)
+    assert.equal(projectPayload.structure.main_character.character_sheet_assets[0].gcs_path, character.character_sheet_assets[0].gcs_path)
+    const restored = harness({ projectPayload: safe, imageBytes, registry: {
+        image_url: character.image_url, usage_context: { character_design: character },
+    } })
+    assert.equal((await restored.get('?slot=0&sheet=model_sheet')).status, 200)
+    assert.equal(restored.downloads[0].objectPath, 'topics/42/characters/lead/sheets/model.png')
+    const denied = harness({ projectPayload, authenticated: false, imageBytes })
+    assert.equal((await denied.get('?slot=0&sheet=model_sheet')).status, 401)
+    assert.equal(denied.downloads.length, 0)
+    assert.equal((await app.get('?slot=0&sheet=../../other')).status, 400)
+    assert.equal((await app.get('?slot=0&sheet=lipsync')).status, 404)
 })
 
 test('authentication and project ownership are checked before reading any character asset', async () => {

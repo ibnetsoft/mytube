@@ -101,3 +101,8 @@ rebuild_*_log.txt
 /.pytest-*/
 /supabase/.temp/
 /secret-well-*.json
+
+# Local test runs, generated media and debugging scratch
+/.pytest_*/
+/_dev/artifacts/
+**/.tmp-debug.ts

@@ -5,6 +5,7 @@ function fixture(options={}){
   const q={select(){return q},eq(k,v){state.filters.push([table,k,v]);return q},order(){return q},update(b){action='update';body=b;return q},insert(b){action='insert';body=b;return q},maybeSingle(){return Promise.resolve({data:table==='std_projects'?(options.missing?null:state.project):null})},then(resolve){if(action!=='select')state.writes.push({table,action,body});return Promise.resolve({data:table==='std_project_scenes'?[{scene_number:1,scene_title:'scene'}]:null,error:table==='std_project_assets'&&action==='insert'&&options.reservationConflict?{code:'23505'}:null}).then(resolve)}};return q}}
  const ex={},code=ts.transpileModule(fs.readFileSync(path.join(__dirname,'../app/api/std/projects/[projectId]/web-motion/route.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText
  new Function('exports','require',code)(ex,name=>{
+ if(name.includes('stdProductionEnginePolicy'))return {alternativeEnginesEnabled:options.alternativesEnabled!==false};
   if(name==='crypto')return crypto
   if(name==='next/server')return {NextResponse:{json:(data,init)=>Response.json(data,init)}}
   if(name.endsWith('supabaseAdmin'))return {supabaseAdmin:db}
@@ -56,13 +57,14 @@ test('ordinary submission cannot send a saved web project back to local AE or le
   const ex={},project={id:'p',status:'in_progress',project_payload:{render_settings:{motion:{enabled:true,web:{mode,inserts:{}}}}}}
   const query={select(){return query},eq(){return query},maybeSingle:async()=>({data:project})}
   new Function('exports','require',code)(ex,name=>{
+ if(name.includes('stdProductionEnginePolicy'))return require('./load-ts-module.cjs')('lib/stdProductionEnginePolicy.ts');
    if(name==='next/server')return {NextResponse:{json:(data,init)=>Response.json(data,init)}}
    if(name.endsWith('supabaseAdmin'))return {supabaseAdmin:{from:()=>query}}
    if(name.endsWith('stdWeb'))return {requireStdUser:async()=>({ok:true,requester:{email:'owner@example.com'}})}
    if(name.endsWith('stdMotionStudio'))return {motionProductionMethod:()=> 'motion_studio'}
    return new Proxy({},{get(){throw Error('Web submission reached a legacy worker dependency')}})
   })
-  const response=await ex.POST(req({}),params);assert.equal(response.status,409);assert.equal((await response.json()).code,'web_motion_export_required')
+  const response=await ex.POST(req({}),params);assert.equal(response.status,409);assert.equal((await response.json()).code,'alternative_engine_disabled')
  }
 })
 test('AE-selected projects cannot accidentally create a paid web job or submit browser output',async()=>{
@@ -82,3 +84,5 @@ test('owned project prepared originals fill scenes without uploaded assets and r
  const sha='a'.repeat(64),project={id:'p',employee_email:'owner@example.com',status:'in_progress',project_payload:{structure:{scenes:[{scene_number:1,metadata:{cowork_image_asset:{gcs_bucket:'air-studio-prod',gcs_path:`topics/prepared/0123456789abcdef/images/scene-001-${sha.slice(0,16)}.png`,sha256:sha}}}]}}};const f=fixture({project});const response=await f.ex.GET(new Request('https://test/web-motion'),{params:{projectId:'p'}});assert.equal(response.status,200);const body=await response.json();assert.equal(body.scenes[0].source.kind,'image');assert.equal(body.scenes[0].source.sha256,sha);assert.match(body.scenes[0].source.url,/^\/api\/std\/assets\/gcs-file\?/)
  const {preparedWebImage}=require('./load-ts.cjs')(path.resolve(__dirname,'../lib/stdWebMotionSources.ts'));assert.equal(preparedWebImage(project,{scene_number:1,project_id:'foreign'}),null);const bad=structuredClone(project);bad.project_payload.structure.scenes[0].metadata.cowork_image_asset.gcs_path='https://outside/scene.png';assert.throws(()=>preparedWebImage(bad,{scene_number:1,project_id:'p'}))
 })
+
+test('disabled browser option blocks creation and review before provider calls or writes',async()=>{for(const action of ['create','review']){const f=fixture({alternativesEnabled:false});const res=await f.ex.POST(req({action}),params);assert.equal(res.status,409);assert.equal(f.state.providerPosts,0);assert.equal(f.state.writes.length,0)}});

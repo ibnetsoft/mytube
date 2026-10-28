@@ -91,3 +91,11 @@ def test_native_http_boundary_and_local_storage_upload(monkeypatch,tmp_path):
         assert captured[0][1]==b'file'
     finally:
         client.close();server.shutdown();server.server_close()
+
+
+def test_all_scene_parallax_normalizes_request_without_requiring_uploaded_clips():
+    request=console.StartRequest(mode='new',parallax_mode='all_scenes',required_video_scene_count=18,image_layer_mode='hybrid',image_layer_scene_start=19,image_layer_scene_end=35)
+    assert request.required_video_scene_count==0
+    assert request.image_layer_mode=='full_psd'
+    assert request.image_layer_scene_start is None and request.image_layer_scene_end is None
+    assert 'parallax_mode' in console.SCRIPT_SETTING_FIELDS

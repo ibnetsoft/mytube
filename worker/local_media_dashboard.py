@@ -6,6 +6,23 @@ from datetime import datetime, timezone
 
 _connections = threading.local()
 
+# Reviewed Korean titles, keyed by the exact source so edited titles never reuse a stale translation.
+_PREPARED_KO = {
+    '【江戸人情噺】夜ごと隠居所を訪ねる十七歳の娘――大黒屋三千両の秘密': '【에도 인정 이야기】밤마다 은거처를 찾는 열일곱 살 소녀 ― 다이코쿠야 삼천 냥의 비밀',
+    '追い出した友が、向かいの宿にいた｜信州宿場の人情噺': '쫓아낸 친구가 맞은편 여관에 있었다｜신슈 역참마을의 인정 이야기',
+    '[E2E TEST] 日本歴史・ナレーションのみ・駿府': '[E2E TEST] 일본 역사 · 내레이션만 · 슨푸',
+}
+
+def korean_title(project, topic=None):
+    title = project.get('title') or ''
+    for payload in (topic or {}, project.get('source_titles') or {}, project.get('project_titles') or {}):
+        for translations in (payload.get('title_translations'), payload.get('progress_titles'), payload.get('structure_titles'), payload.get('metadata_titles')):
+            value = (translations or {}).get('ko')
+            if isinstance(value, str) and value.strip() and value.strip() != title:
+                return value.strip()
+    return _PREPARED_KO.get(title, '')
+
+
 def query_session():
     # Reuse TLS connections and retry only read requests after transient failures.
     if not hasattr(_connections, 'session'):
@@ -74,9 +91,17 @@ def fetch_jobs():
         row['metadata'] = {'std_web_project_id':row.get('web_id')}
         jobs.append(summarize(row, True))
     ids = sorted({j['project_id'] for j in jobs if j['project_id'] and len(str(j['project_id'])) == 36})
-    titles = {p['id']:p.get('title') for p in query('std_projects', {'select':'id,title','id':'in.('+','.join(ids)+')','submitted_at':'not.is.null','status':'not.in.(approved,canceled,cancelled,completed,paid)'})} if ids else {}
+    titles = {p['id']:p for p in query('std_projects', {'select':'id,title,topic_queue_id,source_titles:source_payload->title_translations,project_titles:project_payload->title_translations','id':'in.('+','.join(ids)+')','submitted_at':'not.is.null','status':'not.in.(approved,canceled,cancelled,completed,paid)'})} if ids else {}
     jobs=[job for job in jobs if job['project_id'] in titles]
-    for job in jobs: job['title'] = titles.get(job['project_id']) or job['title'] or '이름 없는 프로젝트'
+    topic_ids = sorted({str(p['topic_queue_id']) for p in titles.values() if p.get('topic_queue_id') is not None})
+    topics = {str(t['id']):t for t in query('topics_queue', {'select':'id,progress_titles:progress_payload->title_translations,structure_titles:pregenerated_structure->title_translations,metadata_titles:publish_metadata->title_translations','id':'in.('+','.join(topic_ids)+')'})} if topic_ids else {}
+    for job in jobs:
+        project = titles[job['project_id']]
+        job['title'] = project.get('title') or job['title'] or '이름 없는 프로젝트'
+        job['topic_queue_id'] = project.get('topic_queue_id')
+        # The projections above are translation dictionaries, not full project payloads.
+        project = {**project, 'source_titles':{'title_translations':project.get('source_titles')}, 'project_titles':{'title_translations':project.get('project_titles')}}
+        job['title_ko'] = korean_title(project, topics.get(str(job['topic_queue_id'])))
     return sorted(jobs, key=lambda j:j['created_at'] or '', reverse=True)
 
 class Snapshot:

@@ -299,9 +299,17 @@ If input.requested_effects is present, include exactly those effect types once e
 Effects need increasing normalized start/end windows, source-canvas center/radius and RGB color 0..1.
 Heat distortion requires target_layer with role background or prop; never distort people, text, or faces.
 Impact shake needs at least 3% camera overscan at every camera key so the source canvas never exposes an edge.
+Depth finishing effects are depth_background_blur, depth_foreground_blur, depth_background_haze.
+Use target_layer for the exact separated background or foreground semantic layer ID; never target a character.
+Blur effects need blur_pixels:1..12 with intensity .05.. .35. Background haze uses restrained intensity .05.. .35,
+a source-space center/radius/color, and is composited directly above the background, BELOW every character and foreground.
+Keep foreground z_index higher than character z_index so original occlusion remains correct. Never blur faces or readable art text.
+Honor input.scene_context.creative_reference.depth_effects when requested_effects is unspecified; preserve specified per-effect reasons.
+If requested_effects is provided, it is authoritative. Missing separated planes or unsafe text/face overlap => needs_repair.
 Other effects are source-space overlays and must omit target_layer. Keep effects subtle and motivated by the scene;
 for each effect add QA assertions for visibility, timing, readability and preserved character identity.
 If selected effects cannot safely fit the scene, return needs_repair, never omit a requested effect.
+If creative_reference.purpose_policy exists, obey its camera/layer travel, scale, rotation and intensity caps. Lighting opacity keys must not exceed intensity*100; lights plus effects must fit max_effects. Dialogue must stay quiet.
 Use parallax=0 unless source separation and camera movement visibly justify it. Fade affects visual only.
 If original cannot support requested direction, status=needs_repair with precise required artwork, never silently
 downgrade requested action or approve unsupported movement. qa_assertions must state what output review checks.
@@ -380,6 +388,8 @@ def prepare(source, snapshot, directory, runner, generator, current=lambda: None
             if snapshot.get('motion_output') and plan.get('output') != snapshot['motion_output']:
                 raise ValueError('Motion Studio 출력 비율이 연출 계획과 다릅니다.')
             validate_effects(plan, snapshot.get('requested_effects'))
+            from purpose_direction import validate_native as validate_purpose_native
+            validate_purpose_native({'creative_reference':creative},plan)
             if plan.get('contract') != CONTRACT or plan.get('schema_version') != CONTRACT or plan.get('timing') != 'normalized':
                 raise ValueError('정규화된 AE 장면 연출 계약이 필요합니다.')
             if (not isinstance(plan.get('qa_assertions'), list) or not plan['qa_assertions']

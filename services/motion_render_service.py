@@ -161,8 +161,19 @@ def render_motion(*,temp_dir,images,durations,audio_path,subtitles,settings,reso
     visual=Path(temp_dir)/'motion-visual.mp4';clip=None
     try:
         progress(35,'Motion Studio 카메라·효과 프레임 렌더링')
-        clip=VideoClip(frames.frame,duration=frames.duration)
-        clip.write_videofile(str(visual),fps=motion['fps'],codec='libx264',audio=False,preset='veryfast',threads=2,logger=None,ffmpeg_params=['-pix_fmt','yuv420p','-movflags','+faststart'])
+        if frames.duration > 3600:
+            from worker.chapter_visual_cache import render_visual_chapters
+            def render_part(start,end,offset,duration,target):
+                part=VideoClip(lambda t:frames.frame(offset+t),duration=duration)
+                try:
+                    part.write_videofile(str(target),fps=motion['fps'],codec='libx264',audio=False,preset='veryfast',threads=2,logger=None,ffmpeg_params=['-pix_fmt','yuv420p','-movflags','+faststart'])
+                finally:
+                    part.close()
+            transitions=[motion['scenes'].get(str(number),{}).get('transition','cut') for number in (scene_numbers or list(range(1,len(images)+1)))]
+            visual=Path(render_visual_chapters(temp_dir,images,durations,{'motion':motion,'resolution':resolution,'scene_numbers':scene_numbers},render_part,transitions=transitions,notify=progress))
+        else:
+            clip=VideoClip(frames.frame,duration=frames.duration)
+            clip.write_videofile(str(visual),fps=motion['fps'],codec='libx264',audio=False,preset='veryfast',threads=2,logger=None,ffmpeg_params=['-pix_fmt','yuv420p','-movflags','+faststart'])
     finally:
         if clip:clip.close()
         frames.close()

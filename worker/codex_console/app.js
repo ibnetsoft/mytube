@@ -1,6 +1,23 @@
 'use strict';
 const $ = id => document.getElementById(id);
 const token = document.querySelector('meta[name="local-token"]').content;
+const consoleSearchKey='codex-script-console-search-v1',consoleSearchListeners=new Set();
+let consoleSearchValue='';
+try{consoleSearchValue=sessionStorage.getItem(consoleSearchKey)||'';}catch{}
+window.consoleSearch={
+  get:()=>consoleSearchValue,
+  set(value){
+    value=String(value??'');
+    consoleSearchValue=value;
+    try{sessionStorage.setItem(consoleSearchKey,value);}catch{}
+    for(const listener of consoleSearchListeners)listener(value);
+  },
+  subscribe(listener){consoleSearchListeners.add(listener);listener(consoleSearchValue);return()=>consoleSearchListeners.delete(listener);}
+};
+function bindConsoleSearch(input,onChange){
+  input.addEventListener('input',()=>window.consoleSearch.set(input.value));
+  return window.consoleSearch.subscribe(value=>{input.value=value;onChange?.();});
+}
 let page = 0, hasMore = false, currentSource = null, selectedJob = null, busy = false, catalogRevision = 0;
 const titles = {overview:'AI 대본 워커',new:'신규 콘텐츠 생성',repair:'대본 보관함 · 리페어',jobs:'작업 이력 · 결과',preparation:'이미지·좌표·AE 연출 준비',doc:'작업 지침'};
 const labels = {completed:'완료',pending:'대기',rendering:'실행 중',canceled:'취소',queued:'대기',running:'실행 중',failed:'실패',interrupted:'중단 · 재시작 필요',awaiting_approval:'검토 대기',approved_pending_repair:'승인 · 적용 대기',ready:'완료',review_pending:'영상 검수 대기',needs_attention:'수정 필요',planned:'계획됨',polling:'감지 중',downloading:'다운로드',preparing:'준비 중',transcoding:'변환 중',idle:'대기',stopped:'중지'};
@@ -14,12 +31,52 @@ async function api(path, body) {
   return data;
 }
 function element(tag,text,className) { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; }
+// Shared by catalog, history, results, submissions and the preparation panel.
+const titleRequests=new Map();
+let titleFlushTimer;
+function titleRecord(item){
+  const kind=item.source_kind||item.kind;
+  return {title:String(item.title||''),topic_id:item.topic_queue_id??item.topic_id??(kind==='topic'?(item.source_id||item.id):null),
+    project_id:item.project_id||(kind==='project'?(item.source_id||item.id):null)};
+}
+function decorateTitle(node,item){
+  const record=titleRecord(item),key=JSON.stringify(record);
+  const update=value=>{
+    const number=value.topic_id??record.topic_id;
+    node.replaceChildren(document.createTextNode((/^\d+$/.test(String(number||''))?'#'+number+' · ':'')+record.title));
+    if(value.title_ko)node.append(element('small',value.title_ko,'title-ko'));
+    else if(value.status==='running')node.append(element('small','한국어 번역 대기 중 · 로컬 Codex','title-ko'));
+    else if(value.status==='failed')node.append(element('small','한국어 번역을 불러오지 못했습니다.','title-ko'));
+    node.dispatchEvent(new Event('console-title-updated',{bubbles:true}));
+  };
+  let entry=titleRequests.get(key);
+  if(!entry){entry={record,listeners:new Set(),value:{status:'running'}};titleRequests.set(key,entry);}
+  entry.listeners.add(node);node._titleKey=key;node._titleUpdate=update;update(entry.value);
+  clearTimeout(titleFlushTimer);titleFlushTimer=setTimeout(flushTitles,40);
+  return node;
+}
+function titleNode(item,tag='strong'){return decorateTitle(element(tag,undefined,'localized-title'),item);}
+async function flushTitles(){
+  const entries=[...titleRequests.values()].filter(e=>!e.loading&&(!e.value.status||e.value.status==='running')&&[...e.listeners].some(n=>n.isConnected)).slice(0,100);
+  if(!entries.length)return;
+  entries.forEach(e=>e.loading=true);
+  try{
+    const data=await api('title-display',{items:entries.map(e=>e.record)});
+    entries.forEach((entry,i)=>{entry.value=data.items[i];});
+  }catch{entries.forEach(e=>e.value={status:'failed'});}
+  finally{
+    for(const entry of entries){entry.loading=false;for(const node of entry.listeners){if(node.isConnected&&node._titleKey===JSON.stringify(entry.record))node._titleUpdate(entry.value);else entry.listeners.delete(node);}}
+    if([...titleRequests.values()].some(e=>e.value.status==='running')){clearTimeout(titleFlushTimer);titleFlushTimer=setTimeout(flushTitles,2500);}
+  }
+}
+window.decorateConsoleTitle=decorateTitle;
 function shortText(value,max=48){const text=String(value??'');return text.length>max?text.slice(0,max-1)+'…':text;}
 function statusText(value){const key=String(value||'').toLowerCase();return labels[key]||labels[value]||String(value||'—');}
 function view(name) {
   document.querySelectorAll('main>section').forEach(s=>s.hidden=s.id!=='view-'+name);
   document.querySelectorAll('nav [data-view]').forEach(b=>b.classList.toggle('selected',b.dataset.view===name));
   $('heading').textContent=titles[name];
+  window.saveConsoleViewState?.(name);
   if(name==='repair')loadCatalog();
   if(name==='jobs')refresh();
 
@@ -40,7 +97,7 @@ async function refresh(){try{
 async function loadCatalog(){const revision=++catalogRevision;$('catalog-count').textContent='불러오는 중…';try{
   const kind=$('kind').value;const data=await api('catalog?'+new URLSearchParams({kind,page,q:$('search').value}));if(revision!==catalogRevision)return;
   const container=$('catalog');container.replaceChildren();
-  for(const item of data.items){const row=element('tr');const title=element('td');title.append(element('strong',item.title),element('small','#'+item.topic_id+(kind==='project'?' · '+item.id:'')));row.append(title);
+  for(const item of data.items){const row=element('tr');const title=element('td');title.append(titleNode(item));if(kind==='project')title.append(element('small',item.id));row.append(title);
     row.append(element('td',(item.owner||'미배정')+' · '+item.status),element('td',(item.has_script?'대본 있음':'대본 없음')+' / '+item.scenes+'씬'),element('td',item.image_links+'개 URL'),element('td',item.thumbnail));
     const cell=element('td');const button=element('button','대본 읽기');button.onclick=()=>readSource(item);cell.append(button);row.append(cell);container.append(row);}
   if(!data.items.length){const row=element('tr'),cell=element('td','검색 결과가 없습니다.');cell.colSpan=6;row.append(cell);container.append(row);}
@@ -50,11 +107,12 @@ async function loadCatalog(){const revision=++catalogRevision;$('catalog-count')
 let sourceRevision=0;
 async function readSource(item){const revision=++sourceRevision;currentSource=null;$('source-panel').hidden=true;try{
   const data=await api('source/'+item.kind+'/'+item.id);if(revision!==sourceRevision)return;currentSource=data;
-  $('source-title').textContent=data.summary.title;$('source-identity').textContent=(item.kind==='project'?'프로젝트 ':'공용 토픽 ')+item.id+' · '+(item.owner||'미배정')+(data.summary.protected?' · 제출/보호 상태: 수정안만 생성 가능':'');
+  decorateTitle($('source-title'),data.summary);$('source-identity').textContent=(item.kind==='project'?'프로젝트 ':'공용 토픽 ')+item.id+' · '+(item.owner||'미배정')+(data.summary.protected?' · 제출/보호 상태: 수정안만 생성 가능':'');
   $('source-script').textContent=data.script||'저장된 대본이 없습니다.';$('source-panel').hidden=false;$('repair-start').disabled=busy||!data.script;
   $('source-panel').scrollIntoView({behavior:'smooth',block:'start'});
 }catch(e){error(e.message);}}
 $('search-button').onclick=()=>{page=0;loadCatalog();};$('search').onkeydown=e=>{if(e.key==='Enter'){$('search-button').click();}};
+bindConsoleSearch($('search'),()=>{page=0;catalogRevision++;});
 $('kind').onchange=()=>{page=0;currentSource=null;sourceRevision++;$('source-panel').hidden=true;loadCatalog();};
 $('previous').onclick=()=>{if(page>0){page--;loadCatalog();}};$('next').onclick=()=>{if(hasMore){page++;loadCatalog();}};
 // Full-page refresh with draft restoration is wired by refresh.js.
@@ -65,6 +123,9 @@ window.newCountryOverridden = false;
 window.updateNewSettingSummary = function() {
   const form = $('new-form');
   if (!form) return {};
+  const allParallax=form.elements.parallax_mode?.value==='all_scenes';
+  if(allParallax){form.elements.required_video_scene_count.value='0';form.elements.image_layer_mode.value='full_psd';}
+  form.elements.required_video_scene_count.readOnly=allParallax;
   const lang = form.elements.language?.value || 'ko';
   const countrySelect = $('new-country');
   const customCountry = $('new-custom-country');
@@ -100,7 +161,7 @@ if ($('new-language')) {
 }
 function syncNonverbalMode(){
  const enabled=$('production-mode').value==='nonverbal_preschool',form=$('new-form');
- form.elements.duration.max=enabled?'10':'60';
+ form.elements.duration.max=enabled?'10':'180';
  if(enabled){
   if(Number(form.elements.duration.value)>10)form.elements.duration.value='3';
   $('new-style').value='애니메이션';$('new-script-style').value='nonverbal_preschool';
@@ -133,6 +194,7 @@ $('new-form').onsubmit=e=>{
     mode:'new',
     production_mode:form.get('production_mode')||'standard',youtube_url:form.get('youtube_url')||'',
     direction_profile:form.get('direction_profile')||'auto',
+    parallax_mode:form.get('parallax_mode')||'selective',
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
     image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
     image_layer_scene_end:form.get('image_layer_scene_end')?Number(form.get('image_layer_scene_end')):null,
@@ -142,6 +204,7 @@ $('new-form').onsubmit=e=>{
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',
     script_style:form.get('script_style')||'story',
     duration_minutes:Number(form.get('duration')),
+    chapter_minutes:Number(form.get('chapter_minutes')||15),
     language:setting.language,
     setting_country:setting.setting_country,
     era_region:setting.era_region,
@@ -157,7 +220,7 @@ async function showJob(id,origin='dedicated'){const revision=++resultRevision;tr
   if(revision!==resultRevision)return;
   selectedJob={...data.job,origin};
   $('result').hidden=false;
-  $('result-title').textContent=data.job.title;
+  decorateTitle($('result-title'),{...data.job,source_kind:data.source_link?.kind||data.job.kind,source_id:data.source_link?.id||data.job.source_id});
   let statusText = (labels[data.job.status]||data.job.status)+' · '+data.job.stage+(data.job.error?' · '+data.job.error:'');
   if(data.result_data?.production_mode==='nonverbal_preschool')statusText+=' · 논버벌 행동 기획 · 발화 없음';
   const directionProfile=data.result_data?.structure?.direction_profile;
@@ -217,6 +280,26 @@ if ($('new-script-style')) $('new-script-style').onchange = () => {
   window.updateNewSettingSummary();
 };
 
+// A long tale is still one story and one final project; chapters are recovery boundaries.
+const storyChapterLabel=element('label','장편 야담 · 장별 목표 (분)'),storyChapterSize=element('select');
+storyChapterSize.name='chapter_minutes';storyChapterSize.id='story-chapter-minutes';
+for(const value of [15,20]){const option=element('option',value+'분');option.value=String(value);storyChapterSize.append(option);}
+storyChapterSize.value='15';storyChapterLabel.append(storyChapterSize);
+$('new-form').elements.duration.closest('label').after(storyChapterLabel);
+const storyHelp=element('p','일본어 · 이야기 · 기존 영상에서 61~180분을 입력하면 한 편의 장편 야담으로 제작합니다. 전체 줄거리·인물·복선을 먼저 계획하고 장별 검토본을 저장합니다. 중단된 작업은 결과에서 완료한 장을 보존해 이어서 제작할 수 있습니다. 실제 영상 길이는 음성 제작 후 확인합니다.','callout');
+storyChapterLabel.after(storyHelp);
+const storyPreset=element('button','3시간 일본 야담 설정');storyPreset.type='button';
+storyPreset.onclick=()=>{
+  const form=$('new-form');form.elements.duration.value='180';form.elements.duration.max='180';
+  form.elements.chapter_minutes.value='15';$('new-language').value='ja';$('new-country').value='일본';
+  $('new-custom-country').style.display='none';$('new-script-style').value='story';$('production-mode').value='standard';
+  $('direction-profile').value='japanese_folktale';$('new-era').value='에도 시대 일본';window.newCountryOverridden=true;
+  const category=[...$('category').options].find(option=>/日本昔話|일본.*(야담|옛날|이야기)/.test(option.textContent));
+  if(category){$('category').value=category.value;form.elements.custom_category.value='';}else{$('category').value='';form.elements.custom_category.value='일본 야담';}
+  window.updateNewSettingSummary();notice('180분 · 15분씩 12장으로 설정했습니다. 제목과 이야기 방향을 입력해 주세요.');
+};
+storyChapterLabel.before(storyPreset);
+
 async function loadMouthPolicy(){
   try { const p=await api('mouth-policy'); $('mouth-enabled').checked=p.enabled;
     $('mouth-start').value=p.start_scene; $('mouth-count').value=p.max_dialogue_scenes;
@@ -229,3 +312,5 @@ $('mouth-policy-form').addEventListener('submit',async event=>{
   } catch(e){error(e.message);} finally {button.disabled=false;}
 });
 loadMouthPolicy();
+
+document.querySelector('#new-form [name=parallax_mode]')?.addEventListener('change',window.updateNewSettingSummary);

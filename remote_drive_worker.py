@@ -462,6 +462,8 @@ class RemoteDriveWorker:
 
         with open(config_path, "r", encoding="utf-8") as f_conf:
             packaged_config = json.load(f_conf)
+        from worker.production_engine_policy import require_engine
+        require_engine(final_renderer=packaged_config.get('final_renderer','python'))
 
         from worker.content_identity import validate_render_identity
         validate_render_identity(packaged_config, metadata)
@@ -623,6 +625,8 @@ class RemoteDriveWorker:
             if os.path.exists(config_path):
                 with open(config_path, "r", encoding="utf-8") as f_conf:
                     packaged_config = json.load(f_conf)
+                from worker.production_engine_policy import require_engine
+                require_engine(final_renderer=packaged_config.get('final_renderer','python'))
                 motion_manifest_ref = None
                 motion_options=(packaged_config.get('render_settings') or {}).get('motion') or {}
                 if motion_options.get('enabled') is True:

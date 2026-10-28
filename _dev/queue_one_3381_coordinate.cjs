@@ -1,0 +1,5 @@
+const path=require('node:path'),{createRequire}=require('node:module');process.loadEnvFile(path.resolve('.env'))
+const req=createRequire(path.resolve('auth-web/package.json')),{createClient}=req('@supabase/supabase-js')
+const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}})
+async function main(){const number=Number(process.argv[2]);const {data,error}=await db.from('std_project_assets').select('*').eq('project_id','6b46f709-b4bf-4ccd-ac12-9c8c3981e249').eq('metadata->>kind','ae_speaker_coordinates');if(error)throw error;for(const a of data){if(a.metadata.state==='ready')continue;const active=Number(a.scene_number)===number;const metadata={...a.metadata,state:active?'queued':'needs_review',failures:active?[]:a.metadata.failures,results:active?[]:a.metadata.results,error:active?null:a.metadata.error,current_scene:null,worker_token:null};const r=await db.from('std_project_assets').update({metadata,updated_at:new Date().toISOString()}).eq('id',a.id);if(r.error)throw r.error}console.log('queued',number)}
+main().catch(e=>{console.error(e);process.exit(1)})

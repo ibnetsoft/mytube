@@ -142,3 +142,5 @@ h1{font-size:23px}
 @media(max-width:600px){.history-thumbnail{width:88px;flex-basis:88px}.job{gap:12px}.job>button{margin-left:100px}.job>.history-thumbnail+ .job-info{flex-basis:calc(100% - 104px);min-width:0}.media-badge{font-size:10px}.result-media{gap:12px}}
 .media-basis{font-size:10px;color:#8995a4;margin-top:5px}
 .ae-review-video{width:100%;max-width:960px;background:#08080a}
+
+.localized-title{display:block;overflow-wrap:anywhere}.title-ko{display:block!important;font-size:12px!important;font-weight:400!important;line-height:1.6;color:#92a3ba;margin-top:5px;white-space:normal}

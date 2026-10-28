@@ -1,3 +1,4 @@
+import { alternativeEnginesEnabled } from '@/lib/stdProductionEnginePolicy'
 import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { supabaseAdmin as db } from '@/lib/supabaseAdmin'
@@ -74,6 +75,7 @@ export async function GET(req:Request,{params}:{params:{projectId:string}}){
 export async function POST(req:Request,{params}:{params:{projectId:string}}){
     try{
         const c=await context(req,params.projectId);if(c.response)return c.response
+        if(!alternativeEnginesEnabled)return NextResponse.json({error:'브라우저 제작은 별도 옵션으로 비활성화되어 있습니다. After Effects 방식으로 제작해 주세요.'},{status:409})
         const body=await req.json()
         if(motionProductionMethod(c.project)!=='motion_studio')throw Error('Motion Studio 추가 옵션을 선택하고 저장한 뒤 사용해 주세요. 현재는 기존 AE 제작 방식입니다.')
         if(['approved','canceled'].includes(c.project.status))throw Error('종료된 프로젝트입니다.')

@@ -59,6 +59,8 @@ def pending_roles():
     from ae_scene_preparation import claimable_filter as simple_filter
     roles=[]
     for role,kind in [('filmcraft','filmcraft_automation'),('webtoon','horizontal_webtoon_automation'),('effectcraft','effectcraft_automation'),('motion_automation','motion_automation'),('motion_preview','motion_preview'),('region','region_motion_plan'),('ae','ae_mouth_job')]:
+        from worker.production_engine_policy import alternatives_enabled
+        if role in ('effectcraft','filmcraft') and not alternatives_enabled():continue
         query={'metadata->>kind':'eq.'+kind,'or':claimable_filter() if role=='ae' else simple_filter()}
         if role=='motion_preview':query['metadata->input->>task']='eq.preview'
         if role in ('filmcraft','webtoon','effectcraft','motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
@@ -74,6 +76,8 @@ def pending_roles():
     return roles
 
 def role_command(role):
+    from worker.production_engine_policy import require_engine
+    require_engine(role)
     if role=='webtoon': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--engine','webtoon','--once']
     if role=='filmcraft': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--engine','filmcraft','--once']
     if role=='effectcraft': return [sys.executable,'-u',str(ROOT/'worker/motion_automation_worker.py'),'--engine','effectcraft','--once']

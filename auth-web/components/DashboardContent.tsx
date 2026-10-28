@@ -3362,7 +3362,7 @@ export default function DashboardContent() {
             <main className="max-w-[1600px] mx-auto px-6 py-5 space-y-6">
                 <div className="flex w-full items-center justify-between">
                     <nav aria-label="관리자 메뉴" className="flex w-full flex-wrap items-center gap-1.5 p-2 bg-white/5 rounded-xl border border-white/5">
-                        <a href="/admin/ae-worker" className="rounded-lg border border-blue-500/20 px-3 py-2 text-xs font-bold text-blue-300 hover:bg-blue-500/10">AIR STUDIO 작업 큐</a>
+                        <a href="/admin/ae-worker" className="rounded-lg border border-blue-500/20 px-3 py-2 text-xs font-bold text-blue-300 hover:bg-blue-500/10">After Effects 제작 현황</a>
                         {[
                             {title:'제작 운영',tabs:[
                                 {id:'topics',label:'토픽·카테고리',superOnly:false},

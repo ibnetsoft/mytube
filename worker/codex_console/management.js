@@ -24,7 +24,7 @@ function mediaBadges(media){
 }
 function historyRow(job){
   const row=element('div',undefined,'job'),info=element('div',undefined,'job-info');
-  info.append(element('strong',job.title||'제목 없음'));
+  info.append(titleNode({...job,title:job.title||'제목 없음'}));
   const date=job.created_at?new Date(job.created_at*1000).toLocaleString('ko-KR'):'';
   info.append(element('small',`${job.origin==='legacy'?'기존 워커':'전용 워커'} · ${typeNames[job.job_type||job.mode]||job.job_type||job.mode} · ${date}`));
   info.append(element('small',`${labels[job.status]||job.status} · ${displayLabel(job.stage)}`));
@@ -60,10 +60,15 @@ window.refreshManagement=async data=>{
 for(const id of ['history-origin','history-state'])$(id).onchange=()=>{historyPage=0;loadHistory();};
 $('history-search-button').onclick=()=>{historyPage=0;loadHistory();};
 $('history-search').onkeydown=e=>{if(e.key==='Enter')$('history-search-button').click();};
+bindConsoleSearch($('history-search'),()=>{historyPage=0;historyRevision++;historyLoading=false;});
 $('history-previous').onclick=()=>{if(historyPage>0){historyPage--;loadHistory();}};
 $('history-next').onclick=()=>{if(historyMore){historyPage++;loadHistory();}};
 window.renderManagementResult=(data,origin)=>{
   resultSource=data.source_link;
+  let chapterPanel=$('story-chapter-progress');
+  if(!chapterPanel){chapterPanel=element('div',undefined,'callout');chapterPanel.id='story-chapter-progress';$('result-status').after(chapterPanel);}
+  chapterPanel.replaceChildren();chapterPanel.hidden=!data.story_progress;
+  if(data.story_progress){const state=data.story_progress;chapterPanel.append(element('strong',`장편 야담 · 검토 완료 ${state.completed_chapters||0}/${state.total_chapters||0}장`));for(const chapter of state.chapters||[])chapterPanel.append(element('p',`${chapter.chapter_number}장 · ${chapter.title} · 검토본 저장됨`));if(['failed','interrupted'].includes(data.job.status))chapterPanel.append(element('p','완료한 장을 보존하고, 아래 이어서 제작 버튼으로 재개할 수 있습니다.'));}
   $('result-origin').textContent=data.result_origin||'저장된 작업 결과';
   let mediaPanel=$('result-media');
   if(!mediaPanel){mediaPanel=element('div',undefined,'result-media');mediaPanel.id='result-media';$('result-origin').after(mediaPanel);}
@@ -73,6 +78,7 @@ window.renderManagementResult=(data,origin)=>{
   $('result-source').hidden=!resultSource;
   $('retry-job').hidden=origin==='legacy'||!['failed','interrupted'].includes(data.job.status);
   $('retry-job').disabled=busy;
+  $('retry-job').textContent=data.story_progress?'완료한 장 보존 · 이어서 제작':'같은 요청으로 재실행';
   $('sync-job').hidden=origin==='legacy'||data.job.sync_status!=='pending';
 };
 $('result-source').onclick=async()=>{if(!resultSource)return;const item={...resultSource};view('repair');await readSource(item);};
@@ -80,6 +86,6 @@ $('sync-job').onclick=async()=>{if(!selectedJob)return;const id=selectedJob.id;$
 $('retry-job').onclick=async()=>{
   if(!selectedJob||busy)return;
   $('retry-job').disabled=true;
-  try{const job=await api('jobs/'+selectedJob.id+'/retry',{});await refresh();await showJob(job.id);notice(job.id===selectedJob.id?'완료한 설교 장을 보존하고 이어서 작업합니다.':'재시도 작업을 시작했습니다.');}catch(e){error(e.message);}finally{$('retry-job').disabled=busy;}
+  try{const job=await api('jobs/'+selectedJob.id+'/retry',{});await refresh();await showJob(job.id);notice(job.id===selectedJob.id?'완료한 장을 보존하고 이어서 작업합니다.':'재시도 작업을 시작했습니다.');}catch(e){error(e.message);}finally{$('retry-job').disabled=busy;}
 };
 refresh();

@@ -180,9 +180,17 @@ def _render_native(prepared, directory, duration):
     for old in directory.glob('native.*'):
         if old.suffix.lower() in ('.avi', '.mov', '.mp4', '.mxf'):
             old.unlink()
-    write_scene_jsx(prepared['plan'], prepared['layers'], project, native, jsx, duration)
+    writer = write_scene_jsx
+    if prepared.get('flat_media'):
+        from ae_flat_scene import write_jsx
+        writer = write_jsx
+    writer(prepared['plan'], prepared['layers'], project, native, jsx, duration, prepared.get('fps', 24))
     ae._run_afterfx_script(afterfx, jsx, project, timeout=240)
-    ae._run_checked([str(aerender), '-project', str(project), '-comp', 'ae_scene', '-output', str(native)], timeout=1200)
+    render_args=[str(aerender), '-project', str(project), '-comp', 'ae_scene', '-output', str(native)]
+    if prepared['plan'].get('speech_bubbles'):
+        # Observed AE MFR memory failure produced black bubble frames despite exit 0.
+        render_args+=['-mfr','OFF','100','-mem_usage','10','70']
+    ae._run_checked(render_args, timeout=1200)
     candidates = [path for path in directory.glob('native.*')
                   if path.suffix.lower() in ('.avi', '.mov', '.mp4', '.mxf') and path.stat().st_size > 0]
     if len(candidates) != 1:

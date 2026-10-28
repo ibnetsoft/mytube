@@ -1,0 +1,10 @@
+{
+  "key": "rainy_alley_watercolor_anime",
+  "label": "비 오는 골목 수채 애니",
+  "category": "현대 일본 휴먼드라마",
+  "language": "ja",
+  "setting_country": "일본",
+  "era_region": "현대 일본 지방 소도시와 상점가",
+  "notes": "현대 일본의 일상과 인간관계를 다루는 휴먼드라마. 자연스러운 현대 일본어 대사와 내레이션을 사용한다. 가족·이웃·직장·상점가 등 소재는 선택한 토픽에 맞춘다. 설화식 도입, 에도 시대 배경, 시대극 말투를 사용하지 않는다. 평상복과 현대적인 생활 환경을 유지한다. 참고 이미지의 손그림 질감과 차분한 색감을 공유하되, 비·고양이·같은 소녀·한국어 간판을 반복하거나 그대로 복제하지 않는다. 날씨와 시간대, 인물의 나이와 외형, 장면 구도는 실제 대본에 맞춘다.",
+  "prompt": "Rainy Alley Watercolor Anime: original hand-drawn 2D everyday-life animation with textured watercolor and opaque gouache backgrounds on softly weathered paper; irregular delicate charcoal and dark-brown ink contours, expressive economical faces, believable age-appropriate human proportions, soft matte painted shading and visible handmade brush texture. Muted teal and moss-green architecture, olive and warm yellow accents, dusty blue and earthy ochre garments, warm cream highlights, gentle atmospheric light, quietly intimate and nostalgic human emotion. Richly observed lived-in contemporary Japanese small-town streets, storefronts and interiors, modern casual clothing and ordinary everyday objects. Retain individually recognizable recurring character designs across shots. Match each scene's actual weather, season, lighting, age, emotion and action: rain, cats, a young woman, a headband, a particular storefront or sitting pose are reference-specific subjects and must not be repeated unless the script calls for them. Use Japanese local context without copying Korean lettering or the reference composition; no readable generated text, captions, logos or watermarks. Avoid Edo-period architecture and clothing, historical folktale costumes, photorealism, 3D rendering, glossy digital anime, neon saturation, heavy gradients, chibi proportions and plastic surfaces. Carry the same painted texture and palette through character portraits, scene images, video prompts and thumbnail; animate gently without texture flicker."
+}

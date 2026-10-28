@@ -6,6 +6,10 @@ from typing import Any
 from scene_direction_policy import CONTRACT as EXECUTION_CONTRACT, validate_topic, validate_execution
 
 
+from purpose_direction import validate_script as validate_purpose_script
+from depth_finishing import TASK as DEPTH_TASK, normalize as normalize_depth_finishing
+from script_parallax import TASK as PARALLAX_TASK, selection as parallax_selection
+
 PERSONA = """You are AIR Studio's Scene Visual Director. For each scene, interpret
 its dramatic purpose, narration, emotional change, neighboring-scene context,
 and the uploaded source clip when clip keyframes are provided. The uploaded
@@ -61,6 +65,8 @@ analyzer must still verify the named character and both eye boxes; uncertainty
 skips only the blink effect."""
 
 
+PERSONA += "\n\n" + PARALLAX_TASK + "\n" + DEPTH_TASK
+
 ALLOWED_OPERATIONS = {
     "camera_move", "hold", "light_flicker", "atmosphere_drift", "depth_parallax",
     "mask_reveal", "pose_change", "prop_motion", "shot_sequence", "transition",
@@ -72,7 +78,7 @@ PRIMARY_EFFECT_PRIORITY = (
 SECONDARY_EFFECTS = {"camera_move", "light_flicker", "atmosphere_drift", "transition"}
 SCENE_ROLES = {
     "dialogue", "reaction", "clue_reveal", "location", "tension", "transition",
-    "resolution", "narration", "hold",
+    "resolution", "narration", "hold", "action",
 }
 
 
@@ -314,6 +320,12 @@ def validate_directorial_plans(
         }
         if not direction["visual_strategy"] or not direction["qa_assertions"]:
             raise ValueError(f"visual direction {index} needs visual_strategy and nonempty qa_assertions")
+        from speech_bubbles import validate_script as validate_bubbles
+        bubble_plan=validate_bubbles(raw,scene)
+        if bubble_plan is not None:direction['speech_bubble_plan']=bubble_plan
+        direction['depth_effects'] = normalize_depth_finishing(raw,scene,layers)
+        direction['depth_effects_reason'] = str(raw.get('depth_effects_reason') or '').strip()
+        direction['parallax_plan'] = parallax_selection(scene, direction)
         if topic is not None:
             direction.update(contract=EXECUTION_CONTRACT, topic_direction=topic,
                              execution_design=validate_execution(raw.get('execution_design'), topic, scene))
@@ -334,6 +346,12 @@ def validate_directorial_plans(
                 for effect in effect_kinds
             ):
                 raise ValueError('Three adjacent shots repeat the same conspicuous finishing effect')
+        if 1<=int(scene.get('scene_number') or scene.get('scene_order') or index)<=18:
+            from submitted_video_postwork import validate_preparation
+            narration=str(scene.get('scene_text') or scene.get('narration') or '')
+            value=raw.get('submitted_video_postwork') or {'effects':[],'transition':{'kind':'cut','reason':'Preserve original uploaded clip and narration clock','duration_seconds':0}}
+            direction['submitted_video_postwork']=validate_preparation(value,narration)
+        validate_purpose_script(scene,direction)
         scene["ae_directorial_plan"] = direction
         scene["scene_direction_plan"] = direction
         normalized.append(direction)

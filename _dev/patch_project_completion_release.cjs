@@ -1,0 +1,21 @@
+const fs = require('fs'), path = require('path')
+const root = fs.readFileSync('_dev/artifacts/project_completion_release_root.txt', 'utf8').trim()
+const filename = path.join(root, 'auth-web/app/std/page.tsx')
+let source = fs.readFileSync(filename, 'utf8')
+const local = fs.readFileSync('auth-web/app/std/page.tsx', 'utf8')
+const a = local.indexOf('    // Completion uses the same seven saved steps')
+const b = local.indexOf('    const activeTopicTitleKeys =', a)
+function replace(from, to, count = 1) {
+  if (source.split(from).length - 1 !== count) throw Error('Unexpected source: ' + from)
+  source = source.split(from).join(to)
+}
+replace('    const activeTopicTitleKeys =', local.slice(a, b) + '    const activeTopicTitleKeys =')
+replace('projects.filter((p: any) => !p.submitted_at).length', 'incompleteProjects.length')
+replace('projects.filter((p: any) => Boolean(p.submitted_at)).length', 'completeProjects.length')
+replace("projects.filter((p: any) => projectsTab === 'complete' ? Boolean(p.submitted_at) : !p.submitted_at)", 'visibleProjects', 2)
+const old = /const pStatus = isSelectedProj && !p.submitted_at\r?\n\s+\? getProjectStepStatus\(selectedProject, selectedProject\?\.scenes \|\| \[\], audioResultUrl, customScriptText, localSubtitles, thumbBgUrl\)\r?\n\s+: getProjectStepStatus\(p\)/g
+if ([...source.matchAll(old)].length !== 1) throw Error('Unexpected row status')
+source = source.replace(old, 'const pStatus = getListedProjectStepStatus(p)')
+fs.writeFileSync(filename, source)
+fs.copyFileSync('auth-web/tests/std-project-list-completion.cjs', path.join(root, 'auth-web/tests/std-project-list-completion.cjs'))
+console.log(root)

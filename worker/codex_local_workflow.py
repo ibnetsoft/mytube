@@ -116,6 +116,16 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
         from worker.grounded_script import produce_grounded
         return produce_grounded(identity, request, sources or [], runner, notify)
     if request['mode'] == 'new':
+        from worker.story_chapters import applies as long_story, produce_story
+        if long_story(request):
+            def chapter_producer(chapter_identity, chapter_request):
+                chapter_package = _produce(chapter_identity, chapter_request, None, output, notify)
+                from worker.elevenlabs_performance import annotate_new_package
+                return annotate_new_package(chapter_package, chapter_identity, notify)
+            package = produce_story(identity, request, runner, notify, output, chapter_producer)
+            from worker.codex_bgm import plan_package_bgm
+            plan_package_bgm(runner, 'local-' + identity, package, enabled=request.get('generate_bgm_prompt') is True)
+            return package
         # Existing script gates, stopped before native image/storage work.
         # Do not route through Hermes/legacy queues.
         from worker.content_language import resolve_setting
@@ -145,6 +155,12 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'source_transcript':request.get('source_transcript','')}
         if 'historical_sources' in request:
             payload['historical_sources'] = request['historical_sources']
+        if request.get('_story_anchors'):
+            payload['character_anchors'] = request['_story_anchors']
+            payload['story_chapter_context'] = request['_story_context']
+        if request.get('_scene_boundary_mode'):
+            payload['_scene_boundary_mode'] = request['_scene_boundary_mode']
+            payload['_story_elapsed_seconds'] = request.get('_story_elapsed_seconds', 0)
         package = runner.generate('local-' + identity, payload, script_only=True)
         package['language'] = setting['language']
         package['setting_country'] = setting['setting_country']

@@ -53,7 +53,7 @@ _load_worker_env()
 _DEFAULT_LOCALAPPDATA_HOME = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "AIRStudio" / "AIRWorker"
 BASE_DIR = Path(os.environ.get("AIRWORKER_HOME", _DEFAULT_LOCALAPPDATA_HOME))
 STATE_DIR = BASE_DIR / "state"
-LOG_DIR = BASE_DIR / "logs"
+LOG_DIR = Path(os.environ.get("AIR_WORKER_LOG_DIR", str(BASE_DIR / "logs")))
 JOB_LOG_DIR = LOG_DIR / "jobs"
 IPC_DIR = BASE_DIR / "ipc"
 COMMAND_DIR = IPC_DIR / "commands"
@@ -62,8 +62,8 @@ CANCEL_FLAG_DIR = STATE_DIR / "cancel_flags"
 SHUTDOWN_FLAG_DIR = STATE_DIR / "shutdown_flags"
 MANAGER_STATUS_FILE = STATE_DIR / "manager_status.json"
 
-OUTPUT_DIR = BASE_DIR / "output"
-TEMP_DIR = BASE_DIR / "temp"
+OUTPUT_DIR = Path(os.environ.get("AIR_WORKER_OUTPUT_DIR", str(BASE_DIR / "output")))
+TEMP_DIR = Path(os.environ.get("AIR_WORKER_TEMP_DIR", str(BASE_DIR / "temp")))
 CONFIG_DIR = BASE_DIR / "config"
 ASSET_DIR = BASE_DIR / "assets"
 SFX_LIBRARY_DIR = ASSET_DIR / "sfx"
@@ -97,6 +97,16 @@ def _load_worker_settings_file() -> None:
 
 
 _load_worker_settings_file()
+
+# Keep large scratch files on the configured storage drive, including libraries
+# that use Python's already-initialized tempfile cache rather than TEMP directly.
+if os.environ.get("AIR_WORKER_SCRATCH_DIR"):
+    import tempfile
+    _worker_scratch = Path(os.environ["AIR_WORKER_SCRATCH_DIR"]).expanduser().resolve()
+    _worker_scratch.mkdir(parents=True, exist_ok=True)
+    os.environ["TEMP"] = str(_worker_scratch)
+    os.environ["TMP"] = str(_worker_scratch)
+    tempfile.tempdir = str(_worker_scratch)
 
 # docs/AIR_WORKER_PROCESS_MODEL.md §4 - one log file per process, no shared file.
 LOG_FILES = {

@@ -1,0 +1,171 @@
+{
+  "contract": "scene_purpose_direction/v1",
+  "roles": {
+    "dialogue": {
+      "max_move_ratio": 0.006,
+      "max_scale_delta": 0.012,
+      "max_rotation_degrees": 0.2,
+      "speed": 0.35,
+      "intensity": 0.12,
+      "max_effects": 2,
+      "allowed_effects": [
+        "atmospheric_haze",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "reaction": {
+      "max_move_ratio": 0.008,
+      "max_scale_delta": 0.015,
+      "max_rotation_degrees": 0.25,
+      "speed": 0.4,
+      "intensity": 0.15,
+      "max_effects": 2,
+      "allowed_effects": [
+        "atmospheric_haze",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "clue_reveal": {
+      "max_move_ratio": 0.012,
+      "max_scale_delta": 0.025,
+      "max_rotation_degrees": 0.3,
+      "speed": 0.45,
+      "intensity": 0.2,
+      "max_effects": 2,
+      "allowed_effects": [
+        "focus_glow",
+        "light_sweep",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "location": {
+      "max_move_ratio": 0.025,
+      "max_scale_delta": 0.04,
+      "max_rotation_degrees": 0.5,
+      "speed": 0.6,
+      "intensity": 0.25,
+      "max_effects": 3,
+      "allowed_effects": [
+        "atmospheric_haze",
+        "warm_dust_motes",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "tension": {
+      "max_move_ratio": 0.012,
+      "max_scale_delta": 0.025,
+      "max_rotation_degrees": 0.3,
+      "speed": 0.45,
+      "intensity": 0.18,
+      "max_effects": 2,
+      "allowed_effects": [
+        "atmospheric_haze",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "transition": {
+      "max_move_ratio": 0.012,
+      "max_scale_delta": 0.02,
+      "max_rotation_degrees": 0.3,
+      "speed": 0.45,
+      "intensity": 0.15,
+      "max_effects": 1,
+      "allowed_effects": [
+        "atmospheric_haze",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "resolution": {
+      "max_move_ratio": 0.008,
+      "max_scale_delta": 0.015,
+      "max_rotation_degrees": 0.2,
+      "speed": 0.35,
+      "intensity": 0.12,
+      "max_effects": 2,
+      "allowed_effects": [
+        "atmospheric_haze",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "narration": {
+      "max_move_ratio": 0.015,
+      "max_scale_delta": 0.025,
+      "max_rotation_degrees": 0.35,
+      "speed": 0.5,
+      "intensity": 0.2,
+      "max_effects": 2,
+      "allowed_effects": [
+        "atmospheric_haze",
+        "warm_dust_motes",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "hold": {
+      "max_move_ratio": 0.002,
+      "max_scale_delta": 0.006,
+      "max_rotation_degrees": 0.1,
+      "speed": 0.25,
+      "intensity": 0.1,
+      "max_effects": 1,
+      "allowed_effects": [
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    },
+    "action": {
+      "max_move_ratio": 0.03,
+      "max_scale_delta": 0.05,
+      "max_rotation_degrees": 0.8,
+      "speed": 0.8,
+      "intensity": 0.35,
+      "max_effects": 3,
+      "allowed_effects": [
+        "impact_flash",
+        "impact_shake",
+        "shock_ring",
+        "light_sweep",
+        "focus_glow",
+        "subtle_vignette",
+        "depth_background_blur",
+        "depth_foreground_blur",
+        "depth_background_haze",
+        "fireflies"
+      ]
+    }
+  }
+}

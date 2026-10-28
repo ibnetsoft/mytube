@@ -115,7 +115,7 @@ window.renderTopicResult=data=>{
     topicResults.append(evidence);
   }
   for(const [index,topic] of (data.topics||[]).entries()){
-    const card=element('article',undefined,'panel');card.append(element('h3',(index+1)+'. '+topic.title),element('p','창작 토픽 · '+topic.premise));
+    const card=element('article',undefined,'panel');card.append(titleNode(topic,'h3'),element('p','후보 '+(index+1)+' · 창작 토픽 · '+topic.premise));
     for(const [key,label] of [['protagonist','주인공'],['conflict','갈등'],['hook','도입'],['twist','반전'],['ending','결말'],['differentiation','원작과 차별점']])card.append(element('p',label+': '+topic[key]));
     const button=element('button','이 토픽으로 대본 준비','primary');button.type='button';
     button.onclick=()=>{

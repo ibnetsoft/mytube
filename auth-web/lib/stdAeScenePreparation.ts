@@ -69,10 +69,12 @@ export function aeScenePreparationInput(project: any, scenes: any[], assets: any
     const selectedEffects = motionScene?.source==='psd'
         ? [...new Set([...(aeSceneEffectSelection(effects) || []),...motionScene.effects.map(e=>e.type)])].sort()
         : effects
+    const plannedDepth=(contexts[index].creative_reference?.depth_effects||[]).map((e:any)=>e.type)
+    const requested=selectedEffects===undefined&&plannedDepth.length?plannedDepth:selectedEffects
     return {
         number, source_psd: reference(source), direction_text: direction.trim(),
         ...(motion?.enabled ? {motion_output:{width:motion.aspect==='9:16'?1080:1920,height:motion.aspect==='9:16'?1920:1080},motion_scene:motion.scenes[String(number)] || null} : {}),
-        ...(selectedEffects === undefined ? {} : { requested_effects: aeSceneEffectSelection(selectedEffects) }),
+        ...(requested === undefined ? {} : { requested_effects: aeSceneEffectSelection(requested) }),
         scene_context: contexts[index], neighbors: contexts.filter((_, i) => Math.abs(i - index) === 1),
         ...(visuals.find(a => a.asset_type === 'image') ? { reference_image: reference(visuals.find(a => a.asset_type === 'image')) } : {}),
         ...(visuals.find(a => a.asset_type === 'video') ? { reference_video: reference(visuals.find(a => a.asset_type === 'video')) } : {}),
@@ -84,12 +86,12 @@ export function hasAeSceneIntent(_project: any, scenes: any[], assets: any[]): b
 }
 
 /** Never silently fall back to a flattened clip when an AE scene was requested. */
-export function preparedAeScenes(project: any, scenes: any[], assets: any[]): Map<number, any> {
+export function preparedAeScenes(project: any, scenes: any[], assets: any[], ignored: ReadonlySet<number> = new Set()): Map<number, any> {
     const result = new Map<number, any>()
     const numbers = new Set(scenes.map(numberOf))
     for (const [number, asset] of aeSceneSelections(assets)) {
         const meta = asset.metadata
-        if (!numbers.has(number) || meta.enabled === false) continue
+        if (ignored.has(number) || !numbers.has(number) || meta.enabled === false) continue
         const fail = (reason: string): never => { throw new Error(`${number}번 씬 AE 연출: ${reason}`) }
         if (meta.state !== 'prepared') fail(meta.state === 'failed' ? '준비 작업을 수정한 뒤 다시 요청해 주세요.' : 'PSD와 연출 준비가 끝난 뒤 제출해 주세요.')
         const expected = aeScenePreparationInput(project, scenes, assets, number, String(meta.input?.direction_text || ''), meta.input?.requested_effects)

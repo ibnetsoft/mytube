@@ -39,7 +39,7 @@ export function switchMotionProduction(draft:MotionDraft,method:ProductionMethod
     const {production_method:_,alternatives:previous,final_renderer,...active}=draft
     const alternatives={...previous,[current]:active}
     const target=alternatives[method]||{version:1,enabled:method!=='ae',aspect:draft.aspect,fps:draft.fps,scenes:{},...(method==='motion_studio'?{web:{mode:'web',inserts:{}}}:(method==='effectcraft'||method==='filmcraft')?{automation:{mode:'ae_only',max_ai_clips:1,max_ai_seconds:5}}:{})}
-    return normalizeMotionDraft({...target,...(method==='ae'&&draft.edit_mode?{edit_mode:draft.edit_mode}:{}),production_method:method,alternatives,...(final_renderer?{final_renderer}:{})})
+    return normalizeMotionDraft({...target,...(method==='ae'&&draft.edit_mode?{edit_mode:draft.edit_mode}:{}),production_method:method,alternatives,...(method==='ae'?{final_renderer:'python'}:final_renderer?{final_renderer}:{})})
 }
 export const MOTION_PRESETS = [
     { id: 'still', label: '원본 유지', effects: [] },
@@ -72,6 +72,8 @@ export function normalizeMotionDraft(raw: any): MotionDraft {
         if (keys[0].t !== 0 || keys[keys.length-1].t !== 1 || keys.some((k,i) => i > 0 && k.t <= keys[i-1].t)) throw new Error('키프레임은 0~100%를 순서대로 포함해야 합니다.')
         if (!Array.isArray(s.effects) || s.effects.length > AE_SCENE_EFFECTS.length) throw new Error('씬 효과 목록을 확인해 주세요.')
         const effects: MotionEffect[] = s.effects.map((e: any) => {
+            if(e.type.startsWith('depth_'))throw new Error('깊이 흐림·안개는 PSD 레이어 준비 화면에서 선택하세요.')
+            if(e.type==='fireflies')throw new Error('반딧불은 제출 영상의 대본·실제 화면을 확인한 후작업에서 적용합니다.')
             if (!AE_SCENE_EFFECTS.some(item => item.id === e.type) || e.type === 'heat_distortion') throw new Error('열 왜곡은 분리된 PSD의 AE 준비 화면에서 선택해 주세요.')
             const start=finite(e.start,0,1,'효과 시작'), end=finite(e.end,0,1,'효과 종료')
             if (end <= start || !Array.isArray(e.center) || e.center.length !== 2 || !Array.isArray(e.color) || e.color.length !== 3) throw new Error('효과 위치·시간·색상을 확인해 주세요.')

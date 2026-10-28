@@ -221,6 +221,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                     'reason': 'Restrained listening story', 'continuity_rules': ['Preserve screen direction']}, "scene_directions": [
                 {"dramatic_intent": f"Beat {i}", "visual_strategy": "Hold the image for this story beat.",
                  "timed_beats": [{"start_seconds": 0, "end_seconds": 4, "action": "hold", "target": "scene"}],
+                 'effect_limits':{'intensity':.15,'speed':.4,'max_scale_delta':.015,'max_move_ratio':.008,'max_rotation_degrees':.2},
                  "required_layers": [], "additional_keyframes": [], "ae_operations": ["hold"],
                  "requires_layered_assets": False, "continuity_rules": [],
                  "qa_assertions": ["No unintended visual change during the hold."],

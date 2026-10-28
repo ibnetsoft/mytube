@@ -1,6 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),ts=require('../node_modules/typescript');
 function load(auth,db,lib={}){
  const ex={};new Function('exports','require',ts.transpile(fs.readFileSync('app/api/std/projects/[projectId]/ae-mouth/route.ts','utf8'),{module:1,target:7}))(ex,name=>{
+  if(name.includes('stdSubmittedVideoPostwork'))return require('./load-ts-module.cjs')('lib/stdSubmittedVideoPostwork.ts');
   if(name==='next/server')return {NextResponse:{json:(body,options)=>({body,status:options?.status||200})}};
   if(name.includes('supabaseAdmin'))return {supabaseAdmin:db};
   if(name.includes('stdProjectAssets'))return {loadStdProjectAssets:async()=>({data:[],error:null})};
@@ -24,7 +25,7 @@ test('project is scoped to employee email',async()=>{
 test('only ready directions start AE; unresolved scenes stay pending',async()=>{
  let job={id:'job',updated_at:'old',metadata:{state:'direction_pending',fingerprint:'current',results:[{number:19,status:'direction_pending',direction:'girl mouth only',visibility:[]}]}};
  let mutation;
- const db={from:table=>{const q={select:()=>q,eq:()=>q,order:async()=>({data:[]}),update:v=>{mutation=v;return q;},maybeSingle:async()=>({data:table==='std_projects'?{id:'p',project_payload:{}}:{id:'job'}})};return q;}};
+ const db={from:table=>{const q={select:()=>q,eq:()=>q,order:async()=>({data:[]}),update:v=>{mutation=v;return q;},maybeSingle:async()=>({data:table==='std_projects'?{id:'p',submitted_at:'2026-10-27',project_payload:{}}:{id:'job'}})};return q;}};
  const route=load({ok:true,requester:{email:'owner@test'}},db,{aeMouthInput:()=>({fingerprint:'newly-added-coordinates'}),currentAeMouthJob:()=>job});
  const request=f=>({json:async()=>({action:'approve_direction',fingerprint:f})});
  assert.equal((await route.POST(request('stale'),{params:{projectId:'p'}})).status,409);assert.equal(mutation,undefined);

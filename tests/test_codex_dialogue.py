@@ -43,3 +43,18 @@ def test_script_stage_pins_astra_even_if_other_model_configured(monkeypatch, tmp
         assert calls[-1][calls[-1].index('--model') + 1] == ASTRA_MODEL
     stage._stage('test', '01_plan', {}, 'test')
     assert calls[-1][calls[-1].index('--model') + 1] == 'other-model'
+
+
+def test_script_video_index_contains_only_dialogue_in_first_18_and_keeps_exact_offsets():
+    scenes=[{'scene_text':'그가 말했다. 안녕.'} for _ in range(19)]
+    result=validate_dialogue({'scenes':[{'scene_number':i+1,'spans':[
+        {'text':'안녕.','occurrence':1,'speaker':'주인공','status':'confirmed','reason':'직접 발화'}
+    ] if i in (0,17,18) else []} for i in range(19)]},scenes)
+    index=result['video_dialogue_postwork_index']
+    assert index['scene_numbers']==[1,18]
+    assert index['timing_policy']=='bind_final_voice_on_submission'
+    for row in index['scenes']:
+        span=row['dialogue'][0]
+        assert scenes[row['scene_number']-1]['scene_text'][span['start']:span['end']]=='안녕.'
+        assert span['dialogue_id'].startswith(row['source_sha256'])
+        assert row['speakers']==['주인공']

@@ -1,5 +1,15 @@
 'use strict';
 const refreshStateKey='codex-script-console-refresh-v1';
+const consoleViewStateKey='codex-script-console-view-v1';
+const consoleFilterIds=['kind','history-origin','history-state','web-topic-state'];
+function validConsoleView(name){return [...document.querySelectorAll('aside [data-view]')].some(button=>button.dataset.view===name)&&Boolean($('view-'+name));}
+window.saveConsoleViewState=(name=document.querySelector('main>section:not([hidden])')?.id.replace('view-',''))=>{
+  if(!validConsoleView(name))return;
+  const filters=Object.fromEntries(consoleFilterIds.filter(id=>$(id)).map(id=>[id,$(id).value]));
+  try{sessionStorage.setItem(consoleViewStateKey,JSON.stringify({view:name,filters}));}catch{}
+};
+document.addEventListener('change',event=>{if(consoleFilterIds.includes(event.target.id))window.saveConsoleViewState();});
+window.addEventListener('pagehide',()=>window.saveConsoleViewState());
 function refreshFieldKey(field){
   if(field.id)return {id:field.id};
   if(field.form?.id&&field.name)return {form:field.form.id,name:field.name};
@@ -13,7 +23,7 @@ function captureRefreshState(){
     fields.push({...key,value:field.value,checked:field.checked});
   }
   return {savedAt:Date.now(),view:document.querySelector('main>section:not([hidden])')?.id.replace('view-','')||'overview',
-    fields,catalogPage:page,historyPage,source:currentSource?{kind:currentSource.kind,id:currentSource.id}:null,
+    fields,search:window.consoleSearch?.get(),catalogPage:page,historyPage,source:currentSource?{kind:currentSource.kind,id:currentSource.id}:null,
     job:selectedJob?{id:selectedJob.id,origin:selectedJob.origin}:null,
     references:[...document.querySelectorAll('#reference-list input:checked')].map(x=>x.value),
     scrollY:window.scrollY,newCountryOverridden:window.newCountryOverridden,
@@ -40,8 +50,16 @@ $('refresh').onclick=async()=>{
 };
 document.addEventListener('DOMContentLoaded',async()=>{
   let saved;
-  try{const raw=sessionStorage.getItem(refreshStateKey);sessionStorage.removeItem(refreshStateKey);if(raw)saved=JSON.parse(raw);}catch{return;}
-  if(!saved||Date.now()-saved.savedAt>30*60*1000)return;
+  try{const raw=sessionStorage.getItem(refreshStateKey);sessionStorage.removeItem(refreshStateKey);if(raw)saved=JSON.parse(raw);}catch{}
+  if(!saved||Date.now()-saved.savedAt>30*60*1000){
+    let viewState;
+    try{viewState=JSON.parse(sessionStorage.getItem(consoleViewStateKey)||'null');}catch{}
+    if(!viewState||!validConsoleView(viewState.view))return;
+    for(const id of consoleFilterIds){const field=$(id),value=viewState.filters?.[id];if(field&&[...field.options].some(option=>option.value===value))field.value=value;}
+    const button=[...document.querySelectorAll('aside [data-view]')].find(button=>button.dataset.view===viewState.view);
+    button.click();
+    return;
+  }
   notice('페이지를 새로 불러왔습니다. 메뉴와 입력값을 복원하는 중…');
   await window.categoriesReady;
   for(const entry of saved.fields||[]){
@@ -54,6 +72,9 @@ document.addEventListener('DOMContentLoaded',async()=>{
     field.value=entry.value;
     if(['checkbox','radio'].includes(field.type))field.checked=Boolean(entry.checked);
   }
+  const searchIds={repair:'search',jobs:'history-search',preparation:'preparation-project-search',submissions:'web-topic-search'};
+  const savedSearch=typeof saved.search==='string'?saved.search:(saved.fields||[]).find(entry=>entry.id===searchIds[saved.view])?.value;
+  window.consoleSearch?.set(savedSearch??window.consoleSearch.get());
   window.newCountryOverridden=Boolean(saved.newCountryOverridden);
   if(typeof topicCountryOverridden==='boolean')topicCountryOverridden=Boolean(saved.topicCountryOverridden);
   for(const prefix of ['new','topic']){
@@ -63,7 +84,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   window.updateNewSettingSummary?.();
   if(typeof updateTopicSettingSummary==='function')updateTopicSettingSummary();
   page=Math.max(0,Number(saved.catalogPage)||0);historyPage=Math.max(0,Number(saved.historyPage)||0);
-  const name=['overview','new','repair','jobs','grounded','submissions'].includes(saved.view)?saved.view:'overview';
+  const name=validConsoleView(saved.view)?saved.view:'overview';
   view(name);
   try{
     if(name==='submissions')await window.loadWebTopics?.();

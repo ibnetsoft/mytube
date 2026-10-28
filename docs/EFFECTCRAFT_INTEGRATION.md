@@ -1,3 +1,5 @@
+> 2026-10-27: 별도 보관된 비활성 옵션입니다. 현재 제작은 After Effects와 기본 FFmpeg 조립을 사용합니다. 아래는 과거 통합·설치 기록이며 활성 운영 지침이 아닙니다. [현행 역할 계약](worker-workflow-boundary.md)을 따릅니다.
+
 # Motion Studio · EffectCraft engine
 
 EffectCraft is an additional, explicitly selected production engine. Existing Adobe AE and browser Motion Studio paths remain available; existing projects still default to AE. Each choice preserves its own settings in `motion.alternatives`.

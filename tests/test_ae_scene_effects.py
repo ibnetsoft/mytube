@@ -12,6 +12,8 @@ from test_ae_scene_preparation import plan
 
 
 def effect(kind='focus_glow'):
+    if kind.startswith('depth_'):return dict(type=kind,start=.1,end=.9,intensity=.2,center=[.5,.5],color=[.7,.8,.9],radius=.5,reason='Separated depth plane supports a clear subject',target_layer='foreground' if kind=='depth_foreground_blur' else 'background',blur_pixels=6)
+    if kind=='fireflies':return dict(type=kind,start=.1,end=.9,intensity=.2,center=[.2,.2],color=[1,.9,.3],radius=.15,reason='Actual firefly scene',story_quote='반딧불이 빛났다',count=8,size=.002,speed=.01,protected_regions=[])
     return dict(type=kind, start=.31, end=.39, intensity=.4, center=[.5, .5],
                 color=[1, .8, .5], radius=.2, reason='Light from the visible lantern.')
 
@@ -19,6 +21,7 @@ def effect(kind='focus_glow'):
 def test_all_effects_validate_and_are_emitted_in_real_renderer(tmp_path):
     p = plan()
     p['camera'] = [dict(t=t, x=.5, y=.5, scale=1.04, rotation=0) for t in (0, 1)]
+    p['layers'].append(dict(id='foreground',role='foreground',z_index=2,parallax=.3,anchor=[.5,.5],source_ids=['psd-003']))
     p['effects'] = [effect(kind) for kind in sorted(EFFECT_TYPES)]
     for item in p['effects']:
         if item['type'] == 'heat_distortion':

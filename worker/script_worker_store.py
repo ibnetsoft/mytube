@@ -104,7 +104,7 @@ class ScriptStore:
             'status': 'in.(queued,running)'})
         return rows
 
-    def history(self, page=0, origin='all', q='', state='all'):
+    def history(self, page=0, origin='all', q='', state='all', translation_root=None):
         params = {'select': '*', 'order': 'created_at.desc,id.desc', 'offset': page * 40, 'limit': 40,
                   'job_type': HISTORY_FILTER}
         if origin != 'all':
@@ -112,8 +112,8 @@ class ScriptStore:
         if state != 'all':
             params['status'] = f'eq.{state}'
         if q.strip():
-            safe = q.strip().replace('\\', '\\\\').replace('"', '\\"').replace('*', '').replace('%', '').replace('_', '')
-            params['title'] = f'ilike."*{safe}*"'
+            from worker.console_title_search import history_filter
+            params['or'] = history_filter(q, self, translation_root)
         rows, count = self.request('GET', 'script_worker_history', params=params)
         self.enrich_media(rows)
         return {'items': rows, 'total': count, 'page': page,

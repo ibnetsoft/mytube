@@ -627,11 +627,41 @@ def render_ffmpeg_slideshow(
     sfx_cues=None,
     use_gpu=False,
     progress_callback=None,
+    _chapter_pass=False,
 ):
     if intro_video_path and os.path.exists(intro_video_path):
         raise FastRenderUnsupported("인트로 영상은 아직 고속 렌더 경로에서 지원하지 않습니다.")
     if not images or len(images) != len(durations):
         raise FastRenderUnsupported("씬 파일과 재생 시간 구성이 일치하지 않습니다.")
+
+    if not _chapter_pass and sum(map(float, durations)) > 3600 and len(images) > 1:
+        from worker.chapter_visual_cache import render_visual_chapters
+        import shutil
+        def render_part(start, end, offset, duration, target):
+            directory = target.parent / f'work-{start:04d}'
+            directory.mkdir(parents=True, exist_ok=True)
+            silence = directory / 'silence.m4a'
+            subprocess.run([_ffmpeg_executable(), '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                'anullsrc=r=48000:cl=mono', '-t', str(duration), '-c:a', 'aac', str(silence)],
+                check=True, capture_output=True, timeout=120)
+            visual_settings = {key: value for key, value in (subtitle_settings or {}).items() if key in ('motion', 'scene_motion_speeds')}
+            if 'scene_motion_speeds' in visual_settings:
+                visual_settings['scene_motion_speeds'] = visual_settings['scene_motion_speeds'][start:end]
+            output = render_ffmpeg_slideshow(temp_dir=str(directory), images=images[start:end],
+                audio_path=str(silence), durations=durations[start:end], subtitles=[], subtitle_settings=visual_settings,
+                image_effects=(image_effects or [])[start:end], transition_effects=(transition_effects or [])[start:end],
+                resolution=resolution, use_gpu=use_gpu, _chapter_pass=True)
+            shutil.move(output, target)
+        visual = render_visual_chapters(temp_dir, images, durations,
+            {'settings': subtitle_settings, 'effects': image_effects, 'transitions': transition_effects,
+             'resolution': resolution, 'gpu': use_gpu}, render_part, transitions=transition_effects,
+            notify=progress_callback or (lambda *_: None))
+        # Apply the original full timeline once, so BGM, SFX, captions and audio do not reset at chapter cuts.
+        return render_ffmpeg_slideshow(temp_dir=temp_dir, images=[visual], audio_path=audio_path,
+            durations=[sum(map(float, durations))], subtitles=subtitles, subtitle_settings=subtitle_settings,
+            image_effects=['none'], transition_effects=['none'], resolution=resolution,
+            template_overlay_path=template_overlay_path, sfx_cues=sfx_cues, use_gpu=use_gpu,
+            progress_callback=progress_callback, _chapter_pass=True)
 
     progress_callback = progress_callback or (lambda _percent, _message: None)
     ffmpeg_exe = _ffmpeg_executable()

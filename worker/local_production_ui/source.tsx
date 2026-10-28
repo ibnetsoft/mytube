@@ -9,6 +9,13 @@ import StdSpeakerCoordinates from '../../auth-web/components/StdSpeakerCoordinat
 const preparing=document.getElementById('local-production-settings')?.dataset.workerStage==='preparation'
 const token = document.querySelector<HTMLMetaElement>('meta[name="local-token"]')!.content
 const localHeaders = {'X-Codex-Local':token}
+function ConsoleProjectTitle({project}:{project:any}) {
+    const ref=useRef<HTMLDivElement>(null)
+    useEffect(()=>{
+        if(ref.current)(window as any).decorateConsoleTitle?.(ref.current,{...project,project_id:project.id})
+    },[project.id,project.title])
+    return <div ref={ref} className="font-semibold">{project.topic_queue_id?`#${project.topic_queue_id} · `:''}{project.title}</div>
+}
 async function request(url:string, headers:Record<string,string>, body?:object, signal?:AbortSignal) {
     const response = await fetch(url,{headers:{...headers,'Content-Type':'application/json'},signal,...(body?{method:'POST',body:JSON.stringify(body)}:{})})
     const data=await response.json()
@@ -20,10 +27,34 @@ function ProductionSettings() {
     const [error,setError]=useState(''),[loading,setLoading]=useState(false),[tab,setTab]=useState<'production'|'models'|'status'>(preparing?'production':'status')
     const [password,setPassword]=useState(''),[connecting,setConnecting]=useState(false),[connection,setConnection]=useState(''),[connectionVersion,setConnectionVersion]=useState(0)
     const [overview,setOverview]=useState<any>(null),[execution,setExecution]=useState<any[]>([])
+    const [titleLabels,setTitleLabels]=useState<Record<string,any>>({})
+    const [projectSearch,setProjectSearch]=useState(()=>preparing?(window as any).consoleSearch?.get()||'':'')
+    useEffect(()=>{
+        if(preparing)return (window as any).consoleSearch?.subscribe(setProjectSearch)
+    },[])
     const version=useRef(''), active=useRef('')
     const headers=useMemo(()=>({...localHeaders,'X-Local-Project':id}),[id])
     const list=async()=>{setError('');try{setProjects((await request('/api/local/projects',localHeaders)).projects)}catch(e:any){setError(e.message)}}
     useEffect(()=>{void list()},[])
+    useEffect(()=>{
+        if(!preparing||!projects.length)return
+        let cancelled=false,timer:ReturnType<typeof setTimeout>
+        const update=async()=>{
+            try {
+                const items:any[]=[]
+                for(let offset=0;offset<projects.length;offset+=100){
+                    const batch=await request('/api/title-display',localHeaders,{items:projects.slice(offset,offset+100).map(p=>({title:p.title||'',project_id:p.id}))})
+                    items.push(...batch.items)
+                }
+                const labels={items}
+                if(cancelled)return
+                setTitleLabels(Object.fromEntries(projects.map((p,i)=>[p.id,labels.items[i]])))
+                if(labels.items.some((item:any)=>item.status==='running'))timer=setTimeout(update,2500)
+            } catch { /* Keep the original title if display metadata is unavailable. */ }
+        }
+        void update()
+        return()=>{cancelled=true;clearTimeout(timer)}
+    },[projects])
     useEffect(()=>{
         active.current=id;setData(null);setPassword('');setConnection('');version.current='';if(!id)return
         const abort=new AbortController();setLoading(true);setError('')
@@ -50,10 +81,13 @@ function ProductionSettings() {
     const readExecution=async()=>{try{setExecution((await request(`/api/local/projects/${id}/jobs`,headers)).jobs)}catch(e:any){setError(e.message)}}
     useEffect(()=>{setOverview(null);setExecution([]);if(!data)return;if(preparing)void readCoordinates();else if(data.project.submitted_at)void readExecution()},[id,data?.project.id])
     const settings=data?.project.render_settings||{}
+    const projectTerm=projectSearch.trim().toLocaleLowerCase().replace(/^#/,'')
+    const visibleProjects=projects.filter(p=>!projectTerm||[p.title,p.employee_email,titleLabels[p.id]?.title_ko,titleLabels[p.id]?.topic_id,p.topic_queue_id].filter(v=>v!=null).join(' ').toLocaleLowerCase().includes(projectTerm))
     return <div className="space-y-5 text-sm text-white">
-        <div className="flex flex-wrap gap-3 items-end"><label className="flex-1">제작할 프로젝트<select aria-label="제작할 프로젝트" value={id} onChange={e=>setId(e.target.value)} className="mt-2 block w-full rounded bg-slate-800 p-3"><option value="">프로젝트 선택</option>{projects.map(p=><option key={p.id} value={p.id}>{p.title||'이름 없는 프로젝트'} · {p.employee_email}{p.submitted_at?' · 제출됨':''}</option>)}</select></label><button type="button" onClick={()=>void list()} className="rounded border border-white/20 p-3">목록 새로고침</button></div>
+        {preparing&&<label className="block">프로젝트 검색<input id="preparation-project-search" aria-label="준비 프로젝트 검색" value={projectSearch} onChange={e=>{setProjectSearch(e.target.value);(window as any).consoleSearch?.set(e.target.value)}} placeholder="원문·한국어 번역·토픽 번호 검색" className="mt-2 block w-full rounded bg-slate-800 p-3"/><small>{visibleProjects.length}개 프로젝트</small></label>}
+        <div className="flex flex-wrap gap-3 items-end"><label className="flex-1">제작할 프로젝트<select aria-label="제작할 프로젝트" value={id} onChange={e=>setId(e.target.value)} className="mt-2 block w-full rounded bg-slate-800 p-3"><option value="">프로젝트 선택</option>{id&&!visibleProjects.some(p=>p.id===id)&&<option value={id} hidden>{projects.find(p=>p.id===id)?.title||'현재 프로젝트'}</option>}{visibleProjects.map(p=><option key={p.id} value={p.id}>{titleLabels[p.id]?.topic_id?`#${titleLabels[p.id].topic_id} · `:p.topic_queue_id?`#${p.topic_queue_id} · `:''}{p.title||'이름 없는 프로젝트'}{titleLabels[p.id]?.title_ko?' / '+titleLabels[p.id].title_ko:''} · {p.employee_email}{p.submitted_at?' · 제출됨':''}</option>)}</select></label><button type="button" onClick={()=>void list()} className="rounded border border-white/20 p-3">목록 새로고침</button></div>
         {loading&&<p role="status">프로젝트 설정을 불러오는 중…</p>}{error&&<p role="alert" className="text-red-300">{error}</p>}
-        {data&&<><p className="text-slate-300">설정 계정: {data.project.employee_email} · {data.project.title}</p>{!preparing&&!data.project.submitted_at&&<p className="text-amber-300">제출 전 프로젝트입니다. 원본·좌표·연출 준비는 대본워커에서, 영상 제작·화자 지정은 유저웹에서 진행하세요. 통합워커는 제출 후 실행합니다.</p>}
+        {data&&<><ConsoleProjectTitle project={data.project}/><p className="text-slate-300">설정 계정: {data.project.employee_email}</p>{!preparing&&!data.project.submitted_at&&<p className="text-amber-300">제출 전 프로젝트입니다. 원본·좌표·연출 준비는 대본워커에서, 영상 제작·화자 지정은 유저웹에서 진행하세요. 통합워커는 제출 후 실행합니다.</p>}
             <nav aria-label="제작 설정 종류" className="flex gap-3">{preparing?<button onClick={()=>setTab('production')} className="rounded bg-cyan-900 p-3">원본·좌표·AE 연출 준비</button>:<><button onClick={()=>setTab('status')} className="rounded bg-cyan-900 p-3">제출 후 실행·검수 상태</button><button onClick={()=>setTab('models')} className="rounded bg-cyan-900 p-3">영상 생성 모델 · API</button></>}</nav>
             {!preparing&&tab==='status'?<section className="space-y-3 rounded border border-cyan-400/30 p-4"><h3>AE 실행 · 출력 검수 · 최종 렌더</h3><p>제출된 원본·화자·음성과 준비된 연출을 사용합니다. 새 이미지·좌표·레이어는 생성하지 않습니다.</p>{data.project.submitted_at&&<><button onClick={()=>void readExecution()} className="rounded bg-cyan-800 p-2">실행 상태 새로고침</button>{execution.length===0&&<p>등록된 후반 작업이 없습니다. 아래 AE·렌더 작업 목록을 확인하세요.</p>}{execution.map(job=><div key={job.id} className="rounded border border-white/15 p-3"><strong>{job.kind} · {job.state}</strong><p>{job.phase} {job.progress} · 완료 {job.done}/{job.total}</p>{job.error&&<p className="text-amber-300">{job.error}</p>}</div>)}</>}</section>:!preparing&&tab==='models'?<>
                 <details className="rounded border border-white/20 p-4"><summary className="cursor-pointer">기존 영상 API 설정 계정 연결</summary><p className="mt-3 text-slate-300">기존 설정을 불러오려면 이 워커 안에서 계정을 연결하세요. 비밀번호는 저장하지 않으며, 연결은 워커가 종료될 때 해제됩니다.</p><form className="mt-3 space-y-3" onSubmit={async event=>{event.preventDefault();setConnecting(true);setConnection('');try{await request('/api/local/account-login',headers,{password});setPassword('');setConnection('계정 연결 완료');setConnectionVersion(v=>v+1)}catch(e:any){setConnection(e.message)}finally{setConnecting(false)}}}><label className="block">연결 계정<input readOnly value={data.project.employee_email} className="ml-3 rounded bg-slate-800 p-2"/></label><label className="block">비밀번호 / PIN<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required className="ml-3 rounded bg-slate-800 p-2"/></label><button disabled={connecting} className="rounded bg-cyan-800 p-2">{connecting?'연결 중…':'이 워커에서 계정 연결'}</button><p role="status">{connection}</p></form></details>

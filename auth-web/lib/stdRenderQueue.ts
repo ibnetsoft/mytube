@@ -1,3 +1,4 @@
+import { productionEngineError } from './stdProductionEnginePolicy'
 import { projectContentIdentity, selectNarrationAsset, assertNarrationIdentity, renderAssetIdentity, assetContentIdentity, persistContentRevision, finalizeRecordedRenderConfig } from './stdContentIdentity'
 import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from './stdNonverbal'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
@@ -933,6 +934,8 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
 
 export async function enqueueStdProjectRender(projectId: string, automatic?: { jobId: string; taskId: string }) {
     const { project, scenes, assets } = (automatic && await frozenRenderBundle(projectId, automatic.jobId)) || await loadBundle(projectId)
+    const engineError=productionEngineError(project)
+    if(engineError)throw new Error(engineError)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')
     if(!motionForProject(project)?.enabled)assertRecordedSceneDirections(project)
 
