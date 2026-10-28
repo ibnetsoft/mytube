@@ -1,5 +1,6 @@
 // One provider wave per request, below the server's 300-second execution limit.
 export const NARRATION_BATCH_SIZE = 4
+export const BACKGROUND_NARRATION_BATCH_SIZE = 16
 
 type Reply = { res: { ok: boolean; status: number; statusText?: string }; payload: any }
 export async function generateNarrationInBatches(

@@ -6,7 +6,7 @@ const ts = require('typescript')
 
 // Exercise the real lookup and POST boundary; synthesis is a spy so failures
 // cannot accidentally make a provider call (or spend money) during this test.
-const route = fs.readFileSync(path.join(__dirname, '../app/api/std/projects/[projectId]/tts/generate/route.ts'), 'utf8')
+const route = fs.readFileSync(path.join(__dirname, '../lib/stdTtsGenerate.ts'), 'utf8')
 const from = route.indexOf('function topicIdFromProjectParam(')
 const to = route.indexOf('async function runTts(', from)
 assert(from >= 0 && to > from, 'Missing TTS lookup/POST source')

@@ -23,6 +23,9 @@ function requireEnv(name: string): string {
 }
 
 export const supabaseAdmin = createClient(requireEnv('NEXT_PUBLIC_SUPABASE_URL'), requireEnv('SUPABASE_SERVICE_ROLE_KEY'), {
+    // Privileged reads and RPC mutations must never enter Next's fetch cache.
+    // In particular, a GET cron handler must claim a fresh lease every run.
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }) },
     auth: {
         autoRefreshToken: false,
         persistSession: false

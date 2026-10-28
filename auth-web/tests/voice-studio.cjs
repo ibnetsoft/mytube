@@ -89,7 +89,7 @@ async function main() {
     assert.equal(merged.length,3)
     assert.equal(merged[0].text,'첫 줄\n둘째 줄')
     const calls = []
-    const route = load('app/api/std/projects/[projectId]/tts/generate/route.ts', {
+    const route = load('lib/stdTtsGenerate.ts', {
         '@/lib/voiceStudioCatalog': catalog,
         '@/lib/stdVoiceStudio': {generateVoiceStudioMp3: async input => {calls.push(['gemini', input]);return Buffer.alloc(300, 1)}},
     }, '\nexport { generateElevenLabsMp3 };')
@@ -104,7 +104,7 @@ async function main() {
     assert.equal(calls[0][1].direction,'담담하게')
     assert.equal(result.audioBuffer.length,900)
     assert.deepEqual([result.audioBuffer[0],result.audioBuffer[300],result.audioBuffer[600]],[1,2,1])
-    const failRoute=load('app/api/std/projects/[projectId]/tts/generate/route.ts', {
+    const failRoute=load('lib/stdTtsGenerate.ts', {
         '@/lib/voiceStudioCatalog':catalog,
         '@/lib/stdVoiceStudio':{generateVoiceStudioMp3:async()=>{throw new Error('Cloud unavailable')}},
     }, '\nexport { generateElevenLabsMp3 };')

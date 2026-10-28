@@ -1,5 +1,5 @@
 const fs = require('node:fs'), assert = require('node:assert/strict'), ts = require('typescript');
-const route = fs.readFileSync('auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts', 'utf8');
+const route = fs.readFileSync('auth-web/lib/stdTtsGenerate.ts', 'utf8');
 const ast = ts.createSourceFile('route.ts', route, ts.ScriptTarget.Latest, true);
 const names = ['shouldRotateElevenLabsKey','isElevenLabsVoiceAccessError','parseElevenLabsQuotaError','shouldRetryElevenLabsWithAlternateModel','buildElevenLabsModelCandidates','generateSingleElevenLabsChunk'];
 const source = ast.statements.filter(s => ts.isFunctionDeclaration(s) && names.includes(s.name?.text)).map(s=>s.getText(ast)).join('\n');
@@ -31,7 +31,7 @@ const synthesize = new Function('fetch','Buffer','DEFAULT_ELEVENLABS_MODEL_ID','
   assert.equal(legacySegmentMatches(oldRecording,{...v4,voiceId:'Different'},true),false);
   assert.equal(oldRecording.model_id,'eleven_multilingual_v2','Never relabel saved recordings');
   assert.match(route,/const DEFAULT_ELEVENLABS_MODEL_ID = 'eleven_v4'/);
-  for (const file of ['auth-web/app/std/page.tsx','auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts']) {
+  for (const file of ['auth-web/app/std/page.tsx','auth-web/lib/stdTtsGenerate.ts']) {
     const text = fs.readFileSync(file,'utf8');
     const declaration = text.match(/const cacheModelForVoice = .*$/m)[0];
     for (const chosen of ['eleven_multilingual_v2','eleven_v4']) {

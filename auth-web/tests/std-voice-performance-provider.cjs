@@ -1,6 +1,6 @@
 const fs=require('fs'),assert=require('node:assert/strict'),ts=require('typescript');
 const helpers=require('../../scripts/std_web_runtime.cjs').load('stdVoicePerformance');
-const raw=fs.readFileSync('auth-web/app/api/std/projects/[projectId]/tts/generate/route.ts','utf8');
+const raw=fs.readFileSync('auth-web/lib/stdTtsGenerate.ts','utf8');
 const ast=ts.createSourceFile('route.ts',raw,ts.ScriptTarget.Latest,true);
 const names=['splitText','cleanTtsText','buildElevenLabsModelCandidates','shouldRotateElevenLabsKey','isElevenLabsVoiceAccessError','parseElevenLabsQuotaError','shouldRetryElevenLabsWithAlternateModel','generateSingleElevenLabsChunk','generateElevenLabsMp3'];
 const functions=ast.statements.filter(s=>ts.isFunctionDeclaration(s)&&names.includes(s.name?.text)).map(s=>s.getText(ast)).join('\n');
