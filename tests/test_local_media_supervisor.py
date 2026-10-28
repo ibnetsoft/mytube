@@ -50,6 +50,12 @@ def test_ready_region_video_still_requires_review():
     from worker.local_media_dashboard import summarize
     assert summarize({'id':'r','scene_number':13,'metadata':{'kind':'region_motion_plan','state':'ready'}})['group'] == 'review'
 
+def test_dashboard_exposes_actionable_failure_and_canceled_state():
+    from worker.local_media_dashboard import summarize
+    stopped = summarize({'id':'a','metadata':{'kind':'motion_automation','state':'needs_review','error':'1번 씬 영상 길이 부족','progress':'보완 필요'}})
+    assert stopped['group'] == 'review' and stopped['error'] == '1번 씬 영상 길이 부족'
+    assert summarize({'id':'b','metadata':{'kind':'ae_mouth_job','state':'canceled'}})['group'] == 'failed'
+
 def test_singleton_rejects_second_manager(isolated):
     with media.singleton():
         with pytest.raises(RuntimeError, match='already running'):

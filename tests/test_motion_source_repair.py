@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from moviepy import VideoClip
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'worker'))
-from motion_source_repair import validate_repair,verify_repair
+from motion_source_repair import validate_repair,verify_repair,repair_short_video
 
 def fixture(tmp_path):
     source=tmp_path/'source.bin';source.write_bytes(b'original')
@@ -30,3 +30,16 @@ def test_repaired_video_must_match_original_prefix_and_held_frame(tmp_path):
     recipe={'sha256':hashlib.sha256(repaired.read_bytes()).hexdigest(),'fps':24,'duration':1,'retained_source_frames':7}
     assert verify_repair(recipe,original,repaired)['passed']
     with pytest.raises(ValueError):verify_repair({**recipe,'retained_source_frames':15},original,repaired)
+
+def test_short_video_is_extended_and_verified_without_altering_source(tmp_path):
+    from ae_media_utils import ffmpeg,run
+    source=tmp_path/'source.mp4'
+    with VideoClip(lambda t:np.full((36,64,3),int(50+t*50),dtype='uint8'),duration=1) as clip:
+        clip.write_videofile(str(source),fps=24,codec='libx264',audio=False,logger=None,threads=1)
+    original=source.read_bytes()
+    scene={'number':1,'source_kind':'video','source':{'id':'source','metadata':{}},'start':0,'end':1.2}
+    repaired,receipt=repair_short_video(scene,source,'audio',tmp_path,ffmpeg(),run)
+    assert repaired != source and source.read_bytes()==original
+    assert receipt['verification']['passed'] and receipt['hold_seconds']==pytest.approx(.2)
+    with pytest.raises(ValueError,match='자동 보완 한도'):
+        repair_short_video({**scene,'end':3},source,'audio',tmp_path,ffmpeg(),run)

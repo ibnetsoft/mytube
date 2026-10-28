@@ -2,6 +2,26 @@
 from pathlib import Path
 import hashlib,math
 
+def repair_short_video(scene, source, audio_id, directory, ffmpeg, run, max_hold=1.0):
+    """Create and verify a bounded local execution copy, retaining the original asset."""
+    from moviepy import VideoFileClip
+    source=Path(source)
+    with VideoFileClip(str(source),audio=False) as clip:
+        available=float(clip.duration); fps=float(clip.fps)
+    required=float(scene['end'])-float(scene['start'])
+    gap=required-available
+    if gap <= .001: return source, None
+    if gap > max_hold: raise ValueError(f"{scene['number']}번 씬: 영상이 {gap:.2f}초 부족해 자동 보완 한도({max_hold:.1f}초)를 초과했습니다.")
+    frames=round(available*fps)
+    target_frames=math.ceil(required*fps-1e-6)
+    duration=target_frames/fps
+    target=Path(directory)/f"short-video-{scene['number']}.mp4"
+    run([ffmpeg,'-v','error','-y','-i',str(source),'-an','-vf',f'tpad=stop_mode=clone:stop_duration={max(0,duration-available)+2/fps:.9f}', '-frames:v',str(target_frames),'-c:v','libx264','-crf','12','-preset','veryfast','-pix_fmt','yuv420p',str(target)])
+    recipe={'contract':'recorded_source_prefix/v1','source_asset_id':scene['source']['id'],'audio_id':audio_id,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'retained_source_frames':frames,'duration':duration,'fps':fps,'hold_seconds':round(gap,6)}
+    validate_repair(recipe,scene,source,audio_id)
+    recipe['verification']=verify_repair(recipe,source,target)
+    return target, recipe
+
 def validate_repair(recipe,scene,source,audio_id):
     if not isinstance(recipe,dict) or recipe.get('contract')!='recorded_source_prefix/v1':raise ValueError('Invalid source repair contract')
     if scene.get('source_kind')!='video' or scene['source'].get('metadata',{}).get('ae_mouth_fingerprint'):raise ValueError('Source repair cannot retime recorded mouth clips')
