@@ -9,7 +9,7 @@ function route(register){
   '@/lib/stdAeMouthQueue':{ensureAeMouthJob:()=>{throw Error('legacy job created')}},
   'next/server':{NextResponse:{json:(body,options)=>({body,status:options?.status||200})}},
   '@/lib/supabaseAdmin':{supabaseAdmin:{from:()=>query}},
-  '@/lib/stdRenderQueue':{getStdProjectRenderHistory:async()=>[],enqueueStdProjectRender:()=>{throw Error('unreviewed final render enqueued')}},
+  '@/lib/stdRenderQueue':{getStdProjectRenderHistory:async()=>[],ensureStdGeneratedSceneAssetsArchived:async(p,s,a)=>[...a,{id:'recovered'}],enqueueStdProjectRender:()=>{throw Error('unreviewed final render enqueued')}},
   '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'u',user:{id:'owner'}}})},
   '@/lib/stdAeScenePreparation':{hasAeSceneIntent:()=>false}
  };
@@ -22,6 +22,7 @@ test('EC re-submit freezes a new renderer job instead of entering legacy mouth/f
  assert.equal(result.status,202);assert.equal(result.body.motion_automation,true);assert.equal(result.body.job_id,'ec-job');
  assert.equal(r.calls.length,1);assert.equal(r.calls[0][3],'owner');assert.equal(r.calls[0][4],true);
  assert.equal(r.calls[0][2][0].id,'audio');
+ assert.equal(r.calls[0][2][1].id,'recovered');
 });
 test('registration failure is surfaced without falling through to another renderer',async()=>{
  const r=route(async()=>{throw Error('Project changed; save and submit again')}),result=await r.run();

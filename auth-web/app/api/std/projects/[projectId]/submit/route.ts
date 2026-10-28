@@ -178,7 +178,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
     let assets = loadedAssets || []
     try {
-        if(!motionAutomationEnabled(project)&&!hasAllSceneParallax(project)&&!hasSubmittedVideoPostwork(project,scenes||[],assets)) assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
+        assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
         if (!isNonverbalProject(project)) assets = await recoverStoredTtsAsset(project, assets)
     } catch (archiveError: any) {
         return NextResponse.json({

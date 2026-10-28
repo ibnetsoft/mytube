@@ -4,7 +4,7 @@ import { aeMouthApplicable } from '@/lib/stdAeMouth'
 import { ensureAeMouthJob } from '@/lib/stdAeMouthQueue'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
-import { enqueueStdProjectRender, getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
+import { enqueueStdProjectRender, ensureStdGeneratedSceneAssetsArchived, getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { requireStdUser } from '@/lib/stdWeb'
 import { hasAeSceneIntent } from '@/lib/stdAeScenePreparation'
 
@@ -48,7 +48,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         ])
         if (scenes.error || assets.error) throw scenes.error || assets.error
         if (motionAutomationEnabled(project)) {
-            const run = await registerMotionAutomation(project, scenes.data || [], assets.data || [], auth.requester.user.id, true)
+            const archived = await ensureStdGeneratedSceneAssetsArchived(project, scenes.data || [], assets.data || [])
+            const run = await registerMotionAutomation(project, scenes.data || [], archived, auth.requester.user.id, true)
             return NextResponse.json({ success: true, ...run, postprocess_pending: true, motion_automation: true,
                 message: '저장된 영상·이미지에 효과 작업 후 최종 렌더링이 자동으로 진행됩니다.' }, { status: 202 })
         }
