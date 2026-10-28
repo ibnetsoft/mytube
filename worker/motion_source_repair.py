@@ -2,7 +2,7 @@
 from pathlib import Path
 import hashlib,math
 
-def repair_short_video(scene, source, audio_id, directory, ffmpeg, run, max_hold=1.0):
+def repair_short_video(scene, source, audio_id, directory, ffmpeg, run, max_hold=5.0):
     """Create and verify a bounded local execution copy, retaining the original asset."""
     from moviepy import VideoFileClip
     source=Path(source)

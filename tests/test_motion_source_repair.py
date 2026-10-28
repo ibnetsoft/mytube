@@ -42,4 +42,4 @@ def test_short_video_is_extended_and_verified_without_altering_source(tmp_path):
     assert repaired != source and source.read_bytes()==original
     assert receipt['verification']['passed'] and receipt['hold_seconds']==pytest.approx(.2)
     with pytest.raises(ValueError,match='자동 보완 한도'):
-        repair_short_video({**scene,'end':3},source,'audio',tmp_path,ffmpeg(),run)
+        repair_short_video({**scene,'end':7},source,'audio',tmp_path,ffmpeg(),run)
