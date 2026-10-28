@@ -135,6 +135,13 @@ def character_continuity_prompt(character):
                   _text(character.get("continuity_instruction")),
                   "Preserve the same hairline, shaved-scalp area, hair length, and knot/braid shape, position and direction. "
                   "Never swap another person's hairstyle or face. Only a story-explicit approved variant may change them."])
+    separation = character.get('face_distinctness_review') or {}
+    if separation.get('passed') is True:
+        for pair in separation.get('pairs',[]):
+            evidence=pair.get('result') or {}
+            if evidence.get('passed') is True:
+                parts.append('Preserve facial-structure separation from '+str(pair.get('other_name') or pair.get('other_key'))+': '+'; '.join(str(row.get('evidence') or '') for row in evidence.get('differences',[])))
+    parts.append('Different named characters must never share one base face with only a hairstyle, age texture or clothing change. Match each actual approved face reference separately.')
     return ". ".join(part for part in parts if part)
 
 

@@ -5,6 +5,12 @@ import pathlib
 import sys
 
 import pytest
+
+@pytest.fixture(autouse=True)
+def face_review_dependencies(monkeypatch,tmp_path):
+    from face_review_fixtures import install
+    install(monkeypatch,tmp_path)
+
 from PIL import Image
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "worker"))

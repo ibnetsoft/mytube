@@ -48,6 +48,8 @@ def _ready_identity(identity: dict, scenes: list[dict]) -> dict | None:
             or any(not character.get("image_url") or not (character.get("gcs_path")
                        or character.get("storage_object_path")) for character in characters)):
         return None
+    from worker.character_face_distinctness import current_cast
+    if not current_cast(characters):return None
     return character_design_anchors(validated)
 
 

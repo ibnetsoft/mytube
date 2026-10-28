@@ -59,7 +59,7 @@ class NativeCodexImageGenerator:
     def __init__(self, config, output_dir: Path):
         self.config, self.output_dir = config, output_dir
 
-    def generate(self, prompt: str, reference_path: Path | None = None) -> Path:
+    def generate(self, prompt: str, reference_path: Path | None = None, contrast_paths=()) -> Path:
         work = self.output_dir / digest([VERSION, prompt])
         work.mkdir(parents=True, exist_ok=True)
         manifest = work / 'image-job.json'
@@ -75,7 +75,10 @@ class NativeCodexImageGenerator:
         path = image_recovery.state_path(manifest)
         image_recovery.update_file(path,lambda s:image_recovery.transition(s,{'action':'start','job_id':job_id}))
         try:
-            target = self._generate_once(job['prompt'], reference_path=reference_path)
+            options={}
+            if reference_path is not None:options['reference_path']=reference_path
+            if contrast_paths:options['contrast_paths']=contrast_paths
+            target = self._generate_once(job['prompt'], **options)
         except Exception as exc:
             kind = 'safety' if re.search(r'safety|moderation|policy|content.filter',str(exc),re.I) else 'unknown'
             image_recovery.update_file(path,lambda s:image_recovery.transition(s,{
@@ -87,7 +90,7 @@ class NativeCodexImageGenerator:
             'action':'accept','job_id':job_id,'visual_review':'Native generator receipt verifies visual inspection'}))
         return target
 
-    def _generate_once(self, prompt: str, reference_path: Path | None = None) -> Path:
+    def _generate_once(self, prompt: str, reference_path: Path | None = None, contrast_paths=()) -> Path:
         work = self.output_dir / digest([VERSION, prompt])
         work.mkdir(parents=True, exist_ok=True)
         target, receipt = work / "portrait.png", work / "receipt.json"
@@ -104,6 +107,11 @@ class NativeCodexImageGenerator:
             reference_instruction = (
                 "Use approved-character-reference.png as the mandatory identity reference. Preserve the exact face, hair, body proportions, palette and wardrobe identifiers across every panel. "
             )
+        if contrast_paths:
+            names=[]
+            for index, path in enumerate(contrast_paths):
+                name=f'other-cast-face-{index}.png';shutil.copy2(path,work/name);names.append(name)
+            reference_instruction += ('Inspect these OTHER characters before generation: '+', '.join(names)+'. They are NEGATIVE facial-identity references, never identity templates for this candidate. Compare their eye/nose/mouth/jaw geometry and design a clearly different face; changing clothes or hair is insufficient. ')
         task = (
             "Use the imagegen skill and the BUILT-IN image_gen tool to generate exactly one character reference image. "
             "No API calls, Gemini, downloaded stock images, SVG, drawings made with code, placeholders or video. "
@@ -231,6 +239,21 @@ class CharacterAssetStore:
                 "cast_census": usage.get("cast_census")})
         return references
 
+    def load_portrait(self, character: dict, directory: Path) -> Path:
+        directory.mkdir(parents=True, exist_ok=True)
+        bucket=character.get('gcs_bucket') or character.get('storage_bucket')
+        key=character.get('gcs_path') or character.get('storage_object_path')
+        if not bucket or not key:raise RuntimeError('Saved character image needs actual stored pixels for face comparison')
+        target=directory/(digest([bucket,key])+'.png')
+        if not target.exists():
+            creds,_=self._gcs_credentials()
+            response=requests.get(f"https://storage.googleapis.com/storage/v1/b/{quote(bucket,safe='')}/o/{quote(key,safe='')}?alt=media",headers={'Authorization':f'Bearer {creds.token}'},timeout=120)
+            if response.status_code!=200:raise RuntimeError('Cannot load saved portrait for mandatory face comparison')
+            target.write_bytes(response.content)
+        data=validate_portrait(target)
+        if character.get('image_sha256') and hashlib.sha256(data).hexdigest()!=character['image_sha256']:raise RuntimeError('Saved character portrait hash changed')
+        return target
+
     def save_design(self, topic_id: int, result: dict, fingerprint: str, payload: dict, *, sha: str = "") -> None:
         record = {k: result.get(k) for k in ("character_key", "name", "role", "gender", "age_group",
                   "visual_dna_en", "wardrobe_en", "continuity_instruction", "image_prompt", "image_url",
@@ -243,7 +266,7 @@ class CharacterAssetStore:
                                          "archetype", "facial_signature", "silhouette_signature",
                                          "prop_behavior_signature", "palette", "reference_sheet_prompt",
                                          "scene_variation_rules", "character_sheet_assets",
-                                         "character_sheet_status", "character_sheet_version") if key in result},
+                                         "character_sheet_status", "character_sheet_version", "face_distinctness_review") if key in result},
                                      "cast_census": payload.get("_character_census") or result.get("cast_census"),
                                      "stage": "after_script_before_media_prompts"})
         self.request("POST", "/rest/v1/topic_character_assets", params={"on_conflict": "topic_queue_id,character_key"},
@@ -290,7 +313,7 @@ class CharacterAssetStore:
 
 
 def generate_character_references(context: dict, payload: dict, config, output_dir: Path,
-                                  *, generator=None, store=None) -> dict:
+                                  *, generator=None, store=None, reviewer=None) -> dict:
     topic_id = int(payload.get("topic_queue_id") or 0)
     if topic_id <= 0 or not str(context.get("script") or "").strip():
         raise RuntimeError("Final script and topic_queue_id are required before character image generation")
@@ -305,6 +328,15 @@ def generate_character_references(context: dict, payload: dict, config, output_d
     from worker.content_language import resolve_setting
     setting = resolve_setting(payload)
     saved_references = store.load_references(topic_id) if hasattr(store, "load_references") else []
+    from worker.character_face_distinctness import FaceDistinctnessReviewer, sha as portrait_sha
+    reviewer = reviewer or FaceDistinctnessReviewer(config, output_dir / 'face-distinctness')
+    known = {}
+    canonical_keys={c['name']:c.get('character_key') for c in characters if c.get('character_key')}
+    for saved_reference in saved_references:
+        if canonical_keys.get(saved_reference.get('name')) and saved_reference.get('character_key')!=canonical_keys[saved_reference['name']]:continue
+        if saved_reference.get('image_url'):
+            saved_path = store.load_portrait(saved_reference, output_dir / 'saved-reference-pixels')
+            known[saved_reference['character_key']] = (saved_reference, saved_path)
     enriched = []
     for original in characters:
         character = dict(original)
@@ -346,11 +378,31 @@ def generate_character_references(context: dict, payload: dict, config, output_d
                 "image_url", "storage_bucket", "storage_object_path", "storage_provider", "gcs_bucket", "gcs_path",
                 "generation_model", "source", "image_sha256") if key in saved},
                 "reference_fingerprint": fingerprint, "image_generation_status": "ready"}
+            local_path = known[character['character_key']][1]
+            proof = reviewer.review(reused, local_path, [value for key,value in known.items() if key != character['character_key']])
+            if not proof['passed']:raise RuntimeError('Saved character faces are too similar; repair the existing cast before generating scenes: ' + character['name'])
+            reused.update(face_distinctness_review=proof,image_sha256=portrait_sha(local_path))
+            known[character['character_key']] = (reused, local_path)
             store.save_design(topic_id, reused, fingerprint, payload)
             enriched.append(reused)
             continue
-        portrait = generator.generate(character["image_prompt"])
+        base_prompt = character['image_prompt'] + " Mandatory cast face diversity: use a unique facial skeleton, eye shape/spacing, nose bridge/tip, mouth proportions and jaw. Hair, clothes, expression and age wrinkles alone do not distinguish two people. Preserve the story-defined age, gender, ethnicity and role."
+        for face_attempt in range(3):
+            comparison_pixels=[path for key,(_,path) in known.items() if key != character['character_key']]
+            cast_face_ids=[(key,portrait_sha(path)) for key,(_,path) in known.items() if key != character['character_key']]
+            prompt_with_cast=base_prompt+' Other cast image fingerprints (negative identities): '+json.dumps(cast_face_ids)
+            portrait = generator.generate(prompt_with_cast,contrast_paths=comparison_pixels) if isinstance(generator,NativeCodexImageGenerator) else generator.generate(prompt_with_cast)
+            proof = reviewer.review(character, portrait, [value for key,value in known.items() if key != character['character_key']])
+            if proof['passed']:break
+            feedback = [p['result'] for p in proof['pairs'] if not p['result']['passed']]
+            if face_attempt == 2:raise RuntimeError('Character face remains too similar after two repairs: ' + character['name'] + ': ' + json.dumps(feedback,ensure_ascii=False))
+            base_prompt = character['image_prompt'] + " FACE IDENTITY REPAIR " + str(face_attempt+1) + ": " + json.dumps(feedback,ensure_ascii=False) + " Change the facial structure, not just hair/clothes; preserve script age, gender, ethnicity and setting."
+        character['face_distinctness_review'] = proof
+        character['image_sha256'] = portrait_sha(portrait)
+        character['image_prompt'] = base_prompt
         published = store.publish(topic_id, character, portrait, fingerprint, payload)
+        published.update(image_sha256=character['image_sha256'],face_distinctness_review=proof)
+        known[character['character_key']] = (published, portrait)
         if hasattr(store, "publish_sheet"):
             sheet_specs = {
                 "expression": "Facial acting sheet: neutral, joy, sadness, anger, surprise, anxiety, suspicion, embarrassment, resolve, restrained tears and subtle smile; include low, medium and high intensity where useful.",
@@ -373,6 +425,13 @@ def generate_character_references(context: dict, payload: dict, config, output_d
             published["character_sheet_version"] = "four-sheet-v1"
             store.save_design(topic_id, published, fingerprint, payload)
         enriched.append(published)
+    # Every final character must carry comparisons against every other final image,
+    # including later generated cast members; caches are bound to actual bytes.
+    for character in enriched:
+        proof = reviewer.review(character, known[character['character_key']][1], [value for key,value in known.items() if key != character['character_key']])
+        if not proof['passed']:raise RuntimeError('Final cast face separation failed: ' + character['name'])
+        character['face_distinctness_review'] = proof
+        if hasattr(store, 'save_design'):store.save_design(topic_id,character,character['reference_fingerprint'] if character.get('reference_fingerprint') else digest([VERSION,{key:character.get(key) for key in DESIGN_FIELDS},setting['image_style_en'],setting['setting_country'],setting['era_region']]),payload)
     return {"main_character": enriched[0], "supporting_characters": enriched[1:],
             "scene_cast": context.get("scene_cast") or [], "recurring_scene_threshold": 2,
             "reference_policy": context.get("reference_policy") or "legacy_saved_cast",

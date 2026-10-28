@@ -1,6 +1,12 @@
 import pathlib
 import sys
 import pytest
+
+@pytest.fixture(autouse=True)
+def face_review_dependencies(monkeypatch,tmp_path):
+    from face_review_fixtures import install
+    install(monkeypatch,tmp_path)
+
 from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -74,7 +80,7 @@ def test_major_character_generates_and_persists_all_four_character_sheets(tmp_pa
             return path
     class Store:
         def publish(self, topic, c, path, fingerprint, payload):
-            return {**c, "character_key": "lead", "image_url": "/design.png",
+            return {**c, "character_key": c["character_key"], "image_url": "/design.png",
                     "gcs_bucket": "bucket", "gcs_path": "design.png"}
         def publish_sheet(self, topic, c, sheet_type, path):
             return {"type": sheet_type, "image_url": f"/{sheet_type}.png", "status": "ready"}
@@ -220,7 +226,7 @@ def test_saved_portrait_is_reused_after_reload_and_scene_membership_changes(tmp_
     assert result['main_character']['image_url'] == '/saved.png'
     assert result['main_character']['character_key'] == 'original-key'
     assert saved[0]['scene_numbers'] == [2, 4, 8]
-    assert saved[0]['image_sha256'] == 'hash'
+    assert len(saved[0]['image_sha256']) == 64  # Read pixels now bind the comparison receipt.
 
 
 def test_registry_only_approved_design_wins_over_a_new_model_interpretation(tmp_path):
