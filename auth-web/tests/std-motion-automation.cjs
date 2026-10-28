@@ -39,7 +39,7 @@ test('horizontal webtoon freezes the inspected plan and uses a queue older worke
  await f.run();const call=f.calls.rpc[0],s=JSON.parse(call.args.p_manifest.automation.snapshot_json)
  assert.equal(call.name,'register_std_horizontal_webtoon_pipeline');assert.deepEqual(s.renderer,{engine:'ae_horizontal_webtoon',version:1})
  assert.equal(s.scenes[0].source.id,'image');assert.equal(s.scenes[0].webtoon.source_sha256,'a'.repeat(64));assert.equal(f.calls.models,0)
- assert.equal(s.execution_policy.review_policy,'skip_user_requested/v1');assert.equal(s.execution_policy.video_playback_policy,'original_speed_no_freeze_no_loop/v1')
+ assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1');assert.equal(s.execution_policy.video_playback_policy,'original_speed_no_freeze_no_loop/v1')
 })
 test('hybrid freezes selected model configuration but excludes its secret',async()=>{
  const f=fixture('hybrid');await f.run();assert.equal(f.calls.models,1)
@@ -83,7 +83,7 @@ test('EC defaults to existing stored video despite stale image choice and freeze
  f.assets.push({...f.image,id:'stored-video',asset_type:'video',metadata:{gcs_path:'stored.mp4'}});
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
  assert.equal(s.scenes[0].source.id,'stored-video');assert.equal(s.scenes[0].source_kind,'video');assert.equal(s.scenes[0].source_reference_image.id,'image');
- assert.equal(s.execution_policy.review_policy,'skip_user_requested/v1');assert.equal(s.motion.automation.mode,'ae_only');assert.equal(f.calls.models,0);assert.equal(s.model_ref,null);
+ assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1');assert.equal(s.motion.automation.mode,'ae_only');assert.equal(f.calls.models,0);assert.equal(s.model_ref,null);
  assert.deepEqual(s.subtitles.map(x=>[x.start,x.end]),[[0,20]]);
 });
 test('EC falls back to stored image when video has no storage',async()=>{
@@ -105,7 +105,7 @@ test('only frozen video is reported instead of silently substituting image',asyn
 
 test('disabled alternatives cannot register a queue or read provider secrets',async()=>{for(const method of ['effectcraft','filmcraft','motion_studio']){const f=fixture();f.project.project_payload.render_settings.motion.production_method=method;await assert.rejects(f.run(),/비활성화/);assert.equal(f.calls.rpc.length,0);assert.equal(f.calls.models,0)}});
 
-test('ordinary uploaded dialogue videos enter mandatory reviewed postwork even with automation disabled',async()=>{const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;delete f.project.project_payload.render_settings.motion.automation;f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='주인공';f.assets.push({...f.image,id:'submitted-clip',asset_type:'video',metadata:{gcs_path:'clip.mp4',video_tail_policy:'original_speed_no_freeze_no_loop/v1'}});await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.submitted_video_postwork,'submitted_video_postwork/v1');assert.equal(s.scenes[0].source.id,'submitted-clip');assert.equal(s.scenes[0].postwork.mouth_required,true);assert.equal(s.scenes[0].postwork.dialogue[0].end,20);assert.equal(s.motion.automation.mode,'ae_only');assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1');assert.equal(f.calls.models,0);});
+test('ordinary uploaded dialogue videos enter mandatory reviewed postwork even with automation disabled',async()=>{const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;delete f.project.project_payload.render_settings.motion.automation;f.project.project_payload.subtitles[0].dialogue_kind='dialogue';f.project.project_payload.subtitles[0].dialogue_speaker='주인공';f.assets.push({...f.image,id:'submitted-clip',asset_type:'video',metadata:{gcs_path:'clip.mp4',video_tail_policy:'original_speed_no_freeze_no_loop/v1'}});await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.submitted_video_postwork,'submitted_video_postwork/v1');assert.equal(s.scenes[0].source.id,'submitted-clip');assert.equal(s.scenes[0].postwork.mouth_required,true);assert.equal(s.scenes[0].postwork.dialogue[0].end,20);assert.equal(s.motion.automation.mode,'ae_only');assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1');assert.equal(f.calls.models,0);});
 
 test('script-selected parallax never silently submits a flattened image',async()=>{const f=fixture();f.project.project_payload.structure={scenes:[{scene_number:1,parallax_plan:{enabled:true}}]};await assert.rejects(f.run(),/패럴럭스.*PSD/);assert.equal(f.calls.rpc.length,0);});
 
@@ -118,7 +118,7 @@ test('all-scene parallax automatically registers prepared PSD with exact dialogu
  f.calls.prepared.set(1,{metadata:{state:'prepared',result:{plan:{effects:[approvedDepth],camera:[{t:0,x:.5,y:.5,scale:1,rotation:0},{t:1,x:.5,y:.5,scale:1,rotation:0}]}}}});
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
  assert.deepEqual(s.scenes[0].reviewed_depth_effects,[approvedDepth]);assert.equal(s.scenes[0].purpose_policy.role,'dialogue');assert.equal(s.scenes[0].purpose_policy.max_move_ratio,.006);
- assert.equal(s.all_scene_parallax,'all_scene_parallax/v1');assert.equal(s.scenes[0].source_kind,'psd');assert.equal(s.scenes[0].parallax_mouth.dialogue[0].start,0);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].end,20);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].speaker,'hero');assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1');assert.equal(f.calls.models,0);
+ assert.equal(s.all_scene_parallax,'all_scene_parallax/v1');assert.equal(s.scenes[0].source_kind,'psd');assert.equal(s.scenes[0].parallax_mouth.dialogue[0].start,0);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].end,20);assert.equal(s.scenes[0].parallax_mouth.dialogue[0].speaker,'hero');assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1');assert.equal(f.calls.models,0);
 });
 
 test('script bubble choices freeze into the AE scene with mandatory output review',async()=>{
@@ -126,7 +126,7 @@ test('script bubble choices freeze into the AE scene with mandatory output revie
  f.project.project_payload.structure={scenes:[{scene_number:1,scene_direction_plan:{speech_bubble_plan:plan}}]}
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json)
  assert.deepEqual(s.scenes[0].speech_bubble_plan,plan)
- assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1')
+ assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1')
  assert.equal(s.scenes[0].start,0);assert.equal(s.scenes[0].end,20)
 })
 
@@ -135,5 +135,5 @@ test('script bubble-only still projects automatically enter native AE without mo
  f.project.project_payload.structure={scenes:[{scene_number:1,scene_direction_plan:{speech_bubble_plan:{contract:'speech_bubble_presets/v1',cues:[{text:'Final voice',speaker:'A',style:'dialogue',reason:'spoken'}]}}}]}
  await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json)
  assert.equal(s.motion.enabled,true);assert.equal(s.motion.automation.mode,'ae_only')
- assert.equal(s.execution_policy.review_policy,'required_actual_source_output/v1')
+ assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1')
 })
