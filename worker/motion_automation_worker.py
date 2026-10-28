@@ -702,7 +702,7 @@ def process_one(engine='ae'):
                         'required_duration':scene['end']-scene['start'],'timing_policy':'original_rate_then_actual_last_frame_hold'}
         plans=copy.deepcopy(meta.get('plans') or []);results=copy.deepcopy(meta.get('results') or []);previous=None
         for index,scene in enumerate(snapshot['scenes']):
-            fresh();number=scene['number'];work=directory/f'scene-{number}';work.mkdir(exist_ok=True)
+            fresh();number=scene['number'];save(current_scene=number);work=directory/f'scene-{number}';work.mkdir(exist_ok=True)
             audio_info,waveform=voice_evidence(voice,scene,work)
             if scene.get('recorded_source_reuse'):
                 proof=scene['recorded_source_reuse']
@@ -876,6 +876,7 @@ def process_one(engine='ae'):
         final_reviews=[]
         for index,scene in enumerate(snapshot['scenes']):
             if video_postwork_review_bypass(meta,snapshot):continue
+            save(current_scene=scene['number'])
             segment=media_directory(final_dir)/f'review-{scene["number"]}.mp4'
             run([ffmpeg(),'-v','error','-y','-ss',str(scene['start']),'-i',str(output),'-t',str(scene['end']-scene['start']),'-c:v','libx264','-c:a','aac',str(segment)])
             # Final soundtrack may intentionally contain BGM/SFX; identity of voice is already checked per scene.
@@ -961,7 +962,7 @@ def process_one(engine='ae'):
     except LeaseLost:pass
     except Exception as error:
         if not lost.is_set():
-            try:save(state='needs_review',phase='needs_review',error=str(error)[:2200],progress='보완이 필요합니다. 원본·음성·완료된 작업은 보존됩니다.')
+            try:save(state='needs_review',phase='needs_review',blocked_scene=meta.get('current_scene'),error=str(error)[:2200],progress='보완이 필요합니다. 원본·음성·완료된 작업은 보존됩니다.')
             except Exception:pass
     finally:stopped.set();thread.join(timeout=2)
     return True

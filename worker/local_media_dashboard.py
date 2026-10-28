@@ -55,7 +55,7 @@ def summarize(row, render=False):
     if meta.get('kind') in ('motion_automation','effectcraft_automation','horizontal_webtoon_automation','filmcraft_automation'): completed = sum(r.get('review',{}).get('passed') is True for r in results)
     return {'id': row['id'], 'project_id': meta.get('std_web_project_id') or row.get('project_id'),
             'title': row.get('project_name') or '', 'kind': 'render' if render else meta.get('kind'),
-            'state': state, 'group': 'review' if meta.get('kind') == 'region_motion_plan' and state == 'ready' else group(state), 'phase': meta.get('phase'), 'error': meta.get('error') or row.get('error_message'), 'message': meta.get('progress') or row.get('message'),
+            'state': state, 'group': 'review' if meta.get('kind') == 'region_motion_plan' and state == 'ready' else group(state), 'phase': meta.get('phase'), 'blocked_scene': meta.get('blocked_scene') or meta.get('current_scene'), 'error': meta.get('error') or row.get('error_message'), 'message': meta.get('progress') or row.get('message'),
             'total': meta.get('total_scenes') or len(scenes), 'done': completed, 'analyzed': len(results),
             'generated': sum(bool(r.get('asset_id')) and r.get('status') in ('review_pending', 'approved', 'reviewed') for r in results),
             'skipped': sum(r.get('status') == 'skipped' for r in results),
@@ -75,14 +75,14 @@ def fetch_jobs():
         response.raise_for_status()
         return response.json()
     # Project only display fields; do not retrieve asset URLs, credentials or full input.
-    select = 'id,project_id,scene_number,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes,total_scenes:metadata->total_scenes,error:metadata->error,progress:metadata->progress'
+    select = 'id,project_id,scene_number,created_at,updated_at,metadata:metadata->state,kind:metadata->kind,phase:metadata->phase,results:metadata->results,scenes:metadata->input->scenes,total_scenes:metadata->total_scenes,error:metadata->error,progress:metadata->progress,blocked_scene:metadata->blocked_scene,current_scene:metadata->current_scene'
     # Input scenes can contain assets; select just counts on the server and never return them.
     from worker.workflow_roles import POSTPRODUCTION, asset_query, belongs
     assets = query('std_project_assets', asset_query(POSTPRODUCTION, {'select':select+',preview_sync:metadata->preview_sync,task:metadata->input->task','metadata->>kind':'in.(ae_mouth_job,region_motion_plan,motion_preview,motion_automation,effectcraft_automation,horizontal_webtoon_automation,filmcraft_automation)', 'order':'created_at.desc','limit':'100'}))
     jobs = []
     for row in assets:
         row['metadata'] = {'state':row.get('metadata'), 'kind':row.get('kind'), 'phase':row.get('phase'),
-                           'results':row.get('results'), 'error':row.get('error'), 'progress':row.get('progress'), 'preview_sync':row.get('preview_sync'), 'total_scenes':row.get('total_scenes'), 'input':{'scenes':row.get('scenes'),'task':row.get('task')}}
+                           'blocked_scene':row.get('blocked_scene'), 'current_scene':row.get('current_scene'), 'results':row.get('results'), 'error':row.get('error'), 'progress':row.get('progress'), 'preview_sync':row.get('preview_sync'), 'total_scenes':row.get('total_scenes'), 'input':{'scenes':row.get('scenes'),'task':row.get('task')}}
         if not belongs(row,POSTPRODUCTION):continue
         jobs.append(summarize(row))
     renders = query('remote_render_queue', {'select':'id,project_id,project_name,status,progress,message,error_message,created_at,updated_at,web_id:metadata->std_web_project_id',

@@ -39,7 +39,7 @@ def validate_preparation(value,narration):
     return result
 
 def validate_direction(response,scene,snapshot):
-    if response.get('status')!='ready':raise ValueError('영상 후작업 연출 보완 필요: '+str(response.get('reason') or 'actual source does not support plan'))
+    if response.get('status')!='ready':raise ValueError(f'{scene["number"]}번 씬 · 영상 후작업 연출 보완 필요: '+str(response.get('reason') or 'actual source does not support plan'))
     duration=scene['end']-scene['start']
     plan=copy.deepcopy(response.get('scene') or {})
     fixed=scene['prepared_direction']
