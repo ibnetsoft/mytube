@@ -41,6 +41,8 @@ fs.mkdirSync(out, { recursive: true })
             return route.fulfill({ json: body })
         })
         await page.goto(`${base}/std?tab=image_gen&projectId=${id}`, { waitUntil: 'domcontentloaded' })
+        await expect(page.getByRole('combobox', { name: '웹툰 자동 제작 모드', exact: true })).toHaveCount(0)
+        await expect(page.getByRole('button', { name: '제작 모드 저장', exact: true })).toHaveCount(0)
         const list = page.getByRole('list', { name: '캐릭터 기준 이미지', exact: true })
         await expect(list.getByRole('img')).toHaveCount(7)
         const rects = await list.getByRole('img').evaluateAll(imgs => imgs.map(img => {
