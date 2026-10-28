@@ -91,11 +91,11 @@ def test_major_character_generates_and_persists_all_four_character_sheets(tmp_pa
         None, tmp_path, generator=Generator(), store=Store())
     lead = result["main_character"]
     assert [sheet["type"] for sheet in lead["character_sheet_assets"]] == [
-        "design", "expression", "lipsync", "wardrobe_action"]
-    assert len(prompts) == 4
+        "model_sheet"]
+    assert len(prompts) == 2
     assert prompts[0][1] is None
     assert all(reference == tmp_path / "sheet-1.png" for _, reference in prompts[1:])
-    assert "REST, A, E, I, O, U" in prompts[2][0]
+    assert "six facial expressions" in prompts[1][0]
 
 
 def test_rejects_missing_final_script_or_character_dna(tmp_path):

@@ -63,6 +63,9 @@ class Store:
     def sync_matching_projects(self, topic, script, anchors, directory):
         self.linked.append((topic, script, copy.deepcopy(anchors)))
 
+    def publish_sheet(self, topic, character, kind, path):
+        return {'type': kind, 'image_url': f"/ref/{character['name']}-sheet.png", 'status': 'ready', 'gcs_bucket': 'test', 'gcs_path': f"ref/{character['name']}-sheet.png"}
+
 
 class Runner:
     def __init__(self):
@@ -81,7 +84,7 @@ class Generator:
     def __init__(self):
         self.prompts = []
 
-    def generate(self, prompt):
+    def generate(self, prompt, reference_path=None):
         self.prompts.append(prompt)
         return pathlib.Path("unused-mocked-portrait.png")
 
@@ -93,7 +96,7 @@ def test_legacy_export_prepares_missing_sons_once_and_links_using_exact_script(t
     runner, generator = Runner(), Generator()
     result = preflight.ensure_character_references(row, structure, tmp_path, runner=runner, store=store, generator=generator)
     assert structure == original
-    assert len(generator.prompts) == 2
+    assert len(generator.prompts) == 5
     assert len(result["character_anchors"]["supporting_characters"]) == 2
     assert runner.contexts[0]["declared_characters"] == structure["characters"]
     assert runner.contexts[0]["existing_character_anchors"]["main_character"]["image_url"] == "/ref/Father.png"
@@ -102,7 +105,7 @@ def test_legacy_export_prepares_missing_sons_once_and_links_using_exact_script(t
         assert saved["cast_census"]["character_names"] == ["Father", "Older son", "Younger son"]
         assert saved["cast_census"]["fingerprint"] == preflight.census_fingerprint(row["pregenerated_script"], structure["scenes"])
     again = preflight.ensure_character_references(row, structure, tmp_path, runner=runner, store=store, generator=generator)
-    assert len(runner.contexts) == 1 and len(generator.prompts) == 2
+    assert len(runner.contexts) == 1 and len(generator.prompts) == 5
     assert again["character_anchors"]["character_image_generation"]["status"] == "ready"
     assert [c["name"] for c in again["supporting_characters"]] == ["Older son", "Younger son"]
     assert len(store.linked) == 2
@@ -115,7 +118,7 @@ def test_changed_scene_recounts_cast_but_preserves_saved_portraits(tmp_path):
     structure["scenes"][1]["image_prompt"] += ", now a closer view"
     preflight.ensure_character_references(row, structure, tmp_path, runner=runner, store=store, generator=generator)
     assert len(runner.contexts) == 2
-    assert len(generator.prompts) == 2
+    assert len(generator.prompts) == 5
 
 
 def test_incomplete_cached_cast_cannot_skip_missing_reference(tmp_path):
@@ -124,7 +127,7 @@ def test_incomplete_cached_cast_cannot_skip_missing_reference(tmp_path):
     preflight.ensure_character_references(row, structure, tmp_path, runner=runner, store=store, generator=generator)
     store.references = [c for c in store.references if c["name"] != "Younger son"]
     repaired = preflight.ensure_character_references(row, structure, tmp_path, runner=runner, store=store, generator=generator)
-    assert len(runner.contexts) == 2 and len(generator.prompts) == 3
+    assert len(runner.contexts) == 2 and len(generator.prompts) == 7
     assert len(repaired["supporting_characters"]) == 2
 
 
@@ -147,7 +150,7 @@ def test_exact_saved_key_wins_over_same_name_legacy_design(tmp_path):
     result = preflight.ensure_character_references(row, structure, tmp_path, runner=runner, store=store, generator=generator)
     assert runner.contexts[0]["existing_character_anchors"]["main_character"]["character_key"] == lead["character_key"]
     assert result["main_character"]["visual_dna_en"] == lead["visual_dna_en"]
-    assert len(generator.prompts) == 2
+    assert len(generator.prompts) == 5
 
 
 def test_missing_final_script_or_invalid_census_stops_before_images(tmp_path):
@@ -181,7 +184,7 @@ def test_export_handoff_preflights_legacy_topic_and_attaches_new_sons(monkeypatc
     monkeypatch.setattr(exporter, "_download_gcs_bytes", lambda *args: png.getvalue())
     path = exporter.export_manifest("3373", tmp_path / "manifest.json", "test")
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    assert len(generator.prompts) == 2
+    assert len(generator.prompts) == 5
     assert [ref["name"] for ref in manifest["grids"][0]["character_references"]] == ["Father", "Older son", "Younger son"]
     assert "Exact shaved scalp and knot for Older son" in manifest["grids"][0]["prompt"]
     assert "Exact shaved scalp and knot for Younger son" in manifest["grids"][0]["prompt"]

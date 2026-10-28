@@ -2646,6 +2646,7 @@ class CodexStagedContentRunner:
         """Persist a validated visual design census without generating media."""
         identity_task = (
             "From every FINAL reviewed scene, make a complete visual cast census before defining character designs. "
+            "Include animal and fantastical-creature characters under the same recurring-character rule. Preserve species, anatomy, fur/scale markings, ears, horns and tail in visual_dna_en; never force human facial, hair or clothing traits onto a non-human character. "
             "Return {main_character:{...}, supporting_characters:[...], scene_cast:[{scene_number:1,characters:['canonical name']}...]}. "
             "scene_cast must cover every supplied scene exactly once, including empty casts and people appearing in only one scene. "
             "Count a person's actual visible participation, including pronouns, role labels and aliases resolved to one canonical identity; "

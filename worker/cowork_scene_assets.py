@@ -366,6 +366,18 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
                            "sha256": portrait_sha,
                            **{field: copy.deepcopy(character[field]) for field in _CHARACTER_IDENTITY_FIELDS
                               if field in character}})
+        sheet = next((sheet for sheet in character.get('character_sheet_assets') or []
+                      if sheet.get('type') == 'model_sheet' and sheet.get('status') == 'ready'), None)
+        if sheet and sheet.get('gcs_path'):
+            sheet_bytes = _download_gcs_bytes(sheet.get('gcs_bucket') or character_bucket, sheet['gcs_path'])
+            sheet_sha = hashlib.sha256(sheet_bytes).hexdigest()
+            if sheet.get('sha256') and sheet['sha256'] != sheet_sha:
+                raise RuntimeError('Character model sheet changed after publication')
+            sheet_path = destination.parent / f'character-model-sheet-{reference_id}-{sheet_sha[:12]}.png'
+            sheet_path.write_bytes(sheet_bytes)
+            validate_portrait(sheet_path)
+            references[-1].update(model_sheet_file=str(sheet_path.resolve()), model_sheet_sha256=sheet_sha,
+                                  model_sheet_profile=sheet.get('profile'))
 
     known_scenes = {_scene_number(scene, index) for index, scene in enumerate(scenes, start=1) if isinstance(scene, dict)}
     manifest_grids: list[dict[str, Any]] = []
@@ -434,7 +446,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "layer_package_instruction": "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. Explicit parallax ranges use the final cropped scene PNG as a fixed registration reference and require a genuinely clean background plus a transparent registered foreground. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. For directed_performance, make a genuinely clean inpainted background and separately aligned alternate poses/props; never use duplicate flattened-scene copies as fake layers. A soft depth proxy is not a separate action layer. Run generate-layers after crop, or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish.",
         "recovery_policy": image_recovery.POLICY,
         "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
-        "generation_instruction": "Attach each grid's character_references local PNGs as actual reference images to EVERY grid generation. Match people by character_key and name, never by reference-list position. Preserve every applicable character's saved visual_dna_en, hair_design_en, age and wardrobe: keep the exact hairline, shaved-scalp area, hair length, braid/topknot shape, position and direction. Never exchange the designs of siblings or substitute a generic period hairstyle. Compare the visible faces against their separate references: keep different eye spacing/shape, nose, mouth, jaw and facial proportions; a different haircut, wrinkles or outfit cannot excuse identical underlying faces. Include only people specified in that scene; a reference attachment does not add that character to every panel. Generate still images only, never video clips.",
+        "generation_instruction": "Attach each grid's character_references local PNGs as actual reference images to EVERY grid generation. When model_sheet_file is present, attach that full-resolution PNG as well as local_file; use its angles, anatomy, costume details and palette as design references, never reproduce the sheet's multi-panel layout inside a scene. Match people by character_key and name, never by reference-list position. Preserve every applicable character's saved visual_dna_en, hair_design_en, age and wardrobe: keep the exact hairline, shaved-scalp area, hair length, braid/topknot shape, position and direction. Never exchange the designs of siblings or substitute a generic period hairstyle. Compare the visible faces against their separate references: keep different eye spacing/shape, nose, mouth, jaw and facial proportions; a different haircut, wrinkles or outfit cannot excuse identical underlying faces. Include only people specified in that scene; a reference attachment does not add that character to every panel. Generate still images only, never video clips.",
         "grids": manifest_grids,
     }
     destination.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

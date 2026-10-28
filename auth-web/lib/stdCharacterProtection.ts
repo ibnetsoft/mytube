@@ -15,16 +15,24 @@ export function protectCharacterReferenceUrls(value: any, projectId: string): an
         if (candidateKey && characterKey) return candidateKey === characterKey
         return String(candidate?.name || '').trim() === String(character?.name || '').trim()
     })
-    const visit = (node: any, characterContext = false) => {
+    const visit = (node: any, characterContext = false, parentSlot = -1) => {
         if (!node || typeof node !== 'object') return
         if (Array.isArray(node)) {
-            node.forEach(item => visit(item, characterContext))
+            node.forEach(item => visit(item, characterContext, parentSlot))
             return
         }
         if (characterContext && typeof node.image_url === 'string' && node.image_url.trim()) {
-            const slot = slotFor(node)
+            const ownSlot = slotFor(node)
+            const slot = ownSlot >= 0 ? ownSlot : parentSlot
             if (slot >= 0) {
                 node.image_url = `/api/std/projects/${encodeURIComponent(projectId)}/character-thumbnail?slot=${slot}`
+                if (ownSlot < 0 && typeof node.type === 'string') {
+                    const query = new URLSearchParams({ sheet: node.type })
+                    if (node.fingerprint || node.sha256) query.set('v', String(node.fingerprint || node.sha256).slice(0, 24))
+                    node.image_url += `&${query}`
+                    delete node.gcs_bucket
+                    delete node.gcs_path
+                }
             } else {
                 delete node.image_url
             }
@@ -37,7 +45,8 @@ export function protectCharacterReferenceUrls(value: any, projectId: string): an
                 || key === 'character_anchors'
                 || key === 'main_character'
                 || key === 'supporting_characters'
-            visit(child, nextContext)
+            const ownSlot = slotFor(node)
+            visit(child, nextContext, ownSlot >= 0 ? ownSlot : parentSlot)
         }
     }
     visit(clone)

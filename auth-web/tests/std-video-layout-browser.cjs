@@ -10,6 +10,8 @@ const prompt = 'Instrumental Japanese folktale background music. Soft koto and b
 const people = Array.from({ length: 7 }, (_, i) => ({ name: `登場人物 ${i + 1}`, role: '에도 시대 인물', scene_numbers: [1, 2],
     image_url: `/api/std/projects/${id}/character-thumbnail?slot=${i}`,
     character_sheet_assets: [{ type: 'design', image_url: '/fixture/large.png' }] }))
+for (let i = 0; i < 2; i++) people[i].character_sheet_assets = [{ type: 'model_sheet', status: 'ready',
+    profile: i ? 'detailed_board' : 'turnaround', image_url: `/api/std/projects/${id}/character-thumbnail?slot=${i}&sheet=model_sheet&v=fixture` }]
 const project = { id, title: '영상 페이지 확인', status: 'in_progress', language: 'ja',
     project_payload: { structure: { bgm_prompt: { prompt_en: prompt, description_ko: '이야기의 분위기에 맞춘 잔잔한 배경음입니다.' },
         character_anchors: { main_character: people[0], supporting_characters: people.slice(1) } } }, progress_payload: {} }
@@ -48,7 +50,10 @@ fs.mkdirSync(out, { recursive: true })
         const rects = await list.getByRole('img').evaluateAll(imgs => imgs.map(img => {
             const r = img.getBoundingClientRect(); return { width: r.width, height: r.height, top: r.top }
         }))
-        assert(rects.every(r => r.width === 56 && r.height === 56 && r.top === rects[0].top))
+        assert(rects.every((r, i) => r.width === (i < 2 ? 96 : 56) && r.height === (i < 2 ? 64 : 56)
+            && r.top + r.height / 2 === rects[0].top + rects[0].height / 2))
+        await expect(page.getByText('다방향 시트', { exact: true })).toBeVisible()
+        await expect(page.getByText('상세 캐릭터 시트', { exact: true })).toBeVisible()
         await expect(page.getByText('기본 디자인', { exact: true })).toHaveCount(0)
         const field = page.getByRole('textbox', { name: '배경음 생성 프롬프트', exact: true })
         await expect(field).toBeHidden()

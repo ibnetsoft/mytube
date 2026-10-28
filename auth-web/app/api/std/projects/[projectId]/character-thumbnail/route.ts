@@ -7,13 +7,13 @@ import { characterImageContentType, gcsCharacterObjectFromUrl } from '@/lib/stdC
 
 export const dynamic = 'force-dynamic'
 
-function transformedSupabaseUrl(value: unknown, preview = false): string {
+function transformedSupabaseUrl(value: unknown, preview = false, sheet = false): string {
     const raw = String(value || '').trim()
     if (!/^https:\/\//i.test(raw) || !raw.includes('.supabase.co/storage/v1/object/public/')) return ''
     const url = new URL(raw.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/'))
-    url.searchParams.set('width', preview ? '1024' : '64')
-    url.searchParams.set('height', preview ? '1024' : '64')
-    url.searchParams.set('resize', preview ? 'contain' : 'cover')
+    url.searchParams.set('width', sheet ? '160' : preview ? '1024' : '64')
+    url.searchParams.set('height', sheet ? '100' : preview ? '1024' : '64')
+    url.searchParams.set('resize', sheet || preview ? 'contain' : 'cover')
     url.searchParams.set('quality', preview ? '85' : '35')
     return url.toString()
 }
@@ -24,6 +24,10 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     const requestUrl = new URL(req.url)
     const requestedSlot = requestUrl.searchParams.get('slot')
+    const requestedSheet = requestUrl.searchParams.get('sheet')
+    if (requestedSheet !== null && !['model_sheet', 'design', 'expression', 'lipsync', 'wardrobe_action'].includes(requestedSheet)) {
+        return NextResponse.json({ success: false, error: 'Invalid character sheet' }, { status: 400 })
+    }
     const slot = Number(requestedSlot)
     if (!requestedSlot?.trim() || !Number.isSafeInteger(slot) || slot < 0) {
         return NextResponse.json({ success: false, error: 'Invalid character slot' }, { status: 400 })
@@ -42,18 +46,20 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         return NextResponse.json({ success: false, error: 'Invalid character slot' }, { status: 400 })
     }
     const character = characters[slot]
-    let imageUrl = character?.image_url
+    const sheetUrl = (value: any) => Array.isArray(value?.character_sheet_assets)
+        ? value.character_sheet_assets.find((sheet: any) => sheet?.type === requestedSheet)?.image_url : undefined
+    let imageUrl = requestedSheet ? sheetUrl(character) : character?.image_url
     let gcsObject = gcsCharacterObjectFromUrl(imageUrl, requestUrl.origin)
     // A saved client payload can contain our display proxy instead of the
     // original image. Resolve it from this authorized project's registry.
-    if (!gcsObject && !transformedSupabaseUrl(imageUrl) && project.topic_queue_id) {
+    if ((requestedSheet || (!gcsObject && !transformedSupabaseUrl(imageUrl))) && project.topic_queue_id) {
         let referenceQuery = supabaseAdmin.from('topic_character_assets')
-            .select('image_url').eq('topic_queue_id', project.topic_queue_id)
+            .select('image_url,usage_context').eq('topic_queue_id', project.topic_queue_id)
         if (character?.character_key) referenceQuery = referenceQuery.eq('character_key', character.character_key)
         else if (character?.name) referenceQuery = referenceQuery.eq('name', character.name)
         else return new NextResponse(null, { status: 404 })
         const { data: reference } = await referenceQuery.order('created_at', { ascending: false }).limit(1).maybeSingle()
-        imageUrl = reference?.image_url
+        imageUrl = requestedSheet ? sheetUrl(reference?.usage_context?.character_design) : reference?.image_url
         gcsObject = gcsCharacterObjectFromUrl(imageUrl, requestUrl.origin)
     }
     const headers = {
@@ -69,13 +75,19 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             const image = await downloadGcsObject({ bucket: gcsObject.bucket, objectPath: gcsObject.path })
             const contentType = characterImageContentType(gcsObject.path)
             if (!contentType.startsWith('image/')) return new NextResponse(null, { status: 415 })
+            if (requestedSheet) {
+                const sharp = (await import('sharp')).default
+                const thumbnail = await sharp(image).rotate().resize(160, 100, { fit: 'inside', withoutEnlargement: true })
+                    .webp({ quality: 35 }).toBuffer()
+                return new NextResponse(new Uint8Array(thumbnail), { headers: { ...headers, 'Content-Type': 'image/webp' } })
+            }
             return new NextResponse(new Uint8Array(image), { headers: { ...headers, 'Content-Type': contentType } })
         } catch {
             return new NextResponse(null, { status: 404 })
         }
     }
 
-    const thumbnailUrl = transformedSupabaseUrl(imageUrl, requestUrl.searchParams.get('preview') === '1')
+    const thumbnailUrl = transformedSupabaseUrl(imageUrl, !requestedSheet && requestUrl.searchParams.get('preview') === '1', Boolean(requestedSheet))
     if (!thumbnailUrl) return new NextResponse(null, { status: 404 })
     try {
         const upstream = await fetch(thumbnailUrl, { cache: 'force-cache' })
