@@ -41,7 +41,7 @@ def verify_repair(recipe,source,repaired):
     maximum=0.;compared=0
     with VideoFileClip(str(source),audio=False) as original,VideoFileClip(str(repaired),audio=False) as output:
         fps=recipe['fps'];count=recipe['retained_source_frames']
-        if abs(original.fps-fps)>.001 or abs(output.fps-fps)>.001 or count>original.duration*fps:raise ValueError('Source repair changes original playback rate')
+        if abs(original.fps-fps)>.001 or abs(output.fps-fps)>.001 or (count-1)/fps>=original.duration:raise ValueError('Source repair changes original playback rate or exceeds the last source frame')
         if original.size!=output.size or abs(output.duration-recipe['duration'])>.02:raise ValueError('Source repair canvas or duration changed')
         last=original.get_frame((count-1)/fps).astype('float32')
         for index,frame in enumerate(output.iter_frames(dtype='uint8')):
