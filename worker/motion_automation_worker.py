@@ -611,7 +611,7 @@ def process_one(engine='ae'):
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
     from worker.workflow_roles import POSTPRODUCTION, asset_query, belongs
     kind={'webtoon':'horizontal_webtoon_automation','ae':'motion_automation','effectcraft':'effectcraft_automation','filmcraft':'filmcraft_automation'}[engine]
-    jobs=ae._request('GET',url,headers,params=asset_query(POSTPRODUCTION, {'select':'*','metadata->>kind':'eq.'+kind,'metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1})).json()
+    jobs=ae._request('GET',url,headers,params=asset_query(POSTPRODUCTION, {'select':'*','metadata->>kind':'eq.'+kind,'metadata->>enabled':'eq.true','or':claimable_filter(),'order':'created_at.asc','limit':1,'and':'(or(metadata->>retry_after.is.null,metadata->>retry_after.lte.'+ae._now()+'))'})).json()
     if not jobs:return False
     job=jobs[0]
     if not belongs(job,POSTPRODUCTION):return False
@@ -658,6 +658,10 @@ def process_one(engine='ae'):
         if snapshot.get('renderer',{}).get('engine')=='effectcraft':
             from effectcraft_render import binary
             binary()  # Fail before source analysis or any optional paid insert if this host is not installed.
+        from advisory_review import POLICY as ADVISORY_POLICY, AUTHORIZATION
+        snapshot['_advisory_review']=True
+        snapshot['_quality_notes']=copy.deepcopy(meta.get('quality_notes') or [])
+        save(review_policy=ADVISORY_POLICY,review_policy_authorization=AUTHORIZATION)
         runner=CodexStagedContentRunner()
         save(total_scenes=len(snapshot['scenes']),phase='direction',progress='원본과 최종 음성 확인')
         def download(asset,name):
@@ -673,6 +677,7 @@ def process_one(engine='ae'):
         voice=download(snapshot['audio'],'final-voice');sources={};previews={};references={};filmcraft_ai_sources={}
         for scene in snapshot['scenes']:
             fresh();number=scene['number'];sources[number]=download(scene['source'],f'source-{number}')
+            scene['_advisory_review']=True
             scene['_skip_review']=video_postwork_review_bypass(meta,snapshot)
             scene['_preserve_uploaded_video']=not video_postwork_required_review(snapshot) and meta.get('source_policy')=='preserve_uploaded_video/v1'
             if scene['source_kind']=='video':
@@ -716,24 +721,35 @@ def process_one(engine='ae'):
             expected_repair,refresh_plan=restore_attempt(scene,plan)
             if refresh_plan:plan=None
             neighbors=[previews[s['number']] for s in snapshot['scenes'][max(0,index-1):index+2] if s['number']!=number]
-            if old and old.get('purpose_repair')==expected_repair and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and renderer_cache_is_current(snapshot,old) and (old.get('review',{}).get('passed') is True or (scene.get('_skip_review') and old.get('review',{}).get('skipped') is True)) and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
+            if old and old.get('purpose_repair')==expected_repair and (not scene.get('_source_repair') or old.get('source_execution_sha256')==digest(sources[number])) and renderer_cache_is_current(snapshot,old) and (old.get('review',{}).get('passed') is True or (snapshot.get('_advisory_review') and old.get('review',{}).get('status')=='completed_with_notes') or (scene.get('_skip_review') and old.get('review',{}).get('skipped') is True)) and old.get('input_fingerprint')==meta['fingerprint'] and Path(old['path']).exists() and Path(old['last_frame']).exists() and digest(old['path'])==old['sha256'] and old.get('review',{}).get('render_sha256')==old['sha256'] and old['review'].get('final_voice_sha256')==digest(voice) and old['review'].get('source_preview_sha256')==digest(references.get(number,previews[number])):
                 results=[r for r in results if r['number']!=number]+[old]
                 if engine=='filmcraft' and old.get('filmcraft_ai_source'):filmcraft_ai_sources[number]=Path(old['filmcraft_ai_source'])
                 previous=Path(old['last_frame']);continue
-            if plan and video_postwork_enabled(scene):
+            if plan and video_postwork_enabled(scene) and not plan.get('quality_advisory'):
                 from submitted_video_postwork import validate_direction as validate_postwork_direction
                 repair_receipt=plan.get('purpose_repair')
                 plan=validate_postwork_direction({'status':'ready',**plan},scene,snapshot)
                 if repair_receipt:plan.update(purpose_repair=repair_receipt,purpose_repair_applied=repair_receipt['attempt'])
             if not plan:
                 neighbors=[previews[s['number']] for s in snapshot['scenes'][max(0,index-1):index+2] if s['number']!=number]
-                plan=direct(runner,snapshot,scene,previews[number],waveform,audio_info,neighbors,plans[:index])
+                try:
+                    plan=direct(runner,snapshot,scene,previews[number],waveform,audio_info,neighbors,plans[:index])
+                except (ProjectClosed,LeaseLost):raise
+                except (ValueError, RuntimeError, OSError, NeedsReview) as issue:
+                    from advisory_review import fixed_plan
+                    plan=fixed_plan(snapshot,scene,issue)
                 if expected_repair:plan.update(purpose_repair=expected_repair,purpose_repair_applied=expected_repair['attempt'])
                 plans=[p for p in plans if p['number']!=number]+[plan];plans.sort(key=lambda p:p['number']);save(plans=plans)
             if video_postwork_enabled(scene) or scene.get('still_mouth'):
                 from submitted_video_postwork import prepare_mouth, protect_faces
                 save(phase='mouth_preparation',progress=f'{number}씬 대사 작업 목록으로 이동 · 확정 구간 화자 추적·입모양 검수')
-                mouth_receipt=prepare_mouth(runner,job,scene,snapshot,sources[number],voice,work/'mouth',fresh)
+                try:
+                    mouth_receipt=prepare_mouth(runner,job,scene,snapshot,sources[number],voice,work/'mouth',fresh)
+                except (ProjectClosed,LeaseLost):raise
+                except (ValueError, RuntimeError, OSError, NeedsReview) as issue:
+                    from advisory_review import note
+                    note(snapshot,scene,'mouth',issue)
+                    mouth_receipt=None
                 scene['_postwork_receipt']=mouth_receipt
                 if mouth_receipt:scene['_mouth_runtime']=mouth_receipt['runtime']
                 protect_faces(plan,scene)
@@ -785,19 +801,14 @@ def process_one(engine='ae'):
                     executed=(scene.get('preparation') or {}).get('metadata',{}).get('result',{}).get('plan')
                     review_plan={**plan,'renderer':snapshot['renderer'],'prepared_psd_execution_plan':executed,'execution_fps':snapshot['motion']['fps']}
                 scene['_sequence_context']={'previous':snapshot['scenes'][index-1]['text'] if index else None,'current':scene['text'],'next':snapshot['scenes'][index+1]['text'] if index+1<len(snapshot['scenes']) else None,'next_source_preview':str(previews[snapshot['scenes'][index+1]['number']]) if index+1<len(snapshot['scenes']) else None}
-                try:review=review_output(runner,output,references.get(number,previews[number]),voice,scene,review_plan,attempt_dir,fresh,previous);break
-                except NeedsReview as error:
-                    repair_receipt=None
-                    if purpose_active(scene):
-                        count=(plan.get('purpose_repair') or {}).get('attempt',0)
-                        if not getattr(error,'direction_repairable',False) or count>=2 or plan.get('ai'):raise
-                        repair_receipt=repair_purpose(scene,count+1,str(error))
-                        save(phase='auto_repair',progress=f'{number}씬 연출 강도·효과 자동 보완 {count+1}/2')
-                    elif attempt or plan.get('ai'):raise
-                    prior=[p for p in plans if p['number'] in [s['number'] for s in snapshot['scenes'][:index]]]
-                    plan=direct(runner,snapshot,scene,previews[number],waveform,audio_info,neighbors,prior,feedback=str(error))
-                    if repair_receipt:plan['purpose_repair']=repair_receipt
-                    plans=[p if p['number']!=number else plan for p in plans];save(plans=plans)
+                try:
+                    review=review_output(runner,output,references.get(number,previews[number]),voice,scene,review_plan,attempt_dir,fresh,previous)
+                except (ProjectClosed,LeaseLost):raise
+                except (ValueError, RuntimeError, OSError, NeedsReview) as issue:
+                    from advisory_review import note
+                    note(snapshot,scene,'output_review',issue)
+                    review={'passed':False,'status':'completed_with_notes','issues':[str(issue)],'render_sha256':digest(output),'source_preview_sha256':digest(references.get(number,previews[number])),'final_voice_sha256':digest(voice),'batches':[]}
+                break
             last=work/'reviewed-last-frame.png';run([ffmpeg(),'-v','error','-y','-sseof','-0.1','-i',str(output),'-frames:v','1',str(last)])
             previous=last;record={'purpose_policy':scene.get('purpose_policy'),'purpose_repair':plan.get('purpose_repair'),'speech_bubble_layout':scene.get('_bubble_layout'),'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
             from services.video_playback_policy import POLICY
@@ -826,9 +837,11 @@ def process_one(engine='ae'):
                     record['filmcraft_ai_source']=str(filmcraft_ai_sources[number])
                     record['filmcraft_ai_sha256']=digest(filmcraft_ai_sources[number])
             save_json(receipt,record);results=[r for r in results if r['number']!=number]+[record]
-            save(results=results)
+            save(results=results,quality_notes=snapshot.get('_quality_notes',[]))
         from submitted_video_postwork import require_reviewed_outputs
-        require_reviewed_outputs(snapshot,results,digest(voice))
+        from advisory_review import note
+        try:require_reviewed_outputs(snapshot,results,digest(voice))
+        except ValueError as issue:note(snapshot,{},'assembly_review',issue)
         fresh();save(phase='assembly',progress='확정 음성·자막·음향 최종 합성')
         settings=copy.deepcopy(snapshot['settings']);sound_paths={a['id']:download(a,'sound-'+a['id']) for a in snapshot.get('sounds',[])}
         bgm_id=settings.get('bgm_asset_id')
@@ -923,23 +936,31 @@ def process_one(engine='ae'):
             if scene.get('speech_bubble_plan',{}).get('cues'):
                 context['required_checks']+=['bubble_readability','bubble_speaker_tail','bubble_occlusion']
                 context['speech_bubble_plan']=scene['speech_bubble_plan']
-            response=runner._stage('motion-final-'+digest(output)[:20],f'motion_final_review_{scene["number"]}',context,'Inspect actual final frames and captions, no metadata-only approval. Use caption_frame_evidence to inspect EVERY subtitle at its middle and its before/after boundary frames, with their measured global timestamps. Compare visible text and transitions with recorded start/end, allowing one video frame and ASS centisecond rounding. final_audio_evidence compares decoded source/final samples on the same clock without time warping; use this measured signal evidence for narration preservation, and do not claim listening or phoneme-level alignment. For bubble checks verify exact readable dialogue and prescribed shape, connected speaker tail and no face/essential-object/caption occlusion; reject any uncertainty. Return {passed,repair_scope:direction_only|source_material|uncertain,critical_issues:[],checks:[{id:each required_checks,passed,evidence:specific actual pixels}]}. Fail clipping, unreadable/incorrect captions, unexpected black frames, identity defects or missing output. A planned fade_black intentionally reaches black exactly at the recorded boundary; inspect its adjacent frames and do not mistake planned black for corruption. Verify no shift of narration, subtitles or clip clock. For purpose_fit and sequence_rhythm judge actual boundary frames against adjacent script purposes: quiet dialogue, justified escalation, gaze/screen direction, lighting and restrained rhythm. repair_scope=direction_only is allowed only for added camera/effect strength or a cut; wrong source artwork, missing layers and uncertain defects require source_material/uncertain. For depth_finishing inspect actual final pixels for the selected per-plane blur/haze, sharp faces/captions and correct occlusion; fail missing or over-applied depth effects.')
+            try:
+                response=runner._stage('motion-final-'+digest(output)[:20],f'motion_final_review_{scene["number"]}',context,'Inspect actual final frames and captions, no metadata-only approval. Use caption_frame_evidence to inspect EVERY subtitle at its middle and its before/after boundary frames, with their measured global timestamps. Compare visible text and transitions with recorded start/end, allowing one video frame and ASS centisecond rounding. final_audio_evidence compares decoded source/final samples on the same clock without time warping; use this measured signal evidence for narration preservation, and do not claim listening or phoneme-level alignment. For bubble checks verify exact readable dialogue and prescribed shape, connected speaker tail and no face/essential-object/caption occlusion; reject any uncertainty. Return {passed,repair_scope:direction_only|source_material|uncertain,critical_issues:[],checks:[{id:each required_checks,passed,evidence:specific actual pixels}]}. Fail clipping, unreadable/incorrect captions, unexpected black frames, identity defects or missing output. A planned fade_black intentionally reaches black exactly at the recorded boundary; inspect its adjacent frames and do not mistake planned black for corruption. Verify no shift of narration, subtitles or clip clock. For purpose_fit and sequence_rhythm judge actual boundary frames against adjacent script purposes: quiet dialogue, justified escalation, gaze/screen direction, lighting and restrained rhythm. repair_scope=direction_only is allowed only for added camera/effect strength or a cut; wrong source artwork, missing layers and uncertain defects require source_material/uncertain. For depth_finishing inspect actual final pixels for the selected per-plane blur/haze, sharp faces/captions and correct occlusion; fail missing or over-applied depth effects.')
+            except (ProjectClosed,LeaseLost):raise
+            except Exception as issue:
+                note(snapshot,scene,'final_review_unavailable',issue)
+                response={'passed':False,'critical_issues':[str(issue)],'checks':[]}
             if not valid_review(response,context['required_checks']):
                 issue='Final assembled output needs repair: '+json.dumps(response.get('critical_issues'),ensure_ascii=False)
                 target=next(p for p in plans if p['number']==scene['number'])
                 count=(target.get('purpose_repair') or {}).get('attempt',0)
-                if purpose_active(scene) and repairable_review(response,final=True) and count<2 and not target.get('ai'):
+                if not snapshot.get('_advisory_review') and purpose_active(scene) and repairable_review(response,final=True) and count<2 and not target.get('ai'):
                     target['purpose_repair']=repair_purpose(scene,count+1,issue)
                     # Reclaim this same frozen job. Other reviewed scenes, source assets and voice stay reusable.
                     save(state='queued',phase='auto_repair',plans=plans,results=[r for r in results if r['number']!=scene['number']],error='',progress=f'{scene["number"]}씬 앞뒤 흐름 자동 보완 {count+1}/2 · 다시 렌더·검수')
                     return True
-                raise NeedsReview(issue)
+                note(snapshot,scene,'final_review',issue)
             final_reviews.append(response)
         from submitted_video_postwork import require_final_reviews
-        require_final_reviews(snapshot,final_reviews)
+        try:require_final_reviews(snapshot,final_reviews)
+        except ValueError as issue:note(snapshot,{},'final_review_summary',issue)
         fresh();output_hash=digest(output)
         bucket,key,_=ae._upload_gcs_file(output,f'std-motion/{job["id"]}/final/{output_hash}.mp4','video/mp4')
         review={'passed':True,'render_sha256':output_hash,'final_voice_sha256':digest(voice),'scenes':final_reviews,'reviewer':'local_codex_cli','method':'actual_frames_and_decoded_voice',**({'renderer':snapshot['renderer']} if snapshot.get('renderer') else {})}
+        review.update(passed=not bool(snapshot.get('_quality_notes')),status='completed_with_notes' if snapshot.get('_quality_notes') else 'completed',quality_notes=snapshot.get('_quality_notes',[]),review_policy=ADVISORY_POLICY)
+        save(quality_notes=snapshot.get('_quality_notes',[]))
         if snapshot.get('submitted_video_postwork'):review['submitted_video_postwork_contract']='submitted_video_postwork/v1'
         if snapshot.get('all_scene_parallax'):review['all_scene_parallax_contract']='all_scene_parallax/v1'
         if video_postwork_review_bypass(meta,snapshot):review.update(passed=None,skipped=True,status='not_reviewed_user_requested',reviewer=None,method='user_requested_review_bypass')
@@ -949,6 +970,7 @@ def process_one(engine='ae'):
             review['filmcraft_native']={k:native[k] for k in ('adapter','profile','encoding','native_timeline','gpu_composition','project_sha256','output_sha256')}
             review['filmcraft_native']['source_sha256']=[asset['sha256'] for asset in native['inputs']]
             review['final_renderer']=snapshot.get('final_renderer') or snapshot['renderer']
+        save_json(final_dir/'quality-notes.json',{'policy':ADVISORY_POLICY,'notes':snapshot.get('_quality_notes',[])})
         save_json(final_dir/'automation-review.json',review)
         review_bucket,review_key,_=ae._upload_gcs_file(final_dir/'automation-review.json',f'std-motion/{job["id"]}/final/{output_hash}-review.json','application/json')
         # Stable asset ID permits safe recovery after upload without duplicate final assets.
@@ -962,7 +984,11 @@ def process_one(engine='ae'):
     except LeaseLost:pass
     except Exception as error:
         if not lost.is_set():
-            try:save(state='needs_review',phase='needs_review',blocked_scene=meta.get('current_scene'),error=str(error)[:2200],progress='보완이 필요합니다. 원본·음성·완료된 작업은 보존됩니다.')
+            try:
+                from datetime import datetime,timezone,timedelta
+                attempts=int(meta.get('technical_attempts') or 0)+1
+                retry_at=(datetime.now(timezone.utc)+timedelta(seconds=min(900,30*2**min(attempts-1,5)))).isoformat()
+                save(state='queued',phase='retry_wait',technical_attempts=attempts,retry_after=retry_at,blocked_scene=meta.get('current_scene'),error=str(error)[:2200],quality_notes=snapshot.get('_quality_notes',[]) if 'snapshot' in locals() else meta.get('quality_notes',[]),progress='실행 오류 자동 복구 대기 · 기존 원본·음성·완료 씬을 보존하고 이어서 재시도합니다.')
             except Exception:pass
     finally:stopped.set();thread.join(timeout=2)
     return True

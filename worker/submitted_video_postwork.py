@@ -153,7 +153,7 @@ def protect_faces(plan,scene):
 
 def result_receipt(scene,source_hash,voice_hash):
     receipt=scene.get('_postwork_receipt')
-    if scene['postwork'].get('mouth_required') and not receipt:raise ValueError('Missing required mouth production evidence')
+    if scene['postwork'].get('mouth_required') and not receipt and not scene.get('_advisory_review'):raise ValueError('Missing required mouth production evidence')
     if receipt and (receipt['source_sha256']!=source_hash or receipt['final_voice_sha256']!=voice_hash):raise ValueError('Mouth source or finalized voice changed')
     return {'contract':CONTRACT,'source_sha256':source_hash,'final_voice_sha256':voice_hash,'playback_rate':1,'mouth_required':scene['postwork']['mouth_required'],
             'speakers':list(dict.fromkeys(r['speaker'] for r in scene['postwork']['dialogue'])),'mouth_applied':bool(receipt and receipt['runtime']['speakers']),'coordinate_asset_id':receipt.get('coordinate_asset_id') if receipt else None,

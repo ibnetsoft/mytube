@@ -62,6 +62,7 @@ def pending_roles():
         from worker.production_engine_policy import alternatives_enabled
         if role in ('effectcraft','filmcraft') and not alternatives_enabled():continue
         query={'metadata->>kind':'eq.'+kind,'or':claimable_filter() if role=='ae' else simple_filter()}
+        if role in ('motion_automation','filmcraft','webtoon','effectcraft'):query['and']='(or(metadata->>retry_after.is.null,metadata->>retry_after.lte.'+now()+'))'
         if role=='motion_preview':query['metadata->input->>task']='eq.preview'
         if role in ('filmcraft','webtoon','effectcraft','motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
         if role=='ae':query['metadata->>pipeline_version']='eq.2'

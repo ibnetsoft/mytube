@@ -18,3 +18,9 @@
 - The user explicitly authorized Codex to perform AE direction approval and output review on 2026-10-06. This supersedes user-click approval requirements above for the supervised submission flow. Codex must inspect actual source imagery, finalized narration, scene directions, and rendered output before approving; uncertainty must trigger repair or escalation, never blind approval.
 - The local thread heartbeat monitors submitted AE jobs every 15 minutes, preserves reusable audio and source assets, repairs recoverable interruptions, and continues through final render. Administrator publishing and YouTube uploads remain separate.
 - Use `node scripts/std_continue_submission.cjs PROJECT_ID` to inspect current jobs. After evidence-based approval, `--enqueue` validates current fingerprints and reviewed assets, records the render queue ID, and avoids registering the same reviewed job again. Confirm render completion separately.
+
+## Complete production and record quality findings
+
+- On 2026-10-28 the user requested that quality concerns never block production. Continue through final assembly with the existing source and saved direction; keep actual failed or uncertain review results truthful and record them separately as quality notes. This supersedes the earlier quality-approval stopping rule for submitted media production.
+- Preserve cancellation, ownership, source integrity and actual file/timing checks. Execution failures remain queued for automatic recovery with backoff and reusable assets preserved; never mark an absent or broken output complete.
+- Final delivery must include the quality-notes report and retain administrator publishing/YouTube upload as separate actions.

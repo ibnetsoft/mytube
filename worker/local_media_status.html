@@ -52,6 +52,7 @@ function draw(){
   if(j.project_id){const link=node('a','영상 페이지 열기 →');link.href='https://studio.airing.work/std?tab=image_gen&projectId='+encodeURIComponent(j.project_id);link.target='_blank';link.rel='noopener noreferrer';link.style.color='#85eedb';box.append(link)}
   a.append(box);
  }
+ if(j.quality_notes?.length){const notes=node('details'),summary=node('summary','보완점 '+j.quality_notes.length+'건 · 제작 계속');notes.append(summary);for(const n of j.quality_notes)notes.append(node('p',(n.scene_number?n.scene_number+'번 씬 · ':'')+n.detail));a.append(notes)}
  if(j.scene_numbers?.length)a.append(node('p','자동 판별이 불확실한 씬: '+j.scene_numbers.join(', ')));
  const d=node('details'),s=node('summary','작업 ID 확인');d.append(s,node('pre',`작업 ${j.id}\n프로젝트 ${j.project_id||'—'}`));a.append(d);el('jobs').append(a)}
 }
