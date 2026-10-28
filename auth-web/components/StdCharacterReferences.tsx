@@ -15,7 +15,8 @@ export default function StdCharacterReferences({ payload, impersonateEmail, loca
             {!characters.length && <p className="text-sm text-amber-300 mt-3">{ui('캐릭터 기준 이미지 생성 대기')}</p>}
             <div role="list" aria-label={ui('캐릭터 기준 이미지')} className="mt-3 flex gap-2 overflow-x-auto pb-1">
                 {characters.map((character: any, index: number) => {
-                    const sheet = (character.character_sheet_assets || []).find((asset: any) => asset.type === 'model_sheet' && asset.status === 'ready')
+                    const sheet = (Array.isArray(character.character_sheet_assets) ? character.character_sheet_assets : [])
+                        .find((asset: any) => asset?.type === 'model_sheet' && asset.status === 'ready')
                     let url = persistentThumbnailUrl(sheet?.image_url, character.image_url)
                     if (url && impersonateEmail && /^\/api\/std\/projects\/[^/?#]+\/character-thumbnail(?:\?|$)/.test(url)) {
                         const thumbnail = new URL(url, 'http://localhost')
