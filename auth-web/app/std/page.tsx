@@ -50,6 +50,7 @@ import { templateOverlaySettings } from '@/lib/stdTemplateOverlay'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, confirmSubtitleSpeaker, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
 import StdCharacterReferences from '@/components/StdCharacterReferences'
+import StdBgmPrompt from '@/components/StdBgmPrompt'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
 import { thumbnailEditorBackground, renderThumbnailFile, THUMBNAIL_CONTRACT } from '@/lib/stdThumbnailRender'
 import StdThumbnailPreview from '@/components/StdThumbnailPreview'
@@ -10883,6 +10884,7 @@ export default function StdPortalPage() {
                     {currentNav === 'image_gen' && selectedProject && (
                         <div className="space-y-6 max-w-7xl mx-auto w-full">
                             <StdCharacterReferences payload={selectedProject.project.project_payload} impersonateEmail={impersonateEmail} locale={currentLocale} />
+                            <StdBgmPrompt payload={selectedProject.project.project_payload} locale={currentLocale} />
 
                             <div className="bg-[#1c222c] border border-white/10 rounded-xl overflow-hidden shadow-xl space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 p-4 bg-[#181d26]">
