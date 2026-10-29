@@ -318,6 +318,10 @@ def renderer_cache_is_current(snapshot,record):
         return record.get('filmcraft_adapter')==VERSION and cache_is_current(record)
     if any(video_postwork_enabled(s) and s['number']==record.get('number') for s in snapshot.get('scenes',[])) and (record.get('submitted_video_postwork') or {}).get('contract')!='submitted_video_postwork/v1':return False
     if snapshot.get('renderer',{}).get('engine')!='effectcraft':
+        from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION
+        scene=next((s for s in snapshot.get('scenes',[]) if s.get('number')==record.get('number')),None)
+        if scene and eligible(scene,{'scene':scene.get('prepared_direction') or {}}):
+            return record.get('uploaded_video_passthrough')==PASSTHROUGH_VERSION
         if any(s.get('number')==record.get('number') and s.get('source_kind') in ('image','video') and not s.get('webtoon') for s in snapshot.get('scenes',[])):
             from ae_flat_scene import VERSION
             return record.get('adobe_flat_renderer')==VERSION
@@ -340,6 +344,10 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
     if snapshot.get('renderer',{}).get('engine')=='effectcraft':
         from effectcraft_render import render_scene
         return render_scene(snapshot,scene,plan,source,directory,fresh)
+    from uploaded_video_passthrough import eligible
+    if eligible(scene,plan):
+        fresh()
+        return Path(source)
     from ae_media_utils import ffmpeg,run
     duration=scene['end']-scene['start']
     size=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080)
@@ -817,8 +825,12 @@ def process_one(engine='ae'):
                 from submitted_video_postwork import result_receipt
                 record['submitted_video_postwork']=result_receipt(scene,source_hash=digest(sources[number]),voice_hash=digest(voice))
             if snapshot.get('renderer',{}).get('engine') not in ('effectcraft','filmcraft') and scene.get('source_kind') in ('image','video') and not scene.get('webtoon'):
-                from ae_flat_scene import VERSION
-                record['adobe_flat_renderer']=VERSION
+                from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION
+                if eligible(scene,plan):
+                    record.update(uploaded_video_passthrough=PASSTHROUGH_VERSION,source_execution_sha256=digest(sources[number]))
+                else:
+                    from ae_flat_scene import VERSION
+                    record['adobe_flat_renderer']=VERSION
             if scene.get('_source_repair'):record.update(source_execution_sha256=digest(sources[number]),source_repair=scene['_source_repair'])
             if snapshot.get('renderer',{}).get('engine')=='effectcraft':
                 from effectcraft_compatibility import VERSION
