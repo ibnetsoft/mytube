@@ -98,3 +98,18 @@ export async function GET(req: Request) {
         }),
     })
 }
+
+export async function DELETE(req: Request) {
+    const auth = await requireStdUser(req)
+    if (!auth.ok) return auth.response
+    const body = await req.json().catch(() => null)
+    const ids = body?.ids
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100 || ids.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
+        return NextResponse.json({ success: false, error: '유효한 프로젝트를 선택해 주세요.' }, { status: 400 })
+    }
+    const uniqueIds = [...new Set(ids)] as string[]
+    const { data, error } = await supabaseAdmin.from('std_projects').delete()
+        .eq('employee_email', auth.requester.email).in('id', uniqueIds).select('id')
+    if (error) return NextResponse.json({ success: false, error: '프로젝트를 삭제하지 못했습니다.' }, { status: 500 })
+    return NextResponse.json({ success: true, deletedIds: (data || []).map(row => row.id) })
+}

@@ -743,6 +743,8 @@ export default function StdPortalPage() {
     const [submittingProjectId, setSubmittingProjectId] = useState('')
     const submittingProjectRef = useRef('')
     const [renderSubmissionNotice, setRenderSubmissionNotice] = useState<SubmissionNotice | null>(null)
+    const [checkedProjectIds, setCheckedProjectIds] = useState<string[]>([])
+    const [deletingProjects, setDeletingProjects] = useState(false)
     const [projectsTab, setProjectsTab] = useState<'incomplete' | 'complete'>('incomplete')
     const [message, setMessageRaw] = useState('')
     const [imageDownloadStatus, setImageDownloadStatus] = useState('')
@@ -7632,6 +7634,25 @@ export default function StdPortalPage() {
     const incompleteProjects = projects.filter((project: any) => !getListedProjectStepStatus(project).allDone)
     const visibleProjects = projectsRefreshing || projectsLoadError ? [] : projectsTab === 'complete' ? completeProjects : incompleteProjects
 
+    const checkedVisibleIds = visibleProjects.map((project: any) => String(project.id)).filter(id => checkedProjectIds.includes(id))
+    const deleteCheckedProjects = async () => {
+        const ids = checkedVisibleIds
+        if (!ids.length || deletingProjects || !confirm(`선택한 프로젝트 ${ids.length}개를 삭제하시겠습니까? 삭제한 프로젝트는 복구할 수 없습니다.`)) return
+        setDeletingProjects(true)
+        try {
+            const response = await fetch('/api/std/projects', { method: 'DELETE', headers: authedJsonHeaders, body: JSON.stringify({ ids }) })
+            const result = await response.json()
+            if (!response.ok) throw new Error(result.error || '프로젝트를 삭제하지 못했습니다.')
+            const deleted = new Set<string>(result.deletedIds || [])
+            setProjects(prev => prev.filter(project => !deleted.has(String(project.id))))
+            setCheckedProjectIds(prev => prev.filter(id => !deleted.has(id)))
+            if (selectedProject && deleted.has(String(selectedProject.project.id))) setSelectedProject(null)
+            if (deleted.size !== ids.length) alert('일부 프로젝트를 삭제하지 못했습니다. 목록을 다시 확인해 주세요.')
+            setProjectsRefreshKey(value => value + 1)
+        } catch (error: any) { alert(error?.message || '프로젝트를 삭제하지 못했습니다.') }
+        finally { setDeletingProjects(false) }
+    }
+
     const activeTopicTitleKeys = useMemo(() => {
         const keys = new Set(
             projects.map(p => String(p.title || '').trim().toLowerCase().replace(/\s+/g, ''))
@@ -8511,7 +8532,7 @@ export default function StdPortalPage() {
                                 <div className="flex items-center gap-1 bg-[#12151b] border border-white/10 rounded-lg p-0.5">
                                     <button
                                         type="button"
-                                        onClick={() => setProjectsTab('incomplete')}
+                                        onClick={() => { setProjectsTab('incomplete'); setCheckedProjectIds([]) }}
                                         className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
                                             projectsTab === 'incomplete'
                                                 ? 'bg-blue-600 text-white shadow'
@@ -8524,7 +8545,7 @@ export default function StdPortalPage() {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setProjectsTab('complete')}
+                                        onClick={() => { setProjectsTab('complete'); setCheckedProjectIds([]) }}
                                         className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
                                             projectsTab === 'complete'
                                                 ? 'bg-emerald-600 text-white shadow'
@@ -8537,6 +8558,8 @@ export default function StdPortalPage() {
                                     </button>
                                 </div>
                             </div>
+                            <div className="flex items-center gap-3">
+                            <button type="button" disabled={!checkedVisibleIds.length || deletingProjects} onClick={() => void deleteCheckedProjects()} className="rounded-lg bg-red-600 px-3 py-2 font-bold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">{deletingProjects ? '삭제 중…' : `선택 삭제 (${checkedVisibleIds.length})`}</button>
                             <button
                                 type="button"
                                 onClick={() => setTopicProjectOpen(false)}
@@ -8545,6 +8568,7 @@ export default function StdPortalPage() {
                             >
                                 ✕
                             </button>
+                            </div>
                         </div>
 
                         {/* 팝업 바디 (테이블) */}
@@ -8561,7 +8585,7 @@ export default function StdPortalPage() {
                                         <tr>
                                             <th className="px-2 py-2.5 w-12 text-center">{ui("썸네일")}</th>
                                             <th className="px-3 py-2.5 w-10 text-center">
-                                                <input type="checkbox" className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
+                                                <input type="checkbox" aria-label="현재 목록 전체 선택" disabled={deletingProjects || !visibleProjects.length} checked={visibleProjects.length > 0 && checkedVisibleIds.length === visibleProjects.length} onChange={e => setCheckedProjectIds(e.target.checked ? visibleProjects.map((project: any) => String(project.id)) : [])} className="w-4 h-4 rounded bg-[#1c2027] border-gray-600 cursor-pointer" />
                                             </th>
                                             <th className="px-3 py-2.5 w-32 text-center">카테고리</th>
                                             <th className="px-2 py-2.5 w-20 text-center">토픽번호</th>
@@ -8608,7 +8632,7 @@ export default function StdPortalPage() {
                                                         </div>
                                                     </td>
                                                     <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
-                                                        <input type="checkbox" className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
+                                                        <input type="checkbox" aria-label={`${p.title} 선택`} disabled={deletingProjects} checked={checkedProjectIds.includes(String(p.id))} onChange={e => setCheckedProjectIds(prev => e.target.checked ? [...prev, String(p.id)] : prev.filter(id => id !== String(p.id)))} className="w-4 h-4 rounded bg-[#14181f] border-gray-600 cursor-pointer" />
                                                     </td>
                                                     <td className="px-3 py-2 text-center whitespace-nowrap">
                                                         <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
