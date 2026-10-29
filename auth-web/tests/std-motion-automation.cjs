@@ -5,6 +5,7 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
  if(name.includes('stdProductionEnginePolicy'))return alternativesEnabled?{productionEngineError:()=>null}:require('./load-ts-module.cjs')('lib/stdProductionEnginePolicy.ts');
+  if(name.includes('stdSavedSceneExecution'))return require('./load-ts-module.cjs')('lib/stdSavedSceneExecution.ts')
   if(name.includes('stdSubmittedVideoPostwork'))return require('./load-ts-module.cjs')('lib/stdSubmittedVideoPostwork.ts')
   if(name==='crypto')return crypto
   if(name.includes('stdMotionSourceReuse'))return {recordedMotionSourceReuse:()=>null}
@@ -137,3 +138,5 @@ test('script bubble-only still projects automatically enter native AE without mo
  assert.equal(s.motion.enabled,true);assert.equal(s.motion.automation.mode,'ae_only')
  assert.equal(s.execution_policy.review_policy,'complete_with_notes/v1')
 })
+
+test('saved numbered v1 direction reaches the frozen production snapshot',async()=>{const f=fixture();f.project.project_payload.structure={scenes:[{scene_number:1,ae_directorial_plan:{contract:'scene_direction_plan/v1',ae_operations:['camera_move'],effect_limits:{max_scale_delta:.04}}}]};await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.scenes[0].saved_direction_binding.contract,'saved_scene_execution/v1');assert.equal(s.scenes[0].prepared_direction.keys.at(-1).scale,1.04);assert.deepEqual(s.scenes[0].saved_direction_binding.applied_operations,['camera_move']);});

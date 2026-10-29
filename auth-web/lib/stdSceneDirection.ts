@@ -60,6 +60,9 @@ export function sceneDirectionBadges(scenes: any[], number: number): SceneDirect
     const operations = new Set<string>(Array.isArray(direction?.ae_operations) ? direction.ae_operations : [])
     const requiredLayers = new Set<string>(Array.isArray(direction?.required_layers) ? direction.required_layers : [])
     const badges: SceneDirectionBadge[] = []
+    const binding=matches.map(s=>s.saved_execution_binding).find(b=>b?.contract==='saved_scene_execution/v1')
+    if(binding?.applied_operations?.length)badges.push({kind:'review',label:'실행 지침 연결',state:'planned',detail:binding.applied_operations.join(' · ')+(binding.camera_seconds?' · 카메라 '+binding.camera_seconds+'초':'')})
+    if(binding?.pending_requirements?.length)badges.push({kind:'layer',label:'추가 소재 필요',state:'needs_review',detail:binding.pending_requirements.map((r:any)=>r.operation).join(' · ')})
     const blink = direction?.eye_blink_plan
     if (blink?.enabled === true && Array.isArray(blink.cues) && blink.cues.length) {
         const receipt = geometry?.eye_blink

@@ -1,3 +1,4 @@
+import { bindSavedSceneExecution, savedScene, hasSavedSceneExecution } from './stdSavedSceneExecution'
 import scenePurposePolicy from './scenePurposePolicy.json'
 import { hasScriptSpeechBubbles, hasAllSceneParallax, freezeParallaxMouth } from './stdSubmittedVideoPostwork'
 import { videoDialoguePostworkTargets } from './stdSubmittedVideoPostwork'
@@ -25,7 +26,7 @@ import { horizontalWebtoon, webtoonInputs, readyWebtoonPlan } from './stdHorizon
 
 export function nativeVideoEligible(asset:any) { const m=asset?.metadata||{};return !['repaired_source_clip','motion_source_repair'].includes(m.kind)&&!m.source_repair&&(['original_speed_no_freeze_no_loop_v1','original_speed_no_freeze_no_loop/v1'].includes(String(m.video_tail_policy||m.tail_policy))||!/(hold|freeze|loop)/i.test(String(m.video_tail_policy||m.tail_policy||''))) }
 
-export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project) }
+export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
     const engineError=productionEngineError(project)
     if(engineError)throw new Error(engineError)
@@ -33,7 +34,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const videoPostwork=hasSubmittedVideoPostwork(project,scenes,assets)
     const postworkNumbers=new Set(videoPostwork?assets.filter(a=>originalPostworkVideo(a)&&Number(a.scene_number)>=1&&Number(a.scene_number)<=18).map(a=>Number(a.scene_number)):[])
     assertPreparationFinished(assets.filter(a=>!postworkNumbers.has(Number(a.scene_number))))
-    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)?postworkMotion(project):motionForProject(project)!
+    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)?postworkMotion(project):motionForProject(project)!
     if(allParallax)motion.edit_mode=undefined
     const horizontal=!allParallax&&horizontalWebtoon(project)
     const horizontalInputs=horizontal?webtoonInputs(project,scenes,assets):[]
@@ -68,7 +69,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         if(!Number.isSafeInteger(n)||n<1||scenes.slice(0,index).some(s=>Number(s.scene_number)===n)||!Number.isFinite(start)||!Number.isFinite(end)||end-start<1/motion.fps)throw new Error(`${n}번 씬의 최종 음성 구간이 유효하지 않습니다.`)
         const preparation=source.asset_type==='original'&&!horizontal?prepared.get(n):null
         if(source.asset_type==='original'&&!horizontal&&!preparation)throw new Error(`${n}번 PSD의 레이어·AE 연출을 대본워커에서 준비한 뒤 제출하세요.`)
-        const planned=project.project_payload?.structure?.scenes?.find((s:any)=>Number(s.scene_number||s.scene_order)===n)
+        const planned=savedScene(project,n)
         if(planned?.parallax_plan?.enabled && source.asset_type!=='original')throw new Error(`${n}번 패럴럭스 씬은 배경·캐릭터·전경 레이어 PSD를 준비·검수한 뒤 제출하세요.`)
         if(allParallax&&!planned?.parallax_plan?.enabled)throw new Error(`${n}번 씬의 전체 패럴럭스 연출·레이어 계획을 준비하세요.`)
         const authored=motion.scenes[String(n)]
@@ -86,6 +87,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const postwork=uploadedPostwork?freezeVideoPostwork(project,n,source,recordedRows,assets,creative):null
         const generated=horizontal||postwork?null:bindSceneDirection(executable,sourceKind,recordedRows,start,end,motion.fps)
         const stillMouth=!allParallax&&videoPostwork&&!postwork?freezePreparedStillMouth(project,n,source,recordedRows,assets,scenes):null
+        const savedBinding=horizontal||postwork?null:bindSavedSceneExecution(planned,sourceKind,start,end,preparation)
         const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
             ...(effectivePurpose?{purpose_policy:effectivePurpose}:{}),
@@ -93,7 +95,8 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
             ...(reviewedDepth.length?{reviewed_depth_effects:reviewedDepth}:{}),
             ...(allParallax?{parallax_plan:planned.parallax_plan,parallax_mouth:freezeParallaxMouth(project,recordedRows)}:{}),
             ...(postwork?{direction_contract:VIDEO_POSTWORK_CONTRACT,postwork}:!horizontal&&directedScene(creative)?{direction_contract:creative.contract}:{}),
-            prepared_direction:postwork?postworkDirection(sourceKind,postwork):(!horizontal&&(explicit||generated||motion.scenes[String(n)]))||{source:sourceKind,fit:'contain',direction:horizontal?'고정 가로 웹툰 컷 계획 · 원본 말풍선 유지':'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
+            prepared_direction:postwork?postworkDirection(sourceKind,postwork):(!horizontal&&(explicit||generated||savedBinding?.direction||motion.scenes[String(n)]))||{source:sourceKind,fit:'contain',direction:horizontal?'고정 가로 웹툰 컷 계획 · 원본 말풍선 유지':'원본 유지',keys:[{t:0,x:.5,y:.5,scale:1,rotation:0,opacity:100},{t:1,x:.5,y:.5,scale:1,rotation:0,opacity:100}],effects:[],transition:'cut'},
+            ...(savedBinding?{saved_direction_binding:savedBinding.binding}:{}),
             creative_reference:postwork?null:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
             ...(webtoon?{webtoon}:{}),...(stillMouth?{still_mouth:stillMouth}:{}),preparation,start,end,source,...(source.asset_type==='video'&&image&&!postwork?{source_reference_image:image}:{}),...(source.metadata?.ae_mouth_fingerprint?{recorded_source_reuse:recordedMotionSourceReuse(project,source,assets,audio)}:{}),source_kind:sourceKind}
     })

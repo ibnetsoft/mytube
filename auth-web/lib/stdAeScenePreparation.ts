@@ -1,3 +1,4 @@
+import { savedScene } from './stdSavedSceneExecution'
 import { createHash } from 'crypto'
 import { aeSceneEffectSelection, aeSceneEffectsMatch } from './stdAeSceneEffects'
 import { motionForProject } from './stdMotionStudio'
@@ -38,14 +39,14 @@ export function aeSceneContexts(project: any, scenes: any[]) {
     const saved = project.project_payload?.structure?.scenes || project.project_payload?.scenes || []
     return scenes.map(scene => {
         const number = numberOf(scene)
-        const authored = saved.find((s: any) => numberOf(s) === number) || {}
+        const authored = savedScene(project, number) || {}
         return {
             scene_number: number,
             scene_title: String(scene.scene_title || authored.scene_title || authored.title || ''),
             scene_text: String(scene.scene_text || authored.scene_text || authored.narration || authored.text || ''),
             image_prompt: String(scene.image_prompt || authored.image_prompt || ''),
             video_prompt: String(scene.video_prompt || authored.video_prompt || ''),
-            ...(directedScene(authored.scene_direction_plan) ? {creative_reference: authored.scene_direction_plan} : {}),
+            ...((directedScene(authored.scene_direction_plan) || authored.scene_direction_plan?.contract === 'scene_direction_plan/v1') ? {creative_reference: authored.scene_direction_plan} : {}),
         }
     }).sort((a, b) => a.scene_number - b.scene_number)
 }

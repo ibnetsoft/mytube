@@ -2,6 +2,7 @@
 import copy
 import json
 import math
+from saved_scene_execution import validate_lights
 from pathlib import Path
 
 VERSION = 'adobe_flat_scene/v1'
@@ -49,7 +50,7 @@ def prepare(source, scene, motion, direction):
                 if digest(Path(speaker['layers'][pose]))!=speaker['layer_sha256'][pose]:raise ValueError('Reviewed mouth patch changed before AE rendering')
     plan = {'width':width,'height':height,'output':{'width':size[0],'height':size[1]},
             'camera':keys,'fit':direction['fit'],'layers':[{'id':'original','role':'background','motion':identity}],
-            'effects':copy.deepcopy(direction.get('effects',[])),'lights':[],
+            'effects':copy.deepcopy(direction.get('effects',[])),'lights':validate_lights(direction.get('lights',[])),
             'mouth_runtime':copy.deepcopy(scene.get('_mouth_runtime')),
             'transition':{'in':'none','out':'none','fraction':0}}
     from ae_scene_effects import validate_effects

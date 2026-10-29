@@ -300,6 +300,8 @@ This capability supersedes the prohibition on requesting supplemental artwork ab
             # A post-submit repair may inspect/retry but cannot invent new direction.
             from scene_direction_policy import is_directed
             fields=('source','fit','direction','keys') if is_directed(scene.get('creative_reference')) else ('source','fit','direction','keys','effects','transition','transition_seconds')
+            if scene.get('saved_direction_binding'):
+                fields=(*fields,*(['lights'] if prepared.get('lights') else []),*(['layer_motion'] if prepared.get('layer_motion') else []))
             if any(plan['scene'].get(key)!=prepared.get(key) for key in fields):
                 raise NeedsReview('제출 후 연출 변경이 필요합니다. 대본워커에서 준비한 계획을 수정하고 다시 제출하세요.')
             return plan
@@ -371,6 +373,8 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         prepared=load_preparation({'number':scene['number'],'ae_scene':scene['preparation']},directory/'preparation',fresh)
         from scene_direction_policy import bind_prepared_camera
         prepared=bind_prepared_camera(prepared,scene,plan['scene'])
+        from saved_scene_execution import bind_prepared as bind_saved_prepared
+        prepared=bind_saved_prepared(prepared,scene,plan['scene'])
         prepared=apply_native_repair(scene,prepared)
         validate_purpose_native(scene,prepared['plan'])
         if snapshot.get('all_scene_parallax'):
@@ -682,6 +686,10 @@ def process_one(engine='ae'):
         from advisory_review import POLICY as ADVISORY_POLICY, AUTHORIZATION
         snapshot['_advisory_review']=True
         snapshot['_quality_notes']=copy.deepcopy(meta.get('quality_notes') or [])
+        from advisory_review import note as quality_note
+        for authored_scene in snapshot['scenes']:
+            for missing in (authored_scene.get('saved_direction_binding') or {}).get('pending_requirements',[]):
+                quality_note(snapshot,authored_scene,'saved_direction_materials',json.dumps(missing,ensure_ascii=False))
         save(review_policy=ADVISORY_POLICY,review_policy_authorization=AUTHORIZATION)
         runner=CodexStagedContentRunner()
         save(total_scenes=len(snapshot['scenes']),phase='direction',progress='원본과 최종 음성 확인')
@@ -848,6 +856,7 @@ def process_one(engine='ae'):
             from camera_speed_policy import VERSION as CAMERA_POLICY
             record['camera_speed_policy']=CAMERA_POLICY
             record['mouth_applied']=bool((scene.get('_mouth_runtime') or {}).get('enabled'))
+            if scene.get('saved_direction_binding'):record['saved_direction_binding']=copy.deepcopy(scene['saved_direction_binding'])
             if video_postwork_enabled(scene):
                 from submitted_video_postwork import result_receipt
                 record['submitted_video_postwork']=result_receipt(scene,source_hash=digest(sources[number]),voice_hash=digest(voice))
