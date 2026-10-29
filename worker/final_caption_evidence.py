@@ -16,6 +16,10 @@ def caption_samples(subtitles, scene, fps, total):
                ('middle',(start+end)/2),('before_end',end-guard),('after_end',end+guard))
         for phase,time in times:
             if 0<=time<total-1/float(fps):
-                samples.append({'subtitle_index':index,'phase':phase,'time':time,
+                # Seek to an actual presentation timestamp. FFmpeg may otherwise return
+                # success with no image when the seek lands after the last frame.
+                frame_index=min(math.floor(time*float(fps)+1e-8),max(0,math.floor(total*float(fps)+1e-8)-1))
+                frame_time=frame_index/float(fps)
+                samples.append({'subtitle_index':index,'phase':phase,'time':frame_time,'requested_time':time,
                                 'start':start,'end':end})
     return samples
