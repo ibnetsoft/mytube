@@ -7637,7 +7637,7 @@ export default function StdPortalPage() {
     const checkedVisibleIds = visibleProjects.map((project: any) => String(project.id)).filter(id => checkedProjectIds.includes(id))
     const deleteCheckedProjects = async () => {
         const ids = checkedVisibleIds
-        if (!ids.length || deletingProjects || !confirm(`선택한 프로젝트 ${ids.length}개를 삭제하시겠습니까? 삭제한 프로젝트는 복구할 수 없습니다.`)) return
+        if (!ids.length || deletingProjects || !confirm(`선택한 프로젝트 ${ids.length}개를 삭제하시겠습니까? 선택한 프로젝트가 목록에서 제거됩니다. 연결된 제작 기록과 원본 파일은 보존됩니다.`)) return
         setDeletingProjects(true)
         try {
             const response = await fetch('/api/std/projects', { method: 'DELETE', headers: authedJsonHeaders, body: JSON.stringify({ ids }) })

@@ -17,6 +17,7 @@ export async function GET(req: Request) {
         .from('std_projects')
         .select('id,title,status,language,category_id,employee_email,topic_queue_id,assigned_duration_minutes,estimated_payout,drive_folder_id,created_at,updated_at,submitted_at,saved_render_version:progress_payload->latest_render_version,saved_thumbnail_design_url:project_payload->thumbnail_design->>thumbnail_url')
         .eq('employee_email', auth.requester.email)
+        .is('list_deleted_at', null)
         .order('updated_at', { ascending: false })
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
@@ -108,8 +109,8 @@ export async function DELETE(req: Request) {
         return NextResponse.json({ success: false, error: '유효한 프로젝트를 선택해 주세요.' }, { status: 400 })
     }
     const uniqueIds = [...new Set(ids)] as string[]
-    const { data, error } = await supabaseAdmin.from('std_projects').delete()
-        .eq('employee_email', auth.requester.email).in('id', uniqueIds).select('id')
+    const { data, error } = await supabaseAdmin.from('std_projects').update({ list_deleted_at: new Date().toISOString() })
+        .eq('employee_email', auth.requester.email).is('list_deleted_at', null).in('id', uniqueIds).select('id')
     if (error) return NextResponse.json({ success: false, error: '프로젝트를 삭제하지 못했습니다.' }, { status: 500 })
     return NextResponse.json({ success: true, deletedIds: (data || []).map(row => row.id) })
 }
