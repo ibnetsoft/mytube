@@ -46,9 +46,9 @@ function draw(){
  const meta=node('div',null,'meta');meta.append(node('span','최근 변경 '+stamp(j.updated_at)),node('span',j.phase==='discovery'?'대사·지침 확인 단계':j.phase==='render'?'입모양 생성 단계':''));a.append(meta);
  if(j.error)a.append(node('div','중단 사유: '+j.error,'error'));else if(j.message)a.append(node('p',j.message,'subtle'));
  if(j.state==='needs_review'||j.state==='failed'){
-  const box=node('div',null,'error');box.append(node('strong',(j.blocked_scene?j.blocked_scene+'번 씬 · ':'')+'보완 후 다시 제출해야 합니다'));
+  const box=node('div',null,'error');box.append(node('strong',(j.blocked_scene?j.blocked_scene+'번 씬 · ':'')+'자동 복구 대상 · 기존 작업 보존'));
   if(!j.error)box.append(node('p','상세 중단 사유를 아직 불러오지 못했습니다. 자동으로 다시 조회합니다. 사유 확인 전에는 재실행하지 마세요.'));
-  box.append(node('p','원본 영상·음성·완료된 작업은 보존됩니다. 영상 페이지에서 해당 씬의 원본과 대본을 확인하고 보완한 뒤 다시 제출하세요.'));
+  box.append(node('p','원본 영상·음성·완료된 작업은 보존됩니다. 품질 문제는 보완점으로 기록하며, 실행 오류는 자동 복구 후 이어서 제작합니다.'));
   if(j.project_id){const link=node('a','영상 페이지 열기 →');link.href='https://studio.airing.work/std?tab=image_gen&projectId='+encodeURIComponent(j.project_id);link.target='_blank';link.rel='noopener noreferrer';link.style.color='#85eedb';box.append(link)}
   a.append(box);
  }

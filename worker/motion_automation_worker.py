@@ -915,8 +915,8 @@ def process_one(engine='ae'):
             from final_caption_evidence import caption_samples
             context['caption_frame_evidence']=[]
             for sample in caption_samples(snapshot['subtitles'],scene,snapshot['motion']['fps'],snapshot['scenes'][-1]['end']):
-                frame=final_dir/f'caption-{sample["subtitle_index"]}-{sample["phase"]}.jpg'
-                run([ffmpeg(),'-v','error','-y','-ss',str(sample['time']),'-i',str(output),'-frames:v','1','-q:v','2',str(frame)])
+                frame=final_dir/f'caption-{sample["subtitle_index"]}-{sample["phase"]}.png'
+                run([ffmpeg(),'-v','error','-y','-ss',str(sample['time']),'-i',str(output),'-frames:v','1','-c:v','png','-pix_fmt','rgb24','-threads','1',str(frame)])
                 context['_local_image_paths'].append(str(frame.resolve()))
                 context['caption_frame_evidence'].append({**sample,'file':str(frame.resolve())})
             context['final_audio_evidence']={'method':'decoded_pcm_same_clock_without_time_warp','sample_rate':8000,

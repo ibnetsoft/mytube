@@ -57,7 +57,7 @@ def summarize(row, render=False):
             'title': row.get('project_name') or '', 'kind': 'render' if render else meta.get('kind'),
             'state': state, 'group': 'review' if meta.get('kind') == 'region_motion_plan' and state == 'ready' else group(state), 'phase': meta.get('phase'), 'quality_notes': meta.get('quality_notes') or [], 'blocked_scene': meta.get('blocked_scene') or meta.get('current_scene'), 'error': meta.get('error') or row.get('error_message'), 'message': meta.get('progress') or row.get('message'),
             'total': meta.get('total_scenes') or len(scenes), 'done': completed, 'analyzed': len(results),
-            'generated': sum(bool(r.get('asset_id')) and r.get('status') in ('review_pending', 'approved', 'reviewed') for r in results),
+            'generated': sum(bool(r.get('sha256') and r.get('path')) for r in results) if meta.get('kind') in ('motion_automation','effectcraft_automation','horizontal_webtoon_automation','filmcraft_automation') else sum(bool(r.get('asset_id')) and r.get('status') in ('review_pending', 'approved', 'reviewed') for r in results),
             'skipped': sum(r.get('status') == 'skipped' for r in results),
             'scene_number': row.get('scene_number'),
             'progress': max(0, min(100, float(row.get('progress') or 0))) if render else None,
