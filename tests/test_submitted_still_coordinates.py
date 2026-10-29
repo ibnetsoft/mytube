@@ -44,7 +44,7 @@ def test_matching_source_receipt_reuses_coordinates_without_new_analysis(tmp_pat
  regions={'image_id':'image','source_sha256':c.digest(image),'speakers':[{'speaker':'hero','status':'offscreen','confidence':1,'reason':'Actual source reviewed'}]}
  content=json.dumps({'fingerprint':key,'regions':regions}).encode()
  import hashlib
- cached={'id':'cached','metadata':{'kind':'submitted_still_coordinates','fingerprint':key,'state':'ready','gcs_path':'cached.json','receipt_sha256':hashlib.sha256(content).hexdigest()}}
+ cached={'id':'cached','status':'uploaded','scene_number':19,'metadata':{'kind':'submitted_still_coordinates','fingerprint':key,'state':'ready','gcs_path':'cached.json','receipt_sha256':hashlib.sha256(content).hexdigest()}}
  monkeypatch.setattr(std_project_assets,'load_project_assets',lambda *args:[cached]);monkeypatch.setattr(ae,'_download_gcs_file',lambda ref,target:target.write_bytes(content))
  locate=Mock();publish=Mock();monkeypatch.setattr(c,'locate_speakers',locate);monkeypatch.setattr(ae,'_upload_gcs_file',publish)
  result,identity=c.prepare('runner',job,scene,post,image,tmp_path/'work',lambda:None)

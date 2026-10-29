@@ -29,7 +29,9 @@ def prepare(runner, job, scene, postwork, image, directory, fresh):
             'source': ref(scene['source']), 'source_sha256': source_hash,
             'cast': postwork['cast'], 'speakers': names})
         assets = load_project_assets(ae._request, base, headers, job['project_id'])
-        cached = next((a for a in assets if a.get('metadata', {}).get('kind') == 'submitted_still_coordinates'
+        cached = next((a for a in assets if a.get('status') in ('uploaded', 'assigned')
+                       and a.get('scene_number') == scene['number']
+                       and (a.get('metadata') or {}).get('kind') == 'submitted_still_coordinates'
                        and a['metadata'].get('fingerprint') == key and a['metadata'].get('state') == 'ready'), None)
         receipt = directory / 'still-coordinates.json'
         if cached:
