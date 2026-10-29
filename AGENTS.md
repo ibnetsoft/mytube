@@ -24,3 +24,7 @@
 - On 2026-10-28 the user requested that quality concerns never block production. Continue through final assembly with the existing source and saved direction; keep actual failed or uncertain review results truthful and record them separately as quality notes. This supersedes the earlier quality-approval stopping rule for submitted media production.
 - Preserve cancellation, ownership, source integrity and actual file/timing checks. Execution failures remain queued for automatic recovery with backoff and reusable assets preserved; never mark an absent or broken output complete.
 - Final delivery must include the quality-notes report and retain administrator publishing/YouTube upload as separate actions.
+
+## Camera preference
+
+- On 2026-10-29 the user prohibited slow zooms. Never add slow or whole-scene gentle zooms. Prefer a fixed camera; when motivated, use a clearly visible medium-speed zoom with a short movement window and holds. Preserve uploaded footage; this rule governs added direction, not source footage already containing camera movement.

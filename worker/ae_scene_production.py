@@ -170,6 +170,10 @@ def _video_info(path):
 
 
 def _render_native(prepared, directory, duration):
+    from camera_speed_policy import constrain, VERSION as CAMERA_POLICY
+    camera, suppressed=constrain(prepared['plan'].get('camera'),duration)
+    prepared['plan']['camera']=camera
+    prepared['plan']['camera_speed_policy']={'version':CAMERA_POLICY,'slow_zoom_suppressed':suppressed}
     import ae_highlight_worker as ae
     from adobe_tools import find_afterfx, find_aerender
     afterfx, aerender = find_afterfx(), find_aerender()

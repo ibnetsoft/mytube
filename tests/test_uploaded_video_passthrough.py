@@ -7,7 +7,7 @@ from motion_automation_worker import render_base,renderer_cache_is_current
 
 def fixture():
     direction={'source':'video','fit':'contain','keys':[{'t':t,'x':.5,'y':.5,'scale':1,'rotation':0,'opacity':100} for t in (0,1)],'effects':[]}
-    return {'number':1,'source_kind':'video','prepared_direction':direction},{'number':1,'scene':direction,'ai':None}
+    return {'number':1,'start':0,'end':10,'source_kind':'video','prepared_direction':direction},{'number':1,'scene':direction,'ai':None}
 
 def test_unmodified_uploaded_video_never_calls_adobe_or_ffmpeg(tmp_path,monkeypatch):
     scene,plan=fixture();source=tmp_path/'original.mp4';source.write_bytes(b'original-upload-bytes');calls=[]

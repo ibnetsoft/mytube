@@ -311,6 +311,11 @@ This capability supersedes the prohibition on requesting supplemental artwork ab
 def renderer_cache_is_current(snapshot,record):
     from services.video_playback_policy import POLICY
     if record.get('video_playback_policy')!=POLICY:return False
+    from camera_speed_policy import constrain, VERSION as CAMERA_POLICY
+    submitted=next((s for s in snapshot.get('scenes',[]) if s.get('number')==record.get('number')),None)
+    if submitted:
+        _,slow_zoom=constrain((submitted.get('prepared_direction') or {}).get('keys'),submitted.get('end',0)-submitted.get('start',0))
+        if slow_zoom and record.get('camera_speed_policy')!=CAMERA_POLICY:return False
     if any(s.get('number')==record.get('number') and s.get('speech_bubble_plan',{}).get('cues') for s in snapshot.get('scenes',[])) and (record.get('speech_bubble_layout') or {}).get('render_version')!=2:return False
     if snapshot.get('renderer',{}).get('engine')=='filmcraft':
         from filmcraft_render import VERSION
@@ -320,7 +325,9 @@ def renderer_cache_is_current(snapshot,record):
     if snapshot.get('renderer',{}).get('engine')!='effectcraft':
         from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION, SOURCE_VERSION
         scene=next((s for s in snapshot.get('scenes',[]) if s.get('number')==record.get('number')),None)
-        if scene and not (record.get('mouth_applied') or (record.get('submitted_video_postwork') or {}).get('mouth_applied')) and eligible(scene,{'scene':scene.get('prepared_direction') or {}},runtime_resolved=True):
+        direction=copy.deepcopy((scene or {}).get('prepared_direction') or {})
+        if scene:direction['keys'],_=constrain(direction.get('keys'),scene.get('end',0)-scene.get('start',0))
+        if scene and not (record.get('mouth_applied') or (record.get('submitted_video_postwork') or {}).get('mouth_applied')) and eligible(scene,{'scene':direction},runtime_resolved=True):
             return record.get('source_passthrough')==SOURCE_VERSION
         if any(s.get('number')==record.get('number') and s.get('source_kind') in ('image','video') and not s.get('webtoon') for s in snapshot.get('scenes',[])):
             from ae_flat_scene import VERSION
@@ -333,6 +340,12 @@ def renderer_cache_is_current(snapshot,record):
 
 
 def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
+    from camera_speed_policy import constrain, VERSION as CAMERA_POLICY
+    keys,suppressed=constrain(plan.get('scene',{}).get('keys'),scene['end']-scene['start'])
+    if suppressed:
+        plan['scene']['keys']=keys
+        from advisory_review import note
+        note(snapshot,scene,'camera_policy','사용자 지침에 따라 느린 줌을 제거하고 고정 배율로 제작합니다.')
     if scene.get('webtoon'):
         if snapshot['motion'].get('edit_mode')!='horizontal_webtoon' or snapshot['motion']['aspect']!='16:9' or snapshot.get('renderer',{}).get('engine')!='ae_horizontal_webtoon':
             raise NeedsReview('Horizontal webtoon requires native AE and landscape output')
@@ -832,6 +845,8 @@ def process_one(engine='ae'):
             previous=last;record={'purpose_policy':scene.get('purpose_policy'),'purpose_repair':plan.get('purpose_repair'),'speech_bubble_layout':scene.get('_bubble_layout'),'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
             from services.video_playback_policy import POLICY
             record['video_playback_policy']=POLICY
+            from camera_speed_policy import VERSION as CAMERA_POLICY
+            record['camera_speed_policy']=CAMERA_POLICY
             record['mouth_applied']=bool((scene.get('_mouth_runtime') or {}).get('enabled'))
             if video_postwork_enabled(scene):
                 from submitted_video_postwork import result_receipt

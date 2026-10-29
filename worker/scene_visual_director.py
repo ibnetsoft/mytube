@@ -356,3 +356,6 @@ def validate_directorial_plans(
         scene["scene_direction_plan"] = direction
         normalized.append(direction)
     return normalized
+
+from camera_speed_policy import TASK as CAMERA_SPEED_TASK
+PERSONA += CAMERA_SPEED_TASK

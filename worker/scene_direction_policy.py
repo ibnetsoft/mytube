@@ -43,6 +43,9 @@ transition is cut or crossfade, chosen from adjacent-shot flow; a crossfade uses
 Every qa_assertions list must check bubble/body/tail integration when used,
 camera direction/settle, readable faces, actual voice cue and adjacent-shot flow.'''
 
+from camera_speed_policy import TASK as CAMERA_SPEED_TASK
+DIRECTING_TASK += CAMERA_SPEED_TASK
+
 DIRECTED_EFFECTS = {'atmospheric_haze','warm_dust_motes','focus_glow','light_sweep',
                     'impact_flash','subtle_vignette','impact_shake','shock_ring'}
 
