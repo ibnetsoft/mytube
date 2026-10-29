@@ -320,7 +320,7 @@ def renderer_cache_is_current(snapshot,record):
     if snapshot.get('renderer',{}).get('engine')!='effectcraft':
         from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION
         scene=next((s for s in snapshot.get('scenes',[]) if s.get('number')==record.get('number')),None)
-        if scene and eligible(scene,{'scene':scene.get('prepared_direction') or {}}):
+        if scene and eligible(scene,{'scene':scene.get('prepared_direction') or {}},runtime_resolved=(record.get('submitted_video_postwork') or {}).get('mouth_applied') is False):
             return record.get('uploaded_video_passthrough')==PASSTHROUGH_VERSION
         if any(s.get('number')==record.get('number') and s.get('source_kind') in ('image','video') and not s.get('webtoon') for s in snapshot.get('scenes',[])):
             from ae_flat_scene import VERSION
@@ -345,7 +345,7 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         from effectcraft_render import render_scene
         return render_scene(snapshot,scene,plan,source,directory,fresh)
     from uploaded_video_passthrough import eligible
-    if eligible(scene,plan):
+    if eligible(scene,plan,runtime_resolved=True):
         fresh()
         return Path(source)
     from ae_media_utils import ffmpeg,run
@@ -826,7 +826,7 @@ def process_one(engine='ae'):
                 record['submitted_video_postwork']=result_receipt(scene,source_hash=digest(sources[number]),voice_hash=digest(voice))
             if snapshot.get('renderer',{}).get('engine') not in ('effectcraft','filmcraft') and scene.get('source_kind') in ('image','video') and not scene.get('webtoon'):
                 from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION
-                if eligible(scene,plan):
+                if eligible(scene,plan,runtime_resolved=True):
                     record.update(uploaded_video_passthrough=PASSTHROUGH_VERSION,source_execution_sha256=digest(sources[number]))
                 else:
                     from ae_flat_scene import VERSION

@@ -33,3 +33,11 @@ def test_previous_ae_output_is_not_reused_for_passthrough():
     snapshot={'scenes':[scene]};base={'number':1,'video_playback_policy':POLICY,'adobe_flat_renderer':'adobe_flat_scene/v1'}
     assert not renderer_cache_is_current(snapshot,base)
     assert renderer_cache_is_current(snapshot,{**base,'uploaded_video_passthrough':VERSION})
+
+
+def test_offscreen_or_unapplied_mouth_does_not_force_an_empty_ae_render():
+    scene,plan=fixture();scene['postwork']={'mouth_required':True}
+    assert not eligible(scene,plan)
+    assert eligible(scene,plan,runtime_resolved=True)
+    scene['_mouth_runtime']={'enabled':True,'speakers':[{}]}
+    assert not eligible(scene,plan,runtime_resolved=True)
