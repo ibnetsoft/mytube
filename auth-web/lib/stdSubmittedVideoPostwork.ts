@@ -63,11 +63,13 @@ export function freezePreparedStillMouth(project:any,number:number,source:any,ro
     if(number<=18||!mouthWorkScenes(project,scenes,assets).has(number))return null
     const dialogue=rows.filter(r=>r.dialogue_kind==='dialogue'&&String(r.text||'').trim()).map(r=>({...r,kind:'dialogue',speaker:subtitleDialogueSpeakerName(r)}))
     if(!dialogue.length)return null
+    if(dialogue.some(r=>!r.speaker))throw Error(`${number}번 정지 씬 대사의 화자를 지정한 뒤 제출하세요.`)
     if(source.asset_type==='video')return null // Existing recording-bound lip-sync is verified by the worker.
     if(source.asset_type!=='image')throw Error(`${number}번 씬의 PSD 장면과 입모양은 함께 선택할 수 없습니다. 준비된 대사 이미지·영상을 확인하세요.`)
     const regions=savedSpeakerGeometry(assets,coordinateCast(project),{number,image:source,rows:dialogue.map(r=>({speaker:r.speaker}))})
-    if(dialogue.some(r=>!r.speaker||!regions?.speakers?.some((s:any)=>s.speaker===r.speaker)))throw Error(`${number}번 씬의 기존 입모양 좌표·소재 준비를 완료한 뒤 제출하세요.`)
-    return {contract:'prepared_still_mouth/v1',mouth_required:true,dialogue,image:source,speaker_regions:regions,cast:coordinateCast(project)}
+    const ready=regions&&dialogue.every(r=>regions.speakers?.some((s:any)=>s.speaker===r.speaker))
+    return {contract:'prepared_still_mouth/v1',mouth_required:true,dialogue,image:source,speaker_regions:ready?regions:null,cast:coordinateCast(project),
+        source_preparation:'local_codex_actual_submitted_still',preparation_state:ready?'coordinates_ready':'pending'}
 }
 
 // Script offsets identify dialogue before audio exists. Bind seconds only to finalized voice.

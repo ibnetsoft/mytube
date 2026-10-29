@@ -104,11 +104,13 @@ def prepare_mouth(runner,job,scene,snapshot,source,voice,directory,fresh):
     if scene.get('still_mouth'):
         from ae_mouth import visible_speakers
         from mouth_geometry import animatable
-        image=Path(source);video=image;regions=postwork['speaker_regions']
+        image=Path(source);video=image
+        from submitted_still_coordinates import prepare as prepare_still
+        regions,receipt_id=prepare_still(runner,job,scene,postwork,image,Path(directory)/'still-preparation',fresh)
         if regions.get('image_id')!=scene['source']['id'] or regions.get('source_sha256')!=digest(image):raise ValueError('Prepared still mouth source changed')
         visibility=visible_speakers({'speakers':regions['speakers']},list(dict.fromkeys(r['speaker'] for r in rows)))
         speakers=[copy.deepcopy(s) for s in visibility if animatable(s,digest(image))]
-        tracking={'source_duration':scene['end']-scene['start']};receipt_id=None
+        tracking={'source_duration':scene['end']-scene['start']}
     else:
         video,image,visibility,speakers,tracking,receipt_id=prepare_submitted_video(runner,job['project_id'],input_scene,rows,postwork['cast'],directory,fresh,allow_analyze=True,local_video=source)
     # Tracking must cover every selected spoken interval; no uncertain partial success.
