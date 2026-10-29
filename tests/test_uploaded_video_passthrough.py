@@ -2,7 +2,7 @@ import copy,sys
 from pathlib import Path
 import pytest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'worker'))
-from uploaded_video_passthrough import eligible,VERSION
+from uploaded_video_passthrough import eligible,VERSION,SOURCE_VERSION
 from motion_automation_worker import render_base,renderer_cache_is_current
 
 def fixture():
@@ -32,7 +32,7 @@ def test_previous_ae_output_is_not_reused_for_passthrough():
     from services.video_playback_policy import POLICY
     snapshot={'scenes':[scene]};base={'number':1,'video_playback_policy':POLICY,'adobe_flat_renderer':'adobe_flat_scene/v1'}
     assert not renderer_cache_is_current(snapshot,base)
-    assert renderer_cache_is_current(snapshot,{**base,'uploaded_video_passthrough':VERSION})
+    assert renderer_cache_is_current(snapshot,{**base,'source_passthrough':SOURCE_VERSION})
 
 
 def test_offscreen_or_unapplied_mouth_does_not_force_an_empty_ae_render():
@@ -40,4 +40,17 @@ def test_offscreen_or_unapplied_mouth_does_not_force_an_empty_ae_render():
     assert not eligible(scene,plan)
     assert eligible(scene,plan,runtime_resolved=True)
     scene['_mouth_runtime']={'enabled':True,'speakers':[{}]}
+    assert not eligible(scene,plan,runtime_resolved=True)
+
+
+def test_plain_still_image_goes_directly_to_final_composition(tmp_path,monkeypatch):
+    scene,plan=fixture();scene['source_kind']='image';scene['still_mouth']={'mouth_required':False}
+    source=tmp_path/'original.png';source.write_bytes(b'original-image-bytes')
+    import ae_scene_production
+    monkeypatch.setattr(ae_scene_production,'_render_native',lambda *a,**k:pytest.fail('No-op still must not launch Adobe'))
+    assert eligible(scene,plan)
+    assert render_base({},scene,plan,source,None,None,tmp_path,lambda:None)==source
+
+def test_still_with_fade_keeps_visual_render_path():
+    scene,plan=fixture();scene['source_kind']='image';plan['scene']['transition']='fade_black'
     assert not eligible(scene,plan,runtime_resolved=True)

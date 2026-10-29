@@ -318,10 +318,10 @@ def renderer_cache_is_current(snapshot,record):
         return record.get('filmcraft_adapter')==VERSION and cache_is_current(record)
     if any(video_postwork_enabled(s) and s['number']==record.get('number') for s in snapshot.get('scenes',[])) and (record.get('submitted_video_postwork') or {}).get('contract')!='submitted_video_postwork/v1':return False
     if snapshot.get('renderer',{}).get('engine')!='effectcraft':
-        from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION
+        from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION, SOURCE_VERSION
         scene=next((s for s in snapshot.get('scenes',[]) if s.get('number')==record.get('number')),None)
-        if scene and eligible(scene,{'scene':scene.get('prepared_direction') or {}},runtime_resolved=(record.get('submitted_video_postwork') or {}).get('mouth_applied') is False):
-            return record.get('uploaded_video_passthrough')==PASSTHROUGH_VERSION
+        if scene and not (record.get('mouth_applied') or (record.get('submitted_video_postwork') or {}).get('mouth_applied')) and eligible(scene,{'scene':scene.get('prepared_direction') or {}},runtime_resolved=True):
+            return record.get('source_passthrough')==SOURCE_VERSION
         if any(s.get('number')==record.get('number') and s.get('source_kind') in ('image','video') and not s.get('webtoon') for s in snapshot.get('scenes',[])):
             from ae_flat_scene import VERSION
             return record.get('adobe_flat_renderer')==VERSION
@@ -791,43 +791,56 @@ def process_one(engine='ae'):
                         voice=voice,ai_source=filmcraft_ai_sources.get(number))
                 else:
                     visual=render_base(snapshot,scene,plan,sources[number],previews[number],runner,attempt_dir,fresh)
-                    if plan.get('ai'):
-                        if snapshot['motion']['automation']['mode']!='hybrid':raise NeedsReview('AE-only mode cannot generate video')
-                        from motion_video_client import generated_insert
-                        generated=generated_insert(job,token,scene,plan,previews[number],work,headers,save,fresh)
-                        visual=insert_ai(visual,generated,plan['ai'],attempt_dir,snapshot['motion']['fps'])
-                    if scene.get('parallax_mouth'):
-                        from parallax_mouth_postwork import apply as apply_parallax_mouth
-                        visual=apply_parallax_mouth(runner,job,snapshot,scene,visual,voice,attempt_dir,fresh)
-                    from speech_bubbles import apply as apply_speech_bubbles
-                    visual=apply_speech_bubbles(runner,snapshot,scene,visual,attempt_dir,fresh)
-                    output=media_directory(attempt_dir)/'voice-synced.mp4'
-                    run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
+                    from uploaded_video_passthrough import eligible
+                    if eligible(scene,plan,runtime_resolved=True):
+                        output=visual
+                    else:
+                        if plan.get('ai'):
+                            if snapshot['motion']['automation']['mode']!='hybrid':raise NeedsReview('AE-only mode cannot generate video')
+                            from motion_video_client import generated_insert
+                            generated=generated_insert(job,token,scene,plan,previews[number],work,headers,save,fresh)
+                            visual=insert_ai(visual,generated,plan['ai'],attempt_dir,snapshot['motion']['fps'])
+                        if scene.get('parallax_mouth'):
+                            from parallax_mouth_postwork import apply as apply_parallax_mouth
+                            visual=apply_parallax_mouth(runner,job,snapshot,scene,visual,voice,attempt_dir,fresh)
+                        from speech_bubbles import apply as apply_speech_bubbles
+                        visual=apply_speech_bubbles(runner,snapshot,scene,visual,attempt_dir,fresh)
+                        output=media_directory(attempt_dir)/'voice-synced.mp4'
+                        run([ffmpeg(),'-v','error','-y','-i',str(visual),'-ss',str(scene['start']),'-i',str(voice),'-map','0:v:0','-map','1:a:0','-t',str(scene['end']-scene['start']),'-c:v','copy','-c:a','aac','-b:a','192k',str(output)])
                 save(phase='production' if scene.get('_skip_review') else 'review',progress=f'{index+1}/{len(snapshot["scenes"])}씬 EC 작업 완료' if scene.get('_skip_review') else f'{index+1}/{len(snapshot["scenes"])}씬 실제 출력 검수')
                 review_plan=plan
                 if snapshot.get('renderer',{}).get('engine')=='effectcraft':
                     executed=(scene.get('preparation') or {}).get('metadata',{}).get('result',{}).get('plan')
                     review_plan={**plan,'renderer':snapshot['renderer'],'prepared_psd_execution_plan':executed,'execution_fps':snapshot['motion']['fps']}
                 scene['_sequence_context']={'previous':snapshot['scenes'][index-1]['text'] if index else None,'current':scene['text'],'next':snapshot['scenes'][index+1]['text'] if index+1<len(snapshot['scenes']) else None,'next_source_preview':str(previews[snapshot['scenes'][index+1]['number']]) if index+1<len(snapshot['scenes']) else None}
-                try:
-                    review=review_output(runner,output,references.get(number,previews[number]),voice,scene,review_plan,attempt_dir,fresh,previous)
-                except (ProjectClosed,LeaseLost):raise
-                except (ValueError, RuntimeError, OSError, NeedsReview) as issue:
-                    from advisory_review import note
-                    note(snapshot,scene,'output_review',issue)
-                    review={'passed':False,'status':'completed_with_notes','issues':[str(issue)],'render_sha256':digest(output),'source_preview_sha256':digest(references.get(number,previews[number])),'final_voice_sha256':digest(voice),'batches':[]}
+                from uploaded_video_passthrough import eligible
+                if eligible(scene,plan,runtime_resolved=True):
+                    review={'passed':None,'status':'completed_with_notes','method':'unchanged_source_deferred_to_final_composition','render_sha256':digest(output),'source_preview_sha256':digest(references.get(number,previews[number])),'final_voice_sha256':digest(voice),'batches':[]}
+                else:
+                    try:
+                        review=review_output(runner,output,references.get(number,previews[number]),voice,scene,review_plan,attempt_dir,fresh,previous)
+                    except (ProjectClosed,LeaseLost):raise
+                    except (ValueError, RuntimeError, OSError, NeedsReview) as issue:
+                        from advisory_review import note
+                        note(snapshot,scene,'output_review',issue)
+                        review={'passed':False,'status':'completed_with_notes','issues':[str(issue)],'render_sha256':digest(output),'source_preview_sha256':digest(references.get(number,previews[number])),'final_voice_sha256':digest(voice),'batches':[]}
                 break
-            last=work/'reviewed-last-frame.png';run([ffmpeg(),'-v','error','-y','-sseof','-0.1','-i',str(output),'-frames:v','1',str(last)])
+            if eligible(scene,plan,runtime_resolved=True) and scene['source_kind']=='image':
+                last=previews[number]
+            else:
+                last=work/'reviewed-last-frame.png';run([ffmpeg(),'-v','error','-y','-ss',str(max(0,scene['end']-scene['start']-2/snapshot['motion']['fps'])),'-i',str(output),'-frames:v','1',str(last)])
             previous=last;record={'purpose_policy':scene.get('purpose_policy'),'purpose_repair':plan.get('purpose_repair'),'speech_bubble_layout':scene.get('_bubble_layout'),'number':number,'input_fingerprint':meta['fingerprint'],'path':str(output),'sha256':digest(output),'last_frame':str(last),'review':review}
             from services.video_playback_policy import POLICY
             record['video_playback_policy']=POLICY
+            record['mouth_applied']=bool((scene.get('_mouth_runtime') or {}).get('enabled'))
             if video_postwork_enabled(scene):
                 from submitted_video_postwork import result_receipt
                 record['submitted_video_postwork']=result_receipt(scene,source_hash=digest(sources[number]),voice_hash=digest(voice))
             if snapshot.get('renderer',{}).get('engine') not in ('effectcraft','filmcraft') and scene.get('source_kind') in ('image','video') and not scene.get('webtoon'):
-                from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION
+                from uploaded_video_passthrough import eligible, VERSION as PASSTHROUGH_VERSION, SOURCE_VERSION
                 if eligible(scene,plan,runtime_resolved=True):
-                    record.update(uploaded_video_passthrough=PASSTHROUGH_VERSION,source_execution_sha256=digest(sources[number]))
+                    record.update(source_passthrough=SOURCE_VERSION,source_execution_sha256=digest(sources[number]))
+                    if scene['source_kind']=='video':record['uploaded_video_passthrough']=PASSTHROUGH_VERSION
                 else:
                     from ae_flat_scene import VERSION
                     record['adobe_flat_renderer']=VERSION
