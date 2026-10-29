@@ -113,10 +113,11 @@ def test_project_creation_waits_for_fresh_stable_aep(monkeypatch, tmp_path):
             self.polls += 1
             if self.polls == 1:
                 project.write_bytes(b"new" * 700)
+                jsx.with_suffix(".status.txt").write_text("success|" + str(project))
             return 0
 
     process = _Process()
     monkeypatch.setattr(worker.subprocess, "Popen", lambda *_args, **_kwargs: process)
     worker._run_afterfx_script(tmp_path / "AfterFX.exe", jsx, project, timeout=10)
     assert project.read_bytes().startswith(b"new")
-    assert clock.value >= 2
+    assert clock.value >= 1

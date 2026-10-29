@@ -33,9 +33,9 @@ export function bindSavedSceneExecution(authored:any,source:string,start:number,
     }
     const prepared=preparation?.metadata?.result?.plan
     const roles=new Set((prepared?.layers||[]).map((l:any)=>l.role))
-    if(operations.includes('depth_parallax')&&!['background','character','foreground'].every(r=>roles.has(r))){
+    const depthReady=['background','character','foreground'].every(r=>roles.has(r))
+    if(operations.includes('depth_parallax')&&!depthReady){
         binding.status='needs_layers';binding.pending_requirements.push({operation:'depth_parallax',required_layers:['background','character','foreground'],reason:'실제 승인 레이어 필요; 평면 줌을 패럴랙스로 대체하지 않음'})
-        return {direction,binding}
     }
     const span=Math.min(2,Math.max(.15,duration-.2)),from=Math.min(.1,duration*.05),to=Math.min(duration,from+span)
     const a=from/duration,b=to/duration
@@ -55,12 +55,12 @@ export function bindSavedSceneExecution(authored:any,source:string,start:number,
         direction.lights.push({color:[1,.9,.75],center,radius:.25,keys:[{t:0,opacity:0},{t:a,opacity:0},{t:(a+b)/2,opacity:6},{t:b,opacity:0},{t:1,opacity:0}].filter((k,i,all)=>i===0||k.t>all[i-1].t)})
         binding.applied_operations.push('light_flicker')
     }
-    if(operations.includes('depth_parallax')){
+    if(operations.includes('depth_parallax')&&depthReady){
         direction.layer_motion={contract:SAVED_SCENE_BINDING,from:a,to:b,move_x:-.012,roles:['background','character','foreground']}
         binding.applied_operations.push('depth_parallax')
     }
     const supported=new Set(['hold','camera_move','atmosphere_drift','light_flicker','depth_parallax'])
     for(const op of operations.filter(o=>!supported.has(o)))binding.pending_requirements.push({operation:op,reason:'별도 소재·실행 계획 필요'})
-    if(binding.pending_requirements.length)binding.status='partially_bound'
+    if(binding.pending_requirements.length&&binding.status!=='needs_layers')binding.status='partially_bound'
     return {direction,binding}
 }

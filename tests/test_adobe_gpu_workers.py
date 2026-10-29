@@ -141,7 +141,10 @@ def test_ae_launcher_waits_for_async_project_after_process_exit(monkeypatch, tmp
 
     starts = []
     monkeypatch.setattr(worker.subprocess, "Popen", lambda *args, **kwargs: starts.append(args) or FinishedLauncher())
-    monkeypatch.setattr(worker.time, "sleep", lambda seconds: project.write_bytes(b"a" * 2048))
+    def finish(seconds):
+        project.write_bytes(b"a" * 2048)
+        script.with_suffix(".status.txt").write_text("success|" + str(project))
+    monkeypatch.setattr(worker.time, "sleep", finish)
 
     worker._run_afterfx_script(launcher, script, project, timeout=3)
     assert len(starts) == 1

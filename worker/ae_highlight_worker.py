@@ -1666,7 +1666,11 @@ def _run_afterfx_script(afterfx: Path, jsx_path: Path, project_path: Path, *, ti
     The worker lock serializes scripts; each script creates and saves a new
     project. Keep the session open and accept launcher exit after forwarding.
     """
-    candidate = afterfx
+    # AE resolves -r against its own working directory/session, not Python's.
+    # Relative job paths can launch successfully without ever running the JSX.
+    jsx_path = Path(jsx_path).resolve(strict=True)
+    project_path = Path(project_path).resolve()
+    candidate = Path(afterfx).resolve()
     if candidate.suffix.lower() == ".com":
         exe_path = candidate.with_suffix(".exe")
         if exe_path.is_file():

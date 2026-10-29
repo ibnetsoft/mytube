@@ -24,3 +24,20 @@ def test_forwarded_script_keeps_shared_session_open(tmp_path):
     assert '-m' not in commands[0]
     assert '-r' in commands[0]
     close.assert_not_called()
+
+
+def test_relative_script_is_forwarded_as_absolute_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    jsx = Path('scene.jsx')
+    jsx.write_text('// actual script')
+    project = tmp_path / 'scene.aep'
+    commands = []
+    def launch(command, **kwargs):
+        commands.append(command)
+        project.write_bytes(b'project')
+        jsx.with_suffix('.status.txt').write_text('success|' + str(project))
+        return SimpleNamespace(poll=lambda: 0)
+    with patch.object(ae.subprocess, 'Popen', side_effect=launch):
+        ae._run_afterfx_script(Path('AfterFX.exe'), jsx, Path('scene.aep'), timeout=3)
+    assert commands[0][-1] == str(jsx.resolve())
+    assert Path(commands[0][-1]).is_absolute()
