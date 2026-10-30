@@ -21,39 +21,56 @@ export async function GET(req: Request) {
         .order('updated_at', { ascending: false })
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
-    let projects: any[]
-    try { projects = await attachStdProjectCategories(supabaseAdmin, data || []) }
-    catch { return NextResponse.json({ success: false, error: 'Could not load project categories' }, { status: 503 }) }
-    let contexts: any[] = []
-    try { contexts = projects.length ? await loadStdProjectStatusContext(supabaseAdmin, projects.map(project => project.id)) : [] }
-    catch (error: any) {
-        console.error('[STD projects] status context unavailable:', error?.code, error?.message)
-        return NextResponse.json({ error: 'Could not load project completion status' }, { status: 503 })
+    const baseProjects = data || []
+    const ids = baseProjects.map((project: any) => project.id)
+    const topicQueueIds = [...new Set(baseProjects.map((project: any) => Number(project.topic_queue_id)).filter((id: number) => Number.isFinite(id) && id > 0))]
+    // These independent reads used to run one after another on every modal open.
+    const loadAssets = async () => {
+        const assets: any[] = []
+        if (!ids.length) return assets
+        for (let offset = 0; ; offset += 1000) {
+            const { data: batch, error } = await supabaseAdmin.from('std_project_assets')
+                .select('id,project_id,scene_number,asset_type,status,drive_file_id,metadata,created_at')
+                .in('project_id', ids).in('asset_type', ['image','video','audio','thumbnail'])
+                .in('status', ['uploaded','assigned']).order('id').range(offset, offset + 999)
+            if (error) throw error
+            assets.push(...(batch || []))
+            if (!batch || batch.length < 1000) return assets
+        }
+    }
+    let projects: any[], contexts: any[], assets: any[], topicTitles: any[], sharedSubmissions: any[]
+    try {
+        const [categories, statusContexts, projectAssets, titles, submissions] = await Promise.all([
+            attachStdProjectCategories(supabaseAdmin, baseProjects),
+            loadStdProjectStatusContext(supabaseAdmin, ids),
+            loadAssets(),
+            topicQueueIds.length ? supabaseAdmin.from('topics_queue')
+                .select('id,topic,generated_title,topic_en,topic_vi,topic_th,progress_title_translations:progress_payload->title_translations,structure_title_translations:pregenerated_structure->title_translations,metadata_title_translations:publish_metadata->title_translations')
+                .in('id', topicQueueIds) : Promise.resolve({ data: [], error: null }),
+            topicQueueIds.length ? supabaseAdmin.from('std_projects')
+                .select('id,topic_queue_id,submitted_at,updated_at').in('topic_queue_id', topicQueueIds)
+                .not('submitted_at', 'is', null).order('submitted_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
+        ])
+        if (titles.error || submissions.error) throw titles.error || submissions.error
+        projects = categories
+        contexts = statusContexts
+        assets = projectAssets
+        topicTitles = titles.data || []
+        sharedSubmissions = submissions.data || []
+    } catch (error: any) {
+        console.error('[STD projects] list data unavailable:', error?.code, error?.message)
+        return NextResponse.json({ success: false, error: 'Could not load project completion status' }, { status: 503 })
     }
     const contextById = new Map(contexts.map(context => [context.id, context]))
     if (projects.some(project => !contextById.has(project.id))) {
         return NextResponse.json({ success: false, error: 'Could not load project completion status' }, { status: 503 })
     }
-    const assets: any[] = []
-    const ids = projects.map(project => project.id)
-    if (ids.length) {
-        for (let offset = 0; ; offset += 1000) {
-            const { data: batch, error: assetError } = await supabaseAdmin.from('std_project_assets')
-                .select('id,project_id,scene_number,asset_type,status,drive_file_id,metadata,created_at')
-                .in('project_id', ids).in('asset_type', ['image','video','audio','thumbnail'])
-                .in('status', ['uploaded','assigned']).order('id').range(offset, offset + 999)
-            if (assetError) return NextResponse.json({ success: false, error: 'Could not load project completion status' }, { status: 500 })
-            assets.push(...(batch || []))
-            if (!batch || batch.length < 1000) break
-        }
+    const assetsByProject = new Map<string, any[]>()
+    for (const asset of assets) {
+        const group = assetsByProject.get(asset.project_id) || []
+        group.push(asset)
+        assetsByProject.set(asset.project_id, group)
     }
-    const topicQueueIds = [...new Set(projects.map((project: any) => Number(project.topic_queue_id)).filter(Number.isFinite))]
-    const { data: topicTitles, error: topicTitleError } = topicQueueIds.length
-        ? await supabaseAdmin.from('topics_queue')
-            .select('id,topic,generated_title,topic_en,topic_vi,topic_th,progress_title_translations:progress_payload->title_translations,structure_title_translations:pregenerated_structure->title_translations,metadata_title_translations:publish_metadata->title_translations')
-            .in('id', topicQueueIds)
-        : { data: [], error: null }
-    if (topicTitleError) return NextResponse.json({ success: false, error: 'Could not load project titles' }, { status: 500 })
     const titleLocalizationByTopic = new Map((topicTitles || []).map((topic: any) => [Number(topic.id), {
         topic: topic.topic,
         generated_title: topic.generated_title,
@@ -62,17 +79,6 @@ export async function GET(req: Request) {
         topic_th: topic.topic_th,
         title_translations: topic.progress_title_translations || topic.structure_title_translations || topic.metadata_title_translations || {},
     }]))
-    let sharedSubmissions: any[] = []
-    if (topicQueueIds.length > 0) {
-        const { data: submittedProjects, error: submittedProjectsError } = await supabaseAdmin
-            .from('std_projects')
-            .select('id,topic_queue_id,submitted_at,updated_at')
-            .in('topic_queue_id', topicQueueIds)
-            .not('submitted_at', 'is', null)
-            .order('submitted_at', { ascending: false })
-        if (submittedProjectsError) return NextResponse.json({ success: false, error: submittedProjectsError.message }, { status: 500 })
-        sharedSubmissions = submittedProjects || []
-    }
     const submissionByTopic = new Map<number, any>()
     sharedSubmissions.forEach((submission: any) => {
         const topicQueueId = Number(submission.topic_queue_id)
@@ -88,10 +94,10 @@ export async function GET(req: Request) {
             const context = contextById.get(project.id)
             return {
                 ...summary,
-                ...stdProjectListDisplay(project, context, assets.filter(asset => asset.project_id === project.id)),
+                ...stdProjectListDisplay(project, context, assetsByProject.get(project.id) || []),
                 title_localization: titleLocalizationByTopic.get(Number(project.topic_queue_id)) || null,
                 progress_payload: protectCharacterReferenceUrls(context?.progress_payload, project.id),
-                step_status: summarizeStdProject(context || project, assets.filter(asset => asset.project_id === project.id)),
+                step_status: summarizeStdProject(context || project, assetsByProject.get(project.id) || []),
                 shared_submission: sharedSubmission && sharedSubmission.id !== project.id
                     ? { project_id: sharedSubmission.id, submitted_at: sharedSubmission.submitted_at }
                     : null,

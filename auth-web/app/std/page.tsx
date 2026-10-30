@@ -7632,7 +7632,7 @@ export default function StdPortalPage() {
     const getListedProjectStepStatus = listedProjectStepStatus
     const completeProjects = projects.filter((project: any) => getListedProjectStepStatus(project).allDone)
     const incompleteProjects = projects.filter((project: any) => !getListedProjectStepStatus(project).allDone)
-    const visibleProjects = projectsRefreshing || projectsLoadError ? [] : projectsTab === 'complete' ? completeProjects : incompleteProjects
+    const visibleProjects = projectsTab === 'complete' ? completeProjects : incompleteProjects
 
     const checkedVisibleIds = visibleProjects.map((project: any) => String(project.id)).filter(id => checkedProjectIds.includes(id))
     const deleteCheckedProjects = async () => {
@@ -8541,7 +8541,7 @@ export default function StdPortalPage() {
                                     >
                                         미완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'incomplete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projectsRefreshing ? '…' : projectsLoadError ? '—' : incompleteProjects.length}</span>
+                                        }`}>{projectsRefreshing && !projects.length ? '…' : projectsLoadError && !projects.length ? '—' : incompleteProjects.length}</span>
                                     </button>
                                     <button
                                         type="button"
@@ -8554,7 +8554,7 @@ export default function StdPortalPage() {
                                     >
                                         완료 <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
                                             projectsTab === 'complete' ? 'bg-white/20 text-white' : 'bg-white/10 text-gray-400'
-                                        }`}>{projectsRefreshing ? '…' : projectsLoadError ? '—' : completeProjects.length}</span>
+                                        }`}>{projectsRefreshing && !projects.length ? '…' : projectsLoadError && !projects.length ? '—' : completeProjects.length}</span>
                                     </button>
                                 </div>
                             </div>
@@ -8573,9 +8573,10 @@ export default function StdPortalPage() {
 
                         {/* 팝업 바디 (테이블) */}
                         <div className="overflow-auto flex-1 p-4 sm:p-6">
+                            {projectsRefreshing && projects.length > 0 && <div role="status" className="mb-3 text-xs text-gray-400">저장된 목록을 표시하고 있습니다. 최신 상태 확인 중…</div>}
                             {projectsLoadError && (
                                 <div role="alert" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
-                                    {projectsLoadError}
+                                    {projectsLoadError}{projects.length > 0 && ' 표시된 목록은 이전에 불러온 상태입니다.'}
                                     <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={() => setProjectsRefreshKey(value => value + 1)}>다시 불러오기</button>
                                 </div>
                             )}
@@ -8770,7 +8771,7 @@ export default function StdPortalPage() {
                                                 </tr>
                                             )
                                         })}
-                                        {projectsRefreshing && <tr><td colSpan={16} className="px-4 py-10 text-center text-gray-400" role="status">최신 저장 상태를 불러오는 중…</td></tr>}
+                                        {projectsRefreshing && !projects.length && <tr><td colSpan={16} className="px-4 py-10 text-center text-gray-400" role="status">최신 저장 상태를 불러오는 중…</td></tr>}
                                         {!projectsRefreshing && !projectsLoadError && visibleProjects.length === 0 && (
                                             <tr>
                                                 <td colSpan={16} className="px-4 py-10 text-center text-xs text-gray-500">

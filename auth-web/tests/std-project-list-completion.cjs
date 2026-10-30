@@ -7,7 +7,7 @@ const { listedProjectStepStatus } = require('./load-ts.cjs')(path.join(__dirname
 
 const page = fs.readFileSync(path.join(__dirname, '../app/std/page.tsx'), 'utf8')
 const start = page.indexOf('    const getListedProjectStepStatus =')
-const end = page.indexOf('    const activeTopicTitleKeys =', start)
+const end = page.indexOf('    const checkedVisibleIds =', start)
 assert(start >= 0 && end > start)
 const code = ts.transpileModule(page.slice(start, end) + '\nreturn { completeProjects, incompleteProjects, visibleProjects, getListedProjectStepStatus }', { compilerOptions: { target: 9 } }).outputText
 function classify(projects, projectsTab, selectedProject = null, projectsRefreshing = false, projectsLoadError = '') {
@@ -36,8 +36,8 @@ test('opening an editor or changing its draft does not override saved list compl
     assert.equal(result.completeProjects.length, 1)
 })
 
-test('refresh and failure states hide stale rows instead of claiming an empty or current list', () => {
+test('refresh and failure states keep the previous rows visible', () => {
     const row = project('old', null, true)
-    assert.deepEqual(classify([row], 'complete', null, true).visibleProjects, [])
-    assert.deepEqual(classify([row], 'complete', null, false, 'unavailable').visibleProjects, [])
+    assert.deepEqual(classify([row], 'complete', null, true).visibleProjects, [row])
+    assert.deepEqual(classify([row], 'complete', null, false, 'unavailable').visibleProjects, [row])
 })
