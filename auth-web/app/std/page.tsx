@@ -11152,13 +11152,6 @@ export default function StdPortalPage() {
                                                 </div>
                                             </div>
 
-                                            {comicProject && <div className="px-4 py-3 flex flex-wrap items-center gap-3 border-t border-white/5">
-                                                <label className="cursor-pointer rounded bg-blue-600 px-3 py-2 text-xs font-bold text-white">
-                                                    {scene.video_url ? ui('영상 클립 교체') : ui('영상 클립 업로드')}
-                                                    <input aria-label={`${ui('씬')} ${sceneNum} ${ui('영상 클립 업로드')}`} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={!!uploadingKey || ['review_requested','approved','canceled'].includes(selectedProject.project.status)} onChange={e=>{const file=e.target.files?.[0] || null;e.target.value='';void uploadAsset(scene,'video',file)}} />
-                                                </label>
-                                                <span className="text-xs text-gray-400">{scene.video_url ? ui('저장된 영상 클립 있음') : ui('영상 없이 이미지로도 렌더링 가능')}</span>
-                                            </div>}
                                             <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
                                                 <div className="lg:col-span-4 relative bg-[#11141a] rounded-lg overflow-hidden border border-white/10 aspect-video flex items-center justify-center group">
                                                     {(inRequiredZone || inMiddleVideoZone) && (
@@ -11166,9 +11159,7 @@ export default function StdPortalPage() {
                                                             {inRequiredZone ? ui('필수 영상 클립') : ui('영상 클립')}
                                                         </div>
                                                     )}
-                                                    {scene.video_url || scene.mouth_preview_url ? (
-                                                        <video src={scene.video_url || scene.mouth_preview_url} className="w-full h-full object-cover" controls loop muted playsInline aria-label={`${sceneNum}번 씬 입모양 영상`} />
-                                                    ) : scene.image_url ? (
+                                                    {scene.image_url ? (
                                                         <>
                                                             <img
                                                                 src={scene.image_url}
@@ -11205,38 +11196,10 @@ export default function StdPortalPage() {
                                                                 {ui('이미지 다운로드')}
                                                             </a>
                                                         </>
-                                                    ) : scene.video_url ? (
-                                                        <>
-                                                            <video
-                                                                src={scene.video_url}
-                                                                className="w-full h-full object-cover"
-                                                                controls
-                                                                loop
-                                                                muted
-                                                            />
-                                                            <div className="absolute top-2 right-2 bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                                                                🎬 {ui('Video Ready')}
-                                                            </div>
-                                                        </>
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-gray-500 gap-1.5 p-4 text-center">
-                                                            <span className="text-xl">{inRequiredZone ? '🎬' : '🖼️'}</span>
-                                                            <span className="text-xs font-bold text-gray-400">{requiresClip ? ui('영상 클립 등록 필요') : ui('생성 이미지 보호됨')}</span>
-                                                            {requiresClip || isComicProject(selectedProject.project) ? (
-                                                                <label className="cursor-pointer mt-1 px-3 py-1 bg-[#202632] hover:bg-[#28303e] border border-white/10 text-blue-400 rounded text-[11px] font-bold transition-all">
-                                                                    📁 {ui('영상 업로드')}
-                                                                    <input
-                                                                        type="file"
-                                                                        accept="video/*"
-                                                                        className="hidden"
-                                                                        onChange={e => uploadAsset(scene, 'video', e.target.files?.[0] || null)}
-                                                                    />
-                                                                </label>
-                                                            ) : (
-                                                                <span className="mt-1 px-3 py-1 bg-emerald-950/20 border border-emerald-500/20 text-emerald-300/90 rounded text-[11px] font-bold">
-                                                                    🔒 {ui('교체 불가')}
-                                                                </span>
-                                                            )}
+                                                            <span className="text-xl">🖼️</span>
+                                                            <span className="text-xs font-bold text-gray-400">{ui('이미지 없음')}</span>
                                                         </div>
                                                     )}
                                                 </div>
