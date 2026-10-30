@@ -2,6 +2,20 @@
 from pathlib import Path
 import hashlib,math
 
+def supervised_hold_limit(meta, scene, audio_id):
+    """Only an explicit, audio/scene-bound supervised repair may exceed 5s."""
+    approval=meta.get('supervised_source_repair') or {}
+    if not approval or scene['number'] not in approval.get('scene_numbers',[]):return 5.0
+    if (approval.get('contract')!='bounded_last_frame_hold/v1'
+        or approval.get('source_audio_id')!=audio_id
+        or not str(approval.get('authorization') or '').startswith('user_requested_')
+        or meta.get('review_policy')!='complete_with_notes/v1'):
+        raise ValueError('Invalid supervised source repair authorization')
+    limit=approval.get('max_hold_seconds')
+    if isinstance(limit,bool) or not isinstance(limit,(int,float)) or not math.isfinite(limit) or not 5<=limit<=7:
+        raise ValueError('Supervised source hold must remain within 5..7 seconds')
+    return float(limit)
+
 def repair_short_video(scene, source, audio_id, directory, ffmpeg, run, max_hold=5.0):
     """Create and verify a bounded local execution copy, retaining the original asset."""
     from moviepy import VideoFileClip
@@ -17,7 +31,7 @@ def repair_short_video(scene, source, audio_id, directory, ffmpeg, run, max_hold
     duration=target_frames/fps
     target=Path(directory)/f"short-video-{scene['number']}.mp4"
     run([ffmpeg,'-v','error','-y','-i',str(source),'-an','-vf',f'tpad=stop_mode=clone:stop_duration={max(0,duration-available)+2/fps:.9f}', '-frames:v',str(target_frames),'-c:v','libx264','-crf','12','-preset','veryfast','-pix_fmt','yuv420p',str(target)])
-    recipe={'contract':'recorded_source_prefix/v1','source_asset_id':scene['source']['id'],'audio_id':audio_id,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'retained_source_frames':frames,'duration':duration,'fps':fps,'hold_seconds':round(gap,6)}
+    recipe={'contract':'recorded_source_prefix/v1','source_asset_id':scene['source']['id'],'audio_id':audio_id,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'retained_source_frames':frames,'duration':duration,'fps':fps,'hold_seconds':round(gap,6),'max_hold_seconds':max_hold}
     validate_repair(recipe,scene,source,audio_id)
     recipe['verification']=verify_repair(recipe,source,target)
     return target, recipe

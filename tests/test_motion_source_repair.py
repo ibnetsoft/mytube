@@ -43,3 +43,14 @@ def test_short_video_is_extended_and_verified_without_altering_source(tmp_path):
     assert receipt['verification']['passed'] and receipt['hold_seconds']==pytest.approx(.2)
     with pytest.raises(ValueError,match='자동 보완 한도'):
         repair_short_video({**scene,'end':7},source,'audio',tmp_path,ffmpeg(),run)
+
+def test_extended_hold_is_explicitly_bound_to_scene_and_final_audio():
+    from motion_source_repair import supervised_hold_limit
+    scene={'number':15}
+    assert supervised_hold_limit({},scene,'audio')==5
+    meta={'review_policy':'complete_with_notes/v1','supervised_source_repair':{'contract':'bounded_last_frame_hold/v1','source_audio_id':'audio','scene_numbers':[15,18],'max_hold_seconds':7,'authorization':'user_requested_2026-10-30'}}
+    assert supervised_hold_limit(meta,scene,'audio')==7
+    assert supervised_hold_limit(meta,{'number':16},'audio')==5
+    with pytest.raises(ValueError):supervised_hold_limit(meta,scene,'other-audio')
+    meta['supervised_source_repair']['max_hold_seconds']=30
+    with pytest.raises(ValueError):supervised_hold_limit(meta,scene,'audio')

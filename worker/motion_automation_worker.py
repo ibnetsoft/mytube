@@ -712,8 +712,11 @@ def process_one(engine='ae'):
             if scene['source_kind']=='video':
                 from services.video_playback_policy import require_original_video_asset,require_video_duration
                 require_original_video_asset(scene['source'],number)
-                from motion_source_repair import repair_short_video
-                sources[number],scene['_source_repair']=repair_short_video(scene,sources[number],snapshot['audio']['id'],directory,ffmpeg(),run)
+                from motion_source_repair import repair_short_video,supervised_hold_limit
+                sources[number],scene['_source_repair']=repair_short_video(scene,sources[number],snapshot['audio']['id'],directory,ffmpeg(),run,max_hold=supervised_hold_limit(meta,scene,snapshot['audio']['id']))
+                if scene['_source_repair']:
+                    quality_note(snapshot,scene,'verified_source_tail_hold',f"원본 1배속 구간 보존 · 마지막 정상 프레임 {scene['_source_repair']['hold_seconds']:.3f}초 유지 · 전체 프레임 비교 검증 통과")
+                    save(quality_notes=snapshot['_quality_notes'])
                 from moviepy import VideoFileClip
                 with VideoFileClip(str(sources[number]),audio=False) as playback:
                     require_video_duration(playback.duration,scene['end']-scene['start'],playback.fps,number)
