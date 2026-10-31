@@ -232,7 +232,7 @@ def validate_directorial_plans(
         qa = raw.get("qa_assertions")
         if duration <= 0 or not intent or not isinstance(beats, list) or not beats:
             raise ValueError(f"visual direction {index} needs duration, dramatic_intent, and timed_beats")
-        if not isinstance(operations, list) or not operations or not set(operations) <= allowed:
+        if not isinstance(operations, list) or not operations or any(not isinstance(operation, str) for operation in operations) or not set(operations) <= allowed:
             raise ValueError(f"visual direction {index} has missing or unsupported ae_operations")
         if not isinstance(layers, list) or not isinstance(keyframe_requests, list) or not isinstance(qa, list) or not qa:
             raise ValueError(f"visual direction {index} needs required_layers, additional_keyframes, and observable qa_assertions")
