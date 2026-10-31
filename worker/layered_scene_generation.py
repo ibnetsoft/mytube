@@ -51,10 +51,10 @@ def generate_scene_planes(scene: dict[str, Any], output_dir: Path, *, generator=
             files.append(target)
             continue
         if character is None:
-            instructions = 'Generate only the complete environment, without people or text. '
+            instructions = 'Generate only the complete environment, without people or text, as a full 16:9 landscape canvas. '
             normalized_role = 'background'
         else:
-            instructions = ('Generate only this character as a transparent full-canvas PNG, matching the attached character reference. '
+            instructions = ('Generate only this character on a transparent full 16:9 landscape canvas, matching the attached character reference. '
                             'Place them exactly as directed: ' + character['placement_prompt'] + '. No background or text. ')
             normalized_role = 'character'
         raw = generator.generate(prompt=instructions + 'Scene direction: ' + prompt,

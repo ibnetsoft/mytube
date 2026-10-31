@@ -676,6 +676,7 @@ def script_settings_save(value: dict):
 @app.get('/health')
 def health():
     return {'service': 'codex-local-console', 'port': PORT, 'legacy_dashboard': False,
+            'effect_scope_version': 1,
             'documentary_evidence_profile': 'japanese_documentary_evidence/v1'}
 
 
