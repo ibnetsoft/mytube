@@ -603,7 +603,7 @@ def crop_grids(
                 written.append(target)
     if scope:
         from worker.layered_scene_generation import generate_manifest_scenes
-        plane_results = generate_manifest_scenes(manifest, output_dir)
+        plane_results = generate_manifest_scenes(manifest, output_dir, max_workers=3)
         assigned.update(item['scene_number'] for item in plane_results)
         written.extend(Path(item['scene_file']) for item in plane_results)
     if jobs is not None:

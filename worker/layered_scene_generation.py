@@ -83,7 +83,7 @@ def generate_scene_planes(scene: dict[str, Any], output_dir: Path, *, generator=
             'sha256': hashlib.sha256(result.read_bytes()).hexdigest()}
 
 
-def generate_manifest_scenes(manifest: dict[str, Any], output_dir: Path, *, generator=None) -> list[dict[str, Any]]:
+def generate_manifest_scenes(manifest: dict[str, Any], output_dir: Path, *, generator=None, max_workers: int = 1) -> list[dict[str, Any]]:
     """Generate scene composites in the explicit range using saved cast references."""
     from worker.effect_scene_scope import normalize_scope, contains
     scope = normalize_scope(manifest.get('effect_scene_range'))
@@ -124,4 +124,10 @@ def generate_manifest_scenes(manifest: dict[str, Any], output_dir: Path, *, gene
                                    'placement_prompt': f"{name}; follow the character position and scale in the scene direction"})
         jobs.append({'scene_number': number, 'image_prompt': scene.get('generation_image_prompt') or scene.get('image_prompt'),
                      'characters': characters})
-    return [generate_scene_planes(job, output_dir, generator=generator) for job in jobs]
+    if max_workers < 1 or max_workers > 4:
+        raise ValueError('max_workers must be between 1 and 4')
+    if max_workers == 1:
+        return [generate_scene_planes(job, output_dir, generator=generator) for job in jobs]
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        return list(pool.map(lambda job: generate_scene_planes(job, output_dir, generator=generator), jobs))

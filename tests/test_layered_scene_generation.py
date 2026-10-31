@@ -74,7 +74,7 @@ def test_crop_uses_composite_for_scoped_scene(tmp_path, monkeypatch):
     original = layered.generate_manifest_scenes
     generator = FakeGenerator(tmp_path)
     monkeypatch.setattr(layered, 'generate_manifest_scenes',
-                        lambda m, d: original(m, d, generator=generator))
+                        lambda m, d, **kwargs: original(m, d, generator=generator))
     assets.crop_grids(path, root, out)
     assert all((out / f'scene-{n:03}.png').exists() for n in range(1, 5))
     assert [r for r, _ in generator.roles] == ['background', 'background']
@@ -110,7 +110,7 @@ def test_cropped_independent_planes_are_published_with_scene(tmp_path, monkeypat
     path.write_text(json.dumps(manifest), encoding='utf-8')
     generator = FakeGenerator(tmp_path)
     original = layered.generate_manifest_scenes
-    monkeypatch.setattr(layered, 'generate_manifest_scenes', lambda m, d: original(m, d, generator=generator))
+    monkeypatch.setattr(layered, 'generate_manifest_scenes', lambda m, d, **kwargs: original(m, d, generator=generator))
     assets.crop_grids(path, root, out)
     monkeypatch.setattr(assets, '_topic', lambda _: ({'id': '42'}, {'scenes': scenes}, 'https://test', {}))
     monkeypatch.setattr(assets, '_upload_gcs_file', lambda local, obj, typ: ('scene-bucket', obj, '/asset/' + obj))
