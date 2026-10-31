@@ -44,7 +44,7 @@
     for(const [name,,sourceName] of entries) {
       const target=$('new-form').elements[sourceName||name];
       if(!target||(!force&&touched.has(target.name)))continue;
-      if(target.type==='checkbox')target.checked=Boolean(defaults[name]);else target.value=defaults[name]??'';
+      if(target.type==='checkbox')target.checked=Boolean(defaults[name]);else target.value=defaults[name]??(name==='image_layer_scene_start'?19:name==='image_layer_scene_end'?50:'');
     }
     window.updateNewSettingSummary();
   }

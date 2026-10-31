@@ -10,7 +10,7 @@ def selection(scene, direction):
     if all_scenes and 'depth_parallax' not in direction.get('ae_operations',[]):raise ValueError('All-scene parallax requires depth direction on every scene')
     if 'depth_parallax' not in direction.get('ae_operations', []):
         return {'enabled': False, 'reason': 'No script-selected depth operation'}
-    number = int(scene.get('scene_number') or scene.get('scene_order') or 0)
+    number = int(scene.get('scene_number') or scene.get('scene_order') or 0) + int(scene.get('_effect_scene_offset') or 0)
     if (number < 19 and not all_scenes) or scene.get('visual_type') == 'video' or scene.get('video_generation_mode') == 'user_upload':
         raise ValueError('Parallax requires a still scene 19 onward; preserve uploaded video motion')
     if direction.get('primary_effect') != 'depth_parallax' or set(direction['ae_operations']) & {'pose_change','prop_motion','shot_sequence'}:

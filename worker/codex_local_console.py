@@ -288,6 +288,7 @@ class StartRequest(BaseModel):
     direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
     parallax_mode: Literal['selective', 'all_scenes'] = 'selective'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
+    concentrated_scene_effects: bool = False
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)
     required_video_scene_count: int = Field(default=18, ge=0, le=999)
@@ -330,6 +331,11 @@ class StartRequest(BaseModel):
             self.image_layer_scene_start=None
             self.image_layer_scene_end=None
         start, end = self.image_layer_scene_start, self.image_layer_scene_end
+        if self.concentrated_scene_effects and self.production_mode == 'standard':
+            if self.parallax_mode == 'all_scenes' or self.image_layer_mode == 'full_psd':
+                raise ValueError('효과 집중 범위는 선택 패럴럭스와 하이브리드 레이어 모드에서 사용하세요.')
+            if start is None or end is None or start <= self.required_video_scene_count:
+                raise ValueError('효과 시작·종료 씬을 입력하고 시작 씬은 영상 구간 다음으로 지정하세요.')
         if (start is None) != (end is None):
             raise ValueError('레이어 생성 시작 씬과 종료 씬을 함께 입력하세요.')
         if start is not None and start > end:

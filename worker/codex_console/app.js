@@ -175,12 +175,12 @@ if($('image-layer-mode')){
   const grid=$('image-layer-mode').closest('.form-grid');
   const makeRangeInput=(name,text,placeholder)=>{
     const label=element('label',text),input=element('input');
-    input.name=name;input.type='number';input.min='1';input.max='999';input.placeholder=placeholder;
+    input.name=name;input.type='number';input.min='1';input.max='999';input.placeholder=placeholder;input.value=name==='image_layer_scene_start'?'19':'50';
     label.append(input);grid.append(label);
   };
   makeRangeInput('image_layer_scene_start','레이어 생성 시작 씬','예: 19');
   makeRangeInput('image_layer_scene_end','레이어 생성 종료 씬','예: 35');
-  const help=element('p','선택 범위의 씬은 배경과 전경을 독립 PNG 레이어로 생성해 PSD로 준비합니다. 범위를 비우면 기존 레이어 모드만 적용됩니다.','muted');
+  const help=element('p','선택 범위에서 배경과 인물을 따로 만들고 입모양·눈 깜빡임·패럴럭스 등 효과를 집중합니다. 범위 밖은 씬당 이미지 한 장을 사용합니다.','muted');
   grid.after(help);
 }
 $('new-form').onsubmit=e=>{
@@ -189,9 +189,21 @@ $('new-form').onsubmit=e=>{
   const category=form.get('custom_category').trim()||form.get('category');
   if(!category){error('카테고리를 입력하세요.');return;}
   const setting = window.updateNewSettingSummary();
-  if(!confirm('AI 신규 대본 생성기를 실행할까요? CLI 사용량이 발생하며 결과는 Database에 저장합니다.'))return;
+  const summary = [
+    `제작 방식: ${form.get('production_mode')} / ${form.get('script_style')}`,
+    `주제·카테고리·참고 URL: ${form.get('title')} / ${category} / ${form.get('youtube_url') || '없음'}`,
+    `분량·장별 길이: ${form.get('duration')}분 / ${form.get('chapter_minutes') || 15}분`,
+    `언어·국가·시대: ${setting.language} / ${setting.setting_country} / ${setting.era_region}`,
+    `이미지·연출: ${setting.image_style} / ${form.get('direction_profile')}`,
+    `영상 씬 수: ${form.get('required_video_scene_count')} / 패럴럭스: ${form.get('parallax_mode')}`,
+    `레이어·효과 범위: ${form.get('image_layer_mode')} / ${form.get('image_layer_scene_start')}~${form.get('image_layer_scene_end')}씬`,
+    `장면 상태 변경: 별도 요청 없음 / 음악 프롬프트: ${form.get('generate_bgm_prompt')==='on'?'생성':'생성 안 함'}`,
+    `추가 요청: ${form.get('notes') || '없음'}`
+  ].join('\n');
+  if(!confirm('아래 설정으로 대본 생성을 시작할까요?\n\n'+summary))return;
   start({
     mode:'new',
+    concentrated_scene_effects:(form.get('production_mode')||'standard')==='standard' && (form.get('parallax_mode')||'selective')==='selective' && (form.get('image_layer_mode')||'hybrid')==='hybrid',
     production_mode:form.get('production_mode')||'standard',youtube_url:form.get('youtube_url')||'',
     direction_profile:form.get('direction_profile')||'auto',
     parallax_mode:form.get('parallax_mode')||'selective',

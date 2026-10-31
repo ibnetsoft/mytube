@@ -31,3 +31,61 @@ def test_generates_planes_before_composite(tmp_path):
     assert generator.roles[1][1] == reference
     assert len(result['plane_files']) == 2
     assert Path(result['scene_file']).is_file()
+    again = generate_scene_planes({'scene_number': 19, 'image_prompt': 'A person in a room',
+        'characters': [{'key': 'person', 'reference_file': str(reference),
+                        'placement_prompt': 'center'}]}, tmp_path / 'out', generator=generator)
+    assert again['sha256'] == result['sha256']
+    assert len(generator.roles) == 2
+
+
+def test_manifest_selects_only_scoped_scenes_and_resolves_cast(tmp_path):
+    from worker.layered_scene_generation import generate_manifest_scenes
+    reference = tmp_path / 'reference.png'
+    Image.new('RGB', (2, 2)).save(reference)
+    generator = FakeGenerator(tmp_path)
+    manifest = {'effect_scene_range': {'start': 19, 'end': 20},
+        'scene_specs': [{'scene_number': 18, 'image_prompt': 'earlier'},
+                        {'scene_number': 19, 'image_prompt': 'A person in a room'},
+                        {'scene_number': 51, 'image_prompt': 'later'}],
+        'scene_cast': [{'scene_number': 19, 'characters': ['A']}],
+        'character_references': [{'name': 'A', 'character_key': 'a', 'local_file': str(reference)}]}
+    results = generate_manifest_scenes(manifest, tmp_path / 'out', generator=generator)
+    assert [r['scene_number'] for r in results] == [19]
+    assert [role for role, _ in generator.roles] == ['background', 'character']
+
+
+def test_crop_uses_composite_for_scoped_scene(tmp_path, monkeypatch):
+    import json
+    from worker import cowork_scene_assets as assets
+    from worker import layered_scene_generation as layered
+    root = tmp_path / 'input'
+    out = tmp_path / 'output'
+    root.mkdir()
+    reference = tmp_path / 'reference.png'
+    Image.new('RGB', (8, 8)).save(reference)
+    Image.new('RGB', (800, 800), (20, 30, 40)).save(root / 'grid-001.png')
+    manifest = {'schema': 'cowork_scene_assets/v1', 'topic_id': 'test', 'effect_scene_range': {'start': 2, 'end': 3},
+        'grids': [{'grid_number': 1, 'scene_numbers': [1, 2, 3, 4], 'raw_file': 'grid-001.png'}],
+        'scene_specs': [{'scene_number': n, 'image_prompt': f'scene {n}'} for n in range(1, 5)],
+        'scene_cast': [{'scene_number': n, 'characters': []} for n in range(1, 5)],
+        'character_references': []}
+    path = tmp_path / 'manifest.json'
+    path.write_text(json.dumps(manifest), encoding='utf-8')
+    original = layered.generate_manifest_scenes
+    generator = FakeGenerator(tmp_path)
+    monkeypatch.setattr(layered, 'generate_manifest_scenes',
+                        lambda m, d: original(m, d, generator=generator))
+    assets.crop_grids(path, root, out)
+    assert all((out / f'scene-{n:03}.png').exists() for n in range(1, 5))
+    assert [r for r, _ in generator.roles] == ['background', 'background']
+    assert (out / 'scene-002-background.png').exists()
+
+
+def test_recovery_does_not_request_flat_grids_entirely_inside_effect_range():
+    from worker.image_recovery import initialize
+    manifest = {'schema': 'cowork_scene_assets/v1', 'effect_scene_range': {'start': 19, 'end': 50},
+                'grids': [{'grid_number': 1, 'scene_numbers': [17, 18, 19, 20], 'prompt': 'outside'},
+                          {'grid_number': 2, 'scene_numbers': [21, 22, 23, 24], 'prompt': 'inside'},
+                          {'grid_number': 3, 'scene_numbers': [49, 50, 51, 52], 'prompt': 'outside'}]}
+    state = initialize(manifest)
+    assert [job['id'] for job in state['jobs']] == ['grid-001', 'grid-003']

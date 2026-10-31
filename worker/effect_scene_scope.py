@@ -25,3 +25,20 @@ def chapter_scope(scope: dict[str, int] | None, offset: int) -> dict[str, int] |
     if scope is None:
         return None
     return {'start': max(1, scope['start'] - offset), 'end': max(0, scope['end'] - offset)}
+
+
+def validate_directions(scope: dict[str, int] | None, scenes: list, directions: list, *, offset: int = 0) -> list:
+    """Fail closed if the director adds layered effects outside the selected range."""
+    if scope is None:
+        return directions
+    for index, (scene, direction) in enumerate(zip(scenes, directions), 1):
+        number = int(scene.get('scene_number') or scene.get('scene_order') or index)
+        if contains(scope, number + offset):
+            continue
+        operations = set(direction.get('ae_operations') or [])
+        blink = direction.get('eye_blink_plan') or {}
+        if (operations - {'hold', 'camera_move', 'transition'} or
+                direction.get('requires_layered_assets') or direction.get('required_layers') or
+                direction.get('additional_keyframes') or blink.get('enabled')):
+            raise ValueError(f'scene {number}: effects or layers outside selected scene range')
+    return directions

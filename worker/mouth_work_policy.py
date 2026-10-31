@@ -31,10 +31,12 @@ def selected_scenes(structure, policy):
         return []
     known = {int(s.get('scene_number') or s.get('scene_order') or i + 1)
              for i, s in enumerate(structure.get('scenes') or [])}
+    from worker.effect_scene_scope import normalize_scope, contains
+    scope = normalize_scope(structure.get('effect_scene_range'))
     numbers = set()
     for row in (structure.get('dialogue_annotations') or {}).get('scenes', []):
         number = int(row.get('scene_number') or 0)
-        if number in known and number >= policy['start_scene'] and any(
+        if number in known and number >= policy['start_scene'] and contains(scope, number) and any(
             str(s.get('text') or '').strip() and str(s.get('speaker') or '').strip()
             and s.get('status') == 'confirmed' for s in row.get('spans', [])):
             numbers.add(number)

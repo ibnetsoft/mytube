@@ -57,7 +57,13 @@ function sceneCharacters(project: any, number: number) {
 }
 
 function scenes(ctx: any) {
-    const images = ctx.assets.filter((asset: any) => asset.asset_type === 'image' && Number(asset.scene_number) >= 19)
+    const structure = ctx.project?.project_payload?.structure || ctx.project?.generated_structure || {}
+    const scope = structure.effect_scene_range
+    const images = ctx.assets.filter((asset: any) => {
+        const number = Number(asset.scene_number)
+        return asset.asset_type === 'image' && number >= 19 && (!scope ||
+            (Number.isInteger(scope.start) && Number.isInteger(scope.end) && number >= scope.start && number <= scope.end))
+    })
     const numbers = [...new Set<number>(images.map((asset: any) => Number(asset.scene_number)))].sort((a, b) => a - b)
     return numbers.map(number => {
         const image = images.find((asset: any) => Number(asset.scene_number) === number)

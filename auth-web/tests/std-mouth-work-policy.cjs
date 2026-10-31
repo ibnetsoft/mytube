@@ -7,3 +7,8 @@ test('frozen scope survives subtitle changes including disabled scope',()=>{
  for(const list of [[],[22,24]]) assert.deepEqual([...ex.mouthWorkScenes(project,scenes,[{metadata:{kind:'mouth_work_selection',scene_numbers:list}}])],list);
 });
 test('custom zero and disabled policy',()=>{for(const p of [{enabled:false},{max_dialogue_scenes:0}])assert.equal(ex.mouthWorkScenes({project_payload:{...project.project_payload,mouth_work_policy:p}},scenes).size,0)});
+test('new effect scope excludes video scenes and anything after the configured end',()=>{
+ const scoped={project_payload:{...project.project_payload,structure:{effect_scene_range:{start:19,end:25}}}};
+ const assets=[{scene_number:2,asset_type:'video',status:'uploaded'},{metadata:{kind:'mouth_work_selection',scene_numbers:[2,20,24,52]}}];
+ assert.deepEqual([...ex.mouthWorkScenes(scoped,scenes,assets)],[20,24]);
+});

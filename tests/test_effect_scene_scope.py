@@ -14,3 +14,14 @@ def test_scope_and_legacy_behavior():
 def test_invalid_range(value):
     with pytest.raises(ValueError):
         normalize_scope(value)
+
+
+def test_outside_scope_rejects_layered_or_blinking_directions():
+    from worker.effect_scene_scope import validate_directions
+    scenes = [{'scene_number': 18}, {'scene_number': 19}, {'scene_number': 51}]
+    directions = [{'ae_operations': ['hold']}, {'ae_operations': ['depth_parallax']},
+                  {'ae_operations': ['camera_move']}]
+    assert validate_directions({'start': 19, 'end': 50}, scenes, directions) == directions
+    directions[-1]['eye_blink_plan'] = {'enabled': True}
+    with pytest.raises(ValueError, match='scene 51'):
+        validate_directions({'start': 19, 'end': 50}, scenes, directions)

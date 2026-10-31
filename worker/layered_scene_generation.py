@@ -28,6 +28,14 @@ def generate_scene_planes(scene: dict[str, Any], output_dir: Path, *, generator=
     output_dir.mkdir(parents=True, exist_ok=True)
     generator = generator or NativeCodexLayerGenerator()
     files = []
+    receipt_path = output_dir / f'scene-{number:03d}-planes.json'
+    receipt = json.loads(receipt_path.read_text(encoding='utf-8')) if receipt_path.exists() else {}
+    source_fingerprints = {str(c.get('key')): hashlib.sha256(Path(c['reference_file']).read_bytes()).hexdigest()
+                           for c in cast if isinstance(c, dict) and c.get('reference_file') and Path(c['reference_file']).is_file()}
+    fingerprint = hashlib.sha256(json.dumps({'scene': scene, 'references': source_fingerprints}, sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()
+    if receipt and receipt.get('fingerprint') != fingerprint:
+        raise ValueError('scene directions changed; preserve the existing planes')
+    receipt = receipt or {'fingerprint': fingerprint, 'files': {}, 'character_keys': {}}
     roles = [('background', None, None)]
     for index, character in enumerate(cast, 1):
         ref = Path(character.get('reference_file') or '')
@@ -37,7 +45,11 @@ def generate_scene_planes(scene: dict[str, Any], output_dir: Path, *, generator=
     for role, reference, character in roles:
         target = output_dir / f'scene-{number:03d}-{role}.png'
         if target.exists():
-            raise FileExistsError(f'preserve existing scene plane: {target}')
+            expected = receipt['files'].get(role)
+            if not expected or hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+                raise FileExistsError(f'preserve unrecognized or changed scene plane: {target}')
+            files.append(target)
+            continue
         if character is None:
             instructions = 'Generate only the complete environment, without people or text. '
             normalized_role = 'background'
@@ -48,9 +60,57 @@ def generate_scene_planes(scene: dict[str, Any], output_dir: Path, *, generator=
         raw = generator.generate(prompt=instructions + 'Scene direction: ' + prompt,
                                  role=normalized_role, reference=reference,
                                  work_dir=output_dir / '.generated' / f'scene-{number:03d}-{role}')
-        _normalize(raw, target, normalized_role)
+        temporary = target.with_suffix('.png.tmp')
+        _normalize(raw, temporary, normalized_role)
+        temporary.replace(target)
+        receipt['files'][role] = hashlib.sha256(target.read_bytes()).hexdigest()
+        if character is not None:
+            receipt.setdefault('character_keys', {})[role] = character['key']
+        receipt_path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding='utf-8')
         files.append(target)
     result = output_dir / f'scene-{number:03d}.png'
-    composite_scene(files[0], files[1:], result)
+    if result.exists():
+        expected = receipt.get('scene_sha256')
+        if not expected or hashlib.sha256(result.read_bytes()).hexdigest() != expected:
+            raise FileExistsError(f'preserve unrecognized or changed scene image: {result}')
+    else:
+        composite_scene(files[0], files[1:], result)
+        receipt['scene_sha256'] = hashlib.sha256(result.read_bytes()).hexdigest()
+        receipt_path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding='utf-8')
     return {'scene_number': number, 'scene_file': str(result), 'plane_files': [str(p) for p in files],
             'sha256': hashlib.sha256(result.read_bytes()).hexdigest()}
+
+
+def generate_manifest_scenes(manifest: dict[str, Any], output_dir: Path, *, generator=None) -> list[dict[str, Any]]:
+    """Generate scene composites in the explicit range using saved cast references."""
+    from worker.effect_scene_scope import normalize_scope, contains
+    scope = normalize_scope(manifest.get('effect_scene_range'))
+    if scope is None:
+        raise ValueError('manifest is missing its explicit effect scene range')
+    scenes, cast, references = manifest.get('scene_specs'), manifest.get('scene_cast'), manifest.get('character_references')
+    if not isinstance(scenes, list) or not isinstance(cast, list) or not isinstance(references, list):
+        raise ValueError('manifest must include scenes, cast and character references')
+    by_scene = {item['scene_number']: item['characters'] for item in cast
+                if isinstance(item, dict) and type(item.get('scene_number')) is int and isinstance(item.get('characters'), list)}
+    by_name = {}
+    for reference in references:
+        for name in [reference.get('name'), reference.get('character_key'), *(reference.get('aliases') or [])]:
+            if name:
+                by_name[str(name).strip().casefold()] = reference
+    jobs = []
+    for scene in scenes:
+        number = scene.get('scene_number')
+        if type(number) is not int or not contains(scope, number):
+            continue
+        if number not in by_scene:
+            raise ValueError(f'scene {number} is missing its cast')
+        characters = []
+        for name in by_scene[number]:
+            reference = by_name.get(str(name).strip().casefold())
+            if not reference or not reference.get('local_file') or not reference.get('character_key'):
+                raise ValueError(f'scene {number}: missing reference for {name}')
+            characters.append({'key': reference['character_key'], 'reference_file': reference['local_file'],
+                               'placement_prompt': f"{name}; follow the character position and scale in the scene direction"})
+        jobs.append({'scene_number': number, 'image_prompt': scene.get('generation_image_prompt') or scene.get('image_prompt'),
+                     'characters': characters})
+    return [generate_scene_planes(job, output_dir, generator=generator) for job in jobs]

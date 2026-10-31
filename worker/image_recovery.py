@@ -23,7 +23,11 @@ def digest(value):
 def initialize(manifest):
     jobs = []
     if manifest.get('schema') == 'cowork_scene_assets/v1':
+        from worker.effect_scene_scope import normalize_scope, contains
+        scope = normalize_scope(manifest.get('effect_scene_range'))
         for g in manifest['grids']:
+            if scope is not None and all(contains(scope, int(n)) for n in g['scene_numbers']):
+                continue
             jobs.append({'id':f"grid-{g['grid_number']:03d}", 'kind':'scene', 'layout':'grid',
                 'scene_numbers':g['scene_numbers'], 'prompt':g['prompt'],
                 'references':g.get('character_references',manifest.get('character_references',[])),
@@ -34,7 +38,7 @@ def initialize(manifest):
     else:
         jobs = copy.deepcopy(manifest['jobs'])
     ids = [j['id'] for j in jobs]
-    if not ids or len(set(ids)) != len(ids): raise ValueError('Unique jobs required')
+    if len(set(ids)) != len(ids) or (not ids and not manifest.get('effect_scene_range')): raise ValueError('Unique jobs required')
     for j in jobs:
         if not re.fullmatch(r'[a-zA-Z0-9_-]+', j['id']): raise ValueError('Invalid job ID')
         if j['kind'] not in ('scene','character','thumbnail'): raise ValueError('Invalid image kind')
@@ -169,7 +173,9 @@ def recipes(state, manifest):
     for j in state['jobs']:
         if j['status']=='ready' and j['kind']=='scene':
             result.append({**j,'image_file':str(verify_file(j))})
-    expected={n for g in manifest['grids'] for n in g['scene_numbers']}
+    from worker.effect_scene_scope import normalize_scope, contains
+    scope = normalize_scope(manifest.get('effect_scene_range'))
+    expected={n for g in manifest['grids'] if scope is None or not all(contains(scope, int(x)) for x in g['scene_numbers']) for n in g['scene_numbers']}
     if {n for j in result for n in j['scene_numbers']}!=expected: raise ValueError('Missing scene mapping')
     return result
 

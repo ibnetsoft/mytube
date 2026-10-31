@@ -438,6 +438,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
                          "parallax_plan": s.get("parallax_plan") if isinstance(s.get("parallax_plan"), dict) else {},
                          "psd_layer_plan": s.get("psd_layer_plan") if isinstance(s.get("psd_layer_plan"), dict) else {}}
                         for i, s in enumerate(scenes, 1)],
+        "effect_scene_range": structure.get("effect_scene_range"),
         "image_layer_mode": structure.get("image_layer_mode") or (structure.get("image_generation_policy") or {}).get("image_layer_mode") or "hybrid",
         "image_layer_scene_range": structure.get("image_layer_scene_range") or (structure.get("image_generation_policy") or {}).get("image_layer_scene_range"),
         "psd_layer_prompt_status": structure.get("psd_layer_prompt_status") or "not_required",
@@ -557,7 +558,11 @@ def crop_grids(
     output_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     assigned: set[int] = set()
+    from worker.effect_scene_scope import normalize_scope, contains
+    scope = normalize_scope(manifest.get('effect_scene_range'))
     for grid in jobs if jobs is not None else manifest["grids"]:
+        if scope and all(contains(scope, int(n)) for n in grid.get('scene_numbers', [])):
+            continue
         raw_path = Path(grid['image_file']) if jobs is not None else input_dir / str(grid["raw_file"])
         if not raw_path.is_file():
             raise FileNotFoundError(f"generated grid is missing: {raw_path}")
@@ -574,6 +579,8 @@ def crop_grids(
             boxes = ((0, 0, width, height),) if single else ((0, 0, x_mid, y_mid), (x_mid, 0, width, y_mid), (0, y_mid, x_mid, height), (x_mid, y_mid, width, height))
             for scene_number, box in zip(scene_numbers, boxes):
                 number = int(scene_number)
+                if scope and contains(scope, number):
+                    continue
                 if number in assigned:
                     # Some 15-minute prepared topics use an overlapping final
                     # 2x2 grid (for example 49-52 followed by 50-53) so the
@@ -594,6 +601,11 @@ def crop_grids(
                     target, format="PNG", optimize=True
                 )
                 written.append(target)
+    if scope:
+        from worker.layered_scene_generation import generate_manifest_scenes
+        plane_results = generate_manifest_scenes(manifest, output_dir)
+        assigned.update(item['scene_number'] for item in plane_results)
+        written.extend(Path(item['scene_file']) for item in plane_results)
     if jobs is not None:
         receipt = {"source_hash": image_recovery.digest(manifest), "files": {
             f"scene-{n:03d}.png": hashlib.sha256((output_dir / f"scene-{n:03d}.png").read_bytes()).hexdigest()
@@ -605,7 +617,11 @@ def crop_grids(
 def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
             defer_layers: bool = False, reuse_existing: bool = False) -> list[str]:
     manifest = _manifest(manifest_path)
-    if defer_layers and any((s.get('parallax_plan') or {}).get('enabled') for s in manifest.get('scene_specs',[])):
+    from worker.effect_scene_scope import normalize_scope, contains
+    scope = normalize_scope(manifest.get('effect_scene_range'))
+    if defer_layers and any((s.get('parallax_plan') or {}).get('enabled')
+                            and (scope is None or not contains(scope, int(s.get('scene_number') or 0)))
+                            for s in manifest.get('scene_specs',[])):
         raise ValueError('Script-selected parallax requires reviewed separated layers before publishing')
     recovery_path = image_recovery.state_path(manifest_path)
     if manifest.get('recovery_policy') and not recovery_path.exists():
@@ -669,9 +685,11 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
         }
         if exported_sources != current_sources:
             raise ValueError("manga scene art direction or timing changed after manifest export; create a new revision")
+    legacy_layer_specs = [spec for spec in manifest_layer_specs
+                          if scope is None or not contains(scope, spec['scene_number'])]
     layer_receipt = (manga_layer_package.validate_receipt(
-        manifest_path, images_dir, manifest_layer_specs, require_approved=True)
-        if manifest_layer_specs and not defer_layers else None)
+        manifest_path, images_dir, legacy_layer_specs, require_approved=True)
+        if legacy_layer_specs and not defer_layers else None)
     if create_bucket:
         print("--create-bucket is ignored: scene images are uploaded to GCS, not Supabase Storage.", file=sys.stderr)
 
@@ -679,6 +697,9 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
     scene_refs: dict[int, tuple[str, str]] = {}
     scene_layer_assets: dict[int, dict[str, Any]] = {}
     scene_psd_assets: dict[int, dict[str, Any]] = {}
+    independent_plane_assets: dict[int, dict[str, Any]] = {}
+    from worker.effect_scene_scope import normalize_scope, contains
+    scope = normalize_scope(manifest.get('effect_scene_range'))
     existing_objects = (_list_gcs_object_metadata(bucket, f"topics/{topic_id}/images/")
                         if reuse_existing else {})
     layer_dir = images_dir / "derived-layers"
@@ -713,6 +734,27 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
                 gcs_bucket, gcs_path, media_url = _upload_gcs_file(file_path, object_path, mime_type)
             scene_urls[number] = media_url
             scene_refs[number] = (gcs_bucket, gcs_path)
+            if scope and contains(scope, number) and number not in independent_plane_assets:
+                receipt_path = images_dir / f"scene-{number:03d}-planes.json"
+                if not receipt_path.is_file():
+                    raise FileNotFoundError(f"scene {number}: independent plane receipt is missing")
+                receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
+                if receipt.get('scene_sha256') != _file_sha256(file_path):
+                    raise ValueError(f"scene {number}: composed image changed")
+                planes = []
+                for role, expected in (receipt.get('files') or {}).items():
+                    if not re.fullmatch(r'background|character-[0-9]{2}', role):
+                        raise ValueError('invalid independent plane role')
+                    plane_path = images_dir / f"scene-{number:03d}-{role}.png"
+                    if not plane_path.is_file() or _file_sha256(plane_path) != expected:
+                        raise ValueError(f"scene {number}: independent plane changed or is missing")
+                    object_name = f"topics/{topic_id}/layers/scene-{number:03d}-{role}-{expected}.png"
+                    pbucket, ppath, purl = _upload_gcs_file(plane_path, object_name, 'image/png')
+                    planes.append({'role': role, 'character_key': (receipt.get('character_keys') or {}).get(role),
+                                   'gcs_bucket': pbucket, 'gcs_path': ppath, 'media_url': purl, 'sha256': expected})
+                if not planes or not any(item['role'] == 'background' for item in planes):
+                    raise ValueError(f"scene {number}: independent background missing")
+                independent_plane_assets[number] = {'source': 'independent_original_planes', 'assets': planes}
             if layer_receipt is not None and str(number) in layer_receipt["packages"]:
                 package = layer_receipt["packages"][str(number)]
                 psd_file = images_dir / package["psd_file"]
@@ -811,6 +853,8 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
             if (previous_image.get('gcs_path') == gcs_path and previous_image.get('gcs_bucket') == gcs_bucket
                     and previous_image.get('speaker_geometry')):
                 scene['metadata']['cowork_image_asset']['speaker_geometry'] = previous_image['speaker_geometry']
+            if number in independent_plane_assets:
+                scene['metadata']['cowork_image_asset']['independent_planes'] = independent_plane_assets[number]
             if number in scene_layer_assets:
                 scene.setdefault("metadata", {})["local_layer_asset"] = scene_layer_assets[number]
                 scene["local_layer_status"] = "ready"
@@ -881,6 +925,9 @@ def parse_args() -> argparse.Namespace:
     generate_cmd = commands.add_parser("generate-layers", help="검증된 인물 레퍼런스로 독립 PNG 레이어를 생성합니다")
     generate_cmd.add_argument("--manifest", type=Path, required=True)
     generate_cmd.add_argument("--images-dir", type=Path, required=True)
+    independent_cmd = commands.add_parser("generate-independent-scenes", help="효과 구간의 배경과 인물을 따로 만든 뒤 씬을 합성합니다")
+    independent_cmd.add_argument("--manifest", type=Path, required=True)
+    independent_cmd.add_argument("--images-dir", type=Path, required=True)
     approve_cmd = commands.add_parser("approve-layers", help="PSD 프리뷰 육안 검수를 기록합니다")
     approve_cmd.add_argument("--manifest", type=Path, required=True)
     approve_cmd.add_argument("--images-dir", type=Path, required=True)
@@ -913,6 +960,10 @@ def main() -> int:
                 ensure_ascii=False,
             )
         )
+    elif args.command == "generate-independent-scenes":
+        from worker.layered_scene_generation import generate_manifest_scenes
+        results = generate_manifest_scenes(_manifest(args.manifest), args.images_dir)
+        print(json.dumps({"generated_or_reused": len(results), "scenes": results}, ensure_ascii=False))
     elif args.command == "prepare-layers":
         manifest = _manifest(args.manifest)
         specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])

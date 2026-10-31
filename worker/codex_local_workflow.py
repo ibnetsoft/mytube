@@ -139,6 +139,8 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'content_setting': setting,
                    'production_mode': request.get('production_mode') or 'standard',
                    'direction_profile': request.get('direction_profile') or 'auto',
+                   'concentrated_scene_effects': request.get('concentrated_scene_effects') is True,
+                   '_effect_scene_offset': request.get('_effect_scene_offset', 0),
                    'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
                    'image_layer_scene_start': request.get('image_layer_scene_start'),
                    'image_layer_scene_end': request.get('image_layer_scene_end'),

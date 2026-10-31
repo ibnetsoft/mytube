@@ -762,9 +762,14 @@ def _plan_ae_effects_for_scenes(scenes: list[dict[str, Any]], payload: dict[str,
         payload.get("script_style"),
     )
     plans: list[dict[str, Any]] = []
+    scope = _resolve_image_layer_scene_range(payload) if payload.get("concentrated_scene_effects") else None
     max_highlights = max(1, min(8, round(len(scenes) * 0.16)))
     for index, scene in enumerate(scenes, 1):
         if not isinstance(scene, dict):
+            continue
+        number = int(scene.get("scene_number") or scene.get("scene_order") or index)
+        if scope and not scope["start"] <= number + int(payload.get("_effect_scene_offset") or 0) <= scope["end"]:
+            scene["ae_effect_plan"] = {"enabled": False, "reason": "outside_effect_scene_range"}
             continue
         video_mode = str(scene.get("video_generation_mode") or "").lower()
         if video_mode in {"user_upload", "comfyui"}:
@@ -1547,6 +1552,16 @@ def _plan_image_generation_efficiency(
         and scene["ae_effect_plan"].get("enabled")
         and scene["ae_effect_plan"].get("template") == "directed_performance"
     )
+    if payload.get("concentrated_scene_effects") and explicit_range:
+        offset = int(payload.get("_effect_scene_offset") or 0)
+        inside = lambda number: explicit_range["start"] <= number + offset <= explicit_range["end"]
+        psd_numbers = {number for number in psd_numbers if inside(number)}
+        explicit_range_numbers = {int(scene.get("scene_number") or scene.get("scene_order") or index)
+            for index, scene in enumerate(scenes, 1) if isinstance(scene, dict)
+            and inside(int(scene.get("scene_number") or scene.get("scene_order") or index))}
+        psd_numbers.update(explicit_range_numbers)
+        layer_numbers = {number for number in layer_numbers if inside(number)}
+        multi_numbers = set()
     scene_policies: list[dict[str, Any]] = []
     psd_layer_prompts: list[dict[str, Any]] = []
     for index, scene in enumerate(scenes, 1):
@@ -2347,6 +2362,7 @@ def _normalize_package(package: dict[str, Any], payload: dict[str, Any] | None =
         "ae_motion_plans": ae_motion_plans,
         "image_layer_mode": image_efficiency_policy.get("image_layer_mode") or "hybrid",
         "image_layer_scene_range": image_efficiency_policy.get("image_layer_scene_range"),
+        "effect_scene_range": _resolve_image_layer_scene_range(payload) if (payload or {}).get("concentrated_scene_effects") else None,
         "image_generation_policy": image_efficiency_policy,
         "scenes": scenes,
         "story_core": {
@@ -2943,6 +2959,9 @@ class CodexStagedContentRunner:
         from worker.elevenlabs_performance import plan_performance
         structure['audio_performance'] = plan_performance(self._stage, job_id, scenes, setting['language'])
         direction_profile = resolve_directing_profile(payload)
+        if payload.get('concentrated_scene_effects') and payload.get('_effect_scene_offset'):
+            for scene in scenes:
+                scene['_effect_scene_offset'] = int(payload['_effect_scene_offset'])
         from purpose_direction import TASK as PURPOSE_TASK, CONFIG as PURPOSE_CONFIG
         visual_context = {
             "purpose_direction_limits":PURPOSE_CONFIG,
@@ -2956,7 +2975,10 @@ class CodexStagedContentRunner:
                     "scene_purpose", "scene_emotion", "character_choice", "emotional_shift",
                     "reveal_or_question", "scene_text", "narration",
                 )},
-                "eligible_for_eye_blink": int(scene.get("scene_number") or scene.get("scene_order") or 0) >= 19,
+                "eligible_for_eye_blink": (int(scene.get("scene_number") or scene.get("scene_order") or 0) + int(payload.get("_effect_scene_offset") or 0) >= 19
+                    and (not payload.get("concentrated_scene_effects") or (_resolve_image_layer_scene_range(payload)["start"]
+                        <= int(scene.get("scene_number") or scene.get("scene_order") or 0) + int(payload.get("_effect_scene_offset") or 0)
+                        <= _resolve_image_layer_scene_range(payload)["end"]))),
             } for scene in scenes],
         }
         visual_task = (
@@ -2995,10 +3017,21 @@ class CodexStagedContentRunner:
             + DIRECTING_TASK + "\n" + (VIDEO_POSTWORK_DIRECTOR_TASK if required_video_scene_count else "") + "\nReturn {'topic_direction':{...},'scene_directions':[...]} only."
             + "\n" + PURPOSE_TASK
         )
+        if payload.get("concentrated_scene_effects"):
+            scope = _resolve_image_layer_scene_range(payload)
+            offset = int(payload.get("_effect_scene_offset") or 0)
+            visual_task += (f"\nEffect concentration range: global scenes {scope['start']} through {scope['end']} inclusive; add {offset} to each local scene number to obtain the global scene number. "
+                "Outside that range use only one image, hold or camera_move, no extra layers, blinking, "
+                "mouth animation, parallax or additional keyframes. Never use a slow zoom. "
+                "Inside the range design background and named characters as separate original transparent planes.")
         from purpose_direction import direct_with_repair
+        def validate_scoped_directions(result):
+            from worker.effect_scene_scope import validate_directions
+            directions = validate_directorial_plans(scenes,result,direction_profile=direction_profile['id'],require_execution=True)
+            scope = _resolve_image_layer_scene_range(payload) if payload.get("concentrated_scene_effects") else None
+            return validate_directions(scope, scenes, directions, offset=int(payload.get("_effect_scene_offset") or 0))
         try:
-            directorial_plans=direct_with_repair(self._stage,job_id,visual_context,visual_task,
-                lambda result:validate_directorial_plans(scenes,result,direction_profile=direction_profile['id'],require_execution=True))
+            directorial_plans=direct_with_repair(self._stage,job_id,visual_context,visual_task, validate_scoped_directions)
         except ValueError as error:raise CodexContentError(str(error)) from error
         for scene, direction in zip(scenes, directorial_plans):
             if scene.get('scene_boundary') == 'paragraph':
@@ -3053,6 +3086,7 @@ class CodexStagedContentRunner:
             draft_effect_plans = _plan_ae_effects_for_scenes(scenes, payload)
             draft_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
             structure.update({
+                "effect_scene_range": _resolve_image_layer_scene_range(payload) if payload.get("concentrated_scene_effects") else None,
                 "scene_visual_direction_status": "planned",
                 "scene_visual_director_persona": "scene_visual_director",
                 "direction_profile": {key: direction_profile[key] for key in ("id", "label", "description", "selection")},
@@ -3261,6 +3295,7 @@ class CodexStagedContentRunner:
             "ae_motion_scene_count": len(ae_motion_plans),
             "ae_motion_plans": ae_motion_plans,
             "image_layer_mode": image_efficiency_policy.get("image_layer_mode") or image_layer_mode,
+            "effect_scene_range": _resolve_image_layer_scene_range(payload) if payload.get("concentrated_scene_effects") else None,
             "image_layer_scene_range": image_efficiency_policy.get("image_layer_scene_range"),
             "psd_layer_prompt_status": "planned" if image_efficiency_policy.get("psd_layer_prompts") else "not_required",
             "psd_layer_scene_count": image_efficiency_policy.get("psd_layer_scene_count") or 0,

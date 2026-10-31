@@ -172,6 +172,7 @@ def produce_story(identity, request, runner, notify, directory, produce_chapter)
                 else:
                     child = {**request, 'duration_minutes': chapter['duration_minutes'], 'duration_seconds': None,
                              '_approved_guidance': '',
+                             '_effect_scene_offset': sum(len(c['package']['structure']['scenes']) for c in completed),
                              'required_video_scene_count': max(0, request.get('required_video_scene_count', 18) - sum(len(c['package']['structure']['scenes']) for c in completed)),
                              'generate_bgm_prompt': False, '_story_context': context,
                              '_story_anchors': {'main_character': outline['characters'][0], 'supporting_characters': outline['characters'][1:]},
@@ -249,6 +250,7 @@ def merge_chapters(request, outline, completed, review):
         start = elapsed
         for index, source in enumerate(structure['scenes'], 1):
             row = copy.deepcopy(source)
+            row.pop('_effect_scene_offset', None)
             row.update(scene_number=offset + index, scene_order=offset + index,
                        chapter_number=chapter['chapter_number'], start_seconds=elapsed)
             scenes.append(row)

@@ -71,3 +71,12 @@ def test_settings_api_roundtrip_and_validation(tmp_path, monkeypatch):
     assert client.get('/api/mouth-policy',headers=headers).json()==changed
     assert client.post('/api/mouth-policy',headers=headers,json={**changed,'max_dialogue_scenes':-1}).status_code==422
     assert client.get('/api/mouth-policy',headers=headers).json()==changed
+
+
+def test_new_effect_range_limits_dialogue_preparation():
+    from worker.mouth_work_policy import selected_scenes
+    structure = {'effect_scene_range': {'start': 19, 'end': 50},
+                 'scenes': [{'scene_number': n} for n in (18, 19, 50, 51)],
+                 'dialogue_annotations': {'scenes': [{'scene_number': n, 'spans': [
+                     {'speaker': 'A', 'text': 'line', 'status': 'confirmed'}]} for n in (18, 19, 50, 51)]}}
+    assert selected_scenes(structure, {'enabled': True, 'start_scene': 1, 'max_dialogue_scenes': 10}) == [19, 50]
