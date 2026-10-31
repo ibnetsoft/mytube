@@ -89,3 +89,35 @@ def test_recovery_does_not_request_flat_grids_entirely_inside_effect_range():
                           {'grid_number': 3, 'scene_numbers': [49, 50, 51, 52], 'prompt': 'outside'}]}
     state = initialize(manifest)
     assert [job['id'] for job in state['jobs']] == ['grid-001', 'grid-003']
+
+
+def test_cropped_independent_planes_are_published_with_scene(tmp_path, monkeypatch):
+    import json
+    from worker import cowork_scene_assets as assets
+    from worker import generated_speaker_coordinates as coordinates
+    monkeypatch.syspath_prepend(str(Path(assets.__file__).parent))
+    from worker import layered_scene_generation as layered
+    root, out = tmp_path / 'input', tmp_path / 'output'
+    root.mkdir()
+    Image.new('RGB', (800, 800), (20, 30, 40)).save(root / 'grid-001.png')
+    scenes = [{'scene_number': n, 'scene_text': f'text {n}', 'image_prompt': f'scene {n}'} for n in range(1, 5)]
+    manifest = {'schema': 'cowork_scene_assets/v1', 'topic_id': '42', 'bucket': 'scene-bucket',
+        'effect_scene_range': {'start': 2, 'end': 3},
+        'grids': [{'grid_number': 1, 'scene_numbers': [1, 2, 3, 4], 'raw_file': 'grid-001.png'}],
+        'scene_specs': scenes, 'scene_cast': [{'scene_number': n, 'characters': []} for n in range(1, 5)],
+        'character_references': []}
+    path = tmp_path / 'manifest.json'
+    path.write_text(json.dumps(manifest), encoding='utf-8')
+    generator = FakeGenerator(tmp_path)
+    original = layered.generate_manifest_scenes
+    monkeypatch.setattr(layered, 'generate_manifest_scenes', lambda m, d: original(m, d, generator=generator))
+    assets.crop_grids(path, root, out)
+    monkeypatch.setattr(assets, '_topic', lambda _: ({'id': '42'}, {'scenes': scenes}, 'https://test', {}))
+    monkeypatch.setattr(assets, '_upload_gcs_file', lambda local, obj, typ: ('scene-bucket', obj, '/asset/' + obj))
+    monkeypatch.setattr(coordinates, 'analyze_published_scenes', lambda *args: None)
+    saved = []
+    monkeypatch.setattr(assets, '_patch_topic_scene_assets', lambda topic, updates, base, headers: saved.extend(updates))
+    assert len(assets.publish(path, out, False)) == 4
+    updates = {x['scene_number']: x['asset_patch'] for x in saved}
+    assert updates[2]['metadata']['cowork_image_asset']['independent_planes']['assets'][0]['role'] == 'background'
+    assert 'independent_planes' not in updates[1]['metadata']['cowork_image_asset']
