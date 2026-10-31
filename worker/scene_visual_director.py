@@ -227,6 +227,10 @@ def validate_directorial_plans(
         intent = str(raw.get("dramatic_intent") or "").strip()
         beats = raw.get("timed_beats")
         operations = raw.get("ae_operations")
+        # Some directors emit structured operations with an explicit type.
+        # Keep the authored operation; timings stay in timed_beats.
+        if isinstance(operations, list) and all(isinstance(item, dict) and isinstance(item.get("type"), str) for item in operations):
+            operations = [item["type"] for item in operations]
         layers = raw.get("required_layers")
         keyframe_requests = raw.get("additional_keyframes", [])
         qa = raw.get("qa_assertions")

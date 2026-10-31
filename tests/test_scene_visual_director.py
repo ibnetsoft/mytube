@@ -124,9 +124,18 @@ def test_director_never_auto_blinks_uploaded_video_scenes():
 def test_non_string_operation_yields_repairable_error():
     import pytest
     scene = {'duration_seconds': 4}
-    raw = {'scene_directions': [{'dramatic_intent': 'Show the room',
+    raw = {'scene_directions': [{'dramatic_intent': 'Show the room', 'visual_strategy': 'Hold on the room',
         'timed_beats': [{'start_seconds': 0, 'end_seconds': 4, 'action': 'hold', 'target': 'room'}],
         'ae_operations': [{'operation': 'hold'}], 'required_layers': [],
         'additional_keyframes': [], 'qa_assertions': ['Keep composition']}]}
     with pytest.raises(ValueError, match='unsupported ae_operations'):
         validate_directorial_plans([scene], raw)
+
+
+def test_structured_operation_type_keeps_authored_effect():
+    scene = {'duration_seconds': 4}
+    raw = {'scene_directions': [{'dramatic_intent': 'Show the room', 'visual_strategy': 'Hold on the room',
+        'timed_beats': [{'start_seconds': 0, 'end_seconds': 4, 'action': 'hold', 'target': 'room'}],
+        'ae_operations': [{'type': 'hold', 'reason': 'show the room'}], 'required_layers': [],
+        'additional_keyframes': [], 'qa_assertions': ['Keep composition']}]}
+    assert validate_directorial_plans([scene], raw)[0]['ae_operations'] == ['hold']

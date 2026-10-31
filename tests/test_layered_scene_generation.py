@@ -132,3 +132,16 @@ def test_single_scene_character_can_be_drawn_without_inventing_a_reference(tmp_p
     results = generate_manifest_scenes(manifest, tmp_path / 'out', generator=generator)
     assert len(results) == 1
     assert generator.roles == [('background', None), ('character', None)]
+
+
+def test_changed_character_reference_never_reuses_old_plane(tmp_path):
+    import pytest
+    reference = tmp_path / 'reference.png'
+    Image.new('RGB', (2, 2), 'red').save(reference)
+    generator = FakeGenerator(tmp_path)
+    scene = {'scene_number': 19, 'image_prompt': 'A person in a room',
+             'characters': [{'key': 'person', 'reference_file': str(reference), 'placement_prompt': 'center'}]}
+    generate_scene_planes(scene, tmp_path / 'out', generator=generator)
+    Image.new('RGB', (2, 2), 'blue').save(reference)
+    with pytest.raises(ValueError, match='scene directions changed'):
+        generate_scene_planes(scene, tmp_path / 'out', generator=generator)
