@@ -121,3 +121,14 @@ def test_cropped_independent_planes_are_published_with_scene(tmp_path, monkeypat
     updates = {x['scene_number']: x['asset_patch'] for x in saved}
     assert updates[2]['metadata']['cowork_image_asset']['independent_planes']['assets'][0]['role'] == 'background'
     assert 'independent_planes' not in updates[1]['metadata']['cowork_image_asset']
+
+
+def test_single_scene_character_can_be_drawn_without_inventing_a_reference(tmp_path):
+    from worker.layered_scene_generation import generate_manifest_scenes
+    manifest = {'effect_scene_range': {'start': 19, 'end': 19},
+        'scene_specs': [{'scene_number': 19, 'image_prompt': 'A merchant in a room'}],
+        'scene_cast': [{'scene_number': 19, 'characters': ['merchant']}], 'character_references': []}
+    generator = FakeGenerator(tmp_path)
+    results = generate_manifest_scenes(manifest, tmp_path / 'out', generator=generator)
+    assert len(results) == 1
+    assert generator.roles == [('background', None), ('character', None)]
