@@ -59,7 +59,7 @@ def generate_scene_planes(scene: dict[str, Any], output_dir: Path, *, generator=
             instructions = ('Generate only this character on a transparent full 16:9 landscape canvas, ' + identity + '. '
                             'Place them exactly as directed: ' + character['placement_prompt'] + '. No background or text. ')
             normalized_role = 'character'
-        raw = generator.generate(prompt=instructions + 'Scene direction: ' + prompt,
+        raw = generator.generate(prompt=instructions + 'Use color in the approved art style unless the scene specifically calls for monochrome. Scene direction: ' + prompt,
                                  role=normalized_role, reference=reference,
                                  work_dir=output_dir / '.generated' / f'scene-{number:03d}-{role}')
         temporary = target.with_suffix('.png.tmp')
