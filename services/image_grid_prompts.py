@@ -143,6 +143,10 @@ def build_compact_image_grid_prompts(
         panels = spec.get("panels")
         if not isinstance(panels, list) or len(panels) != 4:
             continue
+        # Layout is deterministic. Persist the same positions that the prompt
+        # renderer already assigns, without mutating caller-owned cached data.
+        panels = [dict(panel, position=panel.get("position") or GRID_PANEL_POSITIONS[i])
+                  if isinstance(panel, Mapping) else panel for i, panel in enumerate(panels)]
         prompt = str(spec.get("prompt") or "").strip()
         if not prompt:
             prompt = make_compact_image_grid_prompt(
@@ -334,7 +338,7 @@ def validate_image_grid_prompt_readiness(
     if len(grids) != expected_prompt_count:
         raise ValueError(f"image_grid_prompts count mismatch: expected {expected_prompt_count}, got {len(grids)}")
 
-    for grid in grids:
+    for grid_index, grid in enumerate(grids):
         prompt = str(grid.get("prompt") or "").strip()
         if require_compact_template and grid.get("template") != COMPACT_GRID_PROMPT_TEMPLATE:
             raise ValueError(
@@ -354,6 +358,9 @@ def validate_image_grid_prompt_readiness(
         numbers = grid.get("scene_numbers")
         if not isinstance(numbers, list) or len(numbers) != 4:
             raise ValueError(f"image_grid_prompt must contain exactly 4 scene numbers for grid {grid.get('grid_number')}")
+        first, last = _grid_windows(len(scene_numbers))[grid_index]
+        if [str(n) for n in numbers] != [str(n) for n in scene_numbers[first:last]]:
+            raise ValueError(f"image_grid_prompt scene order mismatch for grid {grid.get('grid_number')}")
         if grid.get("template") == COMPACT_GRID_PROMPT_TEMPLATE:
             panels = grid.get("panels")
             if not isinstance(panels, list) or len(panels) != 4:

@@ -700,7 +700,9 @@ def script_settings_save(value: dict):
 
 @app.get('/health')
 def health():
+    from worker.generation_validation import PROFILE
     return {'service': 'codex-local-console', 'port': PORT, 'legacy_dashboard': False,
+            'generation_validation_profile': PROFILE,
             'effect_scope_version': 1,
             'documentary_evidence_profile': 'japanese_documentary_evidence/v1'}
 

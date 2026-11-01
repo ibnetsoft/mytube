@@ -4,6 +4,8 @@ import hashlib
 import json
 import secrets
 
+from worker.generation_validation import validated_stage
+
 PROFILE = 'listener_v1'
 DIMENSIONS = ('naturalness', 'engagement')
 RUBRICS = {
@@ -49,13 +51,13 @@ def review(stage, title, sections):
                 'listener_impact:"specific listener difficulty",suggestion:"minimal local fix"}],'
                 'strengths:[{scene_order:1,quote:"exact substring",reason:"why this works"}]}. '
                 'Use pass only if no substantive issues remain; do not invent issues just to fill a quota.')
-        result = stage('02f_listener_' + dimension, context, task)
-        validate_report(result, sections)
+        result = validated_stage(stage, '02f_listener_' + dimension, context, task,
+                                 lambda raw: validate_report(raw, sections))
         reports[dimension] = result
     return reports
 
 
-def improve_for_listener(stage, title, sections, budgets):
+def _improve_once(stage, title, sections, budgets):
     original = copy.deepcopy(sections)
     before = review(stage, title, original)
     audit = {'profile': PROFILE, 'mode': 'text_only', 'before': before, 'revision_rounds': 0}
@@ -110,11 +112,27 @@ def improve_for_listener(stage, title, sections, budgets):
     if labels[0] in winners or labels[1] not in winners or comparison.get('regressions') != []:
         raise ValueError('Revision not demonstrably better without regressions; original preserved for review')
     after = review(stage, title, candidate)
-    if any(r['verdict'] != 'pass' for r in after.values()):
-        raise ValueError('Listener review still rejects revision; manual review required')
-    audit.update(verdict='pass', selected='revision', revision_rounds=1, comparison=comparison,
+    verdict = 'pass' if all(r['verdict'] == 'pass' for r in after.values()) else 'revise'
+    audit.update(verdict=verdict, selected='revision', revision_rounds=1, comparison=comparison,
                  original_label=labels[0], after=after, script_sha256=digest(candidate))
     return candidate, audit
+
+
+
+def improve_for_listener(stage, title, sections, budgets, max_rounds=3):
+    if type(max_rounds) is not int or max_rounds < 1:
+        raise ValueError('Listener repair requires at least one bounded round')
+    current = copy.deepcopy(sections)
+    rounds = []
+    for _ in range(max_rounds):
+        current, audit = _improve_once(stage, title, current, budgets)
+        rounds.append(audit)
+        if audit['verdict'] == 'pass':
+            return current, {**audit, 'before': rounds[0]['before'],
+                             'selected': 'revision' if any(r['selected'] == 'revision' for r in rounds) else 'original',
+                             'revision_rounds': sum(r['revision_rounds'] for r in rounds),
+                             'rounds': rounds, 'script_sha256': digest(current)}
+    raise ValueError(f'Listener review still rejects revision after {max_rounds} repair rounds; checkpoints preserved')
 
 
 def digest(sections):

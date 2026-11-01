@@ -8,6 +8,8 @@ and publish metadata. Portraits use the native Codex image tool, never Gemini.
 
 from __future__ import annotations
 
+from worker.generation_validation import validated_stage, validate_sections
+
 import json
 import hashlib
 import math
@@ -2850,7 +2852,7 @@ class CodexStagedContentRunner:
             "main_character": plan.get("main_character") or {},
             "supporting_characters": plan.get("supporting_characters") or [],
         }
-        written = paragraph_draft or self._stage(job_id, "02_script", script_context, f"Write narration for the supplied scene plans using scene_budgets as hard per-scene character budgets. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract strictly. Return {{'sections':[{{'scene_order':n,'text':'...'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'story_spine_score':0-100,'anti_sermon_score':0-100,'dialogue_context_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'revision_notes':[]}}}}. Return exactly {len(scenes)} ordered sections. Each section must fit its duration and concatenate without omissions or duplication into the finished narration. For each scene, dramatize a concrete action, choice, reveal, or consequence; do not summarize the plan. Prefer narration over direct dialogue; use quoted speech only when the surrounding action makes it necessary and never use speaker labels. End through concrete changed behavior and consequence, not a lesson sentence. Make the narration sound read aloud and category-specific, not like short scene cards. Never use headings, timestamps, camera directions, or metadata in narration.")
+        written = paragraph_draft or validated_stage(lambda name, context, task: self._stage(job_id, name, context, task), "02_script", script_context, f"Write narration for the supplied scene plans using scene_budgets as hard per-scene character budgets. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract strictly. Return {{'sections':[{{'scene_order':n,'text':'...'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'story_spine_score':0-100,'anti_sermon_score':0-100,'dialogue_context_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'revision_notes':[]}}}}. Return exactly {len(scenes)} ordered sections. Each section must fit its duration and concatenate without omissions or duplication into the finished narration. For each scene, dramatize a concrete action, choice, reveal, or consequence; do not summarize the plan. Prefer narration over direct dialogue; use quoted speech only when the surrounding action makes it necessary and never use speaker labels. End through concrete changed behavior and consequence, not a lesson sentence. Make the narration sound read aloud and category-specific, not like short scene cards. Never use headings, timestamps, camera directions, or metadata in narration.", lambda raw: validate_sections(raw, scene_budgets))
         sections = written.get("sections") if isinstance(written.get("sections"), list) else []
         if len(sections) != len(scenes):
             raise CodexContentError(f"script requires {len(scenes)} sections; got {len(sections)}")
@@ -2877,7 +2879,9 @@ class CodexStagedContentRunner:
         qa_sections: list[Any] = []
         rhythm_warnings: list[str] = []
         for qa_attempt in range(2):
-            qa = self._stage(job_id, "02b_script_qa", qa_context, qa_task)
+            qa = validated_stage(lambda name, context, task: self._stage(job_id, name, context, task),
+                                 "02b_script_qa", qa_context, qa_task,
+                                 lambda raw: validate_sections(raw, scene_budgets))
             qa_sections = qa.get("sections") if isinstance(qa.get("sections"), list) else []
             if len(qa_sections) != len(scenes):
                 raise CodexContentError(f"script QA requires {len(scenes)} sections; got {len(qa_sections)}")

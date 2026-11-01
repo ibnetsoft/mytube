@@ -157,8 +157,8 @@ def test_visual_pacing_uses_eighteen_second_cuts_after_scene_sixty():
     assert sum(item["duration_seconds"] for item in schedule) == 900
 
 
-@pytest.mark.parametrize("review_failure", [None, "verdict", "evidence", "story_score", "missing_story_score"])
-def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_path, review_failure):
+@pytest.mark.parametrize("review_failure,invalid_stage", [(None,None),(None,"02_script"),(None,"02b_script_qa"),("verdict",None),("evidence",None),("story_score",None),("missing_story_score",None)])
+def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_path, review_failure, invalid_stage):
     monkeypatch.setattr(runner_module, "OUTPUT_DIR", tmp_path)
     # Dependency-chain fixtures must not depend on this computer's recent cast history.
     monkeypatch.setattr(runner_module, 'enrich_and_validate', lambda identity, *_: identity)
@@ -193,13 +193,16 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
                 ],
             }
         if name in {"02_script", "02b_script_qa"}:
-            return {
+            response = {
                 "sections": [
                     {"scene_order": i, "text": f"{i}번째 날, 연화는 편지에서 어머니의 흔적을 찾았지요." + (f" 그날의 기록 {i}장을 이웃과 확인하자 헤어졌던 이유가 드러났습니다. 연화는 {i}번째 기록을 듣고 다시 집으로 돌아갈 용기를 얻었지요." if i > 18 else "")}
                     for i in range(1, scene_count + 1)
                 ],
                 "script_quality_report": {"verdict": "pass", "score": 90, "critical_issues": []},
             }
+            if name == invalid_stage and sum(n == name for n, _ in calls) == 1:
+                response['sections'][0]['text'] = ''
+            return response
         if name == "02c_senior_review":
             assert "story_spine_score" in task and "fixed source-topic notes" in task
             report = _review_report()
@@ -293,7 +296,7 @@ def test_staged_runner_preserves_plan_script_media_dependency(monkeypatch, tmp_p
     assert package["structure"]["scene_direction_plan_contract"] == "scene_direction_plan/v2"
     assert len(package["structure"]["scene_direction_plans"]) == scene_count
     assert all(scene["scene_direction_plan"]["primary_effect"] == "hold" for scene in scenes)
-    assert [name for name, _ in calls] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02j_v4_vocal_performance", "02f_scene_visual_director", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
+    assert [name for name, context in calls if "validation_retry" not in context] == ["01_plan", "02_script", "02b_script_qa", "02c_senior_review", "02f_listener_naturalness", "02f_listener_engagement", "02e_dialogue", "02j_v4_vocal_performance", "02f_scene_visual_director", "02d_character_identity", "02e_character_images", "03_media", "04_metadata", "05_thumbnail_copy"]
     assert package['structure']['dialogue_annotations']['model'] == runner_module.ASTRA_MODEL
     assert package["structure"]["character_reference_status"] == "ready"
     assert package["character_anchors"]["character_image_generation"]["status"] == "ready"

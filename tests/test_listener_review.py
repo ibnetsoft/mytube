@@ -60,3 +60,34 @@ def test_unflagged_scene_cannot_be_rewritten():
         return {'patches': [{'scene_order': 2, 'text': NEW}]}
     with pytest.raises(ValueError, match='unflagged'):
         improve_for_listener(stage, '귀가', OLD, BUDGETS)
+
+
+def test_remaining_finding_gets_second_grounded_repair_round():
+    second = NEW + ' 그는 어머니에게 먼저 인사했습니다.'
+    def stage(name, context, task):
+        if name.startswith('02f_'):
+            return report(context['sections'], context['sections'][0]['text'] != second)
+        if name == '02g_listener_repair':
+            text = NEW if context['sections'][0]['text'] == OLD[0]['text'] else second
+            return {'patches': [{'scene_order': 1, 'text': text}]}
+        versions = context['versions']
+        winner = max(versions, key=lambda k: len(versions[k][0]['text']))
+        return {'naturalness': winner, 'engagement': 'tie', 'regressions': [],
+                'evidence': {k: {'scene_order': 1, 'quote': v[0]['text'], 'reason': '행동의 인과가 명확합니다.'} for k, v in versions.items()}}
+    result, audit = improve_for_listener(stage, '귀가', OLD, BUDGETS)
+    assert result[0]['text'] == second
+    assert audit['revision_rounds'] == 2 and audit['verdict'] == 'pass'
+    assert len(audit['rounds']) == 2 and audit['rounds'][0]['verdict'] == 'revise'
+    assert OLD[0]['text'] != NEW
+
+
+def test_malformed_cached_review_receives_validation_feedback():
+    calls = []
+    def stage(name, context, task):
+        calls.append(context)
+        if len(calls) == 1:
+            return {'verdict': 'pass'}
+        return report(context['sections'])
+    result, audit = improve_for_listener(stage, '귀가', OLD, BUDGETS)
+    assert result == OLD and audit['verdict'] == 'pass'
+    assert calls[1]['validation_retry']['attempt'] == 2

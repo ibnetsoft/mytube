@@ -21,6 +21,7 @@ def client(monkeypatch, tmp_path):
 
 def test_boundary(client):
     assert client.get('/health').json()['legacy_dashboard'] is False
+    assert client.get('/health').json()['generation_validation_profile'] == 'generation_validation/v1'
     assert client.get('/api/status').status_code == 200
     assert client.get('/api/status', headers={'X-Codex-Local': ''}).status_code == 401
     assert client.get('/api/status', headers={'Host': 'evil.test:3003'}).status_code == 403
