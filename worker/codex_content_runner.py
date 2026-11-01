@@ -2625,9 +2625,19 @@ class CodexStagedContentRunner:
             if name.startswith('02_subtitle_translation'):
                 # Translation only needs the local input file. Do not start
                 # unrelated cloud connectors or plugin processes for this task.
-                command.extend(['--disable', 'apps', '--disable', 'plugins',
-                                '-c', 'mcp_servers.supabase.enabled=false',
-                                '-c', 'mcp_servers.node_repl.enabled=false'])
+                command.extend(['--disable', 'apps', '--disable', 'plugins'])
+                # An enabled=false override for an absent server creates a
+                # transport-less MCP table and makes Codex reject its config.
+                # Only disable server entries that actually have a transport.
+                try:
+                    import tomllib
+                    config_home = Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex')
+                    configured_mcp = tomllib.loads((config_home / 'config.toml').read_text()).get('mcp_servers', {})
+                except (ImportError, OSError, ValueError):
+                    configured_mcp = {}
+                for server, settings in configured_mcp.items():
+                    if re.fullmatch(r'[A-Za-z0-9_-]+', server) and isinstance(settings, dict) and (settings.get('url') or settings.get('command')):
+                        command.extend(['-c', f'mcp_servers.{server}.enabled=false'])
             if model:
                 command.extend(["--model", model])
             if reasoning:
