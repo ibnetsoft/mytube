@@ -106,9 +106,10 @@ def test_routes_require_local_token_and_approval(monkeypatch, tmp_path):
     assert client.get('/api/web-topics', headers=headers).status_code == 200
     assert not calls
     store.active_rows = [{'id': 'busy'}]
+    jobs.rows['local'] = {'status': 'running', 'worker_id': console.WORKER_ID}
     assert client.post(path, headers=headers, json={'action': 'approve'}).status_code == 409
     assert store.row['status'] == 'pending'
-    store.active_rows = []
+    jobs.rows.clear()  # A foreign worker's active job must not block this console.
     assert client.post(path, headers=headers, json={'action': 'approve'}).status_code == 200
     assert len(calls) == 1
     assert client.post(path, headers=headers, json={'action': 'approve'}).status_code == 409
@@ -162,7 +163,7 @@ def test_retry_link_only_advances_matching_submission(monkeypatch):
     from worker.script_worker_store import ScriptStore
     store = ScriptStore()
     calls = []
-    monkeypatch.setattr(store, 'request', lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(store, 'request', lambda *args, **kwargs: (calls.append((args, kwargs)) or (1, None)))
     old, new = uuid.uuid4().hex, uuid.uuid4().hex
     topic_id = str(uuid.uuid4())
     store.save({'job': {'id': new, 'title': '재실행', 'mode': 'new', 'status': 'queued',

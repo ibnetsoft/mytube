@@ -108,6 +108,7 @@ def test_retry_retains_old_failure_and_links_new_attempt(setup):
     jobs, store, client = setup
     original = jobs.start(request(), None)
     jobs.update(original['id'], status='failed')
+    jobs.inflight.discard(original['id'])
     response = client.post('/api/jobs/' + original['id'] + '/retry', json={})
     assert response.status_code == 200
     retry = response.json()
@@ -149,11 +150,11 @@ def test_legacy_current_script_is_not_a_historical_snapshot(setup, monkeypatch):
 def test_history_pagination_filter_and_error_are_explicit(setup, monkeypatch):
     _, store, client = setup
     capture = []
-    monkeypatch.setattr(store, 'history', lambda *args: capture.append(args) or {'items': [], 'total': 0}, raising=False)
+    monkeypatch.setattr(store, 'history', lambda *args, **kwargs: capture.append(args) or {'items': [], 'total': 0}, raising=False)
     assert client.get('/api/history?page=2&origin=legacy&q=hello&state=failed').status_code == 200
     assert capture == [(2, 'legacy', 'hello', 'failed')]
     assert client.get('/api/history?state=invalid').status_code == 400
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise StoreUnavailable('연결 실패')
     monkeypatch.setattr(store, 'history', fail)
     assert client.get('/api/history').status_code == 502
@@ -203,3 +204,140 @@ def test_cached_foreign_running_job_is_not_interrupted_on_restart(setup, tmp_pat
         assert store.rows[row['id']]['job']['status'] == 'running'
     finally:
         restarted.pool.shutdown()
+
+
+def test_two_computers_start_independent_scripts_and_foreign_cache_does_not_block(tmp_path, monkeypatch):
+    store = MemoryStore()
+    monkeypatch.setattr(console, 'WORKER_ID', 'computer-a')
+    first = console.Jobs(tmp_path / 'a', store)
+    monkeypatch.setattr(first.pool, 'submit', lambda *args: None)
+    row_a = first.start(request(), None)
+    monkeypatch.setattr(console, 'WORKER_ID', 'computer-b')
+    second = console.Jobs(tmp_path / 'b', store)
+    monkeypatch.setattr(second.pool, 'submit', lambda *args: None)
+    try:
+        second.load(row_a['id'])
+        assert not second.busy()
+        row_b = second.start(request(), None)
+        assert row_a['id'] != row_b['id']
+        assert store.rows[row_a['id']]['job']['status'] == 'queued'
+        assert store.rows[row_a['id']]['job']['worker_id'] == 'computer-a'
+        assert row_b['worker_id'] == 'computer-b'
+        with pytest.raises(ValueError):
+            second.start(request(), None)
+    finally:
+        first.pool.shutdown()
+        second.pool.shutdown()
+
+
+def test_versioned_save_round_trip_and_conflict_never_runs_model(tmp_path, monkeypatch):
+    store = ScriptStore()
+    rows = {}
+    def transport(method, table, **kwargs):
+        if table == 'rpc/save_script_worker_job':
+            body = kwargs['body']; row = copy.deepcopy(body['p_row']); identity = row['id']
+            previous = rows.get(identity)
+            if previous and previous['revision'] != body['p_expected_revision']:
+                raise StoreUnavailable('version conflict')
+            row['revision'] = (previous['revision'] if previous else 0) + 1
+            rows[identity] = row
+            return row['revision'], None
+        if table == 'script_worker_jobs':
+            if kwargs.get('params', {}).get('status'):
+                return [], 0
+            return [rows[kwargs['params']['id'][3:]]], 1
+        return [], 0
+    monkeypatch.setattr(store, 'request', transport)
+    jobs = console.Jobs(tmp_path, store)
+    submitted = []
+    monkeypatch.setattr(jobs.pool, 'submit', lambda *args: submitted.append(args))
+    try:
+        row = jobs.start(request(), None)
+        assert jobs.rows[row['id']]['storage_revision'] == 1
+        bundle = store.get(row['id'])
+        assert bundle['job']['storage_revision'] == 1
+        assert 'storage_revision' not in rows[row['id']]['job_record']
+        jobs.update(row['id'], status='failed')
+        assert jobs.rows[row['id']]['storage_revision'] == 2
+        with pytest.raises(StoreUnavailable):
+            store.save(bundle)
+        jobs.inflight.clear()
+        monkeypatch.setattr(store, 'save', lambda bundle: (_ for _ in ()).throw(StoreUnavailable('conflict')))
+        with pytest.raises(StoreUnavailable):
+            jobs.start(request(), None)
+        assert len(submitted) == 1
+    finally:
+        jobs.pool.shutdown()
+
+
+def test_two_worker_executors_run_at_the_same_time(tmp_path, monkeypatch):
+    import threading
+    from worker import codex_local_workflow
+    barrier = threading.Barrier(3)
+    release = threading.Event()
+    def produce(*args, **kwargs):
+        barrier.wait(timeout=5)
+        assert release.wait(5)
+        return {'script': 'parallel execution probe'}
+    monkeypatch.setattr(codex_local_workflow, 'produce', produce)
+    store = MemoryStore()
+    first = console.Jobs(tmp_path / 'a', store); first.worker_id = 'parallel-a'
+    second = console.Jobs(tmp_path / 'b', store); second.worker_id = 'parallel-b'
+    try:
+        a = first.start(request(), None)
+        b = second.start(request(), None)
+        barrier.wait(timeout=5)
+        assert len(store.active()) == 2
+        assert store.rows[a['id']]['job']['status'] == 'running'
+        assert store.rows[b['id']]['job']['status'] == 'running'
+    finally:
+        release.set()
+        first.pool.shutdown(wait=True)
+        second.pool.shutdown(wait=True)
+    assert store.rows[a['id']]['job']['status'] == 'awaiting_approval'
+    assert store.rows[b['id']]['job']['status'] == 'awaiting_approval'
+
+
+def test_committed_revision_survives_secondary_write_failure(tmp_path, monkeypatch):
+    store = ScriptStore()
+    attempts = []
+    offline = [True]
+    def transport(method, table, **kwargs):
+        if table == 'rpc/save_script_worker_job':
+            attempts.append(kwargs['body']['p_expected_revision'])
+            return len(attempts), None
+        if offline[0]:
+            raise StoreUnavailable('secondary write offline')
+        return [], 0
+    monkeypatch.setattr(store, 'request', transport)
+    jobs = console.Jobs(tmp_path, store)
+    identity = 'a' * 32
+    jobs.rows[identity] = {'id': identity, 'title': 'test', 'mode': 'new',
+        'status': 'awaiting_approval', 'worker_id': jobs.worker_id, 'created_at': 1, 'updated_at': 1}
+    console.write_json(tmp_path / identity / 'candidate.json', {'script': 'saved output'})
+    try:
+        jobs.sync(identity)
+        assert jobs.rows[identity]['storage_revision'] == 1
+        assert jobs.rows[identity]['sync_status'] == 'pending'
+        offline[0] = False
+        jobs.sync(identity, required=True)
+        assert attempts == [None, 1]
+        assert jobs.rows[identity]['storage_revision'] == 2
+        assert jobs.rows[identity]['sync_status'] == 'synced'
+    finally:
+        jobs.pool.shutdown()
+
+
+def test_pre_revision_recovery_adopts_only_untouched_migration_baseline(tmp_path):
+    store = MemoryStore()
+    identity = 'b' * 32
+    old = {'id': identity, 'status': 'running', 'worker_id': console.WORKER_ID}
+    console.write_json(tmp_path / identity / 'job.json', old)
+    store.rows[identity] = {'job': {**old, 'storage_revision': 0}}
+    jobs = console.Jobs(tmp_path, store)
+    try:
+        jobs.connect()
+        assert jobs.rows[identity]['storage_revision'] == 0
+        assert store.rows[identity]['job']['status'] == 'interrupted'
+    finally:
+        jobs.pool.shutdown()

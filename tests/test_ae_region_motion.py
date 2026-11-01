@@ -75,3 +75,38 @@ def test_emitted_ae_script_parents_before_animation_and_preserves_rig_data(tmp_p
     assert payload['regions'][0]['walkPart'] == 'lower'
     assert payload['regions'][0]['parentId'] == 'thigh'
     assert payload['regions'][0]['phaseOffset'] == .5
+
+
+def test_region_preparation_stops_when_another_worker_owns_the_lease(monkeypatch, tmp_path):
+    import ae_region_motion_worker as worker
+    import project_assets
+    project = {'id': 'project', 'status': 'draft', 'submitted_at': None}
+    image = {'id': 'image', 'asset_type': 'image', 'scene_number': 1, 'status': 'uploaded',
+             'metadata': {'gcs_bucket': 'bucket', 'gcs_path': 'source.png'}}
+    job = {'id': 'job', 'project_id': 'project', 'status': 'assigned', 'scene_number': 1,
+           'updated_at': '2026-11-01T00:00:00+00:00', 'workflow_project': project,
+           'metadata': {'kind': 'region_layer_package', 'state': 'queued',
+                        'input': {'number': 1, 'image': image}}}
+    patches = []
+    class Response:
+        def __init__(self, rows): self.rows = rows
+        def json(self): return self.rows
+    def transport(method, url, headers, **kwargs):
+        if method == 'PATCH':
+            patches.append(kwargs)
+            if len(patches) == 1:
+                return Response([{**job, 'metadata': kwargs['json']['metadata']}])
+            return Response([])  # Another worker has taken ownership.
+        return Response([project] if url.endswith('std_projects') else [job])
+    monkeypatch.setattr(worker.ae, '_supabase', lambda: ('https://example.test', {}))
+    monkeypatch.setattr(worker.ae, '_request', transport)
+    monkeypatch.setattr(project_assets, 'read_project_assets', lambda *args: [image, job])
+    monkeypatch.setattr(worker.worker_config, 'TEMP_DIR', tmp_path)
+    monkeypatch.setattr(worker.ae, '_download_gcs_file', lambda *args: None)
+    uploads = []
+    monkeypatch.setattr(worker.ae, '_upload_gcs_file', lambda *args: uploads.append(args))
+    assert worker.process_one(stage='preparation') is True
+    assert len(patches) == 2
+    assert 'metadata->>lease' in patches[1]['params']
+    assert not uploads
+    assert not any(p['json'].get('metadata', {}).get('state') == 'failed' for p in patches)

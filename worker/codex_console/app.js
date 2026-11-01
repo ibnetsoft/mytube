@@ -89,7 +89,7 @@ async function refresh(){try{
   $('approval-count').textContent=data.cloud_summary?.approvals??data.jobs.filter(j=>j.status==='awaiting_approval').length;
   if(data.cloud_summary)$('job-count').textContent=data.cloud_summary.total??'—';
   $('output').textContent='작업·결과는 Database에 저장되며 로컬 복구본도 함께 보관됩니다.';
-  busy=Boolean(data.cloud_summary?.active)||data.jobs.some(j=>['running','queued'].includes(j.status));
+  busy=Boolean(data.local_busy);
   document.querySelector('#new-form button[type=submit]').disabled=busy; $('repair-start').disabled=busy||!currentSource; if($('topic-start'))$('topic-start').disabled=busy;
   if(window.refreshManagement)await window.refreshManagement(data);
 

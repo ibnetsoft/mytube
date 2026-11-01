@@ -46,16 +46,23 @@ def process_one(stage="postproduction"):
     meta.update(state='processing',lease=lease,error=None,progress='원본 확인')
     claimed=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'updated_at':'eq.'+job['updated_at']},json={'metadata':meta,'updated_at':ae._now()}).json()
     if not claimed:return False
-    stop=threading.Event()
+    stop=threading.Event();lost=threading.Event();guard=threading.Lock()
     def save(**changes):
-        meta.update(changes)
-        ae._request('PATCH',url,headers,params={'id':'eq.'+job['id'],'metadata->>lease':'eq.'+lease},json={'metadata':meta,'updated_at':ae._now()})
+        with guard:
+            if lost.is_set():raise RuntimeError('Region worker lease lost')
+            updated={**meta,**changes}
+            rows=ae._request('PATCH',url,{**headers,'Prefer':'return=representation'},params={'id':'eq.'+job['id'],'metadata->>lease':'eq.'+lease},json={'metadata':updated,'updated_at':ae._now()}).json()
+            if not rows:
+                lost.set();raise RuntimeError('Region worker lease lost')
+            meta.update(updated)
     def heartbeat():
         while not stop.wait(20):
-            try:ae._request('PATCH',url,headers,params={'id':'eq.'+job['id'],'metadata->>lease':'eq.'+lease},json={'updated_at':ae._now()})
-            except Exception:pass
+            try:save()
+            except Exception:
+                lost.set();return
     thread=threading.Thread(target=heartbeat,daemon=True);thread.start()
     def current():
+        if lost.is_set():raise RuntimeError('Region worker lease lost')
         projects=ae._request('GET',base+'/rest/v1/std_projects',headers,params={'select':'*','id':'eq.'+job['project_id']}).json()
         from project_assets import read_project_assets
         assets=[a for a in read_project_assets(ae._request,url,headers,job['project_id']) if a.get('status') in ('uploaded','assigned')]
@@ -87,7 +94,7 @@ def process_one(stage="postproduction"):
             current()
             files=[]
             for f in prepared.pop('files'):
-                b,p,u=ae._upload_gcs_file(f['path'],f"std-region-layers/{job['project_id']}/{job['id']}/{f['path'].name}",'image/png')
+                b,p,u=ae._upload_gcs_file(f['path'],f"std-region-layers/{job['project_id']}/{job['id']}/{lease}/{f['path'].name}",'image/png')
                 files.append({'role':f['role'],'gcs_bucket':b,'gcs_path':p,'sha256':hashlib.sha256(f['path'].read_bytes()).hexdigest()})
             current()
             save(state='prepared',progress='외곽선과 복원 배경 확인 필요',result={**prepared,'files':files})
@@ -107,11 +114,11 @@ def process_one(stage="postproduction"):
         check=directory/'source-current.png';ae._download_gcs_file(ae.GcsRef(bucket,path),check)
         if hashlib.sha256(check.read_bytes()).hexdigest()!=meta['input']['imageSha256']:raise ValueError('원본 이미지가 변경됐습니다.')
         save(progress='AE 결과 저장')
-        out_bucket,out_path,media_url=ae._upload_gcs_file(output,f"std-region-motion/{job['project_id']}/{job['id']}.mp4",'video/mp4')
+        out_bucket,out_path,media_url=ae._upload_gcs_file(output,f"std-region-motion/{job['project_id']}/{job['id']}/{lease}.mp4",'video/mp4')
         current()
         save(state='ready',progress='결과 확인 가능',result={'gcs_bucket':out_bucket,'gcs_path':out_path,'video_url':media_url,'duration_seconds':meta['input']['timeline']['duration'],'sha256':hashlib.sha256(output.read_bytes()).hexdigest()})
     except Exception as error:
-        save(state='failed',error=str(error)[:1200],progress='확인 필요')
+        if not lost.is_set():save(state='failed',error=str(error)[:1200],progress='확인 필요')
         print('Region motion failed:',job['id'],str(error),flush=True)
     finally:stop.set();thread.join(timeout=1)
     return True

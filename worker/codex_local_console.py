@@ -40,7 +40,7 @@ PORT = 3003
 ORIGIN = f'http://127.0.0.1:{PORT}'
 TOKEN = secrets.token_urlsafe(32)
 OUT = ROOT / 'output/codex-local-console'
-WORKER_ID = hashlib.sha256((socket.gethostname() + str(ROOT)).encode()).hexdigest()[:24]
+WORKER_ID = os.getenv('AIR_SCRIPT_WORKER_ID') or hashlib.sha256((socket.gethostname() + str(ROOT)).encode()).hexdigest()[:24]
 ASSETS = ROOT / 'worker/codex_console'
 DOCS = {'repair': ROOT / 'docs/리페어프로세스.md', 'new': ROOT / 'docs/신규생성프로세스.md'}
 app = FastAPI(title='AIR AI Local Worker', docs_url=None, redoc_url=None, openapi_url=None)
@@ -400,7 +400,7 @@ class Jobs:
         for path in root.glob('*/job.json'):
             try:
                 item = json.loads(path.read_text(encoding='utf-8'))
-                if item['status'] in ('queued', 'running') and item.get('worker_id', WORKER_ID) == WORKER_ID:
+                if item['status'] in ('queued', 'running') and item.get('worker_id', self.worker_id) == self.worker_id:
                     item.update(status='interrupted', stage='서버 재시작: 자동 재실행하지 않음', sync_status='pending', updated_at=time.time())
                     write_json(path, item)
                 self.rows[item['id']] = item
@@ -432,14 +432,19 @@ class Jobs:
             return
         with self.lock:
             item = self.rows[identity]
+            bundle = self.bundle(identity)
             try:
-                self.store.save(self.bundle(identity))
+                revision = self.store.save(bundle)
+                if revision is not None:
+                    item['storage_revision'] = revision
                 item.update(sync_status='synced', sync_error='')
             except StoreUnavailable as exc:
                 item.update(sync_status='pending', sync_error=str(exc))
                 if required:
                     raise
             finally:
+                if 'storage_revision' in bundle['job']:
+                    item['storage_revision'] = bundle['job']['storage_revision']
                 write_json(self.root / identity / 'job.json', item)
 
     def connect(self):
@@ -449,8 +454,18 @@ class Jobs:
             if self.cloud_ready:
                 return
             try:
+                # Upgrade pre-revision recovery copies only against the untouched
+                # migration baseline. Never adopt a newer remote version blindly.
+                for identity, item in self.rows.items():
+                    if 'storage_revision' not in item and item.get('sync_status') == 'pending':
+                        try:
+                            baseline = self.store.get(identity)['job']
+                        except ValueError:
+                            continue
+                        if baseline.get('storage_revision') == 0 and baseline.get('worker_id') == self.worker_id:
+                            item['storage_revision'] = 0
                 for remote in self.store.active():
-                    if remote['worker_id'] == WORKER_ID:
+                    if remote['worker_id'] == self.worker_id:
                         identity = remote['id']
                         if identity not in self.rows:
                             self.restore(self.store.get(identity))
@@ -489,11 +504,19 @@ class Jobs:
         with self.lock:
             return sorted((dict(r) for r in self.rows.values()), key=lambda r: r['created_at'], reverse=True)
 
+    def busy(self):
+        return bool(self.inflight) or any(
+            r['status'] in ('queued', 'running') and r.get('worker_id', self.worker_id) == self.worker_id
+            for r in self.rows.values())
+
     def start(self, request, snapshot, sources=None, retry_of=None, identity=None):
         with self.lock:
             self.connect()
-            if any(r['status'] in ('queued', 'running') for r in self.rows.values()):
+            if self.busy():
                 raise ValueError('이미 실행 또는 대기 중인 작업이 있습니다. 완료 후 시작하세요.')
+            previous = self.load(identity)['job'] if identity and retry_of == identity else None
+            if previous and previous['status'] not in ('failed', 'interrupted'):
+                raise ValueError('실패하거나 중단된 작업만 재실행할 수 있습니다.')
             identity = identity or uuid.uuid4().hex
             if len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity):
                 raise ValueError('잘못된 작업 ID입니다.')
@@ -508,7 +531,9 @@ class Jobs:
                     'era_region': setting['era_region'],
                     'image_style': setting['image_style'],
                     'content_setting': setting,
-                    'published': False, 'worker_id': WORKER_ID, 'retry_of': retry_of}
+                    'published': False, 'worker_id': self.worker_id, 'retry_of': retry_of}
+            if previous and 'storage_revision' in previous:
+                item['storage_revision'] = previous['storage_revision']
             self.rows[identity] = item
             write_json(self.root / identity / 'job.json', item)
             write_json(self.root / identity / 'request.json', request.model_dump())
@@ -762,7 +787,7 @@ def status():
         storage_error = str(exc)
     return {'jobs': jobs.listing(), 'codex_installed': bool(shutil.which(os.environ.get('CODEX_EXECUTABLE', 'codex'))),
             'script_model': 'gpt-6.1-sol', 'output': str(OUT), 'server': '대본 전용 워커 · Database 저장',
-            'cloud_summary': cloud_summary,
+            'cloud_summary': cloud_summary, 'worker_id': jobs.worker_id, 'local_busy': jobs.busy(),
             'storage': {'connected': jobs.cloud_ready and not storage_error, 'error': storage_error or jobs.cloud_error,
                         'pending': sum(r.get('sync_status') == 'pending' for r in jobs.rows.values())},
             'login_status': '미확인 — CLI 설치 확인은 로그인/실행 성공을 보장하지 않습니다.'}
@@ -970,7 +995,7 @@ def review_web_topic(identity: str, request: SubmissionReview):
                 return review_submission(store, identity, 'rejected', request.note.strip())
             generation = StartRequest.model_validate(generation_request(row))
             jobs.connect()
-            if store.active() or any(r['status'] in ('queued', 'running') for r in jobs.rows.values()):
+            if jobs.busy():
                 raise ValueError('대본 작업이 실행 중입니다. 완료 후 승인하세요.')
             # Claim once before invoking any model; a second console cannot approve again.
             claimed = review_submission(store, identity, 'approved', request.note.strip())

@@ -52,14 +52,17 @@ class ScriptStore:
         job = dict(bundle['job'])
         job.pop('sync_error', None)
         job.pop('sync_status', None)
+        revision = job.pop('storage_revision', None)
         row = {'id': job['id'], 'title': job['title'], 'mode': job['mode'],
                'status': job['status'], 'worker_id': job.get('worker_id', ''),
                'created_at': job['created_at'], 'updated_at': job['updated_at'],
                'job_record': job, 'request_data': bundle.get('request', {}),
                'source_snapshot': bundle.get('source', {}),
                'candidate': bundle.get('candidate', {}), 'reference_sources': bundle.get('references', [])}
-        self.request('POST', TABLE, params={'on_conflict': 'id'}, body=row,
-                     prefer='resolution=merge-duplicates,return=minimal')
+        saved_revision, _ = self.request('POST', 'rpc/save_script_worker_job',
+            body={'p_row': row, 'p_expected_revision': revision})
+        # Preserve the committed version even if a secondary write fails.
+        bundle['job']['storage_revision'] = saved_revision
         if row['candidate'] and job['mode'] != 'topics':
             from worker.script_guidelines import record_outcome
             record_outcome(self, job, row['request_data'], row['candidate'])
@@ -77,6 +80,7 @@ class ScriptStore:
                 'job_id': 'in.(' + ','.join(linked_ids) + ')'},
                 body={'job_id': job['id']}, prefer='return=minimal')
         self._stats_at = 0
+        return saved_revision
 
     def stats(self):
         if self._stats is not None and time.monotonic() - self._stats_at < 15:
@@ -95,7 +99,7 @@ class ScriptStore:
         if not rows:
             raise ValueError('저장된 작업을 찾지 못했습니다.')
         row = rows[0]
-        return {'job': row['job_record'], 'request': row['request_data'],
+        return {'job': {**row['job_record'], 'storage_revision': row['revision']}, 'request': row['request_data'],
                 'source': row['source_snapshot'], 'candidate': row['candidate'],
                 'references': row['reference_sources']}
 
