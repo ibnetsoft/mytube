@@ -47,5 +47,7 @@ def main():
             if not find_aerender():raise SystemExit('After Effects aerender was not found')
             print('Local media prerequisites available; FFmpeg: '+imageio_ffmpeg.get_ffmpeg_exe());return
         module='worker.local_media_supervisor'
-    sys.argv=[module,*extra];runpy.run_module(module,run_name='__main__')
+    # FastAPI resolves postponed request annotations through sys.modules.
+    # Register the console's actual __main__ globals while its server runs.
+    sys.argv=[module,*extra];runpy.run_module(module,run_name='__main__',alter_sys=True)
 if __name__=='__main__':main()
