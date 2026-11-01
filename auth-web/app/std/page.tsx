@@ -2151,7 +2151,10 @@ export default function StdPortalPage() {
     const projectTitleContent = (project: any, fallback: string) => {
         const title = getProjectSyncedTitle(project) || fallback
         const localizedTitle = localizedProjectTitle(project?.project || project, currentLocale)
+        const data = project?.project || project
+        const topicNumber = data?.topic_queue_id ?? data?.project_payload?.topic_queue_id ?? data?.source_payload?.topic_queue_id ?? data?.project_payload?.topic_id
         return <>
+            {topicNumber != null && <span className="block text-[7px] font-medium leading-tight text-blue-100/70">#{topicNumber}</span>}
             <span className="block truncate">{title}</span>
             {localizedTitle && <span className="mt-0.5 block truncate text-[10px] font-medium leading-4 text-blue-100/70">{localizedTitle}</span>}
         </>
@@ -11474,6 +11477,7 @@ export default function StdPortalPage() {
                                                         </div>
                                                     )}
                                                     <div className="min-w-0 flex-1">
+                                                        <div className="mb-1 text-[10px] font-medium leading-none text-gray-400">#{topic.id}</div>
                                                         <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-3 leading-snug">
                                                             {topicSourceTitle(topic)}
                                                         </h4>
