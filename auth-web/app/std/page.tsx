@@ -4541,29 +4541,28 @@ export default function StdPortalPage() {
                 if (!impersonateQuery) return path
                 return `${path}${path.includes('?') ? '&' : '?'}${impersonateQuery}`
             }
-            const [meRes, topicsRes, projectsRes, voicesRes] = await Promise.allSettled([
-                fetch(withImpersonation('/api/std/me'), { headers, signal: AbortSignal.timeout(15000) }),
+            // Authenticate independently so the stable application chrome can render
+            // while slower project, topic and voice requests are still in flight.
+            const pendingMe = fetch(withImpersonation('/api/std/me'), { headers, signal: AbortSignal.timeout(15000) })
+            const pendingData = Promise.allSettled([
                 fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers, signal: AbortSignal.timeout(15000) }),
                 fetch(withImpersonation('/api/std/projects'), { headers, signal: AbortSignal.timeout(15000) }),
-                fetch(withImpersonation('/api/std/voices'), { headers, signal: AbortSignal.timeout(15000) }),
             ])
-
+            void fetch(withImpersonation('/api/std/voices'), { headers, signal: AbortSignal.timeout(15000) })
+                .then(response => safeParseJson(response, ''))
+                .then(voiceData => {
+                    if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
+                        setAllVoices(voiceData.voices)
+                        setSelectedVoice(prev => voiceData.voices.some((voice: any) => voice.id === prev) ? prev : voiceData.voices[0].id)
+                    }
+                }).catch(() => {})
+            const [meRes] = await Promise.allSettled([pendingMe])
             let meData: any = {}
             let topicPayload: any = {}
             let projectPayload: any = {}
-
             if (meRes.status === 'fulfilled') meData = await safeParseJson(meRes.value, '')
-            if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
-            if (projectsRes.status === 'fulfilled') projectPayload = await safeParseJson(projectsRes.value, '')
-            if (voicesRes.status === 'fulfilled') {
-                const voiceData = await safeParseJson(voicesRes.value, '')
-                if (Array.isArray(voiceData?.voices) && voiceData.voices.length > 0) {
-                    setAllVoices(voiceData.voices)
-                    setSelectedVoice(prev => voiceData.voices.some((voice: any) => voice.id === prev) ? prev : voiceData.voices[0].id)
-                }
-            }
 
-            if (meData?.user) {
+            if (meRes.status === 'fulfilled' && meRes.value.ok && meData?.user) {
                 setUser(meData.user)
                 if (meData.user.full_name) setSettingName(meData.user.full_name)
                 if (meData.user.nationality) setSettingNationality(meData.user.nationality)
@@ -4589,6 +4588,11 @@ export default function StdPortalPage() {
                 }
                 throw new Error('인증 서버가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.')
             }
+
+            setAuthChecking(false)
+            const [topicsRes, projectsRes] = await pendingData
+            if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
+            if (projectsRes.status === 'fulfilled') projectPayload = await safeParseJson(projectsRes.value, '')
 
             const loadedTopics = Array.isArray(topicPayload?.topics) ? topicPayload.topics : []
             const seenTopicKeys = new Set<string>()
@@ -4698,14 +4702,14 @@ export default function StdPortalPage() {
                         Authorization: `Bearer ${impToken}`,
                         'x-impersonate-email': cleanEmail,
                     }
-                    const [meRes, pRes, tRes] = await Promise.allSettled([
-                        fetch(`/api/std/me?impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
+                    const pendingMe = fetch(`/api/std/me?impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) })
+                    const pendingData = Promise.allSettled([
                         fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
                         fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
                     ])
-                    const meData = meRes.status === 'fulfilled' ? await meRes.value.json().catch(() => ({})) : {}
-                    const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
-                    const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
+                    const meResponse = await pendingMe
+                    const meData = await meResponse.json().catch(() => ({}))
+                    if (!meResponse.ok || !meData?.user) throw new Error('사용자 인증을 확인하지 못했습니다.')
 
                     if (meData?.user) {
                         setUser(meData.user)
@@ -4724,6 +4728,11 @@ export default function StdPortalPage() {
                             if (mapped.length > 0) setSelectedCategories(mapped)
                         }
                     }
+
+                    setAuthChecking(false)
+                    const [pRes, tRes] = await pendingData
+                    const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
+                    const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
 
                     const loadedProjects = Array.isArray(pData?.projects) ? pData.projects : []
                     const loadedTopics = Array.isArray(tData?.topics) ? tData.topics : []
@@ -4745,6 +4754,8 @@ export default function StdPortalPage() {
                     }
                 } catch (err) {
                     console.error('Failed to load impersonated user data:', err)
+                    setUser(null)
+                    setToken('')
                 } finally {
                     setAuthChecking(false)
                 }
@@ -7798,10 +7809,19 @@ export default function StdPortalPage() {
 
     if (authChecking) {
         return (
-            <main className="min-h-screen bg-[#14181f] text-gray-100 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="w-8 h-8 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-                    <p className="text-xs font-black tracking-widest text-blue-400 uppercase">AIR STUDIO STD Loading...</p>
+            <main className="h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col" aria-busy="true">
+                <div className="h-14 shrink-0 border-b border-white/10 bg-[#181d26] flex items-center px-5">
+                    <span className="font-black text-sm text-white">AIR STUDIO</span>
+                </div>
+                <div className="flex flex-1 min-h-0">
+                    <aside aria-hidden="true" className="hidden sm:flex w-56 shrink-0 flex-col gap-4 border-r border-white/10 bg-[#181d26] p-4">
+                        {[0,1,2,3,4,5].map(item => <div key={item} className="h-8 rounded bg-white/5 animate-pulse" />)}
+                    </aside>
+                    <div role="status" className="flex-1 p-6 text-sm text-gray-400">
+                        <div className="h-9 w-56 max-w-full rounded bg-white/5 animate-pulse mb-5" />
+                        <div className="h-40 max-w-3xl rounded-xl bg-white/5 animate-pulse mb-4" />
+                        화면을 불러오는 중입니다…
+                    </div>
                 </div>
 
                 {/* 이용약관 & 개인정보처리방침 팝업 모달 */}
@@ -9096,11 +9116,11 @@ export default function StdPortalPage() {
                         : 'p-2 sm:p-5 md:p-6 overflow-y-auto'
                 }`}>
                     {!selectedProject && ['image_gen', 'subtitle_vrew', 'thumbnail'].includes(currentNav) && (
-                        <div role={projectLoading ? 'status' : 'alert'} className="rounded-xl border border-white/10 bg-[#1c2129] p-6 text-gray-200">
-                            <p>{projectLoading
+                        <div role={projectLoading || loading ? 'status' : 'alert'} className="rounded-xl border border-white/10 bg-[#1c2129] p-6 text-gray-200">
+                            <p>{projectLoading || loading
                                 ? ({ ko: '프로젝트를 불러오는 중입니다…', en: 'Loading project…', vi: 'Đang tải dự án…', th: 'กำลังโหลดโปรเจกต์…' }[currentLocale])
                                 : ({ ko: '프로젝트를 불러오지 못했습니다. 다시 시도해 주세요.', en: 'Could not load the project. Please try again.', vi: 'Không thể tải dự án. Vui lòng thử lại.', th: 'ไม่สามารถโหลดโปรเจกต์ได้ โปรดลองอีกครั้ง' }[currentLocale])}</p>
-                            {!projectLoading && (
+                            {!projectLoading && !loading && (
                                 <button className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white" onClick={() => {
                                     const projectId = readUrlProjectId() || projects[0]?.id
                                     if (projectId) void openProject(projectId)
