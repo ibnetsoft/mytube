@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SupportedLocale } from '@/lib/i18n'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
+import { detectSpeakerPortrait, speakerPortraitStyle } from '@/lib/stdSpeakerPortrait'
 import { normalizeSpeakerGender, speakerNameLabel, type SpeakerInfo, type SpeakerNameTranslations } from '@/lib/stdSpeakerAssignment'
 
 const COPY = {
@@ -142,7 +143,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
                             onChange={() => chooseName(value)} className="h-4 w-4 shrink-0 accent-sky-400" />
                         {thumbnailUrl && !failedThumbnails.includes(thumbnailUrl) ? <button type="button"
                             aria-label={`${speakerNameLabel(value, characters, locale, nameTranslations)}: ${copy.enlarge}`}
-                            className="h-10 w-10 shrink-0 cursor-zoom-in overflow-hidden rounded-md border border-white/10 bg-black/25 hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+                            className="relative h-10 w-10 shrink-0 cursor-zoom-in overflow-hidden rounded-md border border-white/10 bg-black/25 hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
                             onClick={event => {
                                 event.preventDefault(); event.stopPropagation()
                                 previewTrigger.current = event.currentTarget
@@ -157,7 +158,7 @@ export default function SubtitleSpeakerEditor({ speaker, names, characters = [],
                             }}>
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={thumbnailUrl} alt="" width={40} height={40} draggable={false}
-                                    className="h-full w-full object-cover" onError={() => setFailedThumbnails(previous => [...previous, thumbnailUrl])} />
+                                    className="h-full w-full object-cover" style={speakerPortraitStyle(character)} onLoad={event => detectSpeakerPortrait(event.currentTarget, character)} onError={() => setFailedThumbnails(previous => [...previous, thumbnailUrl])} />
                             </button> : <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/25 text-gray-500">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6">
                                 <circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" />

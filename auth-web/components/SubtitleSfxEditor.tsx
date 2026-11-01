@@ -3,6 +3,7 @@ import { stdUiText } from '@/lib/stdUiText'
 import type { SupportedLocale } from '@/lib/i18n'
 import type { SpeakerInfo } from '@/lib/stdSpeakerAssignment'
 import { persistentThumbnailUrl } from '@/lib/stdThumbnailUrl'
+import { detectSpeakerPortrait, speakerPortraitStyle } from '@/lib/stdSpeakerPortrait'
 import { Fragment, useState, useEffect } from 'react'
 import SubtitleSfxPicker from '@/components/SubtitleSfxPicker'
 import { subtitleWords, sfxSubtitleIndex, wordBoundaryTime, resolveSfxCues, sfxNeedsReview } from '@/lib/stdSfxCues'
@@ -58,11 +59,14 @@ export default function SubtitleSfxEditor({ locale = 'ko', speaker, characters =
             onRegistered={onRegistered} onUpload={onUpload} disabled={saving} onChange={onSelect} onOpen={onPreviewOpen} />
         <div className="flex items-start gap-2">
             {speakerImageSrc && speakerImageSrc !== failedSpeakerImage && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={speakerImageSrc} alt={speaker?.label || speaker?.name || ''}
-                    title={speaker?.label || speaker?.name || ''} width={32} height={32} draggable={false}
-                    className="h-8 w-8 shrink-0 rounded-md border border-white/15 object-cover object-top"
-                    onError={() => setFailedSpeakerImage(speakerImageSrc)} />
+                <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md border border-white/15">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={speakerImageSrc} alt={speaker?.label || speaker?.name || ''}
+                        title={speaker?.label || speaker?.name || ''} width={32} height={32} draggable={false}
+                        className="h-full w-full object-cover object-top" style={speakerPortraitStyle(character)}
+                        onLoad={event => detectSpeakerPortrait(event.currentTarget, character)}
+                        onError={() => setFailedSpeakerImage(speakerImageSrc)} />
+                </span>
             )}
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1" aria-label={ui("단어 사이 효과음 삽입")}>
                 {Array.from({ length: words.length + 1 }, (_, boundary) => <Fragment key={boundary}>
