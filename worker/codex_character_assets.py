@@ -266,7 +266,7 @@ class CharacterAssetStore:
                                          "archetype", "facial_signature", "silhouette_signature",
                                          "prop_behavior_signature", "palette", "reference_sheet_prompt",
                                          "scene_variation_rules", "character_sheet_assets",
-                                         "character_sheet_status", "character_sheet_version", "character_sheet_profile", "face_distinctness_review") if key in result},
+                                         "character_sheet_status", "character_sheet_version", "character_sheet_profile", "face_distinctness_review", "front_face_thumbnail") if key in result},
                                      "cast_census": payload.get("_character_census") or result.get("cast_census"),
                                      "stage": "after_script_before_media_prompts"})
         self.request("POST", "/rest/v1/topic_character_assets", params={"on_conflict": "topic_queue_id,character_key"},
@@ -408,6 +408,13 @@ def generate_character_references(context: dict, payload: dict, config, output_d
         known[character['character_key']] = (published, portrait)
         published = ensure_model_sheet(published, payload, portrait, generator, store, topic_id, fingerprint)
         enriched.append(published)
+    if hasattr(reviewer, 'thumbnail') and hasattr(store, 'publish_sheet'):
+        for character in enriched:
+            path, metadata = reviewer.thumbnail(known[character['character_key']][1])
+            previous = character.get('front_face_thumbnail') or {}
+            if previous.get('source_sha256') != metadata['source_sha256'] or previous.get('sha256') != metadata['sha256'] or not previous.get('image_url'):
+                asset = store.publish_sheet(topic_id, character, 'front_face', path)
+                character['front_face_thumbnail'] = {**asset, **metadata}
     # Every final character must carry comparisons against every other final image,
     # including later generated cast members; caches are bound to actual bytes.
     for character in enriched:

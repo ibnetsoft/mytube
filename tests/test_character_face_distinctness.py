@@ -59,3 +59,68 @@ def test_saved_similar_cast_cannot_use_reuse_fast_path(tmp_path):
  store=Saved()
  with pytest.raises(RuntimeError,match='Saved character faces'):generate_character_references(context(),{'topic_queue_id':1},None,tmp_path,generator=Generator(tmp_path),store=store)
  assert not store.published and not store.saved
+
+def test_reverse_success_reuses_receipt_without_codex(tmp_path):
+ a=pixel(tmp_path,'a','red');b=pixel(tmp_path,'b','blue')
+ reviewer=FaceDistinctnessReviewer(None,tmp_path/'reviews')
+ identity=[POLICY,TASK,'B',sha(b),'A',sha(a)]
+ receipt=reviewer.directory/(hashlib.sha256(json.dumps(identity).encode()).hexdigest()+'.json')
+ receipt.write_text(json.dumps({'result':result()}))
+ proof=reviewer.review(character('A'),a,[(character('B'),b)])
+ assert proof['passed'] and proof['pairs'][0]['candidate_sha256']==sha(a)
+
+def test_frontal_crop_cached_and_invalidated_by_source_pixels(tmp_path,monkeypatch):
+ from types import SimpleNamespace
+ from worker.character_face_thumbnail import extract_front_face
+ import worker.character_face_thumbnail as module
+ source=pixel(tmp_path,'sheet','red');calls=[]
+ def run(command,**kwargs):
+  calls.append(command)
+  Path(command[command.index('--output-last-message')+1]).write_text(json.dumps({'front_facing':True,'box':[100,100,600,700]}))
+  return SimpleNamespace(returncode=0)
+ monkeypatch.setattr(module.subprocess,'run',run)
+ config=SimpleNamespace(executable='codex',timeout_seconds=10)
+ first,meta=extract_front_face(source,config,tmp_path/'faces')
+ assert Image.open(first).size==(512,512) and meta['source_sha256']==sha(source)
+ assert extract_front_face(source,None,tmp_path/'faces')[0]==first and len(calls)==1
+ pixel(tmp_path,'sheet','blue')
+ second,_=extract_front_face(source,config,tmp_path/'faces')
+ assert first!=second and len(calls)==2
+
+@pytest.mark.parametrize('count', [3,10])
+def test_multiple_faces_use_bounded_batch_calls_and_cache(tmp_path,monkeypatch,count):
+ from types import SimpleNamespace
+ import worker.character_face_distinctness as module
+ config=SimpleNamespace(executable='codex',timeout_seconds=10)
+ reviewer=FaceDistinctnessReviewer(config,tmp_path/'reviews')
+ monkeypatch.setattr(reviewer,'thumbnail',lambda p:(p,{}))
+ candidate=pixel(tmp_path,'candidate','red')
+ refs=[(character(str(i)),pixel(tmp_path,str(i),(i,40,90))) for i in range(count)]
+ calls=[]
+ def run(command,**kwargs):
+  calls.append(command)
+  n=command.count('--image')-1
+  rows=[{'reference_index':i,'result':result(i!=0)} for i in reversed(range(n))]
+  Path(command[command.index('--output-last-message')+1]).write_text(json.dumps({'results':rows}))
+  return SimpleNamespace(returncode=0)
+ monkeypatch.setattr(module.subprocess,'run',run)
+ proof=reviewer.review(character('A'),candidate,refs)
+ assert len(calls)==(count+7)//8 and len(proof['pairs'])==count
+ assert not proof['passed'] and not proof['pairs'][0]['result']['passed']
+ reviewer.review(character('A'),candidate,refs)
+ assert len(calls)==(count+7)//8
+
+@pytest.mark.parametrize('indices', [[0],[0,0],[0,2],[False,1]])
+def test_batch_missing_duplicate_or_unknown_results_cannot_approve(tmp_path,monkeypatch,indices):
+ from types import SimpleNamespace
+ import worker.character_face_distinctness as module
+ reviewer=FaceDistinctnessReviewer(SimpleNamespace(executable='codex',timeout_seconds=10),tmp_path/'reviews')
+ monkeypatch.setattr(reviewer,'thumbnail',lambda p:(p,{}))
+ candidate=pixel(tmp_path,'candidate','red')
+ refs=[(character(str(i)),pixel(tmp_path,str(i),(i,40,90))) for i in range(2)]
+ def run(command,**kwargs):
+  Path(command[command.index('--output-last-message')+1]).write_text(json.dumps({'results':[{'reference_index':i,'result':result()} for i in indices]}))
+  return SimpleNamespace(returncode=0)
+ monkeypatch.setattr(module.subprocess,'run',run)
+ with pytest.raises(RuntimeError,match='batch facial'):reviewer.review(character('A'),candidate,refs)
+ assert not list(reviewer.directory.glob('*.json')) or all(p.name.endswith('.response.json') for p in reviewer.directory.glob('*.json'))
