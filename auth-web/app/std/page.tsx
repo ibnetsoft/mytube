@@ -46,7 +46,6 @@ import { sfxSubtitleIndex } from '@/lib/stdSfxCues'
 import SubtitleSpeakerEditor from '@/components/SubtitleSpeakerEditor'
 import SubtitleVolumePicker from '@/components/SubtitleVolumePicker'
 import StdTemplateOverlay from '@/components/StdTemplateOverlay'
-import StdSubtitleOverlay from '@/components/StdSubtitleOverlay'
 import { templateOverlaySettings } from '@/lib/stdTemplateOverlay'
 import { charactersFromPayload } from '@/lib/stdCharacterProtection'
 import { subtitleSpeaker, assignSpeakerVoice, confirmSubtitleSpeaker, normalizeSpeakerGender } from '@/lib/stdSpeakerAssignment'
@@ -10021,7 +10020,7 @@ export default function StdPortalPage() {
                                                                                     {sfxSubtitleIndexes.has(item.subtitleIndex) && <span role="img" aria-label={ui("효과음 있음")} title={ui("효과음이 배치된 자막")} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/50 bg-purple-500/10 text-[11px] leading-none text-purple-100">★</span>}
                                                                                     <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
                                                                                         {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={ui('화자 정보 편집 (TTS·영상 자막 제외)')} className={`mr-2 shrink-0 rounded border px-1.5 py-1 text-[10px] ${speakerInfo?.gender === 'female' ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : speakerInfo?.gender === 'male' ? 'border-sky-200 bg-sky-300/90 text-sky-950' : 'border-amber-300/30 text-amber-200'}`}>{speakerInfo?.label || ui('화자 확인 필요')}{speakerInfo?.gender !== 'male' && speakerInfo?.gender !== 'female' ? ' · ?' : ''}</button>}
-                                                                                        <span className="min-w-0 flex-1 whitespace-pre-wrap break-words" title={String(item.text || '')}>
+                                                                                        <span className="min-w-0 truncate" title={String(item.text || '')}>
                                                                                             {candidates.length ? (() => {
                                                                                                 const parts: React.ReactNode[] = []
                                                                                                 let cursor = 0
@@ -10057,7 +10056,7 @@ export default function StdPortalPage() {
                                                                                     </div>
                                                                                     {subtitleReviewLocale && subtitleReviewCopy && (
                                                                                         <div
-                                                                                            className="min-w-0 flex-1 whitespace-pre-wrap break-words border-l border-sky-400/20 pl-2 text-sky-200"
+                                                                                            className="min-w-0 flex-1 truncate border-l border-sky-400/20 pl-2 text-sky-200"
                                                                                             lang={subtitleReviewLocale}
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
@@ -10311,10 +10310,25 @@ export default function StdPortalPage() {
                                                     bottom: `${subPosY}%`,
                                                 }}
                                             >
-                                                <StdSubtitleOverlay text={String(currentSub.text || '')} fontFamily={subFontFamily}
-                                                    fontSize={Number(subFontSize)} color={subTextColor} strokeWidth={Number(subStrokeWidth) || 0}
-                                                    strokeColor={subStrokeColor} lineSpacing={Number(subLineSpacing) || 0}
-                                                    backgroundColor={subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent'} />
+                                                <div
+                                                    className="inline-block"
+                                                    style={{
+                                                        fontFamily: subFontFamily,
+                                                        color: subTextColor,
+                                                        // Same 440px reference canvas as services/subtitle_layout.py.
+                                                        fontSize: `${Math.min(22, Math.max(13, Number(subFontSize) * 2.8)) / 4.4}cqw`,
+                                                        padding: '0.3em 0.6em',
+                                                        borderRadius: '0.25em',
+                                                        fontWeight: 400,
+                                                        whiteSpace: 'nowrap',
+                                                        lineHeight: '1',
+                                                        WebkitTextStroke: `${Math.max(0, Number(subStrokeWidth) || 0) / 19.2}cqw ${subStrokeColor}`,
+                                                        paintOrder: 'stroke fill',
+                                                        backgroundColor: subBgStrip ? hexToRgba(subBgColor, subBgOpacity) : 'transparent',
+                                                    }}
+                                                >
+                                                    {currentSub.text}
+                                                </div>
                                             </div>
                                                 )
                                             })()}
