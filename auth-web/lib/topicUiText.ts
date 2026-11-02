@@ -1,6 +1,7 @@
 // Translate UI labels only; never translate user input, API identifiers or source data.
 import { STD_WORKSPACE_COPY } from './stdWorkspaceLocale'
 const thai: Record<string, string> = {
+    "일본판타지": "แฟนตาซีญี่ปุ่น",
     "일본사건 · 현대 애니메이션": "เรื่องราวเหตุการณ์ญี่ปุ่น · แอนิเมชันยุคปัจจุบัน",
     "일본사건: 한국 영상 URL을 입력하면 원본 길이에 맞춰 일본 이름·지명·생활 배경으로 각색합니다. 초반 18씬은 영상, 이후는 이미지입니다.": "เหตุการณ์ญี่ปุ่น: ใส่ URL วิดีโอเกาหลีเพื่อดัดแปลงชื่อ สถานที่ และวิถีชีวิตเป็นญี่ปุ่นตามความยาวต้นฉบับ 18 ฉากแรกใช้วิดีโอ หลังจากนั้นใช้ภาพ",
     "일본사건": "เรื่องราวเหตุการณ์ญี่ปุ่น",
@@ -173,6 +174,7 @@ const thai: Record<string, string> = {
     "{count}개 씬": "{count} ฉาก"
 }
 const vietnamese: Record<string, string> = {
+    "일본판타지": "Giả tưởng Nhật Bản",
     "토픽 등록": "Đăng ký chủ đề",
     "이야기와 참고 자료를 등록하세요. 로컬 대본워커에서 검토·승인 후 대본 작성을 시작합니다.": "Nhập câu chuyện và tài liệu tham khảo. Worker viết kịch bản cục bộ bắt đầu sau khi duyệt.",
     "토픽 제목 *": "Tiêu đề chủ đề *",
@@ -337,6 +339,7 @@ const vietnamese: Record<string, string> = {
 }
 
 const english: Record<string, string> = {
+    "일본판타지": "Japanese Fantasy",
     "日本昔話": "Japanese Folktales",
     "옛날이야기": "Folktales",
     "원본 주제 내용": "Original topic",
