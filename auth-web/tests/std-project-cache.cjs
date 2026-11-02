@@ -37,7 +37,7 @@ test('project list calculates badges from projected status without downloading f
  const context={id:'p',progress_payload:{subtitle_tts_completed:true},project_payload:{script:'saved'}}
  let contexts=[context]
  const db={from:table=>{
-  const query={select:columns=>{assert.ok(!columns.split(',').includes('project_payload'));return query},eq:()=>query,order:()=>query,in:()=>query,range:async()=>({data:[]}),then:resolve=>Promise.resolve({data:[{id:'p',title:'Project'}]}).then(resolve)}
+  const query={select:columns=>{assert.ok(!columns.split(',').includes('project_payload'));return query},eq:()=>query,is:()=>query,order:()=>query,in:()=>query,range:async()=>({data:[]}),then:resolve=>Promise.resolve({data:[{id:'p',title:'Project'}]}).then(resolve)}
   return query
  }}
  const mocks={

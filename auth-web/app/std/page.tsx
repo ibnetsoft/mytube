@@ -4591,6 +4591,22 @@ export default function StdPortalPage() {
             }
 
             setAuthChecking(false)
+            // A direct or remembered project does not depend on the topic/project lists.
+            // Start its authorized read while those independent requests are still running.
+            const urlProjectId = readUrlProjectId()
+            const savedProjectStateRaw = !isImpersonating ? localStorage.getItem('std_active_project_state') : null
+            const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
+            const preferredProjectId = urlProjectId || savedActiveProjectId
+            if (urlProjectId && !isImpersonating) {
+                localStorage.removeItem(projectStateCacheKey(urlProjectId))
+                if (savedActiveProjectId === urlProjectId) {
+                    localStorage.removeItem('std_active_project_state')
+                }
+            }
+            const preferredOpening = preferredProjectId
+                ? openProject(preferredProjectId, accessToken, undefined, options.forceRefresh).catch(() => null)
+                : null
+            const openingGeneration = mediaScopeRef.current.generation
             const [topicsRes, projectsRes] = await pendingData
             if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
             if (projectsRes.status === 'fulfilled') projectPayload = await safeParseJson(projectsRes.value, '')
@@ -4615,20 +4631,9 @@ export default function StdPortalPage() {
             }
 
             // 1. 로컬 저장소에 저장된 활성 프로젝트 복원 시도 (임퍼소네이트 모드가 아닐 때만)
-            const urlProjectId = readUrlProjectId()
-            const savedProjectStateRaw = !isImpersonating ? localStorage.getItem('std_active_project_state') : null
-            const savedActiveProjectId = !isImpersonating ? localStorage.getItem('std_active_project_id') : null
-            const preferredProjectId = urlProjectId || savedActiveProjectId
-            if (urlProjectId && !isImpersonating) {
-                localStorage.removeItem(projectStateCacheKey(urlProjectId))
-                if (savedActiveProjectId === urlProjectId) {
-                    localStorage.removeItem('std_active_project_state')
-                }
-            }
-
             if (preferredProjectId) {
-                const openedProject = await openProject(preferredProjectId, accessToken, undefined, options.forceRefresh).catch(() => null)
-                if (!openedProject?.project?.id && !urlProjectId && loadedProjects.length > 0 && loadedProjects[0].id !== preferredProjectId) {
+                const openedProject = await preferredOpening
+                if (openingGeneration === mediaScopeRef.current.generation && !openedProject?.project?.id && !urlProjectId && loadedProjects.length > 0 && loadedProjects[0].id !== preferredProjectId) {
                     await openProject(loadedProjects[0].id, accessToken, undefined, options.forceRefresh).catch(() => {})
                 }
             } else if (loadedProjects.length > 0) {
