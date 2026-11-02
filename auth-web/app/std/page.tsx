@@ -9736,12 +9736,6 @@ export default function StdPortalPage() {
                                         </div>
                                     </div>
 
-                                    {isVrewSubtitleMode && message && (
-                                        <div role="status" aria-live="polite" data-subtitle-action-status
-                                            className="shrink-0 border-b border-cyan-400/20 bg-[#172333] px-3 py-2 text-xs text-cyan-100">
-                                            {message}
-                                        </div>
-                                    )}
 
                                     {/* 자막 카드 목록 */}
                                     <div className="flex flex-1 overflow-hidden">
@@ -10677,6 +10671,12 @@ export default function StdPortalPage() {
                                         speakerProgress={dialogueSpeakerProgress}
                                         onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev && prev.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
                                         selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />
+                                    {isVrewSubtitleMode && message && (
+                                        <div role="status" aria-live="polite" data-subtitle-action-status
+                                            className="order-5 rounded-lg border border-cyan-400/20 bg-[#172333] px-3 py-2 text-xs text-cyan-100 lg:order-none">
+                                            {message}
+                                        </div>
+                                    )}
 
                                     </div>
                                 </div>
