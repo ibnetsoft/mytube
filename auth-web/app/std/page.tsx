@@ -9882,6 +9882,12 @@ export default function StdPortalPage() {
                                                         </div>
                                                         <div className="w-full min-w-0 flex-none sm:flex-1">
                                                             <div className="mb-1 flex flex-wrap items-center gap-1 sm:gap-2">
+                                                                <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
+                                                                    Scene {sNum}
+                                                                </span>
+                                                                <span className="hidden text-[10px] text-gray-500 sm:inline">
+                                                                    {group.subtitles.length} subtitle block{group.subtitles.length === 1 ? '' : 's'}
+                                                                </span>
                                                                 {directionBadges.map((badge: any) => {
                                                                     const BadgeIcon = badge.kind === 'eye' ? Eye
                                                                         : badge.kind === 'mouth' ? Mic
@@ -9962,7 +9968,7 @@ export default function StdPortalPage() {
                                                                 )}
                                                             </div>
                                                             {isVrewSubtitleMode ? (
-                                                                <div className="space-y-0">
+                                                                <div className="space-y-0.5">
                                                                     {group.subtitles.map((item: any, lineIndex: number) => {
                                                                         const speakerInfo = subtitleSpeakers[item.subtitleIndex]
                                                                         const speakerDisplayName = voiceDialogSpeakerName(speakerInfo, currentLocale)
@@ -10060,6 +10066,7 @@ export default function StdPortalPage() {
                                                                                             lang={subtitleReviewLocale}
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
+                                                                                            <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
                                                                                             {localizedTranslation || (item.translation_manual ? (
                                                                                                 <span className="inline-flex items-center gap-1.5">
                                                                                                     <span>{subtitleReviewLocale === 'th' ? 'แปล' : subtitleReviewLocale === 'vi' ? 'Dịch' : 'Translate'}</span>
