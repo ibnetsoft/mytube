@@ -10579,7 +10579,6 @@ export default function StdPortalPage() {
                                                     {uploadingKey === 'sfx-upload' ? ui('효과음 업로드·저장 중…') : ui('효과음 업로드 · 자막에 삽입')}
                                                 </button>
                                                 <p className="text-[11px] text-gray-400">{ui('BGM은 지정한 씬 구간에서 재생됩니다. 문 두드림 같은 소리는 효과음으로 업로드한 뒤 자막의 + 버튼으로 삽입하세요.')}</p>
-                                                {message && <p role="status" className="break-words text-xs text-cyan-200">{message}</p>}
                                                 {selectedProject && <SubtitleSfxPicker locale={currentLocale}
                                                     key={selectedProject.project.id} projectId={selectedProject.project.id} headers={authedJsonHeaders}
                                                     assets={(selectedProject.assets || []).filter(a => audioAssetRole(a) === 'sfx' && ['uploaded', 'assigned'].includes(a.status))}
