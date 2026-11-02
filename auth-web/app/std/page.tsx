@@ -9865,7 +9865,7 @@ export default function StdPortalPage() {
                                                                     {ui(sceneTransitionLabel(transitionEffect))}
                                                                 </div>
                                                             )}
-                                                            {isVrewSubtitleMode && !isHook && (
+                                                            {isVrewSubtitleMode && !isHook && !originalVideo && (
                                                                 <label className="mt-2 flex flex-col items-start gap-1 text-[9px] text-cyan-200">
                                                                     <select aria-label={`씬 ${sNum} 이미지 모션`} value={motionEffect}
                                                                         disabled={originalVideo || isSceneEffectSaving}
