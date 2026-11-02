@@ -62,6 +62,18 @@ test('revision changes preserve previous identity; timing-only edits do not chan
  next=lib.bindProjectContent({...f.project,project_payload:p},{...p,script:'new'})
  assert.equal(next.content_revision_history[0].script_revision,first)
 })
+test('an existing revision never uploads the large structure again', async () => {
+ let inserts=0
+ const db={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:{id:'existing'},error:null})})}),insert:async()=>{inserts++;return {error:null}}})}
+ await lib.persistContentRevision(db, fixture().project)
+ assert.equal(inserts,0)
+})
+test('a missing revision is captured and duplicate races remain harmless', async () => {
+ let inserts=0
+ const db={from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>({data:null,error:null})})}),insert:async()=>{inserts++;return {error:{code:'23505'}}}})}
+ await lib.persistContentRevision(db, fixture().project)
+ assert.equal(inserts,1)
+})
 test('zero-duration scenes are removed without changing the original narration clock', () => {
  const config={audio_duration:8,images:['one','silent','two'],image_timing_starts:[0,3,3],scene_numbers:[1,2,3],
   image_effects:['a','b','c'],render_settings:{scene_motion_speeds:[1,1,1],timing_locked_indices:[0,2]},

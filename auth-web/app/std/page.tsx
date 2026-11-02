@@ -3091,7 +3091,13 @@ export default function StdPortalPage() {
             }, authedJsonHeaders, options?.signal)
             setSelectedProject(prev => {
                 if (!prev || prev.project.id !== projectId) return prev
-                const updated = { ...prev, project }
+                const updatedProject = project.__subtitle_partial ? {
+                    ...prev.project, ...project,
+                    source_payload: prev.project.source_payload,
+                    project_payload: { ...prev.project.project_payload, ...project.project_payload,
+                        structure: prev.project.project_payload?.structure },
+                } : project
+                const updated = { ...prev, project: updatedProject }
                 rememberProjectState(updated)
                 return updated
             })

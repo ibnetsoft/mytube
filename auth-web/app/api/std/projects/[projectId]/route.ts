@@ -1,5 +1,5 @@
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
-import { bindProjectContent, persistContentRevision } from '@/lib/stdContentIdentity'
+import { bindProjectContent, persistContentRevision, projectContentIdentity, contentHash, speechText } from '@/lib/stdContentIdentity'
 import { projectReadCacheKey, readProjectResponse, cacheProjectResponse } from '@/lib/stdProjectReadCache'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { subtitleSpeechChanged } from '@/lib/stdSubtitleSpeakerProgress'
@@ -18,6 +18,7 @@ import { isStdVideoPromptScene } from '@/lib/stdPolicy'
 import { getStdProjectRenderHistory } from '@/lib/stdRenderQueue'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
 import { sceneImageUrl } from '@/lib/stdSceneMediaUrl'
+import { stripPostworkDirection } from '@/lib/stdUserWebPayload'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -270,14 +271,14 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!initialVersion || (!requesterEmail.startsWith('admin') && !requesterEmail.startsWith('worker') && requesterEmail !== String(initialVersion.employee_email || '').toLowerCase())) {
         return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     }
-    const etag = `"std-read-v1-${initialVersion.version}"`
+    const etag = `"std-read-v2-${initialVersion.version}"`
     const readHeaders = { 'Cache-Control': 'private, no-cache', ETag: etag, Vary: 'Authorization, x-impersonate-email' }
     const forceRefresh = req.headers.get('x-std-refresh') === '1'
     if (!forceRefresh && req.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: readHeaders })
     const cacheKey = projectReadCacheKey(requesterEmail, params.projectId, initialVersion.version)
     if (!forceRefresh) {
         const cached = await readProjectResponse(cacheKey)
-        if (cached) return NextResponse.json(cached, { headers: readHeaders })
+        if (cached) return NextResponse.json(stripPostworkDirection(cached), { headers: readHeaders })
     }
     let query = supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId)
     if (auth.requester.email && !auth.requester.email.startsWith('admin') && !auth.requester.email.startsWith('worker')) {
@@ -312,7 +313,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
             .select('id,project_id,scene_number,scene_title,scene_text,image_prompt,video_prompt,asset_status,metadata,created_at,updated_at')
             .eq('project_id', project.id)
             .order('scene_number', { ascending: true }),
-        loadStdProjectAssets(supabaseAdmin, project.id, 'id,project_id,scene_id,scene_number,asset_type,drive_file_id,drive_folder_id,file_name,mime_type,file_size,status,metadata,created_at,updated_at'),
+        loadStdProjectAssets(supabaseAdmin, project.id, 'id,project_id,scene_id,scene_number,asset_type,drive_file_id,drive_folder_id,file_name,mime_type,file_size,status,metadata,created_at,updated_at', { excludeContentRevisions: true }),
     ])
 
     if (scenesError) return NextResponse.json({ success: false, error: scenesError.message }, { status: 500 })
@@ -345,7 +346,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     // Resolve private media on demand through the authorized asset reader. Signing every
     // historical TTS/image/video object here delays the entire project response.
-    const enrichedAssets = (assets || []).map((asset: any) => {
+    const enrichedAssets = (assets || []).filter((asset: any) => asset?.metadata?.kind !== 'content_revision').map((asset: any) => {
         const metadata = asset?.metadata || {}
         const storageBucket = metadata?.storage_bucket || CONTENT_ASSETS_BUCKET
         const storagePath = metadata?.storage_path
@@ -387,7 +388,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         progress_payload: protectCharacterReferenceUrls(project.progress_payload, project.id),
     }
 
-    const responsePayload = {
+    const responsePayload = stripPostworkDirection({
         success: true,
         project: protectedProject,
         scenes: (scenes || []).map((scene, index) => hydrateSceneMedia(
@@ -397,7 +398,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         )),
         assets: enrichedAssets,
         render_history: renderHistory,
-    }
+    })
     // Do not label a response with a version that changed while assembling it.
     const finalVersion = await fingerprint().catch(() => null)
     if (finalVersion?.version === initialVersion.version) {
@@ -420,13 +421,21 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
 
-    let { data: project, error: projectError } = await supabaseAdmin
+    const compactSubtitleSave = body?.render_settings_scope === 'subtitle'
+        && Array.isArray(body?.project_payload?.subtitles)
+        && Object.keys(body.project_payload).every(key => ['subtitles', 'subtitles_saved', 'render_settings'].includes(key))
+        && Object.keys(body.progress_payload || {}).every(key => ['subtitles_saved', 'subtitles_completed', 'subtitle_tts_completed', 'subtitle_tts_completed_at'].includes(key))
+        && Object.keys(body).every(key => ['render_settings_scope', 'project_payload', 'progress_payload', 'deleted_subtitle_scene_numbers'].includes(key))
+    let { data: project, error: projectError } = compactSubtitleSave
+        ? await supabaseAdmin.rpc('std_subtitle_save_context', { p_project_id: params.projectId })
+        : await supabaseAdmin
         .from('std_projects')
         .select('*')
         .eq('id', params.projectId)
         .eq('employee_email', auth.requester.email)
         .maybeSingle()
-    if (!project && !projectError && impersonateTarget) {
+    if (compactSubtitleSave && project && String(project.employee_email || '').toLowerCase() !== String(auth.requester.email || '').toLowerCase()) project = null
+    if (!compactSubtitleSave && !project && !projectError && impersonateTarget) {
         const fallback = await supabaseAdmin
             .from('std_projects')
             .select('*')
@@ -589,7 +598,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             projectPayloadPatch.structure = structureWithoutScenes
         }
     }
-    const canonicalOriginalWorkerScript = await resolveOriginalWorkerScript(project)
+    const canonicalOriginalWorkerScript = compactSubtitleSave ? '' : await resolveOriginalWorkerScript(project)
     if (canonicalOriginalWorkerScript) {
         projectPayloadPatch.original_worker_script = canonicalOriginalWorkerScript
     }
@@ -617,6 +626,9 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                     || sceneStorageVideoUrl(scene)
                     || sceneStorageVideoUrl(currentScene)
                 return {
+                    // Browser snapshots omit postwork directions. Keep the
+                    // canonical scene fields when an editor updates its text.
+                    ...currentScene,
                     scene_number: normalizedSceneNumber,
                     scene_order: normalizedSceneNumber,
                     scene_title: String(scene?.scene_title || scene?.title || `Scene ${normalizedSceneNumber}`).slice(0, 500),
@@ -630,6 +642,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                     ...(scene?.ae_speech_bubbles && typeof scene.ae_speech_bubbles === 'object'
                         ? { ae_speech_bubbles: scene.ae_speech_bubbles } : {}),
                     metadata: {
+                        ...(currentScene?.metadata || {}),
                         ...(scene?.metadata || {}),
                         script_excerpt: scene?.script_excerpt || scene?.text || scene?.scene_text || '',
                         visual_type: requiresVideoPrompt ? (scene?.visual_type || 'video') : 'image',
@@ -713,8 +726,10 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             updatePayload.project_payload.subtitle_editor_snapshot = project.project_payload?.subtitles || []
         }
         updatePayload.project_payload = bindProjectContent(project, updatePayload.project_payload)
-        await persistContentRevision(supabaseAdmin, project)
-        await persistContentRevision(supabaseAdmin, { ...project, project_payload: updatePayload.project_payload })
+        if (!compactSubtitleSave) {
+            await persistContentRevision(supabaseAdmin, project)
+            await persistContentRevision(supabaseAdmin, { ...project, project_payload: updatePayload.project_payload })
+        }
         updatePayload.project_payload.dialogue_scene_index = dialogueSceneIndex(updatePayload.project_payload.subtitles || [])
         if (updatePayload.project_payload.render_settings) {
             try {
@@ -725,6 +740,27 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         }
     }
     if (titlePatch) updatePayload.title = titlePatch
+
+    if (compactSubtitleSave) {
+        const payloadKeys = ['subtitles', 'subtitles_saved', 'deleted_subtitle_scene_numbers', 'deleted_subtitle_scene_archive',
+            'render_settings', 'subtitle_editor_snapshot', 'content_identity', 'content_revision_history', 'dialogue_scene_index']
+        const payload = Object.fromEntries(payloadKeys.filter(key => Object.prototype.hasOwnProperty.call(updatePayload.project_payload || {}, key))
+            .map(key => [key, updatePayload.project_payload[key]]))
+        const revisions = [project, { ...project, project_payload: updatePayload.project_payload }].flatMap((item, index) => {
+            if (!speechText(item.project_payload?.script) && !item.project_payload?.subtitles?.length) return []
+            const identity = projectContentIdentity(item)
+            const hex = contentHash(`${project.id}:${identity.script_sha256}`)
+            const id = `${hex.slice(0,8)}-${hex.slice(8,12)}-5${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`
+            return [{ id, identity, version: index ? 'new' : 'old' }]
+        })
+        const { data: updated, error: updateError } = await supabaseAdmin.rpc('std_save_subtitle_patch', {
+            p_project_id: project.id, p_updated_at: project.updated_at, p_status: project.status,
+            p_payload: payload, p_progress: progressPatch, p_revisions: revisions,
+        })
+        if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
+        if (!updated) return NextResponse.json({ success: false, error: 'Project changed while saving; reload and retry' }, { status: 409 })
+        return NextResponse.json(stripPostworkDirection({ success: true, project: updated, project_partial: true, scenes: null }))
+    }
 
     let updateQuery = supabaseAdmin
         .from('std_projects')
@@ -783,5 +819,5 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         updatedScenes = (scenesAfterSave || []).map(scene => hydrateSceneMedia(scene, assetsAfterSave || []))
     }
 
-    return NextResponse.json({ success: true, project: updated, scenes: updatedScenes })
+    return NextResponse.json(stripPostworkDirection({ success: true, project: updated, scenes: updatedScenes }))
 }

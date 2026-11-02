@@ -156,6 +156,12 @@ export async function persistContentRevision(db: any, project: any) {
     if (!speechText(payload.script) && !(payload.subtitles || []).length) return
     const hex = contentHash(`${project.id}:${identity.script_sha256}`)
     const id = `${hex.slice(0,8)}-${hex.slice(8,12)}-5${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`
+    // A revision is immutable and its deterministic ID depends on the script.
+    // Check first: otherwise every subtitle save uploads the entire structure,
+    // sometimes tens of megabytes, just to hit the same unique constraint.
+    const existing = await db.from('std_project_assets').select('id').eq('id', id).maybeSingle()
+    if (existing.error) throw existing.error
+    if (existing.data) return
     const result = await db.from('std_project_assets').insert({ id, project_id: project.id,
         asset_type: 'other', status: 'uploaded', file_name: `script-${identity.script_sha256}.json`, mime_type: 'application/json',
         metadata: { kind: 'content_revision', content_identity: identity,

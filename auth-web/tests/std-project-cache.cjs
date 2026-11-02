@@ -23,10 +23,11 @@ test('project reads authenticate and check ownership before Redis or conditional
   '@/lib/stdWeb':{requireStdUser:async()=>authOk?{ok:true,requester:{email}}:{ok:false,response:new Response(null,{status:401})}},
   '@/lib/supabaseAdmin':{supabaseAdmin:{rpc:async()=>({data:{employee_email:owner,version:'v1'}}),from:()=>assert.fail('Unchanged cached project must not download tables')}},
   '@/lib/stdProjectReadCache':{projectReadCacheKey:()=> 'key',readProjectResponse:async()=>{reads++;return{project:{id:'p'}}},cacheProjectResponse:async()=>{}},
+  '@/lib/stdUserWebPayload':{stripPostworkDirection:value=>value},
   'next/server':{NextResponse:Response},
  }
  const ex={};new Function('exports','require',ts.transpileModule(fs.readFileSync(path.join(__dirname,'../app/api/std/projects/[projectId]/route.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(ex,n=>mocks[n]||(n.startsWith('@/')?{}:require(n)))
- const request=()=>new Request('https://studio.test/api/std/projects/p',{headers:{'if-none-match':'"std-read-v1-v1"'}})
+ const request=()=>new Request('https://studio.test/api/std/projects/p',{headers:{'if-none-match':'"std-read-v2-v1"'}})
  assert.equal((await ex.GET(request(),{params:{projectId:'p'}})).status,304);assert.equal(reads,0)
  email='other@example.test';assert.equal((await ex.GET(request(),{params:{projectId:'p'}})).status,204);assert.equal(reads,0)
  authOk=false;assert.equal((await ex.GET(request(),{params:{projectId:'p'}})).status,401);assert.equal(reads,0)

@@ -1,6 +1,7 @@
 import { isNonverbalProject } from '@/lib/stdNonverbal'
 import { attachSfxAssets, sharedSfxCatalog } from '@/lib/stdAiSfx'
 import { NextResponse } from 'next/server'
+import { stripPostworkDirection } from '@/lib/stdUserWebPayload'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import {
     buildStdImageGridPrompts,
@@ -281,7 +282,7 @@ export async function POST(req: Request, { params }: { params: { topicId: string
         }
     }
 
-    return NextResponse.json({
+    return NextResponse.json(stripPostworkDirection({
         success: true,
         project: {
             ...project,
@@ -290,5 +291,5 @@ export async function POST(req: Request, { params }: { params: { topicId: string
             progress_payload: protectCharacterReferenceUrls(project.progress_payload, project.id),
         },
         scene_count: sceneCount,
-    })
+    }))
 }

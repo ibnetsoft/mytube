@@ -20,7 +20,7 @@ export function createSubtitleSaveQueue(request: typeof fetch = fetch) {
                 if (!response.ok || result.success === false || result.project?.id !== projectId) {
                     throw new Error(result.error || `Subtitle save failed (${response.status})`)
                 }
-                return result.project
+                return result.project_partial ? { ...result.project, __subtitle_partial: true } : result.project
             }
         }
         const previous = pending.get(projectId) || Promise.resolve()
