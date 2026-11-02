@@ -3221,6 +3221,17 @@ class CodexStagedContentRunner:
                 scenes[index - 1]["video_prompt_required"] = False
                 scenes[index - 1]["visual_type"] = "image"
                 scenes[index - 1].pop("video_prompt", None)
+        # Replace the post-50 flat-image section with a topic-local shared asset plan.
+        if payload.get("concentrated_scene_effects") and image_layer_scene_range and image_layer_scene_range.get("end") == 50 and len(scenes) > 50:
+            from worker.reusable_scene_assets import TASK as reuse_task, validate_plan
+            reference_cast = [anchors["main_character"], *anchors.get("supporting_characters", [])]
+            reuse_plan = validated_stage(lambda name, context, task: self._stage(job_id, name, context, task), "03b_reusable_scene_assets", {
+                "scenes": [s for i,s in enumerate(scenes,1) if int(s.get("scene_number") or s.get("scene_order") or i)>=51],
+                "scene_cast": identity["scene_cast"], "character_references": reference_cast,
+                "content_setting": setting}, reuse_task,
+                lambda plan: validate_plan(plan, scenes, reference_cast, identity["scene_cast"]))
+            structure["reusable_scene_assets"] = reuse_plan
+            structure["layer_production_stage"] = "post_submission"
         ae_effect_plans = _plan_ae_effects_for_scenes(scenes, {**payload, "character_anchors": anchors})
         for scene in scenes:
             try:
@@ -3231,6 +3242,14 @@ class CodexStagedContentRunner:
                 scene["video_generation_mode"] = "user_upload"
         ae_motion_plans = _plan_ae_motion_for_scenes(scenes, payload)
         image_efficiency_policy = _plan_image_generation_efficiency(scenes, payload, ae_effect_plans)
+        if structure.get("reusable_scene_assets"):
+            reuse_plan = structure["reusable_scene_assets"]
+            image_efficiency_policy["post50_generation_mode"] = "shared_background_character_composite"
+            image_efficiency_policy["post50_shared_asset_count"] = len(reuse_plan["backgrounds"]) + len(reuse_plan["poses"])
+            for scene in scenes:
+                if int(scene.get("scene_number") or scene.get("scene_order") or 0) >= 51:
+                    scene.setdefault("image_generation_policy", {})["source"] = "shared_background_character_composite"
+
         from services.image_grid_prompts import (
             build_compact_image_grid_prompts,
             grid_windows,

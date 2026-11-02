@@ -20,26 +20,70 @@ MAX_ATTEMPTS = 3
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
+def optimized(manifest):
+    return manifest.get('image_request_policy') == 'reuse_excluded_v1'
+
+
+def scene_image_numbers(manifest):
+    if optimized(manifest):
+        return sorted({int(s['scene_number']) for s in manifest['scene_specs']
+                       if s.get('visual_type') != 'video'})
+    return sorted({int(n) for grid in manifest['grids'] for n in grid['scene_numbers']})
+
+
+def generation_requests(manifest):
+    """Pack only outstanding flat scenes. Existing manifests retain original grids."""
+    from worker.reusable_scene_assets import scene_numbers
+    from worker.cowork_scene_assets import _grid_character_references
+    from services.image_grid_prompts import make_compact_image_grid_prompt
+    reused = scene_numbers(manifest)
+    specs = {int(s['scene_number']): s for s in manifest['scene_specs']}
+    remaining = [n for n in scene_image_numbers(manifest) if n not in reused]
+    jobs = []
+    for index, offset in enumerate(range(0, len(remaining), 4), 1):
+        numbers = remaining[offset:offset + 4]
+        single = len(numbers) == 1
+        panels = numbers if single else numbers + [numbers[-1]] * (4 - len(numbers))
+        prompts = [str(specs[n].get('generation_image_prompt') or specs[n].get('image_prompt') or '').strip()
+                   for n in panels]
+        if not all(prompts):
+            raise ValueError('Optimized requests require original per-scene image prompts')
+        prompt = ('One single 16:9 scene image, not a grid.\n' + prompts[0] if single else
+                  make_compact_image_grid_prompt([{'panel_prompt': text} for text in prompts]))
+        jobs.append({'id': f'flat-{index:03d}', 'kind': 'scene',
+                     'layout': 'single' if single else 'grid', 'scene_numbers': panels,
+                     'raw_file': f'flat-{index:03d}.png', 'prompt': prompt,
+                     'unique_scene_mapping': True,
+                     'references': _grid_character_references(manifest['character_references'],
+                                                             manifest['scene_cast'], numbers),
+                     'scene_specs': [specs[n] for n in numbers]})
+    return jobs
+
+
 def initialize(manifest):
     jobs = []
     if manifest.get('schema') == 'cowork_scene_assets/v1':
         from worker.effect_scene_scope import normalize_scope, contains
         scope = normalize_scope(manifest.get('effect_scene_range'))
-        for g in manifest['grids']:
-            if (manifest.get('layer_production_stage') != 'post_submission'
-                    and scope is not None and all(contains(scope, int(n)) for n in g['scene_numbers'])):
+        from worker.reusable_scene_assets import scene_numbers as reusable_numbers
+        reused = reusable_numbers(manifest)
+        for g in ([] if optimized(manifest) else manifest['grids']):
+            if all(int(n) in reused or (manifest.get('layer_production_stage') != 'post_submission'
+                    and scope is not None and contains(scope, int(n))) for n in g['scene_numbers']):
                 continue
             jobs.append({'id':f"grid-{g['grid_number']:03d}", 'kind':'scene', 'layout':'grid',
                 'scene_numbers':g['scene_numbers'], 'prompt':g['prompt'],
                 'references':g.get('character_references',manifest.get('character_references',[])),
                 'scene_specs':[s for s in manifest.get('scene_specs',[]) if s['scene_number'] in g['scene_numbers']]})
+        if optimized(manifest):
+            jobs = generation_requests(manifest)
     elif manifest.get('schema') == 'cowork_thumbnail_asset/v1':
         jobs = [{'id':'thumbnail','kind':'thumbnail','layout':'single','scene_numbers':[],
                  'prompt':manifest['prompt'],'references':manifest.get('character_references',[])}]
     else:
         jobs = copy.deepcopy(manifest['jobs'])
     ids = [j['id'] for j in jobs]
-    if len(set(ids)) != len(ids) or (not ids and not manifest.get('effect_scene_range')): raise ValueError('Unique jobs required')
+    if len(set(ids)) != len(ids) or (not ids and not manifest.get('effect_scene_range') and not manifest.get('reusable_scene_assets')): raise ValueError('Unique jobs required')
     for j in jobs:
         if not re.fullmatch(r'[a-zA-Z0-9_-]+', j['id']): raise ValueError('Invalid job ID')
         if j['kind'] not in ('scene','character','thumbnail'): raise ValueError('Invalid image kind')
@@ -130,7 +174,7 @@ def transition(state, event, now=None):
             'review':{'reviewer':'original-scene-spec','reason':'grid layout quality failure',
                 'source_fidelity':'original per-scene prompt unchanged','character_age_style_preserved':'original references retained'},
             'proposals':[{'scene_numbers':[n],'prompt':'One single 16:9 scene image, not a grid.\n'+(specs[n].get('generation_image_prompt') or specs[n]['image_prompt'])}
-                         for n in j['scene_numbers']]},now)
+                         for n in (dict.fromkeys(j['scene_numbers']) if j.get('unique_scene_mapping') else j['scene_numbers'])]},now)
     elif action=='review':
         if j['status'] not in ('safety_review','needs_review','quality_failed','quota_wait','unavailable','exhausted'):
             raise ValueError('Review not applicable')
@@ -150,7 +194,7 @@ def transition(state, event, now=None):
                 if review.get('safety_assessment')!='allowed_alternative' or not review.get('user_approval'):
                     raise ValueError('Safety/unknown requires reviewed safe alternative and explicit user approval')
             proposals=event['proposals']
-            expected=sorted(j['scene_numbers'])
+            expected=sorted(set(j['scene_numbers']) if j.get('unique_scene_mapping') else j['scene_numbers'])
             actual=sorted(n for p in proposals for n in p['scene_numbers'])
             if actual!=expected or not proposals: raise ValueError('Alternative must cover exact original scene IDs')
             if j['kind']!='scene' and len(proposals)!=1: raise ValueError('One replacement per asset')
@@ -176,7 +220,9 @@ def recipes(state, manifest):
             result.append({**j,'image_file':str(verify_file(j))})
     from worker.effect_scene_scope import normalize_scope, contains
     scope = normalize_scope(manifest.get('effect_scene_range'))
-    expected={n for g in manifest['grids'] if scope is None or not all(contains(scope, int(x)) for x in g['scene_numbers']) for n in g['scene_numbers']}
+    # Use the same policy as reservation: shared compositions and deferred effects
+    # must not introduce phantom grid requirements during crop/publish.
+    expected={n for job in initialize(manifest)['jobs'] for n in job['scene_numbers']}
     if {n for j in result for n in j['scene_numbers']}!=expected: raise ValueError('Missing scene mapping')
     return result
 

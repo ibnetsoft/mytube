@@ -288,6 +288,7 @@ class StartRequest(BaseModel):
     direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
     parallax_mode: Literal['selective', 'all_scenes'] = 'selective'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
+    reuse_check_policy: Literal['compatible_first_v2', 'compatible_first_v3'] | None = None
     concentrated_scene_effects: bool = False
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)
@@ -520,6 +521,9 @@ class Jobs:
             identity = identity or uuid.uuid4().hex
             if len(identity) != 32 or any(c not in '0123456789abcdef' for c in identity):
                 raise ValueError('잘못된 작업 ID입니다.')
+            # Stamp only NEW reservations. Retries retain their saved policy and assets.
+            if not retry_of and request.mode in ('new', 'grounded'):
+                request = request.model_copy(update={'reuse_check_policy': 'compatible_first_v3'})
             title = snapshot['summary']['title'] if snapshot else request.title.strip()
             from worker.content_language import resolve_setting
             setting = resolve_setting(request.model_dump())

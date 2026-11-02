@@ -45,6 +45,12 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     if request.get('mode') in ('new', 'grounded'):
         from worker.elevenlabs_performance import annotate_new_package
         package = annotate_new_package(package, identity, notify)
+    if request.get('reuse_check_policy') in ('compatible_first_v2', 'compatible_first_v3') and request.get('mode') in ('new', 'grounded'):
+        from worker.reusable_scene_assets import plan_package
+        from worker.codex_content_runner import CodexStagedContentRunner
+        notify('모든 이미지 씬 재사용 가능성 확인 · 호환될 때만 공용 소재 선택')
+        package = plan_package(CodexStagedContentRunner()._stage, 'local-' + identity, package,
+                               optimize=request.get('reuse_check_policy') == 'compatible_first_v3')
     package['applied_guidelines'] = [{k: row[k] for k in ('id','version','title','instruction')} for row in rows]
     return package
 

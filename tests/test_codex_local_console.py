@@ -168,3 +168,23 @@ def test_youtube_extraction_failure(client, monkeypatch, exception, status):
     response = client.post('/api/youtube-transcript', json={'url': 'https://youtu.be/vLB3e-eH2j8'})
     assert response.status_code == status
     assert response.json()['detail'] == str(exception)
+
+
+@pytest.mark.parametrize('mode,retry_of,expected', [
+    ('new', None, 'compatible_first_v3'),
+    ('grounded', None, 'compatible_first_v3'),
+    ('new', 'old-job', None),
+    ('repair', None, None),
+])
+def test_reuse_policy_only_stamped_on_new_generation_reservations(tmp_path, monkeypatch, mode, retry_of, expected):
+    jobs = console.Jobs(tmp_path)
+    monkeypatch.setattr(jobs, 'connect', lambda: None)
+    monkeypatch.setattr(jobs, 'sync', lambda *args, **kwargs: None)
+    monkeypatch.setattr(jobs.pool, 'submit', lambda *args: None)
+    request = console.StartRequest(mode=mode, title='new story', category='story')
+    try:
+        job = jobs.start(request, None, retry_of=retry_of)
+        saved = json.loads((tmp_path/job['id']/'request.json').read_text())
+        assert saved['reuse_check_policy'] == expected
+    finally:
+        jobs.pool.shutdown()

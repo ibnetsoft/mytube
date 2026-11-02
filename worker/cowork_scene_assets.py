@@ -425,6 +425,7 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "character_references": references,
         "scene_cast": scene_cast if isinstance(scene_cast, list) else [],
         "scene_specs": [{"scene_number": _scene_number(s, i), "scene_id": s.get("scene_id"),
+                         "visual_type": s.get("visual_type") or "image",
                          "scene_text": s.get("scene_text") or s.get("narration"),
                          "image_prompt": s.get("image_prompt"),
                          "generation_image_prompt": _with_character_locks(s.get("image_prompt"),
@@ -438,18 +439,27 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
                          "parallax_plan": s.get("parallax_plan") if isinstance(s.get("parallax_plan"), dict) else {},
                          "psd_layer_plan": s.get("psd_layer_plan") if isinstance(s.get("psd_layer_plan"), dict) else {}}
                         for i, s in enumerate(scenes, 1)],
+        "reusable_scene_assets": structure.get("reusable_scene_assets"),
+        "layer_production_stage": structure.get("layer_production_stage") or "pre_submission",
+        "image_request_policy": structure.get("image_request_policy"),
         "effect_scene_range": structure.get("effect_scene_range"),
         "image_layer_mode": structure.get("image_layer_mode") or (structure.get("image_generation_policy") or {}).get("image_layer_mode") or "hybrid",
         "image_layer_scene_range": structure.get("image_layer_scene_range") or (structure.get("image_generation_policy") or {}).get("image_layer_scene_range"),
         "psd_layer_prompt_status": structure.get("psd_layer_prompt_status") or "not_required",
         "psd_layer_prompts": structure.get("psd_layer_prompts") if isinstance(structure.get("psd_layer_prompts"), list) else [],
         "layer_package_specs": manga_layer_package.scene_specs(scenes),
-        "layer_package_instruction": "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. Explicit parallax ranges use the final cropped scene PNG as a fixed registration reference and require a genuinely clean background plus a transparent registered foreground. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. For directed_performance, make a genuinely clean inpainted background and separately aligned alternate poses/props; never use duplicate flattened-scene copies as fake layers. A soft depth proxy is not a separate action layer. Run generate-layers after crop, or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish.",
+        "layer_package_instruction": ("Layers are deferred to the post-submission production worker. Prepare and publish basic scene stills only; shared background/pose composition is allowed. " if structure.get("layer_production_stage") == "post_submission" else "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. Explicit parallax ranges use the final cropped scene PNG as a fixed registration reference and require a genuinely clean background plus a transparent registered foreground. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. For directed_performance, make a genuinely clean inpainted background and separately aligned alternate poses/props; never use duplicate flattened-scene copies as fake layers. A soft depth proxy is not a separate action layer. Run generate-layers after crop, or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish."),
         "recovery_policy": image_recovery.POLICY,
         "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
         "generation_instruction": "Attach each grid's character_references local PNGs as actual reference images to EVERY grid generation. When model_sheet_file is present, attach that full-resolution PNG as well as local_file; use its angles, anatomy, costume details and palette as design references, never reproduce the sheet's multi-panel layout inside a scene. Match people by character_key and name, never by reference-list position. Preserve every applicable character's saved visual_dna_en, hair_design_en, age and wardrobe: keep the exact hairline, shaved-scalp area, hair length, braid/topknot shape, position and direction. Never exchange the designs of siblings or substitute a generic period hairstyle. Compare the visible faces against their separate references: keep different eye spacing/shape, nose, mouth, jaw and facial proportions; a different haircut, wrinkles or outfit cannot excuse identical underlying faces. Include only people specified in that scene; a reference attachment does not add that character to every panel. Generate still images only, never video clips.",
         "grids": manifest_grids,
     }
+    if image_recovery.optimized(manifest):
+        manifest['image_requests'] = image_recovery.generation_requests(manifest)
+        manifest['generation_instruction'] = ('Generate only runnable recovery jobs / image_requests. '
+            'The grids field is archived source planning, not a generation queue. '
+            'Composed scenes and uploaded videos are excluded from flat requests. '
+            + manifest['generation_instruction'])
     destination.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     image_recovery.ensure_state(destination)
     return destination
@@ -561,8 +571,12 @@ def crop_grids(
     from worker.effect_scene_scope import normalize_scope, contains
     scope = normalize_scope(manifest.get('effect_scene_range'))
     defer_scene_layers = manifest.get('layer_production_stage') == 'post_submission'
-    for grid in jobs if jobs is not None else manifest["grids"]:
-        if not defer_scene_layers and scope and all(contains(scope, int(n)) for n in grid.get('scene_numbers', [])):
+    from worker.reusable_scene_assets import scene_numbers as reusable_numbers
+    reused = reusable_numbers(manifest)
+    source_jobs = jobs if jobs is not None else (
+        image_recovery.generation_requests(manifest) if image_recovery.optimized(manifest) else manifest['grids'])
+    for grid in source_jobs:
+        if all(int(n) in reused or (not defer_scene_layers and scope and contains(scope, int(n))) for n in grid.get('scene_numbers', [])):
             continue
         raw_path = Path(grid['image_file']) if jobs is not None else input_dir / str(grid["raw_file"])
         if not raw_path.is_file():
@@ -580,7 +594,7 @@ def crop_grids(
             boxes = ((0, 0, width, height),) if single else ((0, 0, x_mid, y_mid), (x_mid, 0, width, y_mid), (0, y_mid, x_mid, height), (x_mid, y_mid, width, height))
             for scene_number, box in zip(scene_numbers, boxes):
                 number = int(scene_number)
-                if not defer_scene_layers and scope and contains(scope, number):
+                if number in reused or (not defer_scene_layers and scope and contains(scope, number)):
                     continue
                 if number in assigned:
                     # Some 15-minute prepared topics use an overlapping final
@@ -607,6 +621,11 @@ def crop_grids(
         plane_results = generate_manifest_scenes(manifest, output_dir, max_workers=3)
         assigned.update(item['scene_number'] for item in plane_results)
         written.extend(Path(item['scene_file']) for item in plane_results)
+    if reused:
+        from worker.reusable_scene_assets import generate as generate_shared
+        shared_results = generate_shared(manifest, output_dir)
+        assigned.update(item['scene_number'] for item in shared_results)
+        written.extend(Path(item['scene_file']) for item in shared_results)
     if jobs is not None:
         receipt = {"source_hash": image_recovery.digest(manifest), "files": {
             f"scene-{n:03d}.png": hashlib.sha256((output_dir / f"scene-{n:03d}.png").read_bytes()).hexdigest()
@@ -631,7 +650,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
     if recovery_path.exists():
         image_recovery.recipes(json.loads(recovery_path.read_text(encoding='utf-8')), manifest)
         receipt = json.loads((images_dir / 'crop-receipt.json').read_text(encoding='utf-8'))
-        expected = {f"scene-{int(n):03d}.png" for g in manifest['grids'] for n in g['scene_numbers']}
+        expected = {f"scene-{n:03d}.png" for n in image_recovery.scene_image_numbers(manifest)}
         if receipt['source_hash'] != image_recovery.digest(manifest) or set(receipt['files']) != expected:
             raise ValueError('Crop receipt does not match manifest')
         for name, sha in receipt['files'].items():
@@ -646,6 +665,10 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
     origin = manifest.get("content_identity")
     if origin and (origin.get("origin_topic_queue_id") != int(row["id"]) or origin.get("script_sha256") != content_hash(speech_text(row.get("pregenerated_script")))):
         raise ValueError("CONTENT_IDENTITY_MISMATCH: topic script changed after image generation request")
+    if manifest.get("reusable_scene_assets") != structure.get("reusable_scene_assets"):
+        raise ValueError("Reusable asset plan changed after manifest export; create a new manifest revision")
+    if image_recovery.optimized(manifest) and manifest.get('image_request_policy') != structure.get('image_request_policy'):
+        raise ValueError('Image request policy changed after manifest export; create a new revision')
     manifest_layer_specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
     current_layer_specs = manga_layer_package.scene_specs(structure.get("scenes") or [])
     if manifest_layer_specs != current_layer_specs:
@@ -705,7 +728,9 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
     existing_objects = (_list_gcs_object_metadata(bucket, f"topics/{topic_id}/images/")
                         if reuse_existing else {})
     layer_dir = images_dir / "derived-layers"
-    for grid in manifest["grids"]:
+    publish_grids = ([{'scene_numbers': image_recovery.scene_image_numbers(manifest)}]
+                     if image_recovery.optimized(manifest) else manifest['grids'])
+    for grid in publish_grids:
         for scene_number in grid["scene_numbers"]:
             number = int(scene_number)
             file_path = images_dir / f"scene-{number:03d}.png"
@@ -782,7 +807,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
             scene_spec = next((s for s in structure.get("scenes", []) if isinstance(s, dict) and _scene_number(s, 0) == number), {})
             layer_plan = scene_spec.get("local_layer_plan") if isinstance(scene_spec.get("local_layer_plan"), dict) else {}
             image_policy = scene_spec.get("image_generation_policy") if isinstance(scene_spec.get("image_generation_policy"), dict) else {}
-            if layer_plan.get("enabled") and not defer_layers:
+            if layer_plan.get("enabled") and not defer_layers and not post_submission_layers:
                 layer_files = _write_depth_proxy_layers(file_path, layer_dir, number, image_policy)
                 uploaded_layers: dict[str, Any] = {
                     "source": "local_depth_proxy_from_single_scene_image",
@@ -895,7 +920,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
         from generated_speaker_coordinates import analyze_published_scenes
     analyze_published_scenes(topic_id, structure, published_scenes, images_dir,
                              base_url, headers, sys.modules[__name__], manifest.get("mouth_work_selection"))
-    if manifest_layer_specs and not defer_layers:
+    if manifest_layer_specs and not defer_layers and not post_submission_layers:
         _propagate_published_template_assets(topic_id, base_url, headers)
     return [scene_urls[number] for number in sorted(scene_urls)]
 
@@ -964,7 +989,12 @@ def main() -> int:
         )
     elif args.command == "generate-independent-scenes":
         from worker.layered_scene_generation import generate_manifest_scenes
-        results = generate_manifest_scenes(_manifest(args.manifest), args.images_dir)
+        manifest = _manifest(args.manifest)
+        results = ([] if manifest.get("layer_production_stage") == "post_submission"
+                   else generate_manifest_scenes(manifest, args.images_dir))
+        if manifest.get('reusable_scene_assets'):
+            from worker.reusable_scene_assets import generate as generate_shared
+            results.extend(generate_shared(manifest, args.images_dir))
         print(json.dumps({"generated_or_reused": len(results), "scenes": results}, ensure_ascii=False))
     elif args.command == "prepare-layers":
         manifest = _manifest(args.manifest)
