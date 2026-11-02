@@ -4736,6 +4736,13 @@ export default function StdPortalPage() {
                     }
 
                     setAuthChecking(false)
+                    // The detail endpoint checks the impersonated user's access itself;
+                    // it need not wait for the separate project and topic lists.
+                    const urlProjectId = readUrlProjectId()
+                    const preferredOpening = urlProjectId
+                        ? openProject(urlProjectId, impToken, cleanEmail).catch(() => null)
+                        : null
+                    const openingGeneration = mediaScopeRef.current.generation
                     const [pRes, tRes] = await pendingData
                     const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
                     const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
@@ -4746,12 +4753,11 @@ export default function StdPortalPage() {
                     setProjects(loadedProjects)
                     setTopics(loadedTopics)
 
-                    const urlProjectId = readUrlProjectId()
-                    if (urlProjectId && loadedProjects.some((p: any) => p.id === urlProjectId)) {
-                        await openProject(urlProjectId, impToken, cleanEmail)
-                    } else if (loadedProjects.length > 0) {
+                    if (urlProjectId) {
+                        await preferredOpening
+                    } else if (openingGeneration === mediaScopeRef.current.generation && loadedProjects.length > 0) {
                         await openProject(loadedProjects[0].id, impToken, cleanEmail)
-                    } else if (loadedTopics.length > 0) {
+                    } else if (openingGeneration === mediaScopeRef.current.generation && loadedTopics.length > 0) {
                         const built = buildProjectFromSupabaseTopic(loadedTopics[0])
                         built.project.title = `[${cleanEmail.split('@')[0]}] ` + built.project.title
                         setSelectedProject(built)
