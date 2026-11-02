@@ -26,7 +26,8 @@ def initialize(manifest):
         from worker.effect_scene_scope import normalize_scope, contains
         scope = normalize_scope(manifest.get('effect_scene_range'))
         for g in manifest['grids']:
-            if scope is not None and all(contains(scope, int(n)) for n in g['scene_numbers']):
+            if (manifest.get('layer_production_stage') != 'post_submission'
+                    and scope is not None and all(contains(scope, int(n)) for n in g['scene_numbers'])):
                 continue
             jobs.append({'id':f"grid-{g['grid_number']:03d}", 'kind':'scene', 'layout':'grid',
                 'scene_numbers':g['scene_numbers'], 'prompt':g['prompt'],

@@ -91,6 +91,53 @@ def test_recovery_does_not_request_flat_grids_entirely_inside_effect_range():
     assert [job['id'] for job in state['jobs']] == ['grid-001', 'grid-003']
 
 
+def test_deferred_layer_stage_crops_every_scene_without_generating_planes(tmp_path, monkeypatch):
+    import json
+    from worker import cowork_scene_assets as assets, layered_scene_generation as layered
+    from worker.image_recovery import initialize
+
+    input_dir = tmp_path / 'input'
+    input_dir.mkdir()
+    Image.new('RGB', (800, 800), (20, 30, 40)).save(input_dir / 'grid-001.png')
+    manifest = {'schema': 'cowork_scene_assets/v1', 'topic_id': '42',
+        'layer_production_stage': 'post_submission', 'effect_scene_range': {'start': 1, 'end': 4},
+        'grids': [{'grid_number': 1, 'scene_numbers': [1, 2, 3, 4], 'raw_file': 'grid-001.png', 'prompt': 'four scenes'}],
+        'scene_specs': [{'scene_number': n, 'image_prompt': f'scene {n}'} for n in range(1, 5)]}
+    assert [j['id'] for j in initialize(manifest)['jobs']] == ['grid-001']
+    path = tmp_path / 'manifest.json'
+    path.write_text(json.dumps(manifest), encoding='utf-8')
+    monkeypatch.setattr(layered, 'generate_manifest_scenes', lambda *a, **k: (_ for _ in ()).throw(AssertionError('layers must be deferred')))
+    out = tmp_path / 'output'
+    assets.crop_grids(path, input_dir, out)
+    assert all((out / f'scene-{n:03}.png').is_file() for n in range(1, 5))
+    assert not list(out.glob('*-planes.json'))
+
+
+def test_deferred_layer_stage_publishes_all_stills_without_plane_receipts(tmp_path, monkeypatch):
+    import json
+    from worker import cowork_scene_assets as assets, generated_speaker_coordinates as coordinates
+    monkeypatch.syspath_prepend(str(Path(assets.__file__).parent))
+    source = tmp_path / 'input'
+    source.mkdir()
+    Image.new('RGB', (800, 800), (20, 30, 40)).save(source / 'grid-001.png')
+    scenes = [{'scene_number': n, 'scene_text': f'text {n}', 'image_prompt': f'scene {n}'} for n in range(1, 5)]
+    manifest = {'schema': 'cowork_scene_assets/v1', 'topic_id': '42', 'bucket': 'scene-bucket',
+        'layer_production_stage': 'post_submission', 'effect_scene_range': {'start': 2, 'end': 3},
+        'grids': [{'grid_number': 1, 'scene_numbers': [1, 2, 3, 4], 'raw_file': 'grid-001.png', 'prompt': 'four scenes'}],
+        'scene_specs': scenes, 'character_references': []}
+    path = tmp_path / 'manifest.json'
+    path.write_text(json.dumps(manifest), encoding='utf-8')
+    out = tmp_path / 'output'
+    assets.crop_grids(path, source, out)
+    monkeypatch.setattr(assets, '_topic', lambda _: ({'id': '42'}, {'scenes': scenes}, 'https://test', {}))
+    monkeypatch.setattr(assets, '_upload_gcs_file', lambda local, obj, typ: ('scene-bucket', obj, '/asset/' + obj))
+    monkeypatch.setattr(coordinates, 'analyze_published_scenes', lambda *args: None)
+    saved = []
+    monkeypatch.setattr(assets, '_patch_topic_scene_assets', lambda topic, updates, base, headers: saved.extend(updates))
+    assert len(assets.publish(path, out, False)) == 4
+    assert all('independent_planes' not in x['asset_patch']['metadata']['cowork_image_asset'] for x in saved)
+
+
 def test_cropped_independent_planes_are_published_with_scene(tmp_path, monkeypatch):
     import json
     from worker import cowork_scene_assets as assets

@@ -560,8 +560,9 @@ def crop_grids(
     assigned: set[int] = set()
     from worker.effect_scene_scope import normalize_scope, contains
     scope = normalize_scope(manifest.get('effect_scene_range'))
+    defer_scene_layers = manifest.get('layer_production_stage') == 'post_submission'
     for grid in jobs if jobs is not None else manifest["grids"]:
-        if scope and all(contains(scope, int(n)) for n in grid.get('scene_numbers', [])):
+        if not defer_scene_layers and scope and all(contains(scope, int(n)) for n in grid.get('scene_numbers', [])):
             continue
         raw_path = Path(grid['image_file']) if jobs is not None else input_dir / str(grid["raw_file"])
         if not raw_path.is_file():
@@ -579,7 +580,7 @@ def crop_grids(
             boxes = ((0, 0, width, height),) if single else ((0, 0, x_mid, y_mid), (x_mid, 0, width, y_mid), (0, y_mid, x_mid, height), (x_mid, y_mid, width, height))
             for scene_number, box in zip(scene_numbers, boxes):
                 number = int(scene_number)
-                if scope and contains(scope, number):
+                if not defer_scene_layers and scope and contains(scope, number):
                     continue
                 if number in assigned:
                     # Some 15-minute prepared topics use an overlapping final
@@ -601,7 +602,7 @@ def crop_grids(
                     target, format="PNG", optimize=True
                 )
                 written.append(target)
-    if scope:
+    if scope and not defer_scene_layers:
         from worker.layered_scene_generation import generate_manifest_scenes
         plane_results = generate_manifest_scenes(manifest, output_dir, max_workers=3)
         assigned.update(item['scene_number'] for item in plane_results)
@@ -619,6 +620,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
     manifest = _manifest(manifest_path)
     from worker.effect_scene_scope import normalize_scope, contains
     scope = normalize_scope(manifest.get('effect_scene_range'))
+    post_submission_layers = manifest.get('layer_production_stage') == 'post_submission'
     if defer_layers and any((s.get('parallax_plan') or {}).get('enabled')
                             and (scope is None or not contains(scope, int(s.get('scene_number') or 0)))
                             for s in manifest.get('scene_specs',[])):
@@ -689,7 +691,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
                           if scope is None or not contains(scope, spec['scene_number'])]
     layer_receipt = (manga_layer_package.validate_receipt(
         manifest_path, images_dir, legacy_layer_specs, require_approved=True)
-        if legacy_layer_specs and not defer_layers else None)
+        if legacy_layer_specs and not defer_layers and not post_submission_layers else None)
     if create_bucket:
         print("--create-bucket is ignored: scene images are uploaded to GCS, not Supabase Storage.", file=sys.stderr)
 
@@ -734,7 +736,7 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
                 gcs_bucket, gcs_path, media_url = _upload_gcs_file(file_path, object_path, mime_type)
             scene_urls[number] = media_url
             scene_refs[number] = (gcs_bucket, gcs_path)
-            if scope and contains(scope, number) and number not in independent_plane_assets:
+            if not post_submission_layers and scope and contains(scope, number) and number not in independent_plane_assets:
                 receipt_path = images_dir / f"scene-{number:03d}-planes.json"
                 if not receipt_path.is_file():
                     raise FileNotFoundError(f"scene {number}: independent plane receipt is missing")
