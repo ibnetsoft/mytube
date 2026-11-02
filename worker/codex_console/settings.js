@@ -14,7 +14,7 @@
     ['era_region','시대·지역'], ['image_style','이미지 스타일'], ['image_layer_mode','이미지 레이어'],
     ['direction_profile','연출 프로필'], ['parallax_mode','패럴럭스 제작'], ['image_layer_scene_start','레이어 시작 씬 (선택)'],
     ['image_layer_scene_end','레이어 종료 씬 (선택)'], ['required_video_scene_count','필수 영상 씬 수'],
-    ['generate_bgm_prompt','배경음악 프롬프트 생성'], ['notes','기본 작성 방향']
+    ['generate_publish_package','제목·설명·썸네일 기획 생성'], ['generate_bgm_prompt','배경음악 프롬프트 생성'], ['notes','기본 작성 방향']
   ];
   for (const [name,text,sourceName] of entries) {
     const source = document.querySelector(`#new-form [name="${sourceName || name}"]`);
@@ -44,7 +44,7 @@
     for(const [name,,sourceName] of entries) {
       const target=$('new-form').elements[sourceName||name];
       if(!target||(!force&&touched.has(target.name)))continue;
-      if(target.type==='checkbox')target.checked=Boolean(defaults[name]);else target.value=defaults[name]??(name==='image_layer_scene_start'?19:name==='image_layer_scene_end'?50:'');
+      if(target.type==='checkbox')target.checked=Boolean(defaults[name]);else target.value=defaults[name]??'';
     }
     window.updateNewSettingSummary();
   }

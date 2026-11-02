@@ -165,7 +165,7 @@ function syncNonverbalMode(){
  if(enabled){
   if(Number(form.elements.duration.value)>10)form.elements.duration.value='3';
   $('new-style').value='애니메이션';$('new-script-style').value='nonverbal_preschool';
-  $('image-layer-mode').value='full_psd';form.elements.required_video_scene_count.value='18';
+  $('image-layer-mode').value='full_psd';form.elements.required_video_scene_count.value='0';
  }else if($('new-script-style').value==='nonverbal_preschool'){$('new-script-style').value='story';}
  let help=$('nonverbal-help');if(!help){help=element('p','대사·나레이션 없이 행동 이야기와 재사용 부품, 시간별 관절 연출을 만듭니다. 실제 원화·음악·효과음·AE 결과 검수는 후속 단계입니다.','callout');help.id='nonverbal-help';form.prepend(help)}
  help.hidden=!enabled;window.updateNewSettingSummary();
@@ -175,7 +175,7 @@ if($('image-layer-mode')){
   const grid=$('image-layer-mode').closest('.form-grid');
   const makeRangeInput=(name,text,placeholder)=>{
     const label=element('label',text),input=element('input');
-    input.name=name;input.type='number';input.min='1';input.max='999';input.placeholder=placeholder;input.value=name==='image_layer_scene_start'?'19':'50';
+    input.name=name;input.type='number';input.min='1';input.max='999';input.placeholder=placeholder;input.value='';
     label.append(input);grid.append(label);
   };
   makeRangeInput('image_layer_scene_start','레이어 생성 시작 씬','예: 19');
@@ -196,21 +196,21 @@ $('new-form').onsubmit=e=>{
     `언어·국가·시대: ${setting.language} / ${setting.setting_country} / ${setting.era_region}`,
     `이미지·연출: ${setting.image_style} / ${form.get('direction_profile')}`,
     `영상 씬 수: ${form.get('required_video_scene_count')} / 패럴럭스: ${form.get('parallax_mode')}`,
-    `레이어·효과 범위: ${form.get('image_layer_mode')} / ${form.get('image_layer_scene_start')}~${form.get('image_layer_scene_end')}씬`,
+    `레이어·효과 범위: ${form.get('image_layer_mode')} / ${form.get('image_layer_scene_start') ? form.get('image_layer_scene_start')+'~'+form.get('image_layer_scene_end')+'씬' : '중요 씬만 선택 · 제출 후 제작'}`,
     `장면 상태 변경: 별도 요청 없음 / 음악 프롬프트: ${form.get('generate_bgm_prompt')==='on'?'생성':'생성 안 함'}`,
     `추가 요청: ${form.get('notes') || '없음'}`
   ].join('\n');
   if(!confirm('아래 설정으로 대본 생성을 시작할까요?\n\n'+summary))return;
   start({
     mode:'new',
-    concentrated_scene_effects:(form.get('production_mode')||'standard')==='standard' && (form.get('parallax_mode')||'selective')==='selective' && (form.get('image_layer_mode')||'hybrid')==='hybrid',
+    concentrated_scene_effects:(form.get('production_mode')||'standard')==='standard' && (form.get('parallax_mode')||'selective')==='selective' && (form.get('image_layer_mode')||'hybrid')==='hybrid' && Boolean(form.get('image_layer_scene_start') && form.get('image_layer_scene_end')),
     production_mode:form.get('production_mode')||'standard',youtube_url:form.get('youtube_url')||'',
     direction_profile:form.get('direction_profile')||'auto',
     parallax_mode:form.get('parallax_mode')||'selective',
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
     image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
     image_layer_scene_end:form.get('image_layer_scene_end')?Number(form.get('image_layer_scene_end')):null,
-    required_video_scene_count:Number(form.get('required_video_scene_count')??18),
+    required_video_scene_count:Number(form.get('required_video_scene_count')??0),
     title:form.get('title'),
     category,
     category_id:form.get('custom_category').trim()?'':$('category').selectedOptions[0]?.dataset.id||'',
@@ -221,6 +221,7 @@ $('new-form').onsubmit=e=>{
     setting_country:setting.setting_country,
     era_region:setting.era_region,
     image_style:setting.image_style,
+    generate_publish_package:form.get('generate_publish_package')==='on',
     generate_bgm_prompt:form.get('generate_bgm_prompt')==='on',
     notes:form.get('notes')
   });
@@ -277,7 +278,7 @@ if ($('new-script-style')) $('new-script-style').onchange = () => {
     $('new-language').value='ja';$('new-country').value='일본';$('new-custom-country').style.display='none';
     $('production-mode').value='standard';
     $('direction-profile').value='standard';$('new-style').value='jp_domestic_watercolor';
-    $('new-era').value='현대 일본 · 도쿄 근교 주거지역';$('new-form').elements.required_video_scene_count.value='18';$('new-form').elements.generate_bgm_prompt.checked=true;
+    $('new-era').value='현대 일본 · 도쿄 근교 주거지역';$('new-form').elements.required_video_scene_count.value='0';$('new-form').elements.generate_bgm_prompt.checked=true;
     window.categoriesReady.then(()=>{$('category').value='일본사건'});
   } else if ($('new-script-style').value === 'japanese_historical_documentary') {
     $('new-language').value = 'ja';

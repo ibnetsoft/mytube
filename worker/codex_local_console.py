@@ -288,6 +288,8 @@ class StartRequest(BaseModel):
     direction_profile: Literal['auto', 'standard', 'japanese_folktale', 'vertical_webtoon_speed'] = 'auto'
     parallax_mode: Literal['selective', 'all_scenes'] = 'selective'
     image_layer_mode: Literal['hybrid', 'full_psd'] = 'hybrid'
+    generation_defaults_profile: Literal['efficient_v1'] | None = None
+    generate_publish_package: bool | None = Field(default=None, strict=True)
     reuse_check_policy: Literal['compatible_first_v2', 'compatible_first_v3'] | None = None
     concentrated_scene_effects: bool = False
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
@@ -523,7 +525,8 @@ class Jobs:
                 raise ValueError('잘못된 작업 ID입니다.')
             # Stamp only NEW reservations. Retries retain their saved policy and assets.
             if not retry_of and request.mode in ('new', 'grounded'):
-                request = request.model_copy(update={'reuse_check_policy': 'compatible_first_v3'})
+                from worker.script_generation_defaults import DEFAULTS
+                request = StartRequest.model_validate({**DEFAULTS, **request.model_dump(exclude_unset=True)})
             title = snapshot['summary']['title'] if snapshot else request.title.strip()
             from worker.content_language import resolve_setting
             setting = resolve_setting(request.model_dump())
@@ -659,7 +662,8 @@ SCRIPT_SETTING_FIELDS = frozenset(('category', 'category_id', 'duration_minutes'
     'chapter_minutes',
     'setting_country', 'era_region', 'image_style', 'script_style', 'production_mode',
     'direction_profile', 'parallax_mode', 'image_layer_mode', 'image_layer_scene_start', 'image_layer_scene_end',
-    'required_video_scene_count', 'generate_bgm_prompt', 'notes'))
+    'required_video_scene_count', 'generate_bgm_prompt', 'notes', 'concentrated_scene_effects',
+    'generation_defaults_profile', 'generate_publish_package', 'reuse_check_policy'))
 SCRIPT_SETTINGS_KEY = 'codex_script_defaults_' + WORKER_ID
 
 
@@ -670,7 +674,8 @@ def normalize_script_settings(value):
         value = json.loads(value)
     if not isinstance(value, dict) or set(value) - SCRIPT_SETTING_FIELDS:
         raise ValueError('지원하지 않는 대본 설정입니다.')
-    parsed = StartRequest(mode='new', title='기본 설정', **value)
+    from worker.script_generation_defaults import DEFAULTS
+    parsed = StartRequest(mode='new', title='기본 설정', **{**DEFAULTS, **value})
     return parsed.model_dump(include=SCRIPT_SETTING_FIELDS)
 
 

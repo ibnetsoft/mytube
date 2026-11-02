@@ -45,6 +45,15 @@ def produce(identity, request, snapshot, output, notify, sources=None):
     if request.get('mode') in ('new', 'grounded'):
         from worker.elevenlabs_performance import annotate_new_package
         package = annotate_new_package(package, identity, notify)
+    if request.get('generation_defaults_profile') == 'efficient_v1' and request.get('mode') in ('new', 'grounded'):
+        package.setdefault('structure', {})['layer_production_stage'] = 'post_submission'
+        package['structure']['generation_defaults_profile'] = 'efficient_v1'
+        package['structure']['camera_policy'] = 'fixed_preferred_no_slow_zoom'
+        if request.get('generate_publish_package') is True:
+            from worker.codex_publish_package import plan_package as plan_publish_package
+            from worker.codex_content_runner import CodexStagedContentRunner
+            notify('최종 대본 기준 제목·설명·썸네일 기획')
+            package = plan_publish_package(CodexStagedContentRunner()._stage, 'local-' + identity, package)
     if request.get('reuse_check_policy') in ('compatible_first_v2', 'compatible_first_v3') and request.get('mode') in ('new', 'grounded'):
         from worker.reusable_scene_assets import plan_package
         from worker.codex_content_runner import CodexStagedContentRunner
@@ -72,6 +81,9 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     # The script/review/dialogue runner itself pins Astra; general model config
     # remains untouched for other existing content stages.
     runner = ReportingRunner(config)
+    if request.get('generation_defaults_profile') == 'efficient_v1' and request.get('mode') in ('new', 'grounded'):
+        from worker.script_generation_defaults import DIRECTION
+        request = {**request, 'notes': request.get('notes', '') + '\n' + DIRECTION}
     old_structure = (snapshot or {}).get('structure') or {}
     if request.get('mode') == 'repair' and old_structure.get('script_style') == 'japanese_historical_documentary':
         request = {**request, 'script_style': old_structure['script_style'],
