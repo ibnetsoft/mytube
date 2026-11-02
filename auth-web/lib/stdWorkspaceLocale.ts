@@ -1,6 +1,14 @@
 // Static interface copy only. Content, identifiers and saved design text are never translated.
 export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
   "en": {
+    "배경음 프롬프트": "Background music prompt",
+    "배경음 생성 프롬프트": "Background music generation prompt",
+    "저장된 배경음 프롬프트가 없습니다.": "No saved background music prompt.",
+    "복사 완료": "Copied",
+    "프롬프트 복사": "Copy prompt",
+    "배경음 프롬프트를 복사했습니다.": "Background music prompt copied.",
+    "복사하지 못했습니다. 프롬프트를 펼쳐 직접 복사해 주세요.": "Could not copy. Expand the prompt and copy it manually.",
+
     "번호를 클릭하여 선택·해제 · Shift+클릭으로 범위 선택": "Click a number to select or deselect · Shift-click to select a range",
     "사이에 빠진 자막이 있습니다. 첫 자막을 클릭한 뒤 Shift+클릭으로 마지막 자막까지 선택해 주세요.": "Some subtitles in between are not selected. Click the first subtitle, then Shift-click the last.",
     "자막 합치기는 같은 씬 안에서 선택해 주세요.": "Select subtitles within the same scene to merge.",
@@ -303,6 +311,14 @@ export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
     "대사 화자 지정 {confirmed}/{total}개 자막": "Dialogue speakers assigned: {confirmed}/{total} subtitles"
   },
   "vi": {
+    "배경음 프롬프트": "Câu lệnh nhạc nền",
+    "배경음 생성 프롬프트": "Câu lệnh tạo nhạc nền",
+    "저장된 배경음 프롬프트가 없습니다.": "Chưa có câu lệnh nhạc nền được lưu.",
+    "복사 완료": "Đã sao chép",
+    "프롬프트 복사": "Sao chép câu lệnh",
+    "배경음 프롬프트를 복사했습니다.": "Đã sao chép câu lệnh nhạc nền.",
+    "복사하지 못했습니다. 프롬프트를 펼쳐 직접 복사해 주세요.": "Không thể sao chép. Hãy mở câu lệnh và sao chép thủ công.",
+
     "번호를 클릭하여 선택·해제 · Shift+클릭으로 범위 선택": "Nhấp số để chọn hoặc bỏ chọn · Shift+nhấp để chọn một khoảng",
     "사이에 빠진 자막이 있습니다. 첫 자막을 클릭한 뒤 Shift+클릭으로 마지막 자막까지 선택해 주세요.": "Có phụ đề ở giữa chưa được chọn. Nhấp phụ đề đầu, rồi giữ Shift và nhấp phụ đề cuối.",
     "자막 합치기는 같은 씬 안에서 선택해 주세요.": "Chọn các phụ đề trong cùng một cảnh để gộp.",
@@ -605,6 +621,14 @@ export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
     "대사 화자 지정 {confirmed}/{total}개 자막": "Đã gán người nói: {confirmed}/{total} phụ đề"
   },
   "th": {
+    "배경음 프롬프트": "พรอมต์เพลงประกอบ",
+    "배경음 생성 프롬프트": "พรอมต์สร้างเพลงประกอบ",
+    "저장된 배경음 프롬프트가 없습니다.": "ยังไม่มีพรอมต์เพลงประกอบที่บันทึกไว้",
+    "복사 완료": "คัดลอกแล้ว",
+    "프롬프트 복사": "คัดลอกพรอมต์",
+    "배경음 프롬프트를 복사했습니다.": "คัดลอกพรอมต์เพลงประกอบแล้ว",
+    "복사하지 못했습니다. 프롬프트를 펼쳐 직접 복사해 주세요.": "คัดลอกไม่สำเร็จ กรุณาเปิดพรอมต์แล้วคัดลอกด้วยตนเอง",
+
     "번호를 클릭하여 선택·해제 · Shift+클릭으로 범위 선택": "คลิกหมายเลขเพื่อเลือกหรือยกเลิก · Shift+คลิกเพื่อเลือกช่วง",
     "사이에 빠진 자막이 있습니다. 첫 자막을 클릭한 뒤 Shift+클릭으로 마지막 자막까지 선택해 주세요.": "ยังไม่ได้เลือกคำบรรยายบางรายการที่อยู่ระหว่างกลาง คลิกรายการแรก แล้วกด Shift ค้างและคลิกรายการสุดท้าย",
     "자막 합치기는 같은 씬 안에서 선택해 주세요.": "เลือกคำบรรยายภายในฉากเดียวกันเพื่อรวม",
