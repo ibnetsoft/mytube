@@ -4,7 +4,6 @@ import { createPortal } from 'react-dom'
 import { RefreshCw } from 'lucide-react'
 import { stdUiText } from '../lib/stdUiText'
 import { canRetainSpeakerDraft } from '../lib/stdSpeakerDraftIdentity'
-import StdMouthPreviews from './StdMouthPreviews'
 import StdSpeakerWorkInfo from './StdSpeakerWorkInfo'
 import StdRegionMotionEditor from './StdRegionMotionEditor'
 import StdEyeBlinkEditor from './StdEyeBlinkEditor'
@@ -275,7 +274,6 @@ export default function StdSpeakerCoordinates({
     const button = 'rounded-lg border border-white/20 px-3 py-2 text-sm disabled:opacity-40'
     return (
         <>
-            {!preparationOnly && <StdMouthPreviews projectId={projectId} headers={headers} />}
             <aside
                 aria-label={copy.title}
                 className="relative order-4 mt-3 w-full min-w-0 shrink-0 rounded-xl border border-cyan-500/40 bg-[#10252d] p-2 text-cyan-200 lg:order-none lg:mt-auto"
