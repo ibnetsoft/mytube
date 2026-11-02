@@ -17,6 +17,7 @@ import { isComicProject, isWebtoonVideoProject, comicSettingsForProject, comicSe
 import { sceneVideoGeneration, videoPromptWithRatio, videoRatioLabels } from '@/lib/stdVideoGeneration'
 import { subtitleGain, prepareSpeechPlayback, connectSpeechGain } from '@/lib/stdSpeechGain'
 import subtitleFontCatalog from '@/public/fonts/catalog.json'
+import { subtitleFontLabel } from '@/lib/stdSubtitleFontLabels'
 import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { loadSavedTtsAudio } from '@/lib/stdTtsPlayback'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
@@ -601,13 +602,7 @@ const ELEVENLABS_VOICES = [
     },
 ]
 
-const JAPANESE_SUBTITLE_FONT_LABELS: Record<string, string> = {
-    'NotoSansJP-Regular': 'Noto Sans JP · 일본어 고딕 보통',
-    'NotoSansJP-Bold': 'Noto Sans JP · 일본어 고딕 굵게',
-    'NotoSerifJP-Bold': 'Noto Serif JP · 일본어 명조 굵게',
-}
-const SUBTITLE_FONTS = [...Object.keys(subtitleFontCatalog).map(value => ({ value, label: JAPANESE_SUBTITLE_FONT_LABELS[value] || value })),
-    { value: 'Malgun Gothic', label: '맑은 고딕 (Malgun Gothic · 렌더 폰트)' }]
+const SUBTITLE_FONTS = [...Object.keys(subtitleFontCatalog), 'Malgun Gothic']
 
 const DEFAULT_SUBTITLE_PRESETS = [
     {
@@ -9383,12 +9378,12 @@ export default function StdPortalPage() {
                                                 }}
                                                 className="text-[11px] bg-[#1c2027]/50 border border-gray-600 rounded-md py-1 px-1.5 text-white font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer w-28 sm:w-32"
                                             >
-                                                {!SUBTITLE_FONTS.some(f => f.value === subFontFamily) && (
+                                                {!SUBTITLE_FONTS.includes(subFontFamily) && (
                                                     <option value={subFontFamily}>{subFontFamily} (Windows)</option>
                                                 )}
-                                                {SUBTITLE_FONTS.map(f => (
-                                                    <option key={f.value} value={f.value} style={{ fontFamily: f.value }} className="bg-[#1c2027] text-white">
-                                                        {ui(f.label)}
+                                                {SUBTITLE_FONTS.map(font => (
+                                                    <option key={font} value={font} style={{ fontFamily: font }} className="bg-[#1c2027] text-white">
+                                                        {subtitleFontLabel(font, currentLocale)}
                                                     </option>
                                                 ))}
                                             </select>
