@@ -65,7 +65,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
         finally { setReading(false) }
     }
     return <section lang={locale} className="mx-auto w-full max-w-5xl space-y-6 select-text">
-        <div><h1 className="text-2xl font-semibold">{ui('토픽 등록')}</h1><p className="mt-2 text-gray-400">{ui('이야기와 참고 자료를 등록하세요. 로컬 대본워커에서 검토·승인 후 대본 작성을 시작합니다.')}</p></div>
+        <div><h1 className="text-2xl font-semibold">{ui('토픽 등록')}</h1><p className="mt-2 text-gray-400">{ui('이야기와 참고 자료를 등록하세요. 검토·승인 후 대본 작성을 시작합니다.')}</p></div>
         {error && <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-red-300">{ui(error)}</p>}
         {notice && <p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-emerald-300">{notice}</p>}
         <TopicYoutubeExplorer locale={locale} headers={headers} disabled={busy} onSelect={video => {
@@ -90,7 +90,7 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                 const res = await fetch('/api/std/topic-submissions', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Idempotency-Key': submission.current.key }, body })
                 const result = await res.json(); if (!res.ok) throw new Error(result.error)
                 form.reset(); setImages([]); setNonverbal(false); setDocumentary(false); submission.current = { key: '', body: '' }
-                setNotice(ui('토픽을 등록했습니다. 로컬 대본워커의 승인 대기열에 표시됩니다.')); await load()
+                setNotice(ui('토픽을 등록했습니다. 승인 대기 중입니다.')); await load()
             } catch (e) { setError(e instanceof Error ? e.message : '등록 실패') }
             finally { inFlight.current = false; setBusy(false) }
         }}>

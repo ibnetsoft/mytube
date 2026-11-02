@@ -1517,10 +1517,10 @@ export default function StdPortalPage() {
         const badges = ['충격 폭로형', '현실 대비형', '호기심 자극형']
         return codexThumbnailData.hookTexts.map((headline, index) => ({
             id: `codex-idea-${index + 1}`,
-            badge: badges[index] || 'Codex 추천',
+            badge: badges[index] || '추천',
             headline,
-            subhead: codexThumbnailData.reasoning || 'Codex가 대본을 바탕으로 만든 썸네일 문구',
-            prompt: codexThumbnailData.imagePrompt || 'Codex 이미지 프롬프트를 준비 중입니다.',
+            subhead: codexThumbnailData.reasoning || '대본을 바탕으로 만든 썸네일 문구',
+            prompt: codexThumbnailData.imagePrompt || '이미지 설명을 준비 중입니다.',
         }))
     }, [codexThumbnailData])
 
@@ -1938,8 +1938,8 @@ export default function StdPortalPage() {
                 if (!response.ok || !payload?.success) throw new Error(payload?.error || `${languageName} 자막 번역에 실패했습니다.`)
                 if (payload.pending) {
                     jobId = payload.job_id
-                    setMessage('로컬 Codex 대본워커에서 자막 번역 대기·처리 중입니다.')
-                    if (Date.now() - startedAt > 30 * 60 * 1000) throw new Error('로컬 대본워커 실행 상태를 확인해 주세요. 번역 요청은 저장되어 있습니다.')
+                    setMessage('자막 번역을 준비하거나 진행하고 있습니다.')
+                    if (Date.now() - startedAt > 30 * 60 * 1000) throw new Error('번역이 지연되고 있습니다. 번역 요청은 저장되어 있습니다.')
                     await new Promise<void>(resolve => {
                         const done = () => { window.clearTimeout(timer); controller.signal.removeEventListener('abort', done); resolve() }
                         const timer = window.setTimeout(done, 3000)
@@ -11659,7 +11659,7 @@ export default function StdPortalPage() {
                                             type="button"
                                             onClick={() => {
                                                 if (!thumbnailIdeas.length) {
-                                                    alert(ui("이 프로젝트에는 아직 Codex 워커가 생성한 썸네일 문구가 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요."))
+                                                    alert(ui("이 프로젝트에는 아직 썸네일 문구가 없습니다. 콘텐츠 작업을 완료한 뒤 다시 열어주세요."))
                                                     return
                                                 }
                                                 setThumbTextLayers(thumbnailIdeas.slice(0, 2).map((idea, index) => ({
@@ -11674,7 +11674,7 @@ export default function StdPortalPage() {
                                                     y: index === 0 ? 35 : 65,
                                                 })))
                                                 setThumbStep(2)
-                                                alert(ui("Codex 워커가 대본과 함께 생성한 썸네일 문구를 적용했습니다."))
+                                                alert(ui("대본과 함께 준비된 썸네일 문구를 적용했습니다."))
                                             }}
                                             className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all"
                                         >
@@ -11686,7 +11686,7 @@ export default function StdPortalPage() {
                                                 onClick={() => {
                                                     const hook = codexThumbnailData.hookTexts[0]
                                                     if (!hook) {
-                                                        alert(ui("Codex 워커가 생성한 문구가 아직 없습니다."))
+                                                        alert(ui("준비된 문구가 아직 없습니다."))
                                                         return
                                                     }
                                                     setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: `${hook.replace(/[!?]+$/, '')}!?` } : l))
@@ -11701,7 +11701,7 @@ export default function StdPortalPage() {
                                                 onClick={() => {
                                                     const hook = codexThumbnailData.hookTexts[0]
                                                     if (!hook) {
-                                                        alert(ui("Codex 워커가 생성한 문구가 아직 없습니다."))
+                                                        alert(ui("준비된 문구가 아직 없습니다."))
                                                         return
                                                     }
                                                     setThumbTextLayers(prev => prev.map((l, i) => i === 0 ? { ...l, text: hook.replace(/[!?]+$/, '') } : l))
@@ -11847,7 +11847,7 @@ export default function StdPortalPage() {
                                     ))}
                                     {!thumbnailIdeas.length && (
                                         <div className="md:col-span-3 rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-5 text-center text-xs text-amber-200">
-                                            {ui("이 프로젝트에는 Codex 워커가 생성한 썸네일 문구가 아직 없습니다. 새 Codex 콘텐츠 작업을 완료한 뒤 다시 열어주세요.")}
+                                            {ui("이 프로젝트에는 아직 썸네일 문구가 없습니다. 콘텐츠 작업을 완료한 뒤 다시 열어주세요.")}
                                         </div>
                                     )}
                                 </div>
@@ -11883,7 +11883,7 @@ export default function StdPortalPage() {
                                             </button>
                                         ))}
                                         {!codexThumbnailData.hookTexts.length && (
-                                            <span className="text-[11px] text-gray-500">{ui("Codex 워커가 생성한 추천 문구가 아직 없습니다.")}</span>
+                                            <span className="text-[11px] text-gray-500">{ui("추천 문구가 아직 없습니다.")}</span>
                                         )}
                                     </div>
                                 </div>
