@@ -1129,7 +1129,7 @@ export default function StdPortalPage() {
     const [subStrokeColor, setSubStrokeColor] = useState('#000000')
     const [subStrokeWidth, setSubStrokeWidth] = useState('0')
     const [subPosY, setSubPosY] = useState(5)
-    const [subBgStrip, setSubBgStrip] = useState(false)
+    const [subBgStrip, setSubBgStrip] = useState(true)
     const [subBgColor, setSubBgColor] = useState('#000000')
     const [subBgOpacity, setSubBgOpacity] = useState('0.5')
     const [subBgVOffset, setSubBgVOffset] = useState('0')
@@ -4848,9 +4848,7 @@ export default function StdPortalPage() {
             ...(selectedProject?.project?.project_payload?.settings || {}),
             ...(selectedProject?.project?.project_payload?.render_settings || {}),
         }
-        if (renderSettings.subtitle_bg_enabled !== undefined || renderSettings.bg_enabled !== undefined) {
-            setSubBgStrip(Boolean(renderSettings.subtitle_bg_enabled ?? renderSettings.bg_enabled))
-        }
+        setSubBgStrip(Boolean(renderSettings.subtitle_bg_enabled ?? renderSettings.bg_enabled ?? true))
         if (renderSettings.subtitle_bg_color || renderSettings.bg_color) {
             setSubBgColor(String(renderSettings.subtitle_bg_color || renderSettings.bg_color))
         }
