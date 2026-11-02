@@ -2777,18 +2777,13 @@ export default function StdPortalPage() {
         setMessage('씬 효과 저장 중...')
 
         try {
-            const response = await fetch('/api/std/projects/' + selectedProject.project.id, {
+            const response = await fetch('/api/std/projects/' + selectedProject.project.id + '/scene-effects', {
                 method: 'PATCH',
                 headers: authedJsonHeaders,
                 body: JSON.stringify({
-                    allow_scene_update: true,
-                    project_payload: {
-                        scenes: updatedPayloadScenes,
-                        structure: {
-                            ...(currentPayload.structure || {}),
-                            scenes: updatedStructureScenes,
-                        },
-                    },
+                    scene_numbers: [...selectedSceneSet],
+                    field,
+                    value: effectId,
                 }),
             })
             if (!response.ok) throw new Error(await response.text())
