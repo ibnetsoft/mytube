@@ -276,7 +276,7 @@ export default function StdSpeakerCoordinates({
         <>
             <aside
                 aria-label={copy.title}
-                className="relative order-4 mt-3 w-full min-w-0 shrink-0 rounded-xl border border-cyan-500/40 bg-[#10252d] p-2 text-cyan-200 lg:order-none lg:mt-auto"
+                className="relative order-4 mt-3 w-full min-w-0 shrink-0 rounded-xl border border-cyan-500/40 bg-[#10252d] p-2 text-cyan-200 lg:order-none lg:mt-0"
             >
                     <button type="button" aria-label={copy.refresh} title={copy.refresh}
                         className="absolute right-1 top-1 rounded-md p-1 text-cyan-200 hover:bg-cyan-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
