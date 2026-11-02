@@ -67,6 +67,10 @@ def pending_roles():
         if role in ('filmcraft','webtoon','effectcraft','motion_automation','motion_preview'):query['metadata->>enabled']='eq.true'
         if role=='ae':query['metadata->>pipeline_version']='eq.2'
         if exists('std_project_assets',asset_query(POSTPRODUCTION,query)):roles.append(role)
+    if 'region' not in roles and exists('std_project_assets',asset_query(POSTPRODUCTION,{
+            'metadata->>kind':'eq.region_layer_package', 'metadata->>workflow_stage':'eq.postproduction',
+            'or':simple_filter()})):
+        roles.append('region')
     response=requests.get(base+'/rest/v1/remote_render_queue',headers=headers,params={
         'select':'metadata->std_web_project_id','limit':'1000','render_mode':'eq.gcs_api',
         'metadata->>std_web_project_id':'not.is.null','or':f"(status.eq.pending,and(status.eq.rendering,metadata->>pipeline_version.eq.2,updated_at.lt.{(datetime.now(timezone.utc)-__import__('datetime').timedelta(minutes=3)).isoformat()}))"},timeout=(5,15))

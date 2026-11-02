@@ -39,7 +39,13 @@ def process_one(stage="postproduction"):
     from worker.workflow_roles import PREPARATION, POSTPRODUCTION, asset_query, belongs, assert_project
     if stage not in (PREPARATION,POSTPRODUCTION): raise ValueError("Unknown workflow owner")
     base,headers=ae._supabase();url=base+'/rest/v1/std_project_assets'
-    jobs=ae._request('GET',url,headers,params=asset_query(stage, {'select':'*','metadata->>kind':'eq.region_layer_package' if stage==PREPARATION else 'eq.region_motion_plan','metadata->>state':'in.(queued,processing)','order':'created_at.asc','limit':'20'})).json()
+    kinds = ['region_layer_package'] if stage == PREPARATION else ['region_layer_package', 'region_motion_plan']
+    jobs=[]
+    for kind in kinds:
+        params={'select':'*','metadata->>kind':'eq.'+kind,'metadata->>state':'in.(queued,processing)','order':'created_at.asc','limit':'20'}
+        if stage == POSTPRODUCTION and kind == 'region_layer_package': params['metadata->>workflow_stage']='eq.postproduction'
+        jobs.extend(ae._request('GET',url,headers,params=asset_query(stage,params)).json())
+    jobs=[j for j in jobs if belongs(j,stage)]
     job=next((j for j in jobs if j['metadata']['state']=='queued' or (datetime.now(timezone.utc)-datetime.fromisoformat(j['updated_at'].replace('Z','+00:00'))).total_seconds()>1800),None)
     if not job or not belongs(job,stage):return False
     meta=copy.deepcopy(job['metadata']);is_layers=meta['kind']=='region_layer_package';lease=uuid.uuid4().hex
@@ -100,7 +106,7 @@ def process_one(stage="postproduction"):
             save(state='prepared',progress='외곽선과 복원 배경 확인 필요',result={**prepared,'files':files})
             return True
         if not meta['input'].get('layerPackage'):
-            raise ValueError('대본워커에서 검수한 레이어 패키지가 필요합니다. 제출 후에는 레이어를 생성하지 않습니다.')
+            raise ValueError('현재 씬에 대해 준비하고 검수한 레이어 패키지가 필요합니다.')
         runtime=None
         if meta['input'].get('layerPackage'):
             package=meta['input']['layerPackage']

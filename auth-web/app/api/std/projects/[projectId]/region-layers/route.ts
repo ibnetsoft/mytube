@@ -15,7 +15,7 @@ async function context(req: Request, projectId: string) {
     if (!auth.ok) return { response: auth.response }
     const p = await db
         .from('std_projects')
-        .select('id,status')
+        .select('id,status,submitted_at')
         .eq('id', projectId)
         .eq('employee_email', auth.requester.email)
         .maybeSingle()
@@ -34,7 +34,7 @@ async function context(req: Request, projectId: string) {
         .in('status', ['uploaded', 'assigned'])
         .order('created_at', { ascending: false })
     if (a.error) throw a.error
-    return { assets: a.data || [] }
+    return { assets: a.data || [], project: p.data }
 }
 async function insert(projectId: string, scene: number, metadata: any) {
     const r = await db
@@ -274,6 +274,8 @@ export async function POST(
             (a) =>
                 a.metadata?.kind === 'region_layer_package' &&
                 a.metadata.key === key &&
+                (!ctx.project?.submitted_at || a.metadata.state === 'approved' ||
+                    a.metadata.workflow_stage === 'postproduction') &&
                 ['queued', 'processing', 'prepared', 'approved'].includes(
                     a.metadata.state,
                 ),
@@ -294,6 +296,7 @@ export async function POST(
             throw new Error('원본이 변경됐습니다.')
         const pack = await insert(params.projectId, number, {
             kind: 'region_layer_package',
+            ...(fresh.project?.submitted_at ? { workflow_stage: 'postproduction' } : {}),
             state: 'queued',
             key,
             editorRegions: body.regions,

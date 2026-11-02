@@ -147,6 +147,26 @@ def test_pending_mouth_job_selects_mouth_process_without_coordinate_prerequisite
     assert media.role_command('ae')[-2:] == ['--once', '--mouth-only']
 
 
+def test_post_submission_region_layer_job_is_polled(monkeypatch):
+    import requests
+    monkeypatch.setenv('SUPABASE_URL', 'https://database.example')
+    monkeypatch.setenv('SUPABASE_SERVICE_ROLE_KEY', 'fixture')
+    seen=[]
+    class Response:
+        def __init__(self, rows): self.rows=rows
+        def raise_for_status(self): pass
+        def json(self): return self.rows
+    def get(url, **kwargs):
+        params=kwargs['params'];seen.append(params)
+        if params.get('metadata->>kind')=='eq.region_layer_package':
+            assert params['metadata->>workflow_stage']=='eq.postproduction'
+            assert params['workflow_project.submitted_at']=='not.is.null'
+            return Response([{'id':'pending-layers'}])
+        return Response([])
+    monkeypatch.setattr(requests,'get',get)
+    assert media.pending_roles()==['region']
+
+
 def test_approved_mouth_output_counts_as_completed():
     from worker.local_media_dashboard import summarize
     assert summarize({'id':'job','metadata':{'kind':'ae_mouth_job','results':[{'status':'approved'}]}})['done'] == 1

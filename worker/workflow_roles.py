@@ -11,6 +11,8 @@ def project_stage(project):
 def asset_stage(row):
     meta = row.get('metadata') or {}
     kind = meta.get('kind')
+    if kind == 'region_layer_package' and meta.get('workflow_stage') == POSTPRODUCTION:
+        return POSTPRODUCTION
     if kind in ('ae_scene_preparation', 'ae_speaker_coordinates', 'region_layer_package'):
         return PREPARATION
     if kind == 'motion_preview':

@@ -27,6 +27,16 @@ def test_retired_preview_and_closed_projects_never_claimed():
     assert params['workflow_project.submitted_at']=='not.is.null'
     assert 'preview_sync' in params['and']
 
+
+def test_post_submission_layer_package_only_claimed_by_postproduction():
+    row={'metadata':{'kind':'region_layer_package','workflow_stage':'postproduction'},
+         'workflow_project':{'status':'in_progress','submitted_at':'2026-10-20T00:00:00Z'}}
+    assert belongs(row, POSTPRODUCTION)
+    assert not belongs(row, PREPARATION)
+    row['workflow_project']['submitted_at']=None
+    assert not belongs(row, PREPARATION)
+    assert not belongs(row, POSTPRODUCTION)
+
 def test_image_preparation_receipt_cannot_start_ae(tmp_path):
     from worker.prepared_mouth_preview import prepare_preview
     result=prepare_preview('fixture',1,tmp_path/'source.png',{}, {'state':'ready','keys':['saved']})
