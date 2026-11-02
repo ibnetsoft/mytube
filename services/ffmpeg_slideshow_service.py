@@ -8,7 +8,7 @@ import subprocess
 import time
 import zlib
 from pathlib import Path
-from services.subtitle_layout import subtitle_font_pixels, subtitle_outline_pixels
+from services.subtitle_layout import subtitle_font_pixels, subtitle_outline_pixels, wrap_subtitle_lines
 
 
 class FastRenderUnsupported(RuntimeError):
@@ -168,6 +168,71 @@ def _subtitle_layout_font(fonts_dir, font_name, font_size):
     raise FastRenderUnsupported(f"자막 배경 측정용 폰트를 찾을 수 없습니다: {font_name}")
 
 
+def _subtitle_measure_with_fallback(fonts_dir, font_name, font_size):
+    """Measure unsupported glyphs using the same bundled CJK fallback as the web."""
+    from fontTools.ttLib import TTFont
+    primary = _subtitle_layout_font(fonts_dir, font_name, font_size * 100)
+    font_file = getattr(primary, 'path', None)
+    if not font_file:
+        raise FastRenderUnsupported('Cannot determine selected subtitle font coverage')
+    font_data = TTFont(font_file, fontNumber=getattr(primary, 'index', 0), lazy=True)
+    try:
+        coverage = frozenset(font_data.getBestCmap() or {})
+    finally:
+        font_data.close()
+    fallback_dir = Path(fonts_dir).parent / 'subtitle_fallback' / 'fast_render_fonts'
+    if not (fallback_dir / 'NotoSansJP-Bold.ttf').is_file():
+        fallback_dir = Path(_prepare_fonts_dir(fallback_dir.parent, {'fontFamily': 'NotoSansJP-Bold'}))
+    fallback = _subtitle_layout_font(fallback_dir, 'NotoSansJP-Bold', font_size * 100)
+    fallback_data = TTFont(fallback.path, lazy=True)
+    try:
+        fallback_coverage = frozenset(fallback_data.getBestCmap() or {})
+    finally:
+        fallback_data.close()
+    thai_dir = Path(fonts_dir).parent / 'subtitle_thai_fallback' / 'fast_render_fonts'
+    if not (thai_dir / 'NotoSansThai-VF.ttf').is_file():
+        thai_dir = Path(_prepare_fonts_dir(thai_dir.parent, {'fontFamily': 'NotoSansThai'}))
+    thai = _subtitle_layout_font(thai_dir, 'NotoSansThai', font_size * 100)
+    # libass must see the same fallback fonts as the browser and measurer.
+    for extra in (Path(fallback.path), Path(thai.path)):
+        target = Path(fonts_dir) / extra.name
+        if not target.exists():
+            shutil.copy2(extra, target)
+
+    def runs(value):
+        current = None
+        run = ''
+        for char in value:
+            selected = primary if ord(char) in coverage else fallback if ord(char) in fallback_coverage else thai
+            if selected is not current and run:
+                yield current, run
+                run = ''
+            current = selected
+            run += char
+        if run:
+            yield current, run
+
+    def measure(value):
+        total = 0.0
+        for current, run in runs(value):
+            total += current.getlength(run)
+        return total / 100
+    def ass_text(value):
+        result = []
+        previous = primary
+        for font, run in runs(value):
+            family = font_name if font is primary else 'NotoSansJP-Bold' if font is fallback else 'NotoSansThai'
+            if font is not previous:
+                result.append(r'{\fn' + family + '}')
+                previous = font
+            result.append(_ass_text(run))
+        if previous is not primary:
+            result.append(r'{\fn' + font_name + '}')
+        return ''.join(result)
+    measure.ass_text = ass_text
+    return measure
+
+
 def _wrap_ass_lines(text, font, max_width):
     lines = []
     for paragraph in str(text).replace("\r\n", "\n").replace("\r", "\n").split("\n"):
@@ -243,23 +308,22 @@ Style: Default,{font_name},{font_size},{primary},{primary},{outline},{back},0,0,
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    layout_font = None
-    if bg_enabled:
-        fonts_dir = fonts_dir or _prepare_fonts_dir(Path(path).parent, settings)
-        layout_font = _subtitle_layout_font(fonts_dir, font_name, font_size)
+    fonts_dir = fonts_dir or _prepare_fonts_dir(Path(path).parent, settings)
+    # Measure at high resolution: FreeType rounds fractional pixel sizes at
+    # small preview sizes, otherwise the browser and renderer choose different breaks.
+    measure = _subtitle_measure_with_fallback(fonts_dir, font_name, font_size)
     events = []
     for subtitle in subtitles or []:
         start = float(subtitle.get("start") or 0.0)
         end = float(subtitle.get("end") or start)
-        text = _ass_text(subtitle.get("text"))
-        if text and end > start:
-            if layout_font is not None:
+        raw_text = str(subtitle.get("text") or '')
+        lines = wrap_subtitle_lines(raw_text, measure, max(1, width * .85 - font_size * 1.2))
+        text = r'\N'.join(measure.ass_text(line) for line in lines)
+        if raw_text and end > start:
+            if bg_enabled:
                 # Match the preview's em-based padding, radius and line boxes.
                 pad_x, pad_y = font_size * 0.6, font_size * 0.30
-                # Subtitle blocks are authored as single lines in the editor.
-                # Preserve explicit breaks only; libass must not reflow them.
-                lines = str(subtitle.get("text") or '').splitlines() or ['']
-                box_width = max(layout_font.getlength(line) for line in lines) + 2 * pad_x
+                box_width = max(measure(line) for line in lines) + 2 * pad_x
                 spacing = _float_setting(settings, ("subtitle_line_spacing", "lineSpacing", "line_spacing_ratio", "line_spacing"), 0.1)
                 line_height = font_size * max(0.5, 1 + spacing)
                 box_height = font_size + (len(lines)-1) * line_height + 2 * pad_y
@@ -273,7 +337,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 for index, line in enumerate(lines):
                     y = top - offset + pad_y + index * line_height + font_size / 2
                     tags = rf"{{\an5\pos({width/2:.3f},{y:.3f})\q2}}"
-                    events.append(f"Dialogue: 1,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{tags}{_ass_text(line)}")
+                    events.append(f"Dialogue: 1,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{tags}{measure.ass_text(line)}")
                 continue
             events.append(f"Dialogue: 0,{_ass_time(start)},{_ass_time(end)},Default,,0,0,0,,{text}")
     Path(path).write_text(header + "\n".join(events) + "\n", encoding="utf-8-sig")

@@ -3,6 +3,13 @@
 /* Sources shared with the render worker through fonts/catalog.json. */
 /* Distinct families preserve the selected weight even in bold subtitle UI. */
 @font-face {
+    font-family: 'NotoSansThai';
+    src: url('/fonts/NotoSansThai-VF.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
     font-family: 'NotoSansJP-Regular';
     src: url('/fonts/NotoSansJP-Regular.woff') format('woff');
     font-weight: 100 900;
