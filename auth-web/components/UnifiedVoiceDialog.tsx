@@ -5,6 +5,7 @@ import { VOICE_STUDIO_VOICES, isVoiceStudioVoice } from '@/lib/voiceStudioCatalo
 import type { SupportedLocale } from '@/lib/i18n'
 import { voiceDialogCopy } from '@/lib/voiceDialogLocale'
 import { localizedVoiceDescription } from '@/lib/voiceDescriptionLocale'
+import { stdUiText } from '@/lib/stdUiText'
 
 function canonicalGender(gender?: string): 'male' | 'female' | 'neutral' | '' {
     const value = String(gender || '').trim().toLowerCase()
@@ -118,7 +119,7 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
     if (typeof document === 'undefined') return null
     return createPortal(<div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4" onClick={e => { e.stopPropagation(); if (!saving) onClose() }}>
         <div ref={panel} lang={locale} role="dialog" aria-modal="true" aria-label={title} onClick={e => e.stopPropagation()} className="flex max-h-[85dvh] w-full max-w-3xl flex-col gap-3 rounded-xl border border-white/20 bg-[#1c2027] p-5 text-gray-100 shadow-2xl [color-scheme:dark]">
-            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-bold">{title}</h2><p className="mt-1 text-xs text-gray-400">{copy.currentVoice}: {catalog.find(v => v.id === value)?.name || value}</p></div><button type="button" disabled={saving} onClick={onClose} className="rounded border border-white/10 px-3 py-1 text-xs">{copy.close}</button></div>
+            <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-bold">{title}</h2><p className="mt-1 text-xs text-gray-400">{copy.currentVoice}: {stdUiText(locale, catalog.find(v => v.id === value)?.name || value)}</p></div><button type="button" disabled={saving} onClick={onClose} className="rounded border border-white/10 px-3 py-1 text-xs">{copy.close}</button></div>
             {description && <p className="text-xs text-gray-400">{description}</p>}
             {speakerContext && <div className="space-y-2 rounded-lg border border-cyan-400/25 bg-cyan-500/5 p-3 text-xs">
                 <p className="font-bold">{copy.speaker}: {speakerContext.name || copy.speakerRequired} · {speakerGender ? copy[speakerGender] : copy.genderUnknown}</p>
@@ -135,7 +136,7 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
             </div>
             <div role="tabpanel" aria-label={tab === 'google' ? copy.google : copy.elevenlabs} className="grid min-h-0 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
                 {visible.map(v => <div key={v.id} className={`flex flex-col rounded-lg border p-3 ${draft === v.id ? 'border-cyan-400 bg-cyan-500/15' : 'border-white/10 bg-black/15'}`}>
-                    <p className="truncate text-sm font-bold" title={v.name}>{v.name || v.id}</p><p className="mt-1 text-[11px] text-gray-400">{genderLabel(v)}</p>
+                    <p className="truncate text-sm font-bold" title={stdUiText(locale, v.name || v.id)}>{stdUiText(locale, v.name || v.id)}</p><p className="mt-1 text-[11px] text-gray-400">{genderLabel(v)}</p>
                     <p title={voiceDescription(v)} className="mt-2 line-clamp-2 min-h-8 text-[11px] text-gray-400">{voiceDescription(v)}</p>
                     <div className="mt-3 flex items-center justify-between gap-2 text-xs"><button type="button" disabled={busy === v.id || (!isVoiceStudioVoice(v.id) && !v.preview_url)} onClick={() => void play(v)} className="rounded border border-white/15 px-2 py-1.5 disabled:opacity-40">{busy === v.id ? copy.loading : copy.preview}</button><button type="button" aria-pressed={draft === v.id} onClick={() => { setDraft(v.id); setAllowMismatch(false) }} className="rounded bg-cyan-500/15 px-2 py-1.5">{draft === v.id ? copy.selected : copy.select}</button></div>
                 </div>)}
@@ -170,7 +171,7 @@ export default function UnifiedVoiceDialog({ value, direction = '', voices, init
             {editDirection && isVoiceStudioVoice(draft) && <label className="text-xs">{copy.direction}<input value={tone} maxLength={500} onChange={e => setTone(e.target.value)} placeholder={copy.directionPlaceholder} className="mt-1 w-full rounded bg-black/25 p-2" /></label>}
             {mismatch && <div role="alert" className="space-y-2 rounded border border-amber-400/40 bg-amber-500/10 p-3 text-xs text-amber-200"><p>{copy.mismatch(speakerContext?.name || copy.speakerRequired, chosen?.name || '')}</p><label className="flex items-center gap-2"><input type="checkbox" checked={allowMismatch} onChange={e => setAllowMismatch(e.target.checked)}/>{copy.allowMismatch}</label></div>}
             {error && <p role="alert" className="text-xs text-red-300">{copy[error]}</p>}
-            <div className="flex shrink-0 items-center justify-end gap-2 text-xs"><span className="mr-auto truncate text-cyan-200">{copy.selection}: {chosen?.name || copy.chooseVoice}</span><button type="button" disabled={saving} onClick={onClose} className="rounded border border-white/10 px-3 py-2">{copy.cancel}</button><button type="button" disabled={!chosen || saving || (mismatch && !allowMismatch)} onClick={async () => { setSaving(true); setError(''); try { await onApply(draft, tone, allSpeaker); rememberVoice(draft); onClose() } catch { setError('saveFailed') } finally { setSaving(false) } }} className="rounded bg-emerald-600 px-4 py-2 font-bold disabled:opacity-40">{saving ? copy.saving : copy.confirm}</button></div>
+            <div className="flex shrink-0 items-center justify-end gap-2 text-xs"><span className="mr-auto truncate text-cyan-200">{copy.selection}: {stdUiText(locale, chosen?.name || copy.chooseVoice)}</span><button type="button" disabled={saving} onClick={onClose} className="rounded border border-white/10 px-3 py-2">{copy.cancel}</button><button type="button" disabled={!chosen || saving || (mismatch && !allowMismatch)} onClick={async () => { setSaving(true); setError(''); try { await onApply(draft, tone, allSpeaker); rememberVoice(draft); onClose() } catch { setError('saveFailed') } finally { setSaving(false) } }} className="rounded bg-emerald-600 px-4 py-2 font-bold disabled:opacity-40">{saving ? copy.saving : copy.confirm}</button></div>
         </div>
     </div>, document.body)
 }

@@ -3231,7 +3231,7 @@ export default function StdPortalPage() {
         disabled = false,
         options: { description?: string; buttonLabel?: string; countBadge?: number; elevenLabsOnly?: boolean; speakerContext?: { name: string; gender: string; count: number; thai: boolean } } = {}
     ) => {
-        const currentVoiceName = voiceNameById.get(voiceId) || voiceId || voiceCopy.chooseVoice
+        const currentVoiceName = ui(voiceNameById.get(voiceId) || voiceId || voiceCopy.chooseVoice)
         const popupTitle = pickerKey === 'selected-scenes-bulk' ? voiceCopy.selectedScenesTitle(selectedSubtitleSceneNumbers.length)
             : pickerKey === 'selected-blocks-bulk' ? voiceCopy.selectedBlocksTitle(selectedSubtitleBlockIndexes.length)
             : pickerKey.startsWith('scene-') ? voiceCopy.sceneTitle(pickerKey.slice('scene-'.length))
@@ -9764,7 +9764,7 @@ export default function StdPortalPage() {
                                                 const segmentKey = vrewSegmentCacheKey(group.subtitles[0], group.firstIndex)
                                                 const segmentStatus = vrewSegmentStatus[segmentKey] || (hasStoredSegment(group.subtitles[0]) ? 'ready' : 'missing')
                                                 const segmentStatusLabel = group.subtitles.some((item: any) => item.restored_audio_pending)
-                                                    ? '음성 복구 필요'
+                                                    ? ui('음성 복구 필요')
                                                     : segmentStatus === 'ready'
                                                     ? ui("음성")
                                                     : segmentStatus === 'generating'
@@ -9831,7 +9831,7 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                 )}
                                                                 <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-black/80 text-white px-1 rounded">
-                                                                    {group.subtitles.length} lines
+                                                                    {ui('{count}줄', { count: group.subtitles.length })}
                                                                 </span>
                                                                 {isHook ? (
                                                                     <span className="absolute top-0.5 left-0.5 bg-orange-600/90 text-white text-[8px] font-bold px-1 rounded">
@@ -9867,7 +9867,7 @@ export default function StdPortalPage() {
                                                                         title={originalVideo ? '영상 씬은 원본 움직임을 사용합니다.' : '씬이 재생되는 동안 적용할 이미지 움직임'}
                                                                         onChange={event => void applySelectedSceneTransition(event.target.value, 'image_effect', [Number(sNum)])}
                                                                         className="w-full min-w-0 rounded border border-white/15 bg-[#14181f] p-1 text-white disabled:opacity-40">
-                                                                        {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{motion.label}</option>)}
+                                                                        {SCENE_MOTIONS.map(motion => <option key={motion.id} value={motion.id}>{ui(motion.label)}</option>)}
                                                                     </select>
                                                                     <span className="flex items-center gap-1">{ui("속도")}
                                                                         <select aria-label={`씬 ${sNum} 모션 속도`} value={sceneMotionSpeed(sceneRecord)}
@@ -9883,10 +9883,10 @@ export default function StdPortalPage() {
                                                         <div className="w-full min-w-0 flex-none sm:flex-1">
                                                             <div className="mb-1 flex flex-wrap items-center gap-1 sm:gap-2">
                                                                 <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold sm:text-[10px] ${isHook ? 'bg-orange-500/15 text-orange-300' : 'bg-blue-500/15 text-blue-300'}`}>
-                                                                    Scene {sNum}
+                                                                    {ui('씬')} {sNum}
                                                                 </span>
                                                                 <span className="hidden text-[10px] text-gray-500 sm:inline">
-                                                                    {group.subtitles.length} subtitle block{group.subtitles.length === 1 ? '' : 's'}
+                                                                    {ui('자막 {count}개', { count: group.subtitles.length })}
                                                                 </span>
                                                                 {directionBadges.map((badge: any) => {
                                                                     const BadgeIcon = badge.kind === 'eye' ? Eye
@@ -9947,10 +9947,10 @@ export default function StdPortalPage() {
                                                                     >
                                                                         {hasSingleGroupVoice && (
                                                                             <span
-                                                                                title={groupVoiceNames[0]}
+                                                                                title={ui(groupVoiceNames[0])}
                                                                                 className={`max-w-14 truncate rounded border px-1.5 py-1 text-[8px] font-bold leading-none min-[390px]:max-w-16 sm:max-w-24 sm:px-2 sm:text-[10px] ${groupDialogueVoiceGender === 'female' ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : groupDialogueVoiceGender === 'male' ? 'border-sky-200 bg-sky-300/90 text-sky-950' : 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100'}`}
                                                                             >
-                                                                                {groupVoiceNames[0]}
+                                                                                {ui(groupVoiceNames[0])}
                                                                             </span>
                                                                         )}
                                                                         <VoiceStudioPicker locale={currentLocale} historyUserId={isImpersonating ? impersonateEmail : user?.id || user?.email}
@@ -10117,7 +10117,7 @@ export default function StdPortalPage() {
                                                                                     )}
                                                                                 {!hasSingleGroupVoice && (
                                                                                     <span
-                                                                                        title={blockVoiceName}
+                                                                                        title={ui(blockVoiceName)}
                                                                                         className={`hidden max-w-24 truncate rounded border px-2 py-1 text-[10px] font-bold leading-none sm:inline ${
                                                                                             isDialogueBlock
                                                                                                 ? voiceGenderById.get(blockVoiceId) === 'female'
@@ -10128,7 +10128,7 @@ export default function StdPortalPage() {
                                                                                                 : 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100'
                                                                                         }`}
                                                                                     >
-                                                                                        {blockVoiceName}
+                                                                                        {ui(blockVoiceName)}
                                                                                     </span>
                                                                                 )}
                                                                                 </div>
