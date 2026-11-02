@@ -4,13 +4,20 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { publicTtsJob, ttsJobFingerprint, ttsSourceHash } from '@/lib/stdTtsJobs'
 import { subtitleSpeakerProgress } from '@/lib/stdSubtitleSpeakerProgress'
 export const dynamic = 'force-dynamic'
-async function owner(req: Request, projectId: string) {
+async function owner(req: Request, projectId: string, includeSpeech = false) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return { response: auth.response }
-    const { data, error } = await supabaseAdmin.from('std_projects').select('id,employee_email,project_payload').eq('id', projectId).eq('employee_email', auth.requester.email).maybeSingle()
+    const columns = includeSpeech
+        ? 'id,employee_email,script:project_payload->>script,subtitles:project_payload->subtitles,voice_id:project_payload->>voice_id,tts_speed:project_payload->tts_speed'
+        : 'id,employee_email'
+    const { data, error } = await supabaseAdmin.from('std_projects').select(columns).eq('id', projectId).eq('employee_email', auth.requester.email).maybeSingle()
     if (error) throw error
     if (!data) return { response: NextResponse.json({ error: 'Project not found' }, { status: 404 }) }
-    return { project: data, requester: auth.requester }
+    const row: any = data
+    const project = includeSpeech ? { ...row, project_payload: {
+        script: row.script, subtitles: row.subtitles, voice_id: row.voice_id, tts_speed: row.tts_speed,
+    } } : row
+    return { project, requester: auth.requester }
 }
 export async function GET(req: Request, { params }: { params: { projectId: string } }) {
     const auth = await owner(req, params.projectId)
@@ -20,7 +27,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     return NextResponse.json({ success: true, job: publicTtsJob(data) })
 }
 export async function POST(req: Request, { params }: { params: { projectId: string } }) {
-    const auth = await owner(req, params.projectId)
+    const auth = await owner(req, params.projectId, true)
     if (auth.response) return auth.response
     const body = await req.json()
     delete body.mode
