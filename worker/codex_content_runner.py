@@ -2069,6 +2069,12 @@ def _story_review_contract() -> str:
         "anti_sermon_score (90-100 to pass), and a nonempty listener_summary in script_quality_report. "
         "The summary must identify the protagonist, want, obstacle, turn, and final changed action "
         "from the script. Compare these with the fixed source-topic notes when supplied; flag any drift. "
+        "When review_scope is final_narration_only, audit the supplied current script, not package completeness. "
+        "The older narrative_blueprint and continuity ledger are intentionally omitted because rewrites can supersede them. "
+        "Do not reject their absence or demand a separate planning document. Instead derive a fresh "
+        "final_script_continuity_ledger in script_quality_report from this script, covering cast, timeline, "
+        "object custody, character knowledge, planted clues and resolutions with scene references. "
+        "Still reject actual contradictions or unsupported claims in the current narration. "
         "Evaluate moral summaries and dialogue in context with script evidence. A character crying, "
         "realizing something, mentioning a lesson, or speaking in quotes is not by itself a defect. "
         "Do not reject dialogue just because of its frequency; check whether surrounding actions motivate it. "
@@ -2098,6 +2104,7 @@ def _final_script_review_context(script_context: dict[str, Any], sections: list[
         **{key: value for key, value in script_context.items()
            if key not in ("structure", "narrative_blueprint")},
         "structure": {"scene_count": len(current_scenes), "scenes": current_scenes},
+        "review_scope": "final_narration_only",
         "review_provenance_note": ("This structure contains the current final narration and original scene timings. "
                                    "Older planning prose and continuity ledgers were excluded because a rewrite "
                                    "can supersede them. Derive object custody from the final script; do not require "

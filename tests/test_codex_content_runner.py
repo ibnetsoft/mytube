@@ -51,6 +51,10 @@ def test_final_review_receives_only_current_script_version():
         {'scene_order': 1, 'duration_seconds': 5,
          'scene_text': '改稿後の本文です。', 'narration': '改稿後の本文です。'}]
     assert 'narrative_blueprint' not in context
+    assert context['review_scope'] == 'final_narration_only'
+    contract = runner_module._story_review_contract()
+    assert 'Do not reject their absence' in contract
+    assert 'final_script_continuity_ledger' in contract
     assert context['scene_budgets'] == [{'min_chars': 1}]
 
 

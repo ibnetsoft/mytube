@@ -7,6 +7,14 @@ import secrets
 from worker.generation_validation import validated_stage
 
 PROFILE = 'listener_v1'
+
+
+class ListenerRevisionRejected(ValueError):
+    def __init__(self, comparison, audit):
+        super().__init__('Revision not demonstrably better without regressions; original preserved for review')
+        self.comparison = comparison
+        self.audit = audit
+
 DIMENSIONS = ('naturalness', 'engagement')
 RUBRICS = {
     'naturalness': 'Evaluate speakability, breath length, referent clarity, believable character speech, dialogue that is motivated by surrounding action, mechanical ending rotation and repeated explanations. Flag sudden quoted lines, speaker-label dialogue, or speeches that appear only to explain emotion. Do not enforce one dialect or sentence length. Distinguish text defects from hypothetical TTS pronunciation issues.',
@@ -57,23 +65,7 @@ def review(stage, title, sections):
     return reports
 
 
-def _improve_once(stage, title, sections, budgets):
-    original = copy.deepcopy(sections)
-    before = review(stage, title, original)
-    audit = {'profile': PROFILE, 'mode': 'text_only', 'before': before, 'revision_rounds': 0}
-    if all(r['verdict'] == 'pass' for r in before.values()):
-        audit.update(verdict='pass', selected='original')
-        audit['script_sha256'] = digest(original)
-        return original, audit
-
-    findings = [issue for r in before.values() for issue in r['issues']]
-    allowed = {issue['scene_order'] for issue in findings}
-    response = stage('02g_listener_repair', {'title': title, 'sections': original,
-                     'issues': findings, 'scene_budgets': budgets},
-                     'Repair ONLY scenes named in issues. Read the full script for continuity. Preserve facts, '
-                     'cast, viewpoint, plot and intended category voice. Do not change unflagged scenes, '
-                     'add scenes or pad duration. Prefer concrete action/consequence over explanatory morals, and do not add unmotivated dialogue. '
-                     'Return {patches:[{scene_order:1,text:"complete replacement scene"}]}.')
+def _apply_listener_patches(response, original, allowed, budgets):
     patches = response.get('patches') if isinstance(response, dict) else None
     if not isinstance(patches, list) or not patches:
         raise ValueError('Listener repair returned no patches')
@@ -90,6 +82,31 @@ def _improve_once(stage, title, sections, budgets):
         candidate[n - 1] = {**candidate[n - 1], 'text': text.strip()}
     if candidate == original:
         raise ValueError('Listener repair did not change the rejected script')
+
+    return candidate
+
+
+def _improve_once(stage, title, sections, budgets, repair_feedback=None):
+    original = copy.deepcopy(sections)
+    before = review(stage, title, original)
+    audit = {'profile': PROFILE, 'mode': 'text_only', 'before': before, 'revision_rounds': 0}
+    if all(r['verdict'] == 'pass' for r in before.values()):
+        audit.update(verdict='pass', selected='original')
+        audit['script_sha256'] = digest(original)
+        return original, audit
+
+    findings = [issue for r in before.values() for issue in r['issues']]
+    allowed = {issue['scene_order'] for issue in findings}
+    response = validated_stage(stage, '02g_listener_repair', {'title': title, 'sections': original,
+                     'issues': findings, 'scene_budgets': budgets,
+                     **({'rejected_comparison': repair_feedback} if repair_feedback else {})},
+                     'Repair ONLY scenes named in issues. Read the full script for continuity. Preserve facts, '
+                     'cast, viewpoint, plot and intended category voice. Do not change unflagged scenes, '
+                     'add scenes or pad duration. Prefer concrete action/consequence over explanatory morals, and do not add unmotivated dialogue. '
+                     'When rejected_comparison is supplied, resolve its regressions while preserving the originally requested improvements. '
+                     'Return {patches:[{scene_order:1,text:"complete replacement scene"}]}.',
+                     lambda raw: _apply_listener_patches(raw, original, allowed, budgets))
+    candidate = _apply_listener_patches(response, original, allowed, budgets)
 
     # Independent blind comparison: no revision label, writer score or issue list.
     labels = ['A', 'B']
@@ -110,7 +127,9 @@ def _improve_once(stage, title, sections, budgets):
     if any(w not in ('A', 'B', 'tie') for w in winners):
         raise ValueError('Blind comparison missing dimension verdict')
     if labels[0] in winners or labels[1] not in winners or comparison.get('regressions') != []:
-        raise ValueError('Revision not demonstrably better without regressions; original preserved for review')
+        raise ListenerRevisionRejected(comparison, {**audit, 'verdict': 'revise', 'selected': 'original',
+                                        'comparison': comparison, 'original_label': labels[0],
+                                        'script_sha256': digest(original)})
     after = review(stage, title, candidate)
     verdict = 'pass' if all(r['verdict'] == 'pass' for r in after.values()) else 'revise'
     audit.update(verdict=verdict, selected='revision', revision_rounds=1, comparison=comparison,
@@ -124,8 +143,17 @@ def improve_for_listener(stage, title, sections, budgets, max_rounds=3):
         raise ValueError('Listener repair requires at least one bounded round')
     current = copy.deepcopy(sections)
     rounds = []
+    feedback = None
     for _ in range(max_rounds):
-        current, audit = _improve_once(stage, title, current, budgets)
+        try:
+            current, audit = _improve_once(stage, title, current, budgets, feedback)
+        except ListenerRevisionRejected as exc:
+            rounds.append(exc.audit)
+            feedback = exc.comparison
+            if len(rounds) == max_rounds:
+                raise
+            continue
+        feedback = None
         rounds.append(audit)
         if audit['verdict'] == 'pass':
             return current, {**audit, 'before': rounds[0]['before'],

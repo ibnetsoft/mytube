@@ -91,3 +91,43 @@ def test_malformed_cached_review_receives_validation_feedback():
     result, audit = improve_for_listener(stage, '귀가', OLD, BUDGETS)
     assert result == OLD and audit['verdict'] == 'pass'
     assert calls[1]['validation_retry']['attempt'] == 2
+
+
+def test_short_listener_patch_is_repaired_without_rewriting_other_scenes():
+    repairs = []
+    def stage(name, context, task):
+        if name.startswith('02f_'):
+            return report(context['sections'], context['sections'][0]['text'] != NEW)
+        if name == '02g_listener_repair':
+            repairs.append(context)
+            return {'patches': [{'scene_order': 1, 'text': '짧음' if len(repairs) == 1 else NEW}]}
+        versions = context['versions']
+        winner = next(k for k, v in versions.items() if v[0]['text'] == NEW)
+        return {'naturalness': winner, 'engagement': 'tie', 'regressions': [],
+                'evidence': {k: {'scene_order': 1, 'quote': v[0]['text'], 'reason': '문장 흐름 확인'} for k,v in versions.items()}}
+    budgets = [{'min_chars': 10, 'max_chars': 100}] * 2
+    result, audit = improve_for_listener(stage, '귀가', OLD, budgets)
+    assert result[0]['text'] == NEW and result[1] == OLD[1]
+    assert len(repairs) == 2 and 'duration budget' in repairs[1]['validation_retry']['error']
+
+
+def test_comparison_regression_is_repaired_without_accepting_rejected_version():
+    attempts = []
+    comparisons = []
+    def stage(name, context, task):
+        if name.startswith('02f_'):
+            return report(context['sections'], context['sections'][0]['text'] != NEW)
+        if name == '02g_listener_repair':
+            attempts.append(context)
+            return {'patches': [{'scene_order': 1, 'text': NEW}]}
+        versions=context['versions'];comparisons.append(context)
+        winner=next(k for k,v in versions.items() if v[0]['text']==NEW)
+        return {'naturalness':winner,'engagement':'tie',
+                'regressions':[{'version':winner,'scene_order':1,'reason':'Restore a causal detail'}] if len(comparisons)==1 else [],
+                'evidence':{k:{'scene_order':1,'quote':v[0]['text'],'reason':'Compared current narration'} for k,v in versions.items()}}
+    result,audit=improve_for_listener(stage,'귀가',OLD,BUDGETS)
+    assert result[0]['text']==NEW
+    assert attempts[1]['sections']==OLD
+    assert attempts[1]['rejected_comparison']['regressions']
+    assert audit['rounds'][0]['selected']=='original' and audit['rounds'][0]['verdict']=='revise'
+    assert audit['verdict']=='pass' and audit['revision_rounds']==1
