@@ -37,7 +37,7 @@ def _characters(anchors: dict) -> list[dict]:
             if isinstance(item, dict)]
 
 
-def _ready_identity(identity: dict, scenes: list[dict]) -> dict | None:
+def _ready_identity(identity: dict, scenes: list[dict], *, skip_face_review: bool = False, allow_quality_notes: bool = False) -> dict | None:
     try:
         validated = validate_character_identity(identity, scenes)
     except (ValueError, TypeError, KeyError):
@@ -49,7 +49,7 @@ def _ready_identity(identity: dict, scenes: list[dict]) -> dict | None:
                        or character.get("storage_object_path")) for character in characters)):
         return None
     from worker.character_face_distinctness import current_cast
-    if not current_cast(characters):return None
+    if not skip_face_review and not current_cast(characters, allow_quality_notes=allow_quality_notes):return None
     return character_design_anchors(validated)
 
 
@@ -91,11 +91,21 @@ def ensure_character_references(row: dict, structure: dict, output_dir: Path, *,
     if not isinstance(scenes, list) or not scenes or any(not isinstance(scene, dict) for scene in scenes):
         raise RuntimeError("Final scenes are required before character reference preflight")
     topic_id = int(row["id"])
+    skip_face_review = structure.get('skip_face_identity_review') is True
+    allow_quality_notes = structure.get('continue_on_face_quality_notes') is True
+    if store is None:
+        from codex_character_assets import CharacterAssetStore
+        store = CharacterAssetStore()
+    from worker.character_face_distinctness import history_fingerprint
+    history = store.load_history_references(topic_id) if not skip_face_review and hasattr(store, 'load_history_references') else []
+    history_stamp = history_fingerprint(history)
     from worker.character_model_sheet import has_model_sheet
     setting_payload = {**row, **structure, **(structure.get('content_setting') or {}), 'topic_queue_id': topic_id}
     setting_payload['image_style'] = setting_payload.get('image_style') or row.get('assigned_image_style') or 'realistic'
     def sheets_ready(ready):
-        return all(has_model_sheet(c, setting_payload) for c in _characters(ready))
+        return all((skip_face_review or (has_model_sheet(c, setting_payload) and
+                   (c.get('face_distinctness_review') or {}).get('history_fingerprint') == history_stamp))
+                   for c in _characters(ready))
     fingerprint = census_fingerprint(script, scenes)
     anchors = structure.get("character_anchors") or {
         "main_character": structure.get("main_character"),
@@ -104,7 +114,7 @@ def ensure_character_references(row: dict, structure: dict, output_dir: Path, *,
     }
     census = anchors.get("cast_census") or {}
     if census.get("fingerprint") == fingerprint and census.get("reference_policy") == POLICY:
-        ready = _ready_identity({**anchors, "scene_cast": census.get("scene_cast")}, scenes)
+        ready = _ready_identity({**anchors, "scene_cast": census.get("scene_cast")}, scenes, skip_face_review=skip_face_review, allow_quality_notes=allow_quality_notes)
         if ready and sheets_ready(ready):
             return _apply(structure, ready)
 
@@ -128,7 +138,7 @@ def ensure_character_references(row: dict, structure: dict, output_dir: Path, *,
         ordered = [matches[0] for matches in candidates]
         ready = _ready_identity({"main_character": ordered[0], "supporting_characters": ordered[1:],
                                  "scene_cast": census.get("scene_cast"), "cast_census": census,
-                                 "reference_policy": POLICY}, scenes)
+                                 "reference_policy": POLICY}, scenes, skip_face_review=skip_face_review, allow_quality_notes=allow_quality_notes)
         if ready and sheets_ready(ready):
             store.sync_matching_projects(topic_id, script, ready, output_dir / "project-link-backups")
             return _apply(structure, ready)
@@ -156,7 +166,7 @@ def ensure_character_references(row: dict, structure: dict, output_dir: Path, *,
         {**setting_payload, **setting, "_character_census": census}, getattr(runner, "config", None),
         output_dir / "portraits", generator=generator, store=store)
     ready.update(scene_cast=identity["scene_cast"], cast_census=census, reference_policy=POLICY)
-    if _ready_identity(ready, scenes) is None:
+    if _ready_identity(ready, scenes, skip_face_review=skip_face_review, allow_quality_notes=allow_quality_notes) is None:
         raise RuntimeError("Recurring character references are incomplete after preflight")
     store.sync_matching_projects(topic_id, script, ready, output_dir / "project-link-backups")
     return _apply(structure, ready)

@@ -104,6 +104,19 @@ def test_layer_scene_range_requires_complete_ordered_bounds():
             image_layer_scene_start=35, image_layer_scene_end=19,
         )
 
+def test_character_state_range_required_and_saved():
+    base = dict(mode='new', title='test', character_state_count=2)
+    with pytest.raises(ValueError, match='시작 씬과 종료 씬'):
+        console.StartRequest(**base)
+    with pytest.raises(ValueError, match='클 수 없습니다'):
+        console.StartRequest(**base, character_state_scene_start=35, character_state_scene_end=19)
+    request = console.StartRequest(**base, character_state_scene_start=19, character_state_scene_end=35)
+    assert request.image_layer_mode == 'full_psd'
+    saved = console.normalize_script_settings({
+        'character_state_count': 2, 'character_state_scene_start': 19, 'character_state_scene_end': 35})
+    assert saved['character_state_scene_start'] == 19 and saved['character_state_scene_end'] == 35
+    assert console.StartRequest(mode='new', title='old defaults').character_state_count == 0
+
 
 def test_direction_profile_is_validated():
     request = console.StartRequest(
@@ -184,7 +197,7 @@ def test_reuse_policy_only_stamped_on_new_generation_reservations(tmp_path, monk
     request = console.StartRequest(mode=mode, title='new story', category='story')
     try:
         job = jobs.start(request, None, retry_of=retry_of)
-        saved = json.loads((tmp_path/job['id']/'request.json').read_text())
+        saved = json.loads((tmp_path/job['id']/'request.json').read_text(encoding='utf-8'))
         assert saved['reuse_check_policy'] == expected
     finally:
         jobs.pool.shutdown()

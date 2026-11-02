@@ -41,6 +41,10 @@ def produce(identity, request, snapshot, output, notify, sources=None):
         scope['language'] = row.get('language') or 'ko'
         scope['category'] = request.get('category') or row.get('category') or ''
     rows, instruction = approved_guidelines(ScriptStore(), scope)
+    if request.get('mode') == 'new':
+        from worker.script_worker_guidance import load_production_guidance
+        instruction = ('[로컬 대본워커 제작 기준 · 사용자 요청과 확정 설정 우선]\n'
+                       + load_production_guidance() + '\n\n' + instruction)
     package = _produce(identity, {**request, '_approved_guidance': instruction}, snapshot, output, notify, sources)
     if request.get('mode') in ('new', 'grounded'):
         from worker.elevenlabs_performance import annotate_new_package
@@ -75,6 +79,13 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
     class ReportingRunner(CodexStagedContentRunner):
         def _stage(self, job_id, name, context, task):
             notify(name)
+            if (request.get('_delivery_quality_notes_only') is True
+                    and name.startswith('02f_scene_visual_director') and len(context.get('scenes', [])) > 24):
+                from worker.script_topic_delivery import chunked_direction
+                def stage(identity, stage_name, batch_context, batch_task):
+                    notify(stage_name)
+                    return super(ReportingRunner, self)._stage(identity, stage_name, batch_context, batch_task)
+                return chunked_direction(stage, job_id, name, context, task)
             return super()._stage(job_id, name, context, task)
 
     config = CodexContentConfig.from_environment()
@@ -160,12 +171,16 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'concentrated_scene_effects': request.get('concentrated_scene_effects') is True,
                    '_effect_scene_offset': request.get('_effect_scene_offset', 0),
                    'image_layer_mode': request.get('image_layer_mode') or 'hybrid',
+                   'character_state_count': request.get('character_state_count', 0),
+                   'character_state_scene_start': request.get('character_state_scene_start'),
+                   'character_state_scene_end': request.get('character_state_scene_end'),
                    'image_layer_scene_start': request.get('image_layer_scene_start'),
                    'image_layer_scene_end': request.get('image_layer_scene_end'),
                    'required_video_scene_count': request.get('required_video_scene_count', 18),
                    'ae_scene_delivery': request.get('ae_scene_delivery') or 'local',
                    'script_style': request.get('script_style') or 'story',
                    'target_duration_seconds': request.get('duration_seconds') or request['duration_minutes'] * 60,
+                   'quality_notes_only': request.get('_delivery_quality_notes_only') is True,
                    'legacy_stage_directives': 'Use the current category narration and senior listening contracts. '
                                               f"Use the selected image style ({setting['image_style']}) for the category and era.",
                    'legacy_quality_contract': 'Use scene budgets and preserve the planned scene count.',
@@ -173,6 +188,11 @@ def _produce(identity, request, snapshot, output, notify, sources=None):
                    'source_reference':{k:request.get('web_brief',{}).get(k) for k in ('youtube_url','source_video_id','source_duration_seconds','source_duration_verified')},
                    'source_localization_map':request.get('source_localization_map',[]),
                    'source_transcript':request.get('source_transcript','')}
+        if request.get('concentrated_scene_effects') is True:
+            payload['concentrated_scene_effects'] = True
+            payload['_effect_scene_offset'] = request.get('_effect_scene_offset', 0)
+        if request.get('_effect_scope_override'):
+            runner.effect_scope_override = dict(request['_effect_scope_override'])
         if 'historical_sources' in request:
             payload['historical_sources'] = request['historical_sources']
         if request.get('_story_anchors'):

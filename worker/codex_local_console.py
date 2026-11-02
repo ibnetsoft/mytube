@@ -272,6 +272,7 @@ def source(kind, identity):
 
 class StartRequest(BaseModel):
     mode: str
+    settings_confirmed: bool = False
     kind: str = 'topic'
     source_id: str = Field(default='', max_length=64)
     title: str = Field(default='', max_length=200)
@@ -292,6 +293,9 @@ class StartRequest(BaseModel):
     generate_publish_package: bool | None = Field(default=None, strict=True)
     reuse_check_policy: Literal['compatible_first_v2', 'compatible_first_v3'] | None = None
     concentrated_scene_effects: bool = False
+    character_state_count: Literal[0, 2, 3] = 0
+    character_state_scene_start: int | None = Field(default=None, ge=1, le=999)
+    character_state_scene_end: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_start: int | None = Field(default=None, ge=1, le=999)
     image_layer_scene_end: int | None = Field(default=None, ge=1, le=999)
     required_video_scene_count: int = Field(default=18, ge=0, le=999)
@@ -313,6 +317,14 @@ class StartRequest(BaseModel):
 
     @model_validator(mode='after')
     def validate_image_layer_scene_range(self):
+        if self.character_state_count and (self.mode != 'new' or self.production_mode != 'standard'):
+            raise ValueError('장면 상태 레이어는 신규 기본 영상 작업에서 선택하세요.')
+        if self.character_state_count:
+            if self.character_state_scene_start is None or self.character_state_scene_end is None:
+                raise ValueError('장면 상태 레이어를 적용할 시작 씬과 종료 씬을 입력하세요.')
+            if self.character_state_scene_start > self.character_state_scene_end:
+                raise ValueError('장면 상태 레이어의 시작 씬은 종료 씬보다 클 수 없습니다.')
+            self.image_layer_mode = 'full_psd'
         long_sermon = self.mode == 'grounded' and self.grounded_type == 'sermon'
         from worker.story_chapters import applies as long_story
         if not long_sermon and ((self.duration_minutes > 60 and not long_story(self.model_dump())) or len(self.source_ids) > 12):
@@ -472,7 +484,8 @@ class Jobs:
                         identity = remote['id']
                         if identity not in self.rows:
                             self.restore(self.store.get(identity))
-                        if self.rows[identity]['status'] in ('queued', 'running'):
+                        from worker.script_delivery_status import active as delivery_active
+                        if self.rows[identity]['status'] in ('queued', 'running') and not delivery_active(self.root, identity):
                             self.update(identity, status='interrupted', stage='서버 재시작 · 재실행 필요')
                         else:
                             # A completed result may still be waiting for upload.
@@ -539,6 +552,9 @@ class Jobs:
                     'image_style': setting['image_style'],
                     'content_setting': setting,
                     'published': False, 'worker_id': self.worker_id, 'retry_of': retry_of}
+            item['auto_delivery_requested'] = bool(
+                request.mode == 'new' and request.settings_confirmed
+                and request.production_mode == 'standard' and request.category_id.isdigit())
             if previous and 'storage_revision' in previous:
                 item['storage_revision'] = previous['storage_revision']
             self.rows[identity] = item
@@ -605,10 +621,37 @@ class Jobs:
 
 store = ScriptStore()
 jobs = Jobs(OUT, store)
+from worker.codex_local_chat import LocalChat
+chat = LocalChat(OUT, ROOT, jobs.pool)
+
+class ChatMessage(BaseModel):
+    message: str = Field(min_length=1, max_length=12000)
+
+@app.get('/api/chat')
+def chat_status():
+    return chat.snapshot()
+
+@app.post('/api/chat')
+def chat_send(request: ChatMessage):
+    try:
+        return chat.send(request.message)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+@app.post('/api/chat/new')
+def chat_new():
+    try:
+        return chat.reset()
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
 
 
 @app.on_event('startup')
 def start_subtitle_translations():
+    from worker.script_delivery_status import start as start_delivery_status
+    app.state.delivery_status_stop = start_delivery_status(store, jobs.root)
+    from worker.script_delivery_supervisor import start as start_delivery_supervisor
+    app.state.delivery_supervisor_stop = start_delivery_supervisor(jobs.root, ROOT, jobs.worker_id)
     from worker.codex_subtitle_translation import start_translation_loop
     app.state.subtitle_translation_stop = start_translation_loop(jobs)
     from worker.script_preparation import start_preparation_loop
@@ -617,6 +660,8 @@ def start_subtitle_translations():
 
 @app.on_event('shutdown')
 def stop_subtitle_translations():
+    app.state.delivery_status_stop.set()
+    app.state.delivery_supervisor_stop.set()
     app.state.subtitle_translation_stop.set()
     app.state.preparation_stop.set()
 
@@ -653,7 +698,7 @@ def index():
 
 @app.get('/assets/{name}')
 def asset(name: str):
-    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js', 'settings.js', 'modern_japan_watercolor.json'):
+    if name not in ('app.js', 'style.css', 'grounded.js', 'topics.js', 'management.js', 'refresh.js', 'submissions.js', 'guidelines.js', 'settings.js', 'settings-review.js', 'settings-review.css', 'modern_japan_watercolor.json'):
         raise HTTPException(404)
     return FileResponse(ASSETS / name)
 
@@ -662,7 +707,7 @@ SCRIPT_SETTING_FIELDS = frozenset(('category', 'category_id', 'duration_minutes'
     'chapter_minutes',
     'setting_country', 'era_region', 'image_style', 'script_style', 'production_mode',
     'direction_profile', 'parallax_mode', 'image_layer_mode', 'image_layer_scene_start', 'image_layer_scene_end',
-    'required_video_scene_count', 'generate_bgm_prompt', 'notes', 'concentrated_scene_effects',
+    'character_state_count', 'character_state_scene_start', 'character_state_scene_end', 'required_video_scene_count', 'generate_bgm_prompt', 'notes', 'concentrated_scene_effects',
     'generation_defaults_profile', 'generate_publish_package', 'reuse_check_policy'))
 SCRIPT_SETTINGS_KEY = 'codex_script_defaults_' + WORKER_ID
 
@@ -681,8 +726,24 @@ def normalize_script_settings(value):
 
 def load_script_settings():
     rows, _ = store.request('GET', 'global_settings', params={'select': 'value', 'key': 'eq.' + SCRIPT_SETTINGS_KEY, 'limit': '1'})
-    return normalize_script_settings((rows[0].get('value') or {}) if rows else {
-        'category':'옛날이야기', 'category_id':'2', 'setting_country':'한국'})
+    value = (rows[0].get('value') or {}) if rows else {
+        'category':'옛날이야기', 'category_id':'2', 'setting_country':'한국'}
+    if isinstance(value, str):
+        value = json.loads(value)
+    value = dict(value)
+    settings_version = value.pop('_scene_defaults_version', 0)
+    # Migrate the former implicit 18-video default only when no layer range
+    # was saved. Explicitly configured ranges and other modes remain intact.
+    if (not settings_version and value.get('production_mode', 'standard') == 'standard'
+            and value.get('parallax_mode', 'selective') == 'selective'
+            and value.get('image_layer_mode', 'hybrid') == 'hybrid'
+            and not value.get('character_state_count')
+            and value.get('image_layer_scene_start') is None
+            and value.get('image_layer_scene_end') is None):
+        value.update(image_layer_scene_start=19, image_layer_scene_end=50)
+        if value.get('required_video_scene_count', 18) == 18:
+            value['required_video_scene_count'] = 0
+    return normalize_script_settings(value)
 
 
 @app.get('/api/script-settings')
@@ -698,7 +759,7 @@ def script_settings_save(value: dict):
     try:
         settings = normalize_script_settings(value)
         store.request('POST', 'global_settings', params={'on_conflict': 'key'},
-            body={'key': SCRIPT_SETTINGS_KEY, 'value': settings, 'updated_at': datetime.now(timezone.utc).isoformat()},
+            body={'key': SCRIPT_SETTINGS_KEY, 'value': {**settings, '_scene_defaults_version': 1}, 'updated_at': datetime.now(timezone.utc).isoformat()},
             prefer='resolution=merge-duplicates,return=representation')
         return {'settings': settings}
     except ValueError as exc:
@@ -1026,6 +1087,8 @@ def review_web_topic(identity: str, request: SubmissionReview):
 def start(request: StartRequest):
     if request.mode not in ('new', 'repair', 'grounded', 'topics'):
         raise HTTPException(400, '모드를 선택하세요.')
+    if request.mode == 'new' and not request.settings_confirmed:
+        raise HTTPException(409, '대본 생성 전 각 설정을 확인하고 시작해 주세요.')
     snapshot = None
     references = None
     try:

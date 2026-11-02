@@ -1,9 +1,7 @@
 'use strict';
 (() => {
   titles.settings = '대본 설정';
-  const nav = element('button', '⚙  대본 설정'); nav.dataset.view = 'settings';
-  nav.onclick = () => view('settings'); document.querySelector('aside nav').append(nav);
-  const section = element('section'); section.id = 'view-settings'; section.hidden = true;
+  const section = $('view-settings');
   const panel = element('article', undefined, 'panel');
   panel.append(element('h2', '새 대본 기본 설정'), element('p', '이 대본워커에서 생성할 대본의 기본값입니다. 대본 작성·번역은 이 컴퓨터의 Codex CLI로 실행합니다. 저장한 기본값은 다음 신규 생성에 사용하며, 기존 대본과 진행 중 작업은 바꾸지 않습니다.'));
   const form = element('form'), grid = element('div', undefined, 'form-grid'), fields = {};
@@ -14,7 +12,7 @@
     ['era_region','시대·지역'], ['image_style','이미지 스타일'], ['image_layer_mode','이미지 레이어'],
     ['direction_profile','연출 프로필'], ['parallax_mode','패럴럭스 제작'], ['image_layer_scene_start','레이어 시작 씬 (선택)'],
     ['image_layer_scene_end','레이어 종료 씬 (선택)'], ['required_video_scene_count','필수 영상 씬 수'],
-    ['generate_publish_package','제목·설명·썸네일 기획 생성'], ['generate_bgm_prompt','배경음악 프롬프트 생성'], ['notes','기본 작성 방향']
+    ['character_state_count','장면 상태 레이어'], ['character_state_scene_start','장면 상태 시작 씬'], ['character_state_scene_end','장면 상태 종료 씬'], ['generate_publish_package','제목·설명·썸네일 기획 생성'], ['generate_bgm_prompt','배경음악 프롬프트 생성'], ['notes','기본 작성 방향']
   ];
   for (const [name,text,sourceName] of entries) {
     const source = document.querySelector(`#new-form [name="${sourceName || name}"]`);
@@ -30,7 +28,7 @@
   const save = element('button','대본 기본값 저장','primary'); save.type='submit';
   const apply = element('button','저장한 기본값을 신규 생성에 적용'); apply.type='button';
   const status=element('p',undefined,'muted'); status.setAttribute('role','status');
-  form.append(grid,save,apply,status); panel.append(form); section.append(panel); document.querySelector('main').append(section);
+  form.append(grid,save,apply,status); panel.append(form); section.append(panel);
   let defaults=null, saving=false; const touched=new Set();
   $('new-form').addEventListener('input',event=>touched.add(event.target.name));
   $('new-form').addEventListener('change',event=>touched.add(event.target.name));
@@ -40,7 +38,7 @@
     }
   }
   function applyDefaults(force=false) {
-    if(!defaults)return;
+    if(!defaults||$('new-form').dataset.settingsReview==='open')return;
     for(const [name,,sourceName] of entries) {
       const target=$('new-form').elements[sourceName||name];
       if(!target||(!force&&touched.has(target.name)))continue;
@@ -53,6 +51,7 @@
     try{
       const value={};
       for(const [name,control] of Object.entries(fields))value[name]=control.type==='checkbox'?control.checked:control.type==='number'?(control.value===''?null:Number(control.value)):control.value;
+      value.character_state_count=Number(value.character_state_count||0);
       if(value.duration_minutes===null)throw Error('분량을 입력하세요.');
       if(value.required_video_scene_count===null)throw Error('필수 영상 씬 수를 입력하세요.');
       if(fields.category.selectedOptions?.[0]?.dataset.id)value.category_id=fields.category.selectedOptions[0].dataset.id;

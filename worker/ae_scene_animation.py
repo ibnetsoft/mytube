@@ -201,6 +201,59 @@ def resolved_layers(plan: dict) -> list[dict]:
     return output
 
 
+def apply_character_pose_transitions(plan: dict, variants: list[dict], fade: float = .035) -> dict:
+    return apply_scene_state_transitions(plan, variants, fade, character_only=True)
+
+
+def apply_scene_state_transitions(plan: dict, variants: list[dict], fade: float = .035,
+                                  *, character_only: bool = False, opaque_stack: bool = False) -> dict:
+    """Add bounded opacity changes to existing registered state layers.
+
+    The caller must supply already-generated, registered layer IDs and
+    normalized start times. This function never creates or modifies source art.
+    """
+    if not isinstance(variants, list) or len(variants) not in (2, 3):
+        raise ValueError('Two or three prepared state layers are required')
+    _number(fade, .001, .1, 'pose fade')
+    result = copy.deepcopy(plan)
+    layers = {layer.get('id'): layer for layer in result.get('layers', [])}
+    ids = [item.get('layer_id') for item in variants if isinstance(item, dict)]
+    if len(ids) != len(variants) or len(set(ids)) != len(ids):
+        raise ValueError('Pose layers must have unique IDs')
+    allowed = {'character'} if character_only else ROLES - {'background'}
+    if any(identity not in layers or layers[identity].get('role') not in allowed for identity in ids):
+        raise ValueError('Every state must reference a prepared eligible layer')
+    starts = [_number(item.get('start'), 0, 1, 'pose start') for item in variants]
+    if starts[0] != 0 or any(b - a <= fade for a, b in zip(starts, starts[1:])) or starts[-1] + fade >= 1:
+        raise ValueError('Pose starts must be ordered and leave room for transitions')
+    for index, identity in enumerate(ids):
+        layer = layers[identity]
+        if character_only and (layer.get('motion') or layer.get('bend')):
+            raise ValueError('Pose layers must not also have independent motion')
+        original_motion = layer.get('motion') or [dict(t=t, x=0, y=0, scale=1, rotation=0, opacity=100) for t in (0, 1)]
+        values = [(0, 100 if index == 0 else 0)]
+        if index:
+            values.extend([(starts[index], 0), (starts[index] + fade, 100)])
+        if index + 1 < len(ids):
+            if opaque_stack:
+                # Full-scene edits contain the background too. Keep the outgoing
+                # image opaque until its incoming sibling covers it completely;
+                # fading both exposes the original bottom plate as a third state.
+                end = starts[index + 1] + fade
+                values.extend([(end, 100), (min(1, end + .001), 0)])
+            else:
+                values.extend([(starts[index + 1], 100), (starts[index + 1] + fade, 0)])
+        values.append((1, 100 if index == len(ids) - 1 else 0))
+        opacity_keys = [dict(t=t, opacity=opacity) for t, opacity in values]
+        times = sorted({t for t, _ in values} | {key['t'] for key in original_motion})
+        layer['motion'] = []
+        for t in times:
+            motion = _interpolate(original_motion, t, ('x', 'y', 'scale', 'rotation', 'opacity'))
+            motion['opacity'] *= _interpolate(opacity_keys, t, ('opacity',))['opacity'] / 100
+            layer['motion'].append(dict(t=t, **motion))
+    return result
+
+
 def write_scene_jsx(plan: dict, layer_paths: dict[str, Path], project: Path, native: Path,
                     jsx: Path, duration: float, fps: int = 24) -> None:
     plan = validate_plan(plan)

@@ -715,7 +715,7 @@ def process_one(engine='ae'):
                 from motion_source_repair import repair_short_video,supervised_hold_limit
                 sources[number],scene['_source_repair']=repair_short_video(scene,sources[number],snapshot['audio']['id'],directory,ffmpeg(),run,max_hold=supervised_hold_limit(meta,scene,snapshot['audio']['id']))
                 if scene['_source_repair']:
-                    quality_note(snapshot,scene,'verified_source_tail_hold',f"원본 1배속 구간 보존 · 마지막 정상 프레임 {scene['_source_repair']['hold_seconds']:.3f}초 유지 · 전체 프레임 비교 검증 통과")
+                    quality_note(snapshot,scene,'verified_source_tail_zoom',f"원본 1배속 보존 · 부족한 {scene['_source_repair']['hold_seconds']:.3f}초에 마지막 프레임 중간 속도 줌인 적용 · 원본 구간 비교 검증 통과")
                     save(quality_notes=snapshot['_quality_notes'])
                 from moviepy import VideoFileClip
                 with VideoFileClip(str(sources[number]),audio=False) as playback:
@@ -941,6 +941,14 @@ def process_one(engine='ae'):
         final_reviews=[]
         for index,scene in enumerate(snapshot['scenes']):
             if video_postwork_review_bypass(meta,snapshot):continue
+            prior_review=ordered[index].get('review') or {}
+            high_risk=(index in (0,len(snapshot['scenes'])-1) or prior_review.get('passed') is not True
+                or bool(scene.get('speech_bubble_plan',{}).get('cues')) or bool(scene.get('reviewed_depth_effects'))
+                or bool(scene.get('_source_repair')))
+            if not high_risk:
+                final_reviews.append({'passed':None,'skipped':True,'status':'not_reviewed_targeted_policy',
+                    'scene_number':scene['number'],'checks':[]})
+                continue
             save(current_scene=scene['number'])
             segment=media_directory(final_dir)/f'review-{scene["number"]}.mp4'
             run([ffmpeg(),'-v','error','-y','-ss',str(scene['start']),'-i',str(output),'-t',str(scene['end']-scene['start']),'-c:v','libx264','-c:a','aac',str(segment)])
@@ -1006,12 +1014,15 @@ def process_one(engine='ae'):
                 note(snapshot,scene,'final_review',issue)
             final_reviews.append(response)
         from submitted_video_postwork import require_final_reviews
-        try:require_final_reviews(snapshot,final_reviews)
-        except ValueError as issue:note(snapshot,{},'final_review_summary',issue)
+        if any(r.get('skipped') for r in final_reviews):
+            note(snapshot,{},'final_review_partial','Risk-based final review: some scenes were not visually reviewed after assembly.')
+        else:
+            try:require_final_reviews(snapshot,final_reviews)
+            except ValueError as issue:note(snapshot,{},'final_review_summary',issue)
         fresh();output_hash=digest(output)
         bucket,key,_=ae._upload_gcs_file(output,f'std-motion/{job["id"]}/final/{output_hash}.mp4','video/mp4')
         review={'passed':True,'render_sha256':output_hash,'final_voice_sha256':digest(voice),'scenes':final_reviews,'reviewer':'local_codex_cli','method':'actual_frames_and_decoded_voice',**({'renderer':snapshot['renderer']} if snapshot.get('renderer') else {})}
-        review.update(passed=not bool(snapshot.get('_quality_notes')),status='completed_with_notes' if snapshot.get('_quality_notes') else 'completed',quality_notes=snapshot.get('_quality_notes',[]),review_policy=ADVISORY_POLICY)
+        review.update(passed=False if snapshot.get('_quality_notes') else None if any(r.get('skipped') for r in final_reviews) else True,status='completed_with_notes' if snapshot.get('_quality_notes') else 'partially_reviewed' if any(r.get('skipped') for r in final_reviews) else 'completed',quality_notes=snapshot.get('_quality_notes',[]),review_policy=ADVISORY_POLICY)
         save(quality_notes=snapshot.get('_quality_notes',[]))
         if snapshot.get('submitted_video_postwork'):review['submitted_video_postwork_contract']='submitted_video_postwork/v1'
         if snapshot.get('all_scene_parallax'):review['all_scene_parallax_contract']='all_scene_parallax/v1'

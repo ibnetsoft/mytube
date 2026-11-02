@@ -28,21 +28,36 @@ def _manifest(tmp_path, *, with_mapping=True):
 
 
 class FakeGenerator:
-    def __init__(self, *, opaque_character=False):
+    def __init__(self, *, opaque_character=False, size=(1024, 768)):
         self.calls = []
         self.opaque_character = opaque_character
+        self.size = size
 
     def generate(self, *, prompt, role, reference, work_dir):
         self.calls.append((role, reference, prompt))
         work_dir.mkdir(parents=True, exist_ok=True)
         path = work_dir / "source.png"
         if role == "background" or role == "character" and self.opaque_character:
-            image = Image.new("RGB", (1024, 768), (35, 40, 65))
+            image = Image.new("RGB", self.size, (35, 40, 65))
         else:
-            image = Image.new("RGBA", (1024, 768), (0, 0, 0, 0))
+            image = Image.new("RGBA", self.size, (0, 0, 0, 0))
             ImageDraw.Draw(image).ellipse((280, 100, 740, 700), fill=(220, 70, 65, 255))
         image.save(path)
         return path
+
+
+def test_directed_pose_uses_registered_final_scene_and_transparent_prompt(tmp_path):
+    images = tmp_path / 'images'
+    images.mkdir()
+    scene_image = images / 'scene-001.png'
+    Image.new('RGB', package.CANVAS_SIZE, (45, 55, 65)).save(scene_image)
+    spec = {'template':'directed_performance','scene_number':1}
+    job = {'scene':{'scene_text':'She turns toward the sound.','character_pose_layers':True},'spec':spec,'role':'pose_turning','reference':None}
+    reference = generation._visual_reference_for_job(job, images)
+    prompt = generation._prompt(job['scene'], spec, job['role'], reference)
+    assert reference['path'] == str(scene_image)
+    assert 'transparent alpha' in prompt and 'registered' in prompt
+    assert reference['sha256'] in prompt
 
 
 def test_generated_roles_are_independent_full_canvas_and_still_need_visual_review(tmp_path):
@@ -97,7 +112,7 @@ def test_explicit_parallax_range_uses_final_scene_as_registration_reference(tmp_
     images.mkdir()
     final_scene = images / "scene-019.png"
     Image.new("RGB", (1920, 1080), (35, 40, 65)).save(final_scene)
-    fake = FakeGenerator()
+    fake = FakeGenerator(size=(1024, 576))
 
     report = generation.generate_layers(manifest, images, generator=fake)
 
@@ -148,14 +163,46 @@ def test_native_bridge_passes_local_portrait_to_builtin_tool_without_api_fallbac
         assert "transparent_background" in task
         assert "referenced_image_paths" in task
         assert "external image APIs" in task
-        assert (work / "verified-character-reference.png").is_file()
-        Image.new("RGBA", (1024, 1024), (0, 0, 0, 0)).save(work / "source.png")
-        (work / "response.json").write_text(json.dumps({"status": "ready",
+        request_dir = kwargs["cwd"]
+        assert (request_dir / "verified-character-reference.png").read_bytes() == portrait.read_bytes()
+        Image.new("RGBA", (1024, 1024), (0, 0, 0, 0)).save(request_dir / "source.png")
+        (request_dir / "response.json").write_text(json.dumps({"status": "ready",
             "generator": "builtin_image_gen", "image_file": "source.png"}), encoding="utf-8")
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setattr(generation.subprocess, "run", invoke)
     bridge = generation.NativeCodexLayerGenerator(executable="codex", model="", timeout_seconds=60)
-    assert bridge.generate(prompt="one wuxia master", role="character", reference=portrait,
-                           work_dir=work) == work / "source.png"
+    result = bridge.generate(prompt="one wuxia master", role="character", reference=portrait,
+                             work_dir=work)
+    assert result.name == "source.png" and result.is_file()
+    assert result.parent.parent.name == "requests"
     assert len(seen) == 1
+
+def test_generation_preflight_respects_explicit_scene_scope(tmp_path):
+    manifest, scene, _ = _manifest(tmp_path)
+    data = json.loads(manifest.read_text(encoding='utf-8'))
+    other = json.loads(json.dumps(scene))
+    other['scene_number'] = 2
+    data['scene_specs'].append(other)
+    data['layer_scene_numbers'] = [2]
+    manifest.write_text(json.dumps(data), encoding='utf-8')
+    _, specs, jobs = generation._preflight(manifest)
+    assert [spec['scene_number'] for spec in specs] == [2]
+    assert {job['spec']['scene_number'] for job in jobs} == {2}
+
+def test_full_psd_without_explicit_style_matches_source_instead_of_inventing_genre():
+    scene = {'scene_number': 19, 'scene_text': 'A woman reads a letter.', 'image_prompt': 'Historical Yokohama illustration.'}
+    spec = {'scene_number': 19, 'template': 'full_psd'}
+    prompt = generation._prompt(scene, spec, 'foreground_subject_or_focus', {'kind':'registered_scene','path':'scene.png','sha256':'a'*64})
+    assert 'Match the registered source image and scene prompt' in prompt
+    assert 'Korean wuxia manhwa' not in prompt
+
+def test_registered_scene_layer_rejects_portrait_canvas_instead_of_silent_crop(tmp_path):
+    source = tmp_path / 'portrait.png'
+    image = Image.new('RGBA', (600, 1000), (0, 0, 0, 0))
+    ImageDraw.Draw(image).rectangle((150, 100, 400, 800), fill=(100, 70, 40, 255))
+    image.save(source)
+    target = tmp_path / 'output.png'
+    with pytest.raises(ValueError, match='incompatible canvas aspect ratio'):
+        generation._normalize(source, target, 'foreground_subject_or_focus', registered_canvas=True)
+    assert not target.exists()

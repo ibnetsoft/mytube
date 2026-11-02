@@ -36,6 +36,10 @@ SLOTS = {
     "character_center": (0.30, 0.02, 0.77, 0.98),
     "character_right": (0.74, 0.02, 0.97, 0.98),
     "character": (0.12, 0.02, 0.88, 0.98),
+    "pose_sleeping": (0.12, 0.02, 0.88, 0.98),
+    "pose_waking": (0.12, 0.02, 0.88, 0.98),
+    "pose_turning": (0.12, 0.02, 0.88, 0.98),
+    "pose_resting": (0.12, 0.02, 0.88, 0.98),
     "foreground": (0.02, 0.02, 0.98, 0.98),
     "hand_foreground": (0.16, 0.02, 0.86, 0.98),
     "talisman": (0.405, 0.43, 0.605, 0.70),
@@ -57,7 +61,8 @@ SLOTS = {
     "light_overlay": (0.02, 0.02, 0.98, 0.98),
 }
 IDENTITY_ROLES = frozenset(("character_left", "character_center", "character_right",
-                            "character", "hand_foreground"))
+                            "character", "hand_foreground", "pose_sleeping", "pose_waking",
+                            "pose_turning", "pose_resting"))
 
 
 def _sha(path: Path) -> str:
@@ -116,7 +121,7 @@ def _preflight(manifest_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]
     scenes = manifest.get("scene_specs")
     if not isinstance(scenes, list):
         raise ValueError("manifest has no scene_specs")
-    specs = manga_layer_package.scene_specs(scenes)
+    specs = manga_layer_package.scoped_scene_specs(scenes, manifest.get("layer_scene_numbers"))
     if not specs:
         raise ValueError("manifest has no manga template scenes")
     refs = _references(manifest, manifest_path)
@@ -138,7 +143,8 @@ def _preflight(manifest_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]
                 # finalized scene. A verified portrait is preferred, but the
                 # final scene itself is sufficient for an exact cutout that
                 # must subsequently pass visual layer review.
-                if spec["template"] == "parallax_layered_scene" and role == "character" and not key:
+                if ((spec["template"] == "parallax_layered_scene" and role == "character")
+                    or (spec["template"] == "directed_performance" and role.startswith("pose_") and scene.get("character_pose_layers") is True)) and not key:
                     reference = None
                 elif not key or key not in refs:
                     raise ValueError(
@@ -156,7 +162,7 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         "scene_number": spec["scene_number"], "template": spec["template"], "role": role,
         "scene_direction": str(scene.get("scene_text") or "")[:1800],
         "image_prompt": str(scene.get("image_prompt") or "")[:2400],
-        "style": str(scene.get("image_style") or "Korean wuxia manhwa")[:400],
+        "style": str(scene.get("image_style") or "Match the registered source image and scene prompt")[:400],
     }
     plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
     for key in ("impact", "reflection", "light_origin", "title"):
@@ -165,6 +171,14 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
     if role in manga_layer_package.MOUTH_ROLES:
         source["mouth_box"] = (plan.get("lip_sync") or {}).get("mouth_box")
     directions = {
+        "background_plate": "Reconstruct the exact attached scene with its principal subjects removed. Preserve all remaining geometry and lighting; return an opaque full-canvas background plate.",
+        "foreground_subject_or_focus": "Isolate the scene's principal subject or focus from the attached scene on transparent alpha, preserving its exact placement, crop, lighting and proportions.",
+        "depth_matte": "Create a transparent alpha depth matte registered to the attached scene's actual depth planes. Do not invent shapes or alter the camera.",
+        "character_cutout_alpha": "Create a transparent alpha mask corresponding to the exact visible character silhouette in the attached scene. Preserve every position and scale; no background.",
+        "hair_cloth_motion_matte": "Create a transparent alpha mask for only the existing hair or clothing edges appropriate to the saved scene, precisely registered to the attached scene.",
+        "frame_focus_matte": "Create a transparent alpha mask of the actual scene focus, precisely registered to the attached scene; no invented subjects.",
+        "speech_bubble_text_safe_layer": "Create a transparent text-safe mask for the exact scene composition; no text, bubbles, people or invented scenery.",
+        "effect_overlay_alpha": "Isolate only the scene-directed visual effect on transparent alpha at its exact scene position; no new objects, people or text.",
         "mouth_closed": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with closed lips. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
         "mouth_half": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with slightly parted lips. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
         "mouth_open": "Using the attached final character layer as the exact visual reference, draw ONLY a small opaque matching-skin patch covering the existing mouth, with an open speaking mouth. No face, head, hair, neck, scenery, or text outside the patch. Keep its center and scale identical to the other mouth poses.",
@@ -174,6 +188,10 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
         "character_center": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
         "character_right": "Draw one expressive waist-up character cutout matching the verified portrait. No other person, scenery, panel border, or text.",
         "character": "Using the attached reference, isolate the principal character or inseparable principal character group on transparent alpha. Preserve exact canvas position, scale, pose, expression, identity, wardrobe, crop, lighting, and overlap. No scenery, captions, text, or watermark.",
+        "pose_sleeping": "Draw only the same character in a sleeping state on transparent alpha, precisely registered to the attached scene. Preserve identity, clothing, proportions and lighting; do not include background or text.",
+        "pose_waking": "Draw only the same character waking or opening their eyes on transparent alpha, precisely registered to the attached scene. Preserve identity, clothing, proportions and lighting; do not include background or text.",
+        "pose_turning": "Draw only the same character turning or shifting their gaze as required by the scene, on transparent alpha, precisely registered to the attached scene. Preserve identity, clothing, proportions and lighting; do not include background or text.",
+        "pose_resting": "Draw only the same character in a calm resting or reaction state on transparent alpha, precisely registered to the attached scene. Preserve identity, clothing, proportions and lighting; do not include background or text.",
         "hand_foreground": "Draw only the reaching foreground hand and forearm on transparent alpha. Match the verified character portrait's skin tone, sleeve, costume, and era. Keep all fingers anatomically distinct. No face, sky, light rays, or text.",
         "talisman": "Draw only one isolated paper talisman prop. No hand, person, scenery, effect, or readable lettering.",
         "wall_intact": "Draw an isolated intact wall plane at the collision location, with a distinct seam and surface texture. The wall must be separable from the background; no character, crack, flying debris, or text.",
@@ -211,7 +229,7 @@ def _prompt(scene: dict[str, Any], spec: dict[str, Any], role: str,
             ) if field in reference}}
         direction += (" The attached verified character portrait is the identity reference. "
                       + character_continuity_prompt(reference))
-    elif spec.get("template") == "parallax_layered_scene" and reference:
+    elif (spec.get("template") in ("parallax_layered_scene", "full_psd") or (spec.get("template") == "directed_performance" and role.startswith("pose_"))) and reference:
         source["registered_scene_sha256"] = reference["sha256"]
         direction += " The attached final scene image is the fixed composition and registration reference; do not change the camera or layout."
     elif role == "wall_broken" and reference:
@@ -275,7 +293,7 @@ class NativeCodexLayerGenerator:
         task = (
             "Use the imagegen skill and BUILT-IN image_gen tool to generate exactly one PNG. "
             "Do not use external image APIs, stock images, code-drawn art, a flattened scene, or a depth proxy. "
-            "Set transparent_background=true for every non-background role and false for background. "
+            "Set transparent_background=false for background and background_plate; set it true for all other roles. "
             "If a visual reference path is supplied, pass it as referenced_image_paths to the image tool. "
             "For character and hand roles preserve that identity; for wall_broken preserve the wall_intact geometry. "
             "Do not merely describe the reference in text. Never add another character. "
@@ -283,7 +301,7 @@ class NativeCodexLayerGenerator:
             "If imagegen is unavailable, return status=unavailable. "
             "Copy the actual generated image unchanged to source.png in this working directory. "
             "Return JSON only: {\"status\":\"ready\",\"generator\":\"builtin_image_gen\",\"image_file\":\"source.png\"}.\n"
-            + json.dumps({"role": role, "transparent_background": role != "background",
+            + json.dumps({"role": role, "transparent_background": role not in ("background", "background_plate"),
                           "visual_reference_path": str(reference_file) if reference_file else None,
                           "art_direction": prompt}, ensure_ascii=False)
         )
@@ -317,7 +335,7 @@ class NativeCodexLayerGenerator:
 
 
 def _slot_for_scene(scene: dict[str, Any], role: str) -> tuple[float, float, float, float]:
-    if role == "background":
+    if role in ("background", "background_plate", "foreground_subject_or_focus", "depth_matte", "character_cutout_alpha", "hair_cloth_motion_matte", "speech_bubble_text_safe_layer", "effect_overlay_alpha", "frame_focus_matte"):
         return (0.0, 0.0, 1.0, 1.0)
     if role in manga_layer_package.MOUTH_ROLES:
         plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
@@ -346,12 +364,17 @@ def _slot_for_scene(scene: dict[str, Any], role: str) -> tuple[float, float, flo
 
 
 def _normalize(source: Path, target: Path, role: str,
-               slot: tuple[float, float, float, float] | None = None) -> None:
+               slot: tuple[float, float, float, float] | None = None, *,
+               registered_canvas: bool = False) -> None:
     with Image.open(source) as image:
         image.load()
         if image.format != "PNG" or min(image.size) < 512:
             raise ValueError(f"{role}: imagegen did not return a valid PNG of at least 512px per edge")
-        if role == "background":
+        if registered_canvas:
+            expected_ratio = manga_layer_package.CANVAS_SIZE[0] / manga_layer_package.CANVAS_SIZE[1]
+            if abs(image.width / image.height - expected_ratio) / expected_ratio > 0.005:
+                raise ValueError(f"{role}: registered scene layer has incompatible canvas aspect ratio {image.width}x{image.height}")
+        if role in ("background", "background_plate"):
             if ("A" in image.getbands() or "transparency" in image.info) and image.convert("RGBA").getchannel("A").getextrema() != (255, 255):
                 raise ValueError("background: imagegen returned an incomplete transparent plate")
             cover = ImageOps.fit(image.convert("RGB"), manga_layer_package.CANVAS_SIZE,
@@ -371,7 +394,7 @@ def _normalize(source: Path, target: Path, role: str,
             box = alpha.getbbox()
             if box is None:
                 raise ValueError(f"{role}: alpha cutout is empty")
-            if role in {"character", "foreground", "prop_focus", "hair_cloth", "atmosphere", "light_overlay"}:
+            if role in {"character", "foreground", "prop_focus", "hair_cloth", "atmosphere", "light_overlay", "foreground_subject_or_focus", "depth_matte", "character_cutout_alpha", "hair_cloth_motion_matte", "speech_bubble_text_safe_layer", "effect_overlay_alpha", "frame_focus_matte"}:
                 # These roles are authored against the final full scene. Keep
                 # their canvas-relative registration instead of recentering the
                 # visible alpha bounds like a standalone character portrait.
@@ -397,7 +420,7 @@ def _normalize(source: Path, target: Path, role: str,
 
 def _visual_reference_for_job(job: dict[str, Any], images_dir: Path) -> dict[str, str] | None:
     """Use the approved identity ref, or the just-authored intact wall geometry."""
-    if job["spec"].get("template") == "parallax_layered_scene":
+    if job["spec"].get("template") in ("parallax_layered_scene", "full_psd") or (job["spec"].get("template") == "directed_performance" and job["role"].startswith("pose_") and job["scene"].get("character_pose_layers") is True):
         scene_image = images_dir / f"scene-{job['spec']['scene_number']:03d}.png"
         if not scene_image.is_file():
             raise FileNotFoundError(
@@ -476,7 +499,8 @@ def generate_layers(manifest_path: Path, images_dir: Path,
                                      work_dir=work_dir)
             temporary = target.with_suffix(".png.tmp")
             try:
-                _normalize(raw, temporary, role, _slot_for_scene(scene, role))
+                _normalize(raw, temporary, role, _slot_for_scene(scene, role),
+                           registered_canvas=reference is not None and reference.get("kind") == "registered_scene")
                 temporary.replace(target)
             finally:
                 temporary.unlink(missing_ok=True)

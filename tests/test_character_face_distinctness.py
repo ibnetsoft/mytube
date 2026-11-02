@@ -20,6 +20,19 @@ def test_identical_actual_pixels_rejected_without_any_model(tmp_path):
  p=pixel(tmp_path,'same','red');r=FaceDistinctnessReviewer(None,tmp_path/'review').review(character('A'),p,[(character('B'),p)])
  assert not r['passed'] and r['pairs'][0]['result']['similarity']=='high'
 
+def test_quality_note_continuation_keeps_failed_face_result_truthful():
+ a,b=character('A'),character('B');a['image_sha256']='hash-a';b['image_sha256']='hash-b'
+ def proof(c,other):
+  return {'policy':POLICY,'source_sha256':c['image_sha256'],'passed':False,'pairs':[
+   {'candidate_key':c['character_key'],'candidate_sha256':c['image_sha256'],
+    'other_key':other['character_key'],'other_sha256':other['image_sha256'],'result':result(False)}]}
+ a['face_distinctness_review']=proof(a,b);b['face_distinctness_review']=proof(b,a)
+ assert not current_cast([a,b])
+ assert current_cast([a,b],allow_quality_notes=True)
+ assert not a['face_distinctness_review']['passed']
+ b['image_sha256']='changed'
+ assert not current_cast([a,b],allow_quality_notes=True)
+
 def test_comparison_unavailable_cannot_publish_a_different_bitmap(tmp_path):
  a=pixel(tmp_path,'a','red');b=pixel(tmp_path,'b','blue')
  with pytest.raises(RuntimeError,match='required'):FaceDistinctnessReviewer(None,tmp_path/'review').review(character('A'),a,[(character('B'),b)])

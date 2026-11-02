@@ -47,7 +47,12 @@ def main():
             if not find_aerender():raise SystemExit('After Effects aerender was not found')
             print('Local media prerequisites available; FFmpeg: '+imageio_ffmpeg.get_ffmpeg_exe());return
         module='worker.local_media_supervisor'
-    # FastAPI resolves postponed request annotations through sys.modules.
-    # Register the console's actual __main__ globals while its server runs.
+    if args.role == 'script':
+        # Keep model annotations attached to their importable module. Executing
+        # this server as __main__ via runpy breaks Pydantic forward references.
+        import uvicorn
+        from worker.codex_local_console import app, PORT
+        uvicorn.run(app, host='127.0.0.1', port=PORT, access_log=False)
+        return
     sys.argv=[module,*extra];runpy.run_module(module,run_name='__main__',alter_sys=True)
 if __name__=='__main__':main()

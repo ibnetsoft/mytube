@@ -27,4 +27,11 @@
 
 ## Camera preference
 
+- On 2026-10-29 the user required different facial identities across topics and among different characters within a topic. Compare actual stored reference imagery across all categories; hair, clothes, expression and wrinkles alone do not establish distinctness. Redesign similar new faces and preserve existing topic assets. Keep each character's approved identity consistent within its own topic.
+
 - On 2026-10-29 the user prohibited slow zooms. Never add slow or whole-scene gentle zooms. Prefer a fixed camera; when motivated, use a clearly visible medium-speed zoom with a short movement window and holds. Preserve uploaded footage; this rule governs added direction, not source footage already containing camera movement.
+
+## Confirm settings before new scripts
+
+- Before starting a new script, ask the user to choose or confirm the production/script type, subject/category/reference, duration/chapter length, language/country/era, image/direction style, parallax/layer/video-scene scope, scene-state changes, and music-prompt/additional requests. Show the final effective settings and wait for an explicit start action. Saved defaults alone are not confirmation.
+- Apply this to new script creation, including agent-initiated creation. Continue already running or recovering jobs with their existing settings; do not interrupt them to repeat the questions.

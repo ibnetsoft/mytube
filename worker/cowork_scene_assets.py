@@ -319,7 +319,7 @@ def _with_character_locks(prompt: Any, references: list[dict[str, Any]]) -> Any:
     return prompt
 
 
-def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
+def export_manifest(topic_id: str, destination: Path, bucket: str, layer_scene_numbers: list[int] | None = None) -> Path:
     if destination.exists():
         raise FileExistsError('Preserve existing manifest/recovery state; use a new revision path')
     row, structure, _base_url, _ = _topic(topic_id)
@@ -447,7 +447,8 @@ def export_manifest(topic_id: str, destination: Path, bucket: str) -> Path:
         "image_layer_scene_range": structure.get("image_layer_scene_range") or (structure.get("image_generation_policy") or {}).get("image_layer_scene_range"),
         "psd_layer_prompt_status": structure.get("psd_layer_prompt_status") or "not_required",
         "psd_layer_prompts": structure.get("psd_layer_prompts") if isinstance(structure.get("psd_layer_prompts"), list) else [],
-        "layer_package_specs": manga_layer_package.scene_specs(scenes),
+        "layer_scene_numbers": layer_scene_numbers,
+        "layer_package_specs": manga_layer_package.scoped_scene_specs(scenes, layer_scene_numbers),
         "layer_package_instruction": ("Layers are deferred to the post-submission production worker. Prepare and publish basic scene stills only; shared background/pose composition is allowed. " if structure.get("layer_production_stage") == "post_submission" else "For every required layer_package_specs role, supply an independently authored full-canvas 1920x1080 PNG named exactly as layer_files. Explicit parallax ranges use the final cropped scene PNG as a fixed registration reference and require a genuinely clean background plus a transparent registered foreground. All foreground roles, including characters, hand, intact/broken wall, reflection plate and props, need visible transparent alpha; background must cover the canvas. The broken wall must preserve the intact wall's geometry, and the hand must use a verified character reference. For directed_performance, make a genuinely clean inpainted background and separately aligned alternate poses/props; never use duplicate flattened-scene copies as fake layers. A soft depth proxy is not a separate action layer. Run generate-layers after crop, or supply role PNGs, then prepare-layers, inspect each PSD preview, and approve-layers before publish."),
         "recovery_policy": image_recovery.POLICY,
         "recovery_instruction": "Before every native tool call, start its recovery job; record its result and visual review. Safety/unknown failures must not be automatically retried or split. See docs/IMAGE_GENERATION_RECOVERY.md.",
@@ -669,8 +670,19 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
         raise ValueError("Reusable asset plan changed after manifest export; create a new manifest revision")
     if image_recovery.optimized(manifest) and manifest.get('image_request_policy') != structure.get('image_request_policy'):
         raise ValueError('Image request policy changed after manifest export; create a new revision')
-    manifest_layer_specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
-    current_layer_specs = manga_layer_package.scene_specs(structure.get("scenes") or [])
+    layer_scope = manifest.get("layer_scene_numbers")
+    manifest_layer_specs = manga_layer_package.scoped_scene_specs(manifest.get("scene_specs") or [], layer_scope)
+    current_layer_specs = manga_layer_package.scoped_scene_specs(structure.get("scenes") or [], layer_scope)
+    # General full_psd plans are not necessarily manga templates. Never let an
+    # empty template selection silently stand in for their required PSD assets.
+    if not defer_layers and not post_submission_layers:
+        covered = {spec["scene_number"] for spec in current_layer_specs}
+        missing_psd = [_scene_number(scene, index) for index, scene in enumerate(structure.get("scenes") or [], 1)
+                       if isinstance(scene, dict) and (scene.get("psd_layer_plan") or {}).get("enabled")
+                       and (layer_scope is None or _scene_number(scene, index) in layer_scope)
+                       and _scene_number(scene, index) not in covered]
+        if missing_psd:
+            raise ValueError(f"PSD layer generation does not cover required scenes: {missing_psd}")
     if manifest_layer_specs != current_layer_specs:
         raise ValueError("manga layer plan changed after manifest export; create a new manifest revision")
     manifest_sources = {
@@ -807,7 +819,8 @@ def publish(manifest_path: Path, images_dir: Path, create_bucket: bool,
             scene_spec = next((s for s in structure.get("scenes", []) if isinstance(s, dict) and _scene_number(s, 0) == number), {})
             layer_plan = scene_spec.get("local_layer_plan") if isinstance(scene_spec.get("local_layer_plan"), dict) else {}
             image_policy = scene_spec.get("image_generation_policy") if isinstance(scene_spec.get("image_generation_policy"), dict) else {}
-            if layer_plan.get("enabled") and not defer_layers and not post_submission_layers:
+            if (layer_plan.get("enabled") and not defer_layers and not post_submission_layers
+                    and (layer_scope is None or number in layer_scope)):
                 layer_files = _write_depth_proxy_layers(file_path, layer_dir, number, image_policy)
                 uploaded_layers: dict[str, Any] = {
                     "source": "local_depth_proxy_from_single_scene_image",
@@ -932,6 +945,8 @@ def parse_args() -> argparse.Namespace:
     export.add_argument("--topic-id", required=True)
     export.add_argument("--out", type=Path, required=True)
     export.add_argument("--bucket", default=DEFAULT_BUCKET)
+    export.add_argument("--layer-scene-numbers", type=int, nargs="+", default=None,
+                        help="Explicit scene numbers requiring AE layers for this job")
     crop = commands.add_parser("crop", help="그리드를 자른 뒤 1920x1080 씬 이미지로 업스케일합니다")
     crop.add_argument("--manifest", type=Path, required=True)
     crop.add_argument("--input-dir", type=Path, required=True)
@@ -966,7 +981,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     if args.command == "export":
-        path = export_manifest(args.topic_id, args.out, args.bucket)
+        path = export_manifest(args.topic_id, args.out, args.bucket, args.layer_scene_numbers)
         print(path)
     elif args.command == "crop":
         written = crop_grids(
@@ -998,7 +1013,7 @@ def main() -> int:
         print(json.dumps({"generated_or_reused": len(results), "scenes": results}, ensure_ascii=False))
     elif args.command == "prepare-layers":
         manifest = _manifest(args.manifest)
-        specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
+        specs = manga_layer_package.scoped_scene_specs(manifest.get("scene_specs") or [], manifest.get("layer_scene_numbers"))
         receipt = manga_layer_package.prepare(args.manifest, args.images_dir, specs)
         print(json.dumps({"prepared": len(receipt["packages"]), "receipt": str(manga_layer_package.receipt_path(args.images_dir))}, ensure_ascii=False))
     elif args.command == "generate-layers":
@@ -1008,7 +1023,7 @@ def main() -> int:
                           "report": str(manga_layer_generation.report_path(args.images_dir))}, ensure_ascii=False))
     elif args.command == "approve-layers":
         manifest = _manifest(args.manifest)
-        specs = manga_layer_package.scene_specs(manifest.get("scene_specs") or [])
+        specs = manga_layer_package.scoped_scene_specs(manifest.get("scene_specs") or [], manifest.get("layer_scene_numbers"))
         receipt = manga_layer_package.approve(args.manifest, args.images_dir, specs,
                                               reviewer=args.reviewer, note=args.note)
         print(json.dumps({"approved": len(receipt["packages"])}, ensure_ascii=False))

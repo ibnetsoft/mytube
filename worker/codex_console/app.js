@@ -19,14 +19,18 @@ function bindConsoleSearch(input,onChange){
   return window.consoleSearch.subscribe(value=>{input.value=value;onChange?.();});
 }
 let page = 0, hasMore = false, currentSource = null, selectedJob = null, busy = false, catalogRevision = 0;
-const titles = {overview:'AI 대본 워커',new:'신규 콘텐츠 생성',repair:'대본 보관함 · 리페어',jobs:'작업 이력 · 결과',preparation:'이미지·좌표·AE 연출 준비',doc:'작업 지침'};
+const titles = {overview:'토픽별 제작 현황',chat:'Codex 채팅',settings:'대본워커 설정',new:'신규 콘텐츠 생성',repair:'대본 보관함 · 리페어',jobs:'작업 이력 · 결과',preparation:'이미지·좌표·AE 연출 준비',doc:'작업 지침'};
 const labels = {completed:'완료',pending:'대기',rendering:'실행 중',canceled:'취소',queued:'대기',running:'실행 중',failed:'실패',interrupted:'중단 · 재시작 필요',awaiting_approval:'검토 대기',approved_pending_repair:'승인 · 적용 대기',ready:'완료',review_pending:'영상 검수 대기',needs_attention:'수정 필요',planned:'계획됨',polling:'감지 중',downloading:'다운로드',preparing:'준비 중',transcoding:'변환 중',idle:'대기',stopped:'중지'};
 function displayLabel(value){return String(value??'').replace(/codex/gi,'AI').replace(/supabase/gi,'Database');}
 function error(message) { $('error').textContent = displayLabel(message); $('error').hidden = !message; }
 function notice(message) { $('notice').textContent = displayLabel(message); $('notice').hidden = !message; }
 async function api(path, body) {
-  const response = await fetch('/api/'+path,{headers:{'X-Codex-Local':token,'Content-Type':'application/json'},...(body?{method:'POST',body:JSON.stringify(body)}:{})});
-  const data = await response.json();
+  let response;
+  try { response = await fetch('/api/'+path,{headers:{'X-Codex-Local':token,'Content-Type':'application/json'},...(body?{method:'POST',body:JSON.stringify(body)}:{})}); }
+  catch { throw new Error('대본워커와 연결되지 않았습니다. 워커 상태를 확인하고 새로고침해 주세요.'); }
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error(`서버 응답을 읽지 못했습니다 (HTTP ${response.status}). 워커 상태를 확인해 주세요.`); }
   if (!response.ok) throw new Error(typeof data.detail === 'string'?data.detail: data.error || '요청 실패');
   return data;
 }
@@ -77,6 +81,8 @@ function view(name) {
   document.querySelectorAll('nav [data-view]').forEach(b=>b.classList.toggle('selected',b.dataset.view===name));
   $('heading').textContent=titles[name];
   window.saveConsoleViewState?.(name);
+  if(name==='overview')loadProductionOverview();
+  if(name==='chat')loadChat();
   if(name==='repair')loadCatalog();
   if(name==='jobs')refresh();
 
@@ -182,32 +188,37 @@ if($('image-layer-mode')){
   makeRangeInput('image_layer_scene_end','레이어 생성 종료 씬','예: 35');
   const help=element('p','선택 범위에서 배경과 인물을 따로 만들고 입모양·눈 깜빡임·패럴럭스 등 효과를 집중합니다. 범위 밖은 씬당 이미지 한 장을 사용합니다.','muted');
   grid.after(help);
+  window.layeredEffectScopeReady=false;
+  fetch('/health',{cache:'no-store'}).then(r=>r.json()).then(status=>{
+    if(status.effect_scope_version!==1)return;
+    window.layeredEffectScopeReady=true;
+    const start=grid.querySelector('[name=image_layer_scene_start]'),end=grid.querySelector('[name=image_layer_scene_end]');
+    help.textContent='기본값: 1~18씬 이미지 1장, 19~50씬 레이어·입모양·패럴럭스 등 AE 연출, 51씬부터 이미지 1장과 줌·좌우 이동 및 문맥에 맞는 씬 전환. 느린 줌은 사용하지 않습니다.';
+  }).catch(()=>{});
 }
-$('new-form').onsubmit=e=>{
+$('new-form').noValidate=true;
+document.querySelector('#new-form button[type=submit]').textContent='설정 확인 후 대본 생성';
+$('new-form').onsubmit=async e=>{
   e.preventDefault();
+  if(!await window.reviewScriptSettings(e.target,()=>!busy)||busy)return;
   const form=new FormData(e.target);
   const category=form.get('custom_category').trim()||form.get('category');
   if(!category){error('카테고리를 입력하세요.');return;}
   const setting = window.updateNewSettingSummary();
-  const summary = [
-    `제작 방식: ${form.get('production_mode')} / ${form.get('script_style')}`,
-    `주제·카테고리·참고 URL: ${form.get('title')} / ${category} / ${form.get('youtube_url') || '없음'}`,
-    `분량·장별 길이: ${form.get('duration')}분 / ${form.get('chapter_minutes') || 15}분`,
-    `언어·국가·시대: ${setting.language} / ${setting.setting_country} / ${setting.era_region}`,
-    `이미지·연출: ${setting.image_style} / ${form.get('direction_profile')}`,
-    `영상 씬 수: ${form.get('required_video_scene_count')} / 패럴럭스: ${form.get('parallax_mode')}`,
-    `레이어·효과 범위: ${form.get('image_layer_mode')} / ${form.get('image_layer_scene_start') ? form.get('image_layer_scene_start')+'~'+form.get('image_layer_scene_end')+'씬' : '중요 씬만 선택 · 제출 후 제작'}`,
-    `장면 상태 변경: 별도 요청 없음 / 음악 프롬프트: ${form.get('generate_bgm_prompt')==='on'?'생성':'생성 안 함'}`,
-    `추가 요청: ${form.get('notes') || '없음'}`
-  ].join('\n');
-  if(!confirm('아래 설정으로 대본 생성을 시작할까요?\n\n'+summary))return;
+  const stateCount=Number(form.get('character_state_count')||0);
+  const stateStart=form.get('character_state_scene_start')?Number(form.get('character_state_scene_start')):null;
+  const stateEnd=form.get('character_state_scene_end')?Number(form.get('character_state_scene_end')):null;
+  if(stateCount&&(!Number.isInteger(stateStart)||!Number.isInteger(stateEnd)||stateStart<1||stateEnd>999||stateStart>stateEnd)){error('장면 상태 레이어의 시작·종료 씬을 올바르게 입력하세요.');return;}
   start({
-    mode:'new',
-    concentrated_scene_effects:(form.get('production_mode')||'standard')==='standard' && (form.get('parallax_mode')||'selective')==='selective' && (form.get('image_layer_mode')||'hybrid')==='hybrid' && Boolean(form.get('image_layer_scene_start') && form.get('image_layer_scene_end')),
+    mode:'new',settings_confirmed:true,
+    concentrated_scene_effects:Boolean(form.get('image_layer_scene_start')) && Boolean(form.get('image_layer_scene_end')) && stateCount===0 && (form.get('production_mode')||'standard')==='standard' && (form.get('parallax_mode')||'selective')==='selective' && (form.get('image_layer_mode')||'hybrid')==='hybrid',
     production_mode:form.get('production_mode')||'standard',youtube_url:form.get('youtube_url')||'',
     direction_profile:form.get('direction_profile')||'auto',
     parallax_mode:form.get('parallax_mode')||'selective',
     image_layer_mode:form.get('image_layer_mode')||'hybrid',
+    character_state_count:stateCount,
+    character_state_scene_start:stateStart,
+    character_state_scene_end:stateEnd,
     image_layer_scene_start:form.get('image_layer_scene_start')?Number(form.get('image_layer_scene_start')):null,
     image_layer_scene_end:form.get('image_layer_scene_end')?Number(form.get('image_layer_scene_end')):null,
     required_video_scene_count:Number(form.get('required_video_scene_count')??0),
@@ -327,3 +338,77 @@ $('mouth-policy-form').addEventListener('submit',async event=>{
 loadMouthPolicy();
 
 document.querySelector('#new-form [name=parallax_mode]')?.addEventListener('change',window.updateNewSettingSummary);
+
+// The overview shows stored evidence, never infers an image or render from a plan.
+let productionPage=0, productionRevision=0;
+const productionDetails=new Map();
+const productionKey=job=>`${job.origin||'dedicated'}:${job.id}`;
+function productionCell(text,kind='unknown',hint=''){
+  const td=element('td'),badge=element('span',text,'production-badge '+kind);
+  if(hint)badge.title=hint;td.append(badge);return td;
+}
+function productionMedia(info){
+  if(!info||info.status==='unknown')return ['미확인','unknown'];
+  const count=info.total?` ${info.count}/${info.total}`:'';
+  return [{ready:'연결됨',partial:'일부 연결',running:'진행 중',failed:'실패',unverified:'파일 미확인',not_started:'미생성'}[info.status]||'미확인',info.status==='ready'?'ready':info.status==='running'?'running':'unknown',count];
+}
+function productionRow(job,detail){
+  job={...job,...(detail?.job||{})};
+  const row=element('tr'),title=element('td'),button=element('button',job.title||'제목 없음','production-title');
+  button.onclick=async()=>{view('jobs');await showJob(job.id,job.origin||'dedicated');$('result').scrollIntoView({behavior:'smooth',block:'start'});};
+  title.append(button,element('small',statusText(job.status)+' · '+displayLabel(job.stage||'')));row.append(title);
+  if(!detail){for(let i=0;i<10;i++)row.append(productionCell('조회 중','running'));return row;}
+  const d=detail.result_data||{},structure=d.structure||d.pregenerated_structure||{},scenes=Array.isArray(structure.scenes)?structure.scenes:[];
+  const running=['queued','running'].includes(job.status),script=Boolean(detail.script),hasScene=fn=>scenes.some(fn);
+  row.append(productionCell(script?'작성됨':running?'진행 중':'미확인',script?'ready':running?'running':'unknown'));
+  const review=d.script_quality_report||d.listener_quality_report;
+  row.append(productionCell(review?'결과 있음':running?'진행 중':'미확인',review?'ready':running?'running':'unknown','검수 결과의 존재 여부이며 합격 판정은 결과 상세에서 확인'));
+  const chars=d.character_anchors||structure.character_anchors||d.main_character||structure.main_character;
+  row.append(productionCell(chars?'설정됨':'미확인',chars?'ready':'unknown'));
+  const directions=hasScene(s=>s.scene_direction_plan||s.ae_directorial_plan)||structure.scene_direction_plans?.length;
+  row.append(productionCell(directions?'계획됨':'미확인',directions?'planned':'unknown','실제 AE 실행 완료가 아닌 연출 계획'));
+  const bgm=d.bgm_plan||structure.bgm_plan||d.bgm_prompt||structure.bgm_prompt;
+  row.append(productionCell(bgm?'계획 있음':'미확인',bgm?'planned':'unknown','음악 파일 생성 여부가 아닌 프롬프트·계획'));
+  const sfx=d.sfx_plan||structure.sfx_plan||(Array.isArray(d.sfx_cues)&&d.sfx_cues.length?d.sfx_cues:null);
+  row.append(productionCell(sfx?'계획 있음':'미확인',sfx?'planned':'unknown','효과음 파일 연결 여부와 별개'));
+  const a=productionMedia(detail.media?.characters),b=productionMedia(detail.media?.images);
+  row.append(productionCell(`인물 ${a[0]}${a[2]||''} · 장면 ${b[0]}${b[2]||''}`,a[1]==='ready'&&b[1]==='ready'?'ready':'unknown','저장된 이미지 링크 기준이며 파일 검증 결과는 아닙니다'));
+  const layers=hasScene(s=>s.metadata?.psd_layer_asset?.qa_status==='approved'||s.metadata?.psd_layer_asset?.status==='ready');
+  const layerPlans=hasScene(s=>s.psd_layer_plan?.enabled||s.parallax_plan?.enabled);
+  row.append(productionCell(layers?'자료 있음':layerPlans?'계획됨':'미확인',layers?'ready':layerPlans?'planned':'unknown'));
+  const coords=hasScene(s=>s.metadata?.cowork_image_asset?.speaker_geometry||s.metadata?.speaker_geometry);
+  row.append(productionCell(coords?'기록 있음':'미확인',coords?'ready':'unknown'));
+  row.append(productionCell('별도 확인','unknown','제출 후 통합워커의 AE·렌더 현황에서 확인'));
+  return row;
+}
+async function loadProductionOverview(){
+  const revision=++productionRevision;const tbody=$('production-rows');$('production-status').textContent='작업 결과를 확인하는 중…';
+  try{
+    const data=await api('history?'+new URLSearchParams({page:productionPage,origin:'all',state:'all',q:''}));
+    const items=(data.items||[]).filter(j=>!['topics','script_plan_generate'].includes(j.mode||j.job_type));
+    if(revision!==productionRevision)return;
+    const rows=items.map(j=>productionRow(j,productionDetails.get(productionKey(j))));tbody.replaceChildren(...rows);
+    $('production-page').textContent=`${productionPage+1} 페이지`; $('production-prev').disabled=productionPage===0; $('production-next').disabled=!data.has_more;
+    let next=0,failed=0;
+    await Promise.all(Array.from({length:Math.min(4,items.length)},async()=>{while(next<items.length){
+      const index=next++,j=items[index];let detail=null;
+      try{detail=await api(j.origin==='legacy'?'history/legacy/'+j.id:'jobs/'+j.id);productionDetails.set(productionKey(j),detail);}catch{failed++;detail=productionDetails.get(productionKey(j));}
+      if(revision!==productionRevision)return;
+      const replacement=productionRow(j,detail);if(!detail)for(const cell of replacement.querySelectorAll('td:not(:first-child) .production-badge')){cell.textContent='조회 실패';cell.className='production-badge unknown';}rows[index].replaceWith(replacement);rows[index]=replacement;
+    }}));
+    if(revision!==productionRevision)return;
+    if(!items.length){const tr=element('tr'),td=element('td','이 페이지에 표시할 토픽 작업이 없습니다.');td.colSpan=11;tr.append(td);tbody.append(tr);}
+    $('production-status').textContent=`이력 ${data.total??'—'}건 · 이 페이지 ${items.length}건 · 미확인은 저장된 결과만으로 확인할 수 없는 상태입니다.${failed?` · ${failed}건 조회 실패: 이전에 확인한 결과를 유지합니다.`:''}`;
+    $('production-page').textContent=`${productionPage+1} 페이지`; $('production-prev').disabled=productionPage===0; $('production-next').disabled=!data.has_more;
+  }catch(e){if(revision===productionRevision)$('production-status').textContent='작업 현황 조회 실패: '+e.message;}
+}
+$('production-prev').onclick=()=>{if(productionPage>0){productionPage--;void loadProductionOverview();}};
+$('production-next').onclick=()=>{productionPage++;void loadProductionOverview();};
+void loadProductionOverview();
+setInterval(()=>{if(!$('view-overview').hidden)void loadProductionOverview();},15000);
+
+let chatLoading=false;
+async function loadChat(){if(chatLoading)return;chatLoading=true;try{const data=await api('chat');const box=$('chat-messages');box.replaceChildren();for(const m of data.messages||[]){const item=element('article',undefined,'chat-message '+m.role);item.append(element('strong',m.role==='user'?'나':'Codex'),element('p',m.text));box.append(item)}if(!data.messages?.length)box.append(element('p','무엇을 도와드릴까요?','muted'));const busyChat=['queued','running'].includes(data.state);$('chat-status').textContent=data.error||({queued:'대본워커의 앞선 작업이 끝나기를 기다리고 있습니다.',running:'Codex가 작업하고 있습니다.',interrupted:'이전 응답이 중단되었습니다.'}[data.state]||'');$('chat-send').disabled=busyChat;$('chat-new').disabled=busyChat;}catch(e){$('chat-status').textContent='채팅 연결 실패: '+e.message}finally{chatLoading=false}}
+$('chat-form').onsubmit=async event=>{event.preventDefault();const input=$('chat-input'),message=input.value.trim();if(!message)return;$('chat-send').disabled=true;try{await api('chat',{message});input.value='';await loadChat();}catch(e){$('chat-status').textContent=e.message;$('chat-send').disabled=false}};
+$('chat-new').onclick=async()=>{try{await api('chat/new',{});await loadChat()}catch(e){$('chat-status').textContent=e.message}};
+setInterval(()=>{if(!$('view-chat').hidden)void loadChat()},2500);

@@ -30,16 +30,22 @@ class ScriptStore:
         if not url or not key:
             raise StoreUnavailable('Database 연결 설정이 없습니다.')
         try:
-            # Fixed-ID upserts are idempotent even if the response is lost.
-            for attempt in range(2):
+            # Retry only reads and explicit upserts: a timeout on a regular
+            # write may mean the server committed it despite a lost response.
+            retry_safe = method.upper() in ('GET', 'HEAD') or (
+                method.upper() == 'POST' and bool((params or {}).get('on_conflict'))
+                and 'resolution=merge-duplicates' in prefer)
+            attempts = 3 if retry_safe else 1
+            for attempt in range(attempts):
                 try:
                     response = requests.request(method, f'{url}/rest/v1/{table}', params=params,
                         json=body, headers={'apikey': key, 'Authorization': f'Bearer {key}',
                                             'Prefer': prefer}, timeout=15)
                     break
-                except requests.ConnectionError:
-                    if attempt:
+                except (requests.ConnectionError, requests.Timeout):
+                    if attempt + 1 == attempts:
                         raise
+                    time.sleep(0.5 * (2 ** attempt))
             if response.status_code == 409:
                 raise StoreUnavailable('다른 대본 작업이 실행 중이거나 저장 버전이 충돌했습니다.')
             response.raise_for_status()

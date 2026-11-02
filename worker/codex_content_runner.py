@@ -1198,6 +1198,10 @@ def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, 
         if not isinstance(scene, dict):
             continue
         scene_number = int(scene.get("scene_number") or scene.get("scene_order") or index)
+        scope = _resolve_image_layer_scene_range(payload) if payload.get('concentrated_scene_effects') else None
+        if scope and not scope['start'] <= scene_number + int(payload.get('_effect_scene_offset') or 0) <= scope['end']:
+            scene['ae_motion_plan'] = {'enabled': False, 'reason': 'outside_effect_scene_range'}
+            continue
         effect_plan = scene.get("ae_effect_plan") if isinstance(scene.get("ae_effect_plan"), dict) else {}
         if effect_plan.get("enabled"):
             scene["ae_motion_plan"] = {"enabled": False, "reason": "covered_by_ae_effect_plan"}
@@ -1266,6 +1270,7 @@ def _plan_ae_motion_for_scenes(scenes: list[dict[str, Any]], payload: dict[str, 
                 plan["intensity"] = min(float(plan.get("intensity") or 0.25), float(limits.get("intensity") or 0.28))
                 if "camera_move" not in operations:
                     plan["motion"] = {"push": 0.0, "drift_x": 0.0, "drift_y": 0.0, "shake": 0.0}
+                    plan["camera"] = "hold"
                 else:
                     max_scale = float(limits.get("max_scale_delta") or 0.04)
                     max_move = float(limits.get("max_move_ratio") or 0.025)
@@ -1660,7 +1665,7 @@ def _plan_image_generation_efficiency(
             "credit_cost_estimate": psd_units,
             "prompt": psd_prompt,
         }
-        if explicitly_layered and not (isinstance(scene.get("ae_effect_plan"), dict)
+        if explicitly_layered and not payload.get('concentrated_scene_effects') and not _scene_direction(scene) and not (isinstance(scene.get("ae_effect_plan"), dict)
                                        and scene["ae_effect_plan"].get("enabled")):
             duration = max(1.0, float(scene.get("duration_seconds") or scene.get("target_duration") or 4))
             template_plan = _manga_template_plan("parallax_layered_scene", scene, duration)
@@ -2062,10 +2067,15 @@ def _japanese_fidelity_review_issues(report: Any, payload: dict[str, Any] | None
     return issues
 
 
-def _story_review_contract() -> str:
+def _story_review_contract(include_writer_note=True) -> str:
     return (
         " Independently apply the supplied story_spine_contract to the exact final script. "
-        "Include story_spine_score (88-100 to pass), dialogue_context_score (85-100 to pass), "
+        + ("This is a blind final-TEXT review. Requirements to author narrative_blueprint and planning ledgers "
+        "apply to the writer, not to this review input. Those author artifacts were deliberately excluded. "
+        "Do not reject a script for an absent narrative_blueprint, continuity ledger or claim ledger alone. "
+        "Derive continuity from the supplied final narration, and flag a factual-grounding issue only for "
+        "a specific unsupported consequential claim actually asserted in that narration. " if include_writer_note else "")
+        + "Include story_spine_score (88-100 to pass), dialogue_context_score (85-100 to pass), "
         "anti_sermon_score (90-100 to pass), and a nonempty listener_summary in script_quality_report. "
         "The summary must identify the protagonist, want, obstacle, turn, and final changed action "
         "from the script. Compare these with the fixed source-topic notes when supplied; flag any drift. "
@@ -2718,11 +2728,19 @@ class CodexStagedContentRunner:
         return identity
 
     def generate(self, job_id: str, payload: dict[str, Any], *, script_only: bool = False) -> dict[str, Any]:
+        payload = dict(payload)
+        # Execution policy is not creative input: recovery must reuse the exact
+        # already-completed planning/script fingerprints.
+        quality_notes_only = payload.pop('quality_notes_only', False) is True
         from worker.nonverbal_preschool import applies, generate
         if applies(payload):
             return generate(self, job_id, payload)
         from worker.japanese_historical_documentary import prepare_request
         payload = prepare_request(payload)
+        override = getattr(self, 'effect_scope_override', None)
+        if override:
+            payload.update(concentrated_scene_effects=True,
+                           image_layer_scene_start=override['start'], image_layer_scene_end=override['end'])
         from worker.japanese_historical_documentary import prepare_sources
         payload = prepare_sources(self, job_id, payload)
         if payload.get('script_style') == 'japanese_historical_documentary' or payload.get('assigned_script_style') == 'japanese_historical_documentary':
@@ -2859,6 +2877,12 @@ class CodexStagedContentRunner:
             "main_character": plan.get("main_character") or {},
             "supporting_characters": plan.get("supporting_characters") or [],
         }
+        speech_scope = _resolve_image_layer_scene_range(payload) if payload.get('concentrated_scene_effects') else None
+        speech_offset = int(payload.get('_effect_scene_offset') or 0)
+        if speech_scope:
+            script_context['speech_style_policy'] = {
+                'last_direct_speech_scene': speech_scope['end'], 'global_scene_offset': speech_offset,
+                'instruction': 'Prefer narrator-reported indirect speech throughout. Through the last effect scene, allow direct character dialogue only when dramatically necessary; do not force direct speech. After that scene, convey all character speech only as narrator-reported indirect speech; no spoken character quotes, first-person character utterances, or speaker labels. Preserve meaning and scene boundaries.'}
         written = paragraph_draft or validated_stage(lambda name, context, task: self._stage(job_id, name, context, task), "02_script", script_context, f"Write narration for the supplied scene plans using scene_budgets as hard per-scene character budgets. Apply story_spine_contract, category_narration_voice, script_style_directive, and script_rhythm_contract strictly. Return {{'sections':[{{'scene_order':n,'text':'...'}}], 'script_quality_report':{{'verdict':'pass|revise','score':0-100,'story_spine_score':0-100,'anti_sermon_score':0-100,'dialogue_context_score':0-100,'category_voice_score':0-100,'rhythm_score':0-100,'repetitive_ending_score':0-100,'critical_issues':[],'revision_notes':[]}}}}. Return exactly {len(scenes)} ordered sections. Each section must fit its duration and concatenate without omissions or duplication into the finished narration. For each scene, dramatize a concrete action, choice, reveal, or consequence; do not summarize the plan. Prefer narration over direct dialogue; use quoted speech only when the surrounding action makes it necessary and never use speaker labels. End through concrete changed behavior and consequence, not a lesson sentence. Make the narration sound read aloud and category-specific, not like short scene cards. Never use headings, timestamps, camera directions, or metadata in narration.", lambda raw: validate_sections(raw, scene_budgets))
         sections = written.get("sections") if isinstance(written.get("sections"), list) else []
         if len(sections) != len(scenes):
@@ -2900,7 +2924,7 @@ class CodexStagedContentRunner:
                     script_context, qa_sections), "Independently review the exact complete narration as an adult senior listening without images. Do NOT rewrite or trust the author's score. "
                    "Compare the cast, timeline, object custody, character knowledge and title promise across the entire script. Check factual claims against supplied evidence. "
                    "Return only {'script_quality_report': {...}} using EVERY mandatory field and evidence-backed check defined in the following senior listening contract."
-                   + senior_contract(payload) + _story_review_contract())
+                   + senior_contract(payload) + _story_review_contract(include_writer_note=not quality_notes_only))
                 qa["script_quality_report"] = review.get("script_quality_report")
                 rhythm_warnings += review_issues(qa["script_quality_report"]) + _story_review_issues(qa["script_quality_report"])
                 rhythm_warnings += _japanese_fidelity_review_issues(qa["script_quality_report"], payload)
@@ -2909,7 +2933,12 @@ class CodexStagedContentRunner:
             if not rhythm_warnings:
                 break
             if qa_attempt:
-                raise CodexContentError("script QA failed senior listening contract: " + "; ".join(rhythm_warnings))
+                if not quality_notes_only:
+                    raise CodexContentError("script QA failed senior listening contract: " + "; ".join(rhythm_warnings))
+                structure.setdefault('quality_notes', []).append({
+                    'stage': 'senior_script_review', 'issues': rhythm_warnings,
+                    'actual_review': qa.get('script_quality_report'), 'passed': False})
+                break
             qa_context = {
                 **qa_context,
                 "script": "\n\n".join(
@@ -2928,16 +2957,37 @@ class CodexStagedContentRunner:
                     task + '\n' + language_directive(output_language(payload))),
                 str(payload.get('upload_title') or payload.get('topic') or ''), qa_sections, scene_budgets)
         except ValueError as exc:
-            raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
+            if not quality_notes_only:
+                raise CodexContentError(f'Listener quality gate rejected: {exc}') from exc
+            listener_audit = {'verdict': 'revise', 'selected': 'original', 'passed': False,
+                              'issue': str(exc), 'mode': 'text_only'}
+            structure.setdefault('quality_notes', []).append({'stage': 'listener_review', 'passed': False, 'issue': str(exc)})
         if listener_audit['selected'] == 'revision':
             final_review = self._stage(job_id, '02i_post_listener_review', _final_script_review_context(
                 script_context, qa_sections), 'Independently recheck the exact revised script against the complete senior listening contract. '
-               'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.' + _story_review_contract())
+               'Do not rewrite. Return {script_quality_report:{...}} with all required evidence-backed checks.' + _story_review_contract(include_writer_note=not quality_notes_only))
             qa['script_quality_report'] = final_review.get('script_quality_report')
             final_issues = text_issues(qa_sections, payload) + _script_rhythm_warnings(qa_sections) + _story_flow_warnings(qa_sections) + review_issues(qa['script_quality_report']) + _story_review_issues(qa['script_quality_report']) + _japanese_fidelity_review_issues(qa['script_quality_report'], payload)
             if final_issues:
-                raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
+                if not quality_notes_only:
+                    raise CodexContentError('Post-listener continuity gate rejected: ' + '; '.join(final_issues))
+                structure.setdefault('quality_notes', []).append({'stage': 'post_listener_review',
+                    'passed': False, 'issues': final_issues, 'actual_review': qa.get('script_quality_report')})
         structure['listener_quality_report'] = listener_audit
+        if speech_scope:
+            # Apply after all optional rewrites, including paragraph-first drafting and listener edits.
+            speech_context = {**script_context, 'sections': qa_sections, 'scene_budgets': scene_budgets}
+            converted = self._stage(job_id, '02j_scene_speech_style', speech_context,
+                'Rewrite the supplied final sections to obey speech_style_policy. Scene numbers in sections are local; '
+                'add global_scene_offset before comparing with last_direct_speech_scene. Prefer indirect reported '
+                'speech throughout; through that scene allow direct speech only when dramatically necessary, '
+                'never force it. After it use narrator-only indirect reported speech. '
+                'Preserve facts, speaker attribution, plot, language, order, scene boundaries and character budgets. '
+                'Return JSON {sections:[{scene_order:1,text:"..."},...]}, one per supplied scene.')
+            qa_sections = converted.get('sections') if isinstance(converted.get('sections'), list) else []
+            if len(qa_sections) != len(scenes):
+                raise CodexContentError('Speech style rewrite must preserve every scene.')
+            structure['speech_style_policy'] = script_context['speech_style_policy']
         if paragraph_draft:
             for section in qa_sections[len(opening):]:
                 length = len(re.sub(r'\s', '', str((section or {}).get('text') or '')))
@@ -2967,6 +3017,11 @@ class CodexStagedContentRunner:
             dialogue_result = self._stage(job_id, '02e_dialogue', dialogue_context, DIALOGUE_TASK)
             try:
                 structure['dialogue_annotations'] = validate_dialogue(dialogue_result, scenes)
+                if speech_scope:
+                    violations = [row['scene_number'] + speech_offset for row in structure['dialogue_annotations']['scenes']
+                                  if row['scene_number'] + speech_offset > speech_scope['end'] and row['spans']]
+                    if violations:
+                        raise ValueError('Direct or uncertain character speech after the effect range in scenes: ' + ', '.join(map(str, violations)))
                 structure['video_dialogue_postwork_index'] = structure['dialogue_annotations']['video_dialogue_postwork_index']
                 structure['script_model'] = ASTRA_MODEL
                 break
@@ -2979,6 +3034,10 @@ class CodexStagedContentRunner:
             scene['dialogue_spans']=annotation['spans']
         from worker.elevenlabs_performance import plan_performance
         structure['audio_performance'] = plan_performance(self._stage, job_id, scenes, setting['language'])
+        override = getattr(self, 'effect_scope_override', None)
+        if override:
+            payload = {**payload, 'concentrated_scene_effects': True,
+                       'image_layer_scene_start': override['start'], 'image_layer_scene_end': override['end']}
         direction_profile = resolve_directing_profile(payload)
         if payload.get('concentrated_scene_effects') and payload.get('_effect_scene_offset'):
             for scene in scenes:
@@ -3044,7 +3103,8 @@ class CodexStagedContentRunner:
             visual_task += (f"\nEffect concentration range: global scenes {scope['start']} through {scope['end']} inclusive; add {offset} to each local scene number to obtain the global scene number. "
                 "Outside that range use only one image, hold or camera_move, no extra layers, blinking, "
                 "mouth animation, parallax or additional keyframes. Never use a slow zoom. "
-                "Inside the range design background and named characters as separate original transparent planes.")
+                "Inside the range design background and named characters as separate original transparent planes, with dialogue-appropriate mouth animation and parallax directions. "
+                "After the range, choose context-motivated zoom in, zoom out or horizontal movement and scene transitions appropriate to the story; use a fixed camera when movement is not motivated, and use short, clearly visible medium-speed moves with holds.")
         from purpose_direction import direct_with_repair
         def validate_scoped_directions(result):
             from worker.effect_scene_scope import validate_directions
@@ -3094,6 +3154,8 @@ class CodexStagedContentRunner:
         from worker.japanese_historical_documentary import enforce_package as enforce_documentary
         identity = enforce_documentary(identity, payload)
         pending_anchors = character_design_anchors(identity)
+        from character_states import assign_character_state_requests
+        assign_character_state_requests(scenes, identity, payload, required_video_scene_count)
         script_context.update(main_character=identity["main_character"], supporting_characters=identity["supporting_characters"])
         structure.update(main_character=identity["main_character"], supporting_characters=identity["supporting_characters"],
                          character_anchors=pending_anchors, scene_cast=identity["scene_cast"],

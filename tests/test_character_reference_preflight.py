@@ -136,6 +136,9 @@ def test_validated_current_package_bypasses_store_and_generation(tmp_path):
     store, runner, generator = Store([structure["character_anchors"]["main_character"]]), Runner(), Generator()
     ready = preflight.ensure_character_references(row, structure, tmp_path, runner=runner, store=store, generator=generator)
     class NoCalls:
+        def load_history_references(self, topic_id):
+            # A ready cast still needs a fresh historical registry snapshot.
+            return []
         def __getattr__(self, name):
             pytest.fail(f"Unnecessary call: {name}")
     result = preflight.ensure_character_references(row, ready, tmp_path, runner=NoCalls(), store=NoCalls(), generator=NoCalls())
@@ -188,3 +191,15 @@ def test_export_handoff_preflights_legacy_topic_and_attaches_new_sons(monkeypatc
     assert [ref["name"] for ref in manifest["grids"][0]["character_references"]] == ["Father", "Older son", "Younger son"]
     assert "Exact shaved scalp and knot for Older son" in manifest["grids"][0]["prompt"]
     assert "Exact shaved scalp and knot for Younger son" in manifest["grids"][0]["prompt"]
+
+
+def test_explicit_skip_face_review_reuses_ready_cast_without_comparison(tmp_path, monkeypatch):
+    row, structure = fixture()
+    lead = structure['character_anchors']['main_character']
+    structure['skip_face_identity_review'] = True
+    structure['character_anchors']['scene_cast'] = [{'scene_number': n, 'characters': ['Father']} for n in (1, 2)]
+    fingerprint = preflight.census_fingerprint(row['pregenerated_script'], structure['scenes'])
+    structure['character_anchors']['cast_census'] = {'fingerprint': fingerprint,
+        'reference_policy': preflight.POLICY, 'scene_cast': structure['character_anchors']['scene_cast']}
+    result = preflight.ensure_character_references(row, structure, tmp_path, store=Store([lead]))
+    assert result['character_anchors']['main_character']['gcs_path'] == lead['gcs_path']

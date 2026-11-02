@@ -29,6 +29,35 @@ def _scene():
     }
 
 
+def test_full_psd_plans_enter_execution_and_require_real_layers(tmp_path):
+    outputs = ["background_plate", "foreground_subject_or_focus", "depth_matte",
+               "character_cutout_alpha", "hair_cloth_motion_matte", "frame_focus_matte"]
+    scenes = [{"scene_number": n, "psd_layer_plan": {"enabled": True, "mode": "full_psd", "outputs": outputs}}
+              for n in range(1, 180)]
+    specs = layers.scene_specs(scenes)
+    assert len(specs) == 179
+    assert specs[0]["required_layers"] == outputs
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="need review"):
+        layers.prepare(manifest, tmp_path, specs)
+    assert not (tmp_path / "layer-packages" / "scene-001.psd").exists()
+
+
+def test_full_psd_mattes_are_present_but_hidden_in_composite(tmp_path):
+    outputs = ["background_plate", "foreground_subject_or_focus", "depth_matte",
+               "character_cutout_alpha", "hair_cloth_motion_matte", "frame_focus_matte"]
+    spec = layers.scene_specs([{"scene_number": 1, "psd_layer_plan": {
+        "enabled": True, "mode": "full_psd", "outputs": outputs}}])[0]
+    for role in outputs:
+        _layer(tmp_path / spec["layer_files"][role], background=role == "background_plate")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text("{}", encoding="utf-8")
+    receipt = layers.prepare(manifest, tmp_path, [spec])
+    psd = PSDImage.open(tmp_path / receipt["packages"]["1"]["psd_file"])
+    assert [layer.visible for layer in psd] == [True, True, False, False, False, False]
+
+
 def _layer(path, *, background=False):
     image = Image.new("RGBA", layers.CANVAS_SIZE,
                       (30, 40, 50, 255) if background else (0, 0, 0, 0))
@@ -188,7 +217,7 @@ def test_manifest_keeps_scene_bucket_distinct_from_portrait_bucket(tmp_path, mon
     structure = {"character_anchors": anchors,
                  "scenes": [{"scene_number": n, "image_prompt": f"scene {n}"} for n in range(1, 5)],
                  "image_grid_prompts": [{"scene_numbers": [1, 2, 3, 4], "prompt": "four scenes"}]}
-    monkeypatch.setattr(publisher, "_topic", lambda *_: ({"id": "topic-1"}, structure, "", {}))
+    monkeypatch.setattr(publisher, "_topic", lambda *_: ({"id": 3384}, structure, "", {}))
     seen = []
     monkeypatch.setattr(publisher, "_download_gcs_bytes", lambda bucket, path: (
         seen.append((bucket, path)) or stream.getvalue()))
@@ -323,3 +352,43 @@ def test_project_sync_migration_locks_rows_and_limits_missing_psd_requeue():
     assert "v_error like 'Manga template needs a layered PSD%'" in sql
     assert "v_error like 'Manga PSD layer package has not passed layer review%'" in sql
     assert "status', 'planned'" in sql
+
+
+def test_general_full_psd_plan_cannot_publish_as_completed_without_layer_support(tmp_path, monkeypatch):
+    scene = {"scene_number": 1, "psd_layer_plan": {"enabled": True, "mode": "full_psd", "outputs": ["background_plate", "character_cutout_alpha"]}}
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"schema": "cowork_scene_assets/v1", "topic_id": "topic-1", "bucket": "air-studio-prod", "scene_specs": [scene], "grids": [{"scene_numbers": [1]}]}), encoding="utf-8")
+    monkeypatch.setattr(publisher, "_topic", lambda *_: ({"id": "topic-1"}, {"scenes": [scene]}, "https://db.test", {}))
+    with pytest.raises(ValueError, match="manga layer packages are not prepared"):
+        publisher.publish(manifest, tmp_path, False)
+
+def test_explicit_full_psd_scope_preserves_scene_plans():
+    import copy
+    from worker import manga_layer_package as layers
+    scenes = [{"scene_number": n, "psd_layer_plan": {"enabled": True, "mode": "full_psd", "outputs": ["background_plate", "foreground_subject_or_focus"]}} for n in range(1, 180)]
+    original = copy.deepcopy(scenes)
+    selected = layers.scoped_scene_specs(scenes, list(range(19, 81)))
+    assert [s["scene_number"] for s in selected] == list(range(19, 81))
+    assert len(layers.scoped_scene_specs(scenes)) == 179
+    assert scenes == original
+    import pytest
+    with pytest.raises(ValueError):
+        layers.scoped_scene_specs(scenes, [19, 19])
+    with pytest.raises(ValueError):
+        layers.scoped_scene_specs(scenes, [180])
+
+def test_publish_does_not_generate_proxy_layers_outside_explicit_scope(tmp_path, monkeypatch):
+    manifest = tmp_path / 'manifest.json'
+    scene = {**_scene(), 'local_layer_plan': {'enabled': True}}
+    manifest.write_text(json.dumps({'schema':'cowork_scene_assets/v1','topic_id':'topic-1',
+        'bucket':'air-studio-prod','scene_specs':[scene], 'layer_scene_numbers':[],
+        'grids':[{'scene_numbers':[1]}]}), encoding='utf-8')
+    images = tmp_path / 'images'
+    images.mkdir()
+    _layer(images / 'scene-001.png', background=True)
+    monkeypatch.setattr(publisher, '_topic', lambda *_: ({'id':'topic-1','status':'pending'},
+        {'scenes':[scene]}, 'https://db.test', {}))
+    monkeypatch.setattr(publisher, '_upload_gcs_file', lambda path, key, mime: ('air-studio-prod', key, 'url:' + key))
+    monkeypatch.setattr(publisher, '_write_depth_proxy_layers', lambda *a: pytest.fail('out-of-scope scene must not generate layers'))
+    monkeypatch.setattr(publisher, '_request', lambda *a, **kw: SimpleNamespace(json=lambda: {'applied':True}))
+    assert len(publisher.publish(manifest, images, False)) == 1

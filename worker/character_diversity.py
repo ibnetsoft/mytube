@@ -10,6 +10,15 @@ from typing import Any
 
 VERSION = "character-diversity-v1"
 
+NATURAL_FACE_GUIDANCE = (
+    "For new character designs, avoid default idealized beauty, fashion-model faces, cosmetic retouching, "
+    "uniform large eyes and a repeated narrow V-shaped jaw. Give women as well as men varied, natural, "
+    "story-appropriate facial structures: vary face width and length, cheekbones, jaw, eye shape and spacing, "
+    "nose bridge and tip, and mouth proportions. Use believable asymmetry and lived-in detail where appropriate; "
+    "do not make everyone conventionally pretty or force everyone to look aged, unattractive or caricatured. "
+    "Respect the character's actual age, background, role and art style. Preserve existing approved identities. "
+)
+
 # Pools describe dramatic/visual functions, not fixed faces. The identity stage
 # combines one pool entry with age, build, facial geometry, hair, wardrobe and a
 # signature prop/gesture, so recurring categories do not converge on one cast.
@@ -83,7 +92,11 @@ def diversity_contract(payload: dict[str, Any]) -> str:
         "The three signature fields must be concrete and visually observable. Assign a distinct palette per production while preserving the selected image style. "
         "reference_sheet_prompt must request the same person in front, profile, waist-up, full-body and expression views. "
         "scene_variation_rules may change only story-supported wardrobe, grooming, fatigue and expression; identity geometry remains locked. "
-        "Compare against recent same-category designs below. If two or more of face, silhouette, and prop/behavior overlap, redesign before returning. "
+        f"{NATURAL_FACE_GUIDANCE}"
+        "Every different character must have a distinct underlying face within this cast and across prior topics, even in another category. "
+        "Do not reuse one base face with different clothes, hair, expressions or wrinkles. Specify substantial differences in at least three "
+        "facial axes: face shape/proportions, eyes/spacing, nose, mouth and jaw. Keep the same character's identity stable across this topic. "
+        "Compare against recent same-category designs below; redesign overlapping facial identities before returning. Actual portraits will also be compared against historical topic images. "
         f"Recent designs: {recent_text}"
     )
 

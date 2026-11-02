@@ -164,6 +164,34 @@ def test_preparation_requires_actual_visual_review_and_hashes_cache(tmp_path):
     assert len(runner.calls) == 4  # A damaged artifact cannot inherit its prior review.
 
 
+def test_general_state_request_reaches_preparation_review_and_archived_ae_plan(tmp_path):
+    class StateRunner(Runner):
+        def _stage(self, identity, name, context, task):
+            if name == '02_scene_state_plan':
+                return {'status': 'ready', 'target_layer_id': 'background', 'subject': 'moon',
+                        'edit_bounds': [.1, .1, .3, .3], 'states': [{'start': .5, 'change': 'Half moon after time passes'}]}
+            if name == '03_ae_scene_preparation_review':
+                assert context['plan']['scene_state_plan']['target_layer_id'] == 'background'
+                assert any('scene-state-1.png' in p for p in context['_local_image_paths'])
+                assert 'no duplicate targets' in task
+            return super()._stage(identity, name, context, task)
+    class Generator:
+        def generate(self, **kwargs):
+            path = tmp_path / 'state-generated.png'
+            Image.new('RGBA', (128, 128), 'orange').save(path)
+            return path
+    source = create_psd(tmp_path)
+    source_hash = prep.sha256(source)
+    snapshot = {'source_psd': {'id': 'source-id'}, 'number': 20,
+                'scene_context': {'creative_reference': {'scene_state_request': {
+                    'count': 2, 'scene_text': 'Time passes and the full moon becomes a half moon.'}}}}
+    result = prep.prepare(source, snapshot, tmp_path/'prepared-states', StateRunner(), Generator())
+    assert prep.sha256(source) == source_hash
+    assert result['plan']['scene_state_plan']['contract'] == 'scene_states/v1'
+    assert any(f.get('layer_id') == 'scene_state_1' and f['sha256'] for f in result['files'])
+    assert result['review']['plan_sha256'] == result['plan_sha256']
+
+
 def test_failed_review_cannot_publish_or_cache_a_prepared_scene(tmp_path):
     source = create_psd(tmp_path)
     with pytest.raises(ValueError, match='검수'):

@@ -24,6 +24,8 @@ except ImportError:
 SCHEMA = "manga_layer_packages/v1"
 CANVAS_SIZE = (1920, 1080)
 ROLE_ORDER = (
+    "background_plate", "foreground_subject_or_focus", "depth_matte",
+    "character_cutout_alpha", "hair_cloth_motion_matte", "speech_bubble_text_safe_layer", "effect_overlay_alpha", "frame_focus_matte",
     "background", "foreground", "wall_intact", "wall_broken", "character_left",
     "character_center", "character_right", "character", "hand_foreground",
     "talisman", "reflection_scene", "training_prop", "title_backdrop",
@@ -84,6 +86,16 @@ def scene_spec(scene: dict[str, Any], fallback: int) -> dict[str, Any] | None:
     template = str(plan.get("template") or "").strip()
     if not plan.get("enabled") or not template:
         layer_plan = scene.get("psd_layer_plan") if isinstance(scene.get("psd_layer_plan"), dict) else {}
+        if layer_plan.get("enabled") and layer_plan.get("mode") == "full_psd" and not layer_plan.get("template"):
+            required = _roles(layer_plan.get("outputs"), "full_psd outputs")
+            if not required or "background_plate" not in required:
+                raise ValueError("full_psd requires a background_plate and declared outputs")
+            number = _scene_number(scene, fallback)
+            if number < 1:
+                raise ValueError("scene number must be positive")
+            return {"scene_number": number, "template": "full_psd", "mouth_box": None,
+                    "required_layers": [role for role in ROLE_ORDER if role in required],
+                    "optional_layers": [], "layer_files": {role: f"scene-{number:03d}-{role.replace('_', '-')}.png" for role in required}}
         if (layer_plan.get("enabled") and layer_plan.get("selection_source") == "explicit_scene_range"
                 and layer_plan.get("template") == "parallax_layered_scene"):
             plan = layer_plan
@@ -153,6 +165,22 @@ def scene_specs(scenes: list[Any]) -> list[dict[str, Any]]:
     return specs
 
 
+def scoped_scene_specs(scenes: list[Any], scene_numbers: Any = None) -> list[dict[str, Any]]:
+    """Apply an explicit per-job selection without changing saved scene plans."""
+    specs = scene_specs(scenes)
+    if scene_numbers is None:
+        return specs
+    if not isinstance(scene_numbers, list) or any(type(n) is not int or n < 1 for n in scene_numbers):
+        raise ValueError("layer_scene_numbers must be a list of positive integers")
+    selected = set(scene_numbers)
+    if len(selected) != len(scene_numbers):
+        raise ValueError("layer_scene_numbers contains duplicates")
+    available = {spec["scene_number"] for spec in specs}
+    if selected - available:
+        raise ValueError(f"layer_scene_numbers has no layer plan: {sorted(selected - available)}")
+    return [spec for spec in specs if spec["scene_number"] in selected]
+
+
 def _validate_png(path: Path, role: str) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(f"required layer is missing: {path}")
@@ -161,7 +189,7 @@ def _validate_png(path: Path, role: str) -> dict[str, Any]:
             raise ValueError(f"{path.name}: expected a {CANVAS_SIZE[0]}x{CANVAS_SIZE[1]} PNG")
         rgba = image.convert("RGBA")
         alpha_min, alpha_max = rgba.getchannel("A").getextrema()
-        if role == "background":
+        if role in ("background", "background_plate"):
             if alpha_min != 255:
                 raise ValueError(f"{path.name}: background must cover the full canvas")
         elif alpha_min == 255 or alpha_max == 0:
@@ -216,7 +244,9 @@ def _build_psd(images_dir: Path, layers: list[dict[str, Any]], psd_path: Path, p
     psd = PSDImage.new("RGBA", CANVAS_SIZE, color=0)
     for layer in layers:
         with Image.open(images_dir / layer["file"]) as source:
-            psd.create_pixel_layer(source.convert("RGBA"), name=layer["role"])
+            created = psd.create_pixel_layer(source.convert("RGBA"), name=layer["role"])
+            if layer["role"] in {"depth_matte", "character_cutout_alpha", "hair_cloth_motion_matte", "speech_bubble_text_safe_layer", "frame_focus_matte"}:
+                created.visible = False
     tmp = psd_path.with_suffix(".psd.tmp")
     try:
         psd.save(tmp)

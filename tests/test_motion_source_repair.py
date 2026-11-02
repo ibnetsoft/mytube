@@ -41,8 +41,10 @@ def test_short_video_is_extended_and_verified_without_altering_source(tmp_path):
     repaired,receipt=repair_short_video(scene,source,'audio',tmp_path,ffmpeg(),run)
     assert repaired != source and source.read_bytes()==original
     assert receipt['verification']['passed'] and receipt['hold_seconds']==pytest.approx(.2)
-    with pytest.raises(ValueError,match='자동 보완 한도'):
-        repair_short_video({**scene,'end':7},source,'audio',tmp_path,ffmpeg(),run)
+    assert receipt['tail_effect'] == 'medium_zoom_in'
+    longer, extended = repair_short_video({**scene,'end':7},source,'audio',tmp_path,ffmpeg(),run)
+    assert extended['verification']['passed'] and extended['hold_seconds'] == pytest.approx(6)
+    assert extended['zoom_frames'] == round(extended['duration'] * extended['fps']) - extended['retained_source_frames'] - 1
 
 def test_extended_hold_is_explicitly_bound_to_scene_and_final_audio():
     from motion_source_repair import supervised_hold_limit
