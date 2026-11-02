@@ -271,7 +271,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     if (!initialVersion || (!requesterEmail.startsWith('admin') && !requesterEmail.startsWith('worker') && requesterEmail !== String(initialVersion.employee_email || '').toLowerCase())) {
         return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     }
-    const etag = `"std-read-v2-${initialVersion.version}"`
+    const etag = `"std-read-v3-${initialVersion.version}"`
     const readHeaders = { 'Cache-Control': 'private, no-cache', ETag: etag, Vary: 'Authorization, x-impersonate-email' }
     const forceRefresh = req.headers.get('x-std-refresh') === '1'
     if (!forceRefresh && req.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: readHeaders })
@@ -280,16 +280,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         const cached = await readProjectResponse(cacheKey)
         if (cached) return NextResponse.json(stripPostworkDirection(cached), { headers: readHeaders })
     }
-    let query = supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId)
-    if (auth.requester.email && !auth.requester.email.startsWith('admin') && !auth.requester.email.startsWith('worker')) {
-        query = query.eq('employee_email', auth.requester.email)
-    }
-    let { data: project, error } = await query.maybeSingle()
-    if (!project && !error && impersonateTarget) {
-        const fallback = await supabaseAdmin.from('std_projects').select('*').eq('id', params.projectId).maybeSingle()
-        project = fallback.data
-        error = fallback.error
-    }
+    let { data: project, error } = await supabaseAdmin.rpc('std_user_web_project', { p_id: params.projectId })
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     if (!project) {
@@ -327,12 +318,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     const topicQueueId = projectTopicQueueId(project)
     if (topicQueueId) {
-        const { data: topic } = await supabaseAdmin
-            .from('topics_queue')
-            .select('pregenerated_structure')
-            .eq('id', topicQueueId)
-            .maybeSingle()
-        for (const [index, scene] of structureScenes(topic?.pregenerated_structure).entries()) {
+        const { data: topicStructure } = await supabaseAdmin.rpc('std_user_web_topic_structure', { p_id: topicQueueId })
+        for (const [index, scene] of structureScenes(topicStructure).entries()) {
             sourceSceneByNumber.set(sceneNumberOf(scene, index + 1), scene)
         }
     }
@@ -372,12 +359,14 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         if (JSON.stringify(repaired.subtitles) !== JSON.stringify(subtitlePayload.subtitles)) {
             const repairedPayload = { ...subtitlePayload, subtitles: repaired.subtitles,
                 subtitle_editor_snapshot: repaired.subtitles }
-            const { data: repairedProject, error: repairError } = await supabaseAdmin.from('std_projects')
-                .update({ project_payload: repairedPayload, updated_at: new Date().toISOString() })
-                .eq('id', project.id).eq('updated_at', project.updated_at).select('*').maybeSingle()
+            const { data: repairedProject, error: repairError } = await supabaseAdmin.rpc('std_save_subtitle_patch', {
+                p_project_id: project.id, p_updated_at: project.updated_at, p_status: project.status,
+                p_payload: { subtitles: repaired.subtitles, subtitle_editor_snapshot: repaired.subtitles },
+                p_progress: {}, p_revisions: [],
+            })
             if (repairError) return NextResponse.json({ success: false, error: repairError.message }, { status: 503 })
             if (!repairedProject) return NextResponse.json({ success: false, error: '프로젝트가 변경됐습니다. 다시 열어 주세요.' }, { status: 409 })
-            project = repairedProject
+            project = { ...project, updated_at: repairedProject.updated_at, project_payload: repairedPayload }
         }
     }
 
