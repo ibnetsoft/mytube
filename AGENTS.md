@@ -35,3 +35,8 @@
 
 - Before starting a new script, ask the user to choose or confirm the production/script type, subject/category/reference, duration/chapter length, language/country/era, image/direction style, parallax/layer/video-scene scope, scene-state changes, and music-prompt/additional requests. Show the final effective settings and wait for an explicit start action. Saved defaults alone are not confirmation.
 - Apply this to new script creation, including agent-initiated creation. Continue already running or recovering jobs with their existing settings; do not interrupt them to repeat the questions.
+
+## Current-affairs production defaults
+
+- For current-affairs or economic documentary productions, read `docs/current-affairs-production-defaults.md` and apply its defaults to the proposed settings and production. Confirm the effective settings and receive an explicit start action for each new script as required above; defaults do not replace confirmation. User overrides take precedence.
+- For authorized supervised production, continue through final assembly without waiting for user review or approval; inspect evidence, preserve truthful quality notes and recover execution failures as described above. Do not automatically publish or upload.

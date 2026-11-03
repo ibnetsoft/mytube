@@ -1,0 +1,12 @@
+# Current-affairs production defaults
+
+Apply these defaults when a user requests a current-affairs or economic documentary, subject to the user's confirmed settings for each new script.
+
+- Audience and language: Japanese seniors, Japanese narration. Modern Japan and relevant country; state the evidence date and explain historical comparisons without implying identical outcomes.
+- Format: independent, researched 20–25 minute documentary, introduction, four main chapters and conclusion. Adapt reference ideas rather than copying; independently verify factual claims and distinguish fact, interpretation and forecast. Show source and date on statistics; avoid unsupported collapse claims and investment certainty.
+- Opening: establish an accessible connection to Japanese experience, introduce the current event and a concrete question about its effect on everyday life, then promise an explanation. Adapt the hook to the subject.
+- Narration is voiceover only: never show a presenter, narrator, talking head or a person speaking to camera. No character sheet by default; use incidental people only as needed. If a recurring character is explicitly needed, maintain their identity and distinguish faces per project guidance.
+- Visuals: realistic, restrained Japanese current-affairs documentary aesthetic, legible senior-friendly Japanese text, one main idea per screen. Clearly distinguish AI illustrations from real documentary footage. Prioritize fixed camera; no slow zoom. Selective parallax and layers only when motivated.
+- Generate video for scenes 1–18. From scene 19 onward, use video generation only for scenes that require motion graphics; use still images for other scenes. Use simple 2D diagrams, maps and graphs to clarify causal pathways and data; leave time to read after movement stops. Do not interpret this as requiring every scene after 18 to be motion graphics.
+- Depict scene-state changes only when useful to explain the subject. Background music: subdued current-affairs documentary instrumental, under narration, without exaggerated alarm. Generate a music prompt when requested or supported.
+- For authorized supervised production, continue without user approval pauses through final assembly. Inspect real assets and output, record actual quality concerns separately, preserve cancellation and file/timing checks, and recover failures without marking broken or missing output complete. Administrator publishing and YouTube upload are separate actions.
