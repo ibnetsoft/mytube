@@ -67,6 +67,22 @@ assert.equal(comic.isComicProject({project_payload:{render_settings:{comic:webto
 assert.deepEqual(comic.comicPages([1,2,3], webtoon), [[1],[2],[3]])
 const imgProject = {...book, project_payload: {...book.project_payload, scenes:[{scene_number:1,image_url:'image.png'}]}}
 assert.equal(steps.summarizeStdProject(imgProject).isImageDone, true)
+const noVideo = { title:'No clips', project_payload:{ structure:{required_video_scene_count:0, scenes:[{scene_number:1,scene_text:'text'}]}, script:'text' } }
+assert.equal(steps.summarizeStdProject(noVideo).isVideoStepDone, true, 'no video work is complete immediately')
+assert.equal(steps.summarizeStdProject(noVideo).isImageDone, false, 'missing visuals still block production readiness')
+assert.equal(steps.summarizeStdProject(noVideo).allDone, false)
+const extraVideo = { ...noVideo, project_payload:{ ...noVideo.project_payload, structure:{...noVideo.project_payload.structure,motion_graphic_video_scenes:[1]} } }
+assert.equal(steps.summarizeStdProject(extraVideo).isVideoStepDone, false, 'explicitly selected video work remains incomplete')
+const extraWithImage = { ...extraVideo, project_payload:{ ...extraVideo.project_payload, structure:{...extraVideo.project_payload.structure,scenes:[{scene_number:1,image_url:'still.png'}]} } }
+assert.equal(steps.summarizeStdProject(extraWithImage).isVideoStepDone, false, 'a still does not satisfy selected video work')
+extraWithImage.project_payload.structure.scenes[0].video_url='clip.mp4'
+assert.equal(steps.summarizeStdProject(extraWithImage).isVideoStepDone, true)
+const requiredClip = { ...noVideo, project_payload:{ ...noVideo.project_payload, structure:{...noVideo.project_payload.structure,required_video_scene_count:1} } }
+assert.equal(steps.summarizeStdProject(requiredClip).isVideoStepDone, false, 'a required clip stays incomplete')
+const deferredClip = { ...noVideo, project_payload:{ ...noVideo.project_payload, structure:{...noVideo.project_payload.structure,scenes:[{scene_number:1,video_generation_mode:'user_upload'}]} } }
+assert.equal(steps.summarizeStdProject(deferredClip).isVideoStepDone, false, 'scene-level upload remains incomplete')
+assert.equal(steps.summarizeStdProject({project_payload:{structure:{required_video_scene_count:0,scenes:[]}}}).isVideoStepDone, true, 'an explicit zero is complete before scenes load')
+assert.equal(steps.summarizeStdProject({project_payload:{}}).isVideoStepDone, false, 'unknown video requirements are not inferred complete')
 assert.equal(steps.summarizeStdProject({...imgProject, project_payload:{...imgProject.project_payload,render_settings:{}}}).isImageDone, false)
 const scenesThrough18 = Array.from({length:19}, (_, i) => ({scene_number:i+1, image_url:`image-${i+1}.png`}))
 assert.equal(steps.summarizeStdProject({project_payload:{scenes:scenesThrough18}}).isImageDone, false)

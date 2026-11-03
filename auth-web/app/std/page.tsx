@@ -7650,7 +7650,7 @@ export default function StdPortalPage() {
         const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt || s.text)))
 
         // Read the same saved visual/output status as the project list and admin queue.
-        const { isImageDone, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
+        const { isImageDone, isVideoStepDone, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
 
         const allDone = isTopicDone && isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone
 
@@ -7659,6 +7659,7 @@ export default function StdPortalPage() {
             isPlanningDone,
             isScriptDone,
             isImageDone,
+            isVideoStepDone,
             isTtsDone,
             isSubtitlesDone,
             isThumbnailDone,
@@ -8500,7 +8501,7 @@ export default function StdPortalPage() {
         { id: 'topics', label: ui("주제"), isDone: status.isTopicDone },
         { id: 'topics', label: ui("기획"), isDone: status.isPlanningDone },
         { id: 'script_gen', label: ui("대본"), isDone: status.isScriptDone },
-        { id: 'image_gen', label: t('nav_image'), isDone: status.isImageDone },
+        { id: 'image_gen', label: t('nav_image'), isDone: status.isVideoStepDone ?? status.isImageDone },
         { id: 'subtitle_vrew', label: ui("자막"), isDone: status.isSubtitlesDone },
         { id: 'thumbnail', label: ui("썸네일"), isDone: status.isThumbnailDone },
         ]
@@ -8735,8 +8736,8 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-1 py-2 text-center">
-                                                                    <span className={pStatus.isImageDone ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {pStatus.isImageDone ? '●' : '○'}
+                                                                    <span className={(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? '●' : '○'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-1 py-2 text-center">

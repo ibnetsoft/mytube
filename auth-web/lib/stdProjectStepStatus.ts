@@ -10,8 +10,8 @@ export function summarizeStdProject(project: any, assets: any[] = []) {
  const isTopicDone = Boolean(String(project.title || '').trim())
  const isPlanningDone = Boolean(payload.structure || payload.pregenerated_structure || scenes.length)
  const isScriptDone = hasReadyNonverbalPlan(project) || Boolean(payload.script || payload.pregenerated_script || scenes.some((s: any) => s.scene_text || s.narration))
- const { isImageDone, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(project, assets)
- return { isTopicDone, isPlanningDone, isScriptDone, isImageDone, isTtsDone, isSubtitlesDone, isThumbnailDone,
+ const { isImageDone, isVideoStepDone, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(project, assets)
+ return { isTopicDone, isPlanningDone, isScriptDone, isImageDone, isVideoStepDone, isTtsDone, isSubtitlesDone, isThumbnailDone,
   allDone: isTopicDone && isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone,
   uploadedAssetsCount, totalScenesCount }
 }
