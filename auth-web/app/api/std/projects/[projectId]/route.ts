@@ -350,7 +350,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     })
 
     const subtitlePayload = project.project_payload || {}
-    if (Array.isArray(subtitlePayload.subtitles)) {
+    if (Array.isArray(subtitlePayload.subtitles) && (subtitlePayload.subtitles.length > 0
+        || (Array.isArray(subtitlePayload.subtitle_editor_snapshot) && subtitlePayload.subtitle_editor_snapshot.length > 0))) {
         const normalizedRows = normalizeSubtitleFragments(subtitlePayload.subtitles, 20, { punctuationOnly: true })
         const editorSnapshot = Array.isArray(subtitlePayload.subtitle_editor_snapshot)
             ? subtitlePayload.subtitle_editor_snapshot : normalizedRows

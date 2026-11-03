@@ -225,7 +225,7 @@ import { sceneDirectionBadges } from '@/lib/stdSceneDirection'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { assignSubtitleNarration, subtitleDialogueDisplayParts } from '@/lib/stdSubtitleNarration'
 import { createSaveBeforeNavigationGuard } from '@/lib/stdSaveBeforeNavigation'
-import { restoreSavedSubtitleSnapshot } from '@/lib/stdSubtitleSnapshot'
+import { restoreSavedSubtitleSnapshot, splitSourceRecoveryPlaceholders } from '@/lib/stdSubtitleSnapshot'
 import { applyRecordedSubtitleTiming } from '@/lib/stdRecordedSubtitleTiming'
 import { createSubtitleSaveQueue } from '@/lib/stdSubtitlePersistence'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
@@ -4833,7 +4833,7 @@ export default function StdPortalPage() {
         const currentScript = cleanScriptContextText(selectedProject?.project?.project_payload?.script || customScriptText || '')
         const loadedRows = restoreSavedSubtitleSnapshot(savedSubtitles,
             () => generateSynchronizedSubtitles(currentScript, scenes, Number(subMaxChars) || 20))
-        const subs = preserveSubtitleScenes(loadedRows, savedSubtitles || [], scenes,
+        const subs = preserveSubtitleScenes(splitSourceRecoveryPlaceholders(loadedRows, scenes, Number(subMaxChars) || 20), savedSubtitles || [], scenes,
             selectedProject?.project?.project_payload?.deleted_subtitle_scene_numbers || []).subtitles
         const normalizedSubtitles = matchSubtitlesToSceneVisuals(ensureSubtitlesHaveTiming(subs, scenes), scenes)
         setLocalSubtitles(normalizedSubtitles)
@@ -5712,7 +5712,7 @@ export default function StdPortalPage() {
                 const loadedProjectSubtitles = restoreSavedSubtitleSnapshot(storedServerSubtitles,
                     () => generateAnnotatedSubtitles(fullScript, normalizedScenes, Number(subMaxChars) || 20,
                         payload.project.project_payload?.structure?.dialogue_annotations))
-                const projectSubtitles = preserveSubtitleScenes(loadedProjectSubtitles, storedServerSubtitles, normalizedScenes,
+                const projectSubtitles = preserveSubtitleScenes(splitSourceRecoveryPlaceholders(loadedProjectSubtitles, normalizedScenes, Number(subMaxChars) || 20), storedServerSubtitles, normalizedScenes,
                     payload.project?.project_payload?.deleted_subtitle_scene_numbers || []).subtitles
 
                 const fullProjectPayload: SelectedProjectPayload = {

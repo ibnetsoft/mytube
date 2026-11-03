@@ -12,13 +12,26 @@ function load(filename) {
         name => load(path.resolve(path.dirname(full), `${name}.ts`)));
     return exports;
 }
-const { restoreSavedSubtitleSnapshot } = load('auth-web/lib/stdSubtitleSnapshot.ts');
+const { restoreSavedSubtitleSnapshot, splitSourceRecoveryPlaceholders } = load('auth-web/lib/stdSubtitleSnapshot.ts');
 const { subtitlesMatchSceneManifest } = load('auth-web/lib/stdSubtitleSceneIntegrity.ts');
 const { subtitleSpeaker } = load('auth-web/lib/stdSpeakerAssignment.ts');
 const { alignedNarrationSubtitles } = load('auth-web/lib/stdPreviewAudio.ts');
 const scenes = [{ scene_number: 1 }, { scene_number: 2 }, { scene_number: 3 }];
 let generated = 0;
 const initial = () => { generated++; return [{ text: 'Generated draft', scene_number: 1 }]; };
+
+const recovered = { id: 'sub-1-source-recovery', scene_number: 1, text: 'ある町の雑貨店で、店主が開店前に古い新聞を開いていました。',
+    start_num: 0, end_num: 5, start_time: '0', end_time: '5', restored_audio_pending: true, voice_assignment_pending: true }
+const sourceScenes = [{ scene_number: 1, scene_text: recovered.text }]
+const restoredRecovery = splitSourceRecoveryPlaceholders([recovered], sourceScenes)
+assert.ok(restoredRecovery.length > 1, 'untouched source recovery becomes natural subtitle blocks')
+assert.equal(restoredRecovery.map(row => row.text).join(''), recovered.text)
+assert.equal(restoredRecovery[0].start_num, 0); assert.equal(restoredRecovery.at(-1).end_num, 5)
+assert.deepEqual(restoreSavedSubtitleSnapshot(restoredRecovery, initial), restoredRecovery)
+assert.deepEqual(splitSourceRecoveryPlaceholders([{ ...recovered, text: '사용자가 변경한 내용' }], sourceScenes), [{ ...recovered, text: '사용자가 변경한 내용' }])
+for (const extra of [{ voice_id: 'saved-voice' }, { editor_speaker: { name: 'speaker' } }, { audio_asset_id: 'saved-audio' }, { dialogue_override: false }]) {
+    assert.deepEqual(splitSourceRecoveryPlaceholders([{ ...recovered, ...extra }], sourceScenes), [{ ...recovered, ...extra }], 'edited or recorded rows are never re-split')
+}
 
 const saved = [
     { id: 'custom-a', scene_number: 1, text: 'ユーザーが修正した台詞', start_num: 2.35, end_num: 7.9, start_time: '2.35', end_time: '7.90',
