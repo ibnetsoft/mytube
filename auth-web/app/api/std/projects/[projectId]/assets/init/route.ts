@@ -5,7 +5,7 @@ import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredClipScene, stdRequiredVideoSceneCount } from '@/lib/stdPolicy'
+import { isStdRequiredClipScene, stdRequiredVideoSceneCount, strictRevisionSceneUploadAllowed } from '@/lib/stdPolicy'
 import {
     buildStdGcsObjectPath,
     createGcsSignedUploadUrl,
@@ -63,7 +63,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
-    if (sceneNumber != null && isStdRequiredClipScene(sceneNumber, project) && assetType === 'image') {
+    if (sceneNumber != null && !strictRevisionSceneUploadAllowed(project, sceneNumber, assetType)) {
+        return NextResponse.json({ success: false, error: 'Video is not selected for this scene.', code: 'video_not_selected' }, { status: 422 })
+    }
+    if (sceneNumber != null && project.project_payload?.strict_content_identity !== true && isStdRequiredClipScene(sceneNumber, project) && assetType === 'image') {
         const requiredVideoSceneCount = stdRequiredVideoSceneCount(project)
         return NextResponse.json({
             success: false,
@@ -74,6 +77,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (
         sceneNumber != null
         && !isComicProject(project)
+        && project.project_payload?.strict_content_identity !== true
         && sceneNumber > stdRequiredVideoSceneCount(project)
         && ['image', 'video'].includes(assetType)
     ) {

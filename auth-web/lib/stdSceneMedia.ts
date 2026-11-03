@@ -2,6 +2,8 @@ import { recordedMotionSourceReuse } from './stdMotionSourceReuse'
 import { comicSettingsForProject, selectComicMedia } from './stdComic'
 import { reviewedVideoTail } from './stdVideoTail'
 import { motionForProject } from './stdMotionStudio'
+import { assetMatchesContentRevision } from './stdContentIdentity'
+import { isStdVideoPromptScene } from './stdPolicy'
 
 export function storageSourceForAsset(asset: any) {
     const metadata = asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
@@ -66,11 +68,17 @@ export function reviewedScenePostprocessAsset(project: any, sceneNumber: number)
 export function resolveSceneMedia(project: any, scene: any, assets: any[], override?: any) {
     const number = Number(scene.scene_number)
     const draft = motionForProject(project)
-    const originals = [...assets].filter(a => ['uploaded', 'assigned'].includes(String(a.status || ''))
+    const originals = [...assets].filter(a => assetMatchesContentRevision(project, a) && ['uploaded', 'assigned'].includes(String(a.status || ''))
         && Number(a.scene_number) === number && (!a.metadata?.ae_mouth_fingerprint || (draft?.enabled && recordedMotionSourceReuse(project,a,assets,assets.find(a=>a.id===project.progress_payload?.tts_asset_id)))) && !a.metadata?.lipsync_fingerprint)
         .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')) || String(b.id || '').localeCompare(String(a.id || '')))
     const image = originals.find(a => String(a.asset_type).toLowerCase() === 'image')
     const video = originals.find(a => String(a.asset_type).toLowerCase() === 'video')
+    if (project.project_payload?.strict_content_identity === true) {
+        const videoRequired = isStdVideoPromptScene(number, project)
+        const selected = videoRequired ? video : image
+        if (!selected) throw new Error(`Scene ${number} requires ${videoRequired ? 'video' : 'image'} for this revision`)
+        return selected
+    }
     if (override) {
         const sourcePath = (video || image)?.metadata?.gcs_path || (video || image)?.metadata?.storage_path
         if (override.metadata?.source_image?.object_path && override.metadata.source_image.object_path !== sourcePath)

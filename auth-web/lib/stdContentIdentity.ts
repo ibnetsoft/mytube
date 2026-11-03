@@ -50,8 +50,18 @@ export function assetContentIdentity(project: any, options: {
 function mismatch(message: string): never {
     throw Object.assign(new Error(`콘텐츠 식별정보 불일치: ${message}`), { code: 'CONTENT_IDENTITY_MISMATCH' })
 }
+/** Opt-in revision isolation for replaced scripts; legacy projects retain their old behavior. */
+export function assetMatchesContentRevision(project: any, asset: any): boolean {
+    if (project?.project_payload?.strict_content_identity !== true) return true
+    const role = String(asset?.metadata?.audio_role || '')
+    if (asset?.asset_type === 'audio' && ['bgm', 'sfx', 'background'].includes(role)) return true
+    if (!['image', 'video', 'audio'].includes(String(asset?.asset_type || '').toLowerCase())) return true
+    const hash = asset?.metadata?.content_identity?.script_sha256
+    return Boolean(hash && hash === projectContentIdentity(project).script_sha256)
+}
 export function assertAssetScope(project: any, asset: any, scene?: any) {
     if (!asset) mismatch('자산이 없습니다.')
+    if (!assetMatchesContentRevision(project, asset)) mismatch('현재 대본 버전에 연결된 자산이 아닙니다.')
     if (asset.project_id && String(asset.project_id) !== String(project.id)) mismatch('다른 프로젝트의 자산입니다.')
     const identity = asset.metadata?.content_identity
     if (identity && (String(identity.project_id) !== String(project.id)
@@ -73,7 +83,7 @@ export function assertAssetScope(project: any, asset: any, scene?: any) {
 }
 export function selectNarrationAsset(project: any, assets: any[]) {
     const active = assets.filter(a => a.asset_type === 'audio' && ['uploaded', 'assigned'].includes(a.status)
-        && !['bgm', 'sfx', 'background'].includes(a.metadata?.audio_role))
+        && !['bgm', 'sfx', 'background'].includes(a.metadata?.audio_role) && assetMatchesContentRevision(project, a))
     const payload = project.project_payload || {}, progress = project.progress_payload || {}
     const url = String(payload.audio_url || payload.tts_url || '')
     const urlId = url.match(/[?&]assetId=([^&]+)/)?.[1]

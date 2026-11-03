@@ -91,3 +91,9 @@ export function isStdRequiredClipScene(sceneNumber: any, project?: any): boolean
     const parsed = Number(sceneNumber)
     return Number.isFinite(parsed) && parsed >= 1 && parsed <= stdRequiredVideoSceneCount(project)
 }
+
+/** Revisioned documentaries accept source stills and only explicitly selected videos. */
+export function strictRevisionSceneUploadAllowed(project: any, sceneNumber: number, assetType: string): boolean {
+    if (project?.project_payload?.strict_content_identity !== true || assetType !== 'video') return true
+    return isStdVideoPromptScene(sceneNumber, project)
+}

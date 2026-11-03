@@ -1,5 +1,5 @@
 import { isComicProject } from './stdComic'
-import { isStdRequiredClipScene } from './stdPolicy'
+import { isStdRequiredClipScene, isStdVideoPromptScene } from './stdPolicy'
 
 /** Submitted longform projects may replace an original clip before approval. */
 export function canEditStdAsset(project: any, assetType: string, sceneNumber: number | null): boolean {
@@ -8,5 +8,6 @@ export function canEditStdAsset(project: any, assetType: string, sceneNumber: nu
     if (status !== 'review_requested') return true
     if (['sfx', 'bgm'].includes(assetType) && sceneNumber == null) return true
     return assetType === 'video' && sceneNumber != null && !isComicProject(project)
-        && isStdRequiredClipScene(sceneNumber, project)
+        && (project?.project_payload?.strict_content_identity === true
+            ? isStdVideoPromptScene(sceneNumber, project) : isStdRequiredClipScene(sceneNumber, project))
 }

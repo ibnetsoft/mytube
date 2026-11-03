@@ -1,5 +1,6 @@
 import { supabaseAdmin } from './supabaseAdmin'
-import { isStdRequiredClipScene } from './stdPolicy'
+import { isStdRequiredClipScene, isStdVideoPromptScene } from './stdPolicy'
+import { assetMatchesContentRevision } from './stdContentIdentity'
 
 const DESKTOP_PROJECT_TABLE = 'desktop_project_metadata'
 
@@ -37,11 +38,15 @@ function buildSteps(project: any, scenes: any[], assets: any[]) {
             .map((asset: any) => Number(asset.scene_number))
             .filter(Number.isFinite)
     )
+    const readyImageSceneNumbers = new Set(assets.filter((asset: any) => asset.asset_type === 'image'
+        && ['uploaded', 'assigned'].includes(asset.status)).map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
     const allScenesReady = scenes.length > 0 && scenes.every((scene: any) => {
         const sceneNumber = Number(scene.scene_number)
-        return isStdRequiredClipScene(sceneNumber, project)
+        const needsVideo = project?.project_payload?.strict_content_identity === true
+            ? isStdVideoPromptScene(sceneNumber, project) : isStdRequiredClipScene(sceneNumber, project)
+        return needsVideo
             ? readyVideoSceneNumbers.has(sceneNumber)
-            : readySceneNumbers.has(sceneNumber)
+            : (project?.project_payload?.strict_content_identity === true ? readyImageSceneNumbers : readySceneNumbers).has(sceneNumber)
     })
 
     return {
@@ -164,21 +169,21 @@ async function loadStdBundle(projectId: string) {
     if (projectError) throw projectError
     if (!project) return null
 
+    let assetsQuery = supabaseAdmin.from('std_project_assets').select('*').eq('project_id', project.id)
+    if (project.project_payload?.strict_content_identity === true) {
+        assetsQuery = assetsQuery.or('metadata->>kind.is.null,and(metadata->>kind.neq.content_revision,metadata->>kind.neq.content_revision_backup)')
+    }
     const [{ data: scenes, error: scenesError }, { data: assets, error: assetsError }] = await Promise.all([
         supabaseAdmin
             .from('std_project_scenes')
             .select('*')
             .eq('project_id', project.id)
             .order('scene_number', { ascending: true }),
-        supabaseAdmin
-            .from('std_project_assets')
-            .select('*')
-            .eq('project_id', project.id)
-            .order('created_at', { ascending: false }),
+        assetsQuery.order('created_at', { ascending: false }),
     ])
     if (scenesError) throw scenesError
     if (assetsError) throw assetsError
-    return { project, scenes: scenes || [], assets: assets || [] }
+    return { project, scenes: scenes || [], assets: (assets || []).filter((asset: any) => assetMatchesContentRevision(project, asset)) }
 }
 
 export async function syncStdProjectToLegacy(projectId: string) {

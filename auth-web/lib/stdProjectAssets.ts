@@ -8,7 +8,7 @@ export async function loadStdProjectAssets(db: any, projectId: string, columns: 
             .select(columns)
             .eq('project_id', projectId)
             .in('status', ['uploaded', 'assigned'])
-        if (options?.excludeContentRevisions) query = query.or('metadata->>kind.is.null,metadata->>kind.neq.content_revision')
+        if (options?.excludeContentRevisions) query = query.or('metadata->>kind.is.null,and(metadata->>kind.neq.content_revision,metadata->>kind.neq.content_revision_backup)')
         const { data, error } = await query
             .order('created_at', { ascending: false })
             .order('id', { ascending: false })

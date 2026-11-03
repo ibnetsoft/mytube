@@ -34,6 +34,10 @@ const documentary = { project_payload: { structure: { required_video_scene_count
 assert.equal(policy.isStdVideoPromptScene(19, documentary), true)
 assert.equal(policy.isStdVideoPromptScene(20, documentary), false)
 assert.equal(policy.isStdVideoPromptScene(60, documentary), true)
+const revisedDocumentary = { project_payload: { strict_content_identity: true, structure: { required_video_scene_count: 18, motion_graphic_video_scenes: [19, 60, 70] } } }
+for (const n of [1,18,19,60,70]) assert.equal(policy.strictRevisionSceneUploadAllowed(revisedDocumentary, n, 'video'), true)
+for (const n of [20,50,101]) assert.equal(policy.strictRevisionSceneUploadAllowed(revisedDocumentary, n, 'video'), false)
+for (const n of [1,18,19,20,60,70,101]) assert.equal(policy.strictRevisionSceneUploadAllowed(revisedDocumentary, n, 'image'), true)
 assert.equal(policy.isStdRequiredClipScene(60, documentary), false)
 assert.equal(policy.isStdMiddleVideoScene(13, standard), true)
 assert.equal(policy.isStdMiddleVideoScene(18, standard), true)

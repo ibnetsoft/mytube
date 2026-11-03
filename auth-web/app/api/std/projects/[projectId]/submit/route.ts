@@ -14,6 +14,7 @@ import { preparedAeScenes } from '@/lib/stdAeScenePreparation'
 import { motionAutomationEnabled,registerMotionAutomation } from '@/lib/stdMotionAutomation'
 import { productionEngineError } from '@/lib/stdProductionEnginePolicy'
 import {motionProductionMethod} from '@/lib/stdMotionStudio'
+import { assetMatchesContentRevision } from '@/lib/stdContentIdentity'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +47,9 @@ async function recoverStoredTtsAsset(project: any, assets: any[]) {
         && hasStoredAssetFile(asset)
     )
     if (hasActiveAudio) return activeAssets
+    // Legacy recovery guesses an old recording by URL or recency and can change
+    // its status. A revisioned project must explicitly generate its own audio.
+    if (project.project_payload?.strict_content_identity === true) return activeAssets
 
     const candidates = [
         project?.progress_payload?.tts_asset_id,
@@ -176,10 +180,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         }, { status: 409 })
     }
 
-    let assets = loadedAssets || []
+    let assets = (loadedAssets || []).filter((asset: any) => assetMatchesContentRevision(project, asset))
     try {
         assets = await ensureStdGeneratedSceneAssetsArchived(project, scenes || [], assets)
         if (!isNonverbalProject(project)) assets = await recoverStoredTtsAsset(project, assets)
+        assets = assets.filter((asset: any) => assetMatchesContentRevision(project, asset))
     } catch (archiveError: any) {
         return NextResponse.json({
             success: false,
@@ -200,7 +205,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message || 'AE 장면 준비를 확인해 주세요.' }, { status: 409 })
     }
-    const visualAssets = assets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()))
+    const visualAssets = assets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase())
+        && (project.project_payload?.strict_content_identity !== true || hasStoredAssetFile(asset)))
     const activeSceneNumbers = new Set(visualAssets.map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
     const activeVideoSceneNumbers = new Set(
         visualAssets
@@ -208,6 +214,8 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             .map((asset: any) => Number(asset.scene_number))
             .filter(Number.isFinite)
     )
+    const activeImageSceneNumbers = new Set(visualAssets.filter((asset: any) => asset.asset_type === 'image')
+        .map((asset: any) => Number(asset.scene_number)).filter(Number.isFinite))
     const missingScenes = (scenes || []).filter((scene: any) => {
         const sceneNumber = Number(scene.scene_number)
         if (preparedScenes.has(sceneNumber)) return false
@@ -216,7 +224,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             && !a.metadata?.region_motion_plan_id)
         return isStdVideoPromptScene(sceneNumber, project)
             ? !activeVideoSceneNumbers.has(sceneNumber)
-            : !activeSceneNumbers.has(sceneNumber)
+            : !(project.project_payload?.strict_content_identity === true ? activeImageSceneNumbers : activeSceneNumbers).has(sceneNumber)
     })
     if (missingScenes.length > 0) {
         return NextResponse.json({

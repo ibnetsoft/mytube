@@ -1,4 +1,4 @@
-import { projectContentIdentity, renderAssetIdentity } from '@/lib/stdContentIdentity'
+import { assetMatchesContentRevision, projectContentIdentity, renderAssetIdentity } from '@/lib/stdContentIdentity'
 import { isComicProject } from '@/lib/stdComic'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { queueSubmittedVideoReplacement } from '@/lib/stdSubmittedVideoReplacement'
@@ -7,7 +7,7 @@ import { audioAssetStorageFields } from '@/lib/stdAudioMix'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
-import { isStdRequiredClipScene, isStdVideoPromptScene, stdRequiredVideoSceneCount } from '@/lib/stdPolicy'
+import { isStdRequiredClipScene, isStdVideoPromptScene, stdRequiredVideoSceneCount, strictRevisionSceneUploadAllowed } from '@/lib/stdPolicy'
 import { syncStdProjectToLegacy } from '@/lib/stdLegacySync'
 import { getGcsObjectMetadata, isGcsConfiguredAsync } from '@/lib/gcsStorage'
 
@@ -86,15 +86,18 @@ function buildProjectPayloadWithVisualAsset(project: any, sceneNumber: number | 
 async function updateSceneAssetStatus(projectId: string, sceneNumber: number, project: any) {
     const { data: activeAssets } = await supabaseAdmin
         .from('std_project_assets')
-        .select('id,asset_type')
+        .select('id,asset_type,metadata')
         .eq('project_id', projectId)
         .eq('scene_number', sceneNumber)
         .in('asset_type', ['image', 'video'])
         .in('status', ['uploaded', 'assigned'])
 
-    const isReady = isStdRequiredClipScene(sceneNumber, project)
-        ? Boolean((activeAssets || []).some((asset: any) => asset.asset_type === 'video'))
-        : Boolean(activeAssets && activeAssets.length > 0)
+    const eligibleAssets = (activeAssets || []).filter((asset: any) => assetMatchesContentRevision(project, asset))
+    const videoRequired = project.project_payload?.strict_content_identity === true
+        ? isStdVideoPromptScene(sceneNumber, project) : isStdRequiredClipScene(sceneNumber, project)
+    const isReady = videoRequired
+        ? eligibleAssets.some((asset: any) => asset.asset_type === 'video')
+        : eligibleAssets.length > 0
 
     await supabaseAdmin
         .from('std_project_scenes')
@@ -143,7 +146,10 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
     }
 
-    if (sceneNumber != null && isStdRequiredClipScene(sceneNumber, project) && assetType === 'image') {
+    if (sceneNumber != null && !strictRevisionSceneUploadAllowed(project, sceneNumber, assetType)) {
+        return NextResponse.json({ success: false, error: 'Video is not selected for this scene.', code: 'video_not_selected' }, { status: 422 })
+    }
+    if (sceneNumber != null && project.project_payload?.strict_content_identity !== true && isStdRequiredClipScene(sceneNumber, project) && assetType === 'image') {
         const requiredVideoSceneCount = stdRequiredVideoSceneCount(project)
         return NextResponse.json({
             success: false,
@@ -154,6 +160,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (
         sceneNumber != null
         && !isComicProject(project)
+        && project.project_payload?.strict_content_identity !== true
         && sceneNumber > stdRequiredVideoSceneCount(project)
         && ['image', 'video'].includes(assetType)
     ) {
@@ -252,7 +259,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         let asset = existingAsset
         let replacedVideos: any[] = []
         if (!asset) {
-            if (sceneNumber != null && ['image', 'video'].includes(assetType)) {
+            if (sceneNumber != null && ['image', 'video'].includes(assetType) && project.project_payload?.strict_content_identity !== true) {
                 if (assetType === 'video') {
                     const previous = await supabaseAdmin.from('std_project_assets').select('id,metadata')
                         .eq('project_id', project.id).eq('scene_number', sceneNumber).eq('asset_type', 'video')

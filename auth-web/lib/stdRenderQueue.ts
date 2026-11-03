@@ -1,5 +1,5 @@
 import { productionEngineError } from './stdProductionEnginePolicy'
-import { projectContentIdentity, selectNarrationAsset, assertNarrationIdentity, renderAssetIdentity, assetContentIdentity, persistContentRevision, finalizeRecordedRenderConfig } from './stdContentIdentity'
+import { assetMatchesContentRevision, projectContentIdentity, selectNarrationAsset, assertNarrationIdentity, renderAssetIdentity, assetContentIdentity, persistContentRevision, finalizeRecordedRenderConfig } from './stdContentIdentity'
 import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from './stdNonverbal'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { lipSyncEnabled, lipSyncSceneStarts, reviewedLipSyncAssets } from './stdLipSync'
@@ -153,12 +153,15 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             if (kind === 'video' && !isComicProject(project) && !isStdVideoPromptScene(sceneNumber, project)) continue
             if (kind === 'image' && isStdRequiredVideoScene(sceneNumber, project)) continue
             const matchingAssets = activeAssets.filter((asset: any) => (
-                activeAsset(asset)
+                activeAsset(asset) && assetMatchesContentRevision(project, asset)
                 && String(asset?.asset_type || '').toLowerCase() === kind
                 && Number(asset?.scene_number) === sceneNumber
             ))
             if (matchingAssets.some(storageSourceForAsset)) continue
             const existingAsset = matchingAssets[0]
+            const origin = scene.metadata?.[`cowork_${kind}_asset`]?.origin_content_identity
+            if (project.project_payload?.strict_content_identity === true &&
+                (!origin || origin.script_sha256 !== projectContentIdentity(project).script_sha256)) continue
             let source = kind === 'image' ? generatedImageStorageSource(scene) : generatedVideoStorageSource(scene)
             if (!source) continue
             if (!checkedGcsConfig) {
@@ -175,7 +178,6 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
             delete metadata.gcs_public_url
             delete metadata.gcs_signed_url
             delete metadata.secondary_storage_provider
-            const origin = scene.metadata?.[`cowork_${kind}_asset`]?.origin_content_identity
             if (origin) {
                 if (Number(origin.origin_topic_queue_id) !== Number(project.topic_queue_id)) throw new Error('CONTENT_IDENTITY_MISMATCH: 생성 원본의 토픽이 다릅니다.')
                 metadata.content_identity = { ...assetContentIdentity(project, { type: kind, scene }),
@@ -513,7 +515,7 @@ async function renderAudioAsset(project: any, scenes: any[], assets: any[]) {
 
 async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
     const entries: ZipEntry[] = []
-    const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
+    const activeAssets = (assets || []).filter(activeAsset).filter(asset => assetMatchesContentRevision(project, asset)).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()) && !asset.metadata?.ae_mouth_fingerprint && !asset.metadata?.lipsync_fingerprint)
     const audioAsset = await renderAudioAsset(project, scenes, activeAssets)
     const narrationIdentity = isNonverbalProject(project) ? null : assertNarrationIdentity(project, audioAsset, buildRenderSubtitles(project, scenes))
@@ -542,7 +544,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         )
         const motion = comicSettingsForProject(project).panels[String(sceneNumber)]?.motion
         if ((motion === 'pan' || motion === 'still') && !imageAsset) throw new Error(`Scene ${sceneNumber} needs an image for the selected comic motion`)
-        let asset = motionForProject(project)?.enabled ? resolveSceneMedia(project, scene, activeAssets)
+        let asset = project.project_payload?.strict_content_identity === true || motionForProject(project)?.enabled ? resolveSceneMedia(project, scene, activeAssets)
             : selectComicMedia(motion === 'pan' || motion === 'still' ? 'comic' : comicSettingsForProject(project).mode, imageAsset, videoAsset)
         const sourcePath = (videoAsset || imageAsset)?.metadata?.gcs_path || (videoAsset || imageAsset)?.metadata?.storage_path
         if (project.project_payload?.submission_pipeline_version === 2 && asset?.metadata?.source_image?.object_path && asset.metadata.source_image.object_path !== sourcePath) asset = videoAsset || imageAsset
@@ -665,7 +667,7 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
 async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], pseudoProjectId: number) {
     const lipAssets = isNonverbalProject(project) ? new Map<number, any>() : new Map([...(project.project_payload?.submission_pipeline_version === 2 ? [] : reviewedLipSyncAssets(project, scenes, assets)), ...reviewedAeMouthAssets(project, scenes, assets)])
     let recordedTiming = !isNonverbalProject(project) && (lipSyncEnabled(project) || Boolean(project.project_payload?.ae_mouth?.enabled))
-    const activeAssets = (assets || []).filter(activeAsset).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
+    const activeAssets = (assets || []).filter(activeAsset).filter(asset => assetMatchesContentRevision(project, asset)).map(asset => ({ ...asset, asset_type: audioAssetRole(asset) }))
     const sceneAssets = activeAssets.filter((asset: any) => ['image', 'video'].includes(String(asset.asset_type || '').toLowerCase()) && !asset.metadata?.ae_mouth_fingerprint && !asset.metadata?.lipsync_fingerprint)
     const audioAsset = await renderAudioAsset(project, scenes, activeAssets)
     const narrationIdentity = isNonverbalProject(project) ? null : assertNarrationIdentity(project, audioAsset, buildRenderSubtitles(project, scenes))

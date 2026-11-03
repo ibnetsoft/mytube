@@ -2,8 +2,13 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const source=fs.readFileSync('lib/stdAssetEditPolicy.ts','utf8'),moduleExports={}
 new Function('exports','require',ts.transpileModule(source,{compilerOptions:{module:1,target:7}}).outputText)(moduleExports,name=>{
  if(name==='./stdComic')return{isComicProject:p=>p.project_payload?.comic===true}
- if(name==='./stdPolicy')return{isStdRequiredClipScene:n=>Number(n)>=1&&Number(n)<=18}
+ if(name==='./stdPolicy')return{isStdRequiredClipScene:n=>Number(n)>=1&&Number(n)<=18,isStdVideoPromptScene:n=>Number(n)<=18||[19,60,70].includes(Number(n))}
  throw Error(name)
+})
+test('revisioned documentary permits submitted selected motion clips only',()=>{
+ const p={status:'review_requested',project_payload:{strict_content_identity:true}}
+ for(const n of [1,18,19,60,70])assert.equal(can(p,'video',n),true)
+ for(const n of [20,50,101])assert.equal(can(p,'video',n),false)
 })
 const can=moduleExports.canEditStdAsset
 test('submitted project accepts replacement of scenes 1–18 only',()=>{

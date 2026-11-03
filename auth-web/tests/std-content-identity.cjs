@@ -49,6 +49,22 @@ test('images can survive narration edits only when their original visual inputs 
  assert.throws(()=>lib.renderAssetIdentity(f.project,{...scene,image_prompt:'different topic'},image,'original'),/프롬프트/)
  assert.throws(()=>lib.renderAssetIdentity(f.project,{...scene,id:'other'},image,'original'),/씬 자산/)
 })
+test('strict content revisions exclude legacy and other-script media while retaining library sounds', () => {
+ const f=fixture(), scene={id:'s1',scene_number:1,image_prompt:'harbor'}
+ const current={project_id:'p',scene_id:'s1',scene_number:1,asset_type:'image',metadata:{content_identity:lib.assetContentIdentity(f.project,{type:'image',scene})}}
+ const old={...current,metadata:{content_identity:{...current.metadata.content_identity,script_sha256:'old'}}}
+ const legacy={...current,metadata:{}}
+ assert.equal(lib.assetMatchesContentRevision(f.project,old),true)
+ f.project.project_payload.strict_content_identity=true
+ assert.equal(lib.assetMatchesContentRevision(f.project,current),true)
+ assert.equal(lib.assetMatchesContentRevision(f.project,old),false)
+ assert.equal(lib.assetMatchesContentRevision(f.project,legacy),false)
+ assert.throws(()=>lib.assertAssetScope(f.project,legacy,scene),/대본 버전/)
+ assert.equal(lib.assetMatchesContentRevision(f.project,{asset_type:'audio',metadata:{audio_role:'sfx'}}),true)
+ const narration={...f.audio, id:'new', metadata:{...f.audio.metadata,content_identity:lib.assetContentIdentity(f.project,{type:'audio'})}}
+ delete f.project.progress_payload.tts_asset_id; delete f.project.project_payload.audio_url
+ assert.equal(lib.selectNarrationAsset(f.project,[f.audio,narration]).id,'new')
+})
 test('mouth video with old audio parent is rejected, including legacy outputs', () => {
  const f=fixture(),scene={scene_number:1}
  const video={project_id:'p',scene_number:1,asset_type:'video',metadata:{ae_mouth_fingerprint:'old',source_audio_id:'expanded'}}

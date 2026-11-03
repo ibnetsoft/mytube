@@ -94,3 +94,13 @@ test('disabled mouth effects never make an old mouth output eligible as an origi
  assert.equal(config.asset_manifest.files.find(f=>f.asset_type==='image').content_identity.asset_id,'image')
  assert.equal(config.asset_manifest.files.some(f=>f.asset_type==='video'),false)
 })
+test('strict documentary render requires current revision video for selected motion scenes',async()=>{
+ const f=fixture();f.p.project_payload.strict_content_identity=true
+ f.p.project_payload.structure={required_video_scene_count:18,motion_graphic_video_scenes:[19,60,70]}
+ f.audio.metadata.content_identity=identity.assetContentIdentity(f.p,{type:'audio',timeline:f.audio.metadata.subtitle_timeline})
+ f.image.metadata.content_identity=identity.assetContentIdentity(f.p,{type:'image',scene:f.scene})
+ const video={...f.image,id:'video',asset_type:'video',file_name:'motion.mp4',metadata:{gcs_bucket:'bucket',gcs_path:'std-projects/p/motion.mp4',content_identity:identity.assetContentIdentity(f.p,{type:'video',scene:f.scene})}}
+ await assert.rejects(()=>renderer()(f.p,[f.scene],[f.audio,f.image],1),/requires video/)
+ const config=await renderer()(f.p,[f.scene],[f.audio,f.image,video],1)
+ assert.equal(config.asset_manifest.files.find(x=>x.asset_type==='video').content_identity.asset_id,'video')
+})

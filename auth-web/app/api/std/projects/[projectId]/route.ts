@@ -1,5 +1,5 @@
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
-import { bindProjectContent, persistContentRevision, projectContentIdentity, contentHash, speechText } from '@/lib/stdContentIdentity'
+import { assetMatchesContentRevision, bindProjectContent, persistContentRevision, projectContentIdentity, contentHash, speechText } from '@/lib/stdContentIdentity'
 import { projectReadCacheKey, readProjectResponse, cacheProjectResponse } from '@/lib/stdProjectReadCache'
 import { loadStdProjectAssets } from '@/lib/stdProjectAssets'
 import { subtitleSpeechChanged } from '@/lib/stdSubtitleSpeakerProgress'
@@ -225,6 +225,17 @@ function findSceneByNumber(scenes: any[], sceneNumber: number) {
     })
 }
 
+function withoutSceneMedia(scene: any): any {
+    if (!scene || typeof scene !== 'object' || Array.isArray(scene)) return {}
+    const result = { ...scene }
+    for (const key of ['image_url', 'image', 'video_url', 'video', 'image_asset_id', 'video_asset_id',
+        'cowork_image_asset', 'cowork_video_asset', 'storage_bucket', 'storage_path', 'storage_object_path',
+        'video_storage_bucket', 'video_storage_path', 'video_storage_object_path', 'gcs_bucket', 'gcs_path',
+        'bucket', 'object_path', 'gcs_public_url', 'gcs_signed_url', 'storage_public_url']) delete result[key]
+    if (result.metadata && typeof result.metadata === 'object') result.metadata = withoutSceneMedia(result.metadata)
+    return result
+}
+
 function firstScript(...values: any[]): string {
     return values.map(value => String(value || '').trim()).find(Boolean) || ''
 }
@@ -318,7 +329,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
     }
 
     const topicQueueId = projectTopicQueueId(project)
-    if (topicQueueId) {
+    if (topicQueueId && project.project_payload?.strict_content_identity !== true) {
         const { data: topicStructure } = await supabaseAdmin.rpc('std_user_web_topic_structure', { p_id: topicQueueId })
         for (const [index, scene] of structureScenes(topicStructure).entries()) {
             sourceSceneByNumber.set(sceneNumberOf(scene, index + 1), scene)
@@ -334,7 +345,8 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
 
     // Resolve private media on demand through the authorized asset reader. Signing every
     // historical TTS/image/video object here delays the entire project response.
-    const enrichedAssets = (assets || []).filter((asset: any) => asset?.metadata?.kind !== 'content_revision').map((asset: any) => {
+    const enrichedAssets = (assets || []).filter((asset: any) => !['content_revision', 'content_revision_backup'].includes(asset?.metadata?.kind)
+        && assetMatchesContentRevision(project, asset)).map((asset: any) => {
         const metadata = asset?.metadata || {}
         const storageBucket = metadata?.storage_bucket || CONTENT_ASSETS_BUCKET
         const storagePath = metadata?.storage_path
@@ -385,7 +397,7 @@ export async function GET(req: Request, { params }: { params: { projectId: strin
         scenes: (scenes || []).map((scene, index) => hydrateSceneMedia(
             scene,
             enrichedAssets,
-            sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))
+            project.project_payload?.strict_content_identity === true ? undefined : sourceSceneByNumber.get(sceneNumberOf(scene, index + 1))
         )),
         assets: enrichedAssets,
         render_history: renderHistory,
@@ -634,6 +646,14 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     }
 
     const currentPayloadScenes = payloadScenes(project)
+    const strictIdentity = project.project_payload?.strict_content_identity === true
+    let verifiedSceneAssets: any[] = []
+    if (strictIdentity && incomingScenes.length > 0) {
+        const loaded = await loadStdProjectAssets(supabaseAdmin, project.id,
+            'id,project_id,scene_id,scene_number,asset_type,status,metadata,created_at', { excludeContentRevisions: true })
+        if (loaded.error) return NextResponse.json({ success: false, error: loaded.error.message }, { status: 500 })
+        verifiedSceneAssets = (loaded.data || []).filter(asset => assetMatchesContentRevision(project, asset))
+    }
     const normalizedScenes = incomingScenes.length > 0
         ? incomingScenes
             .map((scene: any, index: number) => {
@@ -641,12 +661,14 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                 if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) return null
                 const normalizedSceneNumber = Math.floor(sceneNumber)
                 const requiresVideoPrompt = isStdVideoPromptScene(normalizedSceneNumber, project)
-                const currentScene = findSceneByNumber(currentPayloadScenes, normalizedSceneNumber) || {}
-                const imageUrl = sceneSupabaseImageUrl(scene)
+                const savedScene = findSceneByNumber(currentPayloadScenes, normalizedSceneNumber) || {}
+                const currentScene = strictIdentity ? withoutSceneMedia(savedScene) : savedScene
+                const sceneRef = { ...currentScene, scene_number: normalizedSceneNumber }
+                const imageUrl = strictIdentity ? assetFastMediaUrl(sceneMediaAsset(sceneRef, 'image', verifiedSceneAssets)) : sceneSupabaseImageUrl(scene)
                     || sceneSupabaseImageUrl(currentScene)
                     || sceneStorageImageUrl(scene)
                     || sceneStorageImageUrl(currentScene)
-                const videoUrl = sceneSupabaseVideoUrl(scene)
+                const videoUrl = strictIdentity ? assetFastMediaUrl(sceneMediaAsset(sceneRef, 'video', verifiedSceneAssets)) : sceneSupabaseVideoUrl(scene)
                     || sceneSupabaseVideoUrl(currentScene)
                     || sceneStorageVideoUrl(scene)
                     || sceneStorageVideoUrl(currentScene)
@@ -668,7 +690,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
                         ? { ae_speech_bubbles: scene.ae_speech_bubbles } : {}),
                     metadata: {
                         ...(currentScene?.metadata || {}),
-                        ...(scene?.metadata || {}),
+                        ...(strictIdentity ? withoutSceneMedia(scene?.metadata) : (scene?.metadata || {})),
                         script_excerpt: scene?.script_excerpt || scene?.text || scene?.scene_text || '',
                         visual_type: requiresVideoPrompt ? (scene?.visual_type || 'video') : 'image',
                         video_prompt_required: requiresVideoPrompt,
@@ -849,7 +871,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         if (scenesAfterSaveError) return NextResponse.json({ success: false, error: scenesAfterSaveError.message }, { status: 500 })
         const { data: assetsAfterSave, error: assetsAfterSaveError } = await loadStdProjectAssets(supabaseAdmin, project.id, 'id,project_id,scene_id,scene_number,asset_type,status,metadata,created_at')
         if (assetsAfterSaveError) return NextResponse.json({ success: false, error: assetsAfterSaveError.message }, { status: 500 })
-        updatedScenes = (scenesAfterSave || []).map(scene => hydrateSceneMedia(scene, assetsAfterSave || []))
+        const currentAssets = (assetsAfterSave || []).filter(asset => assetMatchesContentRevision(updated || project, asset))
+        updatedScenes = (scenesAfterSave || []).map(scene => hydrateSceneMedia(scene, currentAssets))
     }
 
     return NextResponse.json(stripPostworkDirection({ success: true, project: updated, scenes: updatedScenes }))

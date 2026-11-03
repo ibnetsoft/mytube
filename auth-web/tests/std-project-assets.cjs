@@ -12,14 +12,15 @@ mod.paths = Module._nodeModulePaths(path.dirname(filename))
 mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, filename)
 const { loadStdProjectAssets } = mod.exports
 function database(rows, failAt = -1) {
-    const pages = []
-    return { pages, from(table) {
+    const pages = [], filters = []
+    return { pages, filters, from(table) {
         assert.equal(table, 'std_project_assets')
         const orders = []
         return {
             select(columns) { assert.equal(columns, '*'); return this },
             eq(key, value) { assert.equal(key, 'project_id'); assert.equal(value, 'project'); return this },
             in(key, values) { assert.equal(key, 'status'); assert.deepEqual(values, ['uploaded', 'assigned']); return this },
+            or(value) { filters.push(value); return this },
             order(key) { orders.push(key); return this },
             async range(start, end) {
                 assert.deepEqual(orders, ['created_at', 'id'])
@@ -49,6 +50,11 @@ test('a later-page failure never returns a silently incomplete project', async (
     assert.equal(result.data, null)
     assert.equal(result.error.message, 'query failed')
 })
+test('revision snapshots are excluded in the database query when requested', async () => {
+    const db = database([])
+    await loadStdProjectAssets(db, 'project', '*', { excludeContentRevisions: true })
+    assert.deepEqual(db.filters, ['metadata->>kind.is.null,and(metadata->>kind.neq.content_revision,metadata->>kind.neq.content_revision_backup)'])
+})
 
 test('project asset enrichment does not wait for private media signing', () => {
     const route = fs.readFileSync(path.resolve(__dirname, '../app/api/std/projects/[projectId]/route.ts'), 'utf8')
@@ -62,7 +68,7 @@ test('project asset enrichment does not wait for private media signing', () => {
     assert(initializer)
     const code = ts.transpileModule(`return (${initializer.getText(ast)})`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText
     const assets = Array.from({ length: 1265 }, (_, id) => ({ id, metadata: { gcs_path: `private/${id}` } }))
-    const enriched = new Function('assets', 'CONTENT_ASSETS_BUCKET', 'storagePublicUrl', code)(assets, 'content-assets', () => '')
+    const enriched = new Function('assets', 'CONTENT_ASSETS_BUCKET', 'storagePublicUrl', 'assetMatchesContentRevision', 'project', code)(assets, 'content-assets', () => '', () => true, {})
     assert(Array.isArray(enriched), 'Project data must be immediately available without signing every file')
     assert.equal(enriched.length, assets.length)
     assert.deepEqual(enriched[1264], assets[1264])

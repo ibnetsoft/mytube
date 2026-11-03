@@ -38,5 +38,9 @@ const call=(scene=1,type='image')=>exportsRoute.POST(new Request('https://test.i
  authorized=true; project={id:'p',status:'in_progress',project_payload:{}}; failures=1; claimIds=[]
  assert.equal((await call(null,'thumbnail')).status,200,'temporary database outage is retried')
  assert.equal(claimIds.length,2); assert.equal(claimIds[0],claimIds[1],'retry reuses the claim ID')
+ project={id:'p',status:'in_progress',project_payload:{strict_content_identity:true,structure:{required_video_scene_count:18,motion_graphic_video_scenes:[19,60,70]}}}
+ for(const n of [1,18,19,20,60,70,101]) assert.equal((await call(n,'image')).status,200,`scene ${n} accepts a source image`)
+ for(const n of [1,18,19,60,70]) assert.equal((await call(n,'video')).status,200,`scene ${n} accepts selected video`)
+ for(const n of [20,50,101]) assert.equal((await call(n,'video')).status,422,`scene ${n} rejects unselected video`)
  console.log('PASS: upload opt-in uses persisted owned project; standard restrictions and auth remain intact')
 })().catch(e=>{console.error(e);process.exitCode=1})

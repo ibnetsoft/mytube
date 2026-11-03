@@ -5798,11 +5798,16 @@ export default function StdPortalPage() {
             : file.type?.startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(lowerFileName)
                 ? 'image'
                 : assetType
-        if (isStdRequiredClipScene(sceneNum) && actualAssetType !== 'video') {
+        const revisionedMedia = selectedProject.project.project_payload?.strict_content_identity === true
+        if (revisionedMedia && actualAssetType === 'video' && !isStdVideoPromptScene(sceneNum)) {
+            setMessage(`씬 ${sceneNum}은 정지 이미지 구간입니다.`)
+            return false
+        }
+        if (!revisionedMedia && isStdRequiredClipScene(sceneNum) && actualAssetType !== 'video') {
             setMessage(`씬 ${sceneNum}은 필수 영상 구간입니다. 영상 파일을 업로드하세요.`)
             return false
         }
-        if (!comicProject && !isStdRequiredClipScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
+        if (!revisionedMedia && !comicProject && !isStdRequiredClipScene(sceneNum) && ['image', 'video'].includes(actualAssetType)) {
             setMessage(`씬 ${sceneNum}의 미디어는 교체할 수 없습니다.`)
             return false
         }
@@ -11156,7 +11161,8 @@ export default function StdPortalPage() {
                                                 {selectedProject.scenes.slice(requiredVideoSceneCount).map((scene: any, offsetIdx: number) => {
                                                     const idx = offsetIdx + requiredVideoSceneCount
                                                     const sNum = scene.scene_number || idx + 1
-                                                    const isMiddleVideo = isStdMiddleVideoScene(sNum)
+                                                    const isMiddleVideo = selectedProject.project.project_payload?.strict_content_identity === true
+                                                        ? isStdVideoPromptScene(sNum) : isStdMiddleVideoScene(sNum)
                                                     const isReady = isMiddleVideo ? Boolean(scene.video_url) : Boolean(scene.image_url || scene.video_url)
                                                     const mouthPreview = scene.mouth_preview_url || scene.metadata?.cowork_image_asset?.speaker_geometry?.mouth_preview?.url
                                                     const isUploading = uploadingKey.startsWith(`${sNum}-`)
