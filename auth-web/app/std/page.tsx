@@ -1099,7 +1099,7 @@ export default function StdPortalPage() {
     const [audioResultUrl, setAudioResultUrl] = useState('')
     const [audioDurationSeconds, setAudioDurationSeconds] = useState(0)
     const [selectedSceneIndexes, setSelectedSceneIndexes] = useState<number[]>([])
-    const [isBodyImageSectionOpen, setIsBodyImageSectionOpen] = useState(false)
+    const [isBodyImageSectionOpen, setIsBodyImageSectionOpen] = useState(true)
     const projectMediaObjectUrlsRef = useRef<Record<string, string>>({})
     const projectMediaLoadsRef = useRef(new Set<string>())
 
@@ -11129,17 +11129,20 @@ export default function StdPortalPage() {
                                                                         : scene.video_url ? ui('🎬 영상 준비됨') : mouthPreview ? ui('🎬 입모양 미리보기') : scene.image_url ? ui('🔒 이미지 고정') : isUploading ? ui('처리 중...') : ui('이미지 없음')}
                                                                 </span>
                                                             </div>
+                                                            {(scene.image_url || scene.video_url) && (
+                                                                <a href={scene.image_url || scene.video_url} target="_blank" rel="noreferrer"
+                                                                    aria-label={`${ui('씬')} ${sNum} ${ui('보기')}`}
+                                                                    className="my-2 block aspect-video overflow-hidden rounded-lg bg-black/30">
+                                                                    <LazySceneMedia imageUrl={scene.image_url} videoUrl={scene.video_url} />
+                                                                </a>
+                                                            )}
                                                             <div className="flex items-center justify-between pt-1 border-t border-white/5 text-[11px] font-bold">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        const el = document.getElementById(`prompt-card-${idx}`)
-                                                                        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                                                                    }}
-                                                                    className="text-gray-400 hover:text-white transition-colors"
-                                                                >
-                                                                    {ui('보기')}
-                                                                </button>
+                                                                {(scene.image_url || scene.video_url) ? (
+                                                                    <a href={scene.image_url || scene.video_url} target="_blank" rel="noreferrer"
+                                                                        className="text-gray-400 hover:text-white transition-colors">
+                                                                        {ui('보기')}
+                                                                    </a>
+                                                                ) : <span className="text-gray-500">{ui('이미지 없음')}</span>}
                                                                 {isMiddleVideo && <label className={`${isUploading ? 'pointer-events-none text-gray-500' : 'cursor-pointer text-amber-300 hover:text-amber-200'} transition-colors`}>
                                                                     <span className="text-gray-600">|</span> {isUploading ? ui('업로드 중...') : scene.video_url ? ui('영상 교체') : ui('영상 업로드')}
                                                                     <input type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" disabled={isUploading || !canEditStdAsset(selectedProject.project, 'video', Number(scene.scene_number))} onChange={e => { const file = e.target.files?.[0] || null; e.target.value = ''; void uploadAsset(scene, 'video', file) }} />
