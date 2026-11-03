@@ -6,6 +6,7 @@ import { subtitleSpeechChanged } from '@/lib/stdSubtitleSpeakerProgress'
 import { persistTemplateOverlay } from '@/lib/stdTemplateOverlayPng'
 import { dialogueSceneIndex } from '@/lib/stdDialogueSceneIndex'
 import { normalizeSubtitleFragments } from '@/lib/stdSubtitleFragments'
+import { readSubtitleSaveContext, saveSubtitlePatchWithVerification } from '@/lib/stdSubtitleSaveContext'
 import { preserveSubtitleScenes } from '@/lib/stdSubtitleSceneIntegrity'
 import { normalizeComicSettings, isComicProject } from '@/lib/stdComic'
 import { normalizeMotionDraft } from '@/lib/stdMotionStudio'
@@ -416,7 +417,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         && Object.keys(body.progress_payload || {}).every(key => ['subtitles_saved', 'subtitles_completed', 'subtitle_tts_completed', 'subtitle_tts_completed_at'].includes(key))
         && Object.keys(body).every(key => ['render_settings_scope', 'project_payload', 'progress_payload', 'deleted_subtitle_scene_numbers'].includes(key))
     let { data: project, error: projectError } = compactSubtitleSave
-        ? await supabaseAdmin.rpc('std_subtitle_save_context', { p_project_id: params.projectId })
+        ? await readSubtitleSaveContext(() => supabaseAdmin.rpc('std_subtitle_save_context', { p_project_id: params.projectId }))
         : await supabaseAdmin
         .from('std_projects')
         .select('*')
@@ -434,7 +435,10 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         projectError = fallback.error
     }
 
-    if (projectError) return NextResponse.json({ success: false, error: projectError.message }, { status: 500 })
+    if (projectError) {
+        console.error('[STD subtitle save] project context unavailable', { code: projectError.code, projectId: params.projectId })
+        return NextResponse.json({ success: false, error: 'Project data temporarily unavailable. Please retry.' }, { status: 503 })
+    }
     if (!project) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
     if (!canEditStdProject(project.status, body)) {
         return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
@@ -742,11 +746,19 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
             const id = `${hex.slice(0,8)}-${hex.slice(8,12)}-5${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`
             return [{ id, identity, version: index ? 'new' : 'old' }]
         })
-        const { data: updated, error: updateError } = await supabaseAdmin.rpc('std_save_subtitle_patch', {
+        const saveParams = {
             p_project_id: project.id, p_updated_at: project.updated_at, p_status: project.status,
             p_payload: payload, p_progress: progressPatch, p_revisions: revisions,
-        })
-        if (updateError) return NextResponse.json({ success: false, error: updateError.message }, { status: 500 })
+        }
+        const { data: updated, error: updateError } = await saveSubtitlePatchWithVerification(
+            () => supabaseAdmin.rpc('std_save_subtitle_patch', saveParams),
+            () => supabaseAdmin.rpc('std_subtitle_save_context', { p_project_id: project.id }),
+            payload, progressPatch,
+        )
+        if (updateError) {
+            console.error('[STD subtitle save] write failed', { code: updateError.code, projectId: params.projectId })
+            return NextResponse.json({ success: false, error: 'Subtitle save could not be confirmed. Please retry.' }, { status: 503 })
+        }
         if (!updated) return NextResponse.json({ success: false, error: 'Project changed while saving; reload and retry' }, { status: 409 })
         return NextResponse.json(stripPostworkDirection({ success: true, project: updated, project_partial: true, scenes: null }))
     }
