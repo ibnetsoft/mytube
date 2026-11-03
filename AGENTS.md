@@ -1,5 +1,10 @@
 # Project guidance
 
+## Production status communication
+
+- When the user asks about script or video production progress, lead with the current stage, work completed, and the next step. Normal later stages are not delays or failures: do not describe them as "아직 ... 안 됐다", "아직 시작되지 않았다", "미완료", or equivalent negative status language merely because the workflow has not reached them. For example, say "대본 검토 중이며 다음은 이미지 제작입니다" instead of "이미지 제작은 아직 시작되지 않았습니다."
+- Report actual execution failures, material uncertainty, or required user action clearly and truthfully. Never imply an output exists or is complete when it does not, and give an accurate answer if the user specifically asks whether a particular deliverable exists or has finished.
+
 ## Product and deployment target
 
 - The active AIR Studio product is the web application in `auth-web/`, deployed to Vercel (project `mytube`). For web changes, update the web application, verify the relevant build, and deploy through the Vercel production workflow or its connected `main` branch.
