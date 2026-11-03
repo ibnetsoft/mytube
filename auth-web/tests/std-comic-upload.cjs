@@ -10,12 +10,13 @@ function lib(name) {
  new Function('exports','require',compile(path.join(__dirname,'../lib',name+'.ts')))(exports,id=>id.startsWith('node:')?require(id):id.endsWith('.json')?require(path.join(__dirname,'../lib',id)):lib(path.basename(id)))
  return exports
 }
-let project, authorized = true, filters = [], signed = 0
+let project, authorized = true, filters = [], signed = 0, failures = 0, claimIds = []
 const exportsRoute={}
 new Function('exports','require',compile(path.join(__dirname,'../app/api/std/projects/[projectId]/assets/init/route.ts')))(exportsRoute,id=>{
+ if(id.startsWith('node:')) return require(id)
  if(id==='next/server') return {NextResponse:{json:(body,opts={})=>({body,status:opts.status||200})}}
  if(id.endsWith('stdWeb')) return {requireStdUser:async()=>authorized?{ok:true,requester:{email:'owner@test.invalid'}}:{ok:false,response:{status:401}}}
- if(id.endsWith('supabaseAdmin')) return {supabaseAdmin:{from:()=>({select(){return this},insert(){return this},async single(){return {data:{id:'upload-claim'}}},eq(k,v){filters.push([k,v]);return this},async maybeSingle(){return {data:project}}})}}
+ if(id.endsWith('supabaseAdmin')) return {supabaseAdmin:{from:()=>({select(){return this},upsert(row){claimIds.push(row.id);return this},async single(){if(failures-- > 0)return {status:521,error:{title:'origin unavailable'}};return {data:{id:'upload-claim'}}},eq(k,v){filters.push([k,v]);return this},async maybeSingle(){return {data:project}}})}}
  if(id.endsWith('gcsStorage')) return {sanitizeGcsObjectName:s=>s,buildStdGcsObjectPath:()=> 'test/file.png',isGcsConfiguredAsync:async()=>true,createGcsSignedUploadUrl:async()=>{signed++;return {signedUrl:'https://example.invalid/upload',bucket:'test'}}}
  return lib(path.basename(id))
 })
@@ -34,5 +35,8 @@ const call=(scene=1,type='image')=>exportsRoute.POST(new Request('https://test.i
  project=null; assert.equal((await call()).status,404)
  authorized=false; assert.equal((await call()).status,401)
  assert.equal(signed,3)
+ authorized=true; project={id:'p',status:'in_progress',project_payload:{}}; failures=1; claimIds=[]
+ assert.equal((await call(null,'thumbnail')).status,200,'temporary database outage is retried')
+ assert.equal(claimIds.length,2); assert.equal(claimIds[0],claimIds[1],'retry reuses the claim ID')
  console.log('PASS: upload opt-in uses persisted owned project; standard restrictions and auth remain intact')
 })().catch(e=>{console.error(e);process.exitCode=1})

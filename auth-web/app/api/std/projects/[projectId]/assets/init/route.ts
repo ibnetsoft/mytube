@@ -1,4 +1,5 @@
 import { assetContentIdentity } from '@/lib/stdContentIdentity'
+import { randomUUID } from 'node:crypto'
 import { isComicProject } from '@/lib/stdComic'
 import { canEditStdAsset } from '@/lib/stdAssetEditPolicy'
 import { NextResponse } from 'next/server'
@@ -28,6 +29,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
     if (!auth.ok) return auth.response
 
     let body: any
+    let stage = 'sign_upload'
     try {
         body = await req.json()
     } catch {
@@ -100,11 +102,23 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
         const plannedScene = sceneNumber == null ? null : (project.project_payload?.structure?.scenes || project.project_payload?.scenes || []).find((s: any, i: number) => Number(s.scene_number || s.scene_order || i + 1) === sceneNumber)
         const identity = assetContentIdentity(project, { type: assetType, scene: plannedScene ? { ...plannedScene, scene_number: sceneNumber } : undefined })
-        const receipt = await supabaseAdmin.from('std_project_assets').insert({
-            project_id: project.id, asset_type: 'other', status: 'uploaded', file_name: fileName,
+        stage = 'record_upload_claim'
+        // A timeout can occur after Postgres commits. Reuse the same ID so a
+        // retry cannot create two claims for the same storage path.
+        const claimId = randomUUID()
+        const claim = {
+            id: claimId, project_id: project.id, asset_type: 'other', status: 'uploaded', file_name: fileName,
             metadata: { kind: 'asset_upload_claim', upload_path: storagePath, content_identity: identity },
-        }).select('id').single()
-        if (receipt.error) throw receipt.error
+        }
+        let receipt: any
+        for (let attempt = 0; attempt < 4; attempt++) {
+            receipt = await supabaseAdmin.from('std_project_assets').upsert(claim, { onConflict: 'id' }).select('id').single()
+            if (!receipt.error) break
+            const status = Number(receipt.status ?? receipt.error?.status ?? receipt.error?.code)
+            const transient = status === 0 || status === 408 || status === 429 || status >= 500 || receipt.error?.retryable === true
+            if (!transient || attempt === 3) throw receipt.error
+            await new Promise(resolve => setTimeout(resolve, [1000, 3000, 8000][attempt]))
+        }
         return NextResponse.json({
             success: true,
             content_identity: identity,
@@ -124,9 +138,14 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             scene_number: sceneNumber,
         })
     } catch (error: any) {
+        console.error('[STD asset upload init]', { stage, projectId: project.id, assetType,
+            code: error?.code || error?.status || error?.error_code || null,
+            message: String(error?.message || error?.title || 'unknown error').slice(0, 300) })
         return NextResponse.json({
             success: false,
-            error: String(error?.message || 'asset_upload_init_failed'),
+            error: stage === 'record_upload_claim'
+                ? '업로드 준비 중 저장소 연결이 불안정합니다. 편집 내용은 유지되어 있으니 잠시 후 다시 저장해 주세요.'
+                : '이미지 업로드를 준비하지 못했습니다. 편집 내용은 유지되어 있으니 잠시 후 다시 저장해 주세요.',
         }, { status: 500 })
     }
 }
