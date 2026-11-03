@@ -7,6 +7,11 @@
 - Do not create or push `v*` Windows release tags, and do not run `tools/build_windows.ps1`, `tools/release_github.ps1`, or `.github/workflows/windows-release.yml`, unless the user explicitly asks to revive or release the Windows application.
 - Before changing behavior, trace the active web execution path under `auth-web/`. A similarly named Python service under `services/` may belong to the retired desktop application and does not by itself implement the web feature.
 
+## Production database investigation
+
+- Project payloads can contain tens of megabytes of compressed JSON. During an incident on 2026-11-03, a diagnostic query repeatedly expanded a project payload for every subtitle and ran for 103 seconds while the database was recovering. Do not repeat that query pattern.
+- Keep production investigation read-only and bounded: scope to known IDs, use a short statement timeout where supported, and materialize each selected JSON field once before expanding arrays. Avoid repeated references to a large payload inside per-row expressions, unbounded scans, and running diagnostic queries concurrently against the same large project. Check query plans or use a representative local copy when practical.
+
 ## Subtitle review translation
 
 - Subtitle review translations (including the `KO` text beside Japanese subtitles) must run through the local Codex CLI script worker on this computer. Do not call Gemini or OpenAI model APIs for these translations.
