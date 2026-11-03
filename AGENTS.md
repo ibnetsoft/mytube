@@ -2,6 +2,8 @@
 
 ## Production status communication
 
+- Identify the actual assigned workflow and current stage before reporting. A script worker prepares scripts and directions; do not claim it generates footage, require it to connect a video model, or present video generation or any other later production task as its missing output unless the user explicitly assigned that task to the worker. Scene-level video direction is not itself an instruction for the script worker to generate video.
+- Do not introduce tasks outside the assigned process or describe later stages as incomplete, missing, failed, blocked, or not started. Do not repeat a previously reported condition unless it has materially changed and is relevant to the assigned work. Report an actual failure only when it occurred in that work, with the concrete effect; answer direct deliverable questions accurately without implying a later stage was due now.
 - When the user asks about script or video production progress, lead with the current stage, work completed, and the next step. Normal later stages are not delays or failures: do not describe them as "아직 ... 안 됐다", "아직 시작되지 않았다", "미완료", or equivalent negative status language merely because the workflow has not reached them. For example, say "대본 검토 중이며 다음은 이미지 제작입니다" instead of "이미지 제작은 아직 시작되지 않았습니다."
 - Report actual execution failures, material uncertainty, or required user action clearly and truthfully. Never imply an output exists or is complete when it does not, and give an accurate answer if the user specifically asks whether a particular deliverable exists or has finished.
 
