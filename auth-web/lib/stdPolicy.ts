@@ -70,7 +70,15 @@ export function isStdMiddleVideoScene(sceneNumber: any, project?: any): boolean 
 }
 
 export function isStdVideoPromptScene(sceneNumber: any, project?: any): boolean {
-    return isStdRequiredClipScene(sceneNumber, project)
+    if (isStdRequiredClipScene(sceneNumber, project)) return true
+    if (isComicProject(project) || isNonverbalProject(project)) return false
+    const parsed = Number(sceneNumber)
+    if (!Number.isInteger(parsed) || parsed < 1) return false
+    // Explicit documentary motion-graphic scenes are additional prompt slots,
+    // not a contiguous extension of the mandatory opening footage range.
+    const structure = structureFrom(project)
+    const selected = structure?.motion_graphic_video_scenes
+    return Array.isArray(selected) && selected.some((value: unknown) => Number(value) === parsed)
 }
 
 export function isStdRequiredVideoScene(sceneNumber: any, project?: any): boolean {

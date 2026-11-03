@@ -19,7 +19,7 @@ import { templateOverlayPng } from './stdTemplateOverlayPng'
 import { createHash, randomUUID } from 'crypto'
 import { frozenRenderBundle } from './stdSubmissionPipeline'
 import { supabaseAdmin } from './supabaseAdmin'
-import { isStdRequiredClipScene, isStdRequiredVideoScene } from './stdPolicy'
+import { isStdRequiredVideoScene, isStdVideoPromptScene } from './stdPolicy'
 import { nextStdRenderVersion, normalizeStdRenderHistory } from './stdRenderVersion'
 import { resolveGeneratedSceneStorage, type GeneratedSceneStorage } from './stdGeneratedSceneStorage'
 import {
@@ -150,7 +150,7 @@ export async function ensureStdGeneratedSceneAssetsArchived(project: any, scenes
         for (const scene of scenes || []) {
             const sceneNumber = Number(scene?.scene_number)
             if (!Number.isFinite(sceneNumber) || sceneNumber <= 0) continue
-            if (kind === 'video' && !isComicProject(project) && !isStdRequiredClipScene(sceneNumber, project)) continue
+            if (kind === 'video' && !isComicProject(project) && !isStdVideoPromptScene(sceneNumber, project)) continue
             if (kind === 'image' && isStdRequiredVideoScene(sceneNumber, project)) continue
             const matchingAssets = activeAssets.filter((asset: any) => (
                 activeAsset(asset)

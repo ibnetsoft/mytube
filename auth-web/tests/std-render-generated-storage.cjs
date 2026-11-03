@@ -155,6 +155,16 @@ function harness({ missingGcs = false, missingSupabase = false, existingRows = [
     return { prepare: queue.ensureStdGeneratedSceneAssetsArchived, calls, records }
 }
 
+test('only explicitly selected later motion-graphic videos are archived', async () => {
+    const h = harness()
+    const documentary = { ...project, project_payload: { structure: {
+        required_video_scene_count: 18, motion_graphic_video_scenes: [19],
+    } } }
+    const result = await h.prepare(documentary, [gcsScene(19, 'video'), gcsScene(20, 'video')], [])
+    assert.deepEqual(result.map(row => row.scene_number), [19])
+    assert.equal(result[0].asset_type, 'video')
+})
+
 for (const [sceneNumber, type] of [[24, 'image'], [1, 'video']]) {
     test(`existing GCS ${type} registers its original reference without Supabase reads or re-upload`, async () => {
         const h = harness()
