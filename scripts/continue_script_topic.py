@@ -3,11 +3,9 @@ import argparse
 import hashlib
 import json
 import re
-import subprocess
 import sys
 import time
 import traceback
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,14 +15,7 @@ import worker_config
 from worker.script_worker_store import ScriptStore
 from worker.script_topic_delivery import complete_candidate, publish_topic, write
 from codex_content_runner import CodexStagedContentRunner
-
-
-def local_job(identity):
-    base = 'http://127.0.0.1:3003'
-    html = urllib.request.urlopen(base, timeout=10).read().decode()
-    token = re.search(r'name="local-token" content="([^"]+)"', html).group(1)
-    return json.load(urllib.request.urlopen(urllib.request.Request(base+'/api/jobs/'+identity,
-        headers={'X-Codex-Local': token}), timeout=30))
+from worker.script_delivery_recovery import acquire_lock, checkpoint_package, save_candidate, complete_registration
 
 
 def main():
@@ -38,11 +29,7 @@ def main():
     root = ROOT/'output/codex-local-console'/args.job
     directory = root/'delivery'
     directory.mkdir(parents=True, exist_ok=True)
-    lock = (directory/'supervisor.lock').open('a+b')
-    lock.write(b'0'); lock.flush(); lock.seek(0)
-    if sys.platform == 'win32':
-        import msvcrt
-        msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+    lock = acquire_lock(directory/'supervisor.lock')
     store = ScriptStore()
     request = json.loads((root/'request.json').read_text(encoding='utf-8'))
     if (args.effect_start is None) != (args.effect_end is None):
@@ -57,30 +44,34 @@ def main():
     def notify(stage, **extra):
         write(directory/'status.json', {'source_job_id': args.job, 'stage': stage, 'updated_at': time.time(), **extra})
         print(stage, flush=True)
-        if extra.get('status') != 'waiting' and (root/'candidate.json').exists():
-            bundle = store.get(args.job)
-            if bundle['job'].get('status') == 'canceled':
-                raise ValueError('Source job canceled during delivery')
-            if bundle['job'].get('status') not in ('queued', 'running', 'completed'):
-                bundle['job'].update(stage=stage, updated_at=time.time(), delivery_supervised=True)
-                store.save(bundle)
+        # The status reconciler owns the UI overlay. Never save an old full
+        # bundle from a stage callback while the producer is committing a result.
+        local_state = root/'job.json'
+        if local_state.exists() and json.loads(local_state.read_text(encoding='utf-8-sig')).get('status') == 'canceled':
+            raise ValueError('Source job canceled during delivery')
     retries = 0
     while True:
         try:
-            try:
-                data = local_job(args.job)
-                job = data['job']
-            except (OSError, TimeoutError):
-                # The existing launcher only starts a missing server; it never
-                # terminates a healthy worker or an unrelated listener.
-                subprocess.run(['powershell', '-NoProfile', '-File', str(ROOT/'scripts/start_codex_local_console.ps1')],
-                               cwd=ROOT, capture_output=True, timeout=40)
-                job = store.get(args.job)['job']
+            stored = store.get(args.job)
+            job = stored['job']
             if job['status'] == 'canceled':
                 notify('사용자 취소 · 종료', status='canceled'); return
+            if job.get('published') and job['status'] == 'completed':
+                notify('유저웹 주제페이지 등록 완료', status='completed', topic_id=job.get('topic_queue_id'))
+                return
             source_status = (job.get('delivery_source_status') or job['status']) if job.get('delivery_active') and job['status'] == 'running' else job['status']
-            stored = store.get(args.job)
             has_candidate = bool(stored.get('candidate', {}).get('script') and stored.get('candidate', {}).get('structure', {}).get('scenes'))
+            # The initial producer can finish locally while its DB result save
+            # fails. A stale running DB row must not hide that durable result.
+            local_path = root/'candidate.json'
+            state_path = root/'job.json'
+            local_state = json.loads(state_path.read_text(encoding='utf-8-sig')) if state_path.exists() else {}
+            if (not has_candidate and local_path.exists() and local_state.get('id') == args.job
+                    and local_state.get('status') in ('awaiting_approval', 'failed', 'interrupted')):
+                local_candidate = json.loads(local_path.read_text(encoding='utf-8-sig'))
+                if local_candidate.get('script') and local_candidate.get('structure', {}).get('scenes'):
+                    stored = save_candidate(store, args.job, local_candidate, root)
+                    has_candidate = True
             if source_status in ('queued', 'running') and not has_candidate:
                 notify('대본 생성 대기 · '+job.get('stage', ''), status='waiting')
                 time.sleep(30); continue
@@ -90,23 +81,37 @@ def main():
                 from worker.codex_local_workflow import produce
                 retries += 1
                 notify('저장된 단계에서 생성 복구', status='recovering', retry=retries)
-                bundle = store.get(args.job)
                 overrides = {'_effect_scope_override': effect_scope} if effect_scope else {}
-                package = produce(args.job, {**request, '_delivery_quality_notes_only': True, **overrides}, None, root, notify)
-                write(root/'candidate.json', package)
-                bundle['candidate'] = package
-                bundle['job'].update(status='awaiting_approval', stage='복구 생성 완료 · 주제 등록 준비')
-                store.save(bundle)
+                checkpoint = directory/'recovered-package.json'
+                request_hash = hashlib.sha256(json.dumps({'request': request, 'effect_scope': effect_scope}, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+                saved = json.loads(checkpoint.read_text(encoding='utf-8')) if checkpoint.exists() else {}
+                valid_hashes = {request_hash}
+                if effect_scope is None:
+                    valid_hashes.add(hashlib.sha256(json.dumps(request, sort_keys=True, ensure_ascii=False).encode()).hexdigest())
+                package = saved.get('package') if saved.get('source_job_id') == args.job and saved.get('request_sha256') in valid_hashes else None
+                if not package:
+                    package = produce(args.job, {**request, '_delivery_quality_notes_only': True, **overrides}, None, root, notify)
+                    write(checkpoint, {'source_job_id': args.job, 'request_sha256': request_hash, 'package': package})
+                # The producer/status reconciler may save newer revisions.
+                # Reload before committing; retain the separate checkpoint if
+                # the response is lost or the console refresh restores old data.
+                save_candidate(store, args.job, package, root)
             path = root/'candidate.json'
-            if not path.exists():
+            if has_candidate:
+                candidate = stored['candidate']
+                write(path, candidate)
+            elif path.exists():
+                candidate = json.loads(path.read_text(encoding='utf-8'))
+            else:
                 raise ValueError('Terminal job has no actual candidate artifact')
-            candidate = json.loads(path.read_text(encoding='utf-8'))
             if effect_scope:
                 candidate.setdefault('structure', {})['effect_scene_range'] = effect_scope
                 candidate['structure']['skip_face_identity_review'] = True
             notify('대본 결과 확인 · 주제페이지 후속 준비', status='preparing')
             delivery_request = {**request, 'concentrated_scene_effects': True, 'image_layer_scene_start': effect_scope['start'], 'image_layer_scene_end': effect_scope['end']} if effect_scope else request
-            package = complete_candidate(args.job, candidate, delivery_request, CodexStagedContentRunner(), directory, notify)
+            package = checkpoint_package(directory/'prepared-package.json', args.job,
+                {'request': delivery_request, 'candidate': candidate},
+                lambda: complete_candidate(args.job, candidate, delivery_request, CodexStagedContentRunner(), directory, notify))
             # Scene-level translations use the same local Codex worker as subtitle
             # review and are tied to the exact narration, never a stale draft.
             from worker.codex_subtitle_translation import translate_blocks
@@ -149,23 +154,17 @@ def main():
             package['script_translations'] = translations
             package.setdefault('remaining', []).append('최종 자막 블록별 번역 연결 및 검증')
             notify('유저웹 주제 등록·실제 읽기 검증', status='registering')
+            # Keep the source candidate immutable through registration retries.
+            # The final enriched package is committed atomically with completion.
+            write(directory/'registration-package.json', package)
             receipt = publish_topic(args.job, package, request, store, directory)
             package['remaining'] = [item for item in package.get('remaining', [])
                                     if not str(item).startswith('토픽 패키지/유저웹 연결')]
-            bundle = store.get(args.job)
-            # Publish only the new, explicitly authorized source job record.
-            bundle['job'].update(published=True, topic_queue_id=receipt['topic_id'],
-                status='approved_pending_repair', stage='유저웹 등록 · 실제 이미지 및 자막 연결 준비 대기', updated_at=time.time(),
-                remaining=package.get('remaining', []),
-                quality_notes_path=str(directory/'quality-notes.json'))
             write(directory/'quality-notes.json', {'script_quality_report': package.get('script_quality_report'),
                 'quality_notes': package.get('structure', {}).get('quality_notes', []),
                 'actual_images_generated': False, 'ae_render_complete': False,
                 'registration_scope': 'Reviewed script, scene prompts, layer/AE plans, BGM/SFX and metadata; actual media remains downstream.'})
-            bundle['candidate'] = package
-            store.save(bundle)
-            write(root/'job.json', bundle['job'])
-            write(root/'candidate.json', package)
+            complete_registration(store, args.job, package, receipt, root)
             notify('유저웹 주제페이지 등록 완료', status='completed', **receipt)
             return
         except Exception as error:

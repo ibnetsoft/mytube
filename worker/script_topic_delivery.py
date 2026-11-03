@@ -4,6 +4,7 @@ Only a topic carrying this exact source job marker may be written. Media plans
 are distinguished from actual generated media; this does not enqueue a render.
 """
 import copy
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -327,9 +328,16 @@ def publish_topic(identity, package, request, store, directory):
     row = topic_row(identity, package, request)
     if not web_readiness(row, directory)['ready']:
         raise ValueError('Active web topic readiness contract rejected package')
+    acknowledged = False
+    owned = False
     if rows:
         existing = rows[0]
-        if existing.get('assigned_at') or existing.get('assigned_employee_email') or existing.get('status') != 'pending':
+        receipt_path = directory/'registration-receipt.json'
+        prior = json.loads(receipt_path.read_text(encoding='utf-8')) if receipt_path.exists() else {}
+        acknowledged = (prior.get('source_job_id') == identity and prior.get('topic_id') == existing['id']
+                        and prior.get('script_sha256') == hashlib.sha256(package['script'].encode()).hexdigest())
+        owned = existing.get('assigned_at') or existing.get('assigned_employee_email') or existing.get('status') != 'pending'
+        if owned and (not acknowledged or existing.get('status') == 'canceled'):
             raise ValueError('Topic is already owned or canceled; never overwrite it')
         # An acknowledged delivery is immutable on retry, not a blind upsert.
         if existing.get('pregenerated_script') != package['script']:
@@ -349,10 +357,24 @@ def publish_topic(identity, package, request, store, directory):
     verified = result[0]
     if verified.get('progress_payload', {}).get('source_script_job_id') != identity:
         raise ValueError('Registered topic provenance changed')
-    check = web_readiness(verified, directory)
+    if verified.get('pregenerated_script') != package['script']:
+        raise ValueError('Persisted topic script differs from final package')
+    # First registration must read back the complete package, not just a row
+    # satisfying the prompt predicate. Later recovery never rewrites user work.
+    if not acknowledged:
+        for field in ('pregenerated_structure', 'publish_metadata'):
+            if verified.get(field) != row.get(field):
+                raise ValueError('Persisted topic package differs: ' + field)
+        if verified.get('progress_payload', {}).get('script_translations') != row['progress_payload'].get('script_translations'):
+            raise ValueError('Persisted topic translations differ')
+    readiness_row = verified
+    if rows and owned and acknowledged:
+        readiness_row = {**verified, 'status': 'pending', 'assigned_at': None, 'assigned_employee_email': ''}
+    check = web_readiness(readiness_row, directory)
     if not check['ready']:
         raise ValueError('Persisted topic is not eligible for the user web')
     receipt = {'topic_id': verified['id'], 'source_job_id': identity, 'web_readiness': check,
+               'script_sha256': hashlib.sha256(package['script'].encode()).hexdigest(),
                'scene_count': len(package['structure']['scenes']), 'existing_topics_modified': False}
     write(directory/'registration-receipt.json', receipt)
     return receipt

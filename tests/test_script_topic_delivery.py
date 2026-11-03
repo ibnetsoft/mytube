@@ -88,6 +88,27 @@ def test_unknown_insert_outcome_is_recovered_without_duplicate(tmp_path):
     assert result['topic_id'] == 9999 and store.posts == 1
 
 
+def test_acknowledged_registration_can_finish_after_user_claim_without_writes(tmp_path):
+    store = Store()
+    receipt = publish_topic('a'*32, candidate(), request(), store, tmp_path)
+    store.rows[0].update(status='claimed', assigned_employee_email='user@example.test', assigned_at='now')
+    before = copy.deepcopy(store.rows)
+    recovered = publish_topic('a'*32, candidate(), request(), store, tmp_path)
+    assert recovered == receipt and store.posts == 1 and store.rows == before
+
+
+def test_registration_readback_rejects_partial_or_wrong_package(tmp_path):
+    class Partial(Store):
+        def request(self, method, table, **kwargs):
+            result = super().request(method, table, **kwargs)
+            if method == 'POST':
+                self.rows[0]['pregenerated_script'] = 'wrong saved script'
+            return result
+    with pytest.raises(ValueError, match='script differs'):
+        publish_topic('a'*32, candidate(), request(), Partial(), tmp_path)
+    assert not (tmp_path/'registration-receipt.json').exists()
+
+
 def test_existing_owned_topic_is_never_updated(tmp_path):
     row = {'id': 9999, **topic_row('a'*32, candidate(), request()), 'assigned_employee_email': 'someone@example.test'}
     store = Store(row)

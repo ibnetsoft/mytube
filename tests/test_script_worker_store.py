@@ -81,7 +81,7 @@ def test_start_requires_cloud_and_does_not_execute_offline(setup, monkeypatch):
     store.offline = True
     calls = []
     monkeypatch.setattr(jobs.pool, 'submit', lambda *a: calls.append(a))
-    response = client.post('/api/jobs', json=request().model_dump())
+    response = client.post('/api/jobs', json={**request().model_dump(), 'settings_confirmed': True})
     assert response.status_code == 502
     assert not calls and not jobs.rows
 
