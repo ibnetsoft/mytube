@@ -1108,7 +1108,7 @@ export default function StdPortalPage() {
     }, [audioResultUrl])
 
     useEffect(() => {
-        setIsBodyImageSectionOpen(false)
+        setIsBodyImageSectionOpen(true)
     }, [selectedProject?.project?.id])
 
     // 5. 자막(Subtitle) 편집 전용 상태 (유저앱 subtitle_gen.html 완벽 지원)
