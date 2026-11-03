@@ -412,6 +412,37 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 })
     }
 
+    // Thumbnail confirmation has a small, complete patch. Do not fetch and
+    // send the multi-megabyte project payload back to PostgREST unchanged.
+    const thumbPayload = body?.project_payload
+    const thumbProgress = body?.progress_payload
+    const compactThumbnailSave = !impersonateTarget && thumbPayload && typeof thumbPayload === 'object' && !Array.isArray(thumbPayload)
+        && thumbProgress && typeof thumbProgress === 'object' && !Array.isArray(thumbProgress)
+        && thumbPayload.thumbnail_design && thumbProgress.thumbnail_completed === true
+        && Object.keys(body).every(key => ['project_payload', 'progress_payload'].includes(key))
+        && Object.keys(thumbPayload).every(key => ['thumbnail_bg_url', 'thumbnail_url', 'thumbnail_design'].includes(key))
+        && Object.keys(thumbProgress).every(key => ['thumbnail_completed', 'thumbnail_render_status', 'thumbnail_url', 'thumbnail_confirmed_at'].includes(key))
+    if (compactThumbnailSave) {
+        const { data: context, error: contextError } = await supabaseAdmin.from('std_projects')
+            .select('id,employee_email,status,updated_at').eq('id', params.projectId)
+            .eq('employee_email', auth.requester.email).maybeSingle()
+        if (contextError) return NextResponse.json({ success: false, error: 'Project data temporarily unavailable. Please retry.' }, { status: 503 })
+        if (!context) return NextResponse.json({ success: false, error: 'Project not found' }, { status: 404 })
+        if (!canEditStdProject(context.status, body)) return NextResponse.json({ success: false, error: 'Project is not editable' }, { status: 409 })
+        const validationError = editableThumbnailError(thumbPayload.thumbnail_design, thumbPayload.thumbnail_url || thumbProgress.thumbnail_url, true)
+        if (validationError) return NextResponse.json({ success: false, error: validationError }, { status: 400 })
+        const { data: updated, error: saveError } = await supabaseAdmin.rpc('std_save_thumbnail_patch', {
+            p_project_id: context.id, p_updated_at: context.updated_at, p_status: context.status,
+            p_payload: thumbPayload, p_progress: thumbProgress,
+        })
+        if (saveError) {
+            console.error('[STD thumbnail save] write failed', { projectId: context.id, code: saveError.code })
+            return NextResponse.json({ success: false, error: '썸네일 저장을 확인하지 못했습니다. 편집 화면을 유지하고 다시 시도해 주세요.' }, { status: 503 })
+        }
+        if (!updated) return NextResponse.json({ success: false, error: 'Project changed while saving; please retry.' }, { status: 409 })
+        return NextResponse.json({ success: true, project: updated, project_partial: true, scenes: null })
+    }
+
     const compactSubtitleSave = body?.render_settings_scope === 'subtitle'
         && Array.isArray(body?.project_payload?.subtitles)
         && Object.keys(body.project_payload).every(key => ['subtitles', 'subtitles_saved', 'render_settings'].includes(key))

@@ -304,8 +304,11 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             asset = insertedAsset
         }
 
-        // Saving a reusable sound does not alter a submitted project's payload or review status.
-        if (['sfx', 'bgm'].includes(assetType) && sceneNumber == null) {
+        // Project-level thumbnails and their editable backgrounds are already
+        // registered above. The editor saves the design separately; rewriting
+        // the entire project here is redundant and can time out on large jobs.
+        const thumbnailBackground = assetType === 'original' && /^thumbnail_background_\d+\./.test(String(asset.file_name || ''))
+        if (sceneNumber == null && (['sfx', 'bgm', 'thumbnail'].includes(assetType) || thumbnailBackground)) {
             return NextResponse.json({ success: true, asset })
         }
 
