@@ -40,3 +40,7 @@
 
 - For current-affairs or economic documentary productions, read `docs/current-affairs-production-defaults.md` and apply its defaults to the proposed settings and production. Confirm the effective settings and receive an explicit start action for each new script as required above; defaults do not replace confirmation. User overrides take precedence.
 - For authorized supervised production, continue through final assembly without waiting for user review or approval; inspect evidence, preserve truthful quality notes and recover execution failures as described above. Do not automatically publish or upload.
+
+## Wuxia webtoon production defaults
+
+- For 무협 웹툰 productions, read `docs/wuxia-webtoon-production-defaults.md` and apply the defaults to the proposed settings and production. Confirm the effective settings and receive an explicit start action for each new script as required above; user overrides take precedence.
