@@ -167,3 +167,15 @@ test('expanded previews preserve authorization and request an uncropped larger i
         assert.equal(urls.length, 2)
     } finally { global.fetch = originalFetch }
 })
+
+test('reviewed series portraits use the authorized content-addressed GCS path', async () => {
+    const objectPath = `content-assets/pawnshop-series/episode-03/character-references/${'a'.repeat(64)}.png`
+    const app = harness({ projectPayload: { main_character: {
+        name: 'Series character', image_url: `/api/std/assets/gcs-file?bucket=studio-assets&path=${encodeURIComponent(objectPath)}`,
+    } } })
+    assert.equal((await app.get('?slot=0')).status, 200)
+    assert.deepEqual(app.downloads, [{ bucket: 'studio-assets', objectPath }])
+    for (const invalid of [objectPath.replace('character-references', 'scene-images'), objectPath.replace('a'.repeat(64), 'unreviewed'), objectPath.replace('episode-03', '../episode-03')]) {
+        assert.equal(characterThumbnail.gcsCharacterObjectFromUrl(`/api/std/assets/gcs-file?bucket=studio-assets&path=${encodeURIComponent(invalid)}`, 'https://studio.example'), null)
+    }
+})
