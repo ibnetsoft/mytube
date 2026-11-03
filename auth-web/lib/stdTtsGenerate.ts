@@ -688,8 +688,11 @@ async function releaseOwnedTtsClaim(claim: OwnedTtsClaim | null) {
     }
 }
 
-export async function runTts(body: any, auth: any, project: any, finalizeSubtitles = false, backgroundJobId?: string) {
-    await persistContentRevision(supabaseAdmin, project)
+export async function runTts(body: any, auth: any, project: any, finalizeSubtitles = false, backgroundJobId?: string, revisionAlreadyRecorded = false) {
+    // Nested segment lookups use the same immutable project snapshot. Its
+    // revision has already been secured by the outer request; repeating the
+    // full snapshot hash and database check for every subtitle adds heavy load.
+    if (!revisionAlreadyRecorded) await persistContentRevision(supabaseAdmin, project)
     let scenes: any[] = []
     if (!cleanTtsText(body?.text)) {
         const { data: scenesData, error: scenesError } = await supabaseAdmin
@@ -918,7 +921,7 @@ export async function runTts(body: any, auth: any, project: any, finalizeSubtitl
                         performance: segment.performance,
                         mode: 'vrew_segment_preview', segment_index: index + (prepareOnly ? Math.max(0, Number(body.segment_offset) || 0) : 0), cache_only: cacheOnly,
                         force_claim: false, force_regenerate: false,
-                    }, auth, project)
+                    }, auth, project, false, undefined, true)
                     const payload = await result.json()
                     if (cacheOnly && result.status === 404 && payload.code === 'audio_not_cached') return null
                     if (!result.ok || !payload.success || !payload.asset) {
