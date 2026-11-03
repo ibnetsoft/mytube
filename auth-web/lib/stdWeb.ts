@@ -13,7 +13,7 @@ import {
 } from './stdSubtitles'
 import { calculateLongformPayoutByScenes } from './stdPayoutPolicy'
 import { imageStyleLabelForPrompt, resolveCategoryImageStyle } from './categoryImageStyles'
-import { STD_REQUIRED_CLIP_SCENE_END, stdRequiredVideoSceneCount } from './stdPolicy'
+import { STD_REQUIRED_CLIP_SCENE_END, isStdVideoPromptScene, stdRequiredVideoSceneCount } from './stdPolicy'
 
 const getAuthClient = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -195,7 +195,7 @@ export function sceneNumber(scene: any, index: number): number {
 
 export function sceneRequiresVideoPrompt(scene: any, index: number, topic?: any): boolean {
     if (scene?.video_prompt_required === false) return false
-    return sceneNumber(scene, index) <= stdRequiredVideoSceneCount(topic)
+    return isStdVideoPromptScene(sceneNumber(scene, index), topic)
 }
 
 export function normalizeImageGridPrompts(structure: any): any[] {
@@ -284,7 +284,6 @@ export function buildStdScenes(topic: any) {
     const partitioned = partitionScriptByExistingSceneBoundaries(script, scenes, sceneCount)
     const requestedDurationMinutes = Number(topic?.assigned_duration_minutes || topic?.recommended_duration_minutes || 15)
     const durationSchedule = buildSceneDurationSchedule(requestedDurationMinutes * 60)
-    const requiredVideoSceneCount = stdRequiredVideoSceneCount(topic)
 
     return Array.from({ length: sceneCount }, (_, index) => scenes[index] || {
         scene_number: index + 1,
@@ -294,7 +293,7 @@ export function buildStdScenes(topic: any) {
         .map((scene: any, index: number) => {
             const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
             const normalizedSceneNumber = Number.isFinite(sceneNumber) ? sceneNumber : index + 1
-            const requiresVideoPrompt = normalizedSceneNumber <= requiredVideoSceneCount
+            const requiresVideoPrompt = isStdVideoPromptScene(normalizedSceneNumber, topic)
             const videoPrompt = requiresVideoPrompt ? sceneVideoPrompt(scene) : ''
             const sceneText = firstText(
                 partitioned[index],

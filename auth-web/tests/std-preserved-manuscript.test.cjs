@@ -46,6 +46,15 @@ test('edited manuscript text takes precedence over stale scene text', () => {
         pregenerated_structure: { scenes: [{ scene_text: '古い本文です。' }] } });
     assert.equal(result[0].scene_text, '新しい本文です。娘は父の手を取りました。');
 });
+test('claim keeps selected later motion graphic prompts without expanding the opening clip range', () => {
+    const scenes = Array.from({length: 21}, (_, i) => ({scene_number:i+1, scene_text:`場面${i+1}。`, video_prompt:`video-${i+1}`}));
+    const result = buildStdScenes({pregenerated_script:scenes.map(s=>s.scene_text).join('\n\n'),
+        pregenerated_structure:{required_video_scene_count:18,motion_graphic_video_scenes:[19],scenes}});
+    assert.equal(result[18].video_prompt, 'video-19');
+    assert.equal(result[18].visual_type, 'video');
+    assert.equal(result[19].video_prompt, '');
+    assert.equal(result[19].visual_type, 'image');
+});
 test('actual imported package passes web readiness and preserves its complete Japanese script', () => {
     if (!process.env.MANUSCRIPT_TOPIC_FILE) return;
     const topic = JSON.parse(fs.readFileSync(process.env.MANUSCRIPT_TOPIC_FILE, 'utf8'));

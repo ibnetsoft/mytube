@@ -1,5 +1,5 @@
 import { isNonverbalProject, hasReadyNonverbalPlan } from './stdNonverbal'
-import { stdRequiredVideoSceneCount } from './stdPolicy'
+import { isStdVideoPromptScene } from './stdPolicy'
 
 export type PreparedTopicLike = {
     status?: string | null
@@ -56,7 +56,6 @@ export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
         for (const sceneNumber of sceneNumbers) coveredSceneNumbers.add(String(sceneNumber))
     }
     const seenImagePrompts = new Set<string>()
-    const requiredVideoSceneCount = stdRequiredVideoSceneCount(topic)
     return scenes.every((scene: any, index: number) => {
         const sceneNumber = Number(scene?.scene_order || scene?.scene_number || index + 1)
         const imagePrompt = String(scene?.image_prompt || '').trim()
@@ -64,7 +63,7 @@ export function hasReadySceneMediaPrompts(topic: PreparedTopicLike): boolean {
         if (fallbackMarkers.some(marker => imagePrompt.toLowerCase().includes(marker))) return false
         if (seenImagePrompts.has(imagePrompt)) return false
         seenImagePrompts.add(imagePrompt)
-        const requiresVideo = scene?.video_prompt_required !== false && sceneNumber <= requiredVideoSceneCount
+        const requiresVideo = scene?.video_prompt_required !== false && isStdVideoPromptScene(sceneNumber, topic)
         if (requiresVideo && !String(scene?.video_prompt || '').trim()) return false
         return coveredSceneNumbers.has(String(Number.isFinite(sceneNumber) ? sceneNumber : index + 1))
     })
