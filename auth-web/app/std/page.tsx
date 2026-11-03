@@ -824,6 +824,7 @@ export default function StdPortalPage() {
     const [topics, setTopics] = useState<Topic[]>([])
     const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
+    const [projectTitleTranslations, setProjectTitleTranslations] = useState<Record<string, string>>({})
     const [projectsLoadError, setProjectsLoadError] = useState('')
     const [projectsRefreshing, setProjectsRefreshing] = useState(false)
     const [projectsRefreshKey, setProjectsRefreshKey] = useState(0)
@@ -1843,6 +1844,27 @@ export default function StdPortalPage() {
             })
         return () => { active = false; controller.abort(); window.clearTimeout(timeout) }
     }, [topicProjectOpen, token, authedJsonHeaders, projectsRefreshKey])
+
+    useEffect(() => {
+        if (!topicProjectOpen || !token || projectsRefreshing) return
+        const missing = projects.filter((project: any) => project.title && !localizedProjectTitle(project, currentLocale)
+            && projectTitleTranslations[JSON.stringify([currentLocale, project.id, project.title])] === undefined).slice(0, 100)
+        if (!missing.length) return
+        let active = true
+        void fetch('/api/std/projects/title-translations', {
+            method: 'POST', headers: authedJsonHeaders,
+            body: JSON.stringify({ locale: currentLocale, ids: missing.map((project: any) => project.id) }),
+        }).then(response => response.ok ? response.json() : null).then(result => {
+            if (!active || !Array.isArray(result?.translations)) return
+            setProjectTitleTranslations(previous => {
+                const next = { ...previous }
+                for (const project of missing) next[JSON.stringify([currentLocale, project.id, project.title])] = ''
+                for (const item of result.translations) next[JSON.stringify([currentLocale, item.id, item.source])] = item.title
+                return next
+            })
+        }).catch(() => {})
+        return () => { active = false }
+    }, [topicProjectOpen, token, projectsRefreshing, projects, currentLocale, authedJsonHeaders, projectTitleTranslations])
 
     const openProjectList = () => { setProjectsRefreshing(true); setTopicProjectOpen(true) }
 
@@ -8635,7 +8657,8 @@ export default function StdPortalPage() {
                                     <tbody className="divide-y divide-gray-800 bg-[#1c2027]">
                                         {visibleProjects.map((p: any, idx: number) => {
                                             const isSelectedProj = selectedProject?.project?.id === p.id
-                                            const localizedTitle = localizedProjectTitle(p, currentLocale)
+                                            const translatedTitle = projectTitleTranslations[JSON.stringify([currentLocale, p.id, p.title])]
+                                            const localizedTitle = localizedProjectTitle(p, currentLocale) || (translatedTitle !== p.title ? translatedTitle : '')
                                             const projectCatName = String(p.category_name || '').trim() || '미분류'
                                             const projectThumbnailUrl = projectListThumbnailUrl(p.thumbnail_url, isImpersonating ? impersonateEmail : null)
                                             const latestSubmittedVersion = Number(p.latest_render_version) || 0
@@ -8679,7 +8702,7 @@ export default function StdPortalPage() {
                                                     </td>
                                                     <td className="px-3 py-2 text-gray-300 max-w-sm font-medium group-hover:text-blue-400 transition-colors" title={localizedTitle ? `${p.title}\n${localizedTitle}` : p.title}>
                                                         <div className="max-w-sm truncate">{p.title}</div>
-                                                        {localizedTitle && <div className="mt-0.5 max-w-sm truncate text-[10px] font-normal leading-4 text-gray-400">{localizedTitle}</div>}
+                                                        {localizedTitle && <div className="mt-1 max-w-sm whitespace-normal break-words text-[11px] font-normal leading-4 text-gray-400">{localizedTitle}</div>}
                                                     </td>
                                                     {/* 7단계 상태 원형 인디케이터 (주제, 기획, 대본, 이미지, 자막, TTS, 썸네일) */}
                                                     {(() => {
