@@ -14,6 +14,7 @@ const imageStyles = [
     { key: 'ghibli', name: '지브리' },
     { key: 'webtoon', name: '웹툰' },
     { key: 'korean_webtoon', name: '한국 웹툰' },
+    { key: 'wuxia_webtoon', name: '무협 웹툰' },
     { key: '3d', name: '3D' },
     { key: 'minimal', name: '미니멀' },
     { key: 'wimpy', name: '윔피' },
@@ -106,6 +107,12 @@ export default function TopicSubmissionPanel({ headers, locale = 'ko' }: { heade
                 {images.length > 0 && <div className="flex gap-3 flex-wrap">{images.map((image, i) => <figure key={i}><img src={image.data} alt={image.name} className="h-28 w-28 rounded-lg object-contain bg-black/20" /><figcaption className="max-w-28 truncate mt-1">{image.name}</figcaption></figure>)}</div>}
                 <div className="grid gap-4 sm:grid-cols-3">
                     <label>{ui('카테고리 *')}<select name="category" required defaultValue="" className={input} onChange={event=>{
+                        if (event.target.value === '무협 웹툰' && !nonverbal && topicForm.current) {
+                            setDocumentary(false)
+                            const radio = topicForm.current.querySelector<HTMLInputElement>('input[name="image_style"][value="wuxia_webtoon"]')
+                            if (radio) radio.checked = true
+                            return
+                        }
                         if(event.target.value!=='일본사건' || nonverbal || !topicForm.current)return
                         setDocumentary(false)
                         const form=topicForm.current

@@ -47,6 +47,7 @@ IMAGE_STYLE_MAP_EN = {
     '애니메이션': 'anime illustration',
     '일러스트': 'editorial illustration',
     '웹툰': 'korean webtoon style',
+    'wuxia_webtoon': 'Contemporary Korean webtoon illustration, clean expressive ink linework, polished cel shading and cinematic color; wuxia martial artists, period-appropriate robes, swords and architecture; dynamic martial arts composition with consistent distinctive character identities',
 }
 
 

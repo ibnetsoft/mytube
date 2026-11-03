@@ -13,6 +13,7 @@ export const CATEGORY_IMAGE_STYLE_DEFAULTS: Record<string, string> = {
     '옛날이야기': 'realistic',
     '한국사연': 'he moonlit hanok palace',
     '무협': 'classic vintage cinema',
+    '무협 웹툰': 'wuxia_webtoon',
     'English Folktales': 'realistic',
     '日本昔話': japaneseFolktaleStyle.key,
 }

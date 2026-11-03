@@ -51,7 +51,7 @@
       detail.append(translationStatus);
       const original = element('details'); original.append(element('summary', '원문 보기'), element('h3', row.title));
       const languages = {ko:'한국어',ja:'일본어',en:'영어',es:'스페인어',vi:'베트남어',th:'태국어'};
-      const styles = {realistic:'실사',cinematic:'시네마틱',anime:'애니메이션',ghibli:'지브리',webtoon:'웹툰',korean_webtoon:'한국 웹툰','3d':'3D',minimal:'미니멀',wimpy:'윔피'};
+      const styles = {realistic:'실사',cinematic:'시네마틱',anime:'애니메이션',ghibli:'지브리',webtoon:'웹툰',korean_webtoon:'한국 웹툰',wuxia_webtoon:'무협 웹툰','3d':'3D',minimal:'미니멀',wimpy:'윔피'};
       const settings = element('dl', undefined, 'topic-review-settings');
       const field = (name, value) => {
         const cell = element('div'), content = element('dd', value == null || value === '' ? '미입력' : String(value));
