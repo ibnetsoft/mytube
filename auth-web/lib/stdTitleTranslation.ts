@@ -8,7 +8,9 @@ export async function generateStdTitleTranslation(db: SupabaseClient, prompt: st
     try {
         return await generateJsonWithModelSetting(db, prompt, 'sys_api_translation_model', geminiKey, 0.2)
     } catch {
-        return generateJsonWithModelSetting(db, prompt, 'sys_api_title_translation_fallback_model', geminiKey, 0.2,
+        const { data } = await db.from('global_settings').select('value').eq('key', 'sys_api_title_translation_gemini').maybeSingle()
+        const fallbackKey = String(data?.value || geminiKey || '').trim()
+        return generateJsonWithModelSetting(db, prompt, 'sys_api_title_translation_fallback_model', fallbackKey, 0.2,
             { defaultModel: 'gemini-3-flash-preview', disableFallback: true })
     }
 }
