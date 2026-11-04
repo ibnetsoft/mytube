@@ -8673,7 +8673,7 @@ export default function StdPortalPage() {
     ) : null
 
     return (
-        <div className={`h-screen overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
+        <div className={`h-[100dvh] overflow-hidden bg-[#11141a] text-gray-200 flex flex-col font-sans text-xs select-none ${currentNav === 'subtitle_vrew' && selectedProject ? 'std-subtitle-workspace' : ''}`}>
             {subtitleNavigationBusy && <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60" role="dialog" aria-modal="true" aria-label={ui('변경사항 저장 중')} aria-busy="true" tabIndex={-1} ref={navigationBusyPanelRef} onKeyDown={event => { if (event.key === 'Tab') event.preventDefault() }}>
                 <div role="status" aria-live="polite" className="rounded-xl border border-white/20 bg-[#1c2027] p-6 text-sm text-white">{ui('변경사항을 저장한 뒤 이동합니다. 잠시 기다려 주세요.')}</div>
             </div>}
@@ -9078,19 +9078,6 @@ export default function StdPortalPage() {
                     </button>
                 </div>
             </div>
-
-            {/* 모바일 플로팅 메뉴 열기 FAB (화면 하단 좌측) */}
-            <button
-                type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                title={ui("메뉴 열기")}
-                aria-label={ui("메뉴 열기")}
-                className="fixed bottom-4 left-4 z-40 md:hidden flex items-center justify-center w-11 h-11 rounded-full border border-blue-400/30 bg-[#1e2430]/90 backdrop-blur-md text-white shadow-xl hover:bg-blue-600/30 active:scale-95 transition-all"
-            >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-            </button>
 
             {/* 2. 메인 2열 레이아웃: 사이드바 + 메인 작업 공간 */}
             <div className="flex-1 flex overflow-hidden relative">
@@ -10006,7 +9993,7 @@ export default function StdPortalPage() {
                                                             <span className="text-xs font-bold leading-none tabular-nums text-white">{sNum}</span>
                                                         </div>
                                                         {/* 이미지와 구간 시간 */}
-                                                        <div className="w-[calc(100%-2rem)] shrink-0 self-start min-[390px]:w-36 sm:w-40">
+                                                        <div className="w-28 shrink-0 self-start min-[390px]:w-36 sm:w-40">
                                                             <div className="aspect-video w-full rounded-md sm:rounded-lg overflow-hidden border border-white/10 relative">
                                                                 <LazySceneMedia
                                                                     key={`subtitle-thumbnail-${sNum}-${shouldPlayThumbnailVideo ? 'play' : 'still'}`}
@@ -10213,11 +10200,11 @@ export default function StdPortalPage() {
                                                                                 >
                                                                                     {lineIndex + 1}
                                                                                 </button>
-                                                                                <div className="flex min-w-0 items-center gap-2 text-[11px] leading-relaxed font-sans sm:text-xs">
+                                                                                <div className={`${subtitleReviewLocale ? 'flex-col items-stretch sm:flex-row sm:items-center' : 'items-center'} flex min-w-0 gap-2 text-[11px] leading-relaxed font-sans sm:text-xs`}>
                                                                                     {sfxSubtitleIndexes.has(item.subtitleIndex) && <span role="img" aria-label={ui("효과음 있음")} title={ui("효과음이 배치된 자막")} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/50 bg-purple-500/10 text-[11px] leading-none text-purple-100">★</span>}
-                                                                                    <div className={`${subtitleReviewLocale ? 'flex basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
+                                                                                    <div className={`${subtitleReviewLocale ? 'flex sm:basis-[48%]' : 'flex flex-1'} min-w-0 items-center text-white`}>
                                                                                         {isDialogueBlock && <button type="button" onClick={event => { event.stopPropagation(); setSpeakerEditorIndex(item.subtitleIndex) }} title={ui('화자 정보 편집 (TTS·영상 자막 제외)')} className={`mr-2 shrink-0 rounded border px-1.5 py-1 text-[10px] ${speakerInfo?.gender === 'female' ? 'border-pink-400/40 bg-pink-500/15 text-pink-200' : speakerInfo?.gender === 'male' ? 'border-sky-200 bg-sky-300/90 text-sky-950' : 'border-amber-300/30 text-amber-200'}`}>{speakerInfo?.label || ui('화자 확인 필요')}{speakerInfo?.gender !== 'male' && speakerInfo?.gender !== 'female' ? ' · ?' : ''}</button>}
-                                                                                        <span className="min-w-0 truncate" title={String(item.text || '')}>
+                                                                                        <span className="min-w-0 break-words whitespace-normal sm:truncate" title={String(item.text || '')}>
                                                                                             {candidates.length ? (() => {
                                                                                                 const parts: React.ReactNode[] = []
                                                                                                 let cursor = 0
@@ -10253,7 +10240,7 @@ export default function StdPortalPage() {
                                                                                     </div>
                                                                                     {subtitleReviewLocale && subtitleReviewCopy && (
                                                                                         <div
-                                                                                            className="min-w-0 flex-1 truncate border-l border-sky-400/20 pl-2 text-sky-200"
+                                                                                            className="min-w-0 flex-1 whitespace-normal break-words border-t border-sky-400/20 pt-1 text-sky-200 sm:truncate sm:border-l sm:border-t-0 sm:pl-2 sm:pt-0"
                                                                                             lang={subtitleReviewLocale}
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
@@ -11664,8 +11651,8 @@ export default function StdPortalPage() {
 
                             {/* 3. AI 추천 주제 큐 카드 그리드 (Check AI-analyzed personalized topics) */}
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                                    <h3 className="text-sm font-bold text-white flex flex-wrap items-center gap-2">
                                         <span>{ui("✨ AI 추천 작업 주제 큐")}</span>
                                         <span className="text-xs text-indigo-400 font-mono">({displayedTopics.length}{ui("개 대기 중)")}</span>
                                     </h3>
@@ -11737,12 +11724,13 @@ export default function StdPortalPage() {
 
                             {/* 4. 주제 상세 확인 및 프로젝트 클레임 팝업 모달 */}
                             {topicModalOpen && selectedTopicForModal && (
-                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-                                    <div className="bg-[#1c2027] border border-white/20 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 relative text-left">
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+                                    <div role="dialog" aria-modal="true" aria-label={ui('주제 상세')} className="bg-[#1c2027] border border-white/20 rounded-2xl sm:rounded-3xl max-w-2xl max-h-[90dvh] overflow-y-auto w-full p-4 sm:p-6 shadow-2xl space-y-5 relative text-left">
                                         {/* 닫기 버튼 */}
                                         <button
                                             type="button"
                                             onClick={() => setTopicModalOpen(false)}
+                                            aria-label={ui('닫기')}
                                             className="absolute top-5 right-5 text-gray-400 hover:text-white text-lg font-bold p-1"
                                         >
                                             ✕
@@ -11750,7 +11738,7 @@ export default function StdPortalPage() {
 
                                         {/* 헤더 */}
                                         <div className="space-y-1.5 border-b border-white/10 pb-4">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-2 pr-8">
                                                 <span className="text-xs font-bold px-3 py-1 bg-indigo-600 text-white rounded-full">
                                                     {topicUi(selectedTopicForModal.category_name || ui("옛날이야기"))}
                                                 </span>
@@ -11806,7 +11794,7 @@ export default function StdPortalPage() {
                                         </div>
 
                                         {/* 액션 버튼 */}
-                                        <div className="flex items-center justify-end gap-3 pt-2">
+                                        <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
                                             <button
                                                 type="button"
                                                 onClick={() => setTopicModalOpen(false)}
@@ -11834,8 +11822,8 @@ export default function StdPortalPage() {
                     {currentNav === 'thumbnail' && (
                         <div className="space-y-5 max-w-6xl mx-auto w-full flex flex-col h-full pb-10">
                             {/* 1단계: 제목 및 스타일 설정 (가로 와이드 3단 레이아웃) */}
-                            <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-5 shadow-xl space-y-4">
-                                <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                            <div className="bg-[#1c2027] border border-white/10 rounded-2xl p-3 sm:p-5 shadow-xl space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
                                     <h3 className="font-bold text-sm text-white flex items-center gap-2">
                                         <span className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-md shadow-blue-500/30">1</span>
                                         {ui("1단계: 제목 및 스타일 설정")}
@@ -11922,7 +11910,7 @@ export default function StdPortalPage() {
                                             <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{ui("레이아웃 스타일")}</label>
                                             <span className="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded-full font-bold border border-blue-500/30 uppercase">{thumbLayout}</span>
                                         </div>
-                                        <div className="grid grid-cols-3 gap-2">
+                                        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 gap-2">
                                             {[
                                                 { id: 'face', name: ui("Face (얼굴/인물)") },
                                                 { id: 'split', name: ui("Split (좌우 분할)") },
@@ -11941,7 +11929,7 @@ export default function StdPortalPage() {
                                                     }`}
                                                 >
                                                     <span className="text-sm">🖼️</span>
-                                                    <span className="text-[10px] truncate w-full">{item.name}</span>
+                                                    <span className="text-[10px] leading-4 break-words w-full">{item.name}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -12738,7 +12726,7 @@ export default function StdPortalPage() {
                                             </div>
                                         </div>
                                         <div
-                                            className="relative aspect-video overflow-hidden select-none transition-colors"
+                                            className="relative aspect-video overflow-hidden select-none transition-colors [container-type:inline-size]"
                                             data-template-canvas
                                             style={{ backgroundColor: templateCanvasBgColor }}
                                         >
@@ -12776,7 +12764,7 @@ export default function StdPortalPage() {
                                                         transform: 'translate(-50%, -50%)',
                                                         fontFamily: layer.fontFamily,
                                                         color: layer.color,
-                                                        fontSize: `${layer.fontSize}px`,
+                                                        fontSize: `clamp(${layer.fontSize * 0.4}px, ${layer.fontSize / 6}cqw, ${layer.fontSize}px)`,
                                                         fontWeight: 'bold',
                                                         textShadow: `
                                                             -${layer.strokeWidth}px -${layer.strokeWidth}px 0 ${layer.strokeColor},
@@ -13300,7 +13288,7 @@ export default function StdPortalPage() {
                     {currentNav === 'settings' && (
                         <div className="space-y-4 max-w-5xl mx-auto w-full flex flex-col h-full">
                             {/* 1. 상단 타이틀 및 액션 바 */}
-                            <div className="flex items-center justify-between bg-[#1c2027] p-3 rounded-xl border border-white/10 shadow-sm shrink-0">
+                            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#1c2027] p-3 rounded-xl border border-white/10 shadow-sm shrink-0">
                                 <h2 className="text-base font-bold text-white flex items-center gap-2">
                                     <span>{ui("⚙️ 세팅")}</span>
                                 </h2>
@@ -13321,7 +13309,7 @@ export default function StdPortalPage() {
 
                             {/* 2. 6개 서브 탭 네비게이션 */}
                             <div className="border-b border-white/10 shrink-0">
-                                <div className="flex space-x-2 overflow-x-auto">
+                                <div className="flex flex-wrap gap-x-1 sm:flex-nowrap sm:space-x-2 sm:overflow-x-auto">
                                     {[
                                         { id: 'basic', label: ui("■■ 기본 설정") },
                                         { id: 'orgchart', label: ui("조직도") },
@@ -13333,7 +13321,7 @@ export default function StdPortalPage() {
                                         <button
                                             key={tab.id}
                                             onClick={() => setSettingsSubTab(tab.id as any)}
-                                            className={`px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
+                                            className={`px-2 sm:px-4 py-2 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
                                                 settingsSubTab === tab.id
                                                     ? 'border-blue-500 text-blue-400 bg-blue-500/10 rounded-t-lg'
                                                     : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
