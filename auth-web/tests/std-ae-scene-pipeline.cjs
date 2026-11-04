@@ -167,6 +167,9 @@ function submitFixture(options={}) {
   if(id.includes('stdThumbnailRender'))return {editableThumbnailError:()=>null}
   if(id.includes('stdPolicy'))return {isStdVideoPromptScene:n=>n===2}
   if(id.includes('stdLegacySync'))return {}
+  if(id.includes('stdMotionAutomation'))return {motionAutomationEnabled:()=>false}
+  if(id.includes('stdMotionStudio'))return {motionProductionMethod:()=>null}
+  if(id.includes('stdSubmittedVideoPostwork'))return {hasAllSceneParallax:()=>false,hasSubmittedVideoPostwork:()=>false}
   if(id.includes('stdSubmissionPipeline'))return {registerSubmissionPipeline:async(p,s,a,u,required)=>{
    calls.push({required,scenes:s.map(s=>s.scene_number),snapshot:pipeline().submissionSnapshot(p,s,a,required)});return {id:'run'}}}
   return load(`lib/${id.split('/').pop()}.ts`)

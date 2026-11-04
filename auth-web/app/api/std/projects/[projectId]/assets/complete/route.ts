@@ -219,7 +219,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         if (!uploadIdentity) return NextResponse.json({ success: false, code: 'CONTENT_IDENTITY_MISSING', error: '업로드 시작 기록이 없습니다. 현재 프로젝트에서 업로드를 다시 시작해 주세요.' }, { status: 409 })
         if (uploadIdentity.asset_type !== assetType || Number(uploadIdentity.scene_number) !== Number(sceneNumber))
             return NextResponse.json({ success: false, code: 'CONTENT_IDENTITY_MISMATCH', error: '업로드 시작 때의 자산 유형·씬 번호와 다릅니다.' }, { status: 409 })
-        if (sceneNumber != null) {
+        const atomicVisual = project.project_payload?.strict_content_identity === true
+            && sceneNumber != null && ['image', 'video'].includes(assetType)
+        if (sceneNumber != null && !atomicVisual) {
             const planned = (project.project_payload?.structure?.scenes || project.project_payload?.scenes || []).find((s: any, i: number) => Number(s.scene_number || s.scene_order || i + 1) === sceneNumber) || {}
             renderAssetIdentity(project, { ...planned, scene_number: sceneNumber }, { asset_type: assetType, metadata: { content_identity: uploadIdentity } })
         }
@@ -319,7 +321,7 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
             return NextResponse.json({ success: true, asset })
         }
 
-        if (sceneNumber != null) {
+        if (sceneNumber != null && !atomicVisual) {
             await updateSceneAssetStatus(project.id, sceneNumber, project)
         }
 
@@ -332,9 +334,16 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const progressPayload = project.progress_payload || {}
         const nextProjectPayload = buildProjectPayloadWithVisualAsset(project, sceneNumber, assetType, asset)
 
-        const { error: projectUpdateError } = await supabaseAdmin
-            .from('std_projects')
-            .update({
+        let projectUpdateError: any = null
+        if (atomicVisual) {
+            const result = await supabaseAdmin.rpc('std_attach_revision_asset', {
+                p_project_id: project.id, p_owner: auth.requester.email, p_expected_updated_at: project.updated_at,
+                p_expected_status: project.status, p_asset_id: asset.id, p_scene_number: sceneNumber, p_payload: nextProjectPayload,
+            })
+            if (result.error || !result.data?.success) return NextResponse.json({ success: false, code: 'REVISION_ATTACH_CONFLICT',
+                error: '프로젝트가 변경되어 자산 연결을 확인하지 못했습니다. 저장된 자산을 보존했으니 새로고침 후 다시 확인해 주세요.', asset_id: asset.id }, { status: 409 })
+        } else {
+            const result = await supabaseAdmin.from('std_projects').update({
                 status: project.status === 'claimed' ? 'in_progress' : project.status,
                 progress_payload: {
                     ...progressPayload,
@@ -343,8 +352,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 },
                 project_payload: nextProjectPayload,
                 updated_at: new Date().toISOString(),
-            })
-            .eq('id', project.id)
+            }).eq('id', project.id)
+            projectUpdateError = result.error
+        }
         if (projectUpdateError) {
             return NextResponse.json({ success: false, error: projectUpdateError.message }, { status: 500 })
         }

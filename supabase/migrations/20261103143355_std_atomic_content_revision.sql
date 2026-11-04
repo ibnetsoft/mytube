@@ -28,10 +28,11 @@ begin
     or p_project_payload ?| array['sfx_cues','sfx_plan','deleted_subtitle_scene_archive']
     or (p_project_payload->'render_settings') ? 'sfx_plan'
     or p_project_payload ?| array['audio_url','tts_url','tts_asset_id','tts_drive_file_id','tts_file_name','subtitle_source_audio_id']
-    or p_progress_payload ?| array['audio_url','tts_url','tts_asset_id','tts_drive_file_id','tts_file_name']
+    or p_progress_payload ?| array['audio_url','tts_url','tts_asset_id','tts_drive_file_id','tts_file_name','subtitles','subtitle_translations']
     or coalesce((p_project_payload->>'tts_completed')::boolean,false)
     or coalesce((p_progress_payload->>'tts_completed')::boolean,false)
     or p_project_payload->'strict_content_identity' is distinct from 'true'::jsonb
+    or p_project_payload->>'source_script_job_id' is distinct from p_job_id
     or nullif(btrim(p_project_payload->>'script'),'') is null
     or p_project_payload->>'script' is distinct from p_source_payload->>'pregenerated_script'
  then raise exception 'Invalid revision payload'; end if;

@@ -282,7 +282,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
 
         if (assetError) return NextResponse.json({ success: false, error: assetError.message }, { status: 500 })
 
-        if (sceneNumber != null) {
+        const atomicVisual = project.project_payload?.strict_content_identity === true
+            && sceneNumber != null && ['image', 'video'].includes(assetType)
+        if (sceneNumber != null && !atomicVisual) {
             await updateSceneAssetStatus(project.id, sceneNumber, project)
         }
 
@@ -295,9 +297,16 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
         const progressPayload = project.progress_payload || {}
         const nextProjectPayload = buildProjectPayloadWithVisualAsset(project, sceneNumber, assetType, asset)
 
-        const { error: projectUpdateError } = await supabaseAdmin
-            .from('std_projects')
-            .update({
+        let projectUpdateError: any = null
+        if (atomicVisual) {
+            const result = await supabaseAdmin.rpc('std_attach_revision_asset', {
+                p_project_id: project.id, p_owner: auth.requester.email, p_expected_updated_at: project.updated_at,
+                p_expected_status: project.status, p_asset_id: asset.id, p_scene_number: sceneNumber, p_payload: nextProjectPayload,
+            })
+            if (result.error || !result.data?.success) return NextResponse.json({ success: false, code: 'REVISION_ATTACH_CONFLICT',
+                error: '프로젝트가 변경되어 자산 연결을 확인하지 못했습니다. 저장된 자산을 보존했으니 새로고침 후 다시 확인해 주세요.', asset_id: asset.id }, { status: 409 })
+        } else {
+            const result = await supabaseAdmin.from('std_projects').update({
                 status: project.status === 'claimed' ? 'in_progress' : project.status,
                 progress_payload: {
                     ...progressPayload,
@@ -306,8 +315,9 @@ export async function POST(req: Request, { params }: { params: { projectId: stri
                 },
                 project_payload: nextProjectPayload,
                 updated_at: new Date().toISOString(),
-            })
-            .eq('id', project.id)
+            }).eq('id', project.id)
+            projectUpdateError = result.error
+        }
         if (projectUpdateError) throw projectUpdateError
 
         let postprocessWarning: string | null = null
