@@ -8792,8 +8792,8 @@ export default function StdPortalPage() {
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-1 py-2 text-center">
-                                                                    <span className={(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
-                                                                        {(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? '●' : '○'}
+                                                                    <span title={pStatus.videoNotRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} aria-label={pStatus.videoNotRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} className={(pStatus.isVideoStepDone ?? pStatus.isImageDone) ? 'text-emerald-500 font-bold text-sm' : 'text-gray-600 text-sm'}>
+                                                                        {pStatus.videoNotRequired ? '×' : (pStatus.isVideoStepDone ?? pStatus.isImageDone) ? '●' : '○'}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-1 py-2 text-center">

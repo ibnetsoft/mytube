@@ -10,6 +10,30 @@ sys.path.insert(0, str(ROOT))
 from worker import codex_local_console as console
 
 
+def test_registered_category_name_and_id_must_match(monkeypatch):
+    def categories(table, **params):
+        assert table == 'categories'
+        return ([{'id': 17, 'name': '일본판타지'}] if params['id'] == 'eq.17' else []), 1
+    monkeypatch.setattr(console, 'db_read', categories)
+    console.validate_script_category('일본판타지', '17')
+    console.validate_script_category('직접 입력', '')
+    with pytest.raises(ValueError, match='일치하지 않습니다'):
+        console.validate_script_category('옛날이야기', '17')
+    with pytest.raises(ValueError, match='찾을 수 없습니다'):
+        console.validate_script_category('일본판타지', '99')
+
+
+def test_new_job_rejects_category_mismatch_before_reservation(monkeypatch, tmp_path):
+    monkeypatch.setattr(console, 'db_read', lambda *args, **kwargs: ([{'id': 2, 'name': '옛날이야기'}], 1))
+    worker = console.Jobs(tmp_path)
+    request = console.StartRequest(mode='new', title='test', category='일본판타지', category_id='2')
+    with pytest.raises(ValueError, match='일치하지 않습니다'):
+        worker.start(request, None)
+    assert worker.listing() == []
+    assert not list(tmp_path.iterdir())
+    worker.pool.shutdown()
+
+
 @pytest.fixture
 def client(monkeypatch, tmp_path):
     local = console.Jobs(tmp_path)

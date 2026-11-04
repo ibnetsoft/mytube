@@ -39,6 +39,7 @@ export function savedStdVisualStepStatus(project: any, assets: any[] = []) {
         || media.some(asset => Number(asset.scene_number) === number && asset.asset_type === 'video'))
     const isVideoStepDone = extraVideoScenes.size > 0 ? isImageDone && extraVideosReady
         : isImageDone || stdRequiredVideoSceneCount(project) === 0
-    return { isImageDone, isVideoStepDone,
+    const videoNotRequired = stdRequiredVideoSceneCount(project) === 0 && extraVideoScenes.size === 0
+    return { isImageDone, isVideoStepDone, videoNotRequired,
         uploadedAssetsCount, totalScenesCount: scenes.length }
 }

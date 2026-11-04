@@ -540,6 +540,8 @@ class Jobs:
             if not retry_of and request.mode in ('new', 'grounded'):
                 from worker.script_generation_defaults import DEFAULTS
                 request = StartRequest.model_validate({**DEFAULTS, **request.model_dump(exclude_unset=True)})
+            if not retry_of and request.mode == 'new':
+                validate_script_category(request.category, request.category_id)
             title = snapshot['summary']['title'] if snapshot else request.title.strip()
             from worker.content_language import resolve_setting
             setting = resolve_setting(request.model_dump())
@@ -712,6 +714,24 @@ SCRIPT_SETTING_FIELDS = frozenset(('category', 'category_id', 'duration_minutes'
 SCRIPT_SETTINGS_KEY = 'codex_script_defaults_' + WORKER_ID
 
 
+def validate_script_category(category, category_id):
+    """Verify registered IDs against their actual names before reserving work."""
+    category_id = str(category_id or '').strip()
+    if not category_id:
+        return  # An explicitly custom category has no registered ID.
+    if not category_id.isdigit() or int(category_id) < 1:
+        raise ValueError('카테고리 ID가 올바르지 않습니다. 카테고리를 다시 선택해 주세요.')
+    try:
+        rows, _ = db_read('categories', select='id,name', id='eq.' + str(int(category_id)), limit=2)
+    except Exception as exc:
+        raise StoreUnavailable('카테고리를 확인할 수 없습니다. 연결을 확인한 뒤 다시 시도해 주세요.') from exc
+    if len(rows) != 1:
+        raise ValueError('선택한 카테고리를 찾을 수 없습니다. 카테고리를 다시 선택해 주세요.')
+    actual = str(rows[0].get('name') or '').strip()
+    if str(category or '').strip() != actual:
+        raise ValueError(f'카테고리 이름과 ID가 일치하지 않습니다. 선택한 ID는 "{actual}"입니다. 카테고리를 다시 선택해 주세요.')
+
+
 def normalize_script_settings(value):
     # global_settings.value is text on existing installations; PostgREST can
     # return the stored JSON document as a string rather than an object.
@@ -758,6 +778,7 @@ def script_settings_get():
 def script_settings_save(value: dict):
     try:
         settings = normalize_script_settings(value)
+        validate_script_category(settings.get('category'), settings.get('category_id'))
         store.request('POST', 'global_settings', params={'on_conflict': 'key'},
             body={'key': SCRIPT_SETTINGS_KEY, 'value': {**settings, '_scene_defaults_version': 1}, 'updated_at': datetime.now(timezone.utc).isoformat()},
             prefer='resolution=merge-duplicates,return=representation')
@@ -1066,6 +1087,7 @@ def review_web_topic(identity: str, request: SubmissionReview):
                     raise ValueError('반려 사유를 입력하세요.')
                 return review_submission(store, identity, 'rejected', request.note.strip())
             generation = StartRequest.model_validate(generation_request(row))
+            validate_script_category(generation.category, generation.category_id)
             jobs.connect()
             if jobs.busy():
                 raise ValueError('대본 작업이 실행 중입니다. 완료 후 승인하세요.')
