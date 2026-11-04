@@ -1905,6 +1905,24 @@ export default function StdPortalPage() {
         setProjectsRefreshKey(value => value + 1)
     }
 
+    useEffect(() => {
+        if (!topicProjectOpen || !token || projectsRefreshing) return
+        let lastRefresh = 0
+        const refreshVisibleList = () => {
+            if (document.visibilityState !== 'visible' || Date.now() - lastRefresh < 1000) return
+            lastRefresh = Date.now()
+            refreshProjectList()
+        }
+        const timer = window.setInterval(refreshVisibleList, 15000)
+        window.addEventListener('focus', refreshVisibleList)
+        document.addEventListener('visibilitychange', refreshVisibleList)
+        return () => {
+            window.clearInterval(timer)
+            window.removeEventListener('focus', refreshVisibleList)
+            document.removeEventListener('visibilitychange', refreshVisibleList)
+        }
+    }, [topicProjectOpen, token, projectsRefreshing])
+
     const authedUploadHeaders = useMemo<Record<string, string>>(() => {
         const headers: Record<string, string> = {
             Authorization: `Bearer ${token}`,
@@ -5679,6 +5697,7 @@ export default function StdPortalPage() {
                 strict: true,
                 renderSettings,
             })
+            refreshProjectList()
             if (showSuccessAlert) setMessage(copy.subtitleSaved)
             reportSave('success', copy.subtitleSaved)
             return true
@@ -8657,7 +8676,7 @@ export default function StdPortalPage() {
             <StdBackgroundTts projectId={selectedProject?.project?.id || ''} projectTitle={selectedProject?.project?.title || ''}
                 headers={authedJsonHeaders} locale={currentLocale} refreshKey={ttsJobRefreshKey}
                 onBusy={setBackgroundTtsActive} onNotice={setTtsNotice}
-                onComplete={() => { if (selectedProject && !['dirty', 'saving', 'error'].includes(subtitleSaveState)) void openProjectAfterSave(selectedProject.project.id, undefined, undefined, true) }} />
+                onComplete={() => { refreshProjectList(); if (selectedProject && !['dirty', 'saving', 'error'].includes(subtitleSaveState)) void openProjectAfterSave(selectedProject.project.id, undefined, undefined, true) }} />
             <StdTtsNotice notice={ttsNotice} locale={currentLocale} onDismiss={() => setTtsNotice(null)} />
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
             {topicProjectOpen && (
