@@ -22,6 +22,11 @@ def files(root=ROOT):
     for name in ['config.py', 'db.py', 'database.py', 'remote_drive_worker.py',
                  'worker/connection.env.example', 'docs/리페어프로세스.md',
                  'docs/신규생성프로세스.md', 'docs/worker-installation.md',
+                 'docs/SCRIPT_WORKER_PRODUCTION_GUIDE.md', 'docs/JAPANESE_CATEGORY_SCRIPT_GUIDE.md',
+                 'docs/current-affairs-production-defaults.md', 'docs/japanese-historical-documentary.md',
+                 'docs/JAPANESE_DOMESTIC_DRAMA.md', 'docs/CURRENT_VIDEO_PRODUCTION_WORKFLOW.md',
+                 'docs/wuxia-webtoon-production-defaults.md',
+                 'docs/pawnshop-series/SERIES_BIBLE_AND_TOPICS_2026-11-01.md',
                  'scripts/install_script_worker.ps1', 'auth-web/lib/japaneseDomesticDramaStyle.json',
                  'auth-web/lib/japaneseHistoricalDocumentaryStyle.json', 'auth-web/lib/japaneseFolktaleStyle.json', 'worker/codex_console/modern_japan_watercolor.json']:
         path = root / name
