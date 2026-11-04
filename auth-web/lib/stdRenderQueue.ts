@@ -1,3 +1,4 @@
+import { isWuxiaMovingtoon, usesStandardSubtitles } from './stdWuxiaPresentation'
 import { productionEngineError } from './stdProductionEnginePolicy'
 import { assetMatchesContentRevision, projectContentIdentity, selectNarrationAsset, assertNarrationIdentity, renderAssetIdentity, assetContentIdentity, persistContentRevision, finalizeRecordedRenderConfig } from './stdContentIdentity'
 import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from './stdNonverbal'
@@ -624,7 +625,8 @@ async function buildLegacyRenderPackage(project: any, scenes: any[], assets: any
         project_id: pseudoProjectId,
         project_name: project.title || `Project ${pseudoProjectId}`,
         email: project.employee_email || 'unknown',
-        use_subtitles: !isNonverbalProject(project),
+        use_subtitles: !isNonverbalProject(project) && usesStandardSubtitles(project),
+        ...(isWuxiaMovingtoon(project) ? {wuxia_ae_package: project.project_payload?.structure?.wuxia_ae_package, screen_text_mode: 'authored_wuxia_graphics'} : {}),
         resolution: '1080p',
         aspect_ratio: motionOutputAspect(project, isWebtoonVideoProject(project) ? '9:16' : '16:9'),
         speech_gain_version: 1,
@@ -878,7 +880,8 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         project_id: pseudoProjectId,
         project_name: project.title || `Project ${pseudoProjectId}`,
         email: project.employee_email || 'unknown',
-        use_subtitles: !isNonverbalProject(project),
+        use_subtitles: !isNonverbalProject(project) && usesStandardSubtitles(project),
+        ...(isWuxiaMovingtoon(project) ? {wuxia_ae_package: project.project_payload?.structure?.wuxia_ae_package, screen_text_mode: 'authored_wuxia_graphics'} : {}),
         resolution: '1080p',
         aspect_ratio: motionOutputAspect(project, isWebtoonVideoProject(project) ? '9:16' : '16:9'),
         speech_gain_version: 1,

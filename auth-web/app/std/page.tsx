@@ -1,4 +1,6 @@
 'use client'
+import StdWuxiaScenePreview from '@/components/StdWuxiaScenePreview'
+import { isWuxiaMovingtoon, usesStandardSubtitles } from '@/lib/stdWuxiaPresentation'
 import { mapVoicePerformance, voicePerformanceKey, elevenLabsVoiceSettings } from '@/lib/stdVoicePerformance'
 import { scanDialogueQuoteState } from '@/lib/stdDialogueQuoteState'
 import { subtitleSpeakerProgress, missingSpeakerSubtitleIndexes } from '@/lib/stdSubtitleSpeakerProgress'
@@ -8620,7 +8622,7 @@ export default function StdPortalPage() {
         { id: 'topics', label: ui("기획"), isDone: status.isPlanningDone },
         { id: 'script_gen', label: ui("대본"), isDone: status.isScriptDone },
         { id: 'image_gen', label: t('nav_image'), isDone: status.isVideoStepDone ?? status.isImageDone, notRequired: status.videoNotRequired },
-        { id: 'subtitle_vrew', label: ui("자막"), isDone: status.isSubtitlesDone },
+        { id: 'subtitle_vrew', label: isWuxiaMovingtoon(selectedProject?.project) ? '음성·연출' : ui("자막"), isDone: status.isSubtitlesDone },
         { id: 'thumbnail', label: ui("썸네일"), isDone: status.isThumbnailDone },
         ]
         return (
@@ -9176,7 +9178,7 @@ export default function StdPortalPage() {
                                     { id: 'topic_submissions', label: t('nav_topic_submissions') },
                                     { id: 'topics', label: t('nav_topics') },
                                     { id: 'image_gen', label: t('nav_image') },
-                                    { id: 'subtitle_vrew', label: t('nav_subtitles') },
+                                    { id: 'subtitle_vrew', label: isWuxiaMovingtoon(selectedProject?.project) ? '음성·연출' : t('nav_subtitles') },
                                     { id: 'thumbnail', label: t('nav_thumbnail') },
                                     { id: 'template', label: t('nav_template') },
                                     { id: 'settings', label: t('nav_settings') },
@@ -9274,7 +9276,7 @@ export default function StdPortalPage() {
                             { id: 'topic_submissions', label: t('nav_topic_submissions') },
                             { id: 'topics', label: t('nav_topics') },
                             { id: 'image_gen', label: t('nav_image') },
-                            { id: 'subtitle_vrew', label: t('nav_subtitles') },
+                            { id: 'subtitle_vrew', label: isWuxiaMovingtoon(selectedProject?.project) ? '음성·연출' : t('nav_subtitles') },
                             { id: 'thumbnail', label: t('nav_thumbnail') },
                             { id: 'template', label: t('nav_template') },
                             { id: 'settings', label: t('nav_settings') },
@@ -9330,6 +9332,7 @@ export default function StdPortalPage() {
                     {selectedProject && isNonverbalProject(selectedProject.project) && ['script_plan','script_gen','tts','subtitle_vrew'].includes(currentNav) && <StdNonverbalPlan project={selectedProject.project} headers={authedJsonHeaders} locale={currentLocale} onApplied={() => void openProject(selectedProject.project.id, undefined, undefined, true)} />}
                     {currentNav === 'subtitle_vrew' && selectedProject && !isNonverbalProject(selectedProject.project) && (() => {
                         const isVrewSubtitleMode = true
+                        const wuxiaMode = isWuxiaMovingtoon(selectedProject.project)
                         const currentSub = localSubtitles[selectedSubIndex] || localSubtitles[0] || {
                             id: 'sub-0',
                             scene_number: 1,
@@ -9365,8 +9368,9 @@ export default function StdPortalPage() {
                         const narrationVoiceName = voiceNameById.get(narrationVoiceId) || narrationVoiceId.replace('gemini:', '')
                         return (
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
+                            {wuxiaMode && <div role="note" className="rounded border border-cyan-700/50 bg-cyan-950/30 p-2 text-xs text-cyan-100">무협 무빙툰 · 아래 대본은 음성·화자 편집용입니다. 일반 자막은 출력하지 않습니다. 화면에는 저장된 말풍선·반응·효과음 타이포만 표시합니다. 현재 연출 미리보기는 실제 녹음의 단어별 동기화 검증과 구분됩니다.</div>}
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일 + 모바일 오밀조밀 최적화 & 숨김/펼침) */}
-                            <div className="std-subtitle-controls relative z-30 bg-[#1c2027] border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-md flex flex-col gap-2 shrink-0 overflow-visible">
+                            <div className={`${wuxiaMode ? 'hidden' : 'flex'} std-subtitle-controls relative z-30 bg-[#1c2027] border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-md flex-col gap-2 shrink-0 overflow-visible`}>
                                 {/* 모바일 전용 상단 패널 숨김/펼침 토글 바 (기본값: 숨김 ▲) */}
                                 <div className="flex md:hidden items-center justify-between gap-2 border-b border-white/5 pb-1.5">
                                     <div className="flex items-center gap-1.5 min-w-0">
@@ -10073,7 +10077,7 @@ export default function StdPortalPage() {
                                                                     {ui('씬')} {sNum}
                                                                 </span>
                                                                 <span className="hidden text-[10px] text-gray-500 sm:inline">
-                                                                    {ui('자막 {count}개', { count: group.subtitles.length })}
+                                                                    {wuxiaMode ? `음성 구간 ${group.subtitles.length}개` : ui('자막 {count}개', { count: group.subtitles.length })}
                                                                 </span>
                                                                 {directionBadges.map((badge: any) => {
                                                                     const BadgeIcon = badge.kind === 'eye' ? Eye
@@ -10447,7 +10451,7 @@ export default function StdPortalPage() {
                                                     loading="eager"
                                                     decoding="async"
                                                     fetchPriority="high"
-                                                    style={previewImageMotionStyle}
+                                                    style={isWuxiaMovingtoon(selectedProject.project) ? undefined : previewImageMotionStyle}
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : (
@@ -10494,8 +10498,10 @@ export default function StdPortalPage() {
                                             {selectedImageTemplatePreset && <StdTemplateOverlay locale={currentLocale} layers={textLayers}
                                                 savedImage={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_png_data_url}
                                                 savedLayers={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_layers} />}
+                                            {wuxiaMode && <StdWuxiaScenePreview project={selectedProject.project} sceneNumber={Number(currentSub.scene_number)} subtitles={localSubtitles} seconds={playbackTime} headers={authedJsonHeaders} />}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
+                                                if (!usesStandardSubtitles(selectedProject.project)) return null
                                                 return (
                                             <div
                                                     className="absolute inset-x-0 text-center select-none flex items-center justify-center pointer-events-none"

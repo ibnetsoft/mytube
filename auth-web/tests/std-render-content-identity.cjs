@@ -5,6 +5,7 @@ function renderer(){
  const ex={}; const source=fs.readFileSync(path.join(webRoot,'lib/stdRenderQueue.ts'),'utf8')+'\nexport const previewForTest = buildGcsRenderConfig;'
  new Function('exports','require',ts.transpile(source,{module:1,target:7}))(ex,name=>{
   if(name==='crypto')return require('crypto')
+  if(name.includes('stdWuxiaPresentation'))return load('lib/stdWuxiaPresentation.ts')
   if(name==='./filmcraftNativeContract.json')return {default:JSON.parse(fs.readFileSync(path.join(webRoot,'lib/filmcraftNativeContract.json'),'utf8'))}
   if(name.includes('stdContentIdentity'))return identity
   if(name.includes('stdMotionStudio'))return load('lib/stdMotionStudio.ts')
@@ -104,3 +105,10 @@ test('strict documentary render requires current revision video for selected mot
  const config=await renderer()(f.p,[f.scene],[f.audio,f.image,video],1)
  assert.equal(config.asset_manifest.files.find(x=>x.asset_type==='video').content_identity.asset_id,'video')
 })
+
+test('wuxia final config keeps speech timing but disables the ordinary caption track',async()=>{
+ const f=fixture();f.p.project_payload.structure={image_style:'wuxia_webtoon',wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[]}};
+ const config=await renderer()(f.p,[f.scene],[f.audio,f.image],1000003428);
+ assert.equal(config.use_subtitles,false);assert.equal(config.subtitles.length,1);assert.equal(config.subtitles[0].text,'原本。');
+ assert.equal(config.screen_text_mode,'authored_wuxia_graphics');assert.equal(config.wuxia_ae_package.contract,'wuxia_still_ae_episode/v1');
+});
