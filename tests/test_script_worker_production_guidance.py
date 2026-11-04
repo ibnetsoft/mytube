@@ -6,6 +6,8 @@ def test_production_guidance_includes_japanese_category_guide():
     assert '다섯 카테고리 공통 대본 제작 기준' in guidance
     assert '작품마다 확정할 항목' in guidance
     assert '무협 웹툰 (ID 18)' in guidance
+    assert '무협 연작의 회차 완료와 재개' in guidance
+    assert '등록 → 저장 재조회' in guidance
 
 
 def test_new_work_receives_local_guidance_without_changing_other_modes(monkeypatch):

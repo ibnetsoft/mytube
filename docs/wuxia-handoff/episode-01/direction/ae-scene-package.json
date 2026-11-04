@@ -1,0 +1,4435 @@
+{
+  "contract": "wuxia_still_ae_episode/v1",
+  "episode": 1,
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "script_sha256": "9b267807a04d10b4557ec63e5986dc5ca65a3b4e4f5f2050bcaea3ea88d0ef89",
+  "scenes": [
+    {
+      "scene_id": "E01_S01",
+      "intent": "고정 원경에서 신발·지게의 상세 컷으로 전환. 시신이나 과장된 피 대신 비어 있는 짐끈으로 부재를 보여 준다.",
+      "source_sha256": "4fc18b1970421c15bb069554efdf6ff935dae3f76ca66f91edc639285e95a1e8",
+      "preview_duration_seconds": 19.965,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S01_STATE_01",
+          "file": "images/E01_S01_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "0ff0a6bc34aad9ef592a4ff6d2c0fc9d0c9bf0cc2055c0ead9ffe88061d9a6de",
+          "start": 0,
+          "end": 0.33,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S01_STATE_02",
+          "file": "images/E01_S01_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "6b2014bc0a3ae4e840fb252e62853076800f2b0b046df976da4761827fc88f9c",
+          "start": 0.33,
+          "end": 0.53,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S01_STATE_03",
+          "file": "images/E01_S01_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "18feb83a4b3cd8873870adc0e13baffc75f3693afeeb568951074593915977dc",
+          "start": 0.53,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S01_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "돌문이 열렸을 때, 밖에서 기다리던 사람들은 검부터 세었습니다. 검이 여섯 자루 돌아왔으니 무사한 탐사였다고 했습니다. 마지막으로 나온 서진의 등에는 지게가 두 개 겹쳐 있었습니다. 들어갈 때 그중 하나를 메고 있던 사람은 끝내 나오지 않았습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.8789808917197452
+        },
+        {
+          "block_id": "E01_S01_B02",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "짐꾼. 거기 서 있지 말고 내려놔.",
+          "preview_start": 0.8789808917197452,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S01_B02",
+          "speaker": "guard",
+          "text": "짐꾼. 거기 서 있지 말고 내려놔.",
+          "state_asset_id": "E01_S01_STATE_03",
+          "preview_start": 0.5582,
+          "preview_end": 0.9718,
+          "voice_binding": {
+            "block_id": "E01_S01_B02"
+          },
+          "layout": {
+            "center": [
+              0.29,
+              0.19
+            ],
+            "tail": [
+              0.2,
+              0.43
+            ],
+            "size": [
+              0.34,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S02",
+      "intent": "붓이 이름을 지운 전후 원화를 컷으로 전환. 마지막 대사는 평범한 작은 말풍선으로 표시하고 효과를 덧붙이지 않는다.",
+      "source_sha256": "1ea5978f14a8b97e6e9d42d390bdd4323fe08f17551a3de9843342df8ebb4080",
+      "preview_duration_seconds": 22.504,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S02_STATE_01",
+          "file": "images/E01_S02_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "c68670fce44e3228815d36c1499fc4f52d8fd22c7f617b8b69e90869310cd534",
+          "start": 0,
+          "end": 0.28,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S02_STATE_02",
+          "file": "images/E01_S02_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "92b1d1ff51d66af3bfb408acc0eae7809f5817b245777e61ea6cc4aa682b81dc",
+          "start": 0.28,
+          "end": 0.54,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S02_STATE_03",
+          "file": "images/E01_S02_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "f9ef674cd759decd573d65dc6eab9dbf8e614f09d8c559a018d8f25043b0d0ed",
+          "start": 0.54,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S02_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "중개소 서리는 지게를 확인하고 동전을 밀어 주었습니다. 서진은 받지 않고 손가락으로 장부의 다른 이름을 짚었습니다. 그 이름 옆에도 품삯이 적혀 있었습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.4860335195530726
+        },
+        {
+          "block_id": "E01_S02_B02",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "박 노인 몫도 주세요. 집에 가져다줄 사람이 있어야 합니다.",
+          "preview_start": 0.4860335195530726,
+          "preview_end": 0.6703910614525139
+        },
+        {
+          "block_id": "E01_S02_B03",
+          "kind": "dialogue",
+          "speaker": "clerk",
+          "text": "귀환한 사람한테만 준다. 약조 못 읽었냐?",
+          "preview_start": 0.6703910614525139,
+          "preview_end": 0.7988826815642458
+        },
+        {
+          "block_id": "E01_S02_B04",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "저 짐을 끝까지 지고 온 사람이에요.",
+          "preview_start": 0.7988826815642458,
+          "preview_end": 0.9106145251396648
+        },
+        {
+          "block_id": "E01_S02_B05",
+          "kind": "dialogue",
+          "speaker": "clerk",
+          "text": "짐은 돌아왔잖아. 그럼 됐지.",
+          "preview_start": 0.9106145251396648,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S02_B02",
+          "speaker": "seojin",
+          "text": "박 노인 몫도 주세요. 집에 가져다줄 사람이 있어야 합니다.",
+          "state_asset_id": "E01_S02_STATE_01",
+          "preview_start": 0.0168,
+          "preview_end": 0.2632,
+          "voice_binding": {
+            "block_id": "E01_S02_B02"
+          },
+          "layout": {
+            "center": [
+              0.53,
+              0.55
+            ],
+            "tail": [
+              0.33,
+              0.4
+            ],
+            "size": [
+              0.31,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S02_B03",
+          "speaker": "clerk",
+          "text": "귀환한 사람한테만 준다. 약조 못 읽었냐?",
+          "state_asset_id": "E01_S02_STATE_02",
+          "preview_start": 0.2956,
+          "preview_end": 0.5244,
+          "voice_binding": {
+            "block_id": "E01_S02_B03"
+          },
+          "layout": {
+            "center": [
+              0.53,
+              0.55
+            ],
+            "tail": [
+              0.82,
+              0.4
+            ],
+            "size": [
+              0.31,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S02_B04",
+          "speaker": "seojin",
+          "text": "저 짐을 끝까지 지고 온 사람이에요.",
+          "state_asset_id": "E01_S02_STATE_03",
+          "preview_start": 0.5676,
+          "preview_end": 0.77,
+          "voice_binding": {
+            "block_id": "E01_S02_B04"
+          },
+          "layout": {
+            "center": [
+              0.53,
+              0.55
+            ],
+            "tail": [
+              0.33,
+              0.4
+            ],
+            "size": [
+              0.31,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S02_B05",
+          "speaker": "clerk",
+          "text": "짐은 돌아왔잖아. 그럼 됐지.",
+          "state_asset_id": "E01_S02_STATE_03",
+          "preview_start": 0.77,
+          "preview_end": 0.9724,
+          "voice_binding": {
+            "block_id": "E01_S02_B05"
+          },
+          "layout": {
+            "center": [
+              0.53,
+              0.55
+            ],
+            "tail": [
+              0.82,
+              0.4
+            ],
+            "size": [
+              0.31,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S03",
+      "intent": "두 사람의 표정 상태를 같은 구도에서 교체. 물주머니와 붕대를 이후 장면에서도 동일하게 유지한다.",
+      "source_sha256": "4542edb96f742dbe68af8cbd29a5338aee191556f6d040eff0ea8cd9d1efdb69",
+      "preview_duration_seconds": 25.736,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S03_STATE_01",
+          "file": "images/E01_S03_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "3067d54e04a3712c122faed652a697def21a4b670cc7dfb2395e0e6f8aac47ff",
+          "start": 0,
+          "end": 0.32,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S03_STATE_02",
+          "file": "images/E01_S03_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "684542c790ed14a00f5a084639555d51f19b96ef71084aa0acaf00399a38b691",
+          "start": 0.32,
+          "end": 0.74,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S03_STATE_03",
+          "file": "images/E01_S03_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "7b5898a1ec220c1811bf738d4f6e29b1e80ffb5ee2a27b600d594b231d728965",
+          "start": 0.74,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S03_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진은 자기 몫의 절반을 따로 쌌습니다. 박 노인의 집에 가져갈 돈이었습니다. 도겸은 그걸 보고도 말리지 않았습니다. 대신 물주머니를 건네고, 지게 끈에 눌려 터진 어깨를 살폈습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.4927536231884058
+        },
+        {
+          "block_id": "E01_S03_B02",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "다음번엔 한 사람 몫만 져. 네가 죽으면 네 몫 받아 줄 놈도 없어.",
+          "preview_start": 0.4927536231884058,
+          "preview_end": 0.6763285024154589
+        },
+        {
+          "block_id": "E01_S03_B03",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "안 죽을 겁니다.",
+          "preview_start": 0.6763285024154589,
+          "preview_end": 0.7198067632850241
+        },
+        {
+          "block_id": "E01_S03_B04",
+          "kind": "narration",
+          "speaker": null,
+          "text": "도겸은 웃었지만 서진은 웃지 않았습니다. 자기 목숨의 값을 장부 쓰는 사람에게 맡기고 싶지는 않았습니다.",
+          "preview_start": 0.7198067632850241,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S03_B02",
+          "speaker": "dogyeom",
+          "text": "다음번엔 한 사람 몫만 져. 네가 죽으면 네 몫 받아 줄 놈도 없어.",
+          "state_asset_id": "E01_S03_STATE_02",
+          "preview_start": 0.3452,
+          "preview_end": 0.7148,
+          "voice_binding": {
+            "block_id": "E01_S03_B02"
+          },
+          "layout": {
+            "center": [
+              0.51,
+              0.13
+            ],
+            "tail": [
+              0.28,
+              0.35
+            ],
+            "size": [
+              0.3,
+              0.21
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S03_B03",
+          "speaker": "seojin",
+          "text": "안 죽을 겁니다.",
+          "state_asset_id": "E01_S03_STATE_03",
+          "preview_start": 0.7556,
+          "preview_end": 0.9844,
+          "voice_binding": {
+            "block_id": "E01_S03_B03"
+          },
+          "layout": {
+            "center": [
+              0.51,
+              0.13
+            ],
+            "tail": [
+              0.73,
+              0.39
+            ],
+            "size": [
+              0.29,
+              0.17
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S04",
+      "intent": "연속 동작 대신 잘못 디딘 발과 바로잡은 발의 정지 컷을 비교. 내공 발광을 넣지 않는다.",
+      "source_sha256": "ed179c459a6f788861fe5c1173beffec723d26f3f3a7d93eb219c51c042af293",
+      "preview_duration_seconds": 20.658,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S04_STATE_01",
+          "file": "images/E01_S04_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "21847be41f991931e9d22255126f72ce7449bf01cf40e23e0be1f75d5511fec7",
+          "start": 0,
+          "end": 0.28,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S04_STATE_02",
+          "file": "images/E01_S04_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "49fce1da9d1cbcbb5840b579cdf8cc8d6500a524b6f103d8e22c23a1cc63e7e2",
+          "start": 0.28,
+          "end": 0.63,
+          "camera": "hold",
+          "static_crop": [
+            0.14,
+            0.6,
+            0.85,
+            1.0
+          ],
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S04_STATE_03",
+          "file": "images/E01_S04_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "1fa6b0771ec747abaab7312f508af00cd731b575bad134bf91ac653f34ab6d53",
+          "start": 0.63,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S04_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "잠들기 전, 서진은 늘 단도를 뽑았습니다. 짐꾼들에게 가르쳐 주는 호신술은 세 동작뿐이었습니다. 비키고, 막고, 가까이 붙어 찌르는 것. 문파의 문턱에서 몇 번이나 쫓겨난 그에게는 그것뿐이었습니다. 단전에 모으려는 기운은 오늘도 손끝에 닿기 전에 흩어졌습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.8895705521472392
+        },
+        {
+          "block_id": "E01_S04_B02",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "오늘은 발이 먼저 꼬였어. 다시.",
+          "preview_start": 0.8895705521472392,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "inner_emphasis",
+          "text": "다시.",
+          "state_asset_id": "E01_S04_STATE_03",
+          "preview_start": 0.7114,
+          "preview_end": 0.8779,
+          "voice_binding": {
+            "block_id": "E01_S04_B02",
+            "exact_anchor": "오늘은 발이 먼저 꼬였어. 다시."
+          },
+          "layout": {
+            "center": [
+              0.82,
+              0.6
+            ],
+            "size": [
+              0.25,
+              0.19
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 58,
+            "fill": [
+              0.97,
+              0.97,
+              0.91
+            ],
+            "stroke": [
+              0.05,
+              0.09,
+              0.13
+            ],
+            "stroke_width": 3,
+            "entry": "settle",
+            "rotation": 0,
+            "scale_peak": 104
+          },
+          "intent": "작고 단단한 백색 글씨, 손과 칼을 피한 빈 공간. 한 번만 표시"
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S05",
+      "intent": "모집장 문구는 필요한 항목만 소품 글자로 배치. 별도 설명 자막으로 재출력하지 않는다.",
+      "source_sha256": "200b4a7d224d0833a41d446aa15484be160acfa83f8d309978682fe0186064d7",
+      "preview_duration_seconds": 26.197,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S05_STATE_01",
+          "file": "images/E01_S05_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "7956536f3fefbeeb63aa1f1e00556769dcc574d4067b94cc9be87698cb0658b4",
+          "start": 0,
+          "end": 0.27,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S05_STATE_02",
+          "file": "images/E01_S05_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "589c83fc0900fc1ed59d820e31236ccbe3502fc04725834b4253306de9f964a6",
+          "start": 0.27,
+          "end": 0.59,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S05_STATE_03",
+          "file": "images/E01_S05_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "75b5e82236dcfbef623a86b7fdca5dfb9f6ac48d070746b1a706c7b7246c39fe",
+          "start": 0.59,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S05_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "사흘 뒤, 평소의 세 배를 준다는 탐사가 나왔습니다. 철산문이 조사한 하급 무경이었습니다. 서진은 품삯보다 조사 범위를 먼저 물었습니다. 서리는 입구에서 회랑까지 확인했다며 손을 내저었습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.5071090047393365
+        },
+        {
+          "block_id": "E01_S05_B02",
+          "kind": "dialogue",
+          "speaker": "clerk",
+          "text": "안쪽 봉함만 꺼내면 끝이야. 고수들 따라갔다 오면 돼.",
+          "preview_start": 0.5071090047393365,
+          "preview_end": 0.6492890995260664
+        },
+        {
+          "block_id": "E01_S05_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진은 박 노인의 집에 남겨 두고 온 빈 쌀독을 떠올렸습니다. 모집장 아래에 이름을 쓰고, 단도 손잡이가 쉽게 잡히는지 확인했습니다.",
+          "preview_start": 0.6492890995260664,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S05_B02",
+          "speaker": "clerk",
+          "text": "안쪽 봉함만 꺼내면 끝이야. 고수들 따라갔다 오면 돼.",
+          "state_asset_id": "E01_S05_STATE_02",
+          "preview_start": 0.2892,
+          "preview_end": 0.5708,
+          "voice_binding": {
+            "block_id": "E01_S05_B02"
+          },
+          "layout": {
+            "center": [
+              0.81,
+              0.16
+            ],
+            "tail": [
+              0.9,
+              0.45
+            ],
+            "size": [
+              0.32,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S06",
+      "intent": "발·미끄러운 돌·짐의 무게 중심을 보여 주는 상세 컷. 영웅적인 발광 없이 관찰 습관을 제시한다.",
+      "source_sha256": "f10f8c441061f8745f0354d911ccbb63d1c909e9473221945f87d885bcd613d9",
+      "preview_duration_seconds": 21.466,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S06_STATE_01",
+          "file": "images/E01_S06_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "e88141bcc7d23a71e285bb7af83e1ce008f23a2adb1d6dff211dc48de4a3cd29",
+          "start": 0,
+          "end": 0.34,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S06_STATE_02",
+          "file": "images/E01_S06_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "f88fa75230b997a14d8fa8f5ab5667fcbc1f5694cd648a90c107414e908c0080",
+          "start": 0.34,
+          "end": 0.64,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S06_STATE_03",
+          "file": "images/E01_S06_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "036387d853d9fdff771374ffc4323728a108d1c68f150b53c8a377b95df7be23",
+          "start": 0.64,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S06_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "대장 장호는 철산문에서도 검을 잘 쓴다는 사람이었습니다. 무사들은 그의 검에 붙은 별호를 이야기했습니다. 서진은 그들의 발을 보고 있었습니다. 긴 보폭으로 오르던 무사가 돌에 미끄러지자, 서진은 멈추기 전에 지게를 바위 쪽으로 기댔습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.7823529411764706
+        },
+        {
+          "block_id": "E01_S06_B02",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "또 뭘 그렇게 보냐?",
+          "preview_start": 0.7823529411764706,
+          "preview_end": 0.8470588235294118
+        },
+        {
+          "block_id": "E01_S06_B03",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "저 사람이 넘어지면 짐은 제가 받아야 하잖아요.",
+          "preview_start": 0.8470588235294118,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S06_B02",
+          "speaker": "dogyeom",
+          "text": "또 뭘 그렇게 보냐?",
+          "state_asset_id": "E01_S06_STATE_03",
+          "preview_start": 0.6616,
+          "preview_end": 0.82,
+          "voice_binding": {
+            "block_id": "E01_S06_B02"
+          },
+          "layout": {
+            "center": [
+              0.23,
+              0.15
+            ],
+            "tail": [
+              0.13,
+              0.45
+            ],
+            "size": [
+              0.31,
+              0.2
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S06_B03",
+          "speaker": "seojin",
+          "text": "저 사람이 넘어지면 짐은 제가 받아야 하잖아요.",
+          "state_asset_id": "E01_S06_STATE_03",
+          "preview_start": 0.82,
+          "preview_end": 0.9784,
+          "voice_binding": {
+            "block_id": "E01_S06_B03"
+          },
+          "layout": {
+            "center": [
+              0.29,
+              0.16
+            ],
+            "tail": [
+              0.31,
+              0.51
+            ],
+            "size": [
+              0.38,
+              0.25
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S07",
+      "intent": "벽화 세 장의 구도를 명확히 반복하고 마지막 그림의 마모를 고정 상세 컷으로 심는다. 정답을 표시하는 빛은 넣지 않는다.",
+      "source_sha256": "1b514af2d137438082b255b89ba0203313fcb35ad150f62b99fd16bd02ecf13a",
+      "preview_duration_seconds": 25.043,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S07_STATE_01",
+          "file": "images/E01_S07_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "d1e7432cfc3ba37cd42a2237566f8f5d1e54be58dd0cbc712c098fb15eda313a",
+          "start": 0,
+          "end": 0.33,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S07_STATE_02",
+          "file": "images/E01_S07_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "2d7a1013cf821d7531fbf83175ca58c5c19826a2987e7a4fdc16fcbb9920d16d",
+          "start": 0.33,
+          "end": 0.64,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S07_STATE_03",
+          "file": "images/E01_S07_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "18ec6d4fa8344e5881953f68bb4840d218d7bf80861c0da22b349f38509ea2c2",
+          "start": 0.64,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": [
+            0.79,
+            0.3,
+            1,
+            0.65
+          ],
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S07_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "회랑 벽에는 같은 무인이 거듭 그려져 있었습니다. 검을 들고, 내리치고, 몸을 돌리는 자세였습니다. 마지막 그림만 유난히 심하게 깎여 있었습니다. 서진이 횃불을 가까이 들자 뒤에서 무사가 등을 떠밀었습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.572139303482587
+        },
+        {
+          "block_id": "E01_S07_B02",
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "구경 왔냐? 앞 봐.",
+          "preview_start": 0.572139303482587,
+          "preview_end": 0.6268656716417911
+        },
+        {
+          "block_id": "E01_S07_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진은 걸음을 옮기면서도 마지막 그림의 발 위치를 한 번 더 보았습니다. 다른 그림들과 달리 발끝이 돌아가지 않은 채 남아 있었습니다.",
+          "preview_start": 0.6268656716417911,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S07_B02",
+          "speaker": "guard",
+          "text": "구경 왔냐? 앞 봐.",
+          "state_asset_id": "E01_S07_STATE_01",
+          "preview_start": 0.0198,
+          "preview_end": 0.3102,
+          "voice_binding": {
+            "block_id": "E01_S07_B02"
+          },
+          "layout": {
+            "center": [
+              0.22,
+              0.13
+            ],
+            "tail": [
+              0.205,
+              0.36
+            ],
+            "size": [
+              0.31,
+              0.2
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S08",
+      "intent": "시신을 선정적으로 확대하지 않고 방향·손·문턱을 연결한다. 반응 텍스트는 대사 전 관찰 컷에 표시한다.",
+      "source_sha256": "752b85949db1857c64d07149b15df1eb046c446b07230bcd96e5ea5aacd1ee4b",
+      "preview_duration_seconds": 22.62,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S08_STATE_01",
+          "file": "images/E01_S08_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "a387ef699f3f96051a798b2bdbca9e6f961f682c44503b889b73dba6a77038e3",
+          "start": 0,
+          "end": 0.35,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S08_STATE_02",
+          "file": "images/E01_S08_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "a76d0b81e294a1431ff72a6e13f328bd3dbf448cf12fb0912fd4a8312bdc45f9",
+          "start": 0.35,
+          "end": 0.59,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S08_STATE_03",
+          "file": "images/E01_S08_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "7791133a1e51c5b2c0d4df2dfe78b5bafa452f1ecc5df1bf33bf26aec36171fa",
+          "start": 0.59,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S08_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "중앙 석실에는 먼저 온 사람들이 있었습니다. 모두 벽을 향해 무릎을 꿇고 있었습니다. 서진은 처음엔 절하는 줄 알았습니다. 그러나 바람도 없는 곳에서, 그들의 소매만 먼지로 무너져 내렸습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.5944444444444444
+        },
+        {
+          "block_id": "E01_S08_B02",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "대장님. 여기서 돌아가야 합니다.",
+          "preview_start": 0.5944444444444444,
+          "preview_end": 0.6944444444444444
+        },
+        {
+          "block_id": "E01_S08_B03",
+          "kind": "dialogue",
+          "speaker": "jangho",
+          "text": "다 죽은 사람들이다. 겁먹을 것 없어.",
+          "preview_start": 0.6944444444444444,
+          "preview_end": 0.8111111111111111
+        },
+        {
+          "block_id": "E01_S08_B04",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "전부 안쪽을 등지고 죽었습니다. 밖으로 도망치던 게 아니에요.",
+          "preview_start": 0.8111111111111111,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S08_B02",
+          "speaker": "seojin",
+          "text": "대장님. 여기서 돌아가야 합니다.",
+          "state_asset_id": "E01_S08_STATE_01",
+          "preview_start": 0.021,
+          "preview_end": 0.329,
+          "voice_binding": {
+            "block_id": "E01_S08_B02"
+          },
+          "layout": {
+            "center": [
+              0.3,
+              0.74
+            ],
+            "tail": [
+              0.14,
+              0.44
+            ],
+            "size": [
+              0.36,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S08_B03",
+          "speaker": "jangho",
+          "text": "다 죽은 사람들이다. 겁먹을 것 없어.",
+          "state_asset_id": "E01_S08_STATE_03",
+          "preview_start": 0.6146,
+          "preview_end": 0.795,
+          "voice_binding": {
+            "block_id": "E01_S08_B03"
+          },
+          "layout": {
+            "center": [
+              0.66,
+              0.76
+            ],
+            "tail": [
+              0.46,
+              0.45
+            ],
+            "size": [
+              0.36,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S08_B04",
+          "speaker": "seojin",
+          "text": "전부 안쪽을 등지고 죽었습니다. 밖으로 도망치던 게 아니에요.",
+          "state_asset_id": "E01_S08_STATE_03",
+          "preview_start": 0.795,
+          "preview_end": 0.9754,
+          "voice_binding": {
+            "block_id": "E01_S08_B04"
+          },
+          "layout": {
+            "center": [
+              0.64,
+              0.76
+            ],
+            "tail": [
+              0.15,
+              0.44
+            ],
+            "size": [
+              0.45,
+              0.24
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "inner_reaction",
+          "text": "이상해.",
+          "state_asset_id": "E01_S08_STATE_02",
+          "preview_start": 0.4028,
+          "preview_end": 0.5108,
+          "voice_binding": {
+            "block_id": "E01_S08_B04",
+            "exact_anchor": "전부 안쪽을 등지고 죽었습니다. 밖으로 도망치던 게 아니에요."
+          },
+          "layout": {
+            "center": [
+              0.78,
+              0.22
+            ],
+            "size": [
+              0.25,
+              0.2
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "DoHyeon-Regular",
+            "size": 66,
+            "fill": [
+              0.98,
+              0.97,
+              0.92
+            ],
+            "stroke": [
+              0.07,
+              0.11,
+              0.16
+            ],
+            "stroke_width": 4,
+            "entry": "snap",
+            "rotation": -5,
+            "scale_peak": 110
+          },
+          "intent": "관찰 상세 컷의 작은 짙은 청색 글씨. 실제 대사 말풍선과 동시에 표시하지 않음"
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S09",
+      "intent": "봉함 이동 전후 원화와 잠금 해제 상세 컷. 소리와 텍스트를 먼저 주고 석상 반응을 다음 컷에 둔다.",
+      "source_sha256": "40014ef60bd55e8110ebe45a43abadeb9b049fd883112daecb9888958e6b94c6",
+      "preview_duration_seconds": 24.466,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S09_STATE_01",
+          "file": "images/E01_S09_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "edab5939f18bf9490517e14b56b2ff2b522c144fbf06c09f8e31a40e7e7795ac",
+          "start": 0,
+          "end": 0.25,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S09_STATE_03",
+          "file": "images/E01_S09_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "9aa7df799557598f495bdf1622efb9280f668416faaee07c85d86a3d957d032e",
+          "start": 0.25,
+          "end": 0.55,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S09_STATE_02",
+          "file": "images/E01_S09_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "73b87b83d3daf20ee046ff6b7ea9014cfc81943d8986011f253da490310a49e4",
+          "start": 0.55,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S09_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "장호는 대답 대신 제단으로 올라갔습니다. 여섯 석상이 그를 내려다보고 있었습니다. 서진은 지게를 벗고 짐수레의 바퀴를 출구 쪽으로 돌렸습니다. 도겸도 말없이 반대편 손잡이를 잡았습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.5255102040816326
+        },
+        {
+          "block_id": "E01_S09_B02",
+          "kind": "dialogue",
+          "speaker": "jangho",
+          "text": "봉함을 챙긴다. 짐꾼들은 상자를 가져와.",
+          "preview_start": 0.5255102040816326,
+          "preview_end": 0.6377551020408163
+        },
+        {
+          "block_id": "E01_S09_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "봉함 밑으로 이어진 가느다란 돌못이 빠지는 것을 서진이 보았습니다. 그 순간 바닥 아래에서 무거운 쇠가 풀리는 소리가 났습니다.",
+          "preview_start": 0.6377551020408163,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S09_B02",
+          "speaker": "jangho",
+          "text": "봉함을 챙긴다. 짐꾼들은 상자를 가져와.",
+          "state_asset_id": "E01_S09_STATE_02",
+          "preview_start": 0.577,
+          "preview_end": 0.865,
+          "voice_binding": {
+            "block_id": "E01_S09_B02"
+          },
+          "layout": {
+            "center": [
+              0.25,
+              0.2
+            ],
+            "tail": [
+              0.72,
+              0.35
+            ],
+            "size": [
+              0.37,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "sfx",
+          "text": "철컥",
+          "state_asset_id": "E01_S09_STATE_02",
+          "preview_start": 0.8965,
+          "preview_end": 0.99,
+          "voice_binding": {
+            "block_id": "E01_S09_B03",
+            "exact_anchor": "그 순간 바닥 아래에서 무거운 쇠가 풀리는 소리가 났습니다."
+          },
+          "layout": {
+            "center": [
+              0.39,
+              0.85
+            ],
+            "size": [
+              0.23,
+              0.16
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "BlackHanSans-Regular",
+            "size": 104,
+            "fill": [
+              1,
+              0.94,
+              0.78
+            ],
+            "stroke": [
+              0.09,
+              0.11,
+              0.15
+            ],
+            "stroke_width": 5,
+            "entry": "impact",
+            "rotation": -8,
+            "scale_peak": 116
+          },
+          "intent": "바닥 균열 옆의 작고 낮은 금속성 글씨"
+        }
+      ],
+      "effects": [
+        {
+          "type": "focus_glow",
+          "state": 2,
+          "center": [
+            0.59,
+            0.82
+          ],
+          "radius": 0.09,
+          "intensity": 0.12,
+          "quote": "봉함 밑으로 이어진 가느다란 돌못이 빠지는 것을 서진이 보았습니다.",
+          "asset_id": "E01_S09_STATE_02",
+          "preview_at": 0.5900000000000001,
+          "voice_binding": {
+            "exact_anchor": "봉함 밑으로 이어진 가느다란 돌못이 빠지는 것을 서진이 보았습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.65,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S10",
+      "intent": "문 열린 상태→절반 닫힘→완전 닫힘을 컷 전환. 석상은 눈 뜬 상태와 고개 돌린 상태 원화를 따로 사용한다.",
+      "source_sha256": "e68306cfc2ef1ae9a336ef8150090638df5028fe88c2db48a0dd37d70533095c",
+      "preview_duration_seconds": 17.657,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S10_STATE_02",
+          "file": "images/E01_S10_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "c3667295a826f9849bc82934ebfd776e31f836e781f0d8f92a5db29d8a519910",
+          "start": 0,
+          "end": 0.32,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S10_STATE_01",
+          "file": "images/E01_S10_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "68b926621a0976539587d266e9982114091ccee66d10006886ec7cf8c40e8f60",
+          "start": 0.32,
+          "end": 0.7,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S10_STATE_03",
+          "file": "images/E01_S10_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "ea2fee23e4927b5bf766c23f922e835b3c1173da9cda9a7e2ea3a0d0c8569942",
+          "start": 0.7,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S10_B01",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "문부터 잡아요!",
+          "preview_start": 0.0,
+          "preview_end": 0.058394160583941604
+        },
+        {
+          "block_id": "E01_S10_B02",
+          "kind": "narration",
+          "speaker": null,
+          "text": "무사 하나가 문틈에 검을 끼웠습니다. 서진은 수레를 밀어 넣으려 했지만 검이 먼저 부러졌습니다. 돌문이 닫히며 횃불이 일제히 흔들렸습니다. 뒤에서는 돌이 갈리는 소리가 이어졌습니다. 석상이 고개를 돌리고 있었습니다.",
+          "preview_start": 0.058394160583941604,
+          "preview_end": 0.9343065693430657
+        },
+        {
+          "block_id": "E01_S10_B03",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "서진아. 뒤에……",
+          "preview_start": 0.9343065693430657,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S10_B01",
+          "speaker": "seojin",
+          "text": "문부터 잡아요!",
+          "state_asset_id": "E01_S10_STATE_02",
+          "preview_start": 0.0192,
+          "preview_end": 0.3008,
+          "voice_binding": {
+            "block_id": "E01_S10_B01"
+          },
+          "layout": {
+            "center": [
+              0.52,
+              0.13
+            ],
+            "tail": [
+              0.35,
+              0.45
+            ],
+            "size": [
+              0.33,
+              0.2
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S10_B03",
+          "speaker": "dogyeom",
+          "text": "서진아. 뒤에……",
+          "state_asset_id": "E01_S10_STATE_03",
+          "preview_start": 0.718,
+          "preview_end": 0.982,
+          "voice_binding": {
+            "block_id": "E01_S10_B03"
+          },
+          "layout": {
+            "center": [
+              0.48,
+              0.18
+            ],
+            "tail": [
+              0.61,
+              0.57
+            ],
+            "size": [
+              0.3,
+              0.2
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "sfx",
+          "text": "쩍!",
+          "state_asset_id": "E01_S10_STATE_01",
+          "preview_start": 0.4036,
+          "preview_end": 0.5746,
+          "voice_binding": {
+            "block_id": "E01_S10_B02",
+            "exact_anchor": "서진은 수레를 밀어 넣으려 했지만 검이 먼저 부러졌습니다."
+          },
+          "layout": {
+            "center": [
+              0.82,
+              0.49
+            ],
+            "size": [
+              0.24,
+              0.22
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "BlackHanSans-Regular",
+            "size": 104,
+            "fill": [
+              1,
+              0.94,
+              0.78
+            ],
+            "stroke": [
+              0.09,
+              0.11,
+              0.15
+            ],
+            "stroke_width": 5,
+            "entry": "impact",
+            "rotation": -8,
+            "scale_peak": 116
+          },
+          "intent": "부러진 검 근처 얇고 날카로운 글씨. 얼굴과 손을 가리지 않음"
+        }
+      ],
+      "effects": [
+        {
+          "type": "impact_flash",
+          "state": 1,
+          "center": [
+            0.76,
+            0.21
+          ],
+          "radius": 0.1,
+          "intensity": 0.2,
+          "quote": "검이 먼저 부러졌습니다.",
+          "asset_id": "E01_S10_STATE_01",
+          "preview_at": 0.36,
+          "voice_binding": {
+            "exact_anchor": "검이 먼저 부러졌습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S11",
+      "intent": "검기 궤적 energy_trail, 충돌 때 impact_flash·impact_shake와 제한된 debris_burst. 인물은 공격 전후 원화를 교체한다.",
+      "source_sha256": "ff349c5cf2c7f3904700d8a217c670f6f59ef5ed394dfbbe1b68e375788bf769",
+      "preview_duration_seconds": 22.62,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S11_STATE_01",
+          "file": "images/E01_S11_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "2adfdd932701addbb20e2c0dd6f340272020d7b8b4841a43ca54cada6fa4c6e7",
+          "start": 0,
+          "end": 0.28,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S11_STATE_02",
+          "file": "images/E01_S11_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "49711c47847d963396f27c973c66558c788566457335585304dcadee36a5e317",
+          "start": 0.28,
+          "end": 0.58,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S11_STATE_03",
+          "file": "images/E01_S11_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "2f2363c8ba561d66887108b2db7ef8ed655348c9efba248142552fc1371f848f",
+          "start": 0.58,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S11_B01",
+          "kind": "dialogue",
+          "speaker": "jangho",
+          "text": "돌덩이 따위가! 물러서라!",
+          "preview_start": 0.0,
+          "preview_end": 0.07777777777777778
+        },
+        {
+          "block_id": "E01_S11_B02",
+          "kind": "narration",
+          "speaker": null,
+          "text": "장호의 검에서 푸른 기운이 솟았습니다. 흩어져 움직이던 석상들이 일제히 그쪽을 향했습니다. 첫 검격이 부딪히자 돌바닥이 움푹 패였습니다. 서진은 도겸의 허리띠를 잡아당겨 짐수레 뒤로 굴렀습니다.",
+          "preview_start": 0.07777777777777778,
+          "preview_end": 0.6777777777777778
+        },
+        {
+          "block_id": "E01_S11_B03",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "왜 잡아당겨!",
+          "preview_start": 0.6777777777777778,
+          "preview_end": 0.7166666666666667
+        },
+        {
+          "block_id": "E01_S11_B04",
+          "kind": "narration",
+          "speaker": null,
+          "text": "도겸이 있던 자리에 돌검이 박혔습니다. 두 사람은 부서진 바닥을 보고 더 말하지 않았습니다.",
+          "preview_start": 0.7166666666666667,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S11_B01",
+          "speaker": "jangho",
+          "text": "돌덩이 따위가! 물러서라!",
+          "state_asset_id": "E01_S11_STATE_01",
+          "preview_start": 0.0168,
+          "preview_end": 0.2632,
+          "voice_binding": {
+            "block_id": "E01_S11_B01"
+          },
+          "layout": {
+            "center": [
+              0.22,
+              0.16
+            ],
+            "tail": [
+              0.13,
+              0.42
+            ],
+            "size": [
+              0.32,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S11_B03",
+          "speaker": "dogyeom",
+          "text": "왜 잡아당겨!",
+          "state_asset_id": "E01_S11_STATE_03",
+          "preview_start": 0.6052,
+          "preview_end": 0.8739999999999999,
+          "voice_binding": {
+            "block_id": "E01_S11_B03"
+          },
+          "layout": {
+            "center": [
+              0.78,
+              0.19
+            ],
+            "tail": [
+              0.43,
+              0.64
+            ],
+            "size": [
+              0.3,
+              0.19
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "sfx",
+          "text": "쾅!!",
+          "state_asset_id": "E01_S11_STATE_03",
+          "preview_start": 0.9034,
+          "preview_end": 0.99,
+          "voice_binding": {
+            "block_id": "E01_S11_B04",
+            "exact_anchor": "도겸이 있던 자리에 돌검이 박혔습니다."
+          },
+          "layout": {
+            "center": [
+              0.27,
+              0.78
+            ],
+            "size": [
+              0.28,
+              0.2
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "BlackHanSans-Regular",
+            "size": 104,
+            "fill": [
+              1,
+              0.94,
+              0.78
+            ],
+            "stroke": [
+              0.09,
+              0.11,
+              0.15
+            ],
+            "stroke_width": 5,
+            "entry": "impact",
+            "rotation": -8,
+            "scale_peak": 116
+          },
+          "intent": "충돌 지점 위 무거운 석재 느낌의 글자. 짧은 수직 진동 후 정지"
+        }
+      ],
+      "effects": [
+        {
+          "type": "impact_flash",
+          "state": 3,
+          "center": [
+            0.27,
+            0.72
+          ],
+          "radius": 0.13,
+          "intensity": 0.18,
+          "quote": "도겸이 있던 자리에 돌검이 박혔습니다.",
+          "asset_id": "E01_S11_STATE_03",
+          "preview_at": 0.62,
+          "voice_binding": {
+            "exact_anchor": "도겸이 있던 자리에 돌검이 박혔습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "type": "impact_shake",
+          "state": 3,
+          "center": [
+            0.27,
+            0.72
+          ],
+          "radius": 0.13,
+          "intensity": 0.22,
+          "quote": "도겸이 있던 자리에 돌검이 박혔습니다.",
+          "asset_id": "E01_S11_STATE_03",
+          "preview_at": 0.62,
+          "voice_binding": {
+            "exact_anchor": "도겸이 있던 자리에 돌검이 박혔습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S12",
+      "intent": "두 차례의 표적 변화는 같은 공간 배치로 보여 준다. 편집으로 관찰 근거를 제공하며 게임식 표적 UI를 임의 추가하지 않는다.",
+      "source_sha256": "d5f668d8c4280a24c8fa49301f573edfed28ce9994ad6bba9ed8fb304d4cf54a",
+      "preview_duration_seconds": 25.159,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S12_STATE_01",
+          "file": "images/E01_S12_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "5611c7aeacfdd224dbf3de8e7bf2be542588dd78da96688d9b72029c5dc9c205",
+          "start": 0,
+          "end": 0.31,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S12_STATE_02",
+          "file": "images/E01_S12_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "97a6a3902ceb93fd91fc91d11688542c06be892227a955cb5e53a67a8bfc69b8",
+          "start": 0.31,
+          "end": 0.68,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S12_STATE_03",
+          "file": "images/E01_S12_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "2c3c6f6cabf8e20916d547a9357578c0d3bccc8719eebe58a381768d19bd4a8c",
+          "start": 0.68,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S12_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "검을 맞댈 때마다 석상들은 더 빠르게 달려들었습니다. 서진은 수레 밑으로 고개를 낮췄습니다. 석상 하나가 바로 앞을 지나쳤지만 그를 내려다보지 않았습니다. 멀리서 무사가 진기를 끌어올리자, 석상은 가까운 사람들을 버리고 그쪽으로 몸을 틀었습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.6782178217821783
+        },
+        {
+          "block_id": "E01_S12_B02",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "거리 때문이 아니야.",
+          "preview_start": 0.6782178217821783,
+          "preview_end": 0.7326732673267327
+        },
+        {
+          "block_id": "E01_S12_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진은 검이 향한 곳과 기운이 솟은 곳을 번갈아 보았습니다. 두 번, 세 번. 순서는 같았습니다.",
+          "preview_start": 0.7326732673267327,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S13",
+      "intent": "장호 검의 빛 강화 뒤 큰 석상 발이 제단을 벗어난 상태로 컷. 무조건 전 화면 발광시키지 않는다.",
+      "source_sha256": "bb0dfd3d3a4915b502b5b4dea93d9e7f06f0a888f93db3792f9849e4fdf62a36",
+      "preview_duration_seconds": 19.388,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S13_STATE_01",
+          "file": "images/E01_S13_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "cc3420bf84f6d9e039ec7ca2134126fe3dd980a1da8d2832d0c680cd6da94cf8",
+          "start": 0,
+          "end": 0.17,
+          "camera": "hold",
+          "static_crop": [
+            0.4,
+            0.3,
+            1,
+            0.9
+          ],
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S13_STATE_02",
+          "file": "images/E01_S13_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+          "start": 0.17,
+          "end": 0.65,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S13_STATE_03",
+          "file": "images/E01_S13_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "05d8d60ec6fd13599468089df8cef8486c39b370925e6a033d534e198919e1d9",
+          "start": 0.65,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S13_B01",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!",
+          "preview_start": 0.0,
+          "preview_end": 0.18421052631578946
+        },
+        {
+          "block_id": "E01_S13_B02",
+          "kind": "dialogue",
+          "speaker": "jangho",
+          "text": "닥쳐! 네가 무공을 알아?",
+          "preview_start": 0.18421052631578946,
+          "preview_end": 0.27631578947368424
+        },
+        {
+          "block_id": "E01_S13_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "장호는 오히려 검을 두 손으로 쥐었습니다. 더 짙어진 기운이 검신을 덮자, 멀리 있던 가장 큰 석상까지 제단에서 내려왔습니다. 서진은 대답 대신 도겸을 더 낮게 눌렀습니다.",
+          "preview_start": 0.27631578947368424,
+          "preview_end": 0.9078947368421053
+        },
+        {
+          "block_id": "E01_S13_B04",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "안 돼. 그것까지 오면……",
+          "preview_start": 0.9078947368421053,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S13_B01",
+          "speaker": "seojin",
+          "text": "내공을 거두세요! 기운을 쓸수록 그쪽으로 몰립니다!",
+          "state_asset_id": "E01_S13_STATE_01",
+          "preview_start": 0.0102,
+          "preview_end": 0.1598,
+          "voice_binding": {
+            "block_id": "E01_S13_B01"
+          },
+          "layout": {
+            "center": [
+              0.21,
+              0.14
+            ],
+            "tail": [
+              0.36,
+              0.4
+            ],
+            "size": [
+              0.36,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S13_B02",
+          "speaker": "jangho",
+          "text": "닥쳐! 네가 무공을 알아?",
+          "state_asset_id": "E01_S13_STATE_02",
+          "preview_start": 0.1988,
+          "preview_end": 0.6212,
+          "voice_binding": {
+            "block_id": "E01_S13_B02"
+          },
+          "layout": {
+            "center": [
+              0.8,
+              0.18
+            ],
+            "tail": [
+              0.4,
+              0.42
+            ],
+            "size": [
+              0.31,
+              0.2
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "inner_reaction",
+          "text": "안 돼…",
+          "state_asset_id": "E01_S13_STATE_03",
+          "preview_start": 0.727,
+          "preview_end": 0.8845,
+          "voice_binding": {
+            "block_id": "E01_S13_B04",
+            "exact_anchor": "안 돼. 그것까지 오면……"
+          },
+          "layout": {
+            "center": [
+              0.8,
+              0.72
+            ],
+            "size": [
+              0.3,
+              0.22
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "DoHyeon-Regular",
+            "size": 66,
+            "fill": [
+              0.98,
+              0.97,
+              0.92
+            ],
+            "stroke": [
+              0.07,
+              0.11,
+              0.16
+            ],
+            "stroke_width": 4,
+            "entry": "snap",
+            "rotation": -5,
+            "scale_peak": 110
+          },
+          "intent": "서진 시선 방향의 좁은 여백에 불안한 작은 글씨"
+        }
+      ],
+      "effects": [
+        {
+          "type": "focus_glow",
+          "state": 2,
+          "center": [
+            0.58,
+            0.67
+          ],
+          "radius": 0.14,
+          "intensity": 0.16,
+          "quote": "더 짙어진 기운이 검신을 덮자",
+          "asset_id": "E01_S13_STATE_02",
+          "preview_at": 0.21000000000000002,
+          "voice_binding": {
+            "exact_anchor": "더 짙어진 기운이 검신을 덮자",
+            "phase": "during"
+          },
+          "duration_seconds": 0.65,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S14",
+      "intent": "측벽 파괴는 파괴 전후 배경과 파편 레이어로 구성. 잘린 축과 무너진 수레의 인과를 상세 컷으로 분명히 연결한다.",
+      "source_sha256": "60dc37c86a8f10cd8f1145a2fb72462498a39438829675dc196bfa81580b9255",
+      "preview_duration_seconds": 24.005,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S14_STATE_01",
+          "file": "images/E01_S14_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "f321105b340e6733931c9cc93e21cac84f01715722d21a40f92b58ead1d39af3",
+          "start": 0,
+          "end": 0.32,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S14_STATE_02",
+          "file": "images/E01_S14_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "c92c578ea5c685542b642d2f4bcecea81475474e0400b01bd1aa12ebda26ecfb",
+          "start": 0.32,
+          "end": 0.63,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S14_STATE_03",
+          "file": "images/E01_S14_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "96d17929ffae319a194bab91994c55560431aedda5c65e571de2d4a282058f69",
+          "start": 0.63,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S14_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "빗나간 돌검이 측벽을 부쉈습니다. 무너진 벽화 뒤로 한 사람이 겨우 지날 통로가 드러났습니다. 철산문 무사 하나가 먼저 몸을 밀어 넣더니 바깥 바람이 들어온다고 외쳤습니다. 장호가 그쪽으로 물러섰습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.5885416666666666
+        },
+        {
+          "block_id": "E01_S14_B02",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "길이야! 서진아, 수레 버려!",
+          "preview_start": 0.5885416666666666,
+          "preview_end": 0.671875
+        },
+        {
+          "block_id": "E01_S14_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진이 일어나는 순간, 장호의 검이 짐수레 밑을 가로질렀습니다. 바퀴 축이 부러지며 수레가 옆으로 주저앉았습니다.",
+          "preview_start": 0.671875,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S14_B02",
+          "speaker": "dogyeom",
+          "text": "길이야! 서진아, 수레 버려!",
+          "state_asset_id": "E01_S14_STATE_02",
+          "preview_start": 0.3386,
+          "preview_end": 0.6114,
+          "voice_binding": {
+            "block_id": "E01_S14_B02"
+          },
+          "layout": {
+            "center": [
+              0.27,
+              0.18
+            ],
+            "tail": [
+              0,
+              0.48
+            ],
+            "size": [
+              0.34,
+              0.22
+            ],
+            "offscreen_speaker": true,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "inner_reaction",
+          "text": "…왜?",
+          "state_asset_id": "E01_S14_STATE_03",
+          "preview_start": 0.7114,
+          "preview_end": 0.8779,
+          "voice_binding": {
+            "block_id": "E01_S14_B03",
+            "exact_anchor": "바퀴 축이 부러지며 수레가 옆으로 주저앉았습니다."
+          },
+          "layout": {
+            "center": [
+              0.82,
+              0.83
+            ],
+            "size": [
+              0.25,
+              0.19
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "DoHyeon-Regular",
+            "size": 66,
+            "fill": [
+              0.98,
+              0.97,
+              0.92
+            ],
+            "stroke": [
+              0.07,
+              0.11,
+              0.16
+            ],
+            "stroke_width": 4,
+            "entry": "snap",
+            "rotation": -5,
+            "scale_peak": 110
+          },
+          "intent": "잘린 축의 상세 컷 뒤 서진 얼굴 옆에 작은 글씨"
+        }
+      ],
+      "effects": [
+        {
+          "type": "debris_burst",
+          "state": 1,
+          "center": [
+            0.72,
+            0.48
+          ],
+          "radius": 0.15,
+          "intensity": 0.24,
+          "quote": "빗나간 돌검이 측벽을 부쉈습니다.",
+          "asset_id": "E01_S14_STATE_01",
+          "preview_at": 0.04,
+          "voice_binding": {
+            "exact_anchor": "빗나간 돌검이 측벽을 부쉈습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S15",
+      "intent": "맞기 전 표정과 맞은 뒤 상태를 컷 전환. 짧고 낮은 impact_shake만 사용하고 실제 대사의 무게를 유지한다.",
+      "source_sha256": "0beb705c87a32597f65c04e1c93e7435d0693a964d0f62ee494629c5e61b5eb9",
+      "preview_duration_seconds": 24.12,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S15_STATE_01",
+          "file": "images/E01_S15_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "34febaf025136651a36e9ff236cda49e4856983e7f13fc96ddd4595aa2743ab5",
+          "start": 0,
+          "end": 0.33,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S15_STATE_02",
+          "file": "images/E01_S15_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "50a7fd666a07537bbd092cb0b21c7b29a9a32bfe44ef7e75ffe0f75c1761e0e5",
+          "start": 0.33,
+          "end": 0.62,
+          "camera": "hold",
+          "static_crop": [
+            0.4,
+            0.05,
+            1,
+            0.93
+          ],
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S15_STATE_03",
+          "file": "images/E01_S15_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "a8127c64a4f01463ed67ba5fd046320d94f1a145334e1dc4f9dd325b57ce83a6",
+          "start": 0.62,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S15_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "도겸의 다리가 짐더미 아래 끼었습니다. 무사들은 짐꾼들을 넘어 통로로 빠져나갔습니다. 서진은 장호의 소매를 붙잡았습니다. 다른 손으로는 아직 일어나지 못한 사람들을 가리켰습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.5129533678756477
+        },
+        {
+          "block_id": "E01_S15_B02",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "대장님. 사람부터 빼야죠.",
+          "preview_start": 0.5129533678756477,
+          "preview_end": 0.5854922279792746
+        },
+        {
+          "block_id": "E01_S15_B03",
+          "kind": "dialogue",
+          "speaker": "jangho",
+          "text": "누군가는 저것들을 붙잡아야 한다.",
+          "preview_start": 0.5854922279792746,
+          "preview_end": 0.6787564766839378
+        },
+        {
+          "block_id": "E01_S15_B04",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "그럼 당신이 남아.",
+          "preview_start": 0.6787564766839378,
+          "preview_end": 0.7305699481865285
+        },
+        {
+          "block_id": "E01_S15_B05",
+          "kind": "narration",
+          "speaker": null,
+          "text": "장호의 표정에서 잠깐 웃음기가 사라졌습니다. 다음 순간 검 손잡이가 서진의 입가를 때렸습니다.",
+          "preview_start": 0.7305699481865285,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S15_B02",
+          "speaker": "seojin",
+          "text": "대장님. 사람부터 빼야죠.",
+          "state_asset_id": "E01_S15_STATE_03",
+          "preview_start": 0.6428,
+          "preview_end": 0.754267,
+          "voice_binding": {
+            "block_id": "E01_S15_B02"
+          },
+          "layout": {
+            "center": [
+              0.49,
+              0.77
+            ],
+            "tail": [
+              0.27,
+              0.53
+            ],
+            "size": [
+              0.34,
+              0.21
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S15_B03",
+          "speaker": "jangho",
+          "text": "누군가는 저것들을 붙잡아야 한다.",
+          "state_asset_id": "E01_S15_STATE_03",
+          "preview_start": 0.754267,
+          "preview_end": 0.865733,
+          "voice_binding": {
+            "block_id": "E01_S15_B03"
+          },
+          "layout": {
+            "center": [
+              0.53,
+              0.77
+            ],
+            "tail": [
+              0.74,
+              0.35
+            ],
+            "size": [
+              0.34,
+              0.21
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S15_B04",
+          "speaker": "seojin",
+          "text": "그럼 당신이 남아.",
+          "state_asset_id": "E01_S15_STATE_03",
+          "preview_start": 0.865733,
+          "preview_end": 0.9772,
+          "voice_binding": {
+            "block_id": "E01_S15_B04"
+          },
+          "layout": {
+            "center": [
+              0.49,
+              0.77
+            ],
+            "tail": [
+              0.27,
+              0.53
+            ],
+            "size": [
+              0.34,
+              0.21
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [
+        {
+          "type": "impact_shake",
+          "state": 3,
+          "center": [
+            0.45,
+            0.45
+          ],
+          "radius": 0.1,
+          "intensity": 0.12,
+          "quote": "검 손잡이가 서진의 입가를 때렸습니다.",
+          "asset_id": "E01_S15_STATE_03",
+          "preview_at": 0.66,
+          "voice_binding": {
+            "exact_anchor": "검 손잡이가 서진의 입가를 때렸습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S16",
+      "intent": "봉함의 이동 위치를 명확히 보여 준다. 마지막 두 번의 두드림 이후 음악보다 석실의 잔향을 남긴다.",
+      "source_sha256": "e3dd1ae6c8b259f99dcef09f8ccee9cf5615e8954ac0fc20418bb0d6485cddea",
+      "preview_duration_seconds": 24.12,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S16_STATE_01",
+          "file": "images/E01_S16_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "b90182dbf0cc26d088da56c6159e2044421c15246a5b08d4e745674127528765",
+          "start": 0,
+          "end": 0.31,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S16_STATE_02",
+          "file": "images/E01_S16_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "ee13179734965ce84d2aa3627b24e972dea0ae24777998f8a1c0b2ad274c54df",
+          "start": 0.31,
+          "end": 0.7,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S16_STATE_03",
+          "file": "images/E01_S16_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "d31daff83a985f58820fe058e401d2b89726581797f90cb85af9c812f94e975d",
+          "start": 0.7,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S16_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진이 다시 손을 뻗었을 때, 장호는 이미 철문 너머에 있었습니다. 허리춤에는 제단에서 꺼낸 봉함이 매달려 있었습니다. 서진은 그 상자와 문을 닫는 손을 번갈아 보았습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.49740932642487046
+        },
+        {
+          "block_id": "E01_S16_B02",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "이거 열어. 뒤에 사람이 있어!",
+          "preview_start": 0.49740932642487046,
+          "preview_end": 0.5854922279792746
+        },
+        {
+          "block_id": "E01_S16_B03",
+          "kind": "dialogue",
+          "speaker": "jangho",
+          "text": "살아 나가면 네 몫도 챙겨 주마.",
+          "preview_start": 0.5854922279792746,
+          "preview_end": 0.6787564766839378
+        },
+        {
+          "block_id": "E01_S16_B04",
+          "kind": "narration",
+          "speaker": null,
+          "text": "잠금쇠가 걸렸습니다. 멀어지는 발소리가 잦아든 뒤에도 서진은 철문을 두 번 더 두드렸습니다. 대답은 없었습니다.",
+          "preview_start": 0.6787564766839378,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S16_B02",
+          "speaker": "seojin",
+          "text": "이거 열어. 뒤에 사람이 있어!",
+          "state_asset_id": "E01_S16_STATE_01",
+          "preview_start": 0.0186,
+          "preview_end": 0.2914,
+          "voice_binding": {
+            "block_id": "E01_S16_B02"
+          },
+          "layout": {
+            "center": [
+              0.6,
+              0.15
+            ],
+            "tail": [
+              0.58,
+              0.55
+            ],
+            "size": [
+              0.37,
+              0.23
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S16_B03",
+          "speaker": "jangho",
+          "text": "살아 나가면 네 몫도 챙겨 주마.",
+          "state_asset_id": "E01_S16_STATE_02",
+          "preview_start": 0.3334,
+          "preview_end": 0.6766,
+          "voice_binding": {
+            "block_id": "E01_S16_B03"
+          },
+          "layout": {
+            "center": [
+              0.46,
+              0.16
+            ],
+            "tail": [
+              0.72,
+              0.36
+            ],
+            "size": [
+              0.38,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "sfx",
+          "text": "철컥",
+          "state_asset_id": "E01_S16_STATE_03",
+          "preview_start": 0.766,
+          "preview_end": 0.901,
+          "voice_binding": {
+            "block_id": "E01_S16_B04",
+            "exact_anchor": "잠금쇠가 걸렸습니다."
+          },
+          "layout": {
+            "center": [
+              0.52,
+              0.84
+            ],
+            "size": [
+              0.26,
+              0.2
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "BlackHanSans-Regular",
+            "size": 104,
+            "fill": [
+              1,
+              0.94,
+              0.78
+            ],
+            "stroke": [
+              0.09,
+              0.11,
+              0.15
+            ],
+            "stroke_width": 5,
+            "entry": "impact",
+            "rotation": -8,
+            "scale_peak": 116
+          },
+          "intent": "앞선 봉인 해제 글씨와 같은 금속 서체, 철문 걸쇠 옆에 배치"
+        }
+      ],
+      "effects": [
+        {
+          "type": "focus_glow",
+          "state": 3,
+          "center": [
+            0.62,
+            0.52
+          ],
+          "radius": 0.08,
+          "intensity": 0.1,
+          "quote": "잠금쇠가 걸렸습니다.",
+          "asset_id": "E01_S16_STATE_03",
+          "preview_at": 0.74,
+          "voice_binding": {
+            "exact_anchor": "잠금쇠가 걸렸습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.65,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S17",
+      "intent": "동작이 느려진 뒤 소리에 고개를 돌린 원화로 컷. 진기 우선 표적이라는 규칙이 무적 은신을 뜻하지 않음을 보여 준다.",
+      "source_sha256": "3a29def3417907eb16e9b51e1677c503dfd7c649e9c770d60d8156ecdf26fe6e",
+      "preview_duration_seconds": 22.851,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S17_STATE_01",
+          "file": "images/E01_S17_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "c8ca1aea212713bbf648e974d68bc769ba1be6d2bffff1308e9087d60007509c",
+          "start": 0,
+          "end": 0.32,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S17_STATE_02",
+          "file": "images/E01_S17_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "65f88b9febeff99e217b6b332f7d87ada96f1f5148d44222add7d44a727ece50",
+          "start": 0.32,
+          "end": 0.62,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S17_STATE_03",
+          "file": "images/E01_S17_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "133314893d0d4ec41d362c6e49bacf8388f8b7c9d38147f2a93c8ce954f8a5e5",
+          "start": 0.62,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S17_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "강한 진기가 사라지자 석상들의 움직임이 눈에 띄게 느려졌습니다. 서진은 벽에 붙어 숨을 죽였습니다. 가장 큰 석상은 철문을 향해 두 걸음 더 가더니 멈췄습니다. 서진은 그 거대한 발뒤꿈치 옆에 몸을 웅크렸습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.6483516483516484
+        },
+        {
+          "block_id": "E01_S17_B02",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "제발. 그대로 가.",
+          "preview_start": 0.6483516483516484,
+          "preview_end": 0.7032967032967034
+        },
+        {
+          "block_id": "E01_S17_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "그때 짐더미 아래에서 도겸이 짧게 비명을 삼켰습니다. 석상의 머리가 소리 난 쪽으로 돌아갔습니다.",
+          "preview_start": 0.7032967032967034,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S18",
+      "intent": "벽 틈·도겸·서진을 한 원경에서 보여 거리 관계를 고정. 선택을 설명하는 장식 문구 대신 손잡이를 쥔 손으로 전환한다.",
+      "source_sha256": "8cc44a3570447b42677c152b4fbef6de040143894abd69e91fc10cc9f6d869e7",
+      "preview_duration_seconds": 18.696,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S18_STATE_01",
+          "file": "images/E01_S18_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "823d4c6aa65655283e26347cca7ec2c772ebda1fb8c15bcd42baea5e7f3e4f39",
+          "start": 0,
+          "end": 0.34,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S18_STATE_02",
+          "file": "images/E01_S18_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "3850ed5e35e9f254cbc27757ffebd6de94768f467056b1bef2526b8a6e109bb2",
+          "start": 0.34,
+          "end": 0.62,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S18_STATE_03",
+          "file": "images/E01_S18_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "06e5205cbac6e1118210c12ae276da9290e16671da23621f95f7e8e06f6b2d88",
+          "start": 0.62,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S18_B01",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "오지 마. 너라도 숨어.",
+          "preview_start": 0.0,
+          "preview_end": 0.08904109589041095
+        },
+        {
+          "block_id": "E01_S18_B02",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진의 왼쪽에는 몸 하나 숨길 벽 틈이 있었습니다. 도겸까지는 다섯 걸음이었습니다. 석상은 이미 검을 들고 있었습니다. 도겸이 고개를 저었습니다. 서진은 벽 틈을 한 번 보고, 부러진 수레 손잡이를 잡았습니다.",
+          "preview_start": 0.08904109589041095,
+          "preview_end": 0.8904109589041096
+        },
+        {
+          "block_id": "E01_S18_B03",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "다섯 걸음. 그냥 뛰면 늦어.",
+          "preview_start": 0.8904109589041096,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S18_B01",
+          "speaker": "dogyeom",
+          "text": "오지 마. 너라도 숨어.",
+          "state_asset_id": "E01_S18_STATE_01",
+          "preview_start": 0.0204,
+          "preview_end": 0.3196,
+          "voice_binding": {
+            "block_id": "E01_S18_B01"
+          },
+          "layout": {
+            "center": [
+              0.79,
+              0.16
+            ],
+            "tail": [
+              0.62,
+              0.66
+            ],
+            "size": [
+              0.33,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S19",
+      "intent": "수레 이동은 별도 소품 레이어의 짧은 직선 이동, 인물은 준비·도착 상태로 컷. 파괴 전후 원화와 debris_burst를 맞춘다.",
+      "source_sha256": "916b6e5feb3593398481526c503a3f3250c642b982aad314163d652bdb8591d6",
+      "preview_duration_seconds": 22.851,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S19_STATE_01",
+          "file": "images/E01_S19_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "e9ed9653ea7fa39d12e97758d9f7f226f557c7f82e77509ef6a1dac83c97de1c",
+          "start": 0,
+          "end": 0.22,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S19_STATE_02",
+          "file": "images/E01_S19_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "1c4f2676df9e7d3400e2c39db94bbbd2a9f9677ede426ce27491ba4e20042383",
+          "start": 0.22,
+          "end": 0.41,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S19_STATE_03",
+          "file": "images/E01_S19_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "919ab5e12162f307291f00a31725bf024da813e9a30e893f1f56df3b054e1828",
+          "start": 0.41,
+          "end": 0.66,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S19_STATE_04",
+          "file": "images/E01_S19_STATE_04.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "5e4463aaf58c846ea1c73a136a20374bc27b8b6042cd8f9bfac2a83d183380d3",
+          "start": 0.66,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S19_B01",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "이쪽이다!",
+          "preview_start": 0.0,
+          "preview_end": 0.027472527472527472
+        },
+        {
+          "block_id": "E01_S19_B02",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진은 성한 바퀴를 축으로 수레를 돌렸습니다. 짐더미가 옆으로 쏠리자 도겸이 눌렸던 다리를 빼냈습니다. 비스듬히 미끄러진 수레가 석상의 발목에 걸렸습니다. 검이 내려오는 방향이 틀어졌습니다. 서진은 그 틈으로 뛰어들어 도겸의 옷깃을 잡았습니다. 등 뒤에서 수레가 산산이 부서졌습니다.",
+          "preview_start": 0.027472527472527472,
+          "preview_end": 0.8956043956043956
+        },
+        {
+          "block_id": "E01_S19_B03",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "너, 미쳤냐……!",
+          "preview_start": 0.8956043956043956,
+          "preview_end": 0.945054945054945
+        },
+        {
+          "block_id": "E01_S19_B04",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "팔 걸어요. 빨리!",
+          "preview_start": 0.945054945054945,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S19_B01",
+          "speaker": "seojin",
+          "text": "이쪽이다!",
+          "state_asset_id": "E01_S19_STATE_01",
+          "preview_start": 0.0132,
+          "preview_end": 0.2068,
+          "voice_binding": {
+            "block_id": "E01_S19_B01"
+          },
+          "layout": {
+            "center": [
+              0.4,
+              0.17
+            ],
+            "tail": [
+              0.41,
+              0.47
+            ],
+            "size": [
+              0.27,
+              0.19
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S19_B03",
+          "speaker": "dogyeom",
+          "text": "너, 미쳤냐……!",
+          "state_asset_id": "E01_S19_STATE_04",
+          "preview_start": 0.6804,
+          "preview_end": 0.83,
+          "voice_binding": {
+            "block_id": "E01_S19_B03"
+          },
+          "layout": {
+            "center": [
+              0.3,
+              0.17
+            ],
+            "tail": [
+              0.23,
+              0.57
+            ],
+            "size": [
+              0.32,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S19_B04",
+          "speaker": "seojin",
+          "text": "팔 걸어요. 빨리!",
+          "state_asset_id": "E01_S19_STATE_04",
+          "preview_start": 0.83,
+          "preview_end": 0.898,
+          "voice_binding": {
+            "block_id": "E01_S19_B04"
+          },
+          "layout": {
+            "center": [
+              0.52,
+              0.16
+            ],
+            "tail": [
+              0.46,
+              0.51
+            ],
+            "size": [
+              0.32,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "sfx",
+          "text": "콰직!",
+          "state_asset_id": "E01_S19_STATE_04",
+          "preview_start": 0.9218,
+          "preview_end": 0.99,
+          "voice_binding": {
+            "block_id": "E01_S19_B02",
+            "exact_anchor": "등 뒤에서 수레가 산산이 부서졌습니다."
+          },
+          "layout": {
+            "center": [
+              0.79,
+              0.72
+            ],
+            "size": [
+              0.28,
+              0.22
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "BlackHanSans-Regular",
+            "size": 104,
+            "fill": [
+              1,
+              0.94,
+              0.78
+            ],
+            "stroke": [
+              0.09,
+              0.11,
+              0.15
+            ],
+            "stroke_width": 5,
+            "entry": "impact",
+            "rotation": -8,
+            "scale_peak": 116
+          },
+          "intent": "나무가 갈라지는 획의 굵은 글자, 배경 잔해 부근. 인물과 말풍선 보호"
+        }
+      ],
+      "effects": [
+        {
+          "type": "debris_burst",
+          "state": 4,
+          "center": [
+            0.65,
+            0.53
+          ],
+          "radius": 0.16,
+          "intensity": 0.22,
+          "quote": "등 뒤에서 수레가 산산이 부서졌습니다.",
+          "asset_id": "E01_S19_STATE_04",
+          "preview_at": 0.7000000000000001,
+          "voice_binding": {
+            "exact_anchor": "등 뒤에서 수레가 산산이 부서졌습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "type": "impact_shake",
+          "state": 4,
+          "center": [
+            0.65,
+            0.53
+          ],
+          "radius": 0.16,
+          "intensity": 0.22,
+          "quote": "등 뒤에서 수레가 산산이 부서졌습니다.",
+          "asset_id": "E01_S19_STATE_04",
+          "preview_at": 0.7000000000000001,
+          "voice_binding": {
+            "exact_anchor": "등 뒤에서 수레가 산산이 부서졌습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S20",
+      "intent": "부상 위치는 왼쪽 옆구리로 고정. 무리한 피 효과 없이 옷의 파손·호흡·손 떨림으로 표현한다.",
+      "source_sha256": "256cd4a91bf0d207b5dddcc9588765781669da1526534612c2c4016cecfbb9bb",
+      "preview_duration_seconds": 26.313,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S20_STATE_01",
+          "file": "images/E01_S20_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "f69c2ccf6457b40038c2cb97a747874be8e64cf9c50c8769a9dcc94c49eba36d",
+          "start": 0,
+          "end": 0.31,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S20_STATE_02",
+          "file": "images/E01_S20_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "fa9af4b471e506f6f89b177f2dea171d0c731e58e4f2506c67913df400cd8622",
+          "start": 0.31,
+          "end": 0.58,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S20_STATE_03",
+          "file": "images/E01_S20_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "0af2f0436afa7164d9b6603255a1bc654e524f72b8f5dd0e144a49428a49f0ac",
+          "start": 0.58,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S20_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "도겸을 벽 틈으로 밀어 넣을 때, 뒤에서 날아온 돌조각이 서진의 옆구리를 때렸습니다. 서진은 숨을 토하며 바닥에 쓰러졌습니다. 도겸이 팔을 뻗었지만 손끝이 닿지 않았습니다. 서진은 기어가는 대신 허리 안쪽의 단도를 뽑았습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.5943396226415094
+        },
+        {
+          "block_id": "E01_S20_B02",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "손 줘! 조금만 더 와!",
+          "preview_start": 0.5943396226415094,
+          "preview_end": 0.6556603773584906
+        },
+        {
+          "block_id": "E01_S20_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "돌검이 두 사람 사이를 내려찍었습니다. 바닥의 금이 서진의 손밑까지 달려왔습니다. 벽 틈으로 가려면 먼저 그 검을 지나야 했습니다.",
+          "preview_start": 0.6556603773584906,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S20_B02",
+          "speaker": "dogyeom",
+          "text": "손 줘! 조금만 더 와!",
+          "state_asset_id": "E01_S20_STATE_03",
+          "preview_start": 0.6052,
+          "preview_end": 0.9748,
+          "voice_binding": {
+            "block_id": "E01_S20_B02"
+          },
+          "layout": {
+            "center": [
+              0.72,
+              0.15
+            ],
+            "tail": [
+              0.14,
+              0.36
+            ],
+            "size": [
+              0.36,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "voiced_reaction",
+          "text": "큭…!",
+          "state_asset_id": "E01_S20_STATE_02",
+          "preview_start": 0.3694,
+          "preview_end": 0.4909,
+          "voice_binding": {
+            "block_id": "E01_S20_B01",
+            "exact_anchor": "서진은 숨을 토하며 바닥에 쓰러졌습니다."
+          },
+          "layout": {
+            "center": [
+              0.73,
+              0.36
+            ],
+            "size": [
+              0.23,
+              0.19
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "DoHyeon-Regular",
+            "size": 66,
+            "fill": [
+              0.98,
+              0.97,
+              0.92
+            ],
+            "stroke": [
+              0.07,
+              0.11,
+              0.16
+            ],
+            "stroke_width": 4,
+            "entry": "snap",
+            "rotation": -5,
+            "scale_peak": 110
+          },
+          "intent": "서진 입가 옆 작은 반응 글씨. 별도 음성 반응을 녹음할 때만 발성 타이밍 연결"
+        }
+      ],
+      "effects": [
+        {
+          "type": "impact_shake",
+          "state": 2,
+          "center": [
+            0.45,
+            0.65
+          ],
+          "radius": 0.07,
+          "intensity": 0.1,
+          "quote": "돌조각이 서진의 옆구리를 때렸습니다.",
+          "asset_id": "E01_S20_STATE_02",
+          "preview_at": 0.35,
+          "voice_binding": {
+            "exact_anchor": "돌조각이 서진의 옆구리를 때렸습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S21",
+      "intent": "벽화와 석상 자세를 동일 구도로 매치 컷. 관절이 벌어진 상태 원화를 먼저 보여 주고 깨달음이 뒤따르게 한다.",
+      "source_sha256": "239655c94a85c9d5675bcdf9c260a93a4cdcef1f645bb65240d93dc80d40493a",
+      "preview_duration_seconds": 21.466,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S21_STATE_01",
+          "file": "images/E01_S21_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "948efbdfaf7190300c4622c0c806b7161f1e01745c58442e877539bf3ad49a61",
+          "start": 0,
+          "end": 0.31,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S21_STATE_02",
+          "file": "images/E01_S21_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "ddc335145f94bcca1906be59d9e97e43f30b8d93a818798be9d93db009f7e740",
+          "start": 0.31,
+          "end": 0.69,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S21_STATE_03",
+          "file": "images/E01_S21_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "5660cc63217ac5dd3c4555933360abc444c8f666537c8e7a49cd5ffc2e7d9ec1",
+          "start": 0.69,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S21_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "석상이 검을 뽑았습니다. 팔이 위로 올라갔다가 다음 공격을 위해 돌아갔습니다. 서진은 그 자세를 알고 있었습니다. 입구 벽화에서 검을 든 무인도 발끝을 저렇게 두고 있었습니다. 준비, 내려베기, 몸을 돌리는 자세. 지워진 마지막 그림이 있어야 할 자리가 눈앞에서 움직였습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.9058823529411765
+        },
+        {
+          "block_id": "E01_S21_B02",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "돌아올 때…… 손목이 멈춘다.",
+          "preview_start": 0.9058823529411765,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S22",
+      "intent": "주관 시점에서만 텍스트와 focus_glow를 짧게 등장. 객관 컷에서는 완전히 제거. 레벨업·능력 획득 축하 효과 없음.",
+      "source_sha256": "8d817416c4192e4bbb17d5d84ffac379a98950cdc7792f45faaf16baf33c4815",
+      "preview_duration_seconds": 21.35,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S22_STATE_01",
+          "file": "images/E01_S22_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "1855689f50fb5849f0c36115813a6988b7d572eeb7a1e54871744423dc0c7018",
+          "start": 0,
+          "end": 0.27,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S22_STATE_02",
+          "file": "images/E01_S22_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "90e49195f0dab3f3855b2263e8eee6bac8742336115438211bc9d4d24059881b",
+          "start": 0.27,
+          "end": 0.63,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S22_STATE_03",
+          "file": "images/E01_S22_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "214e32a12de81457a9fc8929bc894a6943fe5403dfb6925623b581e417951308",
+          "start": 0.63,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S22_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "그 짧은 멈춤을 다시 보려는 순간, 눈앞에 낯선 글자가 떠올랐습니다. 돌에도 허공에도 붙어 있지 않았습니다. 눈을 옮겨도 시야 안에 남았습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.47337278106508873
+        },
+        {
+          "block_id": "E01_S22_B02",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "뭘 보는 거야! 피해!",
+          "preview_start": 0.47337278106508873,
+          "preview_end": 0.5443786982248521
+        },
+        {
+          "block_id": "E01_S22_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "도겸에게는 아무것도 보이지 않는 듯했습니다. 서진은 글자보다 다시 올라가는 돌검을 먼저 보았습니다. 읽을 시간도, 물을 사람도 없었습니다.",
+          "preview_start": 0.5443786982248521,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S22_B02",
+          "speaker": "dogyeom",
+          "text": "뭘 보는 거야! 피해!",
+          "state_asset_id": "E01_S22_STATE_03",
+          "preview_start": 0.6522,
+          "preview_end": 0.9778,
+          "voice_binding": {
+            "block_id": "E01_S22_B02"
+          },
+          "layout": {
+            "center": [
+              0.27,
+              0.14
+            ],
+            "tail": [
+              0.16,
+              0.43
+            ],
+            "size": [
+              0.37,
+              0.22
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "diegetic_system",
+          "text": "미완성 초식을 발견했습니다.",
+          "state_asset_id": "E01_S22_STATE_02",
+          "preview_start": 0.3492,
+          "preview_end": 0.5112,
+          "voice_binding": {
+            "block_id": "E01_S22_B01",
+            "exact_anchor": "눈앞에 낯선 글자가 떠올랐습니다."
+          },
+          "layout": {
+            "center": [
+              0.4,
+              0.16
+            ],
+            "size": [
+              0.61,
+              0.16
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 39,
+            "fill": [
+              0.67,
+              0.97,
+              1
+            ],
+            "stroke": [
+              0.02,
+              0.08,
+              0.12
+            ],
+            "stroke_width": 2,
+            "entry": "reveal",
+            "rotation": 0,
+            "scale_peak": 100
+          },
+          "intent": "진화록 최초 문구. 얇고 절제된 청백색 글씨, 서진 주관 컷에서만. 일반 내레이션 자막과 구별"
+        }
+      ],
+      "effects": [
+        {
+          "type": "focus_glow",
+          "state": 2,
+          "center": [
+            0.65,
+            0.24
+          ],
+          "radius": 0.17,
+          "intensity": 0.1,
+          "quote": "눈앞에 낯선 글자가 떠올랐습니다.",
+          "asset_id": "E01_S22_STATE_02",
+          "preview_at": 0.31,
+          "voice_binding": {
+            "exact_anchor": "눈앞에 낯선 글자가 떠올랐습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.65,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S23",
+      "intent": "열린 관절→서진 접근→닫힌 관절→단도 파손 순서. impact_flash는 칼과 돌의 접점에만 제한한다.",
+      "source_sha256": "c76c70741808f961f76a060e09171fc1fbce91388e88aa0474a916281f3fd6ff",
+      "preview_duration_seconds": 25.851,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S23_STATE_01",
+          "file": "images/E01_S23_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "3c81bad328f3b20f16051e84537d7e15ec635f8d365f8440dcd6cf4b638f0a1b",
+          "start": 0,
+          "end": 0.3,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S23_STATE_02",
+          "file": "images/E01_S23_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "dd3d8efe2c96641c178d643597c04c8e645db4c28ffbccee0bac11617cee8ef2",
+          "start": 0.3,
+          "end": 0.6,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S23_STATE_03",
+          "file": "images/E01_S23_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "9a35c73eac0945761dadccdbdb68e8a2316d97fea5b72692094508cad3d8c88f",
+          "start": 0.6,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S23_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "검이 내려왔습니다. 서진은 옆으로 구르며 손목을 향해 단도를 찔렀습니다. 보았을 때는 비어 있던 자리가, 칼끝이 닿았을 때는 이미 닫혀 있었습니다. 돌에 부딪힌 단도 끝이 튕겨 나갔습니다. 충격에 손아귀가 찢어졌습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.5865384615384616
+        },
+        {
+          "block_id": "E01_S23_B02",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "늦었어.",
+          "preview_start": 0.5865384615384616,
+          "preview_end": 0.6057692307692307
+        },
+        {
+          "block_id": "E01_S23_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "글자는 그대로였습니다. 내공이 생기지도, 다친 몸이 낫지도 않았습니다. 서진은 끝이 부러진 단도의 손잡이를 고쳐 쥐고 석상의 다음 발을 보았습니다.",
+          "preview_start": 0.6057692307692307,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "inner_reaction",
+          "text": "앗!",
+          "state_asset_id": "E01_S23_STATE_02",
+          "preview_start": 0.366,
+          "preview_end": 0.501,
+          "voice_binding": {
+            "block_id": "E01_S23_B01",
+            "exact_anchor": "보았을 때는 비어 있던 자리가, 칼끝이 닿았을 때는 이미 닫혀 있었습니다."
+          },
+          "layout": {
+            "center": [
+              0.8,
+              0.16
+            ],
+            "size": [
+              0.23,
+              0.18
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "DoHyeon-Regular",
+            "size": 66,
+            "fill": [
+              0.98,
+              0.97,
+              0.92
+            ],
+            "stroke": [
+              0.07,
+              0.11,
+              0.16
+            ],
+            "stroke_width": 4,
+            "entry": "snap",
+            "rotation": -5,
+            "scale_peak": 110
+          },
+          "intent": "닫힌 관절을 확인한 순간의 짧은 작은 글씨. 성공을 암시하는 강조색 금지"
+        }
+      ],
+      "effects": [
+        {
+          "type": "impact_flash",
+          "state": 2,
+          "center": [
+            0.56,
+            0.53
+          ],
+          "radius": 0.08,
+          "intensity": 0.16,
+          "quote": "돌에 부딪힌 단도 끝이 튕겨 나갔습니다.",
+          "asset_id": "E01_S23_STATE_02",
+          "preview_at": 0.33999999999999997,
+          "voice_binding": {
+            "exact_anchor": "돌에 부딪힌 단도 끝이 튕겨 나갔습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S24",
+      "intent": "도겸 대사 동안 시선은 서진의 발과 바닥 자국으로 연결. 회복·속도 상승·자동 안내선 효과를 추가하지 않는다.",
+      "source_sha256": "a316217a8503fb82af71aa99cc66ff1acd7a933af3608b380b03f30385c42403",
+      "preview_duration_seconds": 22.851,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S24_STATE_01",
+          "file": "images/E01_S24_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "96062e403ef1239658e0e9a0c731902e43713f35bb03dae9eea366521e7d2f47",
+          "start": 0,
+          "end": 0.34,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S24_STATE_02",
+          "file": "images/E01_S24_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "b564ac2ab2395a5ea748d4462ca111536a518f623e156a2fbd4a0b8e46be7b73",
+          "start": 0.34,
+          "end": 0.61,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S24_STATE_03",
+          "file": "images/E01_S24_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "3fb36e3374050a61fab3e4ea09b5b42e3f34ab4d3ccac81d570cb69c5ce90ae5",
+          "start": 0.61,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S24_B01",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "서진아. 여기서 버텨. 다른 놈들이 길을 찾을 거야.",
+          "preview_start": 0.0,
+          "preview_end": 0.15934065934065933
+        },
+        {
+          "block_id": "E01_S24_B02",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진은 철문 쪽을 보지 않았습니다. 그 문이 다시 열리기를 기다릴 수는 없었습니다. 손목이 멈춘 뒤에 뛰면 늦었습니다. 멈추는 자리에 먼저 가 있어야 했습니다. 그가 할 수 있는 호신술 세 동작 가운데, 멀리서 팔을 뻗는 동작은 없었습니다.",
+          "preview_start": 0.15934065934065933,
+          "preview_end": 0.8956043956043956
+        },
+        {
+          "block_id": "E01_S24_B03",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "붙어야 해. 검이 내려오는 동안에.",
+          "preview_start": 0.8956043956043956,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S24_B01",
+          "speaker": "dogyeom",
+          "text": "서진아. 여기서 버텨. 다른 놈들이 길을 찾을 거야.",
+          "state_asset_id": "E01_S24_STATE_01",
+          "preview_start": 0.0204,
+          "preview_end": 0.3196,
+          "voice_binding": {
+            "block_id": "E01_S24_B01"
+          },
+          "layout": {
+            "center": [
+              0.23,
+              0.13
+            ],
+            "tail": [
+              0,
+              0.5
+            ],
+            "size": [
+              0.4,
+              0.23
+            ],
+            "offscreen_speaker": true,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S25",
+      "intent": "두 번의 접촉은 손 상태 원화와 소품 접점을 교체. 석상의 발 위치를 직전 공격과 같게 유지해 관찰의 재현성을 보인다.",
+      "source_sha256": "54fa43ab1b4301f4e001e09fabe931914c2c549f0283f466ec0e02b2c936f041",
+      "preview_duration_seconds": 26.89,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S25_STATE_01",
+          "file": "images/E01_S25_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "a906c82a67c916ed697ddfe24dc1afbfc9909f90bec7e2c1bda6d59bd3b4a7a4",
+          "start": 0,
+          "end": 0.33,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S25_STATE_02",
+          "file": "images/E01_S25_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "f9dbb73a0df8f806166414f6ff65d024b101bdacb2968e95eaf20919cd295feb",
+          "start": 0.33,
+          "end": 0.62,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S25_STATE_03",
+          "file": "images/E01_S25_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "c7b0f020c5b8b3740d089905d6ee8c275532d9ac512e325087b8f4029754b1be",
+          "start": 0.62,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S25_B01",
+          "kind": "narration",
+          "speaker": null,
+          "text": "서진은 일어나다가 한 번 휘청였습니다. 왼발을 반걸음 뒤로 빼고, 부러진 단도의 등으로 바닥을 두드렸습니다. 금속성이 석실 안에 퍼졌습니다. 석상의 고개가 그를 향했습니다. 도겸에게서는 멀어지고, 자신을 향해서는 곧장 내려칠 자리였습니다.",
+          "preview_start": 0.0,
+          "preview_end": 0.6129032258064516
+        },
+        {
+          "block_id": "E01_S25_B02",
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "여기다.",
+          "preview_start": 0.6129032258064516,
+          "preview_end": 0.631336405529954
+        },
+        {
+          "block_id": "E01_S25_B03",
+          "kind": "narration",
+          "speaker": null,
+          "text": "이번에는 석상이 검을 들기 전부터 발을 준비했습니다. 서진의 손에 남은 것은 반 토막 칼날과, 같은 공격을 한 번 더 보았다는 사실뿐이었습니다.",
+          "preview_start": 0.631336405529954,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S25_B02",
+          "speaker": "seojin",
+          "text": "여기다.",
+          "state_asset_id": "E01_S25_STATE_03",
+          "preview_start": 0.6428,
+          "preview_end": 0.9772,
+          "voice_binding": {
+            "block_id": "E01_S25_B02"
+          },
+          "layout": {
+            "center": [
+              0.79,
+              0.14
+            ],
+            "tail": [
+              0.67,
+              0.4
+            ],
+            "size": [
+              0.24,
+              0.17
+            ],
+            "offscreen_speaker": false,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "sfx",
+          "text": "딱. 딱.",
+          "state_asset_id": "E01_S25_STATE_02",
+          "preview_start": 0.3938,
+          "preview_end": 0.5243,
+          "voice_binding": {
+            "block_id": "E01_S25_B01",
+            "exact_anchor": "부러진 단도의 등으로 바닥을 두드렸습니다."
+          },
+          "layout": {
+            "center": [
+              0.18,
+              0.74
+            ],
+            "size": [
+              0.26,
+              0.19
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "BlackHanSans-Regular",
+            "size": 104,
+            "fill": [
+              1,
+              0.94,
+              0.78
+            ],
+            "stroke": [
+              0.09,
+              0.11,
+              0.15
+            ],
+            "stroke_width": 5,
+            "entry": "impact",
+            "rotation": -8,
+            "scale_peak": 116
+          },
+          "intent": "칼등 접점에 작고 건조한 두 번의 글자 등장. 각각 실제 타격음에 대응"
+        }
+      ],
+      "effects": [],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    },
+    {
+      "scene_id": "E01_S26",
+      "intent": "준비→파고든 자세→검이 바닥에 박힌 결과→돌아오는 손목의 별도 정지 원화로 연결. 짧은 speedline_burst·잔해만 사용. 마지막 관절 틈과 단도 끝을 고정 홀드한 뒤 암전. 성공·레벨업·석상 파괴 장면을 앞당기지 않는다.",
+      "source_sha256": "942e30773cc573277853d98cc0b436207137465ce664d6b07078aa00b0548d82",
+      "preview_duration_seconds": 25.159,
+      "timing_basis": "normalized_preview_not_recorded_speech",
+      "states": [
+        {
+          "asset_id": "E01_S26_STATE_01",
+          "file": "images/E01_S26_STATE_01.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "df47f55ecb47a4862a5cb3aad5836b49c05b84df61cbc10b24e5fb020f76f1de",
+          "start": 0,
+          "end": 0.25,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S26_STATE_02",
+          "file": "images/E01_S26_STATE_02.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "8054d95f8e0c3f0f3530b5120f1baa391ecfe38188760a1347cc9af690d0cb54",
+          "start": 0.25,
+          "end": 0.59,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "asset_id": "E01_S26_STATE_03",
+          "file": "images/E01_S26_STATE_03.png",
+          "width": 1672,
+          "height": 941,
+          "sha256": "7ac8bef0f4cdbdb7bc5e8d6e8aacd6cdc6dd9173676d1542610cc59fa09da68b",
+          "start": 0.59,
+          "end": 1.0,
+          "camera": "hold",
+          "static_crop": null,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "blocks": [
+        {
+          "block_id": "E01_S26_B01",
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "서진아!",
+          "preview_start": 0.0,
+          "preview_end": 0.019801980198019802
+        },
+        {
+          "block_id": "E01_S26_B02",
+          "kind": "narration",
+          "speaker": null,
+          "text": "돌검이 내려오기 시작했습니다. 도겸의 눈에는 서진이 칼날 밑으로 뛰어든 것처럼 보였습니다. 서진은 머리 위의 검을 보지 않았습니다. 발을 접고, 어깨를 낮추고, 돌아올 손목의 자리에 단도를 세웠습니다.",
+          "preview_start": 0.019801980198019802,
+          "preview_end": 0.5742574257425742
+        },
+        {
+          "block_id": "E01_S26_B03",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "한 번만 더.",
+          "preview_start": 0.5742574257425742,
+          "preview_end": 0.6089108910891089
+        },
+        {
+          "block_id": "E01_S26_B04",
+          "kind": "narration",
+          "speaker": null,
+          "text": "검이 그의 등 뒤 바닥을 때렸습니다. 부서진 돌이 어깨를 스쳤습니다. 석상의 팔이 돌아오는 순간, 손목 안쪽에 좁은 틈이 열렸습니다.",
+          "preview_start": 0.6089108910891089,
+          "preview_end": 0.9752475247524752
+        },
+        {
+          "block_id": "E01_S26_B05",
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "기다렸다.",
+          "preview_start": 0.9752475247524752,
+          "preview_end": 1.0
+        }
+      ],
+      "graphics": [
+        {
+          "kind": "speech_bubble",
+          "block_id": "E01_S26_B01",
+          "speaker": "dogyeom",
+          "text": "서진아!",
+          "state_asset_id": "E01_S26_STATE_01",
+          "preview_start": 0.015,
+          "preview_end": 0.235,
+          "voice_binding": {
+            "block_id": "E01_S26_B01"
+          },
+          "layout": {
+            "center": [
+              0.29,
+              0.15
+            ],
+            "tail": [
+              0,
+              0.5
+            ],
+            "size": [
+              0.27,
+              0.19
+            ],
+            "offscreen_speaker": true,
+            "placement_review": "authored_from_visible_frame",
+            "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 38,
+            "fill": [
+              0.08,
+              0.1,
+              0.13
+            ],
+            "entry": "settle"
+          }
+        },
+        {
+          "kind": "inner_emphasis",
+          "text": "한 번만 더.",
+          "state_asset_id": "E01_S26_STATE_02",
+          "preview_start": 0.3248,
+          "preview_end": 0.4778,
+          "voice_binding": {
+            "block_id": "E01_S26_B03",
+            "exact_anchor": "한 번만 더."
+          },
+          "layout": {
+            "center": [
+              0.25,
+              0.18
+            ],
+            "size": [
+              0.31,
+              0.16
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "NotoSansKR-Bold",
+            "size": 58,
+            "fill": [
+              0.97,
+              0.97,
+              0.91
+            ],
+            "stroke": [
+              0.05,
+              0.09,
+              0.13
+            ],
+            "stroke_width": 3,
+            "entry": "settle",
+            "rotation": 0,
+            "scale_peak": 104
+          },
+          "intent": "공격 준비의 짧은 정적에 작은 백색 글씨. 다음 컷 전 완전 퇴장"
+        },
+        {
+          "kind": "inner_climax",
+          "text": "기다렸다!!",
+          "state_asset_id": "E01_S26_STATE_03",
+          "preview_start": 0.6802,
+          "preview_end": 0.8647,
+          "voice_binding": {
+            "block_id": "E01_S26_B05",
+            "exact_anchor": "기다렸다."
+          },
+          "layout": {
+            "center": [
+              0.48,
+              0.18
+            ],
+            "size": [
+              0.42,
+              0.22
+            ],
+            "placement_review": "authored_from_visible_frame"
+          },
+          "style": {
+            "font": "BlackHanSans-Regular",
+            "size": 136,
+            "fill": [
+              0.99,
+              0.98,
+              0.9
+            ],
+            "stroke": [
+              0.02,
+              0.13,
+              0.18
+            ],
+            "stroke_width": 6,
+            "entry": "impact",
+            "rotation": -8,
+            "scale_peak": 108
+          },
+          "intent": "마지막 손목·단도 컷의 검 궤적 반대편 빈 공간에 굵은 백색+청록 가장자리 글자. 얼굴·관절·칼끝은 보호. 충돌 결과 전 암전"
+        }
+      ],
+      "effects": [
+        {
+          "type": "speedline_burst",
+          "state": 2,
+          "center": [
+            0.43,
+            0.59
+          ],
+          "radius": 0.18,
+          "intensity": 0.18,
+          "quote": "어깨를 낮추고",
+          "asset_id": "E01_S26_STATE_02",
+          "preview_at": 0.29,
+          "voice_binding": {
+            "exact_anchor": "어깨를 낮추고",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        },
+        {
+          "type": "impact_shake",
+          "state": 2,
+          "center": [
+            0.72,
+            0.74
+          ],
+          "radius": 0.12,
+          "intensity": 0.14,
+          "quote": "검이 그의 등 뒤 바닥을 때렸습니다.",
+          "asset_id": "E01_S26_STATE_02",
+          "preview_at": 0.29,
+          "voice_binding": {
+            "exact_anchor": "검이 그의 등 뒤 바닥을 때렸습니다.",
+            "phase": "during"
+          },
+          "duration_seconds": 0.32,
+          "source_review": "visually_reviewed_with_authored_framing"
+        }
+      ],
+      "transition": "cut",
+      "camera_policy": "fixed_no_slow_zoom",
+      "fake_depth": false
+    }
+  ],
+  "video_clip_count": 0,
+  "narration_verbatim_captions": false,
+  "all_text_editable": true,
+  "timing": "Preview fractions only. Bind final performance with actual recording intervals; never report preview as voice sync.",
+  "audio_alignment_file": "voice-alignment.json",
+  "ae_execution_verified": false
+}

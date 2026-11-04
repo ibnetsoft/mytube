@@ -1,0 +1,13 @@
+{
+  "scene_count": 26,
+  "spoken_characters": 4783,
+  "dialogue_blocks": 36,
+  "thought_blocks": 10,
+  "typography_cues": 15,
+  "planned_still_states": 79,
+  "review": "pass with scoped minor fixes applied",
+  "registered_to_user_web": true,
+  "recorded_duration_seconds": null,
+  "topic_id": 3428,
+  "registration_evidence": "packaging/registration-receipt.json"
+}

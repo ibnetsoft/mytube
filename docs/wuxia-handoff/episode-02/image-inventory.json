@@ -1,0 +1,434 @@
+[
+  {
+    "asset_id": "E02_S01_STATE_01",
+    "scene_id": "E02_S01",
+    "state_index": 1,
+    "description": "손목 안쪽을 올려다보는 고정 근접. 서진의 피 묻은 오른손이 나무 손잡이를 쥐고, 짧은 단도의 부러진 끝이 우두머리 오른쪽 손목의 열린 회전축 틈에 박혀 있다. 다른 손목은 손상 없다.",
+    "file": "images/E02_S01_STATE_01.png",
+    "exists": true,
+    "sha256": "06435c23798a0797d921a0b23ff365f8bd440b6c66b795aed5527ef4212b8a03"
+  },
+  {
+    "asset_id": "E02_S01_STATE_02",
+    "scene_id": "E02_S01",
+    "state_index": 2,
+    "description": "고정 측면 중경. 오른쪽 손목만 비틀린 채 멈춘 우두머리의 돌검 끝이 바닥에 닿아 있고, 서진은 낮게 웅크린 자세로 단도 손잡이를 놓지 못한다. 턱 아래 피와 왼쪽 옆구리를 조인 옷이 보인다.",
+    "file": "images/E02_S01_STATE_02.png",
+    "exists": true,
+    "sha256": "26db69fa9e5663513b09ad214997dd6a9e87e8e659af64fae45afe62eb167e3d"
+  },
+  {
+    "asset_id": "E02_S02_STATE_01",
+    "scene_id": "E02_S02",
+    "state_index": 1,
+    "description": "고정 손 높이 근접. 우두머리의 오른쪽 돌 손목 틈에서 기존 단도 칼날이 옆으로 휘고, 서진의 오른손 손바닥 상처를 따라 피가 손잡이에 번진 상태.",
+    "file": "images/E02_S02_STATE_01.png",
+    "exists": true,
+    "sha256": "948b92dbd0ece2450a3f083ec96272607ef93339ee2e43b88954c462f6ddacc1"
+  },
+  {
+    "asset_id": "E02_S02_STATE_02",
+    "scene_id": "E02_S02",
+    "state_index": 2,
+    "description": "바닥 높이 고정 광각. 회전축에서 빠진 단도가 서진의 오른손에 남아 있고 그는 왼쪽 어깨를 바닥에 붙여 물러나 있다. 돌검은 서진이 있던 자리를 누르며 얕게 파고들었고 석상 손목은 다시 돌아간 상태.",
+    "file": "images/E02_S02_STATE_02.png",
+    "exists": true,
+    "sha256": "1f1ff62964cccb4ae0097f7745e4b8c8b6bd253342ff9da1d8163ca63cb43ad1"
+  },
+  {
+    "asset_id": "E02_S03_STATE_01",
+    "scene_id": "E02_S03",
+    "state_index": 1,
+    "description": "서쪽 벽을 정면으로 보는 고정 중경. 황토 두건의 도겸은 오른쪽 다리를 뻗고 앉아 서진의 청록 겉옷 어깨를 붙잡고 있다. 홈 바닥의 검은 물때 선이 낮은 사각 석판 아래로 이어진다.",
+    "file": "images/E02_S03_STATE_01.png",
+    "exists": true,
+    "sha256": "8a9e2292a0367b8e5f3127af7127aaf9fdd9f4cb6ec5474b42cc592274d739ec"
+  },
+  {
+    "asset_id": "E02_S03_STATE_02",
+    "scene_id": "E02_S03",
+    "state_index": 2,
+    "description": "고정 바닥 근접. 도겸의 왼손 손가락 옆에서 먼지 줄기가 사각 점검판 틈으로 빨려 들어간 흔적이 보인다. 모서리에는 반쯤 묻힌 철제 당김고리와 가로 걸쇠 끝이 함께 드러나 있다.",
+    "file": "images/E02_S03_STATE_02.png",
+    "exists": true,
+    "sha256": "8ddd2d06f4836304c58f70d2ae84fd92d21f6be4f22a6ec73c41ec02e465cc1d"
+  },
+  {
+    "asset_id": "E02_S04_STATE_01",
+    "scene_id": "E02_S04",
+    "state_index": 1,
+    "description": "서진 얼굴의 고정 근접. 터진 아랫입술에 피가 말라 있고 한쪽 눈 아래 비어 있는 어두운 공간이 있다. 시선은 그 공간에 머물지만 몸은 왼쪽 옆구리를 감싸 웅크린 상태.",
+    "file": "images/E02_S04_STATE_01.png",
+    "exists": true,
+    "sha256": "36c173c669ea4a795bd6038f4a27a01983d745df11b495a6829a3181d1037623"
+  },
+  {
+    "asset_id": "E02_S04_STATE_02",
+    "scene_id": "E02_S04",
+    "state_index": 2,
+    "description": "고정 손 근접. 서진의 떨리는 오른손에 짧고 휜 단도가 놓여 있으며 손바닥 출혈이 계속된다. 배경의 도겸은 진화록을 보지 못한 채 바닥 고리를 살핀다.",
+    "file": "images/E02_S04_STATE_02.png",
+    "exists": true,
+    "sha256": "d0fea16bcdf19a50fb44333ae64808954c3d6681b8641ef656a51c0f84e91e42"
+  },
+  {
+    "asset_id": "E02_S05_STATE_01",
+    "scene_id": "E02_S05",
+    "state_index": 1,
+    "description": "서쪽 홈 안쪽에서 동쪽을 바라보는 고정 광각. 중앙 빈 제단, 동쪽 잠긴 철창문, 남쪽 닫힌 석판이 동시에 보인다. 우두머리 하나와 일반 다섯 석상이 석실 안에 분산돼 있다.",
+    "file": "images/E02_S05_STATE_01.png",
+    "exists": true,
+    "sha256": "0d392fa9538f2490307bf1c5c9f4bebbe211f7de959a63653a6f8b0d8199c7bd"
+  },
+  {
+    "asset_id": "E02_S05_STATE_02",
+    "scene_id": "E02_S05",
+    "state_index": 2,
+    "description": "같은 축의 고정 중경. 우두머리 발이 홈 입구에서 돌아서 있으며 돌검은 가슴 아래 수평으로 들려 있다. 서진의 낮은 시선과 석상 발자국 사이 거리가 전경에 보인다.",
+    "file": "images/E02_S05_STATE_02.png",
+    "exists": true,
+    "sha256": "7020d700e936d48711998bf9280cb1cbbaba5876de1faa2696aaa629f84e6fff"
+  },
+  {
+    "asset_id": "E02_S06_STATE_01",
+    "scene_id": "E02_S06",
+    "state_index": 1,
+    "description": "고정 사선 근접. 도겸이 물통 마개에 담은 소량의 물을 점검판 가로 걸쇠 위에 기울인 상태. 씻긴 진흙 아래 걸쇠가 서쪽 벽 방향으로 미끄러지는 홈이 보인다.",
+    "file": "images/E02_S06_STATE_01.png",
+    "exists": true,
+    "sha256": "2c13103efeea67b72cadc9086e55780b3e973d7f4192ce2edb893a0234a54b70"
+  },
+  {
+    "asset_id": "E02_S06_STATE_02",
+    "scene_id": "E02_S06",
+    "state_index": 2,
+    "description": "고정 탑숏. 도겸의 양손 중 하나는 철고리에, 하나는 녹슨 가로 걸쇠에 걸려 있다. 오른쪽 다리는 뻗은 채이고 물통은 왼쪽 엉덩이 옆에 놓여 있다.",
+    "file": "images/E02_S06_STATE_02.png",
+    "exists": true,
+    "sha256": "20e86648ea9126bd314ee6a08c3080f0c8f934c1edf3dd89d417e1339586721b"
+  },
+  {
+    "asset_id": "E02_S07_STATE_01",
+    "scene_id": "E02_S07",
+    "state_index": 1,
+    "description": "고정 손 근접. 서진의 왼손이 작은 납작한 돌조각으로 걸쇠 홈의 진흙을 긁어낸 상태. 도겸은 옆으로 밀려 빠진 걸쇠를 잡고 있다. 단도는 서진 오른손에 내려져 있다.",
+    "file": "images/E02_S07_STATE_01.png",
+    "exists": true,
+    "sha256": "e16cc38f86f05d45e15b7b782399de6d1222ceaa5e5805fb85671e64ef85b343"
+  },
+  {
+    "asset_id": "E02_S07_STATE_02",
+    "scene_id": "E02_S07",
+    "state_index": 2,
+    "description": "고정 바닥 높이 중경. 두 사람이 철고리를 함께 잡아 점검판을 벽 쪽으로 기울여 세운 상태. 아래에는 어깨 하나 너비의 낮은 사각 구멍과 그 밑 굽은 배수 턱이 보인다.",
+    "file": "images/E02_S07_STATE_02.png",
+    "exists": true,
+    "sha256": "d63575cc146d29ad39cd2d88b85982d767b9ce18e6c2267e70bb5570d889af56"
+  },
+  {
+    "asset_id": "E02_S08_STATE_01",
+    "scene_id": "E02_S08",
+    "state_index": 1,
+    "description": "고정 측면 중경. 서진이 머리와 오른쪽 어깨를 점검구에 넣었으나 왼쪽 옆구리가 돌 턱에 눌려 몸이 굳어 있다. 도겸이 앉은 채 서진의 허리띠 뒤를 받친다.",
+    "file": "images/E02_S08_STATE_01.png",
+    "exists": true,
+    "sha256": "4d5b3e01ed9e55b1986831c9b6624730ad9ad450c1cc1465863f3230eca19df9"
+  },
+  {
+    "asset_id": "E02_S08_STATE_02",
+    "scene_id": "E02_S08",
+    "state_index": 2,
+    "description": "같은 측면의 고정 근경. 서진은 도로 빠져나와 왼쪽 옆구리를 감싸고 있고, 점검구 안에는 통로 폭을 비스듬히 가로지르는 낡은 나무 받침 끝이 보인다.",
+    "file": "images/E02_S08_STATE_02.png",
+    "exists": true,
+    "sha256": "f1fcd79ccf46f918c7ba81c079b73d8258898b069ff6a160059676ba739f2333"
+  },
+  {
+    "asset_id": "E02_S09_STATE_01",
+    "scene_id": "E02_S09",
+    "state_index": 1,
+    "description": "고정 정면 중경. 우두머리의 돌검 끝이 홈 바깥 바닥에 박혀 있고 부서진 입구 모서리 작은 돌들이 서진의 신발 옆에 쌓여 있다. 두 사람은 홈 가장 안쪽에 웅크렸다.",
+    "file": "images/E02_S09_STATE_01.png",
+    "exists": true,
+    "sha256": "da9278fb5e187fb3810bca23873f77e674f04ae7ac9b2dc64b08fb8b71adaabc"
+  },
+  {
+    "asset_id": "E02_S09_STATE_02",
+    "scene_id": "E02_S09",
+    "state_index": 2,
+    "description": "도겸 어깨 너머 고정 근경. 서진이 점검구 쪽으로 뻗은 손을 멈췄고, 입구에는 돌검을 다시 거둬 든 우두머리 팔 일부가 보인다. 두 사람과 구멍 사이 바닥 폭이 드러난다.",
+    "file": "images/E02_S09_STATE_02.png",
+    "exists": true,
+    "sha256": "55f42dd332144fefceceb0fd4db02fd025e7253eaa525f31b1bf5cb6881ed089"
+  },
+  {
+    "asset_id": "E02_S10_STATE_01",
+    "scene_id": "E02_S10",
+    "state_index": 1,
+    "description": "고정 무릎 높이 근경. 도겸이 연청색 목도리 한쪽 끝을 풀고 다른 끝을 물통 운반 끈에 단단히 묶고 있다. 오른쪽 다리는 받쳐 둔 채 왼쪽 무릎만 세웠다.",
+    "file": "images/E02_S10_STATE_01.png",
+    "exists": true,
+    "sha256": "9ec3fb4d13e41fb51778636c94c5902df1879fe683d10a6c40a0d44d906fe429"
+  },
+  {
+    "asset_id": "E02_S10_STATE_02",
+    "scene_id": "E02_S10",
+    "state_index": 2,
+    "description": "점검구 안쪽 고정 사선 접사. 가죽 운반 끈이 느슨한 썩은 나무 받침의 돌출된 끝을 감싸고, 둥근 물통 몸체가 끝 바깥에 걸려 끈의 미끄러짐을 막는다. 연청색 목도리는 끈과 도겸의 두 손 사이로 팽팽히 이어진다.",
+    "file": "images/E02_S10_STATE_02.png",
+    "exists": true,
+    "sha256": "26952ec99273e4552466e3ca86448f6a6e276e953eb14fd5195ab8403b3a47b9"
+  },
+  {
+    "asset_id": "E02_S11_STATE_01",
+    "scene_id": "E02_S11",
+    "state_index": 1,
+    "description": "고정 낮은 측면 중경. 서진이 홈 밖으로 한 발 나왔지만 뒷발은 안쪽 바닥 틈에 남아 있다. 우두머리는 돌검을 들어 올렸고 서진 오른손의 짧은 단도는 아래를 향한다.",
+    "file": "images/E02_S11_STATE_01.png",
+    "exists": true,
+    "sha256": "aa8ee06f7474dd2f9e5aecb555ea0ddd0b3bc95e95a3e92859c9e6bb8817cec9"
+  },
+  {
+    "asset_id": "E02_S11_STATE_02",
+    "scene_id": "E02_S11",
+    "state_index": 2,
+    "description": "같은 축 고정 광각. 서진이 한쪽 무릎으로 주저앉아 기둥 밑을 짚고 있다. 돌검은 그의 앞 퇴로를 가로막은 채 바닥에 닿아 있고 서쪽 홈의 도겸과 거리가 벌어졌다.",
+    "file": "images/E02_S11_STATE_02.png",
+    "exists": true,
+    "sha256": "fdb83d51e1a11f0de3cd3f36395254b682124367aae7e5d1b79a08f632908568"
+  },
+  {
+    "asset_id": "E02_S12_STATE_01",
+    "scene_id": "E02_S12",
+    "state_index": 1,
+    "description": "고정 바닥 근접. 서진의 두 신발이 기둥 밑 좁은 평평한 바닥에 모여 있다. 앞에는 돌검이 낸 길고 얕은 자국과 홈으로 이어지는 낮은 물길이 보인다.",
+    "file": "images/E02_S12_STATE_01.png",
+    "exists": true,
+    "sha256": "57207484b3f98badc37ea53915b8bdddd40861ecf9d650b966df54e9bdcf3c0c"
+  },
+  {
+    "asset_id": "E02_S12_STATE_02",
+    "scene_id": "E02_S12",
+    "state_index": 2,
+    "description": "기둥 뒤 고정 반신. 서진은 왼손으로 옆구리를 누르고 오른손의 단도를 낮게 쥔 채 우두머리 팔꿈치 아래를 보고 있다. 입은 다문 채 아랫입술의 피가 턱에 맺혔다.",
+    "file": "images/E02_S12_STATE_02.png",
+    "exists": true,
+    "sha256": "28779d0d010e1a6ceefc74e9b1daf53c360296e01290b3b63aff610dc3d1b8f2"
+  },
+  {
+    "asset_id": "E02_S13_STATE_01",
+    "scene_id": "E02_S13",
+    "state_index": 1,
+    "description": "고정 사선 중경. 도겸이 오른쪽 다리를 움직이지 않고 왼발을 벽에 댄 채 두 손으로 목도리 연결 끈을 당긴다. 나무 받침 끝이 점검구 턱 위에 걸려 있다.",
+    "file": "images/E02_S13_STATE_01.png",
+    "exists": true,
+    "sha256": "2b79ee7e78884e7d5befb7591fc6a90bb84e0563cce896c880b5c6434bb1066e"
+  },
+  {
+    "asset_id": "E02_S13_STATE_02",
+    "scene_id": "E02_S13",
+    "state_index": 2,
+    "description": "같은 방향 고정 근경. 빠져나온 짧은 썩은 받침이 도겸 팔꿈치 옆에 놓여 있다. 도겸은 닫힌 물통을 회수했고 점검구 아래의 낮은 통로가 막힘 없이 보인다.",
+    "file": "images/E02_S13_STATE_02.png",
+    "exists": true,
+    "sha256": "06db231c183b3ee7d308e0fab7c6495560f13940f389b03a6a5ab94b66406cd3"
+  },
+  {
+    "asset_id": "E02_S14_STATE_01",
+    "scene_id": "E02_S14",
+    "state_index": 1,
+    "description": "고정 측면 전신. 서진은 기둥 옆 평평한 바닥에 양발을 짧게 벌리고 몸을 낮췄다. 우두머리 돌검이 바닥에 닿아 있으며 검을 쥔 팔꿈치가 돌아 나오기 직전의 각도다.",
+    "file": "images/E02_S14_STATE_01.png",
+    "exists": true,
+    "sha256": "ee3f5252183cc525d635589cbf7b90dd2f2ee54e40a4c6769a82e7ee26074cbf"
+  },
+  {
+    "asset_id": "E02_S14_STATE_02",
+    "scene_id": "E02_S14",
+    "state_index": 2,
+    "description": "같은 축 고정 광각. 서진은 기둥의 홈 쪽 면에 도착해 한 손을 짚고 있다. 우두머리는 돌아오는 검을 몸 앞에 모았고 두 사람 사이에는 기둥 모서리가 놓였다.",
+    "file": "images/E02_S14_STATE_02.png",
+    "exists": true,
+    "sha256": "af27bac85df0a8ed39ac48fb6ea059042a43375424942909f02df0c52ba2bf3c"
+  },
+  {
+    "asset_id": "E02_S15_STATE_01",
+    "scene_id": "E02_S15",
+    "state_index": 1,
+    "description": "기둥 옆에서 보는 고정 중경. 서진이 홈 바로 앞 바닥에 한쪽 무릎을 댔고, 도겸은 연청색 목도리를 오른쪽 무릎 아래에 감아 묶은 채 점검구를 가리킨다.",
+    "file": "images/E02_S15_STATE_01.png",
+    "exists": true,
+    "sha256": "0722dcadc696f7d078f0b07e82f720a88467c0f992fbe909f43b3d47929d8154"
+  },
+  {
+    "asset_id": "E02_S15_STATE_02",
+    "scene_id": "E02_S15",
+    "state_index": 2,
+    "description": "고정 인물 근경. 도겸은 물통을 가슴 가까이 들고 우두머리 어깨를 바라본다. 전경 서진은 고개만 끄덕이며 칼 손잡이를 놓칠 듯 다시 고쳐 쥐고 있다.",
+    "file": "images/E02_S15_STATE_02.png",
+    "exists": true,
+    "sha256": "752fa6b95f4bf5afeae82d833f477b172cc1e63eba06cad51833b97edfa7a9b4"
+  },
+  {
+    "asset_id": "E02_S16_STATE_01",
+    "scene_id": "E02_S16",
+    "state_index": 1,
+    "description": "고정 광각. 서진이 홈에서 기둥 반대쪽으로 두 걸음 떨어져 단도 손잡이 끝을 바닥에 댄 낮은 자세다. 우두머리 얼굴과 가슴이 서진 쪽으로 향했고 홈의 도겸은 구멍 앞에 앉아 있다.",
+    "file": "images/E02_S16_STATE_01.png",
+    "exists": true,
+    "sha256": "d1c924769605bd7a16c74458b5bfe8e3bf7add1c715b86b1ae2d00acc1ce95d1"
+  },
+  {
+    "asset_id": "E02_S16_STATE_02",
+    "scene_id": "E02_S16",
+    "state_index": 2,
+    "description": "같은 공간 고정 중경. 우두머리는 검을 서진 쪽으로 세워 든 채 기둥 바깥에 발을 놓았다. 홈 안 도겸은 두 손을 턱에 짚고 엉덩이를 점검구 아래로 내린 상태다.",
+    "file": "images/E02_S16_STATE_02.png",
+    "exists": true,
+    "sha256": "0635bf5ac0a25f8830061a65c0cab7c31909dcaa8b2fe35c5993bc812266a4c9"
+  },
+  {
+    "asset_id": "E02_S17_STATE_01",
+    "scene_id": "E02_S17",
+    "state_index": 1,
+    "description": "점검구 아래에서 올려다본 고정 중경. 도겸은 양팔로 둥근 턱을 잡고 왼발을 아래 바닥에 댔다. 묶인 오른쪽 다리는 위쪽 경사 턱에 기대고 물통 끈은 손목에 걸려 있다.",
+    "file": "images/E02_S17_STATE_01.png",
+    "exists": true,
+    "sha256": "f14d203c787373d151867e110ea91f31e8cb4dc98606393866b3b789d538ac1c"
+  },
+  {
+    "asset_id": "E02_S17_STATE_02",
+    "scene_id": "E02_S17",
+    "state_index": 2,
+    "description": "관리 통로 안쪽의 고정 낮은 근경. 도겸이 왼쪽 엉덩이와 팔꿈치를 바닥에 대고 앉았으며 다친 오른쪽 다리를 손으로 받쳐 턱에서 내린 상태. 머리 바로 위로 낮은 돌 천장이 있다.",
+    "file": "images/E02_S17_STATE_02.png",
+    "exists": true,
+    "sha256": "5817f750248b7ef91d9ac34aa80293cc7a504378e0a99b3db8ea77de9a695ce9"
+  },
+  {
+    "asset_id": "E02_S18_STATE_01",
+    "scene_id": "E02_S18",
+    "state_index": 1,
+    "description": "고정 측면 중경. 바닥에 박힌 돌검 옆에서 우두머리 팔이 접히고, 서진은 발을 붙여 기둥 모서리 쪽으로 몸을 낮췄다. 그의 왼쪽 허리 옷이 찢긴 상처에 달라붙어 있다.",
+    "file": "images/E02_S18_STATE_01.png",
+    "exists": true,
+    "sha256": "99ab57a28d12c0ad82ff8cfb6c150b40224144b79e1e737da0a80258c4b932cc"
+  },
+  {
+    "asset_id": "E02_S18_STATE_02",
+    "scene_id": "E02_S18",
+    "state_index": 2,
+    "description": "동일 축 고정 광각. 서진은 기둥 모서리 안쪽에 한쪽 손과 무릎을 댔다. 돌아온 돌검 끝에 청록 겉옷 끝자락만 찢겨 걸려 있고 몸과 칼끝 사이에는 짧은 거리가 남아 있다.",
+    "file": "images/E02_S18_STATE_02.png",
+    "exists": true,
+    "sha256": "3a33de2106944cdd5da12a881d7c58dcaad34d34eaf844697f59f7ed1e781acf"
+  },
+  {
+    "asset_id": "E02_S19_STATE_01",
+    "scene_id": "E02_S19",
+    "state_index": 1,
+    "description": "점검구 위 고정 근경. 아래 도겸의 손이 어두운 물통을 위로 내밀고, 서진의 왼손이 이를 받아 잡는다. 서진의 오른손 단도는 바닥에 낮게 놓여 있다.",
+    "file": "images/E02_S19_STATE_01.png",
+    "exists": true,
+    "sha256": "7e6c347dcfddd010a1eb7e497ace4bc311ed1a14ea32287a19f5d24f9d1683ef"
+  },
+  {
+    "asset_id": "E02_S19_STATE_02",
+    "scene_id": "E02_S19",
+    "state_index": 2,
+    "description": "고정 바닥 광각. 마개를 닫은 물통이 기둥 바깥 북쪽 바닥의 돌조각 옆에 멈춰 있다. 서진은 홈 입구 안에 낮게 엎드렸고 우두머리의 시선이 물통 쪽으로 돌아간 상태.",
+    "file": "images/E02_S19_STATE_02.png",
+    "exists": true,
+    "sha256": "6196e2c9167b417c166899132b41b855e455459dceee7f00a5bcaaf84927c588"
+  },
+  {
+    "asset_id": "E02_S20_STATE_01",
+    "scene_id": "E02_S20",
+    "state_index": 1,
+    "description": "고정 측면 근경. 서진이 이번에는 오른쪽 옆구리를 둥근 턱에 대고 옆으로 누워 들어간다. 왼쪽 상처는 위를 향하고 단도는 오른쪽 허리 칼집에 있다. 아래 도겸 손이 서진 소매를 잡는다.",
+    "file": "images/E02_S20_STATE_01.png",
+    "exists": true,
+    "sha256": "4cc38027e90aa80a308843f20ee5ded2f1240fc51ecf5d6c1adbb1f22fb86d2b"
+  },
+  {
+    "asset_id": "E02_S20_STATE_02",
+    "scene_id": "E02_S20",
+    "state_index": 2,
+    "description": "점검구 아래 고정 중경. 서진의 머리와 어깨가 통로 안에 내려왔고 양팔은 바닥을 받친다. 아직 위에 남은 한쪽 신발과 바깥으로 돌아선 우두머리의 발 일부가 구멍 너머로 보인다.",
+    "file": "images/E02_S20_STATE_02.png",
+    "exists": true,
+    "sha256": "1b69cd9348aca27c8e88b27ad6d837f917cb7deaabb1ebe2d1eeeeaf4ca43b85"
+  },
+  {
+    "asset_id": "E02_S21_STATE_01",
+    "scene_id": "E02_S21",
+    "state_index": 1,
+    "description": "점검구 아래 고정 사선 근경. 도겸은 왼팔꿈치로 버티며 오른손으로 서진의 뒤꿈치를 아래로 안내한다. 서진은 두 무릎을 접었고 구멍 위 먼지 사이로 돌검 끝 그림자가 드리워 있다.",
+    "file": "images/E02_S21_STATE_01.png",
+    "exists": true,
+    "sha256": "4dd1245a80bf57502080f14da22ae338caeb082a20747f551401e8228a712b03"
+  },
+  {
+    "asset_id": "E02_S21_STATE_02",
+    "scene_id": "E02_S21",
+    "state_index": 2,
+    "description": "같은 방향 고정 중경. 서진의 두 발이 모두 아래로 들어왔고 도겸 옆에 몸을 접었다. 위 점검판은 바깥 충격에 고리 쪽이 내려앉아 비스듬히 좁은 빛 틈만 남긴 상태.",
+    "file": "images/E02_S21_STATE_02.png",
+    "exists": true,
+    "sha256": "3bfe29896e3c8372bc4598fcbe8d3ae901f70041d17c51163bf4795e0cadbf29"
+  },
+  {
+    "asset_id": "E02_S22_STATE_01",
+    "scene_id": "E02_S22",
+    "state_index": 1,
+    "description": "통로 옆 고정 중경. 도겸은 앞에서 왼팔꿈치와 왼발로 몸을 밀고 오른쪽 다리를 길게 놓았다. 뒤의 서진은 팔뚝으로 바닥을 받치며 따라간다. 중앙의 얕은 물길이 두 사람 사이로 이어진다.",
+    "file": "images/E02_S22_STATE_01.png",
+    "exists": true,
+    "sha256": "61f58125ecfa10b88b0b5de24cfb1627db17efb6f00b973e9235e5c7f8a364f4"
+  },
+  {
+    "asset_id": "E02_S22_STATE_02",
+    "scene_id": "E02_S22",
+    "state_index": 2,
+    "description": "통로 굽이 안 고정 근경. 도겸이 납작하게 엎드려 모서리를 돌고 서진은 뒤에서 멈춰 낮은 천장에 닿은 어깨를 낮춘다. 입구 빛은 굽이 너머 가려져 있다.",
+    "file": "images/E02_S22_STATE_02.png",
+    "exists": true,
+    "sha256": "ff7f65f185b1d4eaeb50c3ff7f58854358ed3b3f4386edaf10d3fc757c955d12"
+  },
+  {
+    "asset_id": "E02_S23_STATE_01",
+    "scene_id": "E02_S23",
+    "state_index": 1,
+    "description": "고정 낮은 중경. 도겸이 앞쪽 낮은 쇠살 덮개에서 두 팔 길이 떨어진 곳에 멈춰 있다. 서진은 뒤에서 도겸의 어깨를 잡는다. 덮개 틈에는 희미한 횃불빛과 바닥 먼지만 보인다.",
+    "file": "images/E02_S23_STATE_01.png",
+    "exists": true,
+    "sha256": "636794a77051475875a5017e1a47eafe9624919b05ae3c65fa5937980e53c0af"
+  },
+  {
+    "asset_id": "E02_S23_STATE_02",
+    "scene_id": "E02_S23",
+    "state_index": 2,
+    "description": "서진 눈높이 고정 근접. 도겸의 넓은 손이 뒤로 뻗어 서진 소매를 가볍게 누르고 있다. 두 사람 입은 닫혔고 도겸의 눈은 쇠살 아래로 향한다.",
+    "file": "images/E02_S23_STATE_02.png",
+    "exists": true,
+    "sha256": "3bf0f1b6b3619899a543ef1773245facee5a2c837b0170ace74c2b495c5e92f0"
+  },
+  {
+    "asset_id": "E02_S24_STATE_01",
+    "scene_id": "E02_S24",
+    "state_index": 1,
+    "description": "쇠살 안쪽 바닥 높이 고정 근접. 바깥 돌바닥에 깨끗한 검은 장화 한 켤레가 서 있고 위쪽으로 익숙한 철청색 무복 자락과 평범한 장검 칼집 끝만 보인다. 얼굴과 새로운 인물은 보이지 않는다.",
+    "file": "images/E02_S24_STATE_01.png",
+    "exists": true,
+    "sha256": "ce049365e13bad6333b14c1351a9e74ee72565633fea77c142621f9e84847603"
+  },
+  {
+    "asset_id": "E02_S24_STATE_02",
+    "scene_id": "E02_S24",
+    "state_index": 2,
+    "description": "통로 안쪽에서 끝을 바라본 고정 중경. 도겸과 서진이 낮은 천장 아래 앞뒤로 엎드려 있고, 서진의 피 묻은 오른손은 칼을 뽑지 않은 채 바닥에 접혀 있다. 쇠살 너머 장화 한쪽이 배수구를 향해 틀어져 있다.",
+    "file": "images/E02_S24_STATE_02.png",
+    "exists": true,
+    "sha256": "c36248562354d9e80a4efe51e517a49abb592b9da09c254e398a1b2c0925abb6"
+  }
+]

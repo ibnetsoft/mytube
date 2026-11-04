@@ -1,0 +1,13 @@
+{
+  "episode": 2,
+  "scenes": 24,
+  "spoken_characters": 4366,
+  "planned_state_images": 48,
+  "review": "pass_minor_fixes_applied",
+  "registered_to_user_web": true,
+  "topic_id": 3429,
+  "authoritative_receipt": "packaging/registration-receipt.json",
+  "actual_state_images": 48,
+  "editable_graphics": 35,
+  "quality_notes": "direction/quality-notes.md"
+}

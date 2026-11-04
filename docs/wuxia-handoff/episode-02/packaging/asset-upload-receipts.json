@@ -1,0 +1,458 @@
+{
+  "images/E02_S02_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S02_STATE_01-948b92dbd0ece2450a3f083ec96272607ef93339ee2e43b88954c462f6ddacc1.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S02_STATE_01-948b92dbd0ece2450a3f083ec96272607ef93339ee2e43b88954c462f6ddacc1.png",
+    "sha256": "948b92dbd0ece2450a3f083ec96272607ef93339ee2e43b88954c462f6ddacc1",
+    "bytes": 2686845,
+    "verified_download_sha256": true
+  },
+  "images/E02_S01_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S01_STATE_02-26db69fa9e5663513b09ad214997dd6a9e87e8e659af64fae45afe62eb167e3d.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S01_STATE_02-26db69fa9e5663513b09ad214997dd6a9e87e8e659af64fae45afe62eb167e3d.png",
+    "sha256": "26db69fa9e5663513b09ad214997dd6a9e87e8e659af64fae45afe62eb167e3d",
+    "bytes": 2840922,
+    "verified_download_sha256": true
+  },
+  "images/E02_S02_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S02_STATE_02-1f1ff62964cccb4ae0097f7745e4b8c8b6bd253342ff9da1d8163ca63cb43ad1.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S02_STATE_02-1f1ff62964cccb4ae0097f7745e4b8c8b6bd253342ff9da1d8163ca63cb43ad1.png",
+    "sha256": "1f1ff62964cccb4ae0097f7745e4b8c8b6bd253342ff9da1d8163ca63cb43ad1",
+    "bytes": 2762962,
+    "verified_download_sha256": true
+  },
+  "images/E02_S01_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S01_STATE_01-06435c23798a0797d921a0b23ff365f8bd440b6c66b795aed5527ef4212b8a03.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S01_STATE_01-06435c23798a0797d921a0b23ff365f8bd440b6c66b795aed5527ef4212b8a03.png",
+    "sha256": "06435c23798a0797d921a0b23ff365f8bd440b6c66b795aed5527ef4212b8a03",
+    "bytes": 2698142,
+    "verified_download_sha256": true
+  },
+  "images/E02_S03_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S03_STATE_01-8a9e2292a0367b8e5f3127af7127aaf9fdd9f4cb6ec5474b42cc592274d739ec.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S03_STATE_01-8a9e2292a0367b8e5f3127af7127aaf9fdd9f4cb6ec5474b42cc592274d739ec.png",
+    "sha256": "8a9e2292a0367b8e5f3127af7127aaf9fdd9f4cb6ec5474b42cc592274d739ec",
+    "bytes": 2928456,
+    "verified_download_sha256": true
+  },
+  "images/E02_S04_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S04_STATE_02-d0fea16bcdf19a50fb44333ae64808954c3d6681b8641ef656a51c0f84e91e42.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S04_STATE_02-d0fea16bcdf19a50fb44333ae64808954c3d6681b8641ef656a51c0f84e91e42.png",
+    "sha256": "d0fea16bcdf19a50fb44333ae64808954c3d6681b8641ef656a51c0f84e91e42",
+    "bytes": 2814264,
+    "verified_download_sha256": true
+  },
+  "images/E02_S04_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S04_STATE_01-36c173c669ea4a795bd6038f4a27a01983d745df11b495a6829a3181d1037623.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S04_STATE_01-36c173c669ea4a795bd6038f4a27a01983d745df11b495a6829a3181d1037623.png",
+    "sha256": "36c173c669ea4a795bd6038f4a27a01983d745df11b495a6829a3181d1037623",
+    "bytes": 2204508,
+    "verified_download_sha256": true
+  },
+  "images/E02_S03_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S03_STATE_02-8ddd2d06f4836304c58f70d2ae84fd92d21f6be4f22a6ec73c41ec02e465cc1d.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S03_STATE_02-8ddd2d06f4836304c58f70d2ae84fd92d21f6be4f22a6ec73c41ec02e465cc1d.png",
+    "sha256": "8ddd2d06f4836304c58f70d2ae84fd92d21f6be4f22a6ec73c41ec02e465cc1d",
+    "bytes": 3010161,
+    "verified_download_sha256": true
+  },
+  "images/E02_S05_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S05_STATE_01-0d392fa9538f2490307bf1c5c9f4bebbe211f7de959a63653a6f8b0d8199c7bd.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S05_STATE_01-0d392fa9538f2490307bf1c5c9f4bebbe211f7de959a63653a6f8b0d8199c7bd.png",
+    "sha256": "0d392fa9538f2490307bf1c5c9f4bebbe211f7de959a63653a6f8b0d8199c7bd",
+    "bytes": 3015569,
+    "verified_download_sha256": true
+  },
+  "images/E02_S06_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S06_STATE_02-20e86648ea9126bd314ee6a08c3080f0c8f934c1edf3dd89d417e1339586721b.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S06_STATE_02-20e86648ea9126bd314ee6a08c3080f0c8f934c1edf3dd89d417e1339586721b.png",
+    "sha256": "20e86648ea9126bd314ee6a08c3080f0c8f934c1edf3dd89d417e1339586721b",
+    "bytes": 2995802,
+    "verified_download_sha256": true
+  },
+  "images/E02_S05_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S05_STATE_02-7020d700e936d48711998bf9280cb1cbbaba5876de1faa2696aaa629f84e6fff.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S05_STATE_02-7020d700e936d48711998bf9280cb1cbbaba5876de1faa2696aaa629f84e6fff.png",
+    "sha256": "7020d700e936d48711998bf9280cb1cbbaba5876de1faa2696aaa629f84e6fff",
+    "bytes": 2851869,
+    "verified_download_sha256": true
+  },
+  "images/E02_S06_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S06_STATE_01-2c13103efeea67b72cadc9086e55780b3e973d7f4192ce2edb893a0234a54b70.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S06_STATE_01-2c13103efeea67b72cadc9086e55780b3e973d7f4192ce2edb893a0234a54b70.png",
+    "sha256": "2c13103efeea67b72cadc9086e55780b3e973d7f4192ce2edb893a0234a54b70",
+    "bytes": 2911641,
+    "verified_download_sha256": true
+  },
+  "images/E02_S07_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S07_STATE_01-e16cc38f86f05d45e15b7b782399de6d1222ceaa5e5805fb85671e64ef85b343.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S07_STATE_01-e16cc38f86f05d45e15b7b782399de6d1222ceaa5e5805fb85671e64ef85b343.png",
+    "sha256": "e16cc38f86f05d45e15b7b782399de6d1222ceaa5e5805fb85671e64ef85b343",
+    "bytes": 2818398,
+    "verified_download_sha256": true
+  },
+  "images/E02_S07_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S07_STATE_02-d63575cc146d29ad39cd2d88b85982d767b9ce18e6c2267e70bb5570d889af56.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S07_STATE_02-d63575cc146d29ad39cd2d88b85982d767b9ce18e6c2267e70bb5570d889af56.png",
+    "sha256": "d63575cc146d29ad39cd2d88b85982d767b9ce18e6c2267e70bb5570d889af56",
+    "bytes": 2870696,
+    "verified_download_sha256": true
+  },
+  "images/E02_S08_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S08_STATE_01-4d5b3e01ed9e55b1986831c9b6624730ad9ad450c1cc1465863f3230eca19df9.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S08_STATE_01-4d5b3e01ed9e55b1986831c9b6624730ad9ad450c1cc1465863f3230eca19df9.png",
+    "sha256": "4d5b3e01ed9e55b1986831c9b6624730ad9ad450c1cc1465863f3230eca19df9",
+    "bytes": 2882863,
+    "verified_download_sha256": true
+  },
+  "images/E02_S08_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S08_STATE_02-f1fcd79ccf46f918c7ba81c079b73d8258898b069ff6a160059676ba739f2333.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S08_STATE_02-f1fcd79ccf46f918c7ba81c079b73d8258898b069ff6a160059676ba739f2333.png",
+    "sha256": "f1fcd79ccf46f918c7ba81c079b73d8258898b069ff6a160059676ba739f2333",
+    "bytes": 2882207,
+    "verified_download_sha256": true
+  },
+  "images/E02_S09_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S09_STATE_02-55f42dd332144fefceceb0fd4db02fd025e7253eaa525f31b1bf5cb6881ed089.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S09_STATE_02-55f42dd332144fefceceb0fd4db02fd025e7253eaa525f31b1bf5cb6881ed089.png",
+    "sha256": "55f42dd332144fefceceb0fd4db02fd025e7253eaa525f31b1bf5cb6881ed089",
+    "bytes": 2743443,
+    "verified_download_sha256": true
+  },
+  "images/E02_S10_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S10_STATE_01-9ec3fb4d13e41fb51778636c94c5902df1879fe683d10a6c40a0d44d906fe429.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S10_STATE_01-9ec3fb4d13e41fb51778636c94c5902df1879fe683d10a6c40a0d44d906fe429.png",
+    "sha256": "9ec3fb4d13e41fb51778636c94c5902df1879fe683d10a6c40a0d44d906fe429",
+    "bytes": 2824434,
+    "verified_download_sha256": true
+  },
+  "images/E02_S10_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S10_STATE_02-26952ec99273e4552466e3ca86448f6a6e276e953eb14fd5195ab8403b3a47b9.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S10_STATE_02-26952ec99273e4552466e3ca86448f6a6e276e953eb14fd5195ab8403b3a47b9.png",
+    "sha256": "26952ec99273e4552466e3ca86448f6a6e276e953eb14fd5195ab8403b3a47b9",
+    "bytes": 2908517,
+    "verified_download_sha256": true
+  },
+  "images/E02_S09_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S09_STATE_01-da9278fb5e187fb3810bca23873f77e674f04ae7ac9b2dc64b08fb8b71adaabc.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S09_STATE_01-da9278fb5e187fb3810bca23873f77e674f04ae7ac9b2dc64b08fb8b71adaabc.png",
+    "sha256": "da9278fb5e187fb3810bca23873f77e674f04ae7ac9b2dc64b08fb8b71adaabc",
+    "bytes": 2896043,
+    "verified_download_sha256": true
+  },
+  "images/E02_S12_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S12_STATE_01-57207484b3f98badc37ea53915b8bdddd40861ecf9d650b966df54e9bdcf3c0c.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S12_STATE_01-57207484b3f98badc37ea53915b8bdddd40861ecf9d650b966df54e9bdcf3c0c.png",
+    "sha256": "57207484b3f98badc37ea53915b8bdddd40861ecf9d650b966df54e9bdcf3c0c",
+    "bytes": 2756663,
+    "verified_download_sha256": true
+  },
+  "images/E02_S11_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S11_STATE_01-aa8ee06f7474dd2f9e5aecb555ea0ddd0b3bc95e95a3e92859c9e6bb8817cec9.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S11_STATE_01-aa8ee06f7474dd2f9e5aecb555ea0ddd0b3bc95e95a3e92859c9e6bb8817cec9.png",
+    "sha256": "aa8ee06f7474dd2f9e5aecb555ea0ddd0b3bc95e95a3e92859c9e6bb8817cec9",
+    "bytes": 2936066,
+    "verified_download_sha256": true
+  },
+  "images/E02_S11_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S11_STATE_02-fdb83d51e1a11f0de3cd3f36395254b682124367aae7e5d1b79a08f632908568.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S11_STATE_02-fdb83d51e1a11f0de3cd3f36395254b682124367aae7e5d1b79a08f632908568.png",
+    "sha256": "fdb83d51e1a11f0de3cd3f36395254b682124367aae7e5d1b79a08f632908568",
+    "bytes": 2914134,
+    "verified_download_sha256": true
+  },
+  "images/E02_S12_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S12_STATE_02-28779d0d010e1a6ceefc74e9b1daf53c360296e01290b3b63aff610dc3d1b8f2.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S12_STATE_02-28779d0d010e1a6ceefc74e9b1daf53c360296e01290b3b63aff610dc3d1b8f2.png",
+    "sha256": "28779d0d010e1a6ceefc74e9b1daf53c360296e01290b3b63aff610dc3d1b8f2",
+    "bytes": 2736431,
+    "verified_download_sha256": true
+  },
+  "images/E02_S13_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S13_STATE_01-2b79ee7e78884e7d5befb7591fc6a90bb84e0563cce896c880b5c6434bb1066e.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S13_STATE_01-2b79ee7e78884e7d5befb7591fc6a90bb84e0563cce896c880b5c6434bb1066e.png",
+    "sha256": "2b79ee7e78884e7d5befb7591fc6a90bb84e0563cce896c880b5c6434bb1066e",
+    "bytes": 3028907,
+    "verified_download_sha256": true
+  },
+  "images/E02_S13_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S13_STATE_02-06db231c183b3ee7d308e0fab7c6495560f13940f389b03a6a5ab94b66406cd3.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S13_STATE_02-06db231c183b3ee7d308e0fab7c6495560f13940f389b03a6a5ab94b66406cd3.png",
+    "sha256": "06db231c183b3ee7d308e0fab7c6495560f13940f389b03a6a5ab94b66406cd3",
+    "bytes": 2945000,
+    "verified_download_sha256": true
+  },
+  "images/E02_S14_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S14_STATE_01-ee3f5252183cc525d635589cbf7b90dd2f2ee54e40a4c6769a82e7ee26074cbf.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S14_STATE_01-ee3f5252183cc525d635589cbf7b90dd2f2ee54e40a4c6769a82e7ee26074cbf.png",
+    "sha256": "ee3f5252183cc525d635589cbf7b90dd2f2ee54e40a4c6769a82e7ee26074cbf",
+    "bytes": 2889114,
+    "verified_download_sha256": true
+  },
+  "images/E02_S14_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S14_STATE_02-af27bac85df0a8ed39ac48fb6ea059042a43375424942909f02df0c52ba2bf3c.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S14_STATE_02-af27bac85df0a8ed39ac48fb6ea059042a43375424942909f02df0c52ba2bf3c.png",
+    "sha256": "af27bac85df0a8ed39ac48fb6ea059042a43375424942909f02df0c52ba2bf3c",
+    "bytes": 3036892,
+    "verified_download_sha256": true
+  },
+  "images/E02_S15_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S15_STATE_02-752fa6b95f4bf5afeae82d833f477b172cc1e63eba06cad51833b97edfa7a9b4.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S15_STATE_02-752fa6b95f4bf5afeae82d833f477b172cc1e63eba06cad51833b97edfa7a9b4.png",
+    "sha256": "752fa6b95f4bf5afeae82d833f477b172cc1e63eba06cad51833b97edfa7a9b4",
+    "bytes": 2621591,
+    "verified_download_sha256": true
+  },
+  "images/E02_S15_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S15_STATE_01-0722dcadc696f7d078f0b07e82f720a88467c0f992fbe909f43b3d47929d8154.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S15_STATE_01-0722dcadc696f7d078f0b07e82f720a88467c0f992fbe909f43b3d47929d8154.png",
+    "sha256": "0722dcadc696f7d078f0b07e82f720a88467c0f992fbe909f43b3d47929d8154",
+    "bytes": 2601302,
+    "verified_download_sha256": true
+  },
+  "images/E02_S16_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S16_STATE_02-0635bf5ac0a25f8830061a65c0cab7c31909dcaa8b2fe35c5993bc812266a4c9.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S16_STATE_02-0635bf5ac0a25f8830061a65c0cab7c31909dcaa8b2fe35c5993bc812266a4c9.png",
+    "sha256": "0635bf5ac0a25f8830061a65c0cab7c31909dcaa8b2fe35c5993bc812266a4c9",
+    "bytes": 2636424,
+    "verified_download_sha256": true
+  },
+  "images/E02_S16_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S16_STATE_01-d1c924769605bd7a16c74458b5bfe8e3bf7add1c715b86b1ae2d00acc1ce95d1.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S16_STATE_01-d1c924769605bd7a16c74458b5bfe8e3bf7add1c715b86b1ae2d00acc1ce95d1.png",
+    "sha256": "d1c924769605bd7a16c74458b5bfe8e3bf7add1c715b86b1ae2d00acc1ce95d1",
+    "bytes": 3011804,
+    "verified_download_sha256": true
+  },
+  "images/E02_S17_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S17_STATE_01-f14d203c787373d151867e110ea91f31e8cb4dc98606393866b3b789d538ac1c.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S17_STATE_01-f14d203c787373d151867e110ea91f31e8cb4dc98606393866b3b789d538ac1c.png",
+    "sha256": "f14d203c787373d151867e110ea91f31e8cb4dc98606393866b3b789d538ac1c",
+    "bytes": 2663103,
+    "verified_download_sha256": true
+  },
+  "images/E02_S17_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S17_STATE_02-5817f750248b7ef91d9ac34aa80293cc7a504378e0a99b3db8ea77de9a695ce9.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S17_STATE_02-5817f750248b7ef91d9ac34aa80293cc7a504378e0a99b3db8ea77de9a695ce9.png",
+    "sha256": "5817f750248b7ef91d9ac34aa80293cc7a504378e0a99b3db8ea77de9a695ce9",
+    "bytes": 2550995,
+    "verified_download_sha256": true
+  },
+  "images/E02_S18_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S18_STATE_02-3a33de2106944cdd5da12a881d7c58dcaad34d34eaf844697f59f7ed1e781acf.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S18_STATE_02-3a33de2106944cdd5da12a881d7c58dcaad34d34eaf844697f59f7ed1e781acf.png",
+    "sha256": "3a33de2106944cdd5da12a881d7c58dcaad34d34eaf844697f59f7ed1e781acf",
+    "bytes": 2663152,
+    "verified_download_sha256": true
+  },
+  "images/E02_S18_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S18_STATE_01-99ab57a28d12c0ad82ff8cfb6c150b40224144b79e1e737da0a80258c4b932cc.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S18_STATE_01-99ab57a28d12c0ad82ff8cfb6c150b40224144b79e1e737da0a80258c4b932cc.png",
+    "sha256": "99ab57a28d12c0ad82ff8cfb6c150b40224144b79e1e737da0a80258c4b932cc",
+    "bytes": 2616907,
+    "verified_download_sha256": true
+  },
+  "images/E02_S19_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S19_STATE_02-6196e2c9167b417c166899132b41b855e455459dceee7f00a5bcaaf84927c588.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S19_STATE_02-6196e2c9167b417c166899132b41b855e455459dceee7f00a5bcaaf84927c588.png",
+    "sha256": "6196e2c9167b417c166899132b41b855e455459dceee7f00a5bcaaf84927c588",
+    "bytes": 2657321,
+    "verified_download_sha256": true
+  },
+  "images/E02_S20_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S20_STATE_01-4cc38027e90aa80a308843f20ee5ded2f1240fc51ecf5d6c1adbb1f22fb86d2b.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S20_STATE_01-4cc38027e90aa80a308843f20ee5ded2f1240fc51ecf5d6c1adbb1f22fb86d2b.png",
+    "sha256": "4cc38027e90aa80a308843f20ee5ded2f1240fc51ecf5d6c1adbb1f22fb86d2b",
+    "bytes": 2468102,
+    "verified_download_sha256": true
+  },
+  "images/E02_S19_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S19_STATE_01-7e6c347dcfddd010a1eb7e497ace4bc311ed1a14ea32287a19f5d24f9d1683ef.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S19_STATE_01-7e6c347dcfddd010a1eb7e497ace4bc311ed1a14ea32287a19f5d24f9d1683ef.png",
+    "sha256": "7e6c347dcfddd010a1eb7e497ace4bc311ed1a14ea32287a19f5d24f9d1683ef",
+    "bytes": 2375366,
+    "verified_download_sha256": true
+  },
+  "images/E02_S20_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S20_STATE_02-1b69cd9348aca27c8e88b27ad6d837f917cb7deaabb1ebe2d1eeeeaf4ca43b85.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S20_STATE_02-1b69cd9348aca27c8e88b27ad6d837f917cb7deaabb1ebe2d1eeeeaf4ca43b85.png",
+    "sha256": "1b69cd9348aca27c8e88b27ad6d837f917cb7deaabb1ebe2d1eeeeaf4ca43b85",
+    "bytes": 2457571,
+    "verified_download_sha256": true
+  },
+  "images/E02_S22_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S22_STATE_01-61f58125ecfa10b88b0b5de24cfb1627db17efb6f00b973e9235e5c7f8a364f4.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S22_STATE_01-61f58125ecfa10b88b0b5de24cfb1627db17efb6f00b973e9235e5c7f8a364f4.png",
+    "sha256": "61f58125ecfa10b88b0b5de24cfb1627db17efb6f00b973e9235e5c7f8a364f4",
+    "bytes": 2586031,
+    "verified_download_sha256": true
+  },
+  "images/E02_S21_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S21_STATE_01-4dd1245a80bf57502080f14da22ae338caeb082a20747f551401e8228a712b03.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S21_STATE_01-4dd1245a80bf57502080f14da22ae338caeb082a20747f551401e8228a712b03.png",
+    "sha256": "4dd1245a80bf57502080f14da22ae338caeb082a20747f551401e8228a712b03",
+    "bytes": 2481530,
+    "verified_download_sha256": true
+  },
+  "images/E02_S22_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S22_STATE_02-ff7f65f185b1d4eaeb50c3ff7f58854358ed3b3f4386edaf10d3fc757c955d12.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S22_STATE_02-ff7f65f185b1d4eaeb50c3ff7f58854358ed3b3f4386edaf10d3fc757c955d12.png",
+    "sha256": "ff7f65f185b1d4eaeb50c3ff7f58854358ed3b3f4386edaf10d3fc757c955d12",
+    "bytes": 2421676,
+    "verified_download_sha256": true
+  },
+  "images/E02_S21_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S21_STATE_02-3bfe29896e3c8372bc4598fcbe8d3ae901f70041d17c51163bf4795e0cadbf29.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S21_STATE_02-3bfe29896e3c8372bc4598fcbe8d3ae901f70041d17c51163bf4795e0cadbf29.png",
+    "sha256": "3bfe29896e3c8372bc4598fcbe8d3ae901f70041d17c51163bf4795e0cadbf29",
+    "bytes": 2319147,
+    "verified_download_sha256": true
+  },
+  "images/E02_S23_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S23_STATE_02-3bf0f1b6b3619899a543ef1773245facee5a2c837b0170ace74c2b495c5e92f0.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S23_STATE_02-3bf0f1b6b3619899a543ef1773245facee5a2c837b0170ace74c2b495c5e92f0.png",
+    "sha256": "3bf0f1b6b3619899a543ef1773245facee5a2c837b0170ace74c2b495c5e92f0",
+    "bytes": 2432812,
+    "verified_download_sha256": true
+  },
+  "images/E02_S23_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S23_STATE_01-636794a77051475875a5017e1a47eafe9624919b05ae3c65fa5937980e53c0af.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S23_STATE_01-636794a77051475875a5017e1a47eafe9624919b05ae3c65fa5937980e53c0af.png",
+    "sha256": "636794a77051475875a5017e1a47eafe9624919b05ae3c65fa5937980e53c0af",
+    "bytes": 2445010,
+    "verified_download_sha256": true
+  },
+  "images/E02_S24_STATE_02.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S24_STATE_02-c36248562354d9e80a4efe51e517a49abb592b9da09c254e398a1b2c0925abb6.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S24_STATE_02-c36248562354d9e80a4efe51e517a49abb592b9da09c254e398a1b2c0925abb6.png",
+    "sha256": "c36248562354d9e80a4efe51e517a49abb592b9da09c254e398a1b2c0925abb6",
+    "bytes": 2537298,
+    "verified_download_sha256": true
+  },
+  "images/E02_S24_STATE_01.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/E02_S24_STATE_01-ce049365e13bad6333b14c1351a9e74ee72565633fea77c142621f9e84847603.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2FE02_S24_STATE_01-ce049365e13bad6333b14c1351a9e74ee72565633fea77c142621f9e84847603.png",
+    "sha256": "ce049365e13bad6333b14c1351a9e74ee72565633fea77c142621f9e84847603",
+    "bytes": 2194443,
+    "verified_download_sha256": true
+  },
+  "character-sheets/dogyeom-v1.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/dogyeom-v1-11b616a1117ff44323bf0a1ca99b79645bd6e887fa8f3caec6c41bc0faf4eca1.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fdogyeom-v1-11b616a1117ff44323bf0a1ca99b79645bd6e887fa8f3caec6c41bc0faf4eca1.png",
+    "sha256": "11b616a1117ff44323bf0a1ca99b79645bd6e887fa8f3caec6c41bc0faf4eca1",
+    "bytes": 2689696,
+    "verified_download_sha256": true
+  },
+  "character-sheets/seojin-v1.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/seojin-v1-2fac67c8b58e4bb33fe85001d77435e01bea4af4b094f6c25f438dad67546af2.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fseojin-v1-2fac67c8b58e4bb33fe85001d77435e01bea4af4b094f6c25f438dad67546af2.png",
+    "sha256": "2fac67c8b58e4bb33fe85001d77435e01bea4af4b094f6c25f438dad67546af2",
+    "bytes": 2222131,
+    "verified_download_sha256": true
+  },
+  "character-sheets/guard-v1.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/guard-v1-67147a5c99eda06887255761e9a106cdba6ef47dafbc1bd6dbc84f217be750d5.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fguard-v1-67147a5c99eda06887255761e9a106cdba6ef47dafbc1bd6dbc84f217be750d5.png",
+    "sha256": "67147a5c99eda06887255761e9a106cdba6ef47dafbc1bd6dbc84f217be750d5",
+    "bytes": 1918614,
+    "verified_download_sha256": true
+  },
+  "direction/build_ae_preview.jsx": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/build_ae_preview-e6541c44b9895149bfc88670171f34f2beecb1b539370899031a3896b023cdc8.jsx",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fbuild_ae_preview-e6541c44b9895149bfc88670171f34f2beecb1b539370899031a3896b023cdc8.jsx",
+    "sha256": "e6541c44b9895149bfc88670171f34f2beecb1b539370899031a3896b023cdc8",
+    "bytes": 11226,
+    "verified_download_sha256": true
+  },
+  "packaging/thumbnail-bg-v1.png": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/thumbnail-bg-v1-07b0fd56855d708bf9d82a0bbcfed1f6187d1e0741afaf48402e1ed53a42fc8a.png",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fthumbnail-bg-v1-07b0fd56855d708bf9d82a0bbcfed1f6187d1e0741afaf48402e1ed53a42fc8a.png",
+    "sha256": "07b0fd56855d708bf9d82a0bbcfed1f6187d1e0741afaf48402e1ed53a42fc8a",
+    "bytes": 2370543,
+    "verified_download_sha256": true
+  },
+  "direction/ae-scene-package.json": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/ae-scene-package-e9a0e24a92ad5e03db5c04400a85f36fd42341a131e19dc7ed6860f36c8025d3.json",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fae-scene-package-e9a0e24a92ad5e03db5c04400a85f36fd42341a131e19dc7ed6860f36c8025d3.json",
+    "sha256": "e9a0e24a92ad5e03db5c04400a85f36fd42341a131e19dc7ed6860f36c8025d3",
+    "bytes": 109766,
+    "verified_download_sha256": true
+  },
+  "direction/sound-and-music-direction.json": {
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/sound-and-music-direction-1ddba7a82e6dcc70fc44b555ac0d41312d55c11e0b888e132f0548990aa9591f.json",
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fsound-and-music-direction-1ddba7a82e6dcc70fc44b555ac0d41312d55c11e0b888e132f0548990aa9591f.json",
+    "sha256": "1ddba7a82e6dcc70fc44b555ac0d41312d55c11e0b888e132f0548990aa9591f",
+    "bytes": 8652,
+    "verified_download_sha256": true
+  },
+  "packaging/thumbnail-final.png": {
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fthumbnail-final-d533ba39c373ddfbdd5cd1bdf332743c9852c208712d9e930b9a7b32134b5e0d.png",
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/thumbnail-final-d533ba39c373ddfbdd5cd1bdf332743c9852c208712d9e930b9a7b32134b5e0d.png",
+    "sha256": "d533ba39c373ddfbdd5cd1bdf332743c9852c208712d9e930b9a7b32134b5e0d",
+    "bytes": 1466019,
+    "verified_download_sha256": true
+  },
+  "packaging/ae-scene-package-web.json": {
+    "media_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fae-scene-package-web-3a9553e7b288df2de6f8f64ce906e3d68bedb51cce5b731962287c85a9baa37a.json",
+    "gcs_bucket": "air-studio-prod",
+    "gcs_path": "codex-productions/wuxia-series-rebuild/episode-02/ae-scene-package-web-3a9553e7b288df2de6f8f64ce906e3d68bedb51cce5b731962287c85a9baa37a.json",
+    "sha256": "3a9553e7b288df2de6f8f64ce906e3d68bedb51cce5b731962287c85a9baa37a",
+    "bytes": 133862,
+    "verified_download_sha256": true
+  }
+}

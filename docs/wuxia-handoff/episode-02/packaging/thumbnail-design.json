@@ -1,0 +1,47 @@
+{
+  "contract": "editable-background-v1",
+  "width": 1280,
+  "height": 720,
+  "editor_width": 480,
+  "text_layers": [
+    {
+      "id": "ep02-kicker",
+      "text": "겨우 빠져나왔는데",
+      "fontSize": 17,
+      "fontFamily": "Noto Sans KR",
+      "color": "#FFFFFF",
+      "strokeColor": "#08151B",
+      "strokeWidth": 1.5,
+      "x": 22,
+      "y": 30
+    },
+    {
+      "id": "ep02-headline",
+      "text": "출구에\n누군가 있다",
+      "fontSize": 31,
+      "fontFamily": "Black Han Sans",
+      "color": "#F6F0C8",
+      "strokeColor": "#071820",
+      "strokeWidth": 2,
+      "x": 22,
+      "y": 53
+    },
+    {
+      "id": "ep02-badge",
+      "text": "돌아오는 검 · 2화",
+      "fontSize": 12,
+      "fontFamily": "Noto Sans KR",
+      "color": "#82DFE5",
+      "strokeColor": "#071820",
+      "strokeWidth": 1,
+      "x": 22,
+      "y": 83
+    }
+  ],
+  "render_status": "completed",
+  "thumbnail_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fthumbnail-final-d533ba39c373ddfbdd5cd1bdf332743c9852c208712d9e930b9a7b32134b5e0d.png",
+  "editor_bg_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fthumbnail-bg-v1-07b0fd56855d708bf9d82a0bbcfed1f6187d1e0741afaf48402e1ed53a42fc8a.png",
+  "bg_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-02%2Fthumbnail-bg-v1-07b0fd56855d708bf9d82a0bbcfed1f6187d1e0741afaf48402e1ed53a42fc8a.png",
+  "renderer": "auth-web/lib/stdThumbnailRender.ts:drawThumbnail",
+  "thumbnail_completed": true
+}

@@ -1,0 +1,800 @@
+{
+  "E02_S01_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.77,
+        0.17
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S01_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.18,
+          0.67
+        ],
+        "size": [
+          0.31,
+          0.18
+        ],
+        "tail": [
+          0.35,
+          0.48
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S02_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.77,
+        0.18
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S02_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.24,
+          0.15
+        ],
+        "size": [
+          0.34,
+          0.22
+        ],
+        "tail": [
+          0,
+          0.5
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S03_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.18,
+          0.16
+        ],
+        "size": [
+          0.29,
+          0.2
+        ],
+        "tail": [
+          0.38,
+          0.42
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S03_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S04_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.8,
+        0.22
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S04_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S05_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S05_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.79,
+          0.15
+        ],
+        "size": [
+          0.31,
+          0.24
+        ],
+        "tail": [
+          0.69,
+          0.63
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S06_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.55,
+          0.13
+        ],
+        "size": [
+          0.31,
+          0.24
+        ],
+        "tail": [
+          0.4,
+          0.34
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S06_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.82,
+        0.4
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S07_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S07_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.5,
+          0.11
+        ],
+        "size": [
+          0.37,
+          0.18
+        ],
+        "tail": [
+          0.65,
+          0.52
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S08_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.22,
+        0.13
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S08_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.5,
+          0.13
+        ],
+        "size": [
+          0.35,
+          0.24
+        ],
+        "tail": [
+          0.57,
+          0.48
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S09_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.7,
+        0.79
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S09_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.2,
+          0.13
+        ],
+        "size": [
+          0.34,
+          0.22
+        ],
+        "tail": [
+          0,
+          0.45
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "visually_authored"
+      }
+    },
+    "static_crop": [
+      0.45,
+      0.15,
+      1,
+      0.99
+    ]
+  },
+  "E02_S10_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.76,
+          0.16
+        ],
+        "size": [
+          0.35,
+          0.24
+        ],
+        "tail": [
+          0.49,
+          0.42
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    },
+    "static_crop": [
+      0.28,
+      0.04,
+      1,
+      0.76
+    ]
+  },
+  "E02_S10_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S11_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.73,
+          0.15
+        ],
+        "size": [
+          0.28,
+          0.18
+        ],
+        "tail": [
+          0.73,
+          0.52
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    },
+    "typography_slot": {
+      "center": [
+        0.73,
+        0.83
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S11_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "static_crop": [
+      0.3,
+      0.2,
+      1,
+      0.9
+    ]
+  },
+  "E02_S12_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "static_crop": [
+      0.4,
+      0.18,
+      0.92,
+      0.98
+    ]
+  },
+  "E02_S12_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "static_crop": [
+      0.35,
+      0.15,
+      1,
+      0.8
+    ]
+  },
+  "E02_S13_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.84,
+        0.16
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S13_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.21,
+          0.14
+        ],
+        "size": [
+          0.34,
+          0.22
+        ],
+        "tail": [
+          0,
+          0.42
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "visually_authored"
+      }
+    },
+    "static_crop": [
+      0.45,
+      0.15,
+      0.99,
+      0.85
+    ]
+  },
+  "E02_S14_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.75,
+        0.84
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S14_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.73,
+          0.14
+        ],
+        "size": [
+          0.34,
+          0.22
+        ],
+        "tail": [
+          0,
+          0.65
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S15_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.52,
+          0.13
+        ],
+        "size": [
+          0.37,
+          0.23
+        ],
+        "tail": [
+          0.28,
+          0.47
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S15_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.72,
+          0.14
+        ],
+        "size": [
+          0.35,
+          0.23
+        ],
+        "tail": [
+          0.66,
+          0.55
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S16_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.78,
+          0.14
+        ],
+        "size": [
+          0.28,
+          0.18
+        ],
+        "tail": [
+          0.83,
+          0.52
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    },
+    "static_crop": [
+      0.43,
+      0.25,
+      1,
+      1
+    ]
+  },
+  "E02_S16_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S17_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S17_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.84,
+        0.77
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S18_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S18_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.75,
+        0.14
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S19_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.78,
+          0.14
+        ],
+        "size": [
+          0.34,
+          0.23
+        ],
+        "tail": [
+          0.88,
+          0.73
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S19_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "static_crop": [
+      0.25,
+      0,
+      1,
+      1
+    ]
+  },
+  "E02_S20_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S20_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.79,
+          0.2
+        ],
+        "size": [
+          0.34,
+          0.22
+        ],
+        "tail": [
+          1,
+          0.65
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "visually_authored"
+      }
+    },
+    "typography_slot": {
+      "center": [
+        0.2,
+        0.79
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S21_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.18,
+          0.15
+        ],
+        "size": [
+          0.24,
+          0.18
+        ],
+        "tail": [
+          0.25,
+          0.45
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S21_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.25,
+        0.12
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S22_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.53,
+          0.12
+        ],
+        "size": [
+          0.33,
+          0.18
+        ],
+        "tail": [
+          0.34,
+          0.43
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      },
+      "dogyeom": {
+        "center": [
+          0.53,
+          0.12
+        ],
+        "size": [
+          0.33,
+          0.18
+        ],
+        "tail": [
+          0.7,
+          0.43
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S22_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S23_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  },
+  "E02_S23_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.52,
+        0.13
+      ],
+      "size": [
+        0.3,
+        0.18
+      ],
+      "placement_review": "visually_authored"
+    }
+  },
+  "E02_S24_STATE_01": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {
+      "guard": {
+        "center": [
+          0.78,
+          0.16
+        ],
+        "size": [
+          0.38,
+          0.28
+        ],
+        "tail": [
+          0.67,
+          0
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "visually_authored"
+      }
+    }
+  },
+  "E02_S24_STATE_02": {
+    "review": "reviewed_with_quality_notes",
+    "review_basis": "Actual stored source/contact-board visual inspection; see quality-notes.md",
+    "dialogue_slots": {}
+  }
+}

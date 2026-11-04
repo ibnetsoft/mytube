@@ -1,0 +1,15 @@
+{
+  "complete": true,
+  "topic_id": 3429,
+  "checks": {
+    "topic_id": true,
+    "source_hash": true,
+    "scenes": true,
+    "readback": true,
+    "web_ready": true,
+    "thumbnail": true
+  },
+  "next_stage": "episode_delivery_complete",
+  "authorized_endpoint": "user_web_registration_and_exact_readback",
+  "requires_final_audio_or_ae_render": false
+}

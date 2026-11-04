@@ -1,0 +1,195 @@
+{
+  "actual_unique_pngs": 79,
+  "characters": 5,
+  "scenes": 26,
+  "editable_graphics": 51,
+  "video_clips": 0,
+  "narration_verbatim_captions": false,
+  "checks": [
+    {
+      "scene_id": "E01_S01",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S02",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S03",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S04",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S05",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S06",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S07",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S08",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S09",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S10",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S11",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S12",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S13",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S14",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S15",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S16",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S17",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S18",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S19",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S20",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S21",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S22",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S23",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S24",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S25",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    },
+    {
+      "scene_id": "E01_S26",
+      "source_hashes": "pass",
+      "semantic_state_binding": "pass",
+      "editable_text_placement": "authored and visually inspected",
+      "camera": "fixed with authored static detail crops"
+    }
+  ],
+  "actual_audio_sync_verified": false,
+  "ae_execution_verified": false,
+  "user_web_registered": false
+}

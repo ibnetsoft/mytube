@@ -1,0 +1,47 @@
+{
+  "contract": "editable-background-v1",
+  "width": 1280,
+  "height": 720,
+  "editor_width": 480,
+  "text_layers": [
+    {
+      "id": "ep01-kicker",
+      "text": "버림받은 순간",
+      "fontSize": 19,
+      "fontFamily": "Noto Sans KR",
+      "color": "#FFFFFF",
+      "strokeColor": "#08151B",
+      "strokeWidth": 1.5,
+      "x": 22,
+      "y": 31
+    },
+    {
+      "id": "ep01-headline",
+      "text": "틈이\n보였다",
+      "fontSize": 37,
+      "fontFamily": "Black Han Sans",
+      "color": "#F6F0C8",
+      "strokeColor": "#071820",
+      "strokeWidth": 2,
+      "x": 22,
+      "y": 55
+    },
+    {
+      "id": "ep01-badge",
+      "text": "버려진 짐꾼 · 1화",
+      "fontSize": 12,
+      "fontFamily": "Noto Sans KR",
+      "color": "#82DFE5",
+      "strokeColor": "#071820",
+      "strokeWidth": 1,
+      "x": 22,
+      "y": 83
+    }
+  ],
+  "render_status": "completed",
+  "thumbnail_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-01%2Fthumbnail-final-e77f9b601ce9d00777218d9dfddd8bb2ff1222148037763fd10843d1f21f7e9d.png",
+  "editor_bg_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-01%2Fthumbnail-bg-v1-45d69ccc5ec3950e465fa6354a960a9a54f13ee3c69c9ecb66405b6a0b133d60.png",
+  "bg_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rebuild%2Fepisode-01%2Fthumbnail-bg-v1-45d69ccc5ec3950e465fa6354a960a9a54f13ee3c69c9ecb66405b6a0b133d60.png",
+  "renderer": "auth-web/lib/stdThumbnailRender.ts:drawThumbnail",
+  "thumbnail_completed": true
+}

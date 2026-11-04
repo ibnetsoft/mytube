@@ -56,3 +56,4 @@
 ## Wuxia webtoon production defaults
 
 - For 무협 웹툰 productions, read `docs/wuxia-webtoon-production-defaults.md` and apply the defaults to the proposed settings and production. Confirm the effective settings and receive an explicit start action for each new script as required above; user overrides take precedence.
+- For the authorized `나 혼자 무공을 진화시킨다` series, follow `docs/WUXIA_SERIES_DELIVERY.md`. The user defined episode completion on 2026-11-04 as the complete episode package registered to the user web with readback verification. An explicit next-episode start inherits the already confirmed series settings. Do not end after script, artwork or a local preview and ask the user to restart the next authorized stage. Final voice, AE rendering, administrator publishing and YouTube upload are separate from this delivery endpoint.

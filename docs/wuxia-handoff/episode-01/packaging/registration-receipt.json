@@ -1,0 +1,20 @@
+{
+  "topic_id": 3428,
+  "source_package_id": "2967ae98668a251e28a21b2803dcc1a4",
+  "script_sha256": "4c351b8c6227b0f429308cb2ebd4527906998557e8fa841393705c82f0be3847",
+  "scene_count": 26,
+  "state_images": 79,
+  "character_sheets": 5,
+  "thumbnail_completed": true,
+  "thumbnail_layers": 3,
+  "review_translation_blocks": 87,
+  "web_readiness": {
+    "ready": true,
+    "prompts_ready": true
+  },
+  "database_readback": "exact_match",
+  "existing_topics_modified": false,
+  "registered_at": "2026-11-04T07:57:18.844019+00:00",
+  "url": "https://studio.airing.work/std?tab=topics",
+  "youtube_published": false
+}

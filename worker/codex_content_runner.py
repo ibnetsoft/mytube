@@ -2602,7 +2602,10 @@ class CodexStagedContentRunner:
             cache_key.append({'reasoning_effort': reasoning})
         fingerprint = hashlib.sha256(json.dumps(cache_key, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
         request_path = work_dir / f"{job_id}.{name}.{fingerprint}.input.json"
-        request_path.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
+        # Windows shell/tool transports can replace Korean characters even when
+        # the source file is UTF-8. JSON escapes preserve the exact source across
+        # those transports; the stage decodes ordinary JSON before using it.
+        request_path.write_text(json.dumps(context, ensure_ascii=True, indent=2), encoding="utf-8")
         last_error = ""
         # Match the original worker's bounded recovery policy: a failed
         # provider response is retried once with the failure fed back, never

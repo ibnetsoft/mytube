@@ -1,0 +1,1300 @@
+{
+  "E01_S01_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "0ff0a6bc34aad9ef592a4ff6d2c0fc9d0c9bf0cc2055c0ead9ffe88061d9a6de",
+    "review_note": "서진의 이중 지게와 무사 신발 대비. 배경 문 형태의 세부는 역방향 편집에서 연속 매치하지 않는다.",
+    "dialogue_slots": {}
+  },
+  "E01_S01_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "6b2014bc0a3ae4e840fb252e62853076800f2b0b046df976da4761827fc88f9c",
+    "review_note": "서진의 이중 지게와 무사 신발 대비. 배경 문 형태의 세부는 역방향 편집에서 연속 매치하지 않는다.",
+    "dialogue_slots": {}
+  },
+  "E01_S01_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "18feb83a4b3cd8873870adc0e13baffc75f3693afeeb568951074593915977dc",
+    "review_note": "서진의 이중 지게와 무사 신발 대비. 배경 문 형태의 세부는 역방향 편집에서 연속 매치하지 않는다.",
+    "dialogue_slots": {
+      "guard": {
+        "center": [
+          0.29,
+          0.19
+        ],
+        "tail": [
+          0.2,
+          0.43
+        ],
+        "size": [
+          0.34,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S02_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "c68670fce44e3228815d36c1499fc4f52d8fd22c7f617b8b69e90869310cd534",
+    "review_note": "서진 왼쪽, 서리 오른쪽. 장부·동전·손과 두 얼굴을 말풍선에서 보호한다.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.53,
+          0.55
+        ],
+        "tail": [
+          0.33,
+          0.4
+        ],
+        "size": [
+          0.31,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      },
+      "clerk": {
+        "center": [
+          0.53,
+          0.55
+        ],
+        "tail": [
+          0.82,
+          0.4
+        ],
+        "size": [
+          0.31,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S02_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "92b1d1ff51d66af3bfb408acc0eae7809f5817b245777e61ea6cc4aa682b81dc",
+    "review_note": "서진 왼쪽, 서리 오른쪽. 장부·동전·손과 두 얼굴을 말풍선에서 보호한다.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.53,
+          0.55
+        ],
+        "tail": [
+          0.33,
+          0.4
+        ],
+        "size": [
+          0.31,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      },
+      "clerk": {
+        "center": [
+          0.53,
+          0.55
+        ],
+        "tail": [
+          0.82,
+          0.4
+        ],
+        "size": [
+          0.31,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S02_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "f9ef674cd759decd573d65dc6eab9dbf8e614f09d8c559a018d8f25043b0d0ed",
+    "review_note": "서진 왼쪽, 서리 오른쪽. 장부·동전·손과 두 얼굴을 말풍선에서 보호한다.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.53,
+          0.55
+        ],
+        "tail": [
+          0.33,
+          0.4
+        ],
+        "size": [
+          0.31,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      },
+      "clerk": {
+        "center": [
+          0.53,
+          0.55
+        ],
+        "tail": [
+          0.82,
+          0.4
+        ],
+        "size": [
+          0.31,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S03_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "3067d54e04a3712c122faed652a697def21a4b670cc7dfb2395e0e6f8aac47ff",
+    "review_note": "도겸 왼쪽, 서진 오른쪽. 동전 보따리·물주머니·어깨 자국을 순서대로 읽힌다.",
+    "dialogue_slots": {}
+  },
+  "E01_S03_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "684542c790ed14a00f5a084639555d51f19b96ef71084aa0acaf00399a38b691",
+    "review_note": "도겸 왼쪽, 서진 오른쪽. 동전 보따리·물주머니·어깨 자국을 순서대로 읽힌다.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.51,
+          0.13
+        ],
+        "tail": [
+          0.28,
+          0.35
+        ],
+        "size": [
+          0.3,
+          0.21
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S03_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "7b5898a1ec220c1811bf738d4f6e29b1e80ffb5ee2a27b600d594b231d728965",
+    "review_note": "도겸 왼쪽, 서진 오른쪽. 동전 보따리·물주머니·어깨 자국을 순서대로 읽힌다.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.51,
+          0.13
+        ],
+        "tail": [
+          0.73,
+          0.39
+        ],
+        "size": [
+          0.29,
+          0.17
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S04_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "21847be41f991931e9d22255126f72ce7449bf01cf40e23e0be1f75d5511fec7",
+    "review_note": "동일 자세 반복을 발 상세 고정 크롭으로 구별. 지게를 멘 가중 연습으로 읽히는 원화이며 손 떨림은 정지 상태선으로 표시된다.",
+    "dialogue_slots": {}
+  },
+  "E01_S04_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "49fce1da9d1cbcbb5840b579cdf8cc8d6500a524b6f103d8e22c23a1cc63e7e2",
+    "review_note": "동일 자세 반복을 발 상세 고정 크롭으로 구별. 지게를 멘 가중 연습으로 읽히는 원화이며 손 떨림은 정지 상태선으로 표시된다.",
+    "dialogue_slots": {}
+  },
+  "E01_S04_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "1fa6b0771ec747abaab7312f508af00cd731b575bad134bf91ac653f34ab6d53",
+    "review_note": "동일 자세 반복을 발 상세 고정 크롭으로 구별. 지게를 멘 가중 연습으로 읽히는 원화이며 손 떨림은 정지 상태선으로 표시된다.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.82,
+        0.6
+      ],
+      "size": [
+        0.25,
+        0.19
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S05_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "7956536f3fefbeeb63aa1f1e00556769dcc574d4067b94cc9be87698cb0658b4",
+    "review_note": "장호가 봉함을 얻기 전 허리에 봉함이 없는 상태. 모집장 글은 원화에 구워 넣지 않았다.",
+    "dialogue_slots": {}
+  },
+  "E01_S05_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "589c83fc0900fc1ed59d820e31236ccbe3502fc04725834b4253306de9f964a6",
+    "review_note": "장호가 봉함을 얻기 전 허리에 봉함이 없는 상태. 모집장 글은 원화에 구워 넣지 않았다.",
+    "dialogue_slots": {
+      "clerk": {
+        "center": [
+          0.81,
+          0.16
+        ],
+        "tail": [
+          0.9,
+          0.45
+        ],
+        "size": [
+          0.32,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S05_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "75b5e82236dcfbef623a86b7fdca5dfb9f6ac48d070746b1a706c7b7246c39fe",
+    "review_note": "장호가 봉함을 얻기 전 허리에 봉함이 없는 상태. 모집장 글은 원화에 구워 넣지 않았다.",
+    "dialogue_slots": {}
+  },
+  "E01_S06_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "e88141bcc7d23a71e285bb7af83e1ce008f23a2adb1d6dff211dc48de4a3cd29",
+    "review_note": "도겸·서진 뒤쪽, 무사 앞쪽. 넘어질 듯한 무사와 서진의 작은 보폭을 하드 컷으로 대비.",
+    "dialogue_slots": {}
+  },
+  "E01_S06_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "f88fa75230b997a14d8fa8f5ab5667fcbc1f5694cd648a90c107414e908c0080",
+    "review_note": "도겸·서진 뒤쪽, 무사 앞쪽. 넘어질 듯한 무사와 서진의 작은 보폭을 하드 컷으로 대비.",
+    "dialogue_slots": {}
+  },
+  "E01_S06_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "036387d853d9fdff771374ffc4323728a108d1c68f150b53c8a377b95df7be23",
+    "review_note": "도겸·서진 뒤쪽, 무사 앞쪽. 넘어질 듯한 무사와 서진의 작은 보폭을 하드 컷으로 대비.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.23,
+          0.15
+        ],
+        "tail": [
+          0.13,
+          0.45
+        ],
+        "size": [
+          0.31,
+          0.2
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      },
+      "seojin": {
+        "center": [
+          0.29,
+          0.16
+        ],
+        "tail": [
+          0.31,
+          0.51
+        ],
+        "size": [
+          0.38,
+          0.25
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S07_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "d1e7432cfc3ba37cd42a2237566f8f5d1e54be58dd0cbc712c098fb15eda313a",
+    "review_note": "실제 벽화 상세 원화로 교체. 마지막 발 위치는 동적 줌 없이 고정 상세 크롭.",
+    "dialogue_slots": {
+      "guard": {
+        "center": [
+          0.22,
+          0.13
+        ],
+        "tail": [
+          0.205,
+          0.36
+        ],
+        "size": [
+          0.31,
+          0.2
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S07_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "2d7a1013cf821d7531fbf83175ca58c5c19826a2987e7a4fdc16fcbb9920d16d",
+    "review_note": "실제 벽화 상세 원화로 교체. 마지막 발 위치는 동적 줌 없이 고정 상세 크롭.",
+    "dialogue_slots": {}
+  },
+  "E01_S07_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "18ec6d4fa8344e5881953f68bb4840d218d7bf80861c0da22b349f38509ea2c2",
+    "review_note": "실제 벽화 상세 원화로 교체. 마지막 발 위치는 동적 줌 없이 고정 상세 크롭.",
+    "dialogue_slots": {}
+  },
+  "E01_S08_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "a387ef699f3f96051a798b2bdbca9e6f961f682c44503b889b73dba6a77038e3",
+    "review_note": "시신 손의 끊어진 끈은 별도 접사로 수정. 관찰 타이포는 대사와 다른 컷에서만 표시.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.3,
+          0.74
+        ],
+        "tail": [
+          0.14,
+          0.44
+        ],
+        "size": [
+          0.36,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S08_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "a76d0b81e294a1431ff72a6e13f328bd3dbf448cf12fb0912fd4a8312bdc45f9",
+    "review_note": "시신 손의 끊어진 끈은 별도 접사로 수정. 관찰 타이포는 대사와 다른 컷에서만 표시.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.78,
+        0.22
+      ],
+      "size": [
+        0.25,
+        0.2
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S08_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "7791133a1e51c5b2c0d4df2dfe78b5bafa452f1ecc5df1bf33bf26aec36171fa",
+    "review_note": "시신 손의 끊어진 끈은 별도 접사로 수정. 관찰 타이포는 대사와 다른 컷에서만 표시.",
+    "dialogue_slots": {
+      "jangho": {
+        "center": [
+          0.66,
+          0.76
+        ],
+        "tail": [
+          0.46,
+          0.45
+        ],
+        "size": [
+          0.36,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      },
+      "seojin": {
+        "center": [
+          0.64,
+          0.76
+        ],
+        "tail": [
+          0.15,
+          0.44
+        ],
+        "size": [
+          0.45,
+          0.24
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S09_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "edab5939f18bf9490517e14b56b2ff2b522c144fbf06c09f8e31a40e7e7795ac",
+    "review_note": "우두머리 1+일반 5. 수레 적재물 보정. 순서 1→3→2로 수레 준비 뒤 봉함을 잡는다.",
+    "dialogue_slots": {}
+  },
+  "E01_S09_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "73b87b83d3daf20ee046ff6b7ea9014cfc81943d8986011f253da490310a49e4",
+    "review_note": "우두머리 1+일반 5. 수레 적재물 보정. 순서 1→3→2로 수레 준비 뒤 봉함을 잡는다.",
+    "dialogue_slots": {
+      "jangho": {
+        "center": [
+          0.25,
+          0.2
+        ],
+        "tail": [
+          0.72,
+          0.35
+        ],
+        "size": [
+          0.37,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    },
+    "typography_slot": {
+      "center": [
+        0.39,
+        0.85
+      ],
+      "size": [
+        0.23,
+        0.16
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S09_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "9aa7df799557598f495bdf1622efb9280f668416faaee07c85d86a3d957d032e",
+    "review_note": "우두머리 1+일반 5. 수레 적재물 보정. 순서 1→3→2로 수레 준비 뒤 봉함을 잡는다.",
+    "dialogue_slots": {}
+  },
+  "E01_S10_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "68b926621a0976539587d266e9982114091ccee66d10006886ec7cf8c40e8f60",
+    "review_note": "순서 2→1→3. 달려듦→문을 받침→석상 반응. 검의 파손 순간은 국소 섬광/SFX로 표현.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.82,
+        0.49
+      ],
+      "size": [
+        0.24,
+        0.22
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S10_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "c3667295a826f9849bc82934ebfd776e31f836e781f0d8f92a5db29d8a519910",
+    "review_note": "순서 2→1→3. 달려듦→문을 받침→석상 반응. 검의 파손 순간은 국소 섬광/SFX로 표현.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.52,
+          0.13
+        ],
+        "tail": [
+          0.35,
+          0.45
+        ],
+        "size": [
+          0.33,
+          0.2
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S10_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "ea2fee23e4927b5bf766c23f922e835b3c1173da9cda9a7e2ea3a0d0c8569942",
+    "review_note": "순서 2→1→3. 달려듦→문을 받침→석상 반응. 검의 파손 순간은 국소 섬광/SFX로 표현.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.48,
+          0.18
+        ],
+        "tail": [
+          0.61,
+          0.57
+        ],
+        "size": [
+          0.3,
+          0.2
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S11_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "2adfdd932701addbb20e2c0dd6f340272020d7b8b4841a43ca54cada6fa4c6e7",
+    "review_note": "일반 석상만 전진하도록 수정. 도겸 자리 바닥에 실제 돌검이 박힌 결과 컷. 우두머리는 아직 정지.",
+    "dialogue_slots": {
+      "jangho": {
+        "center": [
+          0.22,
+          0.16
+        ],
+        "tail": [
+          0.13,
+          0.42
+        ],
+        "size": [
+          0.32,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S11_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "49711c47847d963396f27c973c66558c788566457335585304dcadee36a5e317",
+    "review_note": "일반 석상만 전진하도록 수정. 도겸 자리 바닥에 실제 돌검이 박힌 결과 컷. 우두머리는 아직 정지.",
+    "dialogue_slots": {}
+  },
+  "E01_S11_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "2f2363c8ba561d66887108b2db7ef8ed655348c9efba248142552fc1371f848f",
+    "review_note": "일반 석상만 전진하도록 수정. 도겸 자리 바닥에 실제 돌검이 박힌 결과 컷. 우두머리는 아직 정지.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.78,
+          0.19
+        ],
+        "tail": [
+          0.43,
+          0.64
+        ],
+        "size": [
+          0.3,
+          0.19
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    },
+    "typography_slot": {
+      "center": [
+        0.27,
+        0.78
+      ],
+      "size": [
+        0.28,
+        0.2
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S12_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "5611c7aeacfdd224dbf3de8e7bf2be542588dd78da96688d9b72029c5dc9c205",
+    "review_note": "석상이 가까운 서진을 지나가고 먼 진기 쪽으로 향함. 우두머리 정지. 관찰 화살표는 원화 바닥의 손가락 흔적.",
+    "dialogue_slots": {}
+  },
+  "E01_S12_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "97a6a3902ceb93fd91fc91d11688542c06be892227a955cb5e53a67a8bfc69b8",
+    "review_note": "석상이 가까운 서진을 지나가고 먼 진기 쪽으로 향함. 우두머리 정지. 관찰 화살표는 원화 바닥의 손가락 흔적.",
+    "dialogue_slots": {}
+  },
+  "E01_S12_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "2c3c6f6cabf8e20916d547a9357578c0d3bccc8719eebe58a381768d19bd4a8c",
+    "review_note": "석상이 가까운 서진을 지나가고 먼 진기 쪽으로 향함. 우두머리 정지. 관찰 화살표는 원화 바닥의 손가락 흔적.",
+    "dialogue_slots": {}
+  },
+  "E01_S13_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "cc3420bf84f6d9e039ec7ca2134126fe3dd980a1da8d2832d0c680cd6da94cf8",
+    "review_note": "첫 컷은 서진·도겸 고정 크롭으로 우두머리의 조기 움직임을 화면 밖에 둔다. 진기 뒤 우두머리 반응.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.21,
+          0.14
+        ],
+        "tail": [
+          0.36,
+          0.4
+        ],
+        "size": [
+          0.36,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S13_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "7ffea097916171ecb32fdcdb20fbe6083a0e9aefc9698c18ca6990532f365ac4",
+    "review_note": "첫 컷은 서진·도겸 고정 크롭으로 우두머리의 조기 움직임을 화면 밖에 둔다. 진기 뒤 우두머리 반응.",
+    "dialogue_slots": {
+      "jangho": {
+        "center": [
+          0.8,
+          0.18
+        ],
+        "tail": [
+          0.4,
+          0.42
+        ],
+        "size": [
+          0.31,
+          0.2
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S13_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "05d8d60ec6fd13599468089df8cef8486c39b370925e6a033d534e198919e1d9",
+    "review_note": "첫 컷은 서진·도겸 고정 크롭으로 우두머리의 조기 움직임을 화면 밖에 둔다. 진기 뒤 우두머리 반응.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.8,
+        0.72
+      ],
+      "size": [
+        0.3,
+        0.22
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S14_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "f321105b340e6733931c9cc93e21cac84f01715722d21a40f92b58ead1d39af3",
+    "review_note": "측벽 파손→통로→수레 손잡이. 마지막 컷은 도겸 표정에 시선을 두고, 원경 우두머리 준비 자세의 거리 변화는 다음 컷 사이에서 생략한다.",
+    "dialogue_slots": {}
+  },
+  "E01_S14_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "c92c578ea5c685542b642d2f4bcecea81475474e0400b01bd1aa12ebda26ecfb",
+    "review_note": "측벽 파손→통로→수레 손잡이. 마지막 컷은 도겸 표정에 시선을 두고, 원경 우두머리 준비 자세의 거리 변화는 다음 컷 사이에서 생략한다.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.27,
+          0.18
+        ],
+        "tail": [
+          0,
+          0.48
+        ],
+        "size": [
+          0.34,
+          0.22
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S14_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "96d17929ffae319a194bab91994c55560431aedda5c65e571de2d4a282058f69",
+    "review_note": "측벽 파손→통로→수레 손잡이. 마지막 컷은 도겸 표정에 시선을 두고, 원경 우두머리 준비 자세의 거리 변화는 다음 컷 사이에서 생략한다.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.82,
+        0.83
+      ],
+      "size": [
+        0.25,
+        0.19
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S15_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "34febaf025136651a36e9ff236cda49e4856983e7f13fc96ddd4595aa2743ab5",
+    "review_note": "다리 압박→무사들 탈출→소매 대치. 두 번째는 오른쪽 무사들로 고정 크롭해 서진의 선행 입가 상처를 제외.",
+    "dialogue_slots": {}
+  },
+  "E01_S15_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "50a7fd666a07537bbd092cb0b21c7b29a9a32bfe44ef7e75ffe0f75c1761e0e5",
+    "review_note": "다리 압박→무사들 탈출→소매 대치. 두 번째는 오른쪽 무사들로 고정 크롭해 서진의 선행 입가 상처를 제외.",
+    "dialogue_slots": {}
+  },
+  "E01_S15_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "a8127c64a4f01463ed67ba5fd046320d94f1a145334e1dc4f9dd325b57ce83a6",
+    "review_note": "다리 압박→무사들 탈출→소매 대치. 두 번째는 오른쪽 무사들로 고정 크롭해 서진의 선행 입가 상처를 제외.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.49,
+          0.77
+        ],
+        "tail": [
+          0.27,
+          0.53
+        ],
+        "size": [
+          0.34,
+          0.21
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      },
+      "jangho": {
+        "center": [
+          0.53,
+          0.77
+        ],
+        "tail": [
+          0.74,
+          0.35
+        ],
+        "size": [
+          0.34,
+          0.21
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S16_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "b90182dbf0cc26d088da56c6159e2044421c15246a5b08d4e745674127528765",
+    "review_note": "입가 상처 유지. 문 너머 장호의 봉함. 마지막은 걸쇠와 손 상세. 잠금장치 좌우를 역방향 매치하지 않는다.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.6,
+          0.15
+        ],
+        "tail": [
+          0.58,
+          0.55
+        ],
+        "size": [
+          0.37,
+          0.23
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S16_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "ee13179734965ce84d2aa3627b24e972dea0ae24777998f8a1c0b2ad274c54df",
+    "review_note": "입가 상처 유지. 문 너머 장호의 봉함. 마지막은 걸쇠와 손 상세. 잠금장치 좌우를 역방향 매치하지 않는다.",
+    "dialogue_slots": {
+      "jangho": {
+        "center": [
+          0.46,
+          0.16
+        ],
+        "tail": [
+          0.72,
+          0.36
+        ],
+        "size": [
+          0.38,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S16_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "d31daff83a985f58820fe058e401d2b89726581797f90cb85af9c812f94e975d",
+    "review_note": "입가 상처 유지. 문 너머 장호의 봉함. 마지막은 걸쇠와 손 상세. 잠금장치 좌우를 역방향 매치하지 않는다.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.52,
+        0.84
+      ],
+      "size": [
+        0.26,
+        0.2
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S17_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "c8ca1aea212713bbf648e974d68bc769ba1be6d2bffff1308e9087d60007509c",
+    "review_note": "기운이 사라진 뒤 일반 석상은 멈칫한다. 도겸은 다리를 누르고 서진은 우두머리 발옆에 몸을 낮춘다.",
+    "dialogue_slots": {}
+  },
+  "E01_S17_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "65f88b9febeff99e217b6b332f7d87ada96f1f5148d44222add7d44a727ece50",
+    "review_note": "기운이 사라진 뒤 일반 석상은 멈칫한다. 도겸은 다리를 누르고 서진은 우두머리 발옆에 몸을 낮춘다.",
+    "dialogue_slots": {}
+  },
+  "E01_S17_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "133314893d0d4ec41d362c6e49bacf8388f8b7c9d38147f2a93c8ce954f8a5e5",
+    "review_note": "기운이 사라진 뒤 일반 석상은 멈칫한다. 도겸은 다리를 누르고 서진은 우두머리 발옆에 몸을 낮춘다.",
+    "dialogue_slots": {}
+  },
+  "E01_S18_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "823d4c6aa65655283e26347cca7ec2c772ebda1fb8c15bcd42baea5e7f3e4f39",
+    "review_note": "서진 시선과 벽 틈, 도겸 구조 결심. 우두머리는 준비 자세로 원경에 두며 다음 컷에서 접근 거리 생략.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.79,
+          0.16
+        ],
+        "tail": [
+          0.62,
+          0.66
+        ],
+        "size": [
+          0.33,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S18_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "3850ed5e35e9f254cbc27757ffebd6de94768f467056b1bef2526b8a6e109bb2",
+    "review_note": "서진 시선과 벽 틈, 도겸 구조 결심. 우두머리는 준비 자세로 원경에 두며 다음 컷에서 접근 거리 생략.",
+    "dialogue_slots": {}
+  },
+  "E01_S18_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "06e5205cbac6e1118210c12ae276da9290e16671da23621f95f7e8e06f6b2d88",
+    "review_note": "서진 시선과 벽 틈, 도겸 구조 결심. 우두머리는 준비 자세로 원경에 두며 다음 컷에서 접근 거리 생략.",
+    "dialogue_slots": {}
+  },
+  "E01_S19_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "e9ed9653ea7fa39d12e97758d9f7f226f557c7f82e77509ef6a1dac83c97de1c",
+    "review_note": "다리 해방 상세를 반드시 유지. 중복 우두머리 제거, 가까운 한 석상의 팔·발로 수레 파괴를 연결.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.4,
+          0.17
+        ],
+        "tail": [
+          0.41,
+          0.47
+        ],
+        "size": [
+          0.27,
+          0.19
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S19_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "1c4f2676df9e7d3400e2c39db94bbbd2a9f9677ede426ce27491ba4e20042383",
+    "review_note": "다리 해방 상세를 반드시 유지. 중복 우두머리 제거, 가까운 한 석상의 팔·발로 수레 파괴를 연결.",
+    "dialogue_slots": {}
+  },
+  "E01_S19_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "919ab5e12162f307291f00a31725bf024da813e9a30e893f1f56df3b054e1828",
+    "review_note": "다리 해방 상세를 반드시 유지. 중복 우두머리 제거, 가까운 한 석상의 팔·발로 수레 파괴를 연결.",
+    "dialogue_slots": {}
+  },
+  "E01_S19_STATE_04": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "5e4463aaf58c846ea1c73a136a20374bc27b8b6042cd8f9bfac2a83d183380d3",
+    "review_note": "다리 해방 상세를 반드시 유지. 중복 우두머리 제거, 가까운 한 석상의 팔·발로 수레 파괴를 연결.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.3,
+          0.17
+        ],
+        "tail": [
+          0.23,
+          0.57
+        ],
+        "size": [
+          0.32,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      },
+      "seojin": {
+        "center": [
+          0.52,
+          0.16
+        ],
+        "tail": [
+          0.46,
+          0.51
+        ],
+        "size": [
+          0.32,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    },
+    "typography_slot": {
+      "center": [
+        0.79,
+        0.72
+      ],
+      "size": [
+        0.28,
+        0.22
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S20_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "f69c2ccf6457b40038c2cb97a747874be8e64cf9c50c8769a9dcc94c49eba36d",
+    "review_note": "왼쪽 옆구리 상처·떨어진 물주머니 유지. 돌검과 도겸 사이의 단절. 마지막 중복 우두머리 제거.",
+    "dialogue_slots": {}
+  },
+  "E01_S20_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "fa9af4b471e506f6f89b177f2dea171d0c731e58e4f2506c67913df400cd8622",
+    "review_note": "왼쪽 옆구리 상처·떨어진 물주머니 유지. 돌검과 도겸 사이의 단절. 마지막 중복 우두머리 제거.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.73,
+        0.36
+      ],
+      "size": [
+        0.23,
+        0.19
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S20_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "0af2f0436afa7164d9b6603255a1bc654e524f72b8f5dd0e144a49428a49f0ac",
+    "review_note": "왼쪽 옆구리 상처·떨어진 물주머니 유지. 돌검과 도겸 사이의 단절. 마지막 중복 우두머리 제거.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.72,
+          0.15
+        ],
+        "tail": [
+          0.14,
+          0.36
+        ],
+        "size": [
+          0.36,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S21_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "948efbdfaf7190300c4622c0c806b7161f1e01745c58442e877539bf3ad49a61",
+    "review_note": "바닥 검→손목 틈→발끝. 대사·UI 없이 관찰 세부만 하드 컷.",
+    "dialogue_slots": {}
+  },
+  "E01_S21_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "ddc335145f94bcca1906be59d9e97e43f30b8d93a818798be9d93db009f7e740",
+    "review_note": "바닥 검→손목 틈→발끝. 대사·UI 없이 관찰 세부만 하드 컷.",
+    "dialogue_slots": {}
+  },
+  "E01_S21_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "5660cc63217ac5dd3c4555933360abc444c8f666537c8e7a49cd5ffc2e7d9ec1",
+    "review_note": "바닥 검→손목 틈→발끝. 대사·UI 없이 관찰 세부만 하드 컷.",
+    "dialogue_slots": {}
+  },
+  "E01_S22_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "1855689f50fb5849f0c36115813a6988b7d572eeb7a1e54871744423dc0c7018",
+    "review_note": "진화록 글은 손목 주관 컷에만 별도 청백 레이어. 타인 시점에는 글자 없음.",
+    "dialogue_slots": {}
+  },
+  "E01_S22_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "90e49195f0dab3f3855b2263e8eee6bac8742336115438211bc9d4d24059881b",
+    "review_note": "진화록 글은 손목 주관 컷에만 별도 청백 레이어. 타인 시점에는 글자 없음.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.4,
+        0.16
+      ],
+      "size": [
+        0.61,
+        0.16
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S22_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "214e32a12de81457a9fc8929bc894a6943fe5403dfb6925623b581e417951308",
+    "review_note": "진화록 글은 손목 주관 컷에만 별도 청백 레이어. 타인 시점에는 글자 없음.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.27,
+          0.14
+        ],
+        "tail": [
+          0.16,
+          0.43
+        ],
+        "size": [
+          0.37,
+          0.22
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S23_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "3c81bad328f3b20f16051e84537d7e15ec635f8d365f8440dcd6cf4b638f0a1b",
+    "review_note": "관절이 닫힌 뒤 실패. 오른손 상처, 반 토막 단도 길이 보정. 성공 섬광·레벨업 표시 금지.",
+    "dialogue_slots": {}
+  },
+  "E01_S23_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "dd3d8efe2c96641c178d643597c04c8e645db4c28ffbccee0bac11617cee8ef2",
+    "review_note": "관절이 닫힌 뒤 실패. 오른손 상처, 반 토막 단도 길이 보정. 성공 섬광·레벨업 표시 금지.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.8,
+        0.16
+      ],
+      "size": [
+        0.23,
+        0.18
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S23_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "9a35c73eac0945761dadccdbdb68e8a2316d97fea5b72692094508cad3d8c88f",
+    "review_note": "관절이 닫힌 뒤 실패. 오른손 상처, 반 토막 단도 길이 보정. 성공 섬광·레벨업 표시 금지.",
+    "dialogue_slots": {}
+  },
+  "E01_S24_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "96062e403ef1239658e0e9a0c731902e43713f35bb03dae9eea366521e7d2f47",
+    "review_note": "옆구리와 손 상처 지속. 부러진 단도를 손잡이로 쥠. 도겸은 화면 밖 왼쪽에서 말한다.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.23,
+          0.13
+        ],
+        "tail": [
+          0,
+          0.5
+        ],
+        "size": [
+          0.4,
+          0.23
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S24_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "b564ac2ab2395a5ea748d4462ca111536a518f623e156a2fbd4a0b8e46be7b73",
+    "review_note": "옆구리와 손 상처 지속. 부러진 단도를 손잡이로 쥠. 도겸은 화면 밖 왼쪽에서 말한다.",
+    "dialogue_slots": {}
+  },
+  "E01_S24_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "3fb36e3374050a61fab3e4ea09b5b42e3f34ab4d3ccac81d570cb69c5ce90ae5",
+    "review_note": "옆구리와 손 상처 지속. 부러진 단도를 손잡이로 쥠. 도겸은 화면 밖 왼쪽에서 말한다.",
+    "dialogue_slots": {}
+  },
+  "E01_S25_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "a906c82a67c916ed697ddfe24dc1afbfc9909f90bec7e2c1bda6d59bd3b4a7a4",
+    "review_note": "바닥 두드림 접사와 발 고정. 부러진 단도의 형태 유지, 새 무공 오라 없음.",
+    "dialogue_slots": {}
+  },
+  "E01_S25_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "f9dbb73a0df8f806166414f6ff65d024b101bdacb2968e95eaf20919cd295feb",
+    "review_note": "바닥 두드림 접사와 발 고정. 부러진 단도의 형태 유지, 새 무공 오라 없음.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.18,
+        0.74
+      ],
+      "size": [
+        0.26,
+        0.19
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S25_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "c7b0f020c5b8b3740d089905d6ee8c275532d9ac512e325087b8f4029754b1be",
+    "review_note": "바닥 두드림 접사와 발 고정. 부러진 단도의 형태 유지, 새 무공 오라 없음.",
+    "dialogue_slots": {
+      "seojin": {
+        "center": [
+          0.79,
+          0.14
+        ],
+        "tail": [
+          0.67,
+          0.4
+        ],
+        "size": [
+          0.24,
+          0.17
+        ],
+        "offscreen_speaker": false,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S26_STATE_01": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "df47f55ecb47a4862a5cb3aad5836b49c05b84df61cbc10b24e5fb020f76f1de",
+    "review_note": "파고듦 컷의 중복 팔/단도를 수정. 마지막은 관절 접촉 전. 결과·승리·회복을 보이지 않고 암전.",
+    "dialogue_slots": {
+      "dogyeom": {
+        "center": [
+          0.29,
+          0.15
+        ],
+        "tail": [
+          0,
+          0.5
+        ],
+        "size": [
+          0.27,
+          0.19
+        ],
+        "offscreen_speaker": true,
+        "placement_review": "authored_from_visible_frame",
+        "protect": "faces, eyes, blade tip, wrist joint, hand contact, narrative props"
+      }
+    }
+  },
+  "E01_S26_STATE_02": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "8054d95f8e0c3f0f3530b5120f1baa391ecfe38188760a1347cc9af690d0cb54",
+    "review_note": "파고듦 컷의 중복 팔/단도를 수정. 마지막은 관절 접촉 전. 결과·승리·회복을 보이지 않고 암전.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.25,
+        0.18
+      ],
+      "size": [
+        0.31,
+        0.16
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  },
+  "E01_S26_STATE_03": {
+    "review": "visually_reviewed_with_authored_framing",
+    "sha256": "7ac8bef0f4cdbdb7bc5e8d6e8aacd6cdc6dd9173676d1542610cc59fa09da68b",
+    "review_note": "파고듦 컷의 중복 팔/단도를 수정. 마지막은 관절 접촉 전. 결과·승리·회복을 보이지 않고 암전.",
+    "dialogue_slots": {},
+    "typography_slot": {
+      "center": [
+        0.48,
+        0.18
+      ],
+      "size": [
+        0.42,
+        0.22
+      ],
+      "placement_review": "authored_from_visible_frame"
+    }
+  }
+}

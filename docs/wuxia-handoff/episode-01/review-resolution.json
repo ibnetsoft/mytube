@@ -1,0 +1,9 @@
+{
+  "reviewed_source_sha256": "52f8de5ccea95e80bff2db86825b77d03bf8fb813b6c82f70b0706f966813c90",
+  "review_file": "independent-review-v1.json",
+  "applied_fixes": [
+    "E01_S19 leg-release transition",
+    "E01_S23 dagger-handle wording"
+  ],
+  "verification": "Text anchors and dialogue offsets regenerated and validated after scoped edits."
+}

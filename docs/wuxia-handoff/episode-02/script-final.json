@@ -1,0 +1,771 @@
+{
+  "schema": "wuxia_episode_script/v1",
+  "series_title": "나 혼자 무공을 진화시킨다",
+  "episode": 2,
+  "episode_title": "돌아오는 검",
+  "target_duration_seconds": 600,
+  "recorded_duration_seconds": null,
+  "settings": {
+    "language": "ko",
+    "world": "가상의 전근대 중국풍 강호. 문파가 옛 무공과 괴물이 봉인된 무경의 공략권을 독점한다.",
+    "image_style": "wuxia_webtoon",
+    "style_reference": "auth-web/public/img/styles/style_wuxia_webtoon.png",
+    "visual_medium": "정지 원화의 상태 컷 전환과 AE 효과",
+    "video_clip_count": 0,
+    "camera_policy": "고정 기본, 느린 줌 금지",
+    "parallax": "필요한 장면에만 선택 적용",
+    "narration_captions": "원문 자막을 표시하지 않음. 앞뒤 맥락에 맞는 심리·반응·효과음 타이포그래피를 선택적으로 사용",
+    "dialogue": "실제 인물 대사는 음성과 일치하는 말풍선",
+    "typography": "최종 AE에서 편집 가능한 독립 텍스트 레이어",
+    "bgm": "프롬프트만 작성, 음악 파일 생성 제외"
+  },
+  "cast": [
+    {
+      "id": "seojin",
+      "name": "서진",
+      "age": 21,
+      "appearance": "마른 체형, 각진 좁은 얼굴, 짙은 회색 눈, 짧은 검은 높은 묶음머리와 청록 끈. 먹색 저고리와 바지, 탁한 청록색 민소매 겉옷과 허리띠, 낡은 갈색 신발. 터진 아랫입술, 왼쪽 옆구리 상처, 찢어진 오른손 손바닥 유지."
+    },
+    {
+      "id": "dogyeom",
+      "name": "도겸",
+      "age": 34,
+      "appearance": "다부지고 넓은 네모 얼굴, 그을린 피부와 짧은 수염. 황토색 두건과 황토 갈색 짧은 겉옷, 빛바랜 연청색 목도리, 갈색 바지와 짚신. 오른쪽 다리 부상. 짙은 갈색 가죽 물통 소지."
+    },
+    {
+      "id": "guard",
+      "name": "철산문 무사",
+      "appearance": "기존 철산문 무사. 철청색 무복, 어두운 청동 허리띠, 검은 장화와 평범한 장검. 마지막 장면에서 장화와 낮은 목소리만 등장."
+    }
+  ],
+  "continuity_in": {
+    "exact_handoff": "돌검은 서진의 등 뒤 바닥을 때렸고, 돌아오는 우두머리 손목 안쪽의 좁은 틈이 열렸다. 서진은 그 자리에 짧은 단도를 세운 낮은 자세다.",
+    "injuries": "서진의 아랫입술, 왼쪽 옆구리, 오른손 손바닥 부상과 도겸의 오른쪽 다리 부상을 유지한다.",
+    "room": "육각형 회색 녹빛 석실. 북쪽 중앙 낮은 원형 제단, 남쪽 닫힌 주 출입 석판, 동쪽 파손 벽화 뒤 잠긴 철창문, 서쪽 낮은 피신 홈. 석상은 우두머리 하나와 일반 다섯, 총 여섯이다.",
+    "props": "지게는 버렸고 수레는 부서졌다. 봉함은 동쪽 철문 밖 장호에게 있다. 서진에게 나무 손잡이가 달린 짧은 부러진 단도가 있고 도겸에게 연청색 목도리와 어두운 물통이 있다.",
+    "mechanics": "진기가 큰 침입자 우선 공격 경향과 귀환 동작의 짧은 손목 틈을 관찰했다. 진화록은 서진에게만 보인다. 틈을 알아본 사실은 힘이나 속도 증가가 아니다."
+  },
+  "continuity_out": {
+    "position": "두 사람 모두 서쪽 피신 홈 아래 배수 점검구를 지나 비좁은 관리 통로 안에 들어왔다. 서진이 뒤, 도겸이 앞이다.",
+    "injuries": "서진은 오른손 출혈과 왼쪽 옆구리 통증으로 힘이 빠져 있고 아랫입술도 터져 있다. 도겸은 오른쪽 다리를 딛지 못하며 팔꿈치와 왼발로만 이동한다.",
+    "props": "서진은 더 짧아지고 휜 기존 단도를 오른쪽 허리 칼집에 보관한다. 도겸의 물통은 마지막 소리 유도에 사용해 석실에 남았다. 연청색 목도리는 오른쪽 무릎 아래 묶여 있다. 지게와 부서진 수레는 회수하지 않았다.",
+    "chamber": "여섯 석상은 모두 파괴되지 않았다. 우두머리의 한쪽 손목에 끼웠던 쐐기는 실패했고 돌검도 건재하다. 동쪽 철문과 남쪽 석판은 닫힌 상태다. 봉함은 계속 장호에게 있다.",
+    "learning": "진화록에는 불완전 동작만 기록됐다. 서진은 부상과 자신의 보폭을 먼저 계산하고 귀환 동작 때 몸을 옮기는 제한적인 경험을 얻었을 뿐 새 무공을 숙달하지 않았다.",
+    "next_obstacle": "관리 통로 끝 쇠살 틈 너머에 익숙한 철청색 무복 자락과 검은 장화가 보인다. 철산문 무사는 배수로를 확인하라는 낮은 명령을 내린다."
+  },
+  "scenes": [
+    {
+      "id": "E02_S01",
+      "location": "서쪽 피신 홈 앞 / 우두머리 손목 아래",
+      "visual_states": [
+        "손목 안쪽을 올려다보는 고정 근접. 서진의 피 묻은 오른손이 나무 손잡이를 쥐고, 짧은 단도의 부러진 끝이 우두머리 오른쪽 손목의 열린 회전축 틈에 박혀 있다. 다른 손목은 손상 없다.",
+        "고정 측면 중경. 오른쪽 손목만 비틀린 채 멈춘 우두머리의 돌검 끝이 바닥에 닿아 있고, 서진은 낮게 웅크린 자세로 단도 손잡이를 놓지 못한다. 턱 아래 피와 왼쪽 옆구리를 조인 옷이 보인다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 Korean wuxia webtoon still, tight low-angle close-up beneath a massive stone chief guardian's RIGHT wrist. A short broken steel dagger is wedged inside its visibly open dark pivot gap, held by Seojin's bleeding right palm. Wooden grip, stone joint, no glow. Clean ink and cel shading. No baked text, letters, bubbles, panels or watermark.",
+        "Single composed 16:9 side medium shot in the gray-green hexagonal chamber, west recess behind Seojin. Lean young laborer in charcoal and muted teal crouches beneath the chief's stalled RIGHT wrist, gripping his short dagger; heavy stone sword tip touches the floor. Split lower lip and injured left waist visible. Other wrist intact. No baked text or lettering."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "짧은 칼끝이 틈 안으로 들어갔습니다. 돌과 쇠가 맞물리며 손잡이가 서진의 손바닥을 파고들었습니다. 돌아오던 손목이 덜컥 멎었습니다. 머리 위의 거대한 팔도 한순간 붙들렸습니다. 서진이 밀어낸 게 아니었습니다. 닫히는 관절에 칼날이 비스듬히 끼인 겁니다. 검 끝은 여전히 그의 발 바로 뒤에 있었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "걸렸다……!"
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "덜컥",
+          "kind": "sfx",
+          "anchor": "돌아오던 손목이 덜컥 멎었습니다.",
+          "state_index": 1,
+          "treatment": "회전축 바깥 빈 공간에 각진 회백색 글자. 짧게 등장하고 고정하며 손과 쐐기는 가리지 않는다."
+        }
+      ],
+      "ae": "손목 근접에서 측면 중경으로 직선 컷. 고정 프레임과 짧은 금속 마찰음으로 제한적인 성공을 전달한다. 모든 장면은 별도 정지 원화 전환이며 느린 줌·가짜 깊이·생성 영상은 사용하지 않는다."
+    },
+    {
+      "id": "E02_S02",
+      "location": "서쪽 피신 홈 앞 / 쐐기의 한계",
+      "visual_states": [
+        "고정 손 높이 근접. 우두머리의 오른쪽 돌 손목 틈에서 기존 단도 칼날이 옆으로 휘고, 서진의 오른손 손바닥 상처를 따라 피가 손잡이에 번진 상태.",
+        "바닥 높이 고정 광각. 회전축에서 빠진 단도가 서진의 오른손에 남아 있고 그는 왼쪽 어깨를 바닥에 붙여 물러나 있다. 돌검은 서진이 있던 자리를 누르며 얕게 파고들었고 석상 손목은 다시 돌아간 상태."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 close-up still of mechanical stress, not a sequence. Inside the stone chief's right wrist pivot, Seojin's already broken short steel blade bows sideways; fresh blood runs across his cut right palm and plain wooden grip. Gray-green stone and warm torch edge light, crisp Korean webtoon inks. No baked text, no aura, no collage.",
+        "One 16:9 floor-level wide still beside the west recess. Seojin lies low on his left shoulder, split lip visible, bent short dagger still in his right hand. The chief's intact heavy stone sword presses into the floor at his abandoned position; its right wrist is released. Charcoal and muted teal costume, no packs. No baked text, bubbles, letters or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "손목 위의 팔은 멈추지 않았습니다. 어깨가 내려오자 얇은 칼날부터 휘었습니다. 서진은 손잡이를 잡아당기며 몸을 던졌습니다. 빠져나온 칼끝에서 쇳가루가 떨어졌고, 뒤늦게 돌아간 돌검이 방금 있던 바닥을 눌렀습니다. 옆구리가 접히며 숨이 끊겼습니다. 벌어놓은 시간은 몸 하나 빼낼 만큼이었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "손 놔! 팔까지 끌려간다!"
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "끼긱",
+          "kind": "sfx",
+          "anchor": "어깨가 내려오자 얇은 칼날부터 휘었습니다.",
+          "state_index": 1,
+          "treatment": "휘어진 칼 반대편에 가늘게 찌그러진 글자. 짧은 마찰음과 함께 퇴장."
+        }
+      ],
+      "ae": "휘어진 칼 근접 다음에 회피 결과 광각으로 컷. 쐐기 실패와 부상 비용을 동시에 읽히게 한다. 돌검과 석상은 파괴하지 않는다."
+    },
+    {
+      "id": "E02_S03",
+      "location": "서쪽 낮은 홈 / 바닥 배수선",
+      "visual_states": [
+        "서쪽 벽을 정면으로 보는 고정 중경. 황토 두건의 도겸은 오른쪽 다리를 뻗고 앉아 서진의 청록 겉옷 어깨를 붙잡고 있다. 홈 바닥의 검은 물때 선이 낮은 사각 석판 아래로 이어진다.",
+        "고정 바닥 근접. 도겸의 왼손 손가락 옆에서 먼지 줄기가 사각 점검판 틈으로 빨려 들어간 흔적이 보인다. 모서리에는 반쯤 묻힌 철제 당김고리와 가로 걸쇠 끝이 함께 드러나 있다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 frontal medium still of the WEST wall recess in the same hexagonal stone chamber. Stocky Dogyeom in ochre headcloth and coat, pale-blue scarf, sits with injured RIGHT leg extended and holds Seojin's teal shoulder cloth. A dark water stain crosses the recess floor into a small rectangular maintenance slab. No baked text, no packs.",
+        "Single composed 16:9 extreme low close-up of the west recess floor. Dogyeom's left fingertips rest beside a thin dust trail entering the seam of a rectangular service cover. A half-buried iron pull ring and the end of a horizontal latch are both clearly visible. Damp stone, tiny drainage groove, amber light. No letters, baked text or symbols."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "도겸은 발치로 굴러온 물통을 손 닿는 곳에 끌어다 놓았습니다. 도겸이 옷깃을 끌어 서진을 홈 안으로 받았습니다. 두 사람의 어깨가 겨우 나란히 들어갔습니다. 도겸의 뒤꿈치 아래로 먼지가 흘렀습니다. 벽에서 내려온 검은 물때가 바닥의 사각 틈으로 이어져 있었습니다. 그 끝에 녹슨 고리가 반쯤 드러났습니다. 도겸은 손톱으로 고리 옆의 흙을 긁었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "여기, 바닥 밑으로 바람이 샌다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "서쪽 홈 정면에서 바닥 근접으로 컷. 물길·점검판·고리·걸쇠를 초반에 명확히 심는다. 공간을 바꾸거나 숨은 문을 암시하는 발광 효과는 넣지 않는다."
+    },
+    {
+      "id": "E02_S04",
+      "location": "서쪽 홈 / 진화록 기록",
+      "visual_states": [
+        "서진 얼굴의 고정 근접. 터진 아랫입술에 피가 말라 있고 한쪽 눈 아래 비어 있는 어두운 공간이 있다. 시선은 그 공간에 머물지만 몸은 왼쪽 옆구리를 감싸 웅크린 상태.",
+        "고정 손 근접. 서진의 떨리는 오른손에 짧고 휜 단도가 놓여 있으며 손바닥 출혈이 계속된다. 배경의 도겸은 진화록을 보지 못한 채 바닥 고리를 살핀다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 close-up portrait of Seojin inside the west stone recess, narrow angular young face, dark-gray eyes, high black ponytail with muted teal tie, split bleeding lower lip. He folds protectively around his LEFT waist injury. Quiet dark space beside his gaze reserved for later editable overlay, draw no interface. No baked text or magical aura.",
+        "One single 16:9 tight hand-level still. Seojin's trembling cut RIGHT palm supports the visibly shortened, bent steel dagger with wooden grip. Blood remains wet, no healing. In soft illustrated background Dogyeom studies the floor pull ring, unaware of any system. Crisp cel shading, charcoal sleeves. No baked letters, captions, bubbles or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "눈앞의 글자가 달라졌습니다. 관절을 붙든 순간은 기록됐지만, 돌아 나오는 발이 끝까지 이어지지 않았습니다. 서진이 오른손을 펴자 칼이 손가락 사이로 미끄러졌습니다. 급히 무릎으로 받았습니다. 손도, 허리도 그대로였습니다. 보이는 틈에 칼을 넣는 것과 거기서 살아 나오는 몸놀림은 다른 일이었습니다."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "불완전 동작 기록",
+          "kind": "diegetic_system",
+          "anchor": "눈앞의 글자가 달라졌습니다.",
+          "state_index": 1,
+          "treatment": "시선 옆 빈 공간에 작은 청백색 편집 글자. 수치·보상창 없이 한 줄만 고정 표시 후 제거."
+        }
+      ],
+      "ae": "얼굴에서 떨리는 손으로 컷. 기록 문구는 별도 AE 레이어이며 도겸 시점에는 노출하지 않는다. 회복광이나 능력 상승 효과 없이 호흡만 남긴다."
+    },
+    {
+      "id": "E02_S05",
+      "location": "서쪽 홈에서 바라본 석실",
+      "visual_states": [
+        "서쪽 홈 안쪽에서 동쪽을 바라보는 고정 광각. 중앙 빈 제단, 동쪽 잠긴 철창문, 남쪽 닫힌 석판이 동시에 보인다. 우두머리 하나와 일반 다섯 석상이 석실 안에 분산돼 있다.",
+        "같은 축의 고정 중경. 우두머리 발이 홈 입구에서 돌아서 있으며 돌검은 가슴 아래 수평으로 들려 있다. 서진의 낮은 시선과 석상 발자국 사이 거리가 전경에 보인다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 wide still viewed from inside the WEST recess toward the EAST barred gate. Show a vacant low circular altar north-center, locked eastern bars and closed southern entrance slab in coherent hexagonal geography. Exactly six stone guardians total: one huge chief and five smaller armored soldiers. Smashed cart debris remains. No casket on altar, no baked text.",
+        "Single composed 16:9 medium-low view from the west recess. The massive stone chief turns one square foot near the recess mouth, intact heavy straight stone sword held below its chest. Seojin's low eyes and dark sleeve occupy the foreground beside dusty footprints. Warm torches, cool teal shadows, no aura. No baked text, lettering, panels or motion montage."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진은 고개만 내밀었습니다. 동쪽 철문에는 여전히 빗장이 걸려 있었습니다. 남쪽 석판 아래에도 틈이 없었습니다. 여섯 석상은 흩어졌지만 쓰러진 것은 하나도 없었습니다. 우두머리의 발이 홈 앞을 막았습니다. 검이 닿지 않는 안쪽으로 물러날수록 두 사람이 움직일 자리도 줄었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "철문까지는 못 갑니다. 이 밑부터 봐요."
+        }
+      ],
+      "screen_text": [],
+      "ae": "공간 확인 광각 후 같은 축으로 중경 컷. 봉함 없는 제단과 닫힌 두 출구를 배경 사실로 유지한다. 석상 수를 늘리지 않는다."
+    },
+    {
+      "id": "E02_S06",
+      "location": "서쪽 홈 / 점검판 걸쇠",
+      "visual_states": [
+        "고정 사선 근접. 도겸이 물통 마개에 담은 소량의 물을 점검판 가로 걸쇠 위에 기울인 상태. 씻긴 진흙 아래 걸쇠가 서쪽 벽 방향으로 미끄러지는 홈이 보인다.",
+        "고정 탑숏. 도겸의 양손 중 하나는 철고리에, 하나는 녹슨 가로 걸쇠에 걸려 있다. 오른쪽 다리는 뻗은 채이고 물통은 왼쪽 엉덩이 옆에 놓여 있다."
+      ],
+      "state_image_prompts": [
+        "One 16:9 oblique close-up still in the west recess. Dogyeom tilts a flask cap holding a little water over the maintenance cover's horizontal iron latch. Washed mud reveals a shallow slide channel toward the west wall. Ochre sleeve and broad rough fingers, dark leather flask nearby, stone drainage stain. No baked text, letters or diagrams.",
+        "One single 16:9 overhead still of seated Dogyeom at the rectangular service cover. One hand grips its iron ring while the other tests the rusted horizontal bolt. His injured RIGHT leg lies extended, pale-blue scarf around his neck, dark flask by his left hip. Gray-green stone, precise readable hands. No baked text, collage, aura or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "도겸은 물통 마개에 물을 받아 걸쇠 위로 부었습니다. 진흙이 씻기자 옆으로 밀리는 홈이 나왔습니다. 고리를 위로 당겨도 판은 움직이지 않았습니다. 걸쇠부터 빼야 했습니다. 도겸이 두 엄지로 밀었지만 녹슨 쇠가 손톱만큼 가다 멎었습니다. 서진은 칼을 들었다가 다시 내려놓았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "그 칼로 젖히면 남은 날도 부러져. 흙부터 빼자."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "꿈쩍",
+          "kind": "inner_reaction",
+          "anchor": "녹슨 쇠가 손톱만큼 가다 멎었습니다.",
+          "state_index": 2,
+          "treatment": "걸쇠 옆에 작고 무거운 회색 글자. 이동 없이 짧게 홀드해 막힌 힘을 표현."
+        }
+      ],
+      "ae": "씻긴 홈 근접에서 탑숏으로 컷. 물은 걸쇠 구조를 드러내는 실제 용도로만 쓴다. 도겸의 다리는 계속 뻗어 둔다."
+    },
+    {
+      "id": "E02_S07",
+      "location": "서쪽 홈 / 낮은 점검구",
+      "visual_states": [
+        "고정 손 근접. 서진의 왼손이 작은 납작한 돌조각으로 걸쇠 홈의 진흙을 긁어낸 상태. 도겸은 옆으로 밀려 빠진 걸쇠를 잡고 있다. 단도는 서진 오른손에 내려져 있다.",
+        "고정 바닥 높이 중경. 두 사람이 철고리를 함께 잡아 점검판을 벽 쪽으로 기울여 세운 상태. 아래에는 어깨 하나 너비의 낮은 사각 구멍과 그 밑 굽은 배수 턱이 보인다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 detailed hand close-up. Seojin uses a small flat stone chip in his LEFT hand to scrape mud from the west maintenance latch channel; Dogyeom holds the bolt slid free sideways. Seojin's bleeding right hand lowers the bent dagger harmlessly. Ochre and teal sleeves, no extra tools. No baked text, letters or panels.",
+        "Single composed 16:9 floor-height medium still. Seojin and seated Dogyeom hold the iron pull ring of the west recess cover, propping the heavy rectangular slab toward the wall. Beneath is a shoulder-width low service opening with a curved drainage sill below. Dogyeom's injured right leg remains extended. No magical light, no baked text or lettering."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진이 돌조각으로 홈을 긁고 도겸이 걸쇠를 밀었습니다. 검은 흙이 손등에 쌓인 뒤에야 쇠가 빠졌습니다. 둘이 고리를 잡아당기자 판 아래가 벌어졌습니다. 어깨를 비틀어야 들어갈 너비였습니다. 바닥은 바로 꺾여 내려갔고, 물이 닳게 만든 둥근 턱이 안쪽으로 이어졌습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "바닥 아래 길이 있어요. 제가 먼저 걸린 데를 보겠습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "걸쇠 해제 근접 후 열린 점검구 중경. 이미 심은 구조의 개방으로 연결한다. 통로의 협소함과 낮은 턱을 한 화면에 보인다."
+    },
+    {
+      "id": "E02_S08",
+      "location": "서쪽 점검구 / 첫 진입 시도",
+      "visual_states": [
+        "고정 측면 중경. 서진이 머리와 오른쪽 어깨를 점검구에 넣었으나 왼쪽 옆구리가 돌 턱에 눌려 몸이 굳어 있다. 도겸이 앉은 채 서진의 허리띠 뒤를 받친다.",
+        "같은 측면의 고정 근경. 서진은 도로 빠져나와 왼쪽 옆구리를 감싸고 있고, 점검구 안에는 통로 폭을 비스듬히 가로지르는 낡은 나무 받침 끝이 보인다."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 side medium still at the west floor hatch. Seojin has his head and right shoulder inside but his injured LEFT waist is compressed against the rounded stone sill; his body is rigid in pain. Seated Dogyeom supports the back of his sash without standing. Charcoal teal and ochre costumes, no packs. No baked text or bubbles.",
+        "One 16:9 fixed side close still after the failed entry. Seojin is back on the recess floor clutching his LEFT waist, split lower lip wet with blood. In the open maintenance aperture a loose old wooden brace lies diagonally across the narrow crawlway. Dogyeom stays seated beside the propped cover. Clean webtoon shading, no baked text or lettering."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진은 한쪽 어깨부터 넣었습니다. 갈비 아래가 턱에 닿자 왼쪽 옆구리에서 뜨거운 통증이 뻗었습니다. 더 내려가려던 팔꿈치도 나무에 막혔습니다. 안쪽에 썩은 받침 하나가 비스듬히 걸려 있었습니다. 힘을 주면 허리부터 꺾일 판이었습니다. 도겸이 허리띠를 받쳐 빼내자 서진은 바닥에 이마를 댔습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "걸린 걸 치워야 해요. 이 자세로는 손이 안 닿아요."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "멎어",
+          "kind": "inner_reaction",
+          "anchor": "더 내려가려던 팔꿈치도 나무에 막혔습니다.",
+          "state_index": 1,
+          "treatment": "몸과 돌 턱 사이 반대쪽 여백에 작은 흰 글자. 흔들지 않고 호흡이 막힌 순간만 유지."
+        }
+      ],
+      "ae": "진입 자세와 후퇴 결과를 같은 측면축에서 컷. 상처 위치와 내부 장애물의 인과를 명확히 한다. 부상 악화를 회복 효과로 덮지 않는다."
+    },
+    {
+      "id": "E02_S09",
+      "location": "서쪽 홈 입구 / 좁아지는 피신처",
+      "visual_states": [
+        "고정 정면 중경. 우두머리의 돌검 끝이 홈 바깥 바닥에 박혀 있고 부서진 입구 모서리 작은 돌들이 서진의 신발 옆에 쌓여 있다. 두 사람은 홈 가장 안쪽에 웅크렸다.",
+        "도겸 어깨 너머 고정 근경. 서진이 점검구 쪽으로 뻗은 손을 멈췄고, 입구에는 돌검을 다시 거둬 든 우두머리 팔 일부가 보인다. 두 사람과 구멍 사이 바닥 폭이 드러난다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 frontal medium still of the west recess under pressure. The chief's intact heavy stone sword tip is planted just outside, a few broken entrance-corner chips lie beside Seojin's worn brown shoe. Both injured laborers huddle at the back, open floor hatch beside them. No destroyed statue, no extra guardian, no baked text or lettering.",
+        "Single composed 16:9 close shot over Dogyeom's ochre shoulder. Seojin has stopped reaching toward the floor opening; beyond the recess mouth part of the chief's arm holds its recovered heavy sword. Show the small exposed strip of floor between the men and hatch. Cold teal shadow and amber torch rim, no baked text, bubbles or aura."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "돌검이 홈 입구를 찍었습니다. 모서리에서 깨진 돌이 두 사람의 발목까지 튀었습니다. 안쪽까지 검이 들어오지는 않았습니다. 하지만 판을 젖히느라 내놓은 무릎은 닿는 자리였습니다. 서진은 도겸의 다리를 끌어 안으로 모았습니다. 다음 칼이 내려오면 점검구 앞에 앉아 있을 수 없었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "둘이 여기 붙어 있으면 손을 못 써."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "쿵",
+          "kind": "sfx",
+          "anchor": "돌검이 홈 입구를 찍었습니다.",
+          "state_index": 1,
+          "treatment": "입구 바깥 하단에 짧고 무거운 글자. 한 번의 작은 프레임 진동 후 즉시 고정."
+        }
+      ],
+      "ae": "검이 박힌 결과에서 거둬진 팔 상태로 컷. 피신처의 실제 한계를 제시한다. 파편은 소량만 쓰고 벽 전체를 무너뜨리지 않는다."
+    },
+    {
+      "id": "E02_S10",
+      "location": "서쪽 홈 / 도겸의 도구",
+      "visual_states": [
+        "고정 무릎 높이 근경. 도겸이 연청색 목도리 한쪽 끝을 풀고 다른 끝을 물통 운반 끈에 단단히 묶고 있다. 오른쪽 다리는 받쳐 둔 채 왼쪽 무릎만 세웠다.",
+        "점검구 안쪽 고정 사선 접사. 가죽 운반 끈이 느슨한 썩은 나무 받침의 돌출된 끝을 감싸고, 둥근 물통 몸체가 끝 바깥에 걸려 끈의 미끄러짐을 막는다. 연청색 목도리는 끈과 도겸의 두 손 사이로 팽팽히 이어진다."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 knee-level close still. Seated Dogyeom loosens his faded pale-blue scarf and knots its end to the carrying strap of his closed dark-brown leather flask. His RIGHT injured leg rests straight while only his left knee is bent. Ochre headcloth and coat, broad practical hands. No baked text, letters, speech bubbles or collage.",
+        "One 16:9 oblique close-up aimed inside the west floor service opening. Dogyeom's reachable arm has placed a closed dark leather flask behind the diagonal loose wooden brace. Pale-blue scarf tied to the flask strap runs taut back to his hand outside. Rounded drainage sill and damp stone visible. Exact single moment, no baked text or lettering. Exact practical hitch: the carrying strap loops BEHIND a protruding broken end of the LOOSE rotten brace; the ROUND flask body catches beyond that end to stop the strap slipping off. The pale-blue scarf extends from that strap to Dogyeom's two hands outside the hatch. No new tool or magic."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "도겸은 목도리를 풀어 물통 끈에 이었습니다. 몸을 눕히니 서진보다 짧은 팔도 낮은 틈으로 들어갔습니다. 운반 끈을 받침의 돌출된 끝 뒤로 넘겼습니다. 둥근 물통 몸체가 끈이 빠지지 않게 받쳤습니다. 끈을 당기자 나무가 구멍 쪽으로 조금 돌아왔습니다. 빈손으로 붙들 자리가 생겼습니다. 도겸은 이를 물고 손끝을 더 뻗었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "팔은 멀쩡해. 네가 저놈 눈을 돌려."
+        }
+      ],
+      "screen_text": [],
+      "ae": "매듭 근경과 받침 뒤 물통 근접으로 컷. 팔이 닿는 범위와 끈의 실제 연결을 보여 도구 사용을 읽힌다."
+    },
+    {
+      "id": "E02_S11",
+      "location": "서쪽 홈 앞 / 잘못 짚은 보폭",
+      "visual_states": [
+        "고정 낮은 측면 중경. 서진이 홈 밖으로 한 발 나왔지만 뒷발은 안쪽 바닥 틈에 남아 있다. 우두머리는 돌검을 들어 올렸고 서진 오른손의 짧은 단도는 아래를 향한다.",
+        "같은 축 고정 광각. 서진이 한쪽 무릎으로 주저앉아 기둥 밑을 짚고 있다. 돌검은 그의 앞 퇴로를 가로막은 채 바닥에 닿아 있고 서쪽 홈의 도겸과 거리가 벌어졌다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 low side medium still outside the west recess. Seojin steps out with front foot exposed but rear foot still caught in a floor seam, bent short dagger lowered in his cut right hand. The chief holds its heavy sword raised. His left waist is guarded and lower lip split. No aura, no baked text, letters or panels.",
+        "Single composed 16:9 wide still on the same side axis. Seojin has dropped onto one knee at a square column base, left hand braced on stone. The chief's heavy sword rests across his route back toward Dogyeom in the west recess. Clear geography, intact guardian, no added enemies. Clean Korean webtoon inks, no baked text or lettering."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진은 홈 밖으로 나와 칼등으로 바닥을 쳤습니다. 우두머리가 돌아봤습니다. 손목이 열릴 자리를 보고 발을 뻗었지만, 뒤에 둔 발이 돌 틈에 걸렸습니다. 옆구리가 당겨지며 무릎이 꺾였습니다. 검이 내려오는 동안 그는 기둥 밑으로 몸을 접었습니다. 돌아갈 길 한가운데 돌검이 놓였습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "이쪽이다!"
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "발이",
+          "kind": "inner_reaction",
+          "anchor": "뒤에 둔 발이 돌 틈에 걸렸습니다.",
+          "state_index": 1,
+          "treatment": "뒷발 옆 여백에 작은 흰 글자. 시선이 발에 머물도록 짧게 표시."
+        }
+      ],
+      "ae": "발이 남은 준비 상태에서 기둥 밑 실패 결과로 컷. 과장된 속도 효과 대신 실제 보폭의 문제를 드러낸다."
+    },
+    {
+      "id": "E02_S12",
+      "location": "서쪽 기둥 밑 / 관찰의 수정",
+      "visual_states": [
+        "고정 바닥 근접. 서진의 두 신발이 기둥 밑 좁은 평평한 바닥에 모여 있다. 앞에는 돌검이 낸 길고 얕은 자국과 홈으로 이어지는 낮은 물길이 보인다.",
+        "기둥 뒤 고정 반신. 서진은 왼손으로 옆구리를 누르고 오른손의 단도를 낮게 쥔 채 우두머리 팔꿈치 아래를 보고 있다. 입은 다문 채 아랫입술의 피가 턱에 맺혔다."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 floor close-up beside the west square column. Seojin's worn brown flat shoes stand close together on a small level stone patch. An old shallow sword gouge and narrow water channel lead toward the west recess, loose chips beside them. Charcoal trouser hems and cloth wraps, no magical marks. No baked text, letters or diagrams.",
+        "One 16:9 half-body still behind the west column. Injured Seojin presses his LEFT waist with his left hand while holding the shortened bent dagger low in his bleeding right. He studies the chief's elbow underside, mouth shut, blood at split lower lip. Muted teal wrap and charcoal clothes, no aura. No baked text or speech bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진은 발부터 모았습니다. 멀리 뻗으면 허리가 당겼고, 허리가 굳으면 뒷발이 남았습니다. 손목만 보고 달려들던 때에는 몰랐던 길이였습니다. 그는 돌검 자국 옆 평평한 바닥을 골랐습니다. 한 번에 건너지 않고 두 걸음으로 돌아갈 자리였습니다. 우두머리의 팔꿈치가 다시 올라갔습니다."
+        },
+        {
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "내 발이 닿는 데부터."
+        }
+      ],
+      "screen_text": [],
+      "ae": "발 근접에서 반신으로 컷. 관찰 대상이 적의 손목에서 자신의 보폭으로 확장됨을 구성으로 표현한다. 미래 궤적이나 자동 안내선은 넣지 않는다."
+    },
+    {
+      "id": "E02_S13",
+      "location": "서쪽 점검구 / 받침 제거",
+      "visual_states": [
+        "고정 사선 중경. 도겸이 오른쪽 다리를 움직이지 않고 왼발을 벽에 댄 채 두 손으로 목도리 연결 끈을 당긴다. 나무 받침 끝이 점검구 턱 위에 걸려 있다.",
+        "같은 방향 고정 근경. 빠져나온 짧은 썩은 받침이 도겸 팔꿈치 옆에 놓여 있다. 도겸은 닫힌 물통을 회수했고 점검구 아래의 낮은 통로가 막힘 없이 보인다."
+      ],
+      "state_image_prompts": [
+        "Single composed 16:9 oblique medium still at the west hatch. Dogyeom braces his healthy LEFT foot against the wall and pulls the scarf-and-flask strap with both hands; his injured right leg stays still. The loose rotten wooden brace catches on the drainage sill near his reach. Ochre headcloth, no standing. No baked text or lettering.",
+        "Single 16:9 close still from the same direction. The extracted short rotten wooden brace rests beside Dogyeom's elbow on the recess floor. He has recovered his closed dark flask, pale-blue scarf loose across his lap, and the cramped drainage service way is visibly clear below the sill. No baked text, no collage, no magic or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "도겸은 왼발로 벽을 버티고 끈을 당겼습니다. 오른쪽 다리는 끌려가지 않도록 팔꿈치 옆에 붙였습니다. 받침 끝이 턱 위에 걸리자 끈을 놓고 나무를 움켜쥐었습니다. 젖은 나무껍질이 벗겨졌습니다. 마지막으로 몸을 뒤로 눕히자 받침이 빠져나왔습니다. 구멍 밑에서 찬 바람이 얼굴을 때렸습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "밑은 뚫렸어. 돌아와!"
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "우득",
+          "kind": "sfx",
+          "anchor": "젖은 나무껍질이 벗겨졌습니다.",
+          "state_index": 1,
+          "treatment": "받침과 손을 피한 구멍 가장자리에 짧은 갈색 글자. 당김의 결실에만 강조."
+        }
+      ],
+      "ae": "당긴 상태에서 제거 결과로 컷. 나무 받침은 원래 느슨하게 걸린 물건이며 벽이나 구조물을 부수는 장면으로 확대하지 않는다."
+    },
+    {
+      "id": "E02_S14",
+      "location": "서쪽 기둥과 홈 사이",
+      "visual_states": [
+        "고정 측면 전신. 서진은 기둥 옆 평평한 바닥에 양발을 짧게 벌리고 몸을 낮췄다. 우두머리 돌검이 바닥에 닿아 있으며 검을 쥔 팔꿈치가 돌아 나오기 직전의 각도다.",
+        "같은 축 고정 광각. 서진은 기둥의 홈 쪽 면에 도착해 한 손을 짚고 있다. 우두머리는 돌아오는 검을 몸 앞에 모았고 두 사람 사이에는 기둥 모서리가 놓였다."
+      ],
+      "state_image_prompts": [
+        "One 16:9 full-body side still by the west column. Seojin crouches with two short grounded steps prepared on level floor, guarding his left waist. The chief's heavy stone sword is already grounded and its elbow is bent at the start of recovery. Show real limited distance, broken dagger low. No baked text, aura, panels or speed montage.",
+        "One single 16:9 wide still on the same axis. Seojin has reached the recess-facing side of the square column and braces one hand against it. The stone chief has recovered its intact heavy sword in front of its torso; the column corner separates their lines. Charcoal teal costume, injuries preserved. No baked text or lettering."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진은 검이 바닥에 닿을 때까지 움직이지 않았습니다. 팔꿈치가 접히자 짧게 한 걸음, 뒷발을 붙여 다시 한 걸음. 왼쪽 옆구리가 당겼지만 다리를 더 벌리지 않았습니다. 돌아오는 칼끝이 기둥 모서리를 긁었습니다. 서진은 그 반대편에서 돌을 짚었습니다. 이번에는 제 발로 멈춰 섰습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "거기서 한 번만 더!"
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "짧게",
+          "kind": "inner_emphasis",
+          "anchor": "다리를 더 벌리지 않았습니다.",
+          "state_index": 1,
+          "treatment": "신발 위 여백에 단단한 흰 글자. 이동 없이 한 박자 표시해 보폭 선택을 강조."
+        }
+      ],
+      "ae": "준비된 보폭과 도착 결과 두 상태만 컷. 칼의 귀환과 기둥의 실제 차폐로 생존을 설명한다. 새 기술명이나 성공 보상 효과는 없다."
+    },
+    {
+      "id": "E02_S15",
+      "location": "서쪽 홈 입구 / 맞춘 호흡",
+      "visual_states": [
+        "기둥 옆에서 보는 고정 중경. 서진이 홈 바로 앞 바닥에 한쪽 무릎을 댔고, 도겸은 연청색 목도리를 오른쪽 무릎 아래에 감아 묶은 채 점검구를 가리킨다.",
+        "고정 인물 근경. 도겸은 물통을 가슴 가까이 들고 우두머리 어깨를 바라본다. 전경 서진은 고개만 끄덕이며 칼 손잡이를 놓칠 듯 다시 고쳐 쥐고 있다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 medium still from beside the west column. Seojin kneels just before the recess while seated Dogyeom points into the cleared hatch. Dogyeom's pale-blue scarf is now tied below his injured RIGHT knee to hold loose clothing close. Ochre coat, same faces, no standing or restored leg. No baked text, letters or bubbles.",
+        "Single composed 16:9 close two-person still. Dogyeom holds his dark flask near his chest and watches the chief's shoulder outside. In foreground Seojin gives a small nod while readjusting the wooden dagger grip in his bleeding right palm. Split lower lip and strained left waist posture, no aura. No baked text, captions, panels or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진이 홈 앞에 닿자 도겸은 물통 끈에서 목도리를 풀어 다친 다리의 옷자락을 묶었습니다. 좁은 턱에 천이 걸리지 않게 하려는 것이었습니다. 점검구는 도겸이 먼저 내려가 안에서 잡아줘야 했습니다. 서진은 고개를 끄덕였습니다. 칼자루를 다시 쥐는 동안 손가락 두 개가 말을 듣지 않았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "내가 어깨 볼게. 손목만 보지 마."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "내려가시면 한 번 두드려요."
+        }
+      ],
+      "screen_text": [],
+      "ae": "공간 중경 후 두 사람 근경으로 컷. 다리 옷자락 정리와 신호 합의를 구체적으로 보인다. 대사는 별도 편집 말풍선 레이어로 처리한다."
+    },
+    {
+      "id": "E02_S16",
+      "location": "서쪽 홈 바깥 / 마지막 유도",
+      "visual_states": [
+        "고정 광각. 서진이 홈에서 기둥 반대쪽으로 두 걸음 떨어져 단도 손잡이 끝을 바닥에 댄 낮은 자세다. 우두머리 얼굴과 가슴이 서진 쪽으로 향했고 홈의 도겸은 구멍 앞에 앉아 있다.",
+        "같은 공간 고정 중경. 우두머리는 검을 서진 쪽으로 세워 든 채 기둥 바깥에 발을 놓았다. 홈 안 도겸은 두 손을 턱에 짚고 엉덩이를 점검구 아래로 내린 상태다."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 wide still in the west chamber sector. Seojin crouches two short steps away from the recess on the far side of a square column, dagger pommel touching the floor. The chief's stone face and chest orient toward him. Dogyeom sits beside the hatch in the background. No new guardians, no baked text or lettering.",
+        "One composed 16:9 medium-wide still of the same geography. The chief holds its heavy sword upright toward Seojin, one square foot outside the column. In the west recess Dogyeom supports himself on both palms and has lowered his hips into the maintenance opening, injured right leg carefully aligned. No running, no aura, no baked text or panels."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진이 기둥 바깥에서 손잡이 끝으로 돌을 찍었습니다. 우두머리의 가슴이 그쪽으로 돌아왔습니다. 그는 더 물러나지 않았습니다. 뒤에는 작은 돌무더기가 있었고, 거기에 발이 닿으면 또 넘어질 터였습니다. 도겸은 그 사이 엉덩이를 구멍으로 내렸습니다. 팔꿈치가 바닥을 쓸고 황토색 두건이 낮아졌습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "여기 있어. 나 봐."
+        }
+      ],
+      "screen_text": [],
+      "ae": "고정 광각에서 도겸의 진입이 읽히는 중경으로 컷. 소리는 진기보다 약한 표적 유도일 뿐 확실한 조종 능력처럼 표현하지 않는다."
+    },
+    {
+      "id": "E02_S17",
+      "location": "서쪽 점검구 아래 / 도겸의 하강",
+      "visual_states": [
+        "점검구 아래에서 올려다본 고정 중경. 도겸은 양팔로 둥근 턱을 잡고 왼발을 아래 바닥에 댔다. 묶인 오른쪽 다리는 위쪽 경사 턱에 기대고 물통 끈은 손목에 걸려 있다.",
+        "관리 통로 안쪽의 고정 낮은 근경. 도겸이 왼쪽 엉덩이와 팔꿈치를 바닥에 대고 앉았으며 다친 오른쪽 다리를 손으로 받쳐 턱에서 내린 상태. 머리 바로 위로 낮은 돌 천장이 있다."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 medium still looking upward from inside the west maintenance opening. Dogyeom grips the rounded sill with both arms and places only his healthy LEFT foot on the lower floor. His scarf-bound injured right leg rests on the sloped sill; flask strap loops his wrist. Ochre headcloth, cramped stone. No baked text or lettering.",
+        "Single composed 16:9 low close still within the cramped service passage. Dogyeom sits on his left hip and elbow, using one hand to support his injured RIGHT leg after lowering it off the sill. Low stone ceiling just above ochre headcloth, pale-blue scarf bound below knee, flask beside wrist. No standing, no baked text, panels or aura."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "도겸의 왼발이 아래 바닥에 닿았습니다. 오른쪽 다리는 턱에 남았습니다. 그냥 끌면 무릎이 꺾였습니다. 그는 팔 하나로 몸을 버티고 다른 손으로 종아리를 받쳤습니다. 손등의 힘줄이 솟았습니다. 다리를 내려놓은 뒤에도 바로 움직이지 못했습니다. 천장이 두건을 눌렀습니다. 도겸은 숨을 삼키고 턱을 한 번 두드렸습니다."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "톡",
+          "kind": "sfx",
+          "anchor": "턱을 한 번 두드렸습니다.",
+          "state_index": 2,
+          "treatment": "돌 턱 바로 아래 작은 연회색 글자. 단 한 번 표시해 약속한 신호임을 전달."
+        }
+      ],
+      "ae": "상하 공간을 실제 각도로 연결하는 컷. 도겸의 하강은 팔과 왼발로만 수행한다. 신호음 다음 서진 장면으로 연결한다."
+    },
+    {
+      "id": "E02_S18",
+      "location": "서쪽 기둥 앞 / 불완전한 귀환 회피",
+      "visual_states": [
+        "고정 측면 중경. 바닥에 박힌 돌검 옆에서 우두머리 팔이 접히고, 서진은 발을 붙여 기둥 모서리 쪽으로 몸을 낮췄다. 그의 왼쪽 허리 옷이 찢긴 상처에 달라붙어 있다.",
+        "동일 축 고정 광각. 서진은 기둥 모서리 안쪽에 한쪽 손과 무릎을 댔다. 돌아온 돌검 끝에 청록 겉옷 끝자락만 찢겨 걸려 있고 몸과 칼끝 사이에는 짧은 거리가 남아 있다."
+      ],
+      "state_image_prompts": [
+        "One 16:9 side medium still. The chief's sword is planted in stone and its elbow folds into recovery; Seojin lowers himself toward the west column corner with feet close rather than lunging. Muted teal garment clings to his wounded LEFT waist, cut right hand holds dagger low. No magic, no baked text or motion sequence.",
+        "One single 16:9 wide still on the same axis. Seojin is braced on one palm and knee just inside the column corner; only a torn tip of his muted teal outer garment hangs on the recovered stone sword point. A small real gap separates blade and body. Injuries retained, intact chief. No baked text, letters, aura or collage."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "신호를 듣자 서진은 다시 발을 붙였습니다. 검이 바닥에서 들리고 팔꿈치가 접혔습니다. 그때 몸을 옮겼습니다. 두 번째 걸음에서 허리가 굳었습니다. 그는 서려던 다리를 접어 무릎으로 내려앉았습니다. 칼끝에 겉옷 끝이 찢겼습니다. 기둥을 짚은 손이 떨렸지만, 이번에도 몸은 칼 바깥에 남았습니다."
+        },
+        {
+          "kind": "thought",
+          "speaker": "seojin",
+          "text": "서지 못하면, 낮춰."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "아슬",
+          "kind": "inner_climax",
+          "anchor": "이번에도 몸은 칼 바깥에 남았습니다.",
+          "state_index": 2,
+          "treatment": "인물과 검 사이를 피한 상단 여백에 짧은 흰 글자. 승리 연출 없이 즉시 제거."
+        }
+      ],
+      "ae": "준비와 불완전한 도착 두 상태로 컷. 옷자락 손상으로 좁은 성공의 비용을 보인다. 기둥 통과나 순간 이동처럼 보이는 블러는 없다."
+    },
+    {
+      "id": "E02_S19",
+      "location": "서쪽 점검구 / 남은 물",
+      "visual_states": [
+        "점검구 위 고정 근경. 아래 도겸의 손이 어두운 물통을 위로 내밀고, 서진의 왼손이 이를 받아 잡는다. 서진의 오른손 단도는 바닥에 낮게 놓여 있다.",
+        "고정 바닥 광각. 마개를 닫은 물통이 기둥 바깥 북쪽 바닥의 돌조각 옆에 멈춰 있다. 서진은 홈 입구 안에 낮게 엎드렸고 우두머리의 시선이 물통 쪽으로 돌아간 상태."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 close-up over the west maintenance hatch. Dogyeom's ochre-sleeved hand reaches up from below with the dark leather flask; Seojin's LEFT hand receives it. His right hand and bent short dagger remain low beside the opening, blood visible. Rounded wet sill, exact single exchange pose. No baked text or lettering. Seojin receives the flask with his LEFT hand; his RIGHT hand still holds the short broken dagger lowered. Never put the dagger on the floor.",
+        "Single composed 16:9 floor-wide still. A closed dark leather flask rests beside loose stone chips north of the west column, away from the hatch. Seojin lies low within the recess entrance while the chief's carved face turns toward the flask. Cool teal stone chamber, amber torches, no new enemy. No baked text, panels, aura or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "구멍 아래에서 물통이 올라왔습니다. 도겸이 마개를 두 번 눌러 닫았습니다. 서진은 왼손으로 받아 기둥 바깥에 낮게 던졌습니다. 남은 물이 출렁이고 가죽 테두리의 쇠고리가 돌을 쳤습니다. 우두머리의 고개가 돌아갔습니다. 서진은 그 짧은 사이 오른손에 쥔 단도를 오른쪽 허리 칼집에 밀어 넣었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "물통은 둬. 손부터 비워."
+        }
+      ],
+      "screen_text": [],
+      "ae": "물통 전달에서 떨어진 결과로 컷. 던지는 연속 동작은 생성하지 않는다. 소리 유도는 잠깐의 시선 변화로만 표현하고 석상을 멀리 퇴장시키지 않는다."
+    },
+    {
+      "id": "E02_S20",
+      "location": "서쪽 점검구 / 서진의 진입",
+      "visual_states": [
+        "고정 측면 근경. 서진이 이번에는 오른쪽 옆구리를 둥근 턱에 대고 옆으로 누워 들어간다. 왼쪽 상처는 위를 향하고 단도는 오른쪽 허리 칼집에 있다. 아래 도겸 손이 서진 소매를 잡는다.",
+        "점검구 아래 고정 중경. 서진의 머리와 어깨가 통로 안에 내려왔고 양팔은 바닥을 받친다. 아직 위에 남은 한쪽 신발과 바깥으로 돌아선 우두머리의 발 일부가 구멍 너머로 보인다."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 side close still of Seojin entering the cleared west service hatch sideways. His RIGHT side rests on the rounded sill, keeping injured LEFT waist uppermost; shortened dagger is sheathed at right hip. Dogyeom's hand below grips his sleeve. Split lip, bloodied palm, same teal clothes. No baked text or letters.",
+        "One 16:9 medium still from inside the cramped passage looking toward the hatch. Seojin's head and shoulders are below, both arms braced on the lower floor; one worn shoe remains above the sill. Through the aperture only part of the chief's returning square stone foot is visible. No extra body duplicates, no baked text, aura or collage."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "이번에는 오른쪽으로 누웠습니다. 다친 왼쪽 허리를 위로 두자 턱이 상처를 누르지 않았습니다. 도겸이 소매를 잡고 방향을 받았습니다. 서진은 팔꿈치를 먼저 바닥에 댔습니다. 오른손 상처가 젖은 돌에 닿았습니다. 눈앞이 하얘졌지만 팔을 빼지 않았습니다. 위쪽에서 돌 발이 방향을 바꾸는 소리가 났습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "머리 숙여. 발 하나만 더."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "참아",
+          "kind": "inner_emphasis",
+          "anchor": "팔을 빼지 않았습니다.",
+          "state_index": 2,
+          "treatment": "팔꿈치 옆 어두운 돌면 여백에 작은 백색 글자. 호흡 한 번 동안 고정."
+        }
+      ],
+      "ae": "첫 진입 실패와 동일한 측면축을 사용해 자세 수정이 보이게 한다. 아래 시점 컷으로 마지막 발이 노출된 위험을 연결한다."
+    },
+    {
+      "id": "E02_S21",
+      "location": "서쪽 점검구 / 마지막 발",
+      "visual_states": [
+        "점검구 아래 고정 사선 근경. 도겸은 왼팔꿈치로 버티며 오른손으로 서진의 뒤꿈치를 아래로 안내한다. 서진은 두 무릎을 접었고 구멍 위 먼지 사이로 돌검 끝 그림자가 드리워 있다.",
+        "같은 방향 고정 중경. 서진의 두 발이 모두 아래로 들어왔고 도겸 옆에 몸을 접었다. 위 점검판은 바깥 충격에 고리 쪽이 내려앉아 비스듬히 좁은 빛 틈만 남긴 상태."
+      ],
+      "state_image_prompts": [
+        "Single 16:9 oblique close still from beneath the west hatch. Dogyeom braces on his left elbow and uses his right hand to guide Seojin's last heel down; Seojin folds both knees tightly. Above, drifting dust and a heavy sword-tip shadow cross the opening. Injured right leg stays extended. No baked text, letters or motion montage.",
+        "Single composed 16:9 medium still inside the low stone passage. Both of Seojin's feet are now below, his body curled beside Dogyeom. The maintenance cover has tilted down from an outside blow, leaving only a narrow diagonal slit of torchlight overhead. No guardian fits inside, no destroyed statue. No baked text, speech bubbles, aura or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진의 뒤꿈치가 턱에 걸렸습니다. 도겸이 발목을 잡아 아래로 틀었습니다. 신발 천이 찢어지며 발이 빠졌습니다. 곧바로 위에서 둔한 소리가 울렸습니다. 입구 옆에 기대 둔 점검판이 기울어 내려왔습니다. 도겸이 서진의 머리를 눌렀습니다. 돌판은 턱에 걸렸고 가느다란 빛만 두 사람의 등에 남았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "낮춰!"
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "쾅",
+          "kind": "sfx",
+          "anchor": "위에서 둔한 소리가 울렸습니다.",
+          "state_index": 2,
+          "treatment": "점검판 아래 빛 틈을 가리지 않는 상단에 무거운 회색 글자. 짧은 먼지 낙하와 동시 표시."
+        }
+      ],
+      "ae": "뒤꿈치 근접에서 완전히 들어온 결과로 컷. 점검판은 충격으로 기울어 턱에 걸린 상태이며 밀폐·안전 확보로 표현하지 않는다."
+    },
+    {
+      "id": "E02_S22",
+      "location": "서쪽 배수 관리 통로 / 낮은 굽이",
+      "visual_states": [
+        "통로 옆 고정 중경. 도겸은 앞에서 왼팔꿈치와 왼발로 몸을 밀고 오른쪽 다리를 길게 놓았다. 뒤의 서진은 팔뚝으로 바닥을 받치며 따라간다. 중앙의 얕은 물길이 두 사람 사이로 이어진다.",
+        "통로 굽이 안 고정 근경. 도겸이 납작하게 엎드려 모서리를 돌고 서진은 뒤에서 멈춰 낮은 천장에 닿은 어깨를 낮춘다. 입구 빛은 굽이 너머 가려져 있다."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 side medium still in a cramped stone drainage service passage. Dogyeom leads using his LEFT elbow and healthy left foot, injured right leg extended behind; Seojin follows supported on forearms, guarding wounded left waist. A shallow water channel runs between them. Low ceiling, ochre and teal clothes, no packs. No baked text or lettering.",
+        "One 16:9 close still at a tight passage bend. Dogyeom lies flat around the corner, pale-blue scarf visible on right leg; behind him Seojin pauses with shoulder brushing the low ceiling and lowers his torso. Hatch torchlight is hidden by the bend, damp stone faintly lit from farther ahead. No baked text, panels, aura or watermark."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "도겸이 먼저 팔꿈치를 옮겼습니다. 왼발로 바닥을 밀고 다친 다리는 곧게 끌었습니다. 서진도 손바닥 대신 팔뚝으로 버텼습니다. 통로는 두 사람이 나란히 누울 수도 없었습니다. 뒤에서 검이 돌판을 긁었습니다. 한 굽이를 돌자 그 소리가 벽 너머로 낮아졌습니다. 서진은 그제야 멎어 있던 숨을 내쉬었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "seojin",
+          "text": "다리, 걸리면 말해요."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "dogyeom",
+          "text": "네 숨부터 끊지 마."
+        }
+      ],
+      "screen_text": [],
+      "ae": "측면에서 굽이 안쪽으로 컷. 즉시 석실을 벗어난 사실과 계속되는 신체 제약을 보인다. 공간 이동은 고정 컷이며 인공 깊이 이동은 없다."
+    },
+    {
+      "id": "E02_S23",
+      "location": "관리 통로 / 바깥 소리",
+      "visual_states": [
+        "고정 낮은 중경. 도겸이 앞쪽 낮은 쇠살 덮개에서 두 팔 길이 떨어진 곳에 멈춰 있다. 서진은 뒤에서 도겸의 어깨를 잡는다. 덮개 틈에는 희미한 횃불빛과 바닥 먼지만 보인다.",
+        "서진 눈높이 고정 근접. 도겸의 넓은 손이 뒤로 뻗어 서진 소매를 가볍게 누르고 있다. 두 사람 입은 닫혔고 도겸의 눈은 쇠살 아래로 향한다."
+      ],
+      "state_image_prompts": [
+        "Single composed 16:9 low medium still farther inside the service passage. Dogyeom has stopped two arm-lengths short of a low iron grille cover; Seojin behind lightly holds his ochre shoulder. Only faint torchlight and dusty outer floor show through the bars, no person yet visible. Cramped stone and shallow drain. No baked text or lettering.",
+        "Single 16:9 eye-level close still within the crawlway. Dogyeom's broad hand reaches back to press Seojin's sleeve in a quiet stop signal; both mouths are shut. Dogyeom's kind brown eyes focus below the grille, ochre headcloth and strained face clear. Seojin's split lower lip remains visible. No baked text, bubbles, aura or panels."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "앞쪽에서 작은 돌이 굴렀습니다. 두 사람의 몸이 동시에 멎었습니다. 바람 끝에 기름 먹인 가죽 냄새가 섞여 있었습니다. 도겸이 손을 뒤로 뻗어 서진의 소매를 눌렀습니다. 쇠살 너머 빛이 한 번 가려졌습니다. 누군가 거기 서 있었습니다. 서진은 숨을 코로 잘게 나누며 허리 칼집 쪽 팔을 거뒀습니다."
+        }
+      ],
+      "screen_text": [
+        {
+          "text": "쉿",
+          "kind": "inner_reaction",
+          "anchor": "도겸이 손을 뒤로 뻗어 서진의 소매를 눌렀습니다.",
+          "state_index": 2,
+          "treatment": "손등 위 빈 돌면에 아주 작은 회백색 글자. 말풍선 없이 정지 신호의 맥락만 전달."
+        }
+      ],
+      "ae": "쇠살까지 거리 확인 후 멈춤 신호 근접으로 컷. BGM은 낮추고 실제 발소리와 가죽 마찰음으로 사람의 존재를 먼저 전달한다."
+    },
+    {
+      "id": "E02_S24",
+      "location": "관리 통로 끝 쇠살 안쪽 / 철산문의 장화",
+      "visual_states": [
+        "쇠살 안쪽 바닥 높이 고정 근접. 바깥 돌바닥에 깨끗한 검은 장화 한 켤레가 서 있고 위쪽으로 익숙한 철청색 무복 자락과 평범한 장검 칼집 끝만 보인다. 얼굴과 새로운 인물은 보이지 않는다.",
+        "통로 안쪽에서 끝을 바라본 고정 중경. 도겸과 서진이 낮은 천장 아래 앞뒤로 엎드려 있고, 서진의 피 묻은 오른손은 칼을 뽑지 않은 채 바닥에 접혀 있다. 쇠살 너머 장화 한쪽이 배수구를 향해 틀어져 있다."
+      ],
+      "state_image_prompts": [
+        "One single 16:9 floor-level close still through a low iron drainage grille. Outside stand familiar clean black sect-guard boots beneath an iron-blue martial robe hem; only the lower tip of a plain sword scabbard is visible. No face, no new principal character. Gray outer corridor floor and warm torchlight. No baked text, letters, bubbles or watermark.",
+        "One composed 16:9 medium still from deeper inside the cramped service passage. Dogyeom and Seojin lie single-file under the low ceiling, ochre before muted teal. Seojin's bleeding right hand is folded on stone, dagger still sheathed; split lip and guarded left waist persist. Beyond the grille one familiar black boot points toward the drain. No baked text or aura."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "먼지 없는 검은 장화였습니다. 그 위로 철청색 옷자락이 내려왔습니다. 동쪽 철문 앞에서 등을 돌렸던 자들과 같은 차림이었습니다. 장화 하나가 배수구 쪽으로 틀어졌습니다. 서진은 칼을 뽑지 않았습니다. 이 천장 아래에서는 팔도 제대로 펼 수 없었습니다. 앞의 도겸이 손을 뒤로 내밀었습니다. 서진은 그 손목을 가볍게 붙잡았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "guard",
+          "text": "안에서 쇳소리가 났다. 배수로도 확인해."
+        },
+        {
+          "kind": "narration",
+          "text": "쇠살 아래로 사람의 그림자가 내려왔습니다. 두 사람은 더 낮게 몸을 붙였습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "익숙한 장화 근접에서 통로 안 두 사람 중경으로 컷. 배수로 확인 명령으로 인간 장애물의 동기를 명확히 한다. 장화가 돌아선 정지 상태를 짧게 홀드한 뒤 암전하며 탈출 성공 음악이나 복수 예고 효과는 넣지 않는다."
+    }
+  ],
+  "status": "script_review_complete_minor_fixes_applied",
+  "registered_to_user_web": false
+}

@@ -469,3 +469,23 @@ def test_image_analysis_prompt_is_not_consumed_as_an_image_argument(monkeypatch,
     assert '顔を確認してください' in captured['prompt']
     assert '大五郎' in captured['prompt'], 'Japanese speaker names must reach Codex without a Windows console decoding step'
     assert 'Use this JSON as source data' in captured['prompt']
+
+
+def test_stage_request_preserves_korean_through_ascii_only_console(monkeypatch, tmp_path):
+    monkeypatch.setattr(runner_module, 'PROJECT_ROOT', tmp_path)
+    monkeypatch.setattr(runner_module, 'OUTPUT_DIR', tmp_path/'worker-output')
+    source = {'blocks': [{'source_text': '걸렸다……! 다친 오른손을 놓지 않았다.'}]}
+    def fake_run(command, **kwargs):
+        requests = list((tmp_path/'worker-output/codex_stage_requests').glob('*.input.json'))
+        if not requests:
+            requests = [p for p in (tmp_path/'worker-output/codex_stage_requests').glob('*.json') if '.response.' not in p.name]
+        assert len(requests) == 1
+        wire = requests[0].read_bytes()
+        assert wire.isascii()
+        assert json.loads(wire.decode('ascii')) == source
+        response = pathlib.Path(command[command.index('--output-last-message')+1])
+        response.write_text('{"blocks": []}', encoding='utf-8')
+        return subprocess.CompletedProcess(command, 0)
+    monkeypatch.setattr(runner_module.subprocess, 'run', fake_run)
+    runner = runner_module.CodexStagedContentRunner(runner_module.CodexContentConfig('codex','',60))
+    assert runner._stage('episode', '02_subtitle_translation_th', source, 'Translate each source block.') == {'blocks': []}

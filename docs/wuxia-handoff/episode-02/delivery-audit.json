@@ -1,0 +1,32 @@
+{
+  "topic_id": 3429,
+  "complete": true,
+  "tests": {
+    "passed": 38,
+    "files": [
+      "tests/test_wuxia_delivery_state.py",
+      "tests/test_script_worker_production_guidance.py",
+      "tests/test_codex_content_runner.py"
+    ]
+  },
+  "art": {
+    "states": 48,
+    "continuity_corrections": 17,
+    "originals_preserved": true
+  },
+  "layout": {
+    "graphics": 35,
+    "errors": 0,
+    "overflow": 0,
+    "missing": 0
+  },
+  "assets": {
+    "verified_download_hashes": 57
+  },
+  "registration": {
+    "database_readback": "exact_match",
+    "web_source_predicate_ready": true,
+    "authenticated_card_ui_verified": false
+  },
+  "quality_notes": "direction/quality-notes.md"
+}

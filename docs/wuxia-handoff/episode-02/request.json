@@ -1,0 +1,24 @@
+{
+  "episode": 2,
+  "series_title": "나 혼자 무공을 진화시킨다",
+  "episode_title": "돌아오는 검",
+  "settings": {
+    "language": "ko",
+    "world": "가상의 전근대 중국풍 강호. 문파가 옛 무공과 괴물이 봉인된 무경의 공략권을 독점한다.",
+    "image_style": "wuxia_webtoon",
+    "style_reference": "auth-web/public/img/styles/style_wuxia_webtoon.png",
+    "visual_medium": "정지 원화의 상태 컷 전환과 AE 효과",
+    "video_clip_count": 0,
+    "camera_policy": "고정 기본, 느린 줌 금지",
+    "parallax": "필요한 장면에만 선택 적용",
+    "narration_captions": "원문 자막을 표시하지 않음. 앞뒤 맥락에 맞는 심리·반응·효과음 타이포그래피를 선택적으로 사용",
+    "dialogue": "실제 인물 대사는 음성과 일치하는 말풍선",
+    "typography": "최종 AE에서 편집 가능한 독립 텍스트 레이어",
+    "bgm": "프롬프트만 작성, 음악 파일 생성 제외"
+  },
+  "target_duration_seconds": 600,
+  "previous_topic_id": 3428,
+  "scope": "complete episode package through user-web registration and exact DB readback",
+  "authorization": "2026-11-04 explicit user: fix intermediate stops, then start episode two",
+  "status": "script_generation_running"
+}

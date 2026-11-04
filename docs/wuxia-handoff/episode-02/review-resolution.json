@@ -1,0 +1,11 @@
+{
+  "source": "independent-review-v1.json",
+  "verdict": "pass",
+  "repairs": [
+    "S19 right-hand dagger custody explicit",
+    "S10 physical hitch contact explicit in narration and art prompt",
+    "S15 scarf detached from flask before bandage",
+    "S03 dropped flask recovery made explicit"
+  ],
+  "unresolved_major": 0
+}

@@ -1,0 +1,230 @@
+{
+  "music_generation": "prompt_only_no_audio_created",
+  "mix_direction": "인물의 짧은 경고와 숨을 우선한다. 구조 행동과 돌검 충돌은 필요한 순간만 강조하며 마지막 사람 발소리 앞에서 음악을 낮춘다. 실제 오디오 타이밍과 볼륨은 파일이 있을 때 측정한다.",
+  "music": [
+    {
+      "scenes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "intent": "작은 성공과 신체적 한계",
+      "prompt": "Original instrumental Korean wuxia survival underscore. Dry low strings, sparse geomungo-like plucks, deep stone resonance, irregular quiet pulse. A tiny moment of relief for the wrist jam immediately collapses back into danger. No heroic melody, no power-up fanfare, no vocals, clear midrange for Korean narration."
+    },
+    {
+      "scenes": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18
+      ],
+      "intent": "협력과 보폭 선택",
+      "prompt": "Original instrumental wuxia suspense cue, sparse wooden ticks and restrained low bowed strings. Space between pulses for breath, cloth strain and heavy stone impacts. Modest forward momentum as two injured porters cooperate; never triumphant or fast action spectacle. No vocals, no trailer risers."
+    },
+    {
+      "scenes": [
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "intent": "좁은 통로 뒤의 사람",
+      "prompt": "Original instrumental claustrophobic wuxia escape underscore, low soft drone and muted bowed texture, few isolated taps. Reduce to near-silence as human boots approach. End unresolved and cold, without victory chord, bright resolution or vocals."
+    }
+  ],
+  "scenes": [
+    {
+      "scene_id": "E02_S01",
+      "sfx": [
+        {
+          "text": "덜컥",
+          "exact_anchor": "돌아오던 손목이 덜컥 멎었습니다.",
+          "intent": "회전축 바깥 빈 공간에 각진 회백색 글자. 짧게 등장하고 고정하며 손과 쐐기는 가리지 않는다."
+        }
+      ],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S02",
+      "sfx": [
+        {
+          "text": "끼긱",
+          "exact_anchor": "어깨가 내려오자 얇은 칼날부터 휘었습니다.",
+          "intent": "휘어진 칼 반대편에 가늘게 찌그러진 글자. 짧은 마찰음과 함께 퇴장."
+        }
+      ],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S03",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S04",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S05",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S06",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S07",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S08",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S09",
+      "sfx": [
+        {
+          "text": "쿵",
+          "exact_anchor": "돌검이 홈 입구를 찍었습니다.",
+          "intent": "입구 바깥 하단에 짧고 무거운 글자. 한 번의 작은 프레임 진동 후 즉시 고정."
+        }
+      ],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S10",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S11",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S12",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S13",
+      "sfx": [
+        {
+          "text": "우득",
+          "exact_anchor": "젖은 나무껍질이 벗겨졌습니다.",
+          "intent": "받침과 손을 피한 구멍 가장자리에 짧은 갈색 글자. 당김의 결실에만 강조."
+        }
+      ],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S14",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S15",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S16",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S17",
+      "sfx": [
+        {
+          "text": "톡",
+          "exact_anchor": "턱을 한 번 두드렸습니다.",
+          "intent": "돌 턱 바로 아래 작은 연회색 글자. 단 한 번 표시해 약속한 신호임을 전달."
+        }
+      ],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S18",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S19",
+      "sfx": [],
+      "ambience": "석실의 작은 물소리와 먼 돌 마찰, 필요한 구간만",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S20",
+      "sfx": [],
+      "ambience": "좁은 배수 관리 통로의 낮은 잔향과 물방울, 마지막에 인간 발소리",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S21",
+      "sfx": [
+        {
+          "text": "쾅",
+          "exact_anchor": "위에서 둔한 소리가 울렸습니다.",
+          "intent": "점검판 아래 빛 틈을 가리지 않는 상단에 무거운 회색 글자. 짧은 먼지 낙하와 동시 표시."
+        }
+      ],
+      "ambience": "좁은 배수 관리 통로의 낮은 잔향과 물방울, 마지막에 인간 발소리",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S22",
+      "sfx": [],
+      "ambience": "좁은 배수 관리 통로의 낮은 잔향과 물방울, 마지막에 인간 발소리",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S23",
+      "sfx": [],
+      "ambience": "좁은 배수 관리 통로의 낮은 잔향과 물방울, 마지막에 인간 발소리",
+      "timing": "exact source anchors; bind actual performance later"
+    },
+    {
+      "scene_id": "E02_S24",
+      "sfx": [],
+      "ambience": "좁은 배수 관리 통로의 낮은 잔향과 물방울, 마지막에 인간 발소리",
+      "timing": "exact source anchors; bind actual performance later"
+    }
+  ]
+}

@@ -1,0 +1,305 @@
+{
+  "music_generation": "prompt_only_no_audio_created",
+  "music": [
+    {
+      "scenes": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "intent": "약자의 생활과 고집",
+      "prompt": "Original instrumental Korean wuxia drama underscore, restrained low strings and sparse plucked geomungo-like timbre, dry intimate texture, slow pulse, no vocals, no heroic melody, leave clear midrange for Korean narration. Quiet unresolved ending."
+    },
+    {
+      "scenes": [
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "intent": "탐사에서 불길한 발견으로",
+      "prompt": "Original instrumental ancient martial tomb exploration cue, sparse wooden percussion, breathy low flute fragments, deep resonant drone, gradually reduce rhythm as old remains are discovered, no vocals or trailer risers, no triumphant theme."
+    },
+    {
+      "scenes": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "intent": "함정·오판·배신",
+      "prompt": "Original wuxia survival tension underscore, heavy stone-like low percussion with short asymmetric pulses, restrained bowed strings, room for isolated impacts and spoken confrontation. Pull music down sharply at betrayal and iron latch. No vocals, no victory cadence."
+    },
+    {
+      "scenes": [
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "intent": "기운이 사라진 뒤 관찰과 실패",
+      "prompt": "Original restrained wuxia suspense cue, near-silence and sparse low string harmonics, isolated wooden taps, slow uneven breathing-space pulse. Slight thin shimmer only during private discovery, then remove it on failed attack. No power-up fanfare, no vocals."
+    },
+    {
+      "scenes": [
+        25,
+        26
+      ],
+      "intent": "다시 시도하지만 결과는 다음 화",
+      "prompt": "Original instrumental wuxia cliffhanger cue, dry muted pulse increasing in tension, low strings held unresolved, a brief silence before the second attack. Cut before contact with no resolution, no victorious chord and no vocals."
+    }
+  ],
+  "mix_direction": "대사와 호흡을 우선한다. 타격 효과마다 음악을 잠시 낮추고 석실 잔향을 과하게 겹치지 않는다. 실제 음원의 음량 측정 전 수치를 확정하지 않는다.",
+  "scenes": [
+    {
+      "scene_id": "E01_S01",
+      "sfx": [
+        "산문 석문 저음",
+        "지게와 발소리",
+        "도포 마찰"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S02",
+      "sfx": [
+        "동전 미는 소리",
+        "장부 붓 긋기"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S03",
+      "sfx": [
+        "동전 천 포장",
+        "가죽 물주머니 마찰"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S04",
+      "sfx": [
+        "야간 벌레",
+        "단도 짧은 공기 가름",
+        "숨 고름"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S05",
+      "sfx": [
+        "모집장 종이",
+        "붓",
+        "단도 칼집"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S06",
+      "sfx": [
+        "산길 발소리",
+        "자갈 미끄러짐",
+        "지게 끈"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S07",
+      "sfx": [
+        "회랑 잔향",
+        "횃불",
+        "등 떠미는 천 마찰"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S08",
+      "sfx": [
+        "잔향 감소",
+        "마른 소매 가루",
+        "끈 마찰 아주 작게"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S09",
+      "sfx": [
+        "수레 바퀴",
+        "돌못 풀림",
+        "철컥 낮은 금속"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S10",
+      "sfx": [
+        "석문 하강",
+        "검 파손 짧은 고음",
+        "밀폐 후 잔향",
+        "석상 목 관절"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S11",
+      "sfx": [
+        "검기 낮은 진동",
+        "돌검 충돌",
+        "몸 구름",
+        "무거운 쾅"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S12",
+      "sfx": [
+        "돌발 보행 좌→우",
+        "먼 진기와 돌검 방향 전환",
+        "서진 호흡"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S13",
+      "sfx": [
+        "진기 밀도 상승",
+        "우두머리 첫발 저역",
+        "도겸 옷 눌림"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S14",
+      "sfx": [
+        "벽 석재 파손",
+        "좁은 통로 바람",
+        "수레 축 절단"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S15",
+      "sfx": [
+        "도겸 통증 숨",
+        "혼잡한 발소리",
+        "소매 잡기",
+        "검 손잡이 둔탁음"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S16",
+      "sfx": [
+        "철문 마찰",
+        "걸쇠 철컥",
+        "두 번 문 두드림",
+        "발소리 멀어짐"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S17",
+      "sfx": [
+        "석상 감속 마찰",
+        "호흡 억제",
+        "도겸의 억눌린 신음"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S18",
+      "sfx": [
+        "검이 들리며 석재 마찰",
+        "침묵 간격",
+        "수레 손잡이 잡기"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S19",
+      "sfx": [
+        "바퀴 축 회전",
+        "짐 쏠림",
+        "다리 빠짐 천 마찰",
+        "수레 콰직"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S20",
+      "sfx": [
+        "돌조각 둔탁음",
+        "숨 토함",
+        "물주머니 낙하/물",
+        "돌검 바닥 충돌"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S21",
+      "sfx": [
+        "돌검 뽑기",
+        "손목 관절 두 단계 마찰",
+        "호흡"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S22",
+      "sfx": [
+        "서진 주관 고역 얇은 잔향",
+        "문구 등장 짧고 낮게",
+        "도겸 경고는 객관 공간음"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S23",
+      "sfx": [
+        "몸 구름",
+        "닫힌 관절 딱",
+        "칼끝 파손",
+        "통증 숨"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S24",
+      "sfx": [
+        "옷 압박",
+        "떨리는 숨",
+        "원경 돌검 이동"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S25",
+      "sfx": [
+        "단도 등 두드림 정확히 두 번",
+        "석상 고개 회전",
+        "발 고정"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    },
+    {
+      "scene_id": "E01_S26",
+      "sfx": [
+        "도겸 외침",
+        "단 한 번의 쇄도 바람",
+        "뒤 바닥 돌검 충돌",
+        "손목 틈 열림",
+        "결과 충돌음 없이 암전"
+      ],
+      "timing": "해당 대본 행위의 실제 녹음 앵커와 컷 전환에 연결"
+    }
+  ]
+}
