@@ -179,3 +179,24 @@ test('reviewed series portraits use the authorized content-addressed GCS path', 
         assert.equal(characterThumbnail.gcsCharacterObjectFromUrl(`/api/std/assets/gcs-file?bucket=studio-assets&path=${encodeURIComponent(invalid)}`, 'https://studio.example'), null)
     }
 })
+
+test('supervised production character sheets resolve through the owned project proxy', async () => {
+    const objectPath = `codex-productions/wuxia-series-rebuild/episode-01/seojin-v1-${'b'.repeat(64)}.png`
+    const imageUrl = `/api/std/assets/gcs-file?bucket=studio-assets&path=${encodeURIComponent(objectPath)}`
+    const projectPayload = { main_character: { name: '서진', character_key: 'seojin', image_url: imageUrl } }
+    const app = harness({ projectPayload })
+    assert.equal((await app.get('?slot=0')).status, 200)
+    assert.deepEqual(app.downloads, [{ bucket: 'studio-assets', objectPath }])
+    const restored = harness({ projectPayload: characterProtection.protectCharacterReferenceUrls(projectPayload, 'project-id'),
+        registry: { image_url: imageUrl } })
+    assert.equal((await restored.get('?slot=0')).status, 200)
+    assert.deepEqual(restored.downloads, [{ bucket: 'studio-assets', objectPath }])
+    const denied = harness({ projectPayload, authenticated: false })
+    assert.equal((await denied.get('?slot=0')).status, 401)
+    assert.equal(denied.downloads.length, 0)
+    for (const invalid of [objectPath.replace('episode-01', '../episode-01'),
+        objectPath.replace('b'.repeat(64), 'unversioned'), objectPath.replace('episode-01', 'other-folder'),
+        objectPath.replace('seojin-v1-', '../seojin-v1-')]) {
+        assert.equal(characterThumbnail.gcsCharacterObjectFromUrl(`/api/std/assets/gcs-file?bucket=studio-assets&path=${encodeURIComponent(invalid)}`, 'https://studio.example'), null)
+    }
+})

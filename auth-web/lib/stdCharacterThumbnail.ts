@@ -3,6 +3,9 @@ export type GcsCharacterObject = { bucket: string; path: string }
 function isAuthorizedCharacterPath(path: string): boolean {
     // Scene production stores reviewed cast portraits under this content-addressed path.
     if (/^content-assets\/pawnshop-series\/episode-\d+\/character-references\/[a-f0-9]{64}\.png$/.test(path)) return true
+    // The authorized project's saved character record also points to supervised
+    // production assets. Only accept immutable, hash-suffixed production objects.
+    if (/^codex-productions\/[A-Za-z0-9_-]+\/episode-\d+\/[A-Za-z0-9_-]+-[a-f0-9]{64}\.png$/.test(path)) return true
     const segments = path.split('/')
     if (segments[0] !== 'topics') return false
 
