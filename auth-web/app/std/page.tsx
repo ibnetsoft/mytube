@@ -1863,7 +1863,7 @@ export default function StdPortalPage() {
             method: 'POST', headers: authedJsonHeaders,
             body: JSON.stringify({ locale: currentLocale, ids: missing.map((project: any) => project.id) }),
         }).then(response => {
-            if (!response.ok) throw new Error('Title translation unavailable')
+            if (!response.ok) throw new Error(`Title translation request failed (${response.status})`)
             return response.json()
         }).then(result => {
             if (!active) return
@@ -1873,7 +1873,8 @@ export default function StdPortalPage() {
                 for (const item of result.translations) next[JSON.stringify([currentLocale, item.id, item.source])] = item.title
                 return next
             })
-        }).catch(() => {
+        }).catch(error => {
+            console.warn('[STD project title translation]', error?.message || 'Request failed')
             if (active) retryTimer = window.setTimeout(() => setProjectTitleRetry(value => value + 1), 10000)
         })
         return () => { active = false; if (retryTimer) window.clearTimeout(retryTimer) }
@@ -7803,10 +7804,12 @@ export default function StdPortalPage() {
         return unique
     }, [topicQueuePool, topicSearchQuery, topicLengthFilter])
 
+    const missingTopicTitles = displayedTopics.filter(topic => topicSourceTitle(topic) && !localizedTopicTitle(topic, currentLocale)
+        && topicTitleTranslations[JSON.stringify([currentLocale, String(topic.id), topicSourceTitle(topic)])] === undefined).slice(0, 50)
+    const missingTopicTitleSignature = JSON.stringify(missingTopicTitles.map(topic => [topic.id, topicSourceTitle(topic)]))
     useEffect(() => {
         if (!token) return
-        const missing = displayedTopics.filter(topic => topicSourceTitle(topic) && !localizedTopicTitle(topic, currentLocale)
-            && topicTitleTranslations[JSON.stringify([currentLocale, String(topic.id), topicSourceTitle(topic)])] === undefined).slice(0, 50)
+        const missing = missingTopicTitles
         if (!missing.length) return
         let active = true
         let retryTimer: number | undefined
@@ -7814,7 +7817,7 @@ export default function StdPortalPage() {
             method: 'POST', headers: authedJsonHeaders,
             body: JSON.stringify({ locale: currentLocale, ids: missing.map(topic => Number(topic.id)) }),
         }).then(response => {
-            if (!response.ok) throw new Error('Topic title translation unavailable')
+            if (!response.ok) throw new Error(`Topic title translation request failed (${response.status})`)
             return response.json()
         }).then(result => {
             if (!active) return
@@ -7824,11 +7827,12 @@ export default function StdPortalPage() {
                 for (const item of result.translations) next[JSON.stringify([currentLocale, String(item.id), item.source])] = item.title
                 return next
             })
-        }).catch(() => {
+        }).catch(error => {
+            console.warn('[STD topic title translation]', error?.message || 'Request failed')
             if (active) retryTimer = window.setTimeout(() => setTopicTitleRetry(value => value + 1), 10000)
         })
         return () => { active = false; if (retryTimer) window.clearTimeout(retryTimer) }
-    }, [token, displayedTopics, currentLocale, authedJsonHeaders, topicTitleTranslations, topicTitleRetry])
+    }, [token, missingTopicTitleSignature, currentLocale, authedJsonHeaders, topicTitleRetry])
 
     const translatedTopicTitle = (topic: any) => {
         const source = topicSourceTitle(topic)
