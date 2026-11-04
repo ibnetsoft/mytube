@@ -30,15 +30,13 @@ export function topicSourceTitle(topic: any): string {
 
 export function localizedTopicTitle(topic: any, locale: SupportedLocale): string {
     const source = topicSourceTitle(topic)
-    const translations = topic?.title_translations
-        || topic?.progress_payload?.title_translations
-        || topic?.pregenerated_structure?.title_translations
-        || topic?.publish_metadata?.title_translations
-        || {}
     const localized = text(
         topic?.[`topic_${locale}`],
         topic?.[`title_${locale}`],
-        translations?.[locale],
+        topic?.title_translations?.[locale],
+        topic?.progress_payload?.title_translations?.[locale],
+        topic?.pregenerated_structure?.title_translations?.[locale],
+        topic?.publish_metadata?.title_translations?.[locale],
         preparedJapaneseTitles[preparedTitleKey(source)]?.[locale],
     )
     return localized && localized !== source ? localized : ''
@@ -56,7 +54,7 @@ export function localizedProjectTitle(project: any, locale: SupportedLocale): st
         generated_title: title,
         source_title: title,
         topic: title,
-        title_translations: localization.title_translations || source.title_translations || payload.title_translations,
+        title_translations: { ...payload.title_translations, ...source.title_translations, ...localization.title_translations },
         progress_payload: source.progress_payload || localization.progress_payload,
         pregenerated_structure: source.pregenerated_structure || payload.structure || localization.pregenerated_structure,
         publish_metadata: source.publish_metadata || payload.publish_metadata || localization.publish_metadata,

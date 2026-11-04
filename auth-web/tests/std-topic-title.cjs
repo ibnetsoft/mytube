@@ -15,4 +15,6 @@ assert.equal(title.localizedTopicTitle({ generated_title: '原題', progress_pay
 assert.equal(title.localizedTopicTitle({ generated_title: 'Same', topic_en: 'Same' }, 'en'), '')
 assert.equal(title.localizedProjectTitle({ title: '原題', title_localization: { topic_en: 'English project title' } }, 'en'), 'English project title')
 assert.equal(title.localizedProjectTitle({ title: '原題', source_payload: { progress_payload: { title_translations: { ko: '프로젝트 번역 제목' } } } }, 'ko'), '프로젝트 번역 제목')
+assert.equal(title.localizedTopicTitle({ generated_title: '原題', title_translations: {}, progress_payload: { title_translations: { th: 'ชื่อภาษาไทย' } } }, 'th'), 'ชื่อภาษาไทย')
+assert.equal(title.localizedProjectTitle({ title: '原題', title_localization: { title_translations: { ko: '한국어' } }, project_payload: { title_translations: { th: 'ชื่อภาษาไทย' } } }, 'th'), 'ชื่อภาษาไทย')
 console.log('PASS: topic titles use saved locale translations with prepared Japanese fallbacks')

@@ -3,6 +3,8 @@ import { requireStdUser } from '@/lib/stdWeb'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { generateJsonWithModelSetting } from '@/lib/aiRouter'
 
+export const maxDuration = 60
+
 export async function POST(req: Request) {
     const auth = await requireStdUser(req)
     if (!auth.ok) return auth.response

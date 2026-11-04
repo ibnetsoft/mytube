@@ -77,7 +77,7 @@ export async function GET(req: Request) {
         topic_en: topic.topic_en,
         topic_vi: topic.topic_vi,
         topic_th: topic.topic_th,
-        title_translations: topic.progress_title_translations || topic.structure_title_translations || topic.metadata_title_translations || {},
+        title_translations: { ...topic.metadata_title_translations, ...topic.structure_title_translations, ...topic.progress_title_translations },
     }]))
     const submissionByTopic = new Map<number, any>()
     sharedSubmissions.forEach((submission: any) => {

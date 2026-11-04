@@ -825,6 +825,7 @@ export default function StdPortalPage() {
     const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
     const [projectTitleTranslations, setProjectTitleTranslations] = useState<Record<string, string>>({})
+    const [projectTitleRetry, setProjectTitleRetry] = useState(0)
     const [projectsLoadError, setProjectsLoadError] = useState('')
     const [projectsRefreshing, setProjectsRefreshing] = useState(false)
     const [projectsRefreshKey, setProjectsRefreshKey] = useState(0)
@@ -1846,25 +1847,32 @@ export default function StdPortalPage() {
     }, [topicProjectOpen, token, authedJsonHeaders, projectsRefreshKey])
 
     useEffect(() => {
-        if (!topicProjectOpen || !token || projectsRefreshing) return
+        if (!topicProjectOpen || !token) return
         const missing = projects.filter((project: any) => project.title && !localizedProjectTitle(project, currentLocale)
             && projectTitleTranslations[JSON.stringify([currentLocale, project.id, project.title])] === undefined).slice(0, 100)
         if (!missing.length) return
         let active = true
+        let retryTimer: number | undefined
         void fetch('/api/std/projects/title-translations', {
             method: 'POST', headers: authedJsonHeaders,
             body: JSON.stringify({ locale: currentLocale, ids: missing.map((project: any) => project.id) }),
-        }).then(response => response.ok ? response.json() : null).then(result => {
-            if (!active || !Array.isArray(result?.translations)) return
+        }).then(response => {
+            if (!response.ok) throw new Error('Title translation unavailable')
+            return response.json()
+        }).then(result => {
+            if (!active) return
+            if (!Array.isArray(result?.translations) || result.translations.length !== missing.length) throw new Error('Incomplete title translations')
             setProjectTitleTranslations(previous => {
                 const next = { ...previous }
                 for (const project of missing) next[JSON.stringify([currentLocale, project.id, project.title])] = ''
                 for (const item of result.translations) next[JSON.stringify([currentLocale, item.id, item.source])] = item.title
                 return next
             })
-        }).catch(() => {})
-        return () => { active = false }
-    }, [topicProjectOpen, token, projectsRefreshing, projects, currentLocale, authedJsonHeaders, projectTitleTranslations])
+        }).catch(() => {
+            if (active) retryTimer = window.setTimeout(() => setProjectTitleRetry(value => value + 1), 10000)
+        })
+        return () => { active = false; if (retryTimer) window.clearTimeout(retryTimer) }
+    }, [topicProjectOpen, token, projects, currentLocale, authedJsonHeaders, projectTitleTranslations, projectTitleRetry])
 
     const openProjectList = () => { setProjectsRefreshing(true); setTopicProjectOpen(true) }
 
@@ -10088,7 +10096,6 @@ export default function StdPortalPage() {
                                                                                             lang={subtitleReviewLocale}
                                                                                             title={localizedTranslation || subtitleTranslationError || subtitleReviewCopy.pending}
                                                                                         >
-                                                                                            <span className="mr-1.5 text-[9px] font-bold text-sky-400">{subtitleReviewCopy.code}</span>
                                                                                             {localizedTranslation || (item.translation_manual ? (
                                                                                                 <span className="inline-flex items-center gap-1.5">
                                                                                                     <span>{subtitleReviewLocale === 'th' ? 'แปล' : subtitleReviewLocale === 'vi' ? 'Dịch' : 'Translate'}</span>
