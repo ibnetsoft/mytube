@@ -35,25 +35,30 @@ test('project reads authenticate and check ownership before Redis or conditional
 })
 test('project list calculates badges from projected status without downloading full payloads',async()=>{
  const context={id:'p',progress_payload:{subtitle_tts_completed:true},project_payload:{script:'saved'}}
- let contexts=[context]
+ let contexts=[context], email='owner', authOk=true
+ const cache=new Map()
  const db={from:table=>{
-  const query={select:columns=>{assert.ok(!columns.split(',').includes('project_payload'));return query},eq:()=>query,is:()=>query,order:()=>query,in:()=>query,range:async()=>({data:[]}),then:resolve=>Promise.resolve({data:[{id:'p',title:'Project'}]}).then(resolve)}
+  const query={select:columns=>{assert.ok(!columns.split(',').includes('project_payload'));return query},eq:()=>query,is:()=>query,order:()=>query,in:()=>query,range:async()=>({data:[{id:'a',project_id:'p',asset_type:'image',status:'uploaded',gcs_path:'p/image.png',script_sha256:'revision'}]}),then:resolve=>Promise.resolve({data:[{id:'p',title:'Project'}]}).then(resolve)}
   return query
  }}
  const mocks={
-  '@/lib/stdProjectStatusContext':{loadStdProjectStatusContext:async()=>contexts},
+  '@/lib/stdProjectStatusContext':{loadStdProjectListStatusContext:async()=>contexts},
   '@/lib/stdProjectCategories':load('lib/stdProjectCategories.ts'),
   '@/lib/stdProjectListDisplay':load('lib/stdProjectListDisplay.ts',{'./stdThumbnailUrl':load('lib/stdThumbnailUrl.ts')}),
-  '@/lib/stdProjectStepStatus':{summarizeStdProject:project=>{assert.equal(project,context);return{isSubtitlesDone:true}}},
+  '@/lib/stdProjectStepStatus':{summarizeStdProject:(project,assets)=>{assert.equal(project,context);assert.equal(assets[0].metadata.gcs_path,'p/image.png');assert.equal(assets[0].metadata.content_identity.script_sha256,'revision');return{isSubtitlesDone:true}}},
   '@/lib/stdCharacterProtection':{protectCharacterReferenceUrls:value=>value},
-  '@/lib/stdWeb':{requireStdUser:async()=>({ok:true,requester:{email:'owner'}})},
+  '@/lib/server-cache':{getServerCache:async key=>cache.get(key),setServerCache:async(key,value,ttl)=>{assert.equal(ttl,15);cache.set(key,value)}},
+  '@/lib/stdWeb':{requireStdUser:async()=>authOk?({ok:true,requester:{email}}):({ok:false,response:new Response(null,{status:401})})},
   '@/lib/supabaseAdmin':{supabaseAdmin:db},'next/server':{NextResponse:Response},
  }
  const ex={};new Function('exports','require',ts.transpileModule(fs.readFileSync(path.join(__dirname,'../app/api/std/projects/route.ts'),'utf8'),{compilerOptions:{module:1,target:9}}).outputText)(ex,n=>mocks[n]||require(n))
  const payload=await(await ex.GET(new Request('https://studio.test/projects'))).json()
  assert.equal(payload.projects[0].step_status.isSubtitlesDone,true);assert.equal(payload.projects[0].project_payload,undefined)
  contexts=[]
- assert.equal((await ex.GET(new Request('https://studio.test/projects'))).status,503,'Missing status must never silently mark a saved project unfinished')
+ assert.equal((await ex.GET(new Request('https://studio.test/projects'))).status,200,'Same user can use the short-lived snapshot')
+ assert.equal((await ex.GET(new Request('https://studio.test/projects',{headers:{'x-std-list-refresh':'1'}}))).status,503,'Forced refresh never hides missing status')
+ email='another';assert.equal((await ex.GET(new Request('https://studio.test/projects'))).status,503,'Another user cannot read the cached result')
+ authOk=false;assert.equal((await ex.GET(new Request('https://studio.test/projects'))).status,401,'Authentication is always checked before cache lookup')
 })
 test('Vercel Marketplace KV credentials support reads across separate instances',async()=>{
  const original={url:process.env.KV_REST_API_URL,token:process.env.KV_REST_API_TOKEN,upUrl:process.env.UPSTASH_REDIS_REST_URL,upToken:process.env.UPSTASH_REDIS_REST_TOKEN,fetch:global.fetch}

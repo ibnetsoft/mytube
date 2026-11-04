@@ -6,6 +6,7 @@ import { subtitleMouthPreview } from '@/lib/stdMouthPreview'
 import { fetchCachedProject } from '@/lib/stdBrowserProjectCache'
 import { savedStdOutputStepStatus } from '@/lib/stdOutputStepStatus'
 import { listedProjectStepStatus, projectListThumbnailUrl } from '@/lib/stdProjectListDisplay'
+import { projectListScope, readProjectListSnapshot, writeProjectListSnapshot, clearProjectListSnapshot, saveProjectListTitleTranslations, fetchSharedProjectList } from '@/lib/stdBrowserProjectListCache'
 import StdSpeakerCoordinates from '@/components/StdSpeakerCoordinates'
 import { subtitleTtsReadiness } from '@/lib/stdTtsReadiness'
 import StdTtsReadinessNotice from '@/components/StdTtsReadinessNotice'
@@ -825,6 +826,20 @@ export default function StdPortalPage() {
     const [topics, setTopics] = useState<Topic[]>([])
     const [topicProjectOpen, setTopicProjectOpen] = useState(false)
     const [projects, setProjects] = useState<StdProject[]>([])
+    const projectListScopeRef = useRef('')
+    const projectListGenerationRef = useRef(0)
+    const hydrateProjectList = (email: unknown, impersonated: unknown = '') => {
+        const scope = projectListScope(email, impersonated)
+        if (!scope || projectListScopeRef.current === scope) return
+        projectListScopeRef.current = scope
+        projectListGenerationRef.current++
+        setProjects(readProjectListSnapshot(localStorage, scope) || [])
+    }
+    const acceptProjectList = (list: StdProject[], scope = projectListScopeRef.current, generation = projectListGenerationRef.current) => {
+        if (!scope || projectListScopeRef.current !== scope || projectListGenerationRef.current !== generation) return
+        setProjects(list)
+        writeProjectListSnapshot(localStorage, scope, list)
+    }
     const [projectTitleTranslations, setProjectTitleTranslations] = useState<Record<string, string>>({})
     const [projectTitleRetry, setProjectTitleRetry] = useState(0)
     const [topicTitleTranslations, setTopicTitleTranslations] = useState<Record<string, string>>({})
@@ -832,6 +847,7 @@ export default function StdPortalPage() {
     const [projectsLoadError, setProjectsLoadError] = useState('')
     const [projectsRefreshing, setProjectsRefreshing] = useState(false)
     const [projectsRefreshKey, setProjectsRefreshKey] = useState(0)
+    const forceProjectListRefreshRef = useRef(false)
     const [selectedProject, setSelectedProject] = useState<SelectedProjectPayload | null>(null)
     const comicProject = isComicProject(selectedProject?.project)
     const isStdRequiredVideoScene = (number: any) => baseIsStdRequiredVideoScene(number, selectedProject?.project)
@@ -1831,22 +1847,23 @@ export default function StdPortalPage() {
     useEffect(() => {
         if (!topicProjectOpen || !token) return
         let active = true
-        const controller = new AbortController()
-        const timeout = window.setTimeout(() => controller.abort(), 15000)
+        const scope = projectListScopeRef.current
+        const generation = projectListGenerationRef.current
+        const forceRefresh = forceProjectListRefreshRef.current
+        forceProjectListRefreshRef.current = false
         setProjectsRefreshing(true)
         setProjectsLoadError('')
-        void fetch('/api/std/projects', { headers: authedJsonHeaders, cache: 'no-store', signal: controller.signal })
+        void fetchSharedProjectList('/api/std/projects', authedJsonHeaders, forceRefresh)
             .then(async response => {
                 const result = await response.json()
                 if (!response.ok || result.success !== true || !Array.isArray(result.projects)) throw new Error('Invalid project list')
-                if (active) setProjects(result.projects)
+                if (active) acceptProjectList(result.projects, scope, generation)
             }).catch(() => {
                 if (active) setProjectsLoadError('프로젝트 목록을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.')
             }).finally(() => {
-                window.clearTimeout(timeout)
                 if (active) setProjectsRefreshing(false)
             })
-        return () => { active = false; controller.abort(); window.clearTimeout(timeout) }
+        return () => { active = false }
     }, [topicProjectOpen, token, authedJsonHeaders, projectsRefreshKey])
 
     useEffect(() => {
@@ -1868,6 +1885,7 @@ export default function StdPortalPage() {
         }).then(result => {
             if (!active) return
             if (!Array.isArray(result?.translations) || !result.translations.length) throw new Error('Incomplete title translations')
+            saveProjectListTitleTranslations(localStorage, projectListScopeRef.current, currentLocale, result.translations)
             setProjectTitleTranslations(previous => {
                 const next = { ...previous }
                 for (const item of result.translations) next[JSON.stringify([currentLocale, item.id, item.source])] = item.title
@@ -1881,6 +1899,11 @@ export default function StdPortalPage() {
     }, [topicProjectOpen, token, projects, selectedProject?.project?.id, selectedProject?.project?.title, currentLocale, authedJsonHeaders, projectTitleTranslations, projectTitleRetry])
 
     const openProjectList = () => { setProjectsRefreshing(true); setTopicProjectOpen(true) }
+    const refreshProjectList = () => {
+        forceProjectListRefreshRef.current = true
+        projectListGenerationRef.current++
+        setProjectsRefreshKey(value => value + 1)
+    }
 
     const authedUploadHeaders = useMemo<Record<string, string>>(() => {
         const headers: Record<string, string> = {
@@ -4577,10 +4600,8 @@ export default function StdPortalPage() {
             // Authenticate independently so the stable application chrome can render
             // while slower project, topic and voice requests are still in flight.
             const pendingMe = fetch(withImpersonation('/api/std/me'), { headers, signal: AbortSignal.timeout(15000) })
-            const pendingData = Promise.allSettled([
-                fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers, signal: AbortSignal.timeout(15000) }),
-                fetch(withImpersonation('/api/std/projects'), { headers, signal: AbortSignal.timeout(15000) }),
-            ])
+            const pendingTopics = Promise.allSettled([fetch(withImpersonation('/api/std/topics?refresh=1&limit=50'), { headers, signal: AbortSignal.timeout(15000) })])
+            const pendingProjects = Promise.allSettled([fetchSharedProjectList(withImpersonation('/api/std/projects'), headers, Boolean(options.forceRefresh))])
             void fetch(withImpersonation('/api/std/voices'), { headers, signal: AbortSignal.timeout(15000) })
                 .then(response => safeParseJson(response, ''))
                 .then(voiceData => {
@@ -4597,6 +4618,7 @@ export default function StdPortalPage() {
 
             if (meRes.status === 'fulfilled' && meRes.value.ok && meData?.user) {
                 setUser(meData.user)
+                hydrateProjectList(meData.user.email, activeImpersonateEmail)
                 if (meData.user.full_name) setSettingName(meData.user.full_name)
                 if (meData.user.nationality) setSettingNationality(meData.user.nationality)
                 if (meData.user.contact) setSettingPhone(meData.user.contact)
@@ -4623,6 +4645,7 @@ export default function StdPortalPage() {
             }
 
             setAuthChecking(false)
+            const projectListGeneration = projectListGenerationRef.current
             // A direct or remembered project does not depend on the topic/project lists.
             // Start its authorized read while those independent requests are still running.
             const urlProjectId = readUrlProjectId()
@@ -4639,9 +4662,23 @@ export default function StdPortalPage() {
                 ? openProject(preferredProjectId, accessToken, undefined, options.forceRefresh).catch(() => null)
                 : null
             const openingGeneration = mediaScopeRef.current.generation
-            const [topicsRes, projectsRes] = await pendingData
-            if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
+            const [projectsRes] = await pendingProjects
             if (projectsRes.status === 'fulfilled') projectPayload = await safeParseJson(projectsRes.value, '')
+
+            const projectListOk = projectsRes.status === 'fulfilled' && projectsRes.value.ok && Array.isArray(projectPayload?.projects)
+            const loadedProjects: StdProject[] = projectListOk ? projectPayload.projects : []
+            const listScope = projectListScope(meData.user.email, activeImpersonateEmail)
+            const listRequestCurrent = projectListScopeRef.current === listScope && projectListGenerationRef.current === projectListGeneration
+            if (projectListOk) {
+                acceptProjectList(loadedProjects, listScope, projectListGeneration)
+                if (listRequestCurrent) setProjectsLoadError('')
+            } else if (listRequestCurrent) {
+                setProjectsLoadError('프로젝트 목록을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.')
+            }
+
+            const [topicsRes] = await pendingTopics
+            if (projectListScopeRef.current !== listScope) return
+            if (topicsRes.status === 'fulfilled') topicPayload = await safeParseJson(topicsRes.value, '')
 
             const loadedTopics = Array.isArray(topicPayload?.topics) ? topicPayload.topics : []
             const seenTopicKeys = new Set<string>()
@@ -4652,15 +4689,6 @@ export default function StdPortalPage() {
                 return true
             })
             setTopics(dedupedTopics)
-
-            const projectListOk = projectsRes.status === 'fulfilled' && projectsRes.value.ok && Array.isArray(projectPayload?.projects)
-            const loadedProjects: StdProject[] = projectListOk ? projectPayload.projects : []
-            if (projectListOk) {
-                setProjects(loadedProjects)
-                setProjectsLoadError('')
-            } else {
-                setProjectsLoadError('프로젝트 목록을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.')
-            }
 
             // 1. 로컬 저장소에 저장된 활성 프로젝트 복원 시도 (임퍼소네이트 모드가 아닐 때만)
             if (preferredProjectId) {
@@ -4741,16 +4769,15 @@ export default function StdPortalPage() {
                         'x-impersonate-email': cleanEmail,
                     }
                     const pendingMe = fetch(`/api/std/me?impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) })
-                    const pendingData = Promise.allSettled([
-                        fetch(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
-                        fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) }),
-                    ])
+                    const pendingProjects = Promise.allSettled([fetchSharedProjectList(`/api/std/projects?impersonate=${encodeURIComponent(cleanEmail)}`, headers)])
+                    const pendingTopics = Promise.allSettled([fetch(`/api/std/topics?refresh=1&limit=50&impersonate=${encodeURIComponent(cleanEmail)}`, { headers, signal: AbortSignal.timeout(15000) })])
                     const meResponse = await pendingMe
                     const meData = await meResponse.json().catch(() => ({}))
                     if (!meResponse.ok || !meData?.user) throw new Error('사용자 인증을 확인하지 못했습니다.')
 
                     if (meData?.user) {
                         setUser(meData.user)
+                        hydrateProjectList(meData.user.email, cleanEmail)
                         if (meData.user.full_name) setSettingName(meData.user.full_name)
                         if (meData.user.nationality) setSettingNationality(meData.user.nationality)
                         if (meData.user.contact) setSettingPhone(meData.user.contact)
@@ -4768,6 +4795,7 @@ export default function StdPortalPage() {
                     }
 
                     setAuthChecking(false)
+                    const projectListGeneration = projectListGenerationRef.current
                     // The detail endpoint checks the impersonated user's access itself;
                     // it need not wait for the separate project and topic lists.
                     const urlProjectId = readUrlProjectId()
@@ -4775,21 +4803,29 @@ export default function StdPortalPage() {
                         ? openProject(urlProjectId, impToken, cleanEmail).catch(() => null)
                         : null
                     const openingGeneration = mediaScopeRef.current.generation
-                    const [pRes, tRes] = await pendingData
+                    const [pRes] = await pendingProjects
                     const pData = pRes.status === 'fulfilled' ? await pRes.value.json().catch(() => ({})) : {}
+                    const projectListOk = pRes.status === 'fulfilled' && pRes.value.ok && Array.isArray(pData?.projects)
+                    const loadedProjects = projectListOk ? pData.projects : []
+                    const listScope = projectListScope(meData.user.email, cleanEmail)
+                    const listRequestCurrent = projectListScopeRef.current === listScope && projectListGenerationRef.current === projectListGeneration
+                    if (projectListOk) {
+                        acceptProjectList(loadedProjects, listScope, projectListGeneration)
+                        if (listRequestCurrent) setProjectsLoadError('')
+                    } else if (listRequestCurrent) {
+                        setProjectsLoadError('프로젝트 목록을 불러오지 못했습니다. 다시 불러오기를 눌러 주세요.')
+                    }
+                    const [tRes] = await pendingTopics
+                    if (projectListScopeRef.current !== listScope) return
                     const tData = tRes.status === 'fulfilled' ? await tRes.value.json().catch(() => ({})) : {}
-
-                    const loadedProjects = Array.isArray(pData?.projects) ? pData.projects : []
                     const loadedTopics = Array.isArray(tData?.topics) ? tData.topics : []
-
-                    setProjects(loadedProjects)
                     setTopics(loadedTopics)
 
                     if (urlProjectId) {
                         await preferredOpening
                     } else if (openingGeneration === mediaScopeRef.current.generation && loadedProjects.length > 0) {
                         await openProject(loadedProjects[0].id, impToken, cleanEmail)
-                    } else if (openingGeneration === mediaScopeRef.current.generation && loadedTopics.length > 0) {
+                    } else if (openingGeneration === mediaScopeRef.current.generation && projectListOk && loadedTopics.length > 0) {
                         const built = buildProjectFromSupabaseTopic(loadedTopics[0])
                         built.project.title = `[${cleanEmail.split('@')[0]}] ` + built.project.title
                         setSelectedProject(built)
@@ -5155,6 +5191,9 @@ export default function StdPortalPage() {
 
     const signOut = async () => { await guardedNavigation(signOutAfterSave) }
     const signOutAfterSave = async () => {
+        clearProjectListSnapshot(localStorage, projectListScopeRef.current)
+        projectListScopeRef.current = ''
+        projectListGenerationRef.current++
         mediaScopeRef.current = { session: '', projectId: '', generation: mediaScopeRef.current.generation + 1 }
         revokeProjectMediaObjectUrls()
         localStorage.removeItem('std_active_project_state')
@@ -7706,11 +7745,13 @@ export default function StdPortalPage() {
             const result = await response.json()
             if (!response.ok) throw new Error(result.error || '프로젝트를 삭제하지 못했습니다.')
             const deleted = new Set<string>(result.deletedIds || [])
+            projectListGenerationRef.current++
+            clearProjectListSnapshot(localStorage, projectListScopeRef.current)
             setProjects(prev => prev.filter(project => !deleted.has(String(project.id))))
             setCheckedProjectIds(prev => prev.filter(id => !deleted.has(id)))
             if (selectedProject && deleted.has(String(selectedProject.project.id))) setSelectedProject(null)
             if (deleted.size !== ids.length) alert('일부 프로젝트를 삭제하지 못했습니다. 목록을 다시 확인해 주세요.')
-            setProjectsRefreshKey(value => value + 1)
+            refreshProjectList()
         } catch (error: any) { alert(error?.message || '프로젝트를 삭제하지 못했습니다.') }
         finally { setDeletingProjects(false) }
     }
@@ -8666,6 +8707,7 @@ export default function StdPortalPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
+                            <button type="button" disabled={projectsRefreshing} onClick={refreshProjectList} className="rounded-lg border border-white/10 px-3 py-2 font-bold text-gray-300 hover:bg-white/5 disabled:opacity-40">{ui('새로고침')}</button>
                             <button type="button" disabled={!checkedVisibleIds.length || deletingProjects} onClick={() => void deleteCheckedProjects()} className="rounded-lg bg-red-600 px-3 py-2 font-bold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">{deletingProjects ? '삭제 중…' : `선택 삭제 (${checkedVisibleIds.length})`}</button>
                             <button
                                 type="button"
@@ -8684,7 +8726,7 @@ export default function StdPortalPage() {
                             {projectsLoadError && (
                                 <div role="alert" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
                                     {projectsLoadError}{projects.length > 0 && ' 표시된 목록은 이전에 불러온 상태입니다.'}
-                                    <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={() => setProjectsRefreshKey(value => value + 1)}>다시 불러오기</button>
+                                    <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={refreshProjectList}>다시 불러오기</button>
                                 </div>
                             )}
                             <div className="bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">

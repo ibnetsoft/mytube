@@ -18,3 +18,11 @@ test('status read fails explicitly instead of falling back to full project downl
  const db={rpc:async(name,args)=>{assert.equal(name,'std_project_status_context');assert.deepEqual(args.p_project_ids,['p']);return{error:Error('RPC unavailable')}},from:()=>assert.fail('No full table fallback')}
  await assert.rejects(()=>lib.loadStdProjectStatusContext(db,['p']),/RPC unavailable/)
 })
+test('project list uses compact status and falls back only when the RPC is not deployed',async()=>{
+ const lib=load('lib/stdProjectStatusContext.ts');const calls=[]
+ const db={rpc:async(name,args)=>{calls.push(name);assert.deepEqual(args.p_project_ids,['p']);return name==='std_project_list_context'?{data:[{id:'p'}]}:{data:[{id:'legacy'}]}}}
+ assert.deepEqual(await lib.loadStdProjectListStatusContext(db,['p']),[{id:'p'}]);assert.deepEqual(calls,['std_project_list_context'])
+ calls.length=0;db.rpc=async name=>{calls.push(name);return name==='std_project_list_context'?{error:{code:'PGRST202'}}:{data:[{id:'legacy'}]}}
+ assert.deepEqual(await lib.loadStdProjectListStatusContext(db,['p']),[{id:'legacy'}]);assert.deepEqual(calls,['std_project_list_context','std_project_status_context'])
+ db.rpc=async()=>({error:Error('database unavailable')});await assert.rejects(()=>lib.loadStdProjectListStatusContext(db,['p']),/database unavailable/)
+})

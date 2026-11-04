@@ -1,13 +1,30 @@
 import { stdProjectListDisplay } from '@/lib/stdProjectListDisplay'
 import { attachStdProjectCategories } from '@/lib/stdProjectCategories'
 import { summarizeStdProject } from '@/lib/stdProjectStepStatus'
-import { loadStdProjectStatusContext } from '@/lib/stdProjectStatusContext'
+import { loadStdProjectListStatusContext } from '@/lib/stdProjectStatusContext'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { requireStdUser } from '@/lib/stdWeb'
 import { protectCharacterReferenceUrls } from '@/lib/stdCharacterProtection'
+import { getServerCache, setServerCache } from '@/lib/server-cache'
+import { createHash } from 'crypto'
 
 export const dynamic = 'force-dynamic'
+const PROJECT_LIST_CACHE_SECONDS = 15
+const inflightLists = new Map<string, Promise<any>>()
+
+async function boundedCache<T>(operation: Promise<T>, fallback: T): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+        return await Promise.race([operation, new Promise<T>(resolve => { timer = setTimeout(() => resolve(fallback), 400) })])
+    } catch { return fallback }
+    finally { if (timer) clearTimeout(timer) }
+}
+
+function projectListCacheKey(email: string, projects: any[]) {
+    const digest = createHash('sha256').update(JSON.stringify([email.toLowerCase(), projects])).digest('hex')
+    return `std-project-list:v1:${digest}`
+}
 
 export async function GET(req: Request) {
     const auth = await requireStdUser(req)
@@ -22,6 +39,31 @@ export async function GET(req: Request) {
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     const baseProjects = data || []
+    const cacheKey = projectListCacheKey(auth.requester.email, baseProjects)
+    const forceRefresh = req.headers.get('x-std-list-refresh') === '1'
+    if (!forceRefresh) {
+        const cached = await boundedCache(getServerCache<any>(cacheKey), null)
+        if (cached?.success === true && Array.isArray(cached.projects)) return NextResponse.json(cached, { headers: { 'X-Std-List-Cache': 'hit' } })
+        const pending = inflightLists.get(cacheKey)
+        if (pending) {
+            try { return NextResponse.json(await pending, { headers: { 'X-Std-List-Cache': 'shared' } }) } catch { /* retry fresh */ }
+        }
+    }
+    const build = buildProjectList(baseProjects)
+    if (!forceRefresh) inflightLists.set(cacheKey, build)
+    try {
+        const result = await build
+        await boundedCache(setServerCache(cacheKey, result, PROJECT_LIST_CACHE_SECONDS), undefined)
+        return NextResponse.json(result, { headers: { 'X-Std-List-Cache': 'miss' } })
+    } catch (error: any) {
+        console.error('[STD projects] list data unavailable:', error?.code, error?.message)
+        return NextResponse.json({ success: false, error: 'Could not load project completion status' }, { status: 503 })
+    } finally {
+        if (inflightLists.get(cacheKey) === build) inflightLists.delete(cacheKey)
+    }
+}
+
+async function buildProjectList(baseProjects: any[]) {
     const ids = baseProjects.map((project: any) => project.id)
     const topicQueueIds = [...new Set(baseProjects.map((project: any) => Number(project.topic_queue_id)).filter((id: number) => Number.isFinite(id) && id > 0))]
     // These independent reads used to run one after another on every modal open.
@@ -30,11 +72,15 @@ export async function GET(req: Request) {
         if (!ids.length) return assets
         for (let offset = 0; ; offset += 1000) {
             const { data: batch, error } = await supabaseAdmin.from('std_project_assets')
-                .select('id,project_id,scene_number,asset_type,status,drive_file_id,metadata,created_at')
+                .select('id,project_id,scene_number,asset_type,status,created_at,gcs_path:metadata->>gcs_path,storage_path:metadata->>storage_path,gcs_signed_url:metadata->>gcs_signed_url,gcs_public_url:metadata->>gcs_public_url,script_sha256:metadata->content_identity->>script_sha256')
                 .in('project_id', ids).in('asset_type', ['image','video','audio','thumbnail'])
                 .in('status', ['uploaded','assigned']).order('id').range(offset, offset + 999)
             if (error) throw error
-            assets.push(...(batch || []))
+            assets.push(...(batch || []).map((asset: any) => ({ ...asset, metadata: {
+                gcs_path: asset.gcs_path, storage_path: asset.storage_path,
+                gcs_signed_url: asset.gcs_signed_url, gcs_public_url: asset.gcs_public_url,
+                content_identity: { script_sha256: asset.script_sha256 },
+            } })))
             if (!batch || batch.length < 1000) return assets
         }
     }
@@ -42,7 +88,7 @@ export async function GET(req: Request) {
     try {
         const [categories, statusContexts, projectAssets, titles, submissions] = await Promise.all([
             attachStdProjectCategories(supabaseAdmin, baseProjects),
-            loadStdProjectStatusContext(supabaseAdmin, ids),
+            loadStdProjectListStatusContext(supabaseAdmin, ids),
             loadAssets(),
             topicQueueIds.length ? supabaseAdmin.from('topics_queue')
                 .select('id,topic,generated_title,topic_en,topic_vi,topic_th,progress_title_translations:progress_payload->title_translations,structure_title_translations:pregenerated_structure->title_translations,metadata_title_translations:publish_metadata->title_translations')
@@ -59,11 +105,11 @@ export async function GET(req: Request) {
         sharedSubmissions = submissions.data || []
     } catch (error: any) {
         console.error('[STD projects] list data unavailable:', error?.code, error?.message)
-        return NextResponse.json({ success: false, error: 'Could not load project completion status' }, { status: 503 })
+        throw error
     }
     const contextById = new Map(contexts.map(context => [context.id, context]))
     if (projects.some(project => !contextById.has(project.id))) {
-        return NextResponse.json({ success: false, error: 'Could not load project completion status' }, { status: 503 })
+        throw new Error('Missing project status context')
     }
     const assetsByProject = new Map<string, any[]>()
     for (const asset of assets) {
@@ -86,7 +132,7 @@ export async function GET(req: Request) {
             submissionByTopic.set(topicQueueId, submission)
         }
     })
-    return NextResponse.json({
+    return {
         success: true,
         projects: projects.map((project: any) => {
             const sharedSubmission = submissionByTopic.get(Number(project.topic_queue_id))
@@ -103,7 +149,7 @@ export async function GET(req: Request) {
                     : null,
             }
         }),
-    })
+    }
 }
 
 export async function DELETE(req: Request) {
