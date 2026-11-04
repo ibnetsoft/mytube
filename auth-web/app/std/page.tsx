@@ -22,6 +22,7 @@ import { generateNarrationInBatches } from '@/lib/stdNarrationBatch'
 import { loadSavedTtsAudio } from '@/lib/stdTtsPlayback'
 import { formatTtsErrorMessage } from '@/lib/stdTtsErrorMessage'
 import { localizeStdActionError } from '@/lib/stdActionFeedback'
+import { localizeSubtitleStatus } from '@/lib/stdSubtitleStatus'
 import { isTemplateBackgroundTransparent } from '@/lib/stdTemplateBackground'
 import StdBackgroundTts from '@/components/StdBackgroundTts'
 import StdTtsNotice, { TtsNotice, ttsNoticeCopy } from '@/components/StdTtsNotice'
@@ -10695,9 +10696,9 @@ export default function StdPortalPage() {
                                         onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev && prev.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
                                         selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />
                                     {isVrewSubtitleMode && message && (
-                                        <div role="status" aria-live="polite" data-subtitle-action-status
+                                        <div role="status" aria-live="polite" data-subtitle-action-status title={message}
                                             className="order-5 rounded-lg border border-cyan-400/20 bg-[#172333] px-3 py-2 text-xs text-cyan-100 lg:order-none">
-                                            {message}
+                                            {localizeSubtitleStatus(message, currentLocale)}
                                         </div>
                                     )}
 
