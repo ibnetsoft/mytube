@@ -8808,7 +8808,7 @@ export default function StdPortalPage() {
                                                     </td>
                                                     <td className="px-3 py-2 text-center whitespace-nowrap">
                                                         <span className="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                                            {projectCatName}
+                                                            {topicUi(projectCatName)}
                                                         </span>
                                                     </td>
                                                     <td className="px-2 py-2 text-center text-gray-300 font-mono text-[11px] whitespace-nowrap">

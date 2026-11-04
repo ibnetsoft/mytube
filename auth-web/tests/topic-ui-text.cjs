@@ -9,4 +9,10 @@ assert.equal(copy.topicUiText('ko', '日本昔話'), '일본 옛날이야기')
 assert.equal(copy.topicUiText('en', '총 {count}개 씬 구조', { count: 100 }), '100 scenes total')
 assert.equal(copy.topicUiText('vi', '이 주제로 작업 시작'), 'Bắt đầu với chủ đề này')
 assert.equal(copy.topicUiText('th', '{count}분 롱폼', { count: 21 }), 'วิดีโอยาว 21 นาที')
+for (const name of ['무협 웹툰', '무협웹툰']) {
+    assert.equal(copy.topicUiText('th', name), 'เว็บตูนกำลังภายใน')
+    assert.equal(copy.topicUiText('vi', name), 'Webtoon võ hiệp')
+    assert.equal(copy.topicUiText('en', name), 'Wuxia Webtoon')
+    assert.equal(copy.topicUiText('ko', name), name)
+}
 console.log('PASS: topic cards and claim modal copy follow the active locale')
