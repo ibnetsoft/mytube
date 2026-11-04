@@ -8683,17 +8683,17 @@ export default function StdPortalPage() {
             <StdSubmissionNotice notice={renderSubmissionNotice} locale={currentLocale} onDismiss={() => setRenderSubmissionNotice(null)} />
             {topicProjectOpen && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6"
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-6"
                     onClick={() => setTopicProjectOpen(false)}
                 >
                     <div
-                        className="bg-[#161a22] border border-white/10 rounded-2xl w-full max-w-7xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+                        className="bg-[#161a22] border border-white/10 rounded-2xl w-full max-w-7xl max-h-[92dvh] sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
                         onClick={e => e.stopPropagation()}
                     >
                         {/* 팝업 헤더 */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#181d26] shrink-0">
-                            <div className="flex items-center gap-4">
-                                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-white/10 bg-[#181d26] shrink-0">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                <h2 className="text-base font-bold text-white flex items-center gap-2 whitespace-nowrap">
                                     <span>📁</span>
                                     <span>프로젝트 목록</span>
                                 </h2>
@@ -8702,7 +8702,7 @@ export default function StdPortalPage() {
                                     <button
                                         type="button"
                                         onClick={() => { setProjectsTab('incomplete'); setCheckedProjectIds([]) }}
-                                        className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                        className={`px-3 py-2 sm:py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition-all ${
                                             projectsTab === 'incomplete'
                                                 ? 'bg-blue-600 text-white shadow'
                                                 : 'text-gray-400 hover:text-white'
@@ -8715,7 +8715,7 @@ export default function StdPortalPage() {
                                     <button
                                         type="button"
                                         onClick={() => { setProjectsTab('complete'); setCheckedProjectIds([]) }}
-                                        className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                        className={`px-3 py-2 sm:py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition-all ${
                                             projectsTab === 'complete'
                                                 ? 'bg-emerald-600 text-white shadow'
                                                 : 'text-gray-400 hover:text-white'
@@ -8727,9 +8727,9 @@ export default function StdPortalPage() {
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                            <button type="button" disabled={projectsRefreshing} onClick={refreshProjectList} className="rounded-lg border border-white/10 px-3 py-2 font-bold text-gray-300 hover:bg-white/5 disabled:opacity-40">{ui('새로고침')}</button>
-                            <button type="button" disabled={!checkedVisibleIds.length || deletingProjects} onClick={() => void deleteCheckedProjects()} className="rounded-lg bg-red-600 px-3 py-2 font-bold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">{deletingProjects ? '삭제 중…' : `선택 삭제 (${checkedVisibleIds.length})`}</button>
+                            <div className="flex items-center gap-2 sm:gap-3">
+                            <button type="button" disabled={projectsRefreshing} onClick={refreshProjectList} className="rounded-lg border border-white/10 px-3 py-2 font-bold whitespace-nowrap text-gray-300 hover:bg-white/5 disabled:opacity-40">{ui('새로고침')}</button>
+                            <button type="button" disabled={!checkedVisibleIds.length || deletingProjects} onClick={() => void deleteCheckedProjects()} className="rounded-lg bg-red-600 px-3 py-2 font-bold whitespace-nowrap text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40">{deletingProjects ? '삭제 중…' : `선택 삭제 (${checkedVisibleIds.length})`}</button>
                             <button
                                 type="button"
                                 onClick={() => setTopicProjectOpen(false)}
@@ -8742,7 +8742,7 @@ export default function StdPortalPage() {
                         </div>
 
                         {/* 팝업 바디 (테이블) */}
-                        <div className="overflow-auto flex-1 p-4 sm:p-6">
+                        <div className="overflow-y-auto min-h-0 flex-1 p-3 sm:p-6">
                             {projectsRefreshing && projects.length > 0 && <div role="status" className="mb-3 text-xs text-gray-400">저장된 목록을 표시하고 있습니다. 최신 상태 확인 중…</div>}
                             {projectsLoadError && (
                                 <div role="alert" className="mb-4 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
@@ -8750,7 +8750,53 @@ export default function StdPortalPage() {
                                     <button type="button" disabled={loading} className="ml-3 underline disabled:opacity-50" onClick={refreshProjectList}>다시 불러오기</button>
                                 </div>
                             )}
-                            <div className="bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">
+                            <div className="space-y-3 md:hidden">
+                                <label className="flex min-h-10 items-center gap-3 px-1 text-sm text-gray-300">
+                                    <input type="checkbox" aria-label="현재 목록 전체 선택" disabled={deletingProjects || !visibleProjects.length} checked={visibleProjects.length > 0 && checkedVisibleIds.length === visibleProjects.length} onChange={e => setCheckedProjectIds(e.target.checked ? visibleProjects.map((project: any) => String(project.id)) : [])} className="h-5 w-5 rounded bg-[#1c2027] border-gray-600" />
+                                    {ui('전체 선택')}
+                                </label>
+                                {visibleProjects.map((p: any) => {
+                                    const status = getListedProjectStepStatus(p)
+                                    const translated = projectTitleTranslations[JSON.stringify([currentLocale, p.id, p.title])]
+                                    const localizedTitle = localizedProjectTitle(p, currentLocale) || (translated !== p.title ? translated : '')
+                                    const thumbnail = projectListThumbnailUrl(p.thumbnail_url, isImpersonating ? impersonateEmail : null)
+                                    const steps = [
+                                        { label: ui('주제'), done: status.isTopicDone }, { label: ui('기획'), done: status.isPlanningDone },
+                                        { label: ui('대본'), done: status.isScriptDone }, { label: t('nav_image'), done: status.isVideoStepDone ?? status.isImageDone, skipped: status.videoNotRequired },
+                                        { label: 'TTS', done: status.isTtsDone }, { label: ui('자막'), done: status.isSubtitlesDone }, { label: ui('썸네일'), done: status.isThumbnailDone },
+                                    ]
+                                    const canSubmit = status.allDone || Boolean(p.shared_submission)
+                                    const submitting = submittingProjectId === String(p.id)
+                                    return (
+                                        <article key={p.id} className="rounded-xl border border-gray-700 bg-[#1c2027] p-3">
+                                            <div className="flex items-start gap-3">
+                                                <input type="checkbox" aria-label={`${p.title} 선택`} disabled={deletingProjects} checked={checkedProjectIds.includes(String(p.id))} onChange={e => setCheckedProjectIds(prev => e.target.checked ? [...prev, String(p.id)] : prev.filter(id => id !== String(p.id)))} className="mt-1 h-5 w-5 shrink-0 rounded bg-[#14181f] border-gray-600" />
+                                                <button type="button" onClick={() => { openProject(p.id); setTopicProjectOpen(false) }} className="flex min-w-0 flex-1 items-start gap-3 text-left">
+                                                    <span className="relative flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#14181f] text-gray-600">
+                                                        <ImageIcon className="h-5 w-5" />
+                                                        {thumbnail && <img src={thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} />}
+                                                    </span>
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="flex flex-wrap items-center gap-2 text-[11px] text-gray-400"><span className="rounded-full border border-indigo-500/30 bg-indigo-500/20 px-2 py-0.5 font-bold text-indigo-300">{topicUi(String(p.category_name || '').trim() || '미분류')}</span><span>#{p.topic_queue_id ?? '—'}</span></span>
+                                                        <span className="mt-1 block break-words text-sm font-bold leading-5 text-gray-100">{p.title}</span>
+                                                        {localizedTitle && <span className="mt-1 block break-words text-xs leading-4 text-gray-400">{localizedTitle}</span>}
+                                                    </span>
+                                                </button>
+                                            </div>
+                                            <div className="mt-3 grid grid-cols-7 gap-1 border-t border-white/5 pt-3">
+                                                {steps.map(step => <div key={step.label} className="min-w-0 text-center"><div className={`text-sm font-bold ${step.done || step.skipped ? 'text-emerald-500' : 'text-gray-600'}`} aria-label={`${step.label}: ${step.skipped ? ui('영상 클립 제작 대상이 아닙니다') : step.done ? ui('완료') : ui('미완료')}`}>{step.skipped ? '×' : step.done ? '●' : '○'}</div><div className="truncate text-[10px] text-gray-400">{step.label}</div></div>)}
+                                            </div>
+                                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2 text-[11px] text-gray-400">
+                                                <span>{ui('수정일')} {formatProjectListDate(p.updated_at)} {Number(p.latest_render_version) > 0 && <span className="ml-1 text-cyan-300">v{p.latest_render_version}</span>}</span>
+                                                <button type="button" disabled={Boolean(submittingProjectId) || (!p.submitted_at && !canSubmit)} onClick={() => p.submitted_at ? reopenProjectForRerender(String(p.id)) : submitProject(String(p.id))} className="min-h-9 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-3 font-bold text-indigo-200 disabled:opacity-40">{submitting ? ui('처리 중…') : p.submitted_at ? '↻ Re' : ui('렌더')}</button>
+                                            </div>
+                                        </article>
+                                    )
+                                })}
+                                {projectsRefreshing && !projects.length && <div role="status" className="py-10 text-center text-gray-400">최신 저장 상태를 불러오는 중…</div>}
+                                {!projectsRefreshing && !projectsLoadError && visibleProjects.length === 0 && <div className="py-10 text-center text-gray-500">{projectsTab === 'complete' ? '완료된 프로젝트가 없습니다.' : '미완료 프로젝트가 없습니다.'}</div>}
+                            </div>
+                            <div className="hidden md:block bg-[#1c2027] rounded-xl border border-gray-700 overflow-x-auto shadow-2xl">
                                 <table className="w-full text-left text-xs divide-y divide-gray-700 min-w-[1080px]">
                                     <thead className="bg-[#181d26] text-gray-400 font-medium text-[11px] sticky top-0 z-10">
                                         <tr>
