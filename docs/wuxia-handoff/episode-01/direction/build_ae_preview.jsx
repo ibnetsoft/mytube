@@ -85,10 +85,17 @@
     }
     function bubble(comp,g,start,end,index) {
         var lay=g.layout,c=xy(lay.center),size=[lay.size[0]*W,lay.size[1]*H],tip=xy(lay.tail||[lay.center[0],lay.center[1]+.2]);
-        var base=[c[0]+(tip[0]<c[0]?-1:1)*size[0]*.18,c[1]+size[1]*.29];
-        var tail=polygon(comp,'bubble_tail_'+index,[[base[0]-18,base[1]],[base[0]+18,base[1]],tip],[1,.995,.97],[.08,.1,.13],3);
-        tail.inPoint=start;tail.outPoint=end;fade(tail,start,end,100);
-        var body=ellipse(comp,'bubble_body_'+index,c,size,[1,.995,.97],[.08,.1,.13],3);
+        // Unified outline, short tail and clearance before the speaker anchor.
+        var rx=size[0]/2,ry=size[1]/2,dx=tip[0]-c[0],dy=tip[1]-c[1];
+        var angle=Math.atan2(dy/ry,dx/rx),root=[c[0]+rx*Math.cos(angle),c[1]+ry*Math.sin(angle)];
+        var vx=tip[0]-root[0],vy=tip[1]-root[1],distance=Math.sqrt(vx*vx+vy*vy);
+        var length=Math.min(54,Math.max(0,distance-64));
+        var hasTail=lay.tail&&length>2&&Math.sqrt(dx*dx/(rx*rx)+dy*dy/(ry*ry))>1;
+        var half=Math.min(.14,18/Math.max(1,Math.sqrt(rx*rx*Math.sin(angle)*Math.sin(angle)+ry*ry*Math.cos(angle)*Math.cos(angle))));
+        var points=[];
+        for(var q=0;q<=160;q++){var a=angle+(hasTail?half:0)+(Math.PI*2-(hasTail?half*2:0))*q/160;points.push([c[0]+rx*Math.cos(a),c[1]+ry*Math.sin(a)]);}
+        if(hasTail)points.push([root[0]+vx/distance*length,root[1]+vy/distance*length]);
+        var body=polygon(comp,'bubble_unified_'+index,points,[1,.995,.97],[.08,.1,.13],3);
         body.inPoint=start;body.outPoint=end;fade(body,start,end,100);
         textLayer(comp,'dialogue_'+g.speaker+'_'+index,g.text,g.style,c,start,end,size[0]*.80);
     }
