@@ -827,6 +827,8 @@ export default function StdPortalPage() {
     const [projects, setProjects] = useState<StdProject[]>([])
     const [projectTitleTranslations, setProjectTitleTranslations] = useState<Record<string, string>>({})
     const [projectTitleRetry, setProjectTitleRetry] = useState(0)
+    const [topicTitleTranslations, setTopicTitleTranslations] = useState<Record<string, string>>({})
+    const [topicTitleRetry, setTopicTitleRetry] = useState(0)
     const [projectsLoadError, setProjectsLoadError] = useState('')
     const [projectsRefreshing, setProjectsRefreshing] = useState(false)
     const [projectsRefreshKey, setProjectsRefreshKey] = useState(0)
@@ -1848,8 +1850,11 @@ export default function StdPortalPage() {
     }, [topicProjectOpen, token, authedJsonHeaders, projectsRefreshKey])
 
     useEffect(() => {
-        if (!topicProjectOpen || !token) return
-        const missing = projects.filter((project: any) => project.title && !localizedProjectTitle(project, currentLocale)
+        if (!token) return
+        const selected = selectedProject?.project
+        const candidates: any[] = [...(topicProjectOpen ? projects : []), ...(selected ? [selected] : [])]
+        const unique = [...new Map(candidates.filter(project => project?.id && project?.title).map(project => [String(project.id), project])).values()]
+        const missing = unique.filter((project: any) => !localizedProjectTitle(project, currentLocale)
             && projectTitleTranslations[JSON.stringify([currentLocale, project.id, project.title])] === undefined).slice(0, 100)
         if (!missing.length) return
         let active = true
@@ -1862,10 +1867,9 @@ export default function StdPortalPage() {
             return response.json()
         }).then(result => {
             if (!active) return
-            if (!Array.isArray(result?.translations) || result.translations.length !== missing.length) throw new Error('Incomplete title translations')
+            if (!Array.isArray(result?.translations) || !result.translations.length) throw new Error('Incomplete title translations')
             setProjectTitleTranslations(previous => {
                 const next = { ...previous }
-                for (const project of missing) next[JSON.stringify([currentLocale, project.id, project.title])] = ''
                 for (const item of result.translations) next[JSON.stringify([currentLocale, item.id, item.source])] = item.title
                 return next
             })
@@ -1873,7 +1877,7 @@ export default function StdPortalPage() {
             if (active) retryTimer = window.setTimeout(() => setProjectTitleRetry(value => value + 1), 10000)
         })
         return () => { active = false; if (retryTimer) window.clearTimeout(retryTimer) }
-    }, [topicProjectOpen, token, projects, currentLocale, authedJsonHeaders, projectTitleTranslations, projectTitleRetry])
+    }, [topicProjectOpen, token, projects, selectedProject?.project?.id, selectedProject?.project?.title, currentLocale, authedJsonHeaders, projectTitleTranslations, projectTitleRetry])
 
     const openProjectList = () => { setProjectsRefreshing(true); setTopicProjectOpen(true) }
 
@@ -2176,8 +2180,9 @@ export default function StdPortalPage() {
 
     const projectTitleContent = (project: any, fallback: string) => {
         const title = getProjectSyncedTitle(project) || fallback
-        const localizedTitle = localizedProjectTitle(project?.project || project, currentLocale)
         const data = project?.project || project
+        const fetchedTitle = projectTitleTranslations[JSON.stringify([currentLocale, data?.id, title])]
+        const localizedTitle = localizedProjectTitle(data, currentLocale) || (fetchedTitle !== title ? fetchedTitle : '')
         const topicNumber = data?.topic_queue_id ?? data?.project_payload?.topic_queue_id ?? data?.source_payload?.topic_queue_id ?? data?.project_payload?.topic_id
         return <>
             {topicNumber != null && <span className="block text-[7px] font-medium leading-tight text-blue-100/70">#{topicNumber}</span>}
@@ -7798,6 +7803,39 @@ export default function StdPortalPage() {
         return unique
     }, [topicQueuePool, topicSearchQuery, topicLengthFilter])
 
+    useEffect(() => {
+        if (!token) return
+        const missing = displayedTopics.filter(topic => topicSourceTitle(topic) && !localizedTopicTitle(topic, currentLocale)
+            && topicTitleTranslations[JSON.stringify([currentLocale, String(topic.id), topicSourceTitle(topic)])] === undefined).slice(0, 50)
+        if (!missing.length) return
+        let active = true
+        let retryTimer: number | undefined
+        void fetch('/api/std/topics/title-translations', {
+            method: 'POST', headers: authedJsonHeaders,
+            body: JSON.stringify({ locale: currentLocale, ids: missing.map(topic => Number(topic.id)) }),
+        }).then(response => {
+            if (!response.ok) throw new Error('Topic title translation unavailable')
+            return response.json()
+        }).then(result => {
+            if (!active) return
+            if (!Array.isArray(result?.translations) || !result.translations.length) throw new Error('Incomplete topic title translations')
+            setTopicTitleTranslations(previous => {
+                const next = { ...previous }
+                for (const item of result.translations) next[JSON.stringify([currentLocale, String(item.id), item.source])] = item.title
+                return next
+            })
+        }).catch(() => {
+            if (active) retryTimer = window.setTimeout(() => setTopicTitleRetry(value => value + 1), 10000)
+        })
+        return () => { active = false; if (retryTimer) window.clearTimeout(retryTimer) }
+    }, [token, displayedTopics, currentLocale, authedJsonHeaders, topicTitleTranslations, topicTitleRetry])
+
+    const translatedTopicTitle = (topic: any) => {
+        const source = topicSourceTitle(topic)
+        const fetched = topicTitleTranslations[JSON.stringify([currentLocale, String(topic?.id), source])]
+        return localizedTopicTitle(topic, currentLocale) || (fetched !== source ? fetched : '')
+    }
+
     const topicThumbnailUrl = (topic: any): string => {
         const structure = topic?.pregenerated_structure || topic?.structure || {}
         const scenes = [
@@ -11547,9 +11585,9 @@ export default function StdPortalPage() {
                                                         <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-3 leading-snug">
                                                             {topicSourceTitle(topic)}
                                                         </h4>
-                                                        {localizedTopicTitle(topic, currentLocale) && (
+                                                        {translatedTopicTitle(topic) && (
                                                             <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-indigo-200/80">
-                                                                ({localizedTopicTitle(topic, currentLocale)})
+                                                                {translatedTopicTitle(topic)}
                                                             </p>
                                                         )}
                                                     </div>
@@ -11600,8 +11638,8 @@ export default function StdPortalPage() {
                                             <h3 className="text-lg font-bold text-white pt-2 leading-snug">
                                                 {topicSourceTitle(selectedTopicForModal)}
                                             </h3>
-                                            {localizedTopicTitle(selectedTopicForModal, currentLocale) && (
-                                                <p className="text-sm text-indigo-200/80">({localizedTopicTitle(selectedTopicForModal, currentLocale)})</p>
+                                            {translatedTopicTitle(selectedTopicForModal) && (
+                                                <p className="text-sm text-indigo-200/80">{translatedTopicTitle(selectedTopicForModal)}</p>
                                             )}
                                         </div>
 
