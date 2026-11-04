@@ -136,7 +136,16 @@ async function loadDirectPreparedTopics(limit: number) {
         .limit(300)
     if (error) throw error
 
-    const withCategories = await attachCategories((data || []).filter(isUnclaimedPendingTopic))
+    const selected = (data || []).filter(isUnclaimedPendingTopic).slice(0, limit)
+    const ids = selected.map((topic: any) => topic.id)
+    const { data: structures, error: structureError } = ids.length
+        ? await supabaseAdmin.from('topics_queue').select('id,pregenerated_structure').in('id', ids)
+        : { data: [], error: null }
+    if (structureError) throw structureError
+    const structuresById = new Map((structures || []).map((row: any) => [String(row.id), row.pregenerated_structure]))
+    const withCategories = await attachCategories(selected.map((topic: any) => ({
+        ...topic, pregenerated_structure: structuresById.get(String(topic.id)),
+    })))
     return withCategories
         .map(normalizeTopicJsonFields)
         .slice(0, limit)

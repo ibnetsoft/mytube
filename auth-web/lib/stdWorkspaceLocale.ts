@@ -2,6 +2,7 @@
 export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
   "en": {
     "영상 클립 제작 대상이 아닙니다": "No video clips required",
+    "영상 X": "No clips",
     "배경음 프롬프트": "Background music prompt",
     "배경음 생성 프롬프트": "Background music generation prompt",
     "저장된 배경음 프롬프트가 없습니다.": "No saved background music prompt.",
@@ -318,6 +319,7 @@ export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
   },
   "vi": {
     "영상 클립 제작 대상이 아닙니다": "Không yêu cầu tạo video clip",
+    "영상 X": "Không có clip",
     "배경음 프롬프트": "Câu lệnh nhạc nền",
     "배경음 생성 프롬프트": "Câu lệnh tạo nhạc nền",
     "저장된 배경음 프롬프트가 없습니다.": "Chưa có câu lệnh nhạc nền được lưu.",
@@ -634,6 +636,7 @@ export const STD_WORKSPACE_COPY: Record<string, Record<string, string>> = {
   },
   "th": {
     "영상 클립 제작 대상이 아닙니다": "ไม่ต้องสร้างคลิปวิดีโอ",
+    "영상 X": "ไม่มีคลิปวิดีโอ",
     "배경음 프롬프트": "พรอมต์เพลงประกอบ",
     "배경음 생성 프롬프트": "พรอมต์สร้างเพลงประกอบ",
     "저장된 배경음 프롬프트가 없습니다.": "ยังไม่มีพรอมต์เพลงประกอบที่บันทึกไว้",

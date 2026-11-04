@@ -81,6 +81,11 @@ assert.equal(steps.summarizeStdProject(extraVideo).isVideoStepDone, false, 'expl
 assert.equal(steps.summarizeStdProject(extraVideo).videoNotRequired, false)
 const explicitSceneVideo = { ...noVideo, project_payload:{ ...noVideo.project_payload, structure:{ ...noVideo.project_payload.structure, scenes:[{scene_number:1, video_prompt_required:true}] } } }
 assert.equal(steps.summarizeStdProject(explicitSceneVideo).videoNotRequired, false, 'explicit per-scene video requirements must not show an X')
+const visual = load('stdVisualStepStatus')
+assert.equal(visual.savedStdVisualStepStatus({video_scenes:0,pregenerated_structure:{scenes:[{scene_number:1}]}}).videoNotRequired, true, 'topic without clips shows X')
+assert.equal(visual.savedStdVisualStepStatus({video_scenes:0,pregenerated_structure:{motion_graphic_video_scenes:[1],scenes:[{scene_number:1}]}}).videoNotRequired, false, 'additional video scenes prevent topic X')
+assert.equal(visual.savedStdVisualStepStatus({video_scenes:0,pregenerated_structure:{scenes:[{scene_number:1,video_prompt_required:true}]}}).videoNotRequired, false, 'scene-level video prevents topic X')
+assert.equal(visual.savedStdVisualStepStatus({}).videoNotRequired, false, 'unknown topic requirements do not show X')
 const extraWithImage = { ...extraVideo, project_payload:{ ...extraVideo.project_payload, structure:{...extraVideo.project_payload.structure,scenes:[{scene_number:1,image_url:'still.png'}]} } }
 assert.equal(steps.summarizeStdProject(extraWithImage).isVideoStepDone, false, 'a still does not satisfy selected video work')
 extraWithImage.project_payload.structure.scenes[0].video_url='clip.mp4'

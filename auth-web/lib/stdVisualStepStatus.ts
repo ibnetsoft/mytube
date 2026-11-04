@@ -4,8 +4,10 @@ import { isStdRequiredVideoScene, isStdVideoPromptScene, stdRequiredVideoSceneCo
 // remaining scene. Later animation/render review has its own readiness gates.
 export function savedStdVisualStepStatus(project: any, assets: any[] = []) {
     const payload = project.project_payload || {}
-    const scenes = Array.isArray(payload.scenes) && payload.scenes.length
-        ? payload.scenes : (Array.isArray(payload.structure?.scenes) ? payload.structure.scenes : [])
+    const sceneData = Array.isArray(payload.scenes) && payload.scenes.length
+        ? payload.scenes : (payload.structure?.scenes || payload.pregenerated_structure?.scenes
+            || project.pregenerated_structure?.scenes || project.structure?.scenes || [])
+    const scenes = Array.isArray(sceneData) ? sceneData : []
     const strict = payload.strict_content_identity === true
     const revisionHash = String(payload.content_identity?.script_sha256 || '')
     const media = assets.filter(asset => (!strict || (/^[a-f0-9]{64}$/.test(revisionHash)
@@ -21,7 +23,7 @@ export function savedStdVisualStepStatus(project: any, assets: any[] = []) {
             : Boolean(video || scene.image_url || matching.some(asset => asset.asset_type === 'image'))
     }).length
     const isImageDone = scenes.length > 0 && uploadedAssetsCount === scenes.length
-    const structures = [payload.structure, payload.pregenerated_structure,
+    const structures = [payload.structure, payload.pregenerated_structure, project.pregenerated_structure, project.structure,
         project.source_payload?.pregenerated_structure, project.source_payload?.structure]
     const extraVideoScenes = new Set<number>()
     structures.forEach(structure => {

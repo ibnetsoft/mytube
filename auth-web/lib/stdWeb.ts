@@ -14,6 +14,7 @@ import {
 import { calculateLongformPayoutByScenes } from './stdPayoutPolicy'
 import { imageStyleLabelForPrompt, resolveCategoryImageStyle } from './categoryImageStyles'
 import { STD_REQUIRED_CLIP_SCENE_END, isStdVideoPromptScene, stdRequiredVideoSceneCount } from './stdPolicy'
+import { savedStdVisualStepStatus } from './stdVisualStepStatus'
 
 const getAuthClient = () => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -403,6 +404,7 @@ export function normalizeTopicSummary(topic: any) {
         scene_count: sceneCount,
         required_video_scene_count: requiredVideoSceneCount,
         video_scenes: requiredVideoSceneCount,
+        video_not_required: savedStdVisualStepStatus(topic).videoNotRequired,
         pregenerated_script: topic.pregenerated_script || topic.script || '',
         pregenerated_structure: structure,
         publish_metadata: topic.publish_metadata || null,

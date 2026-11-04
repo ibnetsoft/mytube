@@ -330,6 +330,7 @@ type Topic = {
     adjusted_payout?: number | null
     adjusted_payout_usdt?: number | null
     scene_count: number
+    video_not_required?: boolean
     pregenerated_structure?: any
     pregenerated_script?: string
     script?: string
@@ -7728,7 +7729,7 @@ export default function StdPortalPage() {
         const isScriptDone = Boolean(payload.script || currentScript || (scenes.length > 0 && scenes.some((s: any) => s.scene_text || s.script_excerpt || s.text)))
 
         // Read the same saved visual/output status as the project list and admin queue.
-        const { isImageDone, isVideoStepDone, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
+        const { isImageDone, isVideoStepDone, videoNotRequired, uploadedAssetsCount, totalScenesCount, isTtsDone, isSubtitlesDone, isThumbnailDone } = savedStdOutputStepStatus(p, proj?.assets || [])
 
         const allDone = isTopicDone && isPlanningDone && isScriptDone && isImageDone && isTtsDone && isSubtitlesDone && isThumbnailDone
 
@@ -7738,6 +7739,7 @@ export default function StdPortalPage() {
             isScriptDone,
             isImageDone,
             isVideoStepDone,
+            videoNotRequired,
             isTtsDone,
             isSubtitlesDone,
             isThumbnailDone,
@@ -8617,7 +8619,7 @@ export default function StdPortalPage() {
         { id: 'topics', label: ui("주제"), isDone: status.isTopicDone },
         { id: 'topics', label: ui("기획"), isDone: status.isPlanningDone },
         { id: 'script_gen', label: ui("대본"), isDone: status.isScriptDone },
-        { id: 'image_gen', label: t('nav_image'), isDone: status.isVideoStepDone ?? status.isImageDone },
+        { id: 'image_gen', label: t('nav_image'), isDone: status.isVideoStepDone ?? status.isImageDone, notRequired: status.videoNotRequired },
         { id: 'subtitle_vrew', label: ui("자막"), isDone: status.isSubtitlesDone },
         { id: 'thumbnail', label: ui("썸네일"), isDone: status.isThumbnailDone },
         ]
@@ -8633,12 +8635,12 @@ export default function StdPortalPage() {
                             isCurrent ? 'text-blue-400 font-bold' : 'hover:text-gray-200'
                         }`}
                     >
-                        <div className={`w-3.5 h-3.5 lg:w-4 lg:h-4 rounded-full flex items-center justify-center text-[8px] lg:text-[9px] font-bold ${
-                            step.isDone
-                                ? 'bg-emerald-500 text-black shadow-sm'
-                                : 'bg-white/10 text-gray-500 border border-white/20'
+                        <div title={step.notRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} aria-label={step.notRequired ? ui('영상 클립 제작 대상이 아닙니다') : undefined} className={`w-3.5 h-3.5 lg:w-4 lg:h-4 flex items-center justify-center font-bold ${
+                            step.notRequired ? 'text-emerald-500 text-base leading-none' : step.isDone
+                                ? 'rounded-full bg-emerald-500 text-black shadow-sm text-[8px] lg:text-[9px]'
+                                : 'rounded-full bg-white/10 text-gray-500 border border-white/20 text-[8px] lg:text-[9px]'
                         }`}>
-                            {step.isDone ? '✓' : '○'}
+                            {step.notRequired ? '×' : step.isDone ? '✓' : '○'}
                         </div>
                         <span className={`text-[9px] lg:text-[10px] ${step.isDone ? 'text-gray-200' : 'text-gray-500'}`}>{step.label}</span>
                     </button>
@@ -11670,6 +11672,7 @@ export default function StdPortalPage() {
                                                 <div className="flex items-center justify-between text-[11px] text-gray-400 font-mono">
                                                     <span className="flex items-center gap-1">
                                                         <span>⏱️</span> {topicUi('{count}분 영상', { count: topic.assigned_duration_minutes || 15 })}
+                                                        {topic.video_not_required && <span className="ml-2 font-bold text-emerald-500" title={ui('영상 클립 제작 대상이 아닙니다')}>{ui('영상 X')}</span>}
                                                     </span>
                                                     <span className="text-cyan-400">{topicUi('{count}개 씬', { count: topic.scene_count || DEFAULT_15_MINUTE_SCENE_COUNT })}</span>
                                                 </div>
