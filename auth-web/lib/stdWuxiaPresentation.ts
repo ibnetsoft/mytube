@@ -46,10 +46,14 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
         const range = rowRange(g)
         return range && seconds >= range.start && seconds < range.end
     })
-    const state = (dialogue && scene.states?.find((s: any) => s.asset_id === dialogue.state_asset_id))
-        || scene.states?.find((s: any) => fraction >= s.start && fraction < s.end) || scene.states?.[0]
+    const scheduled = scene.states?.find((s: any) => fraction >= s.start && fraction < s.end) || scene.states?.[0]
+    // A derived acting state inherits the graphics of its source image.
+    const scheduledSource = scheduled?.parent_asset_id || scheduled?.asset_id
+    const state = dialogue && scheduledSource !== dialogue.state_asset_id
+        ? scene.states?.find((s: any) => s.asset_id === dialogue.state_asset_id) || scheduled
+        : scheduled
     const graphics = (scene.graphics || []).filter((g: any) => {
-        if (g.state_asset_id !== state?.asset_id) return false
+        if (g.state_asset_id !== (state?.parent_asset_id || state?.asset_id)) return false
         const range = rowRange(g)
         return range ? seconds >= range.start && seconds < range.end : fraction >= g.preview_start && fraction < g.preview_end
     })

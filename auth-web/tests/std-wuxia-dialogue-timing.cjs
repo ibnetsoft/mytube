@@ -16,3 +16,8 @@ test('first scene correction applies only to the inspected original layout and p
  assert.deepEqual(corrected.scenes[0].graphics[0].layout.center,[.49,.14]);assert.deepEqual(graphic.layout.center,[.29,.19]);
  const edited={scenes:[{states:[state],graphics:[{...graphic,layout:{...graphic.layout,center:[.6,.2]}}]}]};assert.deepEqual(correctedWuxiaPackage(edited),edited);
 });
+test('a derived acting state retains its parent dialogue bubble',()=>{
+ const p={structure:{wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'E01_S01',states:[{asset_id:'a',start:0,end:.5},{asset_id:'b',start:.5,end:.75},{asset_id:'b2',parent_asset_id:'b',start:.75,end:1}],graphics:[{kind:'speech_bubble',text:'대사',state_asset_id:'b',preview_start:.5,preview_end:1}]}]}}};
+ const rows=[{scene_number:1,text:'대사',start_num:0,end_num:10}];
+ const frame=wuxiaSceneFrame(p,1,rows,8);assert.equal(frame.state.asset_id,'b2');assert.equal(frame.graphics.length,1);
+});
