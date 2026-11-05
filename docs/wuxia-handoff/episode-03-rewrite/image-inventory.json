@@ -1,0 +1,394 @@
+[
+  {
+    "asset_id": "E03_S01_STATE_01",
+    "scene_id": "E03_S01",
+    "state_index": 1,
+    "file": "images/E03_S01_STATE_01.png",
+    "sha256": "712ae7a14c632a25b6675d72425dc0f823682a2e8f376a7e14047b3328a1d1b8",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S01_STATE_02",
+    "scene_id": "E03_S01",
+    "state_index": 2,
+    "file": "images/E03_S01_STATE_02.png",
+    "sha256": "a1964d40497a706c205e77938a8af44574a0faf9c4a4ea88be41c5f4afa5c813",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S02_STATE_01",
+    "scene_id": "E03_S02",
+    "state_index": 1,
+    "file": "images/E03_S02_STATE_01.png",
+    "sha256": "eee0208c26958cfdabf78a08ff0018db14139bc701a11c7d9d37c23e241e3373",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S02_STATE_02",
+    "scene_id": "E03_S02",
+    "state_index": 2,
+    "file": "images/E03_S02_STATE_02.png",
+    "sha256": "31ef45d92b0721218dca9673ed48279c03994bc4696be46c6a348ffd1b316afb",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S03_STATE_01",
+    "scene_id": "E03_S03",
+    "state_index": 1,
+    "file": "images/E03_S03_STATE_01.png",
+    "sha256": "c7d9e70e9e62c3ad5d0c3db47371d8d3e610b323516e4e46f7bcfdc1b80627f4",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S03_STATE_02",
+    "scene_id": "E03_S03",
+    "state_index": 2,
+    "file": "images/E03_S03_STATE_02.png",
+    "sha256": "ff7cdbcf5b9d944666c95acf426302ef0f5842c41c078cd151fb4774861585b4",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S04_STATE_01",
+    "scene_id": "E03_S04",
+    "state_index": 1,
+    "file": "images/E03_S04_STATE_01.png",
+    "sha256": "9d27bc0b8d447efed59348bb7955bcbbc52b7a24106619c49d4736e690e0cfa9",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S04_STATE_02",
+    "scene_id": "E03_S04",
+    "state_index": 2,
+    "file": "images/E03_S04_STATE_02.png",
+    "sha256": "dc44a698519ac893d5a0c253ed35f0edbff3154f03031421dbd2d740e11e3dc3",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S05_STATE_01",
+    "scene_id": "E03_S05",
+    "state_index": 1,
+    "file": "images/E03_S05_STATE_01.png",
+    "sha256": "edb159328759c30291c88754dd59bd109eee8ef56f686ea3052959530a5ecc81",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S05_STATE_02",
+    "scene_id": "E03_S05",
+    "state_index": 2,
+    "file": "images/E03_S05_STATE_02.png",
+    "sha256": "a106dbed90672d15789eac10e3c4534b1ca1d69ed6254d417238caf9cfcf21f8",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S05_STATE_03",
+    "scene_id": "E03_S05",
+    "state_index": 3,
+    "file": "images/E03_S05_STATE_03.png",
+    "sha256": "bb96fb7316781b6e300cc6382af5b0cdc8f9491812f035d2fa721edc6616f239",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S05_STATE_04",
+    "scene_id": "E03_S05",
+    "state_index": 4,
+    "file": "images/E03_S05_STATE_04.png",
+    "sha256": "067600ab5757f16b803bf1858cb389674a5aeb2a35c5078511ae844d48f7a06c",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S05_STATE_05",
+    "scene_id": "E03_S05",
+    "state_index": 5,
+    "file": "images/E03_S05_STATE_05.png",
+    "sha256": "3dc1f0563b765b3092a22c38bac0501436e98e94a51008bd32e214580d214725",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S06_STATE_01",
+    "scene_id": "E03_S06",
+    "state_index": 1,
+    "file": "images/E03_S06_STATE_01.png",
+    "sha256": "500640887685e5f2b9f5dc7faf8423bb6cad10d779811aa004a3ab46e3d97436",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S06_STATE_02",
+    "scene_id": "E03_S06",
+    "state_index": 2,
+    "file": "images/E03_S06_STATE_02.png",
+    "sha256": "36af28540c0f576d628329571771a97432af84b6014fb3bd6f2c63e4c5aa56c2",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S07_STATE_01",
+    "scene_id": "E03_S07",
+    "state_index": 1,
+    "file": "images/E03_S07_STATE_01.png",
+    "sha256": "6ec067afee3d7783f6b5e272577c7f87e7268b6af7ff373fe660dfafb43f9692",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S07_STATE_02",
+    "scene_id": "E03_S07",
+    "state_index": 2,
+    "file": "images/E03_S07_STATE_02.png",
+    "sha256": "c4be39e002a86e0751ee6a16aa1fe97f5217b9e7862cf241c53111f5cb6d7716",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S08_STATE_01",
+    "scene_id": "E03_S08",
+    "state_index": 1,
+    "file": "images/E03_S08_STATE_01.png",
+    "sha256": "bf848fcc4d0359e912a8f7dbc4cf6babfd721a0d7db122d8dcad4b32914293fe",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S08_STATE_02",
+    "scene_id": "E03_S08",
+    "state_index": 2,
+    "file": "images/E03_S08_STATE_02.png",
+    "sha256": "27e571d243dad1ba129fd51d13bb51659421542512399c3df8faa86fb7f1b252",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S09_STATE_01",
+    "scene_id": "E03_S09",
+    "state_index": 1,
+    "file": "images/E03_S09_STATE_01.png",
+    "sha256": "f784877c2d1879c9c4e0a8ff196b4eb1fe556f92819057c9be3a4df0e3190e09",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S09_STATE_02",
+    "scene_id": "E03_S09",
+    "state_index": 2,
+    "file": "images/E03_S09_STATE_02.png",
+    "sha256": "b8cffc21bc9ccbdd50bdd166dca1fcce86caae03fbe5b6e3e48c3a85d54483aa",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S10_STATE_01",
+    "scene_id": "E03_S10",
+    "state_index": 1,
+    "file": "images/E03_S10_STATE_01.png",
+    "sha256": "acd8fe64ebce990f58c5b62635818099d8ad5af46848c47f2f836dce2862ec9f",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S10_STATE_02",
+    "scene_id": "E03_S10",
+    "state_index": 2,
+    "file": "images/E03_S10_STATE_02.png",
+    "sha256": "50439b467f3346a86605cd7033c2256bf33dd0b9ab808cd37987a42d1f095761",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S11_STATE_01",
+    "scene_id": "E03_S11",
+    "state_index": 1,
+    "file": "images/E03_S11_STATE_01.png",
+    "sha256": "5b8ec9cf686c190b31374c0be41d2f0dd8a94e4b664c0f5d88a2fcc01e0c4c02",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S11_STATE_02",
+    "scene_id": "E03_S11",
+    "state_index": 2,
+    "file": "images/E03_S11_STATE_02.png",
+    "sha256": "04c25ae82b4b6cf035a52c5c3ff21a86333a32282547fdb522126ee6c2168e30",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S12_STATE_01",
+    "scene_id": "E03_S12",
+    "state_index": 1,
+    "file": "images/E03_S12_STATE_01.png",
+    "sha256": "aa3f44d173791345e0d7ad45974728a9b140c1d859b8aab62ed30c0dafe01e55",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S12_STATE_02",
+    "scene_id": "E03_S12",
+    "state_index": 2,
+    "file": "images/E03_S12_STATE_02.png",
+    "sha256": "067a658ec91abb98231761d07dd20af1320ed781495320b9c0ec6a183cdeab18",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S12_STATE_03",
+    "scene_id": "E03_S12",
+    "state_index": 3,
+    "file": "images/E03_S12_STATE_03.png",
+    "sha256": "d2b2c064df67027f920ab256b8a4a11be369226c341cec6a8382d950f571d4d0",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S12_STATE_04",
+    "scene_id": "E03_S12",
+    "state_index": 4,
+    "file": "images/E03_S12_STATE_04.png",
+    "sha256": "7941a508577b3b9ae3c3dda477393961db7b737388133a82c8b33a2b39b75eb4",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S12_STATE_05",
+    "scene_id": "E03_S12",
+    "state_index": 5,
+    "file": "images/E03_S12_STATE_05.png",
+    "sha256": "e81ee9b5e516b43e22ff4eeec506cc00c7548b692531e47a06102d036f74ba11",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S12_STATE_06",
+    "scene_id": "E03_S12",
+    "state_index": 6,
+    "file": "images/E03_S12_STATE_06.png",
+    "sha256": "20d043cb29993ae4bdd7c906d4be7f70024092228d0601a3fe94de75648e0d1d",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S13_STATE_01",
+    "scene_id": "E03_S13",
+    "state_index": 1,
+    "file": "images/E03_S13_STATE_01.png",
+    "sha256": "e483bd5d66281a5bb71bb1f3ac54894e8e847a9d49344f6c6b917cbd2852293b",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S13_STATE_02",
+    "scene_id": "E03_S13",
+    "state_index": 2,
+    "file": "images/E03_S13_STATE_02.png",
+    "sha256": "8978545c92d7dc4d419a4e696e8b02d5aec4337a5609fbc5316b920294b59c26",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S14_STATE_01",
+    "scene_id": "E03_S14",
+    "state_index": 1,
+    "file": "images/E03_S14_STATE_01.png",
+    "sha256": "fbd7457580c696d8ac2d2dc11332d6e00f5dae2d2bfd696a7a0f891737325433",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S14_STATE_02",
+    "scene_id": "E03_S14",
+    "state_index": 2,
+    "file": "images/E03_S14_STATE_02.png",
+    "sha256": "2efc45e2c1249b1eb1409cfcfec6f6d736c5768877084c2e54cd3097d9169c9e",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S15_STATE_01",
+    "scene_id": "E03_S15",
+    "state_index": 1,
+    "file": "images/E03_S15_STATE_01.png",
+    "sha256": "d477aeacf01377e330509d7e0cf29c0e626e4806ae7e117de26c03a895765bf3",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S15_STATE_02",
+    "scene_id": "E03_S15",
+    "state_index": 2,
+    "file": "images/E03_S15_STATE_02.png",
+    "sha256": "1dfc92cf53af1ae58cf217a9bb46c8b5af9bfc2212d474fd8d7bb66b996f15e4",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S16_STATE_01",
+    "scene_id": "E03_S16",
+    "state_index": 1,
+    "file": "images/E03_S16_STATE_01.png",
+    "sha256": "27eef84731b5a482b779a42b04e25f49464dbbdbb944981ac876f76c24120e6c",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S16_STATE_02",
+    "scene_id": "E03_S16",
+    "state_index": 2,
+    "file": "images/E03_S16_STATE_02.png",
+    "sha256": "6bcdcc2e1b18dc1d66b139e9050a0a0ac084c49d7aaa1b131193afb25ff590c0",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S17_STATE_01",
+    "scene_id": "E03_S17",
+    "state_index": 1,
+    "file": "images/E03_S17_STATE_01.png",
+    "sha256": "51f1f2ea669557e550734b405fcf86758fac1b0135d21044293674cfcf302cac",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S17_STATE_02",
+    "scene_id": "E03_S17",
+    "state_index": 2,
+    "file": "images/E03_S17_STATE_02.png",
+    "sha256": "2881f62714bd5f95f812dfd44ccbf77a12b1d9215525072bad95b8e4ebb37d2b",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S17_STATE_03",
+    "scene_id": "E03_S17",
+    "state_index": 3,
+    "file": "images/E03_S17_STATE_03.png",
+    "sha256": "91e18e9565c2850f38558097976975c8a94f0ca6058e7eb9b0274e6448cf6155",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S18_STATE_01",
+    "scene_id": "E03_S18",
+    "state_index": 1,
+    "file": "images/E03_S18_STATE_01.png",
+    "sha256": "f23ab317a503354ab0225864638696b4b0b108329e5012237368101c7f2db651",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S18_STATE_02",
+    "scene_id": "E03_S18",
+    "state_index": 2,
+    "file": "images/E03_S18_STATE_02.png",
+    "sha256": "b2260dc3ce4c5834b6b4e57631d187a9944b33face1fd8687dd68f7ae589e8ed",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S19_STATE_01",
+    "scene_id": "E03_S19",
+    "state_index": 1,
+    "file": "images/E03_S19_STATE_01.png",
+    "sha256": "a60cf0866703a8740b40746cef2cd86d7e7d96a79a0f10e0ebc26d1cb429af0f",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S19_STATE_02",
+    "scene_id": "E03_S19",
+    "state_index": 2,
+    "file": "images/E03_S19_STATE_02.png",
+    "sha256": "a1b36f3ce78c8cff9f7c48788f2274d35fd559fe8308eb2594e940556c392025",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S20_STATE_01",
+    "scene_id": "E03_S20",
+    "state_index": 1,
+    "file": "images/E03_S20_STATE_01.png",
+    "sha256": "485fb9f9981fece39c1dd36cb8d3708842943b86159ec318c04551e111b3e17c",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S20_STATE_02",
+    "scene_id": "E03_S20",
+    "state_index": 2,
+    "file": "images/E03_S20_STATE_02.png",
+    "sha256": "d21a34066d2de9aae21e2b3f9601b653a732098c3008ea15686b914852245212",
+    "exists": true
+  },
+  {
+    "asset_id": "E03_S20_STATE_03",
+    "scene_id": "E03_S20",
+    "state_index": 3,
+    "file": "images/E03_S20_STATE_03.png",
+    "sha256": "243b60ffd80692280cfb96aee1b0099f36ca2bac5e31e4220541d1b6b45d42c5",
+    "exists": true
+  }
+]

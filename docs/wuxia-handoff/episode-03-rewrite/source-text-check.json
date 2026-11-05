@@ -1,0 +1,90 @@
+{
+  "approved_source_preserved": true,
+  "scene_count": 20,
+  "checks": [
+    {
+      "scene": "E03_S01",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S02",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S03",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S04",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S05",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S06",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S07",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S08",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S09",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S10",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S11",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S12",
+      "worker_spoken_matches": true
+    },
+    {
+      "scene": "E03_S13",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S14",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S15",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S16",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S17",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S18",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S19",
+      "worker_spoken_matches": false
+    },
+    {
+      "scene": "E03_S20",
+      "worker_spoken_matches": false
+    }
+  ],
+  "normalization": "only whitespace; final spoken blocks copied from frozen user-approved draft",
+  "final_spoken_blocks": 85,
+  "original_paragraphs": 84,
+  "dialogue_narration_boundaries_checked": true
+}

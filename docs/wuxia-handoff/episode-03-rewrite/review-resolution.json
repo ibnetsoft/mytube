@@ -1,0 +1,48 @@
+{
+  "source_text": "frozen approved rewrite preserved",
+  "independent_verdict": "revise",
+  "quality_concerns_recorded": true,
+  "production_continues": true,
+  "critical_issues": [
+    {
+      "scene_id": "E03_S12",
+      "issue": "보초와 탈출하는 두 사람이 모두 덧문의 바깥쪽에 있다. 마지막 상태에서 덧문은 두 사람 뒤에 내려앉지만 보초도 같은 바깥 바닥에 온전하게 서 있으므로, 덧문이 추격을 지연시키는 공간적 이유가 성립하지 않는다. E03_S13의 '덧문 너머' 욕설도 이 배치와 맞지 않는다.",
+      "repair": "대사는 유지하고 상태 지시와 프롬프트에 외부 발판의 고저차와 동선을 명시한다. 보초는 덧문을 드는 문턱 위쪽 발판에, 측면 배수구 출구는 아래 작업터로 이어지는 낮은 돌턱에 배치한다. 두 사람이 빠져나온 뒤 낮은 돌턱 아래로 몸을 옮긴 결과 컷을 추가하고, 보초가 덧문과 좁은 발판을 돌아 내려와야 하는 경로를 보여 준다. 단순히 덧문이 같은 바깥쪽의 보초를 차단한다고 표현하지 않는다."
+    },
+    {
+      "scene_id": "E03_S12",
+      "issue": "도겸이 나온 직후 서술에는 문이 다시 떨어진다. 그런데 다음 상태에서는 보초가 덧문 한쪽을 한 손으로 들고 서진의 소매를 잡는다. 첫 낙하 이후 다시 들어 올리는 전환이 없어 문 상태가 불연속적이다.",
+      "repair": "대사는 바꾸지 않고 두 번째 탈출 직전에 보초가 같은 끝을 다시 들어 올린 상태 컷과 전환 지시를 추가한다. 반대쪽 보강쇠가 문턱에 받쳐 무게를 지지하고, 단도 손잡이가 눌린 지점은 계속 바닥에 남는 구조를 명시한다. 서진의 소매를 잡으며 한 손을 떼는 순간과 최종 낙하를 구분한다."
+    }
+  ],
+  "minor_issues": [
+    {
+      "scene_id": "E03_S05",
+      "issue": "고정핀을 빼는 과정은 명시되어 있지만 핀이 완전히 빠지고 쇠살이 열린 결과는 없다. E03_S13의 위쪽 계단 발소리가 기존 수색 무사의 후속 이동이라면 그 연결은 추정에 의존한다.",
+      "repair": "핀 분리와 쇠살 개방 완료를 보여 주는 결과 상태를 추가하고, 수색 무사가 내부를 확인한 뒤 외부 계단으로 이동하는 순서를 연출 지시에 명시한다. 보초의 선행 우회와 구분하고 대사는 유지한다."
+    },
+    {
+      "scene_id": "E03_S12",
+      "issue": "서진의 승인 복장은 민소매 청록 겉옷인데, 이후 프롬프트는 찢어진 청록 겉옷 소매를 반복 지정한다. 소매가 있는 먹색 저고리와 민소매 겉옷의 구분이 어긋난다.",
+      "repair": "붙잡히고 찢어지는 부위를 먹색 저고리 소매 끝으로 통일한다. E03_S12 이후의 상태·프롬프트와 continuity_out에도 같은 복장 층을 적용하고 민소매 청록 겉옷은 유지한다."
+    }
+  ],
+  "direction_repair_followup": "independent-review-followup.json",
+  "direction_repair_verdict": "pass",
+  "source_spoken_unchanged": true,
+  "actual_art_repair": {
+    "scene": "E03_S04",
+    "state": 2,
+    "cause": "same ledge axis was underspecified and produced outdoor cliff",
+    "fix": "explicit enclosed timber-roof maintenance passage in permanent prompt and targeted actual-image edit",
+    "old_pixels_preserved": "versions/pre-repair",
+    "new_review": "scene04-repair-review.log"
+  },
+  "dialogue_boundary_repair": "dialogue-boundary-check.json",
+  "frozen_original_paragraphs": 84,
+  "final_spoken_blocks": 85,
+  "final_face_review": "direction/face-review-v3/quality-notes.json",
+  "face_review_not_blanket_pass": true,
+  "latest_actual_source_reviews": "direction/art-review",
+  "quality_policy": "Continue authorized delivery with truthful quality notes; do not turn editorial concerns into invented approval."
+}

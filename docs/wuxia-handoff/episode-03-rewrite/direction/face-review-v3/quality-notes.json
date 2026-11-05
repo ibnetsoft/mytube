@@ -1,0 +1,497 @@
+{
+  "registry_references": 55,
+  "candidate_count": 3,
+  "flags": [
+    {
+      "reference_id": 34,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a rounder lower-face outline",
+        "Reference appears to have smaller eye openings"
+      ],
+      "reason": "The face occupies too few pixels to verify a third independent structural difference, particularly nose and lip geometry."
+    },
+    {
+      "reference_id": 36,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a shorter lower face.",
+        "Reference appears to have a broader jaw."
+      ],
+      "reason": "Both have narrow eyes, strong brows and angular faces; the reference is too small to establish a third reliable structural distinction."
+    },
+    {
+      "reference_id": 39,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a blunter chin.",
+        "Reference appears to have more hooded eyes."
+      ],
+      "reason": "The near-profile reference limits comparison of nose width and frontal proportions; three independent differences cannot be established confidently."
+    },
+    {
+      "reference_id": 40,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference has a broader, squarer lower face.",
+        "Reference has a shorter, more compact nose."
+      ],
+      "reason": "Strong brows and narrow eyes overlap; the reference resolution does not support a third confident structural distinction."
+    },
+    {
+      "reference_id": 41,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "The reference face occupies too few pixels to verify three meaningful structural differences."
+    },
+    {
+      "reference_id": 41,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a narrower lower face.",
+        "Reference appears to have a smaller nose."
+      ],
+      "reason": "The small face prevents a reliable third structural comparison."
+    },
+    {
+      "reference_id": 41,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a much smaller nose.",
+        "Reference appears to have a shorter lower face."
+      ],
+      "reason": "The face is too small to verify another independent feature confidently."
+    },
+    {
+      "reference_id": 42,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a shorter nose.",
+        "Reference appears to have a rounder lower face."
+      ],
+      "reason": "Both use large-eye proportions; the small reference does not establish three reliable differences."
+    },
+    {
+      "reference_id": 43,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a broader jaw.",
+        "Reference appears to have a shorter nose."
+      ],
+      "reason": "Angular features and narrow eyes overlap, and fine facial geometry is insufficiently resolved."
+    },
+    {
+      "reference_id": 45,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have narrower eyes.",
+        "Reference appears to have a broader chin."
+      ],
+      "reason": "The reference face is too small to establish a third reliable structural difference."
+    },
+    {
+      "reference_id": 45,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "Reference appears to have a softer jaw contour.",
+        "Reference appears to have a smaller nose."
+      ],
+      "reason": "Fine eye and mouth geometry is insufficiently readable for a distinct verdict."
+    },
+    {
+      "reference_id": 46,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "The reference face is too small to establish three reliable structural differences."
+    },
+    {
+      "reference_id": 46,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "The reference suggests a softer jaw, but eye, nose and lip geometry are insufficiently resolved."
+    },
+    {
+      "reference_id": 46,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "Apparent facial fullness differs, but the small reference cannot support three independent structural findings."
+    },
+    {
+      "reference_id": 47,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have smaller eye openings."
+      ],
+      "reason": "The reference lacks sufficient facial detail for three reliable structural differences; baldness and age were excluded."
+    },
+    {
+      "reference_id": 47,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "The small reference does not resolve jaw, nose and mouth geometry sufficiently for a structural pass."
+    },
+    {
+      "reference_id": 47,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have less laterally projecting ears."
+      ],
+      "reason": "Additional differences cannot be established reliably at this face scale; wrinkles were excluded."
+    },
+    {
+      "reference_id": 48,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have narrower eye openings."
+      ],
+      "reason": "The small face does not provide three dependable structural comparisons."
+    },
+    {
+      "reference_id": 48,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "Eye, nose and jaw boundaries are too small to distinguish structural similarity from drawing-scale effects."
+    },
+    {
+      "reference_id": 48,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have less projecting ears."
+      ],
+      "reason": "The remaining facial proportions are insufficiently resolved for a distinct verdict."
+    },
+    {
+      "reference_id": 49,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "The small, angled reference face does not support three independent structural differences."
+    },
+    {
+      "reference_id": 49,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have a more tapered lower face."
+      ],
+      "reason": "Nose and eye geometry remain too small for a reliable structural pass."
+    },
+    {
+      "reference_id": 49,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have a narrower lower face."
+      ],
+      "reason": "Three meaningful structural differences cannot be confirmed from the available face detail."
+    },
+    {
+      "reference_id": 50,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference has narrower eye openings."
+      ],
+      "reason": "The small three-quarter face prevents reliable assessment of three independent differences."
+    },
+    {
+      "reference_id": 50,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "The reference face is too small and oblique for a dependable jaw, nose and lip comparison."
+    },
+    {
+      "reference_id": 50,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference has less laterally projecting ears."
+      ],
+      "reason": "Other apparent differences cannot be separated reliably from pose and scale."
+    },
+    {
+      "reference_id": 51,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "The reference face is too small to establish three reliable structural differences."
+    },
+    {
+      "reference_id": 51,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have a more tapered chin."
+      ],
+      "reason": "The remaining facial features lack sufficient resolution for a distinct verdict."
+    },
+    {
+      "reference_id": 51,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference appears to have a narrower lower face."
+      ],
+      "reason": "Eye, nose and lip geometry cannot be assessed reliably enough to complete the comparison."
+    },
+    {
+      "reference_id": 52,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference has narrower eye openings."
+      ],
+      "reason": "The small downward-angled face does not support three independent structural findings."
+    },
+    {
+      "reference_id": 52,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [],
+      "reason": "Angular features are visible, but their precise proportions are too poorly resolved for a reliable verdict."
+    },
+    {
+      "reference_id": 52,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "The reference has less projecting ears."
+      ],
+      "reason": "The small reference does not reliably resolve enough additional structural differences."
+    },
+    {
+      "reference_id": 54,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "similar",
+      "structural_differences": [
+        "Candidate nose tip and alar base are broader.",
+        "Candidate chin is somewhat wider."
+      ],
+      "reason": "Both use narrow slanted eyes, pronounced angular cheek planes and a long straight nose above a firm angular jaw. The visible differences do not establish three independent meaningful separations."
+    },
+    {
+      "reference_id": 61,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 보이는 눈의 세로 폭이 더 크다",
+        "후보는 턱끝이 더 가늘어 보인다"
+      ],
+      "reason": "참조가 작은 측면 얼굴이라 코와 입의 구조를 충분히 대조하기 어렵다."
+    },
+    {
+      "reference_id": 61,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 코끝이 더 둥글고 넓어 보인다",
+        "후보는 턱이 더 넓어 보인다"
+      ],
+      "reason": "가늘고 각진 눈과 곧은 코의 공통 인상이 있으며, 참조의 크기와 각도로 세 가지 독립적 차이를 확정하기 어렵다."
+    },
+    {
+      "reference_id": 62,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 눈이 더 크고 둥글다",
+        "후보는 턱끝이 더 좁아 보인다"
+      ],
+      "reason": "참조의 작은 측면 얼굴로는 세 가지 독립적인 구조 차이를 확정하기 어렵다."
+    },
+    {
+      "reference_id": 62,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 코끝이 더 둥글다",
+        "후보는 하악 폭이 더 넓어 보인다"
+      ],
+      "reason": "참조의 눈과 입이 작게 보여 얼굴 전체 비례를 신뢰성 있게 비교하기 어렵다."
+    },
+    {
+      "reference_id": 64,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 눈이 더 가늘다",
+        "후보는 코끝이 더 넓어 보인다"
+      ],
+      "reason": "각진 턱과 눈썹 아래의 눈 배치가 유사한 인상을 주며, 참조 해상도로 세 가지 독립적인 차이를 확정하기 어렵다."
+    },
+    {
+      "reference_id": 65,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 눈이 더 크고 둥글어 보인다",
+        "후보는 턱끝이 더 뾰족해 보인다"
+      ],
+      "reason": "참조가 작고 열린 입 표정이므로 코와 하안면 비례까지 확정하기 어렵다."
+    },
+    {
+      "reference_id": 68,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 턱끝이 더 길고 뾰족해 보인다"
+      ],
+      "reason": "참조 얼굴이 작아 눈, 코, 입의 세부 구조를 충분히 읽을 수 없다."
+    },
+    {
+      "reference_id": 68,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 하악이 더 넓고 각지다",
+        "후보는 코가 더 크고 넓어 보인다"
+      ],
+      "reason": "참조의 눈과 입이 작아 세 번째 독립적인 구조 차이를 확정할 수 없다."
+    },
+    {
+      "reference_id": 68,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 코끝이 더 넓고 둥글다",
+        "후보는 하안면이 더 길고 넓다"
+      ],
+      "reason": "참조의 귀가 머리카락에 가려지고 얼굴이 작아 세 가지 독립적인 차이를 검증하기 어렵다."
+    },
+    {
+      "reference_id": 67,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 눈이 더 크고 둥글다",
+        "후보는 턱끝이 더 좁아 보인다"
+      ],
+      "reason": "참조 얼굴 크기로는 코와 입의 추가 구조 차이를 신뢰성 있게 확인하기 어렵다."
+    },
+    {
+      "reference_id": 67,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 코끝이 더 넓고 둥글다",
+        "후보는 하악이 더 넓고 각지다"
+      ],
+      "reason": "참조의 눈과 입이 작아 세 가지 독립적인 차이를 확정하기 어렵다."
+    },
+    {
+      "reference_id": 67,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 코끝이 더 넓고 둥글다",
+        "후보는 입 아래 턱이 더 길고 넓다"
+      ],
+      "reason": "참조 귀가 가려지고 얼굴 세부가 작아 세 번째 구조 차이를 확인하기 어렵다."
+    },
+    {
+      "reference_id": 70,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 눈이 더 크고 둥글다",
+        "후보는 턱끝이 더 가늘어 보인다"
+      ],
+      "reason": "참조 얼굴이 작아 코와 입의 세부 대조가 제한된다."
+    },
+    {
+      "reference_id": 70,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 하악이 더 넓고 각지다",
+        "후보는 코끝이 더 넓어 보인다"
+      ],
+      "reason": "참조의 낮은 얼굴 세부 해상도로 세 가지 독립적인 차이를 확정할 수 없다."
+    },
+    {
+      "reference_id": 70,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 코끝이 더 크고 둥글다",
+        "후보는 턱이 더 길고 넓다"
+      ],
+      "reason": "참조의 귀와 눈 세부를 충분히 읽을 수 없어 확정 판정을 보류한다."
+    },
+    {
+      "reference_id": 69,
+      "candidate_key": "lookout_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 턱끝이 더 길고 뾰족해 보인다",
+        "후보는 코가 더 길어 보인다"
+      ],
+      "reason": "참조의 작은 얼굴과 기울어진 각도로 세 가지 독립적인 차이를 검증하기 어렵다."
+    },
+    {
+      "reference_id": 69,
+      "candidate_key": "checkpoint_guard",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 하악이 더 넓고 각지다",
+        "후보는 코끝이 더 크고 넓다"
+      ],
+      "reason": "참조의 눈과 입 세부가 작아 추가 구조 차이를 확정하기 어렵다."
+    },
+    {
+      "reference_id": 69,
+      "candidate_key": "carter",
+      "verdict": "uncertain",
+      "structural_differences": [
+        "후보는 코끝이 더 넓고 둥글다",
+        "후보는 하안면이 더 길고 넓다"
+      ],
+      "reason": "참조의 귀가 가려져 있고 얼굴 세부가 작아 세 가지 차이를 확보할 수 없다."
+    }
+  ],
+  "scope": "editorial pixel comparison; not biometric identification",
+  "current_registry_references": 78,
+  "supplement_compared": 21,
+  "current_registry_checked": true,
+  "supplement_flags": [
+    {
+      "reference_id": "series_guard",
+      "candidate_key": "checkpoint_guard",
+      "verdict": "similar",
+      "structural_differences": [
+        "The candidate has somewhat more hollow, sharply modeled cheeks.",
+        "The candidate's nose tip appears slightly broader and more downward-projecting."
+      ],
+      "reason": "Both share narrow, sharply inclined eyes, a strong straight nose, angular cheekbones and a tapering angular jaw. The visible differences do not establish three substantial structural distinctions."
+    }
+  ],
+  "unavailable": [
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ]
+}

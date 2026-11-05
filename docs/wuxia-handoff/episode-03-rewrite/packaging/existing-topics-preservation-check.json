@@ -1,0 +1,29 @@
+{
+  "exactly_unchanged": true,
+  "rows": [
+    {
+      "id": 3428,
+      "status": "assigned",
+      "admin_hidden": null,
+      "script_md5": "c43721c15efbaaab6fdb2e1d20df8ebd",
+      "structure_md5": "dd006eacabc8b810c78353d70aeb0efa",
+      "progress_md5": "9e9b77c8d0893217cad39fc691de0096"
+    },
+    {
+      "id": 3429,
+      "status": "pending",
+      "admin_hidden": null,
+      "script_md5": "aa09ea8ade0ba26567471dd4280f20ca",
+      "structure_md5": "1e922368b2e2c8bed5eb6d3a185d17a0",
+      "progress_md5": "c5487ad85cc3e884b173f952f0826851"
+    },
+    {
+      "id": 3430,
+      "status": "excluded",
+      "admin_hidden": "true",
+      "script_md5": "11c16b6da4781a01403649cd71968c81",
+      "structure_md5": "efa29bcdb90e2475a58f6daf7badb372",
+      "progress_md5": "1a5e909401d5d2671a5cd7a02ec6da79"
+    }
+  ]
+}

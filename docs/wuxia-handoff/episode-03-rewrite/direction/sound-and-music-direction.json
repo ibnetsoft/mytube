@@ -1,0 +1,168 @@
+{
+  "music_generation": "prompt_only",
+  "mix_direction": "발화와 낮은 숨을 우선하며 음악은 얇게 유지. 검문에서 말하기 직전 여백.",
+  "music": [
+    {
+      "scenes": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "prompt": "Original instrumental wuxia restrained suspense, sparse low bowed strings and distant wooden ticks, breathing space for whispered Korean dialogue, no vocals or heroic victory."
+    },
+    {
+      "scenes": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "prompt": "Original instrumental wuxia human danger, dry wooden percussion, short tense low strings, silent gaps around impacts and timber drop, no triumphant fanfare."
+    },
+    {
+      "scenes": [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18
+      ],
+      "prompt": "Original instrumental wuxia wounded survivors outdoors, sparse xiao and low strings, fragile human warmth, restrained pulse, no healed hero victory."
+    },
+    {
+      "scenes": [
+        19,
+        20
+      ],
+      "prompt": "Original instrumental wuxia public checkpoint tension, suspended low strings, thinning to silence before survivor speaks, unresolved ending."
+    }
+  ],
+  "scenes": [
+    {
+      "scene_id": "E03_S01",
+      "direction": "2화 끝과 동일한 앞뒤 배치로 연결한다. 첫 명령은 바깥 오프스크린 dialogue, 다음 명령도 수색 무사 dialogue. 소매를 쥐는 마지막 문장에서 상태2로 컷. 등불 밝기만 절제해 조절한다. 전 인물 머리·얼굴 제외 영역을 확보하고 짧은 무이음 꼬리를 사용한다.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S02",
+      "direction": "보초 질문은 dialogue, 수색 무사 응답은 단단한 dialogue, 도겸은 whisper. 회상은 현재 서진의 반응 홀드로 처리하고 새 발화나 장호의 재연 대사를 넣지 않는다. 도겸이 귀에 입을 대는 문장에서 상태2. 모든 머리·얼굴을 피하는 편집형 말풍선.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S03",
+      "direction": "진입 동작을 늘리지 않고 숨은 결과부터 시작. 등불이 돌아오는 문장에서 상태2로 컷. 보초는 dialogue, 서진의 낮고 급한 지시는 whisper. 내레이션 자막 없이 핏자국과 뒤 경사를 읽힌다. 모든 인물의 머리·얼굴을 보호한다.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S04",
+      "direction": "일반 dialogue 두 개를 발화 순서대로 표시하고 끊긴 말을 임의 완성하지 않는다. 마지막 내레이션에서 상태2로 컷. 좌우 물길·돌턱 관계를 유지하고 인물 슬라이딩 애니메이션은 사용하지 않는다. 모든 머리·얼굴과 쇠고리를 피한 말풍선.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S05",
+      "direction": "상태1에서 핀 작업, 명령 shout 끝에 상태2로 보초 선행 우회를 확인한다. 발화 추가 없이 짧은 상태3으로 핀 완전 분리·쇠살 개방·수색 무사의 빈 내부 확인을, 상태4로 같은 수색 무사의 후속 외부 계단 진입을 차례로 보여 준다. '서진은 멈췄습니다.'에 상태5. 도겸 reaction, 서진 whisper. 상태3·4는 완료 결과 정지 컷이며 인물 이동 보간을 하지 않는다. 이후 13의 위쪽 계단 발소리는 상태4에서 출발한 수색 무사의 후속 접근이다. 모든 머리·얼굴 제외.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S06",
+      "direction": "명확한 지상 공간으로 하드 컷. 서리 dialogue와 보고 무사 dialogue를 분리. 사망 정리 문장에서 상태2와 장부 레이어를 노출한다. 마지막 문장은 책상 위 정지 상태와 아래쪽 물소리로 대비하고 지하 삽입 원화를 추가하지 않는다. 문서 문자 외 내레이션 자막 없음.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S07",
+      "direction": "상태1에서 안쪽 통로·높은 바깥 문턱 발판·낮은 측면 배수 돌턱·그 아래 작업터·뒤로 돌아가는 좁은 외부 계단을 한 축에서 읽힌다. 덧문 옆 가까운 틈과 반대편 하단 돌받침도 미리 보인다. 보초 dialogue. 마지막 문장에서 상태2로 왼손 발도 결과. 칼집 좌우 반전 금지. 모든 머리·얼굴 제외.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S08",
+      "direction": "보초 dialogue 후 첫 제압 상태를 홀드. 어깨 타격 문장에서 상태2로 하드 컷하고 짧은 둔탁한 타격음만 추가. 팔·검을 보간하지 않는다. 진화록 안내·각성·승리 효과 없음. 모든 머리·얼굴을 피한 말풍선.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S09",
+      "direction": "보초 dialogue, 서진 reaction, 도겸 단호한 dialogue를 순서대로 노출. 보초의 시선 문장에서 상태2. 줄에 발광 표시나 자동 해법 안내를 넣지 않는다. 말풍선은 모든 머리·얼굴뿐 아니라 줄과 배수 홈의 읽힘도 보호.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S10",
+      "direction": "상태1 홀드에서 첫 절단 실패는 줄 마찰음으로 전달. 보초는 shout. 두 번째 절단 문장에서 상태2로 컷하여 첫 실패와 재시도의 결과 차이를 보인다. 새 장치를 추가하지 않는다. 모든 머리·얼굴 제외, 짧고 이음새 없는 꼬리.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S11",
+      "direction": "낙하 결과로 하드 컷하며 단발 충격음과 짧은 프레임 진동 후 즉시 고정. 소매를 잡는 문장에서 상태2. 도겸 shout. 단도 손실을 분명히 보인다. 단도가 눌린 반대편 하단 접점은 이후 한쪽 끝을 들어도 바닥에서 떨어지지 않는다. 승리 연출 없이 보초의 검과 목재 마찰음으로 시간 제한을 전달한다.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S12",
+      "direction": "6개 결과 정지 컷을 순서대로 사용한다. 양손 첫 들림·도겸 통과는 상태1. '바로 뒤에서 문이 다시 떨어졌습니다.'에 상태2로 첫 재낙하를 명확히 보인다. '이번에는 서진이었습니다.'에서 상태3으로 같은 끝을 양손 재상승시킨 결과를 별도 확인한다. 재상승에 새 발화는 넣지 않는다. '덧문에서 한 손을 떼어'부터 상태4로 오른손 이탈·먹색 저고리 소매 잡기·천 조각 결과를 연결하고 왼손 지지는 유지한다. '신발 끝이 빠진 순간'에 상태5로 발끝 완전 통과와 남은 왼손 지지 해제 후 최종 재낙하 결과를 제시한다. 이어 상태6으로 낮은 돌턱 아래 작업터 도착을 짧게 확인해 13으로 잇는다. 반대편 하단 보강쇠의 단도 압착 접점은 전 상태에서 바닥에 남는다. 보초는 높은 발판, 탈출자는 낮은 배수 돌턱 아래이며 덧문은 가까운 내려가는 틈을 막아 계단 우회를 요구한다. 같은 평면의 보초를 문이 가로막는 연출 금지. 원문 blocks의 발화는 보존하되 시각적으로 찢기는 옷은 먹색 저고리 소매로 통일하고 청록 겉옷은 민소매 유지. 팔다리 보간·보초 제압·무기 회수 없음.",
+      "ambient": "해당 동작의 숨·옷감·쇠·목재 소리, 사무실은 종이와 붓",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S13",
+      "direction": "첫 컷에서 하늘과 아래 작업터를 충분히 보여 야외 탈출 확정. 덧문 너머 위쪽 발판의 보초 소리는 식별 불가능한 욕설 소음으로만 처리하고 새 대사 없음. 위 계단 발소리는 05에서 쇠살 개방과 빈 내부 확인 후 외부 계단을 택한 수색 무사의 접근이다. 대사 둘 dialogue, 마지막 내레이션에 상태2. 승리 음악 없이 바람·기침·먼 발소리 유지. 모든 머리·얼굴 보호.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S14",
+      "direction": "넘어지는 과정을 늘리지 않고 나무에 멈춘 결과로 시작. 도겸 질문 dialogue, 서진 약한 응답 whisper, 도겸 마지막 말 rounded. 마지막 내레이션에 상태2. 옆구리 혈흔과 빈 칼집을 가리지 않는다. 모든 머리·얼굴 제외.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S15",
+      "direction": "바퀴 소리와 짧은 휘파람 후 수레 정지 결과 상태2로 컷. 도겸 rounded, 수레꾼 reaction. 수레꾼 얼굴 반응을 충분히 홀드하고 추격 컷으로 서두르지 않는다. 별도 수레임을 형태와 적재물로 구분. 모든 머리·얼굴 보호.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S16",
+      "direction": "도겸 dialogue, 수레꾼 긴장한 dialogue, 서진 낮고 분명한 dialogue. 회상 대사를 새로 만들지 않는다. 난간을 붙잡는 문장에서 상태2. 멀리서 부르는 소리는 뜻을 알아들을 새 대사 없이 환경음으로 처리. 세 얼굴과 머리 전체 보호.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S17",
+      "direction": "수레꾼 질문 dialogue, 도겸 응답 reaction, '오늘은 네가 실려.'는 rounded. 승차 문장에서 상태2, 마지막 문장에서 상태3. 자루 두 개의 하차·도겸 선승차·서진 부축·압박 처치를 구분한다. 새 욕설 발화 없음. 덮개와 말풍선은 모든 머리·얼굴 보호를 유지하고 부상 연속성을 숨기지 않는다.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S18",
+      "direction": "수레꾼 dialogue, 서진 rounded, 수레꾼 짧은 reaction. 빈 칼집 문장에서 상태2. 마지막 서진 발화는 단호한 dialogue로 유지하되 복수 각성 효과 금지. 수레 이동은 바퀴 환경음과 배경 컷으로 전달하고 원화 전체를 느리게 밀지 않는다. 모든 머리·얼굴 제외.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S19",
+      "direction": "지상 검문 전경에서 종이 전달 문장에 상태2로 컷. 보고·길목 무사는 단단한 dialogue. 대기열을 소수 배경 인물로만 표현하고 새 전투·도주를 추가하지 않는다. 종이에 지시문 자막을 중복 출력하지 않는다. 모든 주·조연의 머리·얼굴 보호.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    },
+    {
+      "scene_id": "E03_S20",
+      "direction": "첫 명령 dialogue. 수레꾼이 가로막는 문장에서 상태2로 컷. 수레꾼의 항의는 단단한 dialogue, 길목 무사의 '뭘.'은 reaction. 긴 대사는 문장 전체를 연결한 편집형 말풍선으로 두고 발화 분할 때문에 사라지지 않게 한다. '비켜요. 의원부터 갑니다.'는 shout보다 낮고 단호한 dialogue. 서진이 몸을 일으키는 문장에서 상태3, 마지막 말은 rounded. 모든 인물과 두 배경 목격자의 머리·얼굴을 본체·꼬리·글자·그림자·등퇴장 전체에서 제외한다. 꼬리는 짧고 접합선 없이 연결한다. 길목 무사의 손이 내려가지 않은 채 마지막 발화와 호흡을 홀드한 뒤 종료. 검문 통과·추가 대사·내레이션 자막·승리 효과를 넣지 않는다.",
+      "ambient": "외부 바람·바퀴·주변 군중",
+      "status": "direction_only"
+    }
+  ]
+}

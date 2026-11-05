@@ -1,0 +1,881 @@
+{
+  "schema": "wuxia_episode_script/v1",
+  "series_title": "나 혼자 무공을 진화시킨다",
+  "episode": 3,
+  "episode_title": "살아 돌아온 짐꾼",
+  "target_duration_seconds": 600,
+  "recorded_duration_seconds": null,
+  "settings": {
+    "language": "ko",
+    "world": "가상의 전근대 중국풍 강호. 문파가 옛 무공과 괴물이 봉인된 무경의 공략권을 독점한다.",
+    "image_style": "wuxia_webtoon",
+    "style_reference": "auth-web/public/img/styles/style_wuxia_webtoon.png",
+    "visual_medium": "한국어 무협 정지 원화 무빙툰. 장면별 상태 원화 컷 전환과 필요한 AE 효과.",
+    "video_clip_count": 0,
+    "camera_policy": "전 장면 고정 카메라. 느린 줌과 전체 화면의 완만한 확대 금지.",
+    "parallax": "이번 대본에서는 사용하지 않음. 인물의 팔다리 이동을 레이어 애니메이션으로 흉내 내지 않음.",
+    "narration_captions": "내레이션 원문과 문서 설명을 화면 자막으로 출력하지 않음. 일반 자막 트랙 끔.",
+    "dialogue": "실제 대사만 화자별 편집 가능한 말풍선으로 음성과 동기화. 블록의 speaker는 cast.id를 참조.",
+    "bubble_presets": {
+      "dialogue": "일반 타원",
+      "rounded": "부드러운 둥근 상자",
+      "shout": "외침 톱니형",
+      "whisper": "속삭임 점선형",
+      "thought": "생각 구름형",
+      "reaction": "짧은 반응형",
+      "narration": "사각 설명형. 이번 화 내레이션 자막에는 사용하지 않음.",
+      "electronic": "전자통신형. 이번 화에는 사용하지 않음."
+    },
+    "bubble_safety": "모든 인물의 머리·얼굴을 최종 크롭 기준 보호 영역으로 설정한다. 말풍선 본체·꼬리·문자·테두리·그림자·등퇴장 효과와 최대 강조 크기까지 보호 영역을 침범하지 않는다. 본체와 꼬리는 하나의 닫힌 외곽선으로 연결하고 접합부 내부 선이나 이음새를 만들지 않는다. 짧은 꼬리는 화자의 머리에 닿기 전 여백을 두고 끝낸다. 여백 부족 시 줄바꿈·배치·컷 구성을 조정한다.",
+    "typography": "말풍선과 선택적 효과음은 원화에 굽지 않고 AE 독립 텍스트 레이어로 제작. 글꼴·크기·색·외곽선·회전·강조 크기·등퇴장·표시 타이밍을 편집 가능하게 저장. 기본 대사 글꼴은 Gmarket_Default 계열의 사용 가능한 한글 글꼴로 설정하고 교체 가능하게 유지.",
+    "timing": "600초는 목표이며 실제 녹음 길이는 측정하지 않았다. 대사와 내레이션의 실제 녹음 이후 상태 컷과 말풍선 노출을 확정한다. 분량을 맞추기 위한 문장·원화 반복 금지.",
+    "source_policy": "사용자 승인 EPISODE_03_REWRITE만 사건과 발화의 원본으로 사용. 기존 3·4화 개요는 대체됨. 외부 검색·Gemini·추가 모델 조사 없음. 제공된 맥락에 legacy_stage_directives와 legacy_quality_contract 필드가 없으므로 추가 레거시 요건을 만들지 않음.",
+    "source_sha256": "5811529a71a486d0f21185a4c2a2651fce52abdf307feaa0284a15f5fbd2b57c",
+    "settings_confirmed": true,
+    "inherited_episode_count": 50,
+    "bgm": "프롬프트만 작성, 음악 파일 생성 제외. 낮은 현악 지속음과 절제된 타악으로 추격의 긴장을 유지하고 야외 탈출 뒤에도 승리 음악으로 전환하지 않는다. 대사와 부상자의 호흡을 우선한다.",
+    "source_art_policy": "모든 상태는 단일 16:9 전경 원화. 패널·콜라주·격자 금지. 현대 한국 무협 웹툰의 선명한 잉크선, 절제된 선명색과 셀 채색, 자연스러운 성인 비례. 원화에 글자·말풍선·자막·효과음·워터마크를 넣지 않는다.",
+    "identity_policy": "서진·도겸·수색 무사·서리는 기존 승인 정체성을 유지한다. 보초·checkpoint_guard·수레꾼은 supplied actual_approved_reference_appearances의 승인 얼굴과 복장을 그대로 사용한다. 보초는 넓은 아래턱의 짧은 배형 얼굴과 청동 허리띠, checkpoint_guard는 높은 넓은 이마에서 좁고 평평한 턱으로 좁아지는 면도한 얼굴과 검은 허리띠, 수레꾼은 큰 돌출 귀와 삽 모양 턱 및 이끼색 작업 겉옷으로 구분한다. 이름 있는 얼굴을 군중에 복제하지 않는다.",
+    "production_notes": "이 결과는 02_repair_visual_direction 단계의 대본·연출 수정안이다. 원화 생성·녹음·렌더·웹 등록을 실행하거나 완료했다고 표시하지 않는다. 제외된 기존 토픽 3430을 복원하지 않는다."
+  },
+  "cast": [
+    {
+      "id": "seojin",
+      "name": "서진",
+      "gender": "male",
+      "age": 21,
+      "appearance": "기존 승인 얼굴. 176cm의 마른 짐꾼, 좁고 각진 얼굴, 날카로운 짙은 회색 눈과 곧은 검은 눈썹, 수염 없음. 짧은 검은 높은 묶음머리, 관자머리 두 가닥과 탁한 청록 끈. 먹색 저고리·바지, 탁한 청록 민소매 겉옷과 허리띠, 미색 속깃, 천 손목·종아리 감개와 낡은 갈색 신발. 터진 아랫입술, 찢어진 오른손 손바닥, 왼쪽 옆구리 손상 유지. 단도 칼집은 오른쪽 허리. 08 이후 어깨 타박과 옆구리 출혈 악화, 12 이후 먹색 저고리 소매 끝 찢김. 붙잡히고 찢어지는 소매는 청록 민소매 겉옷 아래의 먹색 저고리 소매이며 청록 겉옷은 계속 민소매이다.",
+      "reference_role": "visual_bible.cast.seojin 및 1·2화 승인 정체성 유지"
+    },
+    {
+      "id": "dogyeom",
+      "name": "도겸",
+      "gender": "male",
+      "age": 34,
+      "appearance": "기존 승인 얼굴. 170cm의 다부진 체격, 그을린 넓은 네모 얼굴, 작고 처진 갈색 눈, 낮고 굵은 눈썹, 넓은 코와 성긴 짧은 콧수염·턱수염. 황토색 두건, 황토 갈색 짧은 겉옷, 미색 속옷, 갈색 바지와 짚신. 오른쪽 다리는 체중을 받지 못한다. 빛바랜 연청색 목도리는 오른쪽 무릎 아래 고정되어 끝까지 풀지 않는다.",
+      "reference_role": "visual_bible.cast.dogyeom 및 1·2화 승인 정체성 유지"
+    },
+    {
+      "id": "guard",
+      "name": "수색 무사",
+      "gender": "male",
+      "age": 27,
+      "appearance": "기존 승인 철산문 무사 얼굴. 넓은 직사각형의 면도한 얼굴, 곧고 굵은 눈썹, 수수한 검은 상투. 평범한 철청색 무복, 어두운 청동 허리띠, 어두운 완갑, 깨끗한 검은 장화와 평범한 직검. 장호의 붉은 허리띠나 귀족 장식 없음.",
+      "reference_role": "visual_bible.cast.guard 및 2화 마지막 수색 명령을 내린 승인 무사"
+    },
+    {
+      "id": "lookout_guard",
+      "name": "보초 무사",
+      "gender": "male",
+      "age": 32,
+      "appearance": "Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png.",
+      "reference_role": "actual_approved_reference_appearances.lookout_guard. 02·03에서 수색 무사에게 응답하고 05에서 바깥 계단으로 선행 우회하는 동일 인물",
+      "reference_revision": 2
+    },
+    {
+      "id": "clerk",
+      "name": "서리",
+      "gender": "male",
+      "age": 55,
+      "appearance": "기존 승인 얼굴. 짧고 둥근 얼굴, 작고 가까운 눈, 높은 벗겨진 이마, 짙은 포도주색 천 모자와 가는 회색 구레나룻. 먼지 낀 자주색 긴 조끼와 회청색 옷, 먹 묻은 오른손, 대나무 붓과 장부.",
+      "reference_role": "visual_bible.cast.clerk 및 입구 중개소 승인 정체성 유지"
+    },
+    {
+      "id": "checkpoint_guard",
+      "name": "철산문 보고 무사 / 길목 무사",
+      "gender": "male",
+      "age": 45,
+      "appearance": "Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png.",
+      "reference_role": "actual_approved_reference_appearances.checkpoint_guard. 06의 철산문 무사와 19·20의 길목 무사에 동일 정체성 사용",
+      "reference_revision": 4
+    },
+    {
+      "id": "carter",
+      "name": "수레꾼",
+      "gender": "male",
+      "age": 50,
+      "appearance": "공급된 승인 참조 그대로. 키 크고 마른 체격. 긴 배형 얼굴과 무겁고 넓은 삽 모양 턱, 매우 크고 둥글게 돌출한 귀, 넓고 뭉툭하며 낮은 코, 넓고 이 사이가 벌어진 입, 크고 선하게 처진 눈과 가늘고 높은 눈썹, 수염 없음. 바랜 올리브색 머릿수건, 이끼색 작업 겉옷, 미색 속깃, 갈색 천 허리띠, 회갈색 바지와 짚신. 광석 가루 묻은 손. 도겸의 넓은 네모 얼굴과 구분. 광석 자루를 실은 별도 운반 수레의 주인.",
+      "reference_role": "actual_approved_reference_appearances.carter. 도겸이 평소 운반 일에서 알고 지내던 사람"
+    }
+  ],
+  "continuity_in": {
+    "position": "2화 마지막 관리 통로 쇠살 안쪽에서 즉시 연결. 도겸이 앞, 서진이 뒤. 바깥 수색 무사의 장화와 등불이 보인다.",
+    "injuries": "서진의 오른손 손바닥 출혈·왼쪽 옆구리 손상·터진 아랫입술 유지. 도겸의 오른쪽 다리는 비체중부하이며 팔과 왼발로 이동한다.",
+    "props": "더 짧아지고 휜 기존 단도는 서진의 오른쪽 허리 칼집에 있다. 도겸의 연청색 목도리는 오른쪽 무릎 아래 고정. 물통·지게·부서진 기존 수레는 옛 석실에 남았다. 봉함은 장호에게 있다.",
+    "ability": "서진은 제한적인 보폭·귀환 동작 관찰 경험만 있다. 새로운 무공·힘·속도·치료 효과 없음. 진화록은 탈출 정답을 주지 않는다.",
+    "geography": "01~05는 낮은 관리 통로와 그 바깥 수색 경로. 06은 지상 입구 중개소. 07~12는 낮은 하부 점검문과 외부 계단의 접점. 점검문 정면의 외부 발판은 높은 문턱 위에 있고, 측면 배수 홈은 그 발판 옆 아래쪽 낮은 돌턱으로 빠져 작업터에 이어진다. 13~20은 지상 야외.",
+    "identity": "기존 수색 무사와 신규 보초는 별개 인물. 보고·길목 무사는 처음부터 지상에 있으며 ID는 checkpoint_guard이다."
+  },
+  "continuity_out": {
+    "position": "두 사람은 실제 야외 탈출 후 수레꾼의 별도 운반 수레를 타고 청하진 검문 길목에 도착했다. 덮개 앞에서 검문이 멈춰 있는 상태로 끝난다.",
+    "injuries": "서진의 기존 세 부상에 어깨 타격과 옆구리 출혈 악화가 더해졌다. 먹색 저고리 소매 끝은 찢어졌으며 청록 겉옷은 민소매 그대로이다. 응급 압박만 받았다. 도겸은 오른다리를 계속 딛지 못하고 연청색 목도리도 무릎 아래에 남아 있다.",
+    "props": "기존 단도는 11에서 떨어져 덧문 반대편 하단 보강쇠와 문턱 돌의 접점에 손잡이가 눌렸다. 12에서 한쪽 끝만 다시 들 때도 이 하단 접점은 바닥에 남아 단도를 계속 누른다. 이후 단도를 회수하지 않으며 오른쪽 허리 칼집은 비어 있다. 물통·지게·기존 수레를 회수하지 않았다. 봉함은 계속 장호에게 있다.",
+    "pursuit": "건강한 보초를 이기지 못했다. 보초는 높은 외부 문턱 발판에 남고 두 사람은 낮은 측면 배수 돌턱 아래 작업터로 빠졌다. 내려앉은 덧문이 높은 발판에서 낮은 돌턱으로 가는 가까운 틈을 막아 보초는 좁은 발판을 되돌아 외부 계단으로 내려와야 한다. 이 우회가 몇 초의 틈을 만든다. 보초와 수색 무사는 살아 있으며 추격을 계속할 수 있다.",
+    "ledger": "중개소는 두 사람을 사망으로 정리했다. 길목에는 생존한 두 사람을 중개소 대신 별원으로 인계하라는 지시가 있다. 장부나 지시서를 확보한 것은 아니다.",
+    "cliffhanger": "수레꾼의 항의에도 길목 무사는 손을 내리지 않았다. 서진이 몸을 조금 일으켜 직접 말하려는 순간 종료. 검문 통과나 치료 도착을 추가하지 않는다.",
+    "next_episode": "4화는 목격자가 있는 지상 검문 현장에서 이어진다. 지하 탈출 준비로 되돌리지 않는다."
+  },
+  "scenes": [
+    {
+      "id": "E03_S01",
+      "location": "낮은 관리 통로 쇠살 안쪽 / 바깥 수색길",
+      "setting_category": "low_maintenance_passage_and_exterior_search_path",
+      "visual_states": [
+        "단일 16:9 고정 바닥 높이 중경 정지화. 쇠살 안쪽 도겸이 앞에 엎드리고 서진이 뒤에서 도겸 손목을 누른다. 도겸 오른다리는 비체중부하, 연청 목도리는 오른무릎 아래. 서진의 터진 입술·오른손 출혈·왼옆구리 손상과 오른허리 칼집 속 단도 유지. 바깥에는 승인 수색 무사의 검은 장화와 등불, 문자 없는 철산문 표식.",
+        "단일 16:9 고정 근경 정지화. 같은 통로 안 도겸이 뒤로 뻗은 손으로 서진의 먹색 저고리 소매를 세게 쥔다. 청록 겉옷은 민소매. 두 사람 입은 닫혀 있고 기존 부상·오른무릎 목도리·칼집 속 단도 유지. 쇠살 밖 수색 무사의 승인 얼굴 일부가 등불 위로 보인다."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 Korean wuxia webtoon still, fixed floor-level medium view from INSIDE a cramped stone maintenance passage toward its iron grille. Approved stocky Dogyeom in ochre lies in front; approved lean Seojin in a sleeveless muted-teal vest over a charcoal long-sleeved under-shirt lies behind pressing Dogyeom's wrist. Outside stand the approved broad-rectangular-faced search guard's black boots and lowered lantern, a non-lettered sect emblem at his belt. Dogyeom's injured RIGHT leg is unloaded, pale-blue scarf below right knee. Seojin has split lower lip, bleeding right palm and injured left flank; original shortened bent dagger remains in RIGHT waist sheath. Clean inks and cel shading, no text, bubbles, panels, aura or watermark.",
+        "Single full-frame 16:9 fixed close Korean wuxia webtoon still INSIDE the same low passage. Approved broad square-faced Dogyeom tightly grips the sleeve of Seojin's CHARCOAL UNDER-SHIRT beneath his SLEEVELESS muted-teal vest. Both mouths closed. Beyond the grille the approved clean-shaven broad rectangular search guard is partly visible above his lantern, OUTSIDE. Preserve Seojin's split lip, bleeding right palm and left flank injury, Dogyeom's unloaded right leg and pale-blue knee binding; dagger sheathed at right waist. No flask, packs, cart, text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "“배수로도 확인해.” 쇠살 아래로 등불이 내려왔습니다. 서진은 붙잡고 있던 도겸의 손목을 한 번 눌렀습니다. 도겸도 보았습니다. 불빛을 든 무사의 허리에는 철산문의 표식이 달려 있었습니다. 살아 있는 사람을 찾으러 온 것이라면, 이름을 부르면 됐습니다. 서진이 입을 열기 전에 밖에서 다른 목소리가 들렸습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“짐꾼이면 따로 빼. 먼저 나온 자들하고 말 섞게 하지 말고.”",
+          "speaker": "guard"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸의 손이 서진의 소매를 세게 쥐었습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "2화 끝과 동일한 앞뒤 배치로 연결한다. 첫 명령은 바깥 오프스크린 dialogue, 다음 명령도 수색 무사 dialogue. 소매를 쥐는 마지막 문장에서 상태2로 컷. 등불 밝기만 절제해 조절한다. 전 인물 머리·얼굴 제외 영역을 확보하고 짧은 무이음 꼬리를 사용한다."
+    },
+    {
+      "id": "E03_S02",
+      "location": "관리 통로 쇠살 안쪽 / 수색 무사와 보초의 바깥 위치",
+      "setting_category": "low_maintenance_passage_and_exterior_search_path",
+      "visual_states": [
+        "단일 16:9 고정 사선 중경 정지화. 쇠살 바깥 승인 수색 무사와 짧은 배형 얼굴·넓은 아래턱의 보초가 응답한다. 보초는 철청 무복·청동 허리띠. 안쪽 도겸이 앞, 서진이 뒤로 낮게 숨는다. 서진 기존 세 부상·칼집 속 단도, 도겸 비체중부하 오른다리·연청 목도리 유지.",
+        "단일 16:9 고정 안쪽 근경 정지화. 도겸이 서진 귀 가까이 입을 대고 서진은 오른허리 칼집 쪽 팔을 거둔다. 단도는 뽑지 않았다. 서진 오른손 출혈·터진 입술·왼옆구리 경직, 도겸 오른무릎 아래 목도리와 비체중부하 다리. 뒤로 쇠살과 바깥 등불."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed oblique Korean wuxia webtoon still across an iron grille. OUTSIDE stand approved broad rectangular clean-shaven search guard and lookout_guard: compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, BRONZE belt, black boots. INSIDE injured approved Seojin and Dogyeom stay low, Dogyeom ahead. Seojin wears sleeveless teal vest over charcoal sleeves; bent dagger sheathed RIGHT waist, right palm bleeding, lip split, left flank injured. Dogyeom's right leg unloaded, pale-blue scarf below knee. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed close Korean wuxia webtoon still INSIDE the low passage. Approved broad square-faced Dogyeom whispers beside approved narrow angular-faced Seojin's ear. Seojin withdraws his arm from RIGHT waist sheath without drawing dagger; torn right palm, split lip and guarded left flank remain. Sleeveless teal vest over charcoal under-shirt. Dogyeom's ochre clothing, unloaded right leg and pale-blue below-knee scarf visible. Grille and outside lantern behind. No flashback figures, text, bubbles, aura or panels. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "text": "“살아 있으면 데리고 올라갑니까?”",
+          "speaker": "lookout_guard"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“대장님께 먼저 보인다.”",
+          "speaker": "guard"
+        },
+        {
+          "kind": "narration",
+          "text": "서진은 닫히던 철문을 떠올렸습니다. 그 너머에서 장호가 했던 말도 기억했습니다. 살아 나가면 몫을 챙겨 주겠다고 했습니다. 지금 저 사람들 손을 잡으면, 다시 장호 앞에 서게 됩니다. 이번에는 문 안쪽에 남은 사람이 자기들뿐이라는 것도 장호가 알게 됩니다. 도겸이 서진의 귀 가까이 입을 댔습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“나가는 길부터 찾자.”",
+          "speaker": "dogyeom"
+        }
+      ],
+      "screen_text": [],
+      "ae": "보초 질문은 dialogue, 수색 무사 응답은 단단한 dialogue, 도겸은 whisper. 회상은 현재 서진의 반응 홀드로 처리하고 새 발화나 장호의 재연 대사를 넣지 않는다. 도겸이 귀에 입을 대는 문장에서 상태2. 모든 머리·얼굴을 피하는 편집형 말풍선."
+    },
+    {
+      "id": "E03_S03",
+      "location": "관리 통로 옆 낮은 정비 홈",
+      "setting_category": "low_maintenance_passage_and_exterior_search_path",
+      "visual_states": [
+        "단일 16:9 고정 측면 중경 정지화. 두 사람이 정비 홈에 숨은 결과. 앞의 도겸은 다친 오른다리를 접어 비체중부하로 보호하고 연청 목도리는 무릎 아래. 뒤의 서진은 도겸 겉옷 허리를 받치며 왼옆구리를 구부려 괴로워한다. 돌에 오른손 새 핏자국. 터진 입술과 오른허리 칼집 속 단도 유지.",
+        "단일 16:9 고정 중경 정지화. 홈 뒤 경사가 보인다. 쇠살 바깥 등불이 핏자국을 비추고 넓은 아래턱의 승인 보초가 본다. 안쪽 서진은 도겸 뒤에서 낮게 웅크려 뒤 통로를 향한다. 두 사람 기존 부상, 도겸 오른무릎 목도리, 서진 칼집 속 단도 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed side medium Korean wuxia webtoon still of hiding's result in a low side recess. Approved Dogyeom in ochre protects injured RIGHT leg without bearing weight, pale-blue scarf below knee. Behind him approved Seojin in sleeveless teal vest over charcoal under-shirt supports Dogyeom's coat waist, face strained from folding injured LEFT flank. Fresh bloody right-palm print on stone; split lip, dagger sheathed RIGHT waist. No flask, packs, text, bubbles or panels. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed medium Korean wuxia webtoon still of recess and rear downward route. Lantern beyond grille lights blood mark. OUTSIDE lookout_guard examines it: compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. INSIDE Seojin crouches behind Dogyeom toward rear slope. Seojin's split lip, right-palm bleeding and left flank injury persist, dagger sheathed RIGHT waist. Dogyeom's right leg unloaded, pale-blue scarf below knee. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "두 사람은 옆으로 패인 낮은 정비 홈에 몸을 밀어 넣었습니다. 도겸이 다친 다리를 거두는 동안 서진은 겉옷 허리를 받쳤습니다. 옆구리가 접히자 숨이 막혔습니다. 서진의 오른손이 돌을 짚었습니다. 손을 떼자 붉은 자국이 남았습니다. 등불이 돌아왔습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“여기 피가 있습니다.”",
+          "speaker": "lookout_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "숨을 죽였다고 끝나는 일이 아니었습니다. 이번에는 서진이 먼저 도겸을 밀었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“이쪽으로요. 지금.”",
+          "speaker": "seojin"
+        }
+      ],
+      "screen_text": [],
+      "ae": "진입 동작을 늘리지 않고 숨은 결과부터 시작. 등불이 돌아오는 문장에서 상태2로 컷. 보초는 dialogue, 서진의 낮고 급한 지시는 whisper. 내레이션 자막 없이 핏자국과 뒤 경사를 읽힌다. 모든 인물의 머리·얼굴을 보호한다."
+    },
+    {
+      "id": "E03_S04",
+      "location": "정비 홈 뒤 하향 관리 경사 / 물길 옆 돌턱",
+      "setting_category": "low_maintenance_passage_and_exterior_search_path",
+      "visual_states": [
+        "단일 16:9 고정 광각 정지화. 물길과 분리된 좁은 돌턱·벽 쇠고리가 아래로 이어지고 출구는 보이지 않는다. 서진은 왼손으로 쇠고리를 시험한다. 오른손 출혈·입술·왼옆구리 손상, 오른허리 칼집 속 단도 유지. 앞 낮은 자리에 앉은 도겸은 오른다리를 띄우고 무릎 아래 연청 목도리를 유지한다.",
+        "같은 낮은 목재 천장과 쇠고리가 이어진 닫힌 석조 정비 통로 내부. 단일 16:9 같은 축 고정 중경 정지화. 도겸은 왼발과 팔꿈치를 지지해 한 단 아래 돌턱에 도착했고 오른다리는 비체중부하. 서진은 위에서 도겸 황토 겉옷 뒤를 받치며 멈췄다. 분리된 물길, 두 사람 피로와 기존 부상, 칼집 속 단도·오른무릎 목도리 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed wide Korean wuxia webtoon still down cramped maintenance slope. Separate shallow water from narrow human ledge with iron wall rings, no distant exit. Approved Seojin tests ring with LEFT hand, bleeding right palm protected, split lip and injured LEFT flank retained, dagger sheathed RIGHT waist; sleeveless teal vest over charcoal under-shirt. Approved Dogyeom sits ahead, injured right leg unloaded, pale-blue scarf below right knee. Rust dust, no magic, text or bubbles.",
+        "INSIDE the SAME ENCLOSED narrow stone maintenance passage with low timber roof, damp masonry wall and iron hand-rings established in state1. NO sky, outdoor cliff, trees or waterfall. Single full-frame 16:9 fixed medium Korean wuxia webtoon still on same ledge axis. Approved Dogyeom has reached lower foothold using healthy LEFT foot and elbows; RIGHT leg clear, pale-blue knee scarf intact. Approved Seojin remains higher supporting back of ochre coat. Water separate beside ledge. Both exhausted; Seojin's split lip, right-palm injury and left flank injury retained, dagger sheathed RIGHT waist, sleeveless teal vest over charcoal sleeves. No text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "홈 뒤로 물이 빠져나가고 있었습니다. 물길 옆에는 사람이 손을 짚고 내려갈 만큼의 돌턱이 이어졌습니다. 처음부터 짐승이 드나드는 굴이었다면, 벽에 손잡이를 박아 두지는 않았을 겁니다. 서진이 가장 가까운 쇠고리를 당겨 보았습니다. 녹가루가 떨어졌지만 돌에 박힌 밑동은 버텼습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“먼저 내려가. 내가 뒤에서—”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“아래에서 형 다리를 받을 힘이 없어요. 형이 먼저 팔로 버텨 줘야 해요.”",
+          "speaker": "seojin"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸은 더 우기지 않았습니다. 왼발과 팔꿈치로 내려가고, 서진은 뒤에서 옷이 한꺼번에 쏠리지 않게 받쳤습니다. 두 사람은 서로에게 기대면 함께 떨어지는 곳에서, 한 사람이 움직일 동안 다른 사람이 멈추는 법을 익혔습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "일반 dialogue 두 개를 발화 순서대로 표시하고 끊긴 말을 임의 완성하지 않는다. 마지막 내레이션에서 상태2로 컷. 좌우 물길·돌턱 관계를 유지하고 인물 슬라이딩 애니메이션은 사용하지 않는다. 모든 머리·얼굴과 쇠고리를 피한 말풍선."
+    },
+    {
+      "id": "E03_S05",
+      "location": "상부 쇠살 수색길 / 바깥 하부 점검 계단 / 안쪽 경사",
+      "setting_category": "low_maintenance_passage_and_exterior_search_path",
+      "visual_states": [
+        "단일 16:9 고정 바깥 중경 정지화. 승인 수색 무사가 공구로 쇠살 고정핀을 빼는 중이며 핀 끝은 아직 틀에 걸려 있다. 넓은 아래턱·청동 허리띠의 승인 보초는 외부 하부 점검 계단을 향해 돌아섰다. 두 무사 부상 없음. 부상한 서진·도겸은 안쪽 아래 경사에 있어 화면 밖.",
+        "단일 16:9 고정 야외 전신 정지화. 보초가 먼저 외부 계단 아래 지점에 도착해 하부 출구를 향한다. 짧은 배형 얼굴·넓은 아래턱·철청 무복·청동 허리띠·검은 장화, 직검은 칼집 안. 산벽·하늘·소나무 비탈. 수색 무사는 아직 상부 쇠살 쪽 화면 밖이고 두 부상자는 내부 경사.",
+        "단일 16:9 고정 상부 사선 중경 정지화. 고정핀이 틀에서 완전히 분리되어 수색 무사 손에 들려 있고 쇠살은 옆으로 완전히 열려 빈 통로 입구가 보인다. 공구는 옆 돌에 놓였다. 승인 수색 무사가 등불로 빈 안쪽을 확인한다. 보초는 이미 하부 계단, 부상자들은 더 아래 내부에 있어 보이지 않는다.",
+        "단일 16:9 고정 바깥 전신 정지화. 빈 내부 확인을 마친 승인 수색 무사가 열린 쇠살을 뒤로 두고 외부 계단 첫 내려가는 단에 서 있다. 분리된 핀·공구는 열린 틀 옆 돌에 남고 등불과 칼집 속 직검은 무사에게 있다. 보초의 선행 우회와 구분되는 후속 이동 결과. 부상자들은 내부 아래 경사 화면 밖.",
+        "단일 16:9 고정 안쪽 중경 정지화. 서진이 경사에서 멈추고 앞의 도겸이 뒤돌아본다. 도겸 오른다리는 돌턱에 비체중부하로 보호되며 연청 목도리는 무릎 아래. 서진 터진 입술·오른손 출혈·왼옆구리 손상과 오른허리 칼집 속 단도 유지. 두 사람이 서로 매달려 있지 않다."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed exterior medium Korean wuxia webtoon still. Approved broad rectangular clean-shaven search guard works a tool against the upper grille retaining pin, pin still partly engaged. Lookout_guard turns toward exterior descending stairs: compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Both uninjured, plain swords sheathed. Wounded duo offscreen inside lower passage. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed OUTDOOR full-body Korean wuxia webtoon still. Lookout_guard has reached lower maintenance stair landing along mountain rock, before search guard follows. Compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, straight sword sheathed. Open sky and pine slope. Search guard offscreen at upper grille, wounded duo offscreen inside. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed exterior oblique medium Korean wuxia webtoon still of COMPLETED grille opening. Approved search guard holds retaining pin FULLY REMOVED, both ends visibly clear of frame. Iron grille swung completely aside, empty low entrance unobstructed; tool rests on adjacent stone. Guard leans lantern toward empty interior after fugitives descended. Lookout already farther down exterior stairs, injured duo deeper inside and offscreen. Guard uninjured, sword sheathed. No text, bubbles or split panels. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed OUTDOOR full-body Korean wuxia webtoon still AFTER interior inspection. Approved broad rectangular clean-shaven search guard now stands on first descending exterior stair, open grille visible behind. Removed pin and tool remain on stone beside open frame; guard carries lantern, plain sword sheathed, uninjured. This is the FOLLOWING search guard, not the earlier lookout. Lookout already below, wounded duo offscreen inside. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed medium Korean wuxia webtoon still INSIDE descending service ledge. Approved Seojin has stopped behind approved Dogyeom looking back over ochre shoulder. Dogyeom's injured right leg unloaded, pale-blue scarf below knee. Seojin's split lip, bleeding right palm and guarded left flank persist; bent dagger sheathed RIGHT waist, sleeveless teal vest over charcoal sleeves. Separate watercourse, no visible exit. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "위에서 쇠가 돌을 때렸습니다. 무사가 틀에 박힌 고정핀을 두드려 빼고 있었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“아래 점검길로 돌아가. 물 빠지는 쪽을 막아!”",
+          "speaker": "guard"
+        },
+        {
+          "kind": "narration",
+          "text": "서진은 멈췄습니다. 길을 찾고 있는 건 자기들만이 아니었습니다. 무사들은 이 통로 바깥으로 내려가는 계단을 알고 있었습니다. 도겸이 뒤를 돌아보았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“쫓아오면?”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“앞에 있는 놈부터 봐야 해요.”",
+          "speaker": "seojin"
+        }
+      ],
+      "screen_text": [],
+      "ae": "상태1에서 핀 작업, 명령 shout 끝에 상태2로 보초 선행 우회를 확인한다. 발화 추가 없이 짧은 상태3으로 핀 완전 분리·쇠살 개방·수색 무사의 빈 내부 확인을, 상태4로 같은 수색 무사의 후속 외부 계단 진입을 차례로 보여 준다. '서진은 멈췄습니다.'에 상태5. 도겸 reaction, 서진 whisper. 상태3·4는 완료 결과 정지 컷이며 인물 이동 보간을 하지 않는다. 이후 13의 위쪽 계단 발소리는 상태4에서 출발한 수색 무사의 후속 접근이다. 모든 머리·얼굴 제외."
+    },
+    {
+      "id": "E03_S06",
+      "location": "지상 무경 입구 중개소",
+      "setting_category": "entrance_clerk_office",
+      "visual_states": [
+        "단일 16:9 고정 지상 중경 정지화. 밝은 목조 중개소에서 승인 서리가 장부·동전 앞에 붓을 멈춘다. 옆 checkpoint_guard는 높은 넓은 이마·좁고 평평한 턱·수염 없는 승인 얼굴, 철청 무복·검은 허리띠·짙은 청색 머리끈. 두 사람 부상 없음. 장부 면은 글자 없이 비운다.",
+        "단일 16:9 같은 책상 고정 사선 근경 정지화. 서리는 두 행을 정리한 뒤 장부를 내려다보고 먹 묻은 오른손에 대나무 붓을 든다. 동일한 면도한 checkpoint_guard가 옆에 서 있다. 동전 유지, 부상 없음. 행 배치만 보이며 모든 문자는 독립 편집 레이어용으로 비운다."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed medium Korean wuxia webtoon still in bright surface gate outpost timber booth. Approved elderly round-faced clerk, wine cap, gray side whiskers and burgundy vest, pauses bamboo brush above ledger and copper coins. Beside him checkpoint_guard: lean wiry male45, tall wide forehead tapering to flat narrow chin, low narrow deep eyes, fine short brows, short narrow flat nose, thin downturned mouth, long philtrum, CLEAN-SHAVEN, dark-blue-bound compact black bun, iron-blue robe and BLACK belt. Both uninjured, blank ledger for separate overlays, no text or bubbles. MASTER FINAL REFERENCE OVERRIDE for checkpoint_guard: Male45 slim adult body; short broad face, broad squared chin and low normal forehead, firm cheek planes, normal-size wide-spaced slightly downturned oval eyes, low fine brows, broad flat adult nose with wide nostrils and low bridge, small downturned medium-fullness mouth, clean-shaven. Blue-bound black bun, iron-blue robe, black belt. Final identity reference checkpoint_guard-v3.png. Any earlier facial wording is superseded; never add a character absent from the primary state. FINAL REVISION4 SUPERSEDES prior facial wording: Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png.",
+        "Single full-frame 16:9 fixed oblique close Korean wuxia webtoon still of same daylight timber booth. Approved clerk looks down after marking two ledger rows, bamboo brush in ink-stained right hand, copper coins nearby. SAME checkpoint_guard stands beside counter: lean wiry male45, wide high forehead, flat narrow chin, low narrow deep eyes, fine short brows, short narrow flat nose, thin downturned mouth, long philtrum, clean-shaven, dark-blue-bound compact black bun, iron-blue robe, black belt. Both uninjured. Ledger rows visible but source art entirely unlettered. No bubbles. MASTER FINAL REFERENCE OVERRIDE for checkpoint_guard: Male45 slim adult body; short broad face, broad squared chin and low normal forehead, firm cheek planes, normal-size wide-spaced slightly downturned oval eyes, low fine brows, broad flat adult nose with wide nostrils and low bridge, small downturned medium-fullness mouth, clean-shaven. Blue-bound black bun, iron-blue robe, black belt. Final identity reference checkpoint_guard-v3.png. Any earlier facial wording is superseded; never add a character absent from the primary state. FINAL REVISION4 SUPERSEDES prior facial wording: Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "그 시각, 입구 중개소에서는 탐사 품삯을 정리하고 있었습니다. 서리는 돌아온 지게 수를 적고, 사람 이름 옆에 붓을 가져갔습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“서진하고 도겸은 아직—”",
+          "speaker": "clerk"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“석실이 닫혔다. 대장님 보고대로 적어.”",
+          "speaker": "checkpoint_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "서리는 잠깐 붓을 멈췄습니다. 그러고는 두 이름 옆에 같은 표시를 남겼습니다. 아래에서는 두 사람이 서로의 숨을 확인하며 기어가고 있었습니다."
+        }
+      ],
+      "screen_text": [
+        {
+          "kind": "diegetic_system",
+          "text": "서진  사망\n도겸  사망",
+          "state_index": 2,
+          "anchor": "그러고는 두 이름 옆에 같은 표시를 남겼습니다.",
+          "treatment": "장부 면의 두 행에만 붙는 편집 가능한 먹색 붓글씨. 서류상 허위 사망 정리임을 보이는 소품 문자이며 실제 사망 판정 HUD가 아니다. 종이 원근에 맞추고 붓끝·손·모든 머리와 얼굴을 피한다. 고정 크기·회전, 짧은 노출 후 컷으로 종료."
+        }
+      ],
+      "ae": "명확한 지상 공간으로 하드 컷. 서리 dialogue와 보고 무사 dialogue를 분리. 사망 정리 문장에서 상태2와 장부 레이어를 노출한다. 마지막 문장은 책상 위 정지 상태와 아래쪽 물소리로 대비하고 지하 삽입 원화를 추가하지 않는다. 문서 문자 외 내레이션 자막 없음."
+    },
+    {
+      "id": "E03_S07",
+      "location": "하부 점검문 안쪽 / 바깥 돌계단 접점",
+      "setting_category": "lower_inspection_doorway_with_outdoor_steps",
+      "visual_states": [
+        "단일 16:9 고정 사선 광각 정지화. 안쪽 서진과 도겸, 정면 높은 외부 문턱 발판 위의 보초를 구분한다. 보초는 넓은 아래턱의 승인 얼굴·청동 허리띠, 부상 없이 길을 막는다. 옆 위 덧문은 줄에 매달리고 반대편 하단 철 보강부가 걸릴 돌받침이 보인다. 측면 낮은 배수 홈은 정면 발판 옆 아래 돌턱을 거쳐 더 낮은 야외 작업터로 이어진다. 발판에서 아래 돌턱으로 가는 가까운 틈은 덧문 옆이고, 다른 길은 발판 뒤 좁은 외부 계단 우회이다. 서진 기존 세 부상·칼집 속 단도, 도겸 오른다리 비체중부하·연청 목도리 유지.",
+        "단일 16:9 같은 축 고정 중경 정지화. 서진은 도겸 앞 안쪽에서 왼손으로 오른허리 칼집에서 뽑은 짧고 휜 단도를 쥔다. 출혈 오른손은 오므리지 못하고 오른 칼집은 비었다. 입술·왼옆구리 부상, 도겸 오른다리 비체중부하·목도리 유지. 보초는 높은 바깥 발판, 줄에 매달린 덧문·측면 낮은 배수 홈·아래 작업터의 높이 차 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed oblique wide Korean wuxia webtoon still from INSIDE low inspection doorway. Approved injured Seojin and Dogyeom inside; lookout_guard OUTSIDE on RAISED threshold landing, compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, sheathed sword. Timber shutter suspended by rope above side of doorway; opposite bottom iron brace and stone bearing seat visible. LOW SIDE DRAIN opens onto lower stone lip BELOW landing, then open yard below. Narrow shortcut beside shutter connects raised landing to lower lip; alternate route returns along narrow landing to exterior stair bend. Seojin split lip, torn right palm, injured left flank, dagger sheathed RIGHT waist, sleeveless teal vest over charcoal sleeves. Dogyeom right leg unloaded, pale-blue scarf below knee. No text, arrows or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed medium Korean wuxia webtoon still on same axis. INSIDE approved Seojin shields approved Dogyeom and holds original shortened bent dagger in LEFT hand, drawn from EMPTY RIGHT waist sheath. Torn bleeding right palm open, split lip and left flank injury retained, sleeveless teal vest over charcoal under-shirt. Dogyeom's injured right leg unloaded, pale-blue scarf below knee. OUTSIDE on RAISED landing stands healthy lookout_guard, compact, short pear face, broad lower jaw, cleft chin, small upturned outer eyes, broad flat short nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Suspended shutter, rope, low side drain, lower lip and yard remain geographically consistent. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "먼저 달라진 건 냄새였습니다. 젖은 돌 냄새 사이로 나무껍질과 흙냄새가 들어왔습니다. 낮아지던 천장 끝에 흐린 바깥 빛이 걸렸습니다. 도겸이 얼굴을 들었습니다. 문 바로 너머에서 장화가 돌아섰습니다. 그들이 내려온 물길과 바깥 계단이 여기서 만났습니다. 보초 무사가 먼저 와 있었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“거기 있었군.”",
+          "speaker": "lookout_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "서진은 도겸을 자기 뒤에 붙였습니다. 오른손이 칼집으로 갔다가 멈췄습니다. 손바닥이 손잡이를 쥘 수 없었습니다. 그는 왼손으로 짧아진 단도를 뽑았습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "상태1에서 안쪽 통로·높은 바깥 문턱 발판·낮은 측면 배수 돌턱·그 아래 작업터·뒤로 돌아가는 좁은 외부 계단을 한 축에서 읽힌다. 덧문 옆 가까운 틈과 반대편 하단 돌받침도 미리 보인다. 보초 dialogue. 마지막 문장에서 상태2로 왼손 발도 결과. 칼집 좌우 반전 금지. 모든 머리·얼굴 제외."
+    },
+    {
+      "id": "E03_S08",
+      "location": "하부 점검문 문턱 안팎",
+      "setting_category": "lower_inspection_doorway_with_outdoor_steps",
+      "visual_states": [
+        "단일 16:9 고정 측면 중경 정지화. 안쪽 서진 왼손 단도 끝이 바깥으로 밀려났고 높은 바깥 발판의 건강한 보초가 직검을 유지한다. 안쪽 뒤 도겸은 오른다리 비체중부하·연청 목도리. 서진 오른 칼집 비어 있고 기존 세 부상 유지. 매달린 덧문·줄·낮은 측면 배수구 위치 유지.",
+        "단일 16:9 같은 축 고정 중경 정지화. 어깨를 맞은 서진이 안쪽 벽에 부딪친 결과, 왼옆구리 혈흔이 번지고 왼손 단도는 남는다. 터진 입술·오른손 상처·빈 오른 칼집 유지. 도겸은 안쪽 뒤에 오른다리 비체중부하. 보초는 높은 외부 발판에 균형 있게 서 있고 덧문·줄은 그대로."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed side medium Korean wuxia webtoon still. Seojin INSIDE, bent dagger in LEFT hand deflected outward, right palm bleeding, lip split, left flank injured, RIGHT sheath empty; sleeveless teal vest over charcoal sleeves. Healthy lookout_guard OUTSIDE on RAISED landing controls exchange with straight sword: compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Dogyeom farther inside, right leg unloaded, pale-blue knee scarf. Suspended shutter, rope and lower side drain unchanged. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed side medium Korean wuxia webtoon still of failed exchange RESULT. Seojin INSIDE against stone wall after shoulder hilt strike, bent dagger still LEFT hand, darker blood spreading LEFT flank, torn right palm and split lip, empty RIGHT sheath; sleeveless teal vest over charcoal sleeves. Dogyeom behind inside, right leg unloaded and pale-blue scarf below knee. Lookout_guard upright OUTSIDE on raised landing, uninjured, compact short pear face with broad lower jaw, cleft chin, small upturned outer eyes, broad flat short nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, sword in hand. Shutter and rope unchanged. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "text": "“그걸로 뭘 하려고.”",
+          "speaker": "lookout_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "무사는 곧바로 칼을 휘두르지 않았습니다. 먼저 서진의 짧은 칼끝을 바깥으로 밀었습니다. 서진은 검이 돌아올 자리를 보고 몸을 옮겼습니다. 석상에게서 살아남을 때 보았던 순간이었습니다. 하지만 사람의 손목은 멈추지 않았습니다. 무사는 검을 거두는 대신 발을 바꿔 디뎠습니다. 검 손잡이가 서진의 어깨를 때렸습니다. 서진이 벽에 부딪쳤습니다. 왼쪽 옆구리에서 뜨거운 것이 번졌습니다."
+        },
+        {
+          "kind": "narration",
+          "text": "같은 자리에 칼을 세우면 될 줄 알았습니다. 상대는 같은 공격을 끝까지 해 주지 않았습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "보초 dialogue 후 첫 제압 상태를 홀드. 어깨 타격 문장에서 상태2로 하드 컷하고 짧은 둔탁한 타격음만 추가. 팔·검을 보간하지 않는다. 진화록 안내·각성·승리 효과 없음. 모든 머리·얼굴을 피한 말풍선."
+    },
+    {
+      "id": "E03_S09",
+      "location": "하부 점검문 안쪽 벽과 매달린 덧문",
+      "setting_category": "lower_inspection_doorway_with_outdoor_steps",
+      "visual_states": [
+        "단일 16:9 고정 중경 정지화. 안쪽 도겸은 앉아 다친 오른다리를 비체중부하로 받치고 왼발과 팔로 서진을 붙든다. 연청 목도리는 오른무릎 아래. 서진 왼손 단도·빈 오른 칼집·어깨 타박·왼옆구리 출혈·입술·오른손 상처 유지. 건강한 보초는 높은 바깥 발판, 덧문은 줄에 매달림.",
+        "단일 16:9 고정 사선 중경 정지화. 높은 바깥 발판 보초는 안쪽 도겸을 보고 서진은 매달린 덧문·고정줄·쓸린 흙을 본다. 낮은 측면 배수 홈과 발판 아래 돌턱, 반대편 하단 보강쇠 돌받침이 함께 보인다. 서진 왼손 단도와 기존 부상·빈 오른 칼집, 도겸 비체중부하 오른다리·목도리 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed medium Korean wuxia webtoon still. INSIDE seated Dogyeom supports Seojin with arms and healthy LEFT foot, RIGHT leg unloaded, pale-blue scarf below knee. Seojin holds bent dagger LEFT hand, RIGHT sheath empty, shoulder bruised, LEFT flank bleeding, lip split, right palm torn; sleeveless teal vest over charcoal sleeves. OUTSIDE raised landing healthy lookout_guard demands surrender: compact, short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, straight sword. Timber shutter hangs on original rope. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed oblique medium Korean wuxia webtoon still. Lookout_guard OUTSIDE on raised landing looks toward Dogyeom INSIDE; compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, broad flat short nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. INSIDE Seojin studies shutter rope and washed soil, dagger LEFT hand, empty RIGHT sheath, bleeding right palm open, split lip, bruised shoulder and bleeding LEFT flank. Dogyeom injured right leg unloaded, pale-blue knee scarf. Show low side drain opening to lower lip below raised landing and shutter's opposite bottom brace bearing seat. No text, diagrams or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "text": "“칼 버려. 걸을 수 있는 놈부터 나온다.”",
+          "speaker": "lookout_guard"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“못 걷는 사람은요?”",
+          "speaker": "seojin"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“네 걱정이나 해.”",
+          "speaker": "lookout_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸이 서진의 옷을 놓았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“나부터 내보내. 저놈은 다쳤다. 칼도 못 쥐어.”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "narration",
+          "text": "무사의 시선이 도겸에게 갔습니다. 서진은 그 짧은 사이 바깥을 보았습니다. 문 옆에 매달린 낡은 목재 덧문, 그것을 받친 고정줄, 아래로 쓸려 내려간 흙. 짐을 올려 매달아 놓은 곳에서는, 줄 아래 서지 말라고 배웠습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "보초 dialogue, 서진 reaction, 도겸 단호한 dialogue를 순서대로 노출. 보초의 시선 문장에서 상태2. 줄에 발광 표시나 자동 해법 안내를 넣지 않는다. 말풍선은 모든 머리·얼굴뿐 아니라 줄과 배수 홈의 읽힘도 보호."
+    },
+    {
+      "id": "E03_S10",
+      "location": "하부 점검문 안쪽 / 덧문 고정줄",
+      "setting_category": "lower_inspection_doorway_with_outdoor_steps",
+      "visual_states": [
+        "단일 16:9 고정 측면 중경 정지화. 안쪽 서진은 왼손 단도를 낮춰 포기하는 자세, 건강한 보초는 높은 외부 문턱으로 들어서려 하지만 발은 바깥에 남는다. 도겸은 안쪽 뒤, 오른다리 비체중부하·연청 목도리. 서진 어깨·옆구리·입술·오른손 부상과 빈 오른 칼집. 가까이 기존 줄·매달린 덧문.",
+        "단일 16:9 고정 근경 정지화. 낮춘 서진의 왼손 단도가 같은 줄의 두 번째 절단 지점에 있고 속섬유가 터진 직후이다. 눈가 돌가루, 검은 어깨 위 벽에 닿고 보초 몸과 발은 높은 바깥 발판에 남는다. 도겸 안쪽 뒤, 오른다리 비체중부하·목도리 유지. 서진 기존 부상·빈 칼집, 아직 떨어지기 직전 덧문과 낮은 배수 홈."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed side medium Korean wuxia webtoon still. INSIDE Seojin lowers shortened bent dagger in LEFT hand as if surrendering. Healthy lookout_guard OUTSIDE on raised landing prepares to cross but feet remain outside: compact, short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, straight sword. Dogyeom farther inside, right leg unloaded, pale-blue knee scarf. Original shutter rope within reach. Seojin bleeding right palm, split lip, shoulder bruise, LEFT flank bleeding, empty RIGHT sheath; sleeveless teal vest over charcoal sleeves. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed close Korean wuxia webtoon still of SECOND rope cut result. Seojin crouches INSIDE, stone dust at eyes, bent dagger LEFT hand at same abraded rope section with inner fibers newly torn. Split lip, torn right palm, shoulder bruise, LEFT flank bleeding, empty RIGHT sheath. Lookout_guard's sword extends from raised OUTSIDE landing into wall above shoulder; body and feet outside, compact broad-jawed short pear face, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Dogyeom behind inside, injured right leg unloaded, pale-blue knee scarf. Shutter still suspended at release instant, side drain unchanged. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "서진은 단도를 아래로 내렸습니다. 칼을 버리려는 것처럼 손목의 힘도 풀었습니다. 무사가 문턱을 넘어오려 했습니다. 서진은 무사의 옆이 아니라 고정줄에 칼을 댔습니다. 짧은 날로 한 번 그었습니다. 젖은 겉섬유만 벗겨졌습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“이 새끼가!”",
+          "speaker": "lookout_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "서진이 몸을 낮췄습니다. 검이 어깨 위 벽을 쳤습니다. 돌가루가 눈에 들어왔습니다. 보이지 않는 채로, 그는 같은 자리를 한 번 더 그었습니다. 줄 속에서 마른 섬유가 터지는 소리가 났습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "상태1 홀드에서 첫 절단 실패는 줄 마찰음으로 전달. 보초는 shout. 두 번째 절단 문장에서 상태2로 컷하여 첫 실패와 재시도의 결과 차이를 보인다. 새 장치를 추가하지 않는다. 모든 머리·얼굴 제외, 짧고 이음새 없는 꼬리."
+    },
+    {
+      "id": "E03_S11",
+      "location": "하부 점검문 / 비스듬히 걸린 목재 덧문",
+      "setting_category": "lower_inspection_doorway_with_outdoor_steps",
+      "visual_states": [
+        "단일 16:9 고정 측면 광각 정지화. 떨어진 덧문이 문턱에 비스듬히 걸리고 반대편 하단 보강쇠가 돌받침에 접해 단도 손잡이를 누른다. 들어 올릴 쪽 끝과 단도가 눌린 반대쪽 바닥 접점을 함께 보인다. 건강한 보초는 높은 바깥 발판 뒤로 물러났다. 안쪽 서진·도겸과 낮은 측면 배수 틈 유지. 서진 왼손 빈손·빈 오른 칼집·네 부상, 도겸 오른다리 비체중부하·연청 목도리.",
+        "단일 16:9 같은 축 고정 중경 정지화. 안쪽 도겸이 서진 먹색 저고리 소매를 잡아 단도 회수를 막고 서진은 빈손을 거둔다. 청록 겉옷은 민소매. 높은 발판 보초의 직검 끝만 위쪽 덧문 틈으로 들어온다. 단도는 하단 고정 접점 아래, 낮은 배수 틈은 남는다. 두 사람 부상·목도리·빈 오른 칼집 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed side wide Korean wuxia webtoon still of fallen shutter RESULT. Timber shutter lies TILTED across threshold; its OPPOSITE BOTTOM iron brace bears against stone seat and pins original bent dagger's wooden grip at floor level. Show both this grounded contact and the other free end later lifted. Healthy lookout_guard stepped back on RAISED exterior landing, compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, sword in hand. Seojin and Dogyeom INSIDE; Seojin LEFT hand empty, RIGHT sheath empty, split lip, torn right palm, shoulder bruise, LEFT flank bleeding. Dogyeom right leg unloaded, pale-blue knee scarf. Low side drain remains to lower lip below landing. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed medium Korean wuxia webtoon still. INSIDE tilted shutter, Dogyeom grips Seojin's CHARCOAL UNDER-SHIRT sleeve, stopping retrieval; teal vest stays SLEEVELESS. Seojin withdraws empty hand, RIGHT sheath empty, split lip, torn right palm, bruised shoulder, bleeding LEFT flank. Dogyeom's injured right leg unloaded, pale-blue scarf below knee. Original dagger pinned at GROUNDED opposite bottom brace/stone contact. OUTSIDE raised landing healthy lookout_guard pushes sword tip through upper gap; compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Lower side drain visible. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "덧문이 떨어졌습니다. 무사는 뒤로 물러났습니다. 나무와 보강쇠가 낮은 문턱에 비스듬히 걸렸고, 서진의 왼손에서도 단도가 떨어졌습니다. 내려앉은 보강쇠가 손잡이를 눌렀습니다. 서진이 손을 뻗자 도겸이 소매를 잡았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“칼이냐, 우리냐!”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "narration",
+          "text": "서진은 빈손을 거뒀습니다. 무사의 검이 덧문 틈으로 들어왔습니다. 문이 크게 흔들렸습니다. 저것을 무너뜨리는 데 오래 걸리지는 않을 겁니다."
+        }
+      ],
+      "screen_text": [
+        {
+          "kind": "sfx",
+          "text": "쿵",
+          "state_index": 1,
+          "anchor": "덧문이 떨어졌습니다.",
+          "treatment": "문턱 옆 빈 돌면에 짙은 갈색 굵은 글자. 편집 가능한 크기·색·외곽선·회전 0도, 타격 순간 짧게 등장 후 빠르게 사라짐. 모든 머리·얼굴·단도 손잡이를 피하고 강조 크기에서도 침범하지 않음."
+        }
+      ],
+      "ae": "낙하 결과로 하드 컷하며 단발 충격음과 짧은 프레임 진동 후 즉시 고정. 소매를 잡는 문장에서 상태2. 도겸 shout. 단도 손실을 분명히 보인다. 단도가 눌린 반대편 하단 접점은 이후 한쪽 끝을 들어도 바닥에서 떨어지지 않는다. 승리 연출 없이 보초의 검과 목재 마찰음으로 시간 제한을 전달한다."
+    },
+    {
+      "id": "E03_S12",
+      "location": "하부 점검문 측면 배수 틈 / 높은 외부 문턱 발판 / 낮은 돌턱 아래 작업터",
+      "setting_category": "lower_inspection_doorway_with_outdoor_steps",
+      "visual_states": [
+        "단일 16:9 고정 측면 광각 정지화. 보초는 높은 외부 문턱 발판에 두 발을 두고 직검을 발판 뒤에 내려놓은 채 덧문 자유 끝을 양손으로 들어 올렸다. 반대편 하단 보강쇠는 돌받침에 그대로 눌려 단도 손잡이를 계속 가둔다. 도겸은 낮은 측면 배수 틈을 지나 머리·왼팔만 아래쪽 바깥 돌턱에 나왔고 다친 오른다리는 안쪽. 서진은 안에서 다리 쪽 옷자락을 받친다. 서진 입술·오른손·어깨·왼옆구리 부상과 빈 오른 칼집, 도겸 비체중부하 다리·목도리. 청록 겉옷은 민소매, 먹색 저고리 소매는 아직 온전.",
+        "단일 16:9 같은 축 고정 광각 정지화. 도겸이 완전히 낮은 바깥 돌턱으로 빠진 뒤 덧문 자유 끝이 첫 번째로 다시 내려앉은 결과. 도겸은 발판보다 아래에 누워 오른다리를 비체중부하로 보호하고 목도리를 유지한다. 서진은 아직 안쪽에 웅크려 있다. 높은 발판 보초의 양손은 덧문에서 떨어져 있고 직검은 발판 뒤. 반대편 바닥 접점의 단도는 그대로 눌려 있다. 서진 네 부상·빈 칼집과 온전한 먹색 소매 유지.",
+        "단일 16:9 같은 축 고정 광각 정지화. 보초가 같은 자유 끝을 두 손으로 다시 들어 올린 완료 상태. 반대편 하단 보강쇠는 같은 돌받침에 남아 단도를 계속 누르고 덧문 전체는 열리지 않는다. 서진은 넓어진 낮은 측면 틈으로 상체만 내밀어 아래 돌턱을 팔뚝으로 누르며 신발은 안쪽. 도겸은 더 아래 돌턱 옆으로 몸을 비켜 오른다리를 보호한다. 보초 두 발은 높은 발판, 직검은 뒤. 서진 네 부상·빈 오른 칼집, 도겸 목도리 유지.",
+        "단일 16:9 같은 축 고정 중경 정지화. 높은 발판 보초는 왼손으로 덧문 자유 끝을 지지하고 오른손만 떼어 아래로 뻗어 서진 먹색 저고리 소매 끝을 잡았다. 다른 하단 접점은 단도를 누르며 계속 바닥에 남는다. 서진 상체는 낮은 돌턱에 있고 발끝은 배수 틈 안쪽, 팔을 접은 상태에서 젖은 먹색 소매 끝이 찢어져 보초 손에는 작은 먹색 천 조각이 남은 정지 순간. 청록 민소매 겉옷은 그대로. 도겸은 아래 돌턱 옆에 누워 오른다리 비체중부하·목도리 유지. 서진 네 부상·빈 칼집, 발판 뒤 검 유지.",
+        "단일 16:9 같은 축 고정 광각 정지화. 서진 신발 끝까지 배수 틈에서 완전히 나온 뒤 보초가 남은 왼손 지지도 놓아 자유 끝이 최종 내려앉은 결과. 서진·도겸은 낮은 돌턱 바깥 가장자리에 완전히 있으며 덧문과 몸이 겹치지 않는다. 보초는 높은 발판에 남고 양손은 목재에서 떨어졌으며 오른손에 먹색 천 조각. 단도는 반대편 하단 보강쇠 아래 그대로, 직검은 발판 뒤. 서진 찢긴 먹색 소매·청록 민소매 겉옷·네 부상·빈 오른 칼집, 도겸 비체중부하 오른다리·연청 목도리 유지.",
+        "단일 16:9 고정 야외 측면 광각 정지화. 두 사람이 낮은 돌턱 아래 작업터로 몸을 옮겨 도착한 결과. 서진은 팔뚝과 무릎으로, 도겸은 팔과 왼발로 지지한 낮은 자세이며 오른다리는 비체중부하. 서진 찢긴 먹색 저고리 소매·청록 민소매 겉옷·네 부상·빈 오른 칼집, 도겸 목도리 유지. 뒤 위쪽 보초는 높은 좁은 발판에 남고 덧문이 발판에서 배수 돌턱으로 가는 가까운 틈을 막는다. 옆의 연속된 돌옹벽 때문에 작업터로 곧장 걸어 내려갈 수 없고 발판을 되돌아 외부 계단 굽이를 거쳐 내려와야 한다. 보초 손의 먹색 천 조각·발판 뒤 직검·바닥 보강쇠 아래 단도 위치 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed side wide Korean wuxia webtoon still, exact established height topology. Healthy lookout_guard stands with BOTH FEET on RAISED exterior threshold landing and lifts ONLY shutter's FREE END with BOTH HANDS. Sword laid on landing BEHIND him. Lookout: compact male32, short pear face, broad lower jaw, blunt cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, BRONZE belt, black boots. OPPOSITE BOTTOM brace remains grounded against same stone bearing seat, visibly PINNING dagger grip throughout partial lift. Dogyeom lies through LOW SIDE DRAIN BELOW landing, head and left arm on LOWER exterior lip, injured right leg inside, pale-blue scarf below knee. Seojin wholly inside supports coat by injured leg, split lip, torn right palm, bruised shoulder, bleeding LEFT flank, EMPTY RIGHT sheath. His charcoal under-shirt sleeves intact beneath sleeveless teal vest. One static instant, no text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed side wide Korean wuxia webtoon still of FIRST RE-DROP after Dogyeom passes. Shutter free end has SETTLED back on threshold, low side drain still present. Dogyeom COMPLETELY OUTSIDE on LOWER stone lip BELOW raised landing, right leg unloaded, pale-blue knee scarf. Seojin still INSIDE crouched, split lip, torn right palm, shoulder bruise, bleeding LEFT flank, empty RIGHT sheath, intact charcoal sleeves under sleeveless teal vest. Lookout on RAISED landing has BOTH HANDS clear of shutter, sword behind on landing; compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Dagger remains pinned at opposite GROUNDED bottom brace contact. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed side wide Korean wuxia webtoon still of EXPLICIT SECOND LIFT. Same healthy lookout has RE-LIFTED SAME FREE END with BOTH HANDS, both feet on RAISED landing; sword behind. Compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Opposite bottom brace stays on stone seat pinning dagger grip, whole shutter never lifted clear. Seojin's upper body through LOW SIDE DRAIN onto LOWER stone lip, forearms braced on stone, feet INSIDE; split lip, torn right palm, shoulder bruise, LEFT flank scraping sill and bleeding, empty RIGHT sheath, intact charcoal sleeves beneath sleeveless teal vest. Dogyeom lies aside on lower lip, injured right leg unloaded, pale-blue scarf below knee. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed side medium Korean wuxia webtoon still AFTER one-hand release and sleeve tear. Lookout's LEFT HAND alone supports shutter FREE END; RIGHT HAND has left wood and reached DOWN from raised landing, now holding ONLY a torn CHARCOAL UNDER-SHIRT sleeve-tip scrap after Seojin folds arm. Lookout compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, both feet raised landing. Opposite grounded brace still pins dagger. Seojin torso on LOWER lip, toes still inside low drain; CHARCOAL sleeve cuff torn, TEAL VEST STILL SLEEVELESS. Split lip, torn right palm, bruised shoulder, bleeding LEFT flank, empty RIGHT sheath. Dogyeom lies aside below, unloaded right leg and pale-blue knee scarf. Sword behind lookout on landing. No motion montage, text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed side wide Korean wuxia webtoon still of FINAL RE-DROP, separate from sleeve-grab instant. Seojin's shoes now COMPLETELY CLEAR low side drain; both fugitives wholly on LOWER lip, no body intersects timber. Lookout has released remaining LEFT supporting hand; BOTH HANDS clear of shutter, RIGHT hand retains charcoal cloth scrap. Free end settled TILTED across threshold and shortcut, opposite bottom brace STILL pins dagger grip. Lookout stands on RAISED landing, uninjured, compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Sword lies behind. Seojin ripped CHARCOAL sleeve, sleeveless TEAL vest, split lip, torn right palm, shoulder bruise, bleeding LEFT flank, empty RIGHT sheath. Dogyeom right leg unloaded, pale-blue scarf below knee. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state.",
+        "Single full-frame 16:9 fixed OUTDOOR side wide Korean wuxia webtoon still of RESULT BELOW LOWER LIP. Seojin and Dogyeom have moved down onto open work-yard earth BELOW drainage lip, Seojin braced on forearms and knees, Dogyeom on arms and healthy LEFT foot, injured RIGHT leg unloaded with pale-blue scarf below knee. Seojin torn CHARCOAL under-shirt sleeve, sleeveless teal vest, split lip, torn right palm, bruised shoulder, bleeding LEFT flank, EMPTY RIGHT sheath. ABOVE them healthy lookout remains on RAISED narrow threshold landing, charcoal scrap in right hand, sword behind. Compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, short broad flat nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots. Fallen shutter blocks NEAR shortcut from landing to drain lip; continuous retaining stone wall prevents direct walk down. Visible alternate path goes BACK along narrow landing around exterior stair bend to yard. Dagger remains at grounded bottom bracing above. Open sky, no text, arrows or bubbles. MASTER FINAL REFERENCE OVERRIDE for lookout_guard: Male32 compact adult body; wide-upper heart face, narrow rounded chin and delicate lower jaw, large round wide-spaced eyes, fine brows, long thin downturned narrow-bridge nose, small cupid-bow mouth, no facial hair. Small black bun, iron-blue robe and bronze belt. Final identity reference lookout_guard-v2.png. Any earlier facial wording is superseded; never add a character absent from the primary state."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "덧문은 물길 아래까지 막지 못했습니다. 도겸이 먼저 몸을 눕혔습니다. 무사가 검을 내려놓고 양손으로 문을 들어 올렸습니다. 한쪽 끝만 들리면서, 물이 빠지는 옆 틈이 조금 더 벌어졌습니다. 도겸은 왼팔로 바깥 돌을 붙잡고 몸을 끌었습니다. 다친 다리가 걸리자 서진이 옷자락을 받쳤습니다. 바로 뒤에서 문이 다시 떨어졌습니다. 이번에는 서진이었습니다. 옆구리가 문턱을 스쳤습니다. 그는 바깥으로 뻗은 도겸의 손을 잡지 않고, 그 아래 돌을 팔뚝으로 눌렀습니다. 도겸을 끌고 다시 안으로 떨어질 수는 없었습니다. 바깥 무사가 서진을 보았습니다. 덧문에서 한 손을 떼어 소매를 낚아챘습니다. 서진이 팔을 접자 젖은 겉옷의 소매 끝이 찢어졌습니다. 손아귀에 천 조각만 남았습니다. 신발 끝이 빠진 순간, 두 사람 뒤로 덧문이 내려앉았습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "6개 결과 정지 컷을 순서대로 사용한다. 양손 첫 들림·도겸 통과는 상태1. '바로 뒤에서 문이 다시 떨어졌습니다.'에 상태2로 첫 재낙하를 명확히 보인다. '이번에는 서진이었습니다.'에서 상태3으로 같은 끝을 양손 재상승시킨 결과를 별도 확인한다. 재상승에 새 발화는 넣지 않는다. '덧문에서 한 손을 떼어'부터 상태4로 오른손 이탈·먹색 저고리 소매 잡기·천 조각 결과를 연결하고 왼손 지지는 유지한다. '신발 끝이 빠진 순간'에 상태5로 발끝 완전 통과와 남은 왼손 지지 해제 후 최종 재낙하 결과를 제시한다. 이어 상태6으로 낮은 돌턱 아래 작업터 도착을 짧게 확인해 13으로 잇는다. 반대편 하단 보강쇠의 단도 압착 접점은 전 상태에서 바닥에 남는다. 보초는 높은 발판, 탈출자는 낮은 배수 돌턱 아래이며 덧문은 가까운 내려가는 틈을 막아 계단 우회를 요구한다. 같은 평면의 보초를 문이 가로막는 연출 금지. 원문 blocks의 발화는 보존하되 시각적으로 찢기는 옷은 먹색 저고리 소매로 통일하고 청록 겉옷은 민소매 유지. 팔다리 보간·보초 제압·무기 회수 없음."
+    },
+    {
+      "id": "E03_S13",
+      "location": "야외 산비탈 옛 운반 작업터 / 하부 문과 외부 계단",
+      "setting_category": "outdoor_mountain_transport_yard",
+      "visual_states": [
+        "단일 16:9 고정 야외 광각 정지화. 열린 하늘 아래 두 사람이 낮은 배수 돌턱 아래 작업터에 있다. 서진 찢긴 먹색 저고리 소매·청록 민소매 겉옷·입술·오른손·어깨·왼옆구리 부상과 빈 오른 칼집, 도겸 오른다리 비체중부하·무릎 아래 목도리. 뒤 위쪽 덧문과 높은 발판, 낮은 배수 돌턱의 차이를 보인다. 보초는 높은 발판에서 계단 우회 쪽으로 돌아서고 수색 무사는 더 위 계단에 접근한 위치. 단도는 하단 보강쇠 아래, 보초 직검은 발판 뒤. 아래로 운반길.",
+        "단일 16:9 고정 야외 중경 정지화. 도겸은 왼발로 버티고 오른다리를 들며 서진 어깨를 잡았다. 서진은 업지 않고 어깨를 맞대 운반길로 몸을 돌린 결과. 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 오른 칼집, 도겸 목도리 유지. 뒤 위쪽 덧문·높은 발판과 외부 계단, 열린 하늘·소나무 비탈."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR wide Korean wuxia webtoon still under open sky. Approved Seojin and Dogyeom in work yard BELOW low drainage lip. Seojin torn CHARCOAL sleeve under SLEEVELESS teal vest, EMPTY RIGHT sheath, split lip, torn right palm, bruised shoulder, bleeding LEFT flank. Dogyeom right leg unloaded, pale-blue scarf below knee. Behind ABOVE, tilted shutter blocks near route from RAISED landing to low lip; retaining wall and alternate exterior stair bend visible. Lookout turns toward detour on raised landing, compact short pear face, broad lower jaw, cleft chin, small upturned outer eyes, broad flat short nose, full asymmetric lips, clean-shaven, small black topknot, iron-blue robe, bronze belt, black boots, charcoal scrap in hand; sword remains behind on landing. Approved broad rectangular search guard farther UP stairs with lantern. Dagger remains under bottom brace. Downhill freight road ahead, no text or bubbles.",
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still. Dogyeom balances healthy LEFT foot, injured RIGHT leg clear, pale-blue scarf below knee, gripping Seojin's shoulder. Seojin stands shoulder-to-shoulder rather than carrying, turned toward downhill path. Torn CHARCOAL under-shirt sleeve, SLEEVELESS teal vest, EMPTY RIGHT sheath, split lip, torn right palm, bruised shoulder, bleeding LEFT flank. Open sky and pines, shuttered raised doorway and exterior stair detour behind above; guards outside crop. No healed bodies, text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "바람이 얼굴을 때렸습니다. 서진은 고개를 들었습니다. 머리 위에 돌이 없었습니다. 도겸은 웃으려다 기침했습니다. 서진도 웃지 못했습니다. 덧문 너머에서 욕설이 터졌고, 위쪽 계단에서도 발소리가 내려왔습니다. 돌아설 길은 하나였습니다. 작업터 아래의 운반길."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“팔 줘. 내려가자.”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“오른쪽 다리는 들고요.”",
+          "speaker": "seojin"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸은 왼발로 버티고 서진의 어깨를 잡았습니다. 서진은 그를 업지 않았습니다. 둘이 어깨를 맞대고 한 걸음씩 옮겼습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "첫 컷에서 하늘과 아래 작업터를 충분히 보여 야외 탈출 확정. 덧문 너머 위쪽 발판의 보초 소리는 식별 불가능한 욕설 소음으로만 처리하고 새 대사 없음. 위 계단 발소리는 05에서 쇠살 개방과 빈 내부 확인 후 외부 계단을 택한 수색 무사의 접근이다. 대사 둘 dialogue, 마지막 내레이션에 상태2. 승리 음악 없이 바람·기침·먼 발소리 유지. 모든 머리·얼굴 보호."
+    },
+    {
+      "id": "E03_S14",
+      "location": "야외 운반 작업터 아래 산비탈 / 가까운 나무",
+      "setting_category": "outdoor_mountain_slope",
+      "visual_states": [
+        "단일 16:9 고정 야외 중경 정지화. 두 사람이 비탈 나무에 부딪쳐 멈춘 결과. 서진 무릎이 꺾이고 왼옆구리 혈흔이 땀과 구분된다. 입술·오른손·어깨 부상, 찢긴 먹색 저고리 소매와 청록 민소매 겉옷, 빈 오른 칼집 유지. 도겸은 왼발만 지지하고 오른다리 비체중부하·연청 목도리.",
+        "단일 16:9 같은 나무 옆 고정 야외 중경 정지화. 도겸이 서진 팔을 자기 목 뒤로 넘기고 먼저 몸을 기울여 받친다. 도겸 오른다리 비체중부하·연청 목도리. 서진 피로·네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 오른 칼집. 열린 하늘과 아래 흙길."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still on rocky freight slope. Approved Seojin and Dogyeom stopped against tree after losing balance. Seojin knee buckled, dark fresh LEFT flank blood distinct from sweat; split lip, torn right palm, bruised shoulder, torn CHARCOAL sleeve under SLEEVELESS teal vest, EMPTY RIGHT sheath. Dogyeom braces LEFT foot only, injured RIGHT leg unloaded, pale-blue scarf below knee. Open sky and downhill earth path, no text or bubbles.",
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still beside same tree. Approved Dogyeom places Seojin's arm behind neck and leans first to support him, injured RIGHT leg unloaded, pale-blue below-knee scarf tied. Approved Seojin exhausted, torn CHARCOAL sleeve and SLEEVELESS teal vest, empty RIGHT sheath, bleeding LEFT flank, torn right palm, split lip, shoulder bruise. Natural unequal support, mountain daylight, no miraculous recovery, text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "도겸의 왼발이 돌을 잘못 디뎠습니다. 서진이 허리를 받치자 두 사람의 무게가 함께 쏠렸습니다. 가까운 나무에 부딪치고서야 멈췄습니다. 서진의 무릎이 꺾였습니다. 도겸이 먼저 손을 뻗어 그의 옷깃을 붙잡았습니다. 앞에서 자신을 끌고 내려오던 서진의 등은 이미 땀으로 젖어 있었습니다. 옆구리의 젖은 색은 달랐습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“너, 얼마나 난 거야.”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“아래 가서 보면 돼요.”",
+          "speaker": "seojin"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“네가 짐이면 벌써 내려놨어.”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸은 서진의 팔을 자기 목 뒤로 넘겼습니다. 이번에는 도겸이 먼저 몸을 기울였습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "넘어지는 과정을 늘리지 않고 나무에 멈춘 결과로 시작. 도겸 질문 dialogue, 서진 약한 응답 whisper, 도겸 마지막 말 rounded. 마지막 내레이션에 상태2. 옆구리 혈흔과 빈 칼집을 가리지 않는다. 모든 머리·얼굴 제외."
+    },
+    {
+      "id": "E03_S15",
+      "location": "야외 산 아래 운반길 / 광석 운반 수레",
+      "setting_category": "outdoor_transport_road_and_cart",
+      "visual_states": [
+        "단일 16:9 고정 야외 광각 정지화. 광석 자루를 실은 별도 수레가 내려오는 운반길 옆에서 서진이 숨으려 낮아지고 도겸이 팔을 붙들어 멈춘다. 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 오른 칼집, 도겸 오른다리 비체중부하·목도리. 수레꾼은 큰 돌출 귀·긴 배형 얼굴·삽 모양 턱의 수염 없는 승인 얼굴, 올리브 두건·이끼색 작업 겉옷·미색 깃·갈색 허리띠·회갈색 바지·짚신, 고삐를 잡는다.",
+        "단일 16:9 같은 길 고정 야외 중경 정지화. 멈춘 광석 수레 옆 승인 수레꾼이 고삐를 당긴 채 놀람과 두려움으로 두 사람을 본다. 도겸은 오른다리를 받쳐 쉬고 서진은 곁에 기댄다. 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 칼집과 도겸 목도리 유지. 수레꾼 복장·큰 귀·수염 없는 얼굴 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR wide Korean wuxia webtoon still on mountain freight road. Separate ore-sack cart driven by carter: tall lean male50, long pear face, heavy SHOVEL chin, very large protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, NO facial hair; faded OLIVE headcloth, MOSS-GREEN work coat, off-white collar, brown cloth belt, gray-brown trousers, straw shoes, reins in hands. Roadside Seojin lowers to hide while Dogyeom holds his arm. Seojin split lip, torn right palm, shoulder bruise, bleeding LEFT flank, torn CHARCOAL sleeve, SLEEVELESS teal vest, empty RIGHT sheath. Dogyeom right leg unloaded, pale-blue knee scarf. Sky and pines, no text or bubbles.",
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still beside stopped ore cart. Carter holds tightened reins, surprise turning to fear: tall lean male50, long pear face, heavy shovel chin, enormous protruding round ears, broad blunt low nose, gap-toothed wide mouth, large kind downturned eyes, thin high brows, clean-shaven, faded olive headcloth, moss-green work coat, off-white collar, brown cloth belt, gray-brown trousers, straw shoes. Dogyeom distinct broad square face, right leg resting unloaded, pale-blue scarf below knee. Seojin leans exhausted, torn CHARCOAL sleeve under sleeveless teal vest, empty RIGHT sheath, bleeding LEFT flank and right palm, split lip, bruised shoulder. No text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "수레바퀴 소리가 들렸습니다. 도겸이 고개를 들었습니다. 광석 자루를 싣고 내려가는 운반 수레였습니다. 서진은 반사적으로 몸을 숨기려 했습니다. 도겸이 그의 팔을 붙들었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“저 사람은 불러도 돼.”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸이 평소 짐을 나를 때 쓰던 짧은 휘파람을 불었습니다. 수레꾼이 고삐를 당겼습니다. 가까이 온 얼굴에서 놀람이 먼저, 두려움이 뒤따랐습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“너희가 왜 여기 있어?”",
+          "speaker": "carter"
+        }
+      ],
+      "screen_text": [],
+      "ae": "바퀴 소리와 짧은 휘파람 후 수레 정지 결과 상태2로 컷. 도겸 rounded, 수레꾼 reaction. 수레꾼 얼굴 반응을 충분히 홀드하고 추격 컷으로 서두르지 않는다. 별도 수레임을 형태와 적재물로 구분. 모든 머리·얼굴 보호."
+    },
+    {
+      "id": "E03_S16",
+      "location": "야외 운반길 / 멈춘 수레 난간",
+      "setting_category": "outdoor_transport_road_and_cart",
+      "visual_states": [
+        "단일 16:9 고정 야외 삼인 중경 정지화. 승인 수레꾼이 수레 밖 길가 두 사람의 얼굴을 확인한다. 올리브 두건·이끼색 작업 겉옷과 수염 없는 큰 귀·삽 턱. 서진은 난간 가까이 기댄 채 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 오른 칼집, 도겸은 오른다리 비체중부하로 쉬며 목도리 유지. 수레 광석 자루·고삐.",
+        "단일 16:9 같은 축 고정 야외 중경 정지화. 서진이 사용 가능한 왼손으로 난간을 잡은 결과, 오른손은 보호한다. 수레꾼은 사람이 보이지 않는 산 쪽을 돌아보고 도겸은 옆에서 오른다리를 받쳐 쉰다. 수레꾼 승인 얼굴·녹색 복장, 서진 네 부상·먹색 소매 찢김·청록 민소매 겉옷·빈 칼집, 도겸 목도리 유지."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR three-person medium Korean wuxia webtoon still beside stopped ore cart. Carter studies wounded duo outside cart: tall lean male50, long pear face, heavy shovel chin, huge protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, no facial hair, faded olive headcloth, moss-green work coat, off-white collar, brown cloth belt, gray-brown trousers, straw shoes. Seojin near rail, torn CHARCOAL sleeve beneath SLEEVELESS teal vest, empty RIGHT sheath, bleeding LEFT flank and right palm, split lip, shoulder bruise. Dogyeom rests injured right leg unloaded, pale-blue scarf below knee. Ore sacks and reins, no pursuers, text or bubbles.",
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still. Seojin grips rail with usable LEFT hand, damaged right palm guarded; split lip, shoulder bruise, bleeding LEFT flank, torn CHARCOAL sleeve, sleeveless teal vest, empty RIGHT sheath. Carter turns toward empty mountain slope: tall lean male50, long pear face, heavy shovel chin, huge protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, clean-shaven, olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. Dogyeom rests beside cart, right leg unloaded, pale-blue knee scarf. Ore sacks, open sky, no visible attackers, text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "text": "“보면 몰라? 살아서 나왔지.”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“너희 죽었다고 했어. 먼저 나온 철산문 놈들이.”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "narration",
+          "text": "서진은 입구 중개소를 떠올렸습니다. 지게는 돌아왔으니 됐다고 하던 서리의 목소리도 생각났습니다. 이번에는 지게도 가져오지 못했습니다. 대신 도겸이 곁에 있었습니다. 그런데 위에서는 벌써 두 사람의 일을 끝내 놓았습니다. 서진이 수레 난간을 붙잡았습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“누가 저희를 봤다고 하면, 그 사람도 데려갈 겁니다.”",
+          "speaker": "seojin"
+        },
+        {
+          "kind": "narration",
+          "text": "수레꾼이 산 쪽을 보았습니다. 아직 사람은 보이지 않았습니다. 멀리서 무사들이 서로를 부르는 소리가 났습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "도겸 dialogue, 수레꾼 긴장한 dialogue, 서진 낮고 분명한 dialogue. 회상 대사를 새로 만들지 않는다. 난간을 붙잡는 문장에서 상태2. 멀리서 부르는 소리는 뜻을 알아들을 새 대사 없이 환경음으로 처리. 세 얼굴과 머리 전체 보호."
+    },
+    {
+      "id": "E03_S17",
+      "location": "야외 운반길 / 광석 자루를 내린 수레",
+      "setting_category": "outdoor_transport_road_and_cart",
+      "visual_states": [
+        "단일 16:9 고정 야외 중경 정지화. 수레꾼이 광석 자루 정확히 두 개를 길옆에 내려 빈자리를 만들었다. 서진은 뻗던 왼손을 거두고 도겸은 수레 옆에 기대 오른다리를 비체중부하로 쉰다. 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 오른 칼집과 도겸 목도리. 수레꾼 승인 큰 귀·삽 턱·수염 없는 얼굴·올리브 두건·이끼색 작업복 유지.",
+        "단일 16:9 고정 야외 측면 중경 정지화. 도겸이 먼저 수레 안에 앉아 오른다리를 뻗어 비체중부하로 쉬고, 수레꾼과 함께 발을 헛디딘 서진 양 겨드랑이를 받친 정지 순간. 서진 다친 손바닥을 잡아 들지 않는다. 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 칼집, 도겸 목도리, 길옆 자루 두 개. 수레꾼 승인 녹색 복장 유지.",
+        "단일 16:9 고정 야외 수레 내부 중경 정지화. 두 사람이 낮게 앉고 남은 자루와 덮개가 길 쪽 시야를 막는다. 도겸이 자기 겉옷의 접힌 옷자락을 서진 왼옆구리에 누른다. 오른다리는 비체중부하이며 연청 목도리는 무릎 아래 그대로. 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 칼집. 녹색 작업복 수레꾼은 고삐 가까이, 자루 두 개는 길옆."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still. Exactly TWO ore sacks on roadside, space cleared in cart. Carter blocks Seojin from helping, Seojin's reaching LEFT hand withdrawn. Carter tall lean male50, long pear face, heavy shovel chin, huge protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, clean-shaven, olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. Dogyeom leans nearby, right leg unloaded, pale-blue knee scarf. Seojin torn right palm, split lip, shoulder bruise, bleeding LEFT flank, ripped CHARCOAL sleeve, sleeveless teal vest, empty RIGHT sheath. No text or bubbles.",
+        "Single full-frame 16:9 fixed OUTDOOR side medium Korean wuxia webtoon still of assisted boarding. Dogyeom already seated in cart, RIGHT leg extended unloaded, pale-blue scarf below knee. He and standing carter support Seojin under opposite armpits after missed footing, never by injured palm. Carter tall lean male50, long pear face, heavy shovel chin, huge protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, no facial hair, olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. Two sacks roadside. Seojin ripped CHARCOAL sleeve under sleeveless teal vest, empty RIGHT sheath, split lip, torn right palm, bruised shoulder, bleeding LEFT flank. No text or bubbles.",
+        "Single full-frame 16:9 fixed OUTDOOR cart-interior medium Korean wuxia webtoon still after boarding. Both wounded men sit low behind remaining ore sacks and road-side cargo cover. Dogyeom presses folded hem of HIS OCHRE outer garment to Seojin's LEFT flank; pale-blue scarf stays BELOW Dogyeom's RIGHT KNEE, right leg unloaded. Seojin split lip, torn right palm, bruised shoulder, torn CHARCOAL sleeve under SLEEVELESS teal vest, EMPTY RIGHT sheath. Carter by reins, tall lean male50, long pear face, heavy shovel chin, enormous round protruding ears, broad blunt low nose, gap-toothed mouth, kind downturned large eyes, thin high brows, clean-shaven, olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. Two sacks left roadside, open sky. No text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "text": "“아는 길로 여기까지 왔나?”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“몰라서 이 꼴이지.”",
+          "speaker": "dogyeom"
+        },
+        {
+          "kind": "narration",
+          "text": "수레꾼은 욕을 작게 삼켰습니다. 자루 두 개를 길옆으로 끌어 내렸습니다. 서진이 빈 곳을 보다가 자루 쪽으로 손을 뻗었습니다. 수레꾼이 그 손을 쳐냈습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“오늘은 네가 실려.”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸이 먼저 기대 앉았습니다. 서진은 수레에 오르려다 발을 헛디뎠습니다. 두 사람이 그의 겨드랑이를 받쳤습니다. 서진은 몸을 맡기면서도 산 쪽에서 눈을 떼지 못했습니다. 수레꾼은 남은 자루와 짐 덮개로 길 쪽 시야를 가렸습니다. 도겸은 자기 다리에 매인 연청색 목도리를 풀지 않은 채 서진의 옆구리에 접은 겉옷을 눌렀습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "수레꾼 질문 dialogue, 도겸 응답 reaction, '오늘은 네가 실려.'는 rounded. 승차 문장에서 상태2, 마지막 문장에서 상태3. 자루 두 개의 하차·도겸 선승차·서진 부축·압박 처치를 구분한다. 새 욕설 발화 없음. 덮개와 말풍선은 모든 머리·얼굴 보호를 유지하고 부상 연속성을 숨기지 않는다."
+    },
+    {
+      "id": "E03_S18",
+      "location": "야외 산길에서 청하진으로 이어지는 운반 도로 / 수레 안",
+      "setting_category": "outdoor_transport_road_and_cart",
+      "visual_states": [
+        "단일 16:9 고정 야외 광각 정지화. 수레가 산길을 벗어나 청하진 방향 갈림길에 들어선 결과. 승인 녹색 작업복 수레꾼이 고삐를 잡고 두 부상자는 자루와 덮개 뒤 낮게 앉는다. 서진 찢긴 먹색 소매·청록 민소매 겉옷·빈 오른 칼집·네 부상과 왼옆구리 압박 옷자락, 도겸 비체중부하 오른다리·목도리 유지. 열린 하늘과 넓어진 흙길.",
+        "단일 16:9 고정 야외 수레 내부 중경 정지화. 서진 왼손이 빈 오른허리 칼집에 닿고 도겸은 자신의 황토 겉옷 압박 옷자락을 다시 접어 왼옆구리에 누른다. 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷. 도겸 오른다리는 펴서 비체중부하, 목도리 그대로. 앞 고삐의 승인 녹색 작업복 수레꾼과 덮개 너머 햇빛 도로."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR wide Korean wuxia webtoon still at road turn toward Cheonghajin. Carter holds reins: tall lean male50, long pear face, heavy shovel chin, huge protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, clean-shaven, faded olive headcloth, moss-green work coat, off-white collar, brown cloth belt, gray-brown trousers, straw shoes. Seojin and Dogyeom low behind ore sacks and cover. Seojin torn CHARCOAL sleeve, sleeveless teal vest, empty RIGHT sheath, split lip, torn right palm, shoulder bruise, bleeding LEFT flank under ochre pressure cloth. Dogyeom right leg unloaded, pale-blue scarf below knee. Open sky, broader road, no town arrival, text or bubbles.",
+        "Single full-frame 16:9 fixed OUTDOOR cart-interior medium Korean wuxia webtoon still. Seojin LEFT hand touches EMPTY RIGHT sheath, no dagger. Dogyeom refolds ochre outer-garment pressure hem against bleeding LEFT flank; own RIGHT leg extended unloaded, pale-blue scarf below knee. Seojin split lip, torn right palm, shoulder bruise, ripped CHARCOAL sleeve under SLEEVELESS teal vest. Carter at reins ahead, tall lean male50, long pear face, heavy shovel chin, huge protruding ears, broad blunt low nose, gap-toothed wide mouth, large kind downturned eyes, thin high brows, no facial hair, olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. Sunlit road beyond cover, no text or bubbles."
+      ],
+      "blocks": [
+        {
+          "kind": "dialogue",
+          "text": "“중개소까지 가면 되지?”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“의원으로 가주세요.”",
+          "speaker": "seojin"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“품삯은?”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "narration",
+          "text": "서진의 손이 빈 칼집에 닿았습니다. 장호가 가져간 봉함도, 닫힌 철문도 그대로였습니다. 따질 말은 목 안에 가득했습니다. 도겸이 압박하던 천을 바꿔 접었습니다. 서진의 숨이 짧게 끊겼습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“살아서 받으러 갈 겁니다.”",
+          "speaker": "seojin"
+        },
+        {
+          "kind": "narration",
+          "text": "수레꾼은 더 묻지 않고 고삐를 고쳐 쥐었습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "수레꾼 dialogue, 서진 rounded, 수레꾼 짧은 reaction. 빈 칼집 문장에서 상태2. 마지막 서진 발화는 단호한 dialogue로 유지하되 복수 각성 효과 금지. 수레 이동은 바퀴 환경음과 배경 컷으로 전달하고 원화 전체를 느리게 밀지 않는다. 모든 머리·얼굴 제외."
+    },
+    {
+      "id": "E03_S19",
+      "location": "야외 청하진 진입 길목 / 검문 수레 대기열",
+      "setting_category": "outdoor_cheonghajin_checkpoint",
+      "visual_states": [
+        "단일 16:9 고정 야외 광각 정지화. 청하진 지붕 앞 흙길에 수레가 한 줄로 멎었다. 승인 수레꾼은 올리브 두건·이끼색 작업복 차림으로 등이 굳고 고삐를 잡는다. 앞 철청 무사들은 짐 덮개를 확인한다. 자기 수레 안 서진·도겸은 낮게 있고 서진 네 부상·찢긴 먹색 소매·청록 민소매 겉옷·빈 칼집·압박 옷자락, 도겸 비체중부하 오른다리·목도리 유지. 배경 소수 성인 남성은 이름 있는 얼굴과 다르다.",
+        "단일 16:9 고정 야외 중경 정지화. 06과 같은 수염 없는 checkpoint_guard가 빈 종이를 이름 없는 성인 남성 무사에게 건넨다. 높은 넓은 이마·좁은 평평한 턱·짙은 청색 머리끈·철청 무복·검은 허리띠. 두 무사 부상 없음. 뒤 자기 수레에서 서진과 도겸이 낮게 서로 보고 기존 부상·찢긴 먹색 소매·빈 칼집·압박 옷자락·오른무릎 목도리 유지. 녹색 작업복 수레꾼은 고삐 앞."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR wide Korean wuxia webtoon still at Cheonghajin checkpoint, town roofs beyond stopped freight-cart queue. Iron-blue extras inspect covers ahead. Foreground carter at reins, back stiff: tall lean male50, long pear face, heavy shovel chin, huge protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, clean-shaven, olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. Wounded duo low in own ore cart; Seojin torn CHARCOAL sleeve under SLEEVELESS teal vest, empty RIGHT sheath, split lip, torn right palm, shoulder bruise, LEFT flank pressure pad; Dogyeom right leg unloaded, pale-blue knee scarf. Few distinct adult male extras, no text or bubbles. MASTER FINAL REFERENCE OVERRIDE for checkpoint_guard: Male45 slim adult body; short broad face, broad squared chin and low normal forehead, firm cheek planes, normal-size wide-spaced slightly downturned oval eyes, low fine brows, broad flat adult nose with wide nostrils and low bridge, small downturned medium-fullness mouth, clean-shaven. Blue-bound black bun, iron-blue robe, black belt. Final identity reference checkpoint_guard-v3.png. Any earlier facial wording is superseded; never add a character absent from the primary state. FINAL REVISION4 SUPERSEDES prior facial wording: Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png.",
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still. SAME checkpoint_guard from booth hands BLANK paper to distinct unnamed adult male guard. Checkpoint_guard lean wiry male45, tall wide forehead tapering to flat narrow chin, low narrow deep eyes, fine short brows, short narrow flat nose, thin downturned mouth, long philtrum, CLEAN-SHAVEN, dark-blue-bound compact black bun, iron-blue robe, BLACK belt; both guards uninjured. Midground Seojin and Dogyeom glance at each other low in own ore cart: torn CHARCOAL sleeve, sleeveless teal vest, split lip, torn right palm, bruised shoulder, LEFT flank pressure pad, empty RIGHT sheath; Dogyeom right leg unloaded with pale-blue scarf below knee. Carter by reins in olive headcloth and moss-green coat, approved large ears and shovel chin, no facial hair. Town roofs and daylight, no readable paper text or bubbles. MASTER FINAL REFERENCE OVERRIDE for checkpoint_guard: Male45 slim adult body; short broad face, broad squared chin and low normal forehead, firm cheek planes, normal-size wide-spaced slightly downturned oval eyes, low fine brows, broad flat adult nose with wide nostrils and low bridge, small downturned medium-fullness mouth, clean-shaven. Blue-bound black bun, iron-blue robe, black belt. Final identity reference checkpoint_guard-v3.png. Any earlier facial wording is superseded; never add a character absent from the primary state. FINAL REVISION4 SUPERSEDES prior facial wording: Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "청하진 지붕이 보였을 때 수레가 느려졌습니다. 앞의 짐수레들이 한 줄로 멎어 있었습니다. 철청색 무복을 입은 사람들이 짐 덮개를 들추고 있었습니다. 수레꾼의 등이 굳었습니다. 무사 하나가 옆 사람에게 종이를 건넸습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“이름은 둘이다. 서진, 도겸. 중개소로 보내지 말고 별원에 데려가.”",
+          "speaker": "checkpoint_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "서진은 도겸을 보았습니다. 도겸도 들었습니다. 저들이 찾는 것은 도망친 무사가 아니었습니다. 무경에서 살아 돌아온 짐꾼 둘이었습니다."
+        }
+      ],
+      "screen_text": [],
+      "ae": "지상 검문 전경에서 종이 전달 문장에 상태2로 컷. 보고·길목 무사는 단단한 dialogue. 대기열을 소수 배경 인물로만 표현하고 새 전투·도주를 추가하지 않는다. 종이에 지시문 자막을 중복 출력하지 않는다. 모든 주·조연의 머리·얼굴 보호."
+    },
+    {
+      "id": "E03_S20",
+      "location": "야외 청하진 검문 길목 / 수레 덮개 앞과 내부",
+      "setting_category": "outdoor_cheonghajin_checkpoint",
+      "visual_states": [
+        "단일 16:9 고정 야외 수레 측면 중경 정지화. 같은 수염 없는 checkpoint_guard가 수레 옆에 멈춰 손가락을 덮개 끝에 넣는다. 높은 이마·좁은 턱·철청 무복·검은 허리띠·청색 머리끈. 덮개 아래 도겸이 서진 먹색 저고리 소매를 잡고 서진은 도겸 팔을 잡으며 다른 손은 빈 오른 칼집에서 거뒀다. 찢긴 먹색 소매·청록 민소매 겉옷·네 부상·왼옆구리 압박, 도겸 비체중부하 오른다리·목도리. 수레꾼은 바깥 앞쪽.",
+        "단일 16:9 같은 축 고정 야외 중경 정지화. 승인 수레꾼이 광석 가루 묻은 손바닥을 checkpoint_guard 손목 앞에 펴되 때리거나 잡지 않는다. 수레꾼 큰 귀·삽 턱·수염 없는 얼굴·올리브 두건·이끼색 작업복, 무사 승인 면도 얼굴·철청 무복·검은 허리띠 유지. 앞 수레 짐꾼 하나가 돌아보고 뒤 다른 행인이 멈춘다. 덮개 아래 부상자 둘과 먹색 소매 찢김·빈 칼집·압박 옷자락·목도리 유지.",
+        "단일 16:9 고정 야외 수레 안팎 중경 정지화. 서진이 덮개 아래에서 상체만 조금 일으켜 말하려고 한다. 찢긴 먹색 저고리 소매·청록 민소매 겉옷·터진 입술·오른손 출혈·어깨 타박·왼옆구리 압박·빈 오른 칼집. 옆 도겸은 팔과 압박을 유지하며 오른다리는 비체중부하·목도리 그대로. 바깥 녹색 작업복 수레꾼이 앞을 막고 같은 수염 없는 checkpoint_guard 손은 덮개 앞에 올라가 있다. 통과나 치료 도착 없이 정지한 대치."
+      ],
+      "state_image_prompts": [
+        "Single full-frame 16:9 fixed OUTDOOR side medium Korean wuxia webtoon still beside ore cart. SAME checkpoint_guard by wheel, fingers entering cover edge: lean wiry male45, tall wide forehead tapering to flat narrow chin, low narrow deep eyes, fine short brows, short narrow flat nose, thin downturned mouth, long philtrum, CLEAN-SHAVEN, dark-blue-bound compact black bun, iron-blue robe, BLACK belt, black boots. Beneath cover Dogyeom grips Seojin's CHARCOAL UNDER-SHIRT sleeve, Seojin holds his arm and other hand withdrawn from EMPTY RIGHT sheath. Torn CHARCOAL cuff, SLEEVELESS teal vest, split lip, torn right palm, shoulder bruise, LEFT flank pressure cloth. Dogyeom right leg unloaded, pale-blue knee scarf. Carter outside front, olive headcloth and moss-green coat. No text or bubbles. MASTER FINAL REFERENCE OVERRIDE for checkpoint_guard: Male45 slim adult body; short broad face, broad squared chin and low normal forehead, firm cheek planes, normal-size wide-spaced slightly downturned oval eyes, low fine brows, broad flat adult nose with wide nostrils and low bridge, small downturned medium-fullness mouth, clean-shaven. Blue-bound black bun, iron-blue robe, black belt. Final identity reference checkpoint_guard-v3.png. Any earlier facial wording is superseded; never add a character absent from the primary state. FINAL REVISION4 SUPERSEDES prior facial wording: Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png.",
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still. Carter holds ore-dusted open palm before checkpoint_guard wrist WITHOUT strike or grab. Carter tall lean male50, long pear face, heavy shovel chin, enormous protruding round ears, broad blunt low nose, wide gap-toothed mouth, large kind downturned eyes, thin high brows, NO facial hair, faded olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. Guard hand pauses, same lean wiry male45, wide high forehead to flat narrow chin, low narrow deep eyes, fine short brows, short narrow flat nose, thin downturned mouth, long philtrum, clean-shaven, dark-blue-bound compact bun, iron-blue robe, black belt. One distinct male porter ahead turns; another distinct male traveler behind stops. Duo low in cart, Seojin torn CHARCOAL sleeve under sleeveless teal vest, split lip, torn right palm, shoulder bruise, LEFT flank pressure cloth, empty RIGHT sheath; Dogyeom right leg unloaded, pale-blue scarf below knee. Town roofs, no text or bubbles. MASTER FINAL REFERENCE OVERRIDE for checkpoint_guard: Male45 slim adult body; short broad face, broad squared chin and low normal forehead, firm cheek planes, normal-size wide-spaced slightly downturned oval eyes, low fine brows, broad flat adult nose with wide nostrils and low bridge, small downturned medium-fullness mouth, clean-shaven. Blue-bound black bun, iron-blue robe, black belt. Final identity reference checkpoint_guard-v3.png. Any earlier facial wording is superseded; never add a character absent from the primary state. FINAL REVISION4 SUPERSEDES prior facial wording: Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png.",
+        "Single full-frame 16:9 fixed OUTDOOR medium Korean wuxia webtoon still looking from ore cart toward unresolved checkpoint. Seojin raises upper body slightly beneath cover, exhausted and ready to speak: torn CHARCOAL UNDER-SHIRT cuff, SLEEVELESS teal vest, split lip, bleeding right palm, bruised shoulder, LEFT flank pressure cloth, EMPTY RIGHT sheath. Dogyeom supports companion and pressure cloth, injured RIGHT leg unloaded, pale-blue scarf below knee. Outside carter remains in front, tall lean male50, long pear face, heavy shovel chin, huge round protruding ears, broad blunt low nose, gap-toothed wide mouth, large kind downturned eyes, thin high brows, clean-shaven, olive headcloth, moss-green work coat, off-white collar, brown belt, gray-brown trousers, straw shoes. SAME checkpoint_guard hand remains raised at cover: lean wiry male45, tall wide forehead to flat narrow chin, low narrow deep eyes, fine short brows, short narrow flat nose, thin downturned mouth, long philtrum, clean-shaven, dark-blue-bound compact black bun, iron-blue robe, black belt. Sunlit street and town roofs, no passage granted, no text or bubbles. MASTER FINAL REFERENCE OVERRIDE for checkpoint_guard: Male45 slim adult body; short broad face, broad squared chin and low normal forehead, firm cheek planes, normal-size wide-spaced slightly downturned oval eyes, low fine brows, broad flat adult nose with wide nostrils and low bridge, small downturned medium-fullness mouth, clean-shaven. Blue-bound black bun, iron-blue robe, black belt. Final identity reference checkpoint_guard-v3.png. Any earlier facial wording is superseded; never add a character absent from the primary state. FINAL REVISION4 SUPERSEDES prior facial wording: Male45 slim adult; narrow diamond facial outline with broad high cheekbones/temples and short receding rounded chin; wide upswept almond eyes with clear lid folds and thin arched brows; prominent convex aquiline nose with fleshy bulbous tip; broad shaped mouth with a rounded lower lip, clean-shaven. Mature restrained Korean wuxia proportions. Iron-blue robe, black belt, blue-bound black bun. Final checkpoint_guard-v4.png."
+      ],
+      "blocks": [
+        {
+          "kind": "narration",
+          "text": "검은 장화가 수레 옆에 멎었습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“덮개 걷어.”",
+          "speaker": "checkpoint_guard"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸이 서진의 소매를 잡았습니다. 서진도 도겸의 팔을 붙들었습니다. 칼집으로 가던 손은 거뒀습니다. 없는 칼을 찾는다고 달라질 일은 없었습니다. 덮개 끝으로 손가락이 들어왔습니다. 그때 수레꾼이 무사의 손목 앞을 가로막았습니다. 때리거나 잡지는 않았습니다. 광석 가루가 묻은 자기 손바닥을 펴 보였습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“먼저 이것부터 적으시오.”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“뭘.”",
+          "speaker": "checkpoint_guard"
+        },
+        {
+          "kind": "dialogue",
+          "text": "“당신이 짐을 멈춰 세운 시각. 여기서 사람이 죽으면 누구한테 따질지 알아야 하니까.”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "narration",
+          "text": "앞 수레에서 짐꾼 하나가 고개를 돌렸습니다. 뒤에서 오던 사람도 멈췄습니다. 무사의 손이 덮개 앞에서 잠깐 멎었습니다. 서진은 숨을 들이켰습니다. 돌문 밖으로 돌아오는 데는 두 사람의 힘이 필요했습니다. 그다음 길은, 자기 혼자 열 수 있는 길이 아니었습니다. 수레꾼이 다시 말했습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“비켜요. 의원부터 갑니다.”",
+          "speaker": "carter"
+        },
+        {
+          "kind": "narration",
+          "text": "무사는 손을 내리지 않았습니다. 덮개 아래에서 서진이 몸을 조금 일으켰습니다."
+        },
+        {
+          "kind": "dialogue",
+          "text": "“형. 이번엔 제가 말할게요.”",
+          "speaker": "seojin"
+        }
+      ],
+      "screen_text": [],
+      "ae": "첫 명령 dialogue. 수레꾼이 가로막는 문장에서 상태2로 컷. 수레꾼의 항의는 단단한 dialogue, 길목 무사의 '뭘.'은 reaction. 긴 대사는 문장 전체를 연결한 편집형 말풍선으로 두고 발화 분할 때문에 사라지지 않게 한다. '비켜요. 의원부터 갑니다.'는 shout보다 낮고 단호한 dialogue. 서진이 몸을 일으키는 문장에서 상태3, 마지막 말은 rounded. 모든 인물과 두 배경 목격자의 머리·얼굴을 본체·꼬리·글자·그림자·등퇴장 전체에서 제외한다. 꼬리는 짧고 접합선 없이 연결한다. 길목 무사의 손이 내려가지 않은 채 마지막 발화와 호흡을 홀드한 뒤 종료. 검문 통과·추가 대사·내레이션 자막·승리 효과를 넣지 않는다."
+    }
+  ],
+  "status": "creative_snapshot_final",
+  "registration_status_source": "packaging/registration-receipt.json"
+}

@@ -1,0 +1,1666 @@
+{
+  "browser": "Chrome through CUA",
+  "renderer": "auth-web/components/StdWuxiaScenePreview.tsx:StdWuxiaGraphics",
+  "graphics_checked": 50,
+  "fonts": {
+    "active_used_fonts": {
+      "black_han": true,
+      "computed": [
+        {
+          "family": "\"Wuxia Noto Sans KR\"",
+          "text": "“네 걱정이나해.”"
+        },
+        {
+          "family": "\"Wuxia Noto Sans KR\"",
+          "text": "“나부터 내보내.저놈은 다쳤다.칼도 못 쥐어.”"
+        },
+        {
+          "family": "\"Wuxia Noto Sans KR\"",
+          "text": "“이 새끼가!”"
+        },
+        {
+          "family": "\"Wuxia Noto Sans KR\"",
+          "text": "“칼이냐,우리냐!”"
+        },
+        {
+          "family": "\"Black Han Sans\"",
+          "text": "쿵"
+        },
+        {
+          "family": "\"Wuxia Noto Sans KR\"",
+          "text": "“팔 줘.내려가자.”"
+        },
+        {
+          "family": "\"Wuxia Noto Sans KR\"",
+          "text": "“오른쪽 다리는들고요.”"
+        }
+      ],
+      "noto": true,
+      "status": "loaded"
+    },
+    "unused_preset_font": "Do Hyeon is bundled but not used by this script"
+  },
+  "issues": [],
+  "results": [
+    {
+      "asset": "E03_S01_STATE_01",
+      "heads": [
+        [
+          0.328,
+          0.269,
+          0.499,
+          0.546
+        ],
+        [
+          0.486,
+          0.491,
+          0.636,
+          0.716
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S01",
+      "text": "“짐꾼이면 따로 빼. 먼저 나온 자들하고 말 섞게 하지 말고.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“짐꾼이면 따로빼. 먼저 나온자들하고 말 섞게하지 말고.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S02_STATE_01",
+      "heads": [
+        [
+          0.054,
+          0.105,
+          0.125,
+          0.247
+        ],
+        [
+          0.217,
+          0.162,
+          0.271,
+          0.275
+        ],
+        [
+          0.364,
+          0.151,
+          0.586,
+          0.479
+        ],
+        [
+          0.672,
+          0,
+          0.874,
+          0.402
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S02",
+      "text": "“살아 있으면 데리고 올라갑니까?”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“살아 있으면데리고올라갑니까?”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S02_STATE_01",
+      "heads": [
+        [
+          0.054,
+          0.105,
+          0.125,
+          0.247
+        ],
+        [
+          0.217,
+          0.162,
+          0.271,
+          0.275
+        ],
+        [
+          0.364,
+          0.151,
+          0.586,
+          0.479
+        ],
+        [
+          0.672,
+          0,
+          0.874,
+          0.402
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S02",
+      "text": "“대장님께 먼저 보인다.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“대장님께 먼저보인다.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S02_STATE_02",
+      "heads": [
+        [
+          0.273,
+          0,
+          0.554,
+          0.434
+        ],
+        [
+          0.547,
+          0,
+          0.758,
+          0.457
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S02",
+      "text": "“나가는 길부터 찾자.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“나가는 길부터찾자.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S03_STATE_02",
+      "heads": [
+        [
+          0.145,
+          0,
+          0.376,
+          0.39
+        ],
+        [
+          0.546,
+          0.193,
+          0.713,
+          0.491
+        ],
+        [
+          0.738,
+          0,
+          0.823,
+          0.225
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S03",
+      "text": "“여기 피가 있습니다.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“여기 피가있습니다.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S03_STATE_02",
+      "heads": [
+        [
+          0.145,
+          0,
+          0.376,
+          0.39
+        ],
+        [
+          0.546,
+          0.193,
+          0.713,
+          0.491
+        ],
+        [
+          0.738,
+          0,
+          0.823,
+          0.225
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S03",
+      "text": "“이쪽으로요. 지금.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“이쪽으로요.지금.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S04_STATE_01",
+      "heads": [
+        [
+          0.469,
+          0,
+          0.711,
+          0.375
+        ],
+        [
+          0.198,
+          0.201,
+          0.289,
+          0.344
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S04",
+      "text": "“먼저 내려가. 내가 뒤에서—”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“먼저 내려가.내가 뒤에서—”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S04_STATE_01",
+      "heads": [
+        [
+          0.469,
+          0,
+          0.711,
+          0.375
+        ],
+        [
+          0.198,
+          0.201,
+          0.289,
+          0.344
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S04",
+      "text": "“아래에서 형 다리를 받을 힘이 없어요. 형이 먼저 팔로 버텨 줘야 해요.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“아래에서 형 다리를받을 힘이 없어요. 형이먼저 팔로 버텨 줘야해요.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S05_STATE_01",
+      "heads": [
+        [
+          0.311,
+          0.141,
+          0.439,
+          0.322
+        ],
+        [
+          0.677,
+          0.232,
+          0.768,
+          0.444
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S05",
+      "text": "“아래 점검길로 돌아가. 물 빠지는 쪽을 막아!”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“아래 점검길로 돌아가.물 빠지는 쪽을 막아!”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S05_STATE_02",
+      "heads": [
+        [
+          0.725,
+          0.111,
+          0.774,
+          0.227
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S05",
+      "text": "“아래 점검길로 돌아가. 물 빠지는 쪽을 막아!”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“아래 점검길로 돌아가.물 빠지는 쪽을 막아!”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S05_STATE_03",
+      "heads": [
+        [
+          0.347,
+          0.081,
+          0.467,
+          0.349
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S05",
+      "text": "“아래 점검길로 돌아가. 물 빠지는 쪽을 막아!”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“아래 점검길로 돌아가.물 빠지는 쪽을 막아!”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S05_STATE_04",
+      "heads": [
+        [
+          0.598,
+          0.026,
+          0.67,
+          0.22
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S05",
+      "text": "“아래 점검길로 돌아가. 물 빠지는 쪽을 막아!”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“아래 점검길로 돌아가.물 빠지는 쪽을 막아!”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S05_STATE_05",
+      "heads": [
+        [
+          0.28,
+          0,
+          0.484,
+          0.354
+        ],
+        [
+          0.712,
+          0.013,
+          0.824,
+          0.172
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S05",
+      "text": "“쫓아오면?”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“쫓아오면?”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S05_STATE_05",
+      "heads": [
+        [
+          0.28,
+          0,
+          0.484,
+          0.354
+        ],
+        [
+          0.712,
+          0.013,
+          0.824,
+          0.172
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S05",
+      "text": "“앞에 있는 놈부터 봐야 해요.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“앞에 있는 놈부터봐야 해요.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S06_STATE_01",
+      "heads": [
+        [
+          0.143,
+          0.153,
+          0.414,
+          0.518
+        ],
+        [
+          0.697,
+          0.001,
+          0.822,
+          0.361
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S06",
+      "text": "“서진하고 도겸은 아직—”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“서진하고 도겸은아직—”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S06_STATE_01",
+      "heads": [
+        [
+          0.143,
+          0.153,
+          0.414,
+          0.518
+        ],
+        [
+          0.697,
+          0.001,
+          0.822,
+          0.361
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S06",
+      "text": "“석실이 닫혔다. 대장님 보고대로 적어.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“석실이 닫혔다. 대장님보고대로 적어.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S06_STATE_02",
+      "heads": [
+        [
+          0.174,
+          0.092,
+          0.429,
+          0.529
+        ],
+        [
+          0.728,
+          0.001,
+          0.865,
+          0.387
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S06",
+      "text": "서진  사망\n도겸  사망",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "서진 사망도겸 사망"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S07_STATE_01",
+      "heads": [
+        [
+          0.132,
+          0.015,
+          0.326,
+          0.447
+        ],
+        [
+          0.322,
+          0.119,
+          0.452,
+          0.33
+        ],
+        [
+          0.732,
+          0.111,
+          0.775,
+          0.201
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S07",
+      "text": "“거기 있었군.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“거기 있었군.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S08_STATE_01",
+      "heads": [
+        [
+          0.287,
+          0.052,
+          0.505,
+          0.425
+        ],
+        [
+          0.076,
+          0.099,
+          0.166,
+          0.258
+        ],
+        [
+          0.854,
+          0.063,
+          0.922,
+          0.202
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S08",
+      "text": "“그걸로 뭘 하려고.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“그걸로 뭘하려고.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S09_STATE_01",
+      "heads": [
+        [
+          0.139,
+          0.006,
+          0.201,
+          0.148
+        ],
+        [
+          0.484,
+          0.055,
+          0.665,
+          0.331
+        ],
+        [
+          0.588,
+          0.166,
+          0.803,
+          0.543
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S09",
+      "text": "“칼 버려. 걸을 수 있는 놈부터 나온다.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“칼 버려. 걸을수 있는 놈부터나온다.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S09_STATE_01",
+      "heads": [
+        [
+          0.139,
+          0.006,
+          0.201,
+          0.148
+        ],
+        [
+          0.484,
+          0.055,
+          0.665,
+          0.331
+        ],
+        [
+          0.588,
+          0.166,
+          0.803,
+          0.543
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S09",
+      "text": "“못 걷는 사람은요?”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“못 걷는사람은요?”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S09_STATE_01",
+      "heads": [
+        [
+          0.139,
+          0.006,
+          0.201,
+          0.148
+        ],
+        [
+          0.484,
+          0.055,
+          0.665,
+          0.331
+        ],
+        [
+          0.588,
+          0.166,
+          0.803,
+          0.543
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S09",
+      "text": "“네 걱정이나 해.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“네 걱정이나해.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S09_STATE_01",
+      "heads": [
+        [
+          0.139,
+          0.006,
+          0.201,
+          0.148
+        ],
+        [
+          0.484,
+          0.055,
+          0.665,
+          0.331
+        ],
+        [
+          0.588,
+          0.166,
+          0.803,
+          0.543
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S09",
+      "text": "“나부터 내보내. 저놈은 다쳤다. 칼도 못 쥐어.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“나부터 내보내.저놈은 다쳤다.칼도 못 쥐어.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S10_STATE_01",
+      "heads": [
+        [
+          0.111,
+          0.076,
+          0.163,
+          0.224
+        ],
+        [
+          0.328,
+          0.132,
+          0.408,
+          0.294
+        ],
+        [
+          0.655,
+          0,
+          0.868,
+          0.333
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S10",
+      "text": "“이 새끼가!”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“이 새끼가!”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S11_STATE_02",
+      "heads": [
+        [
+          0.104,
+          0.146,
+          0.307,
+          0.438
+        ],
+        [
+          0.465,
+          0.184,
+          0.686,
+          0.496
+        ],
+        [
+          0.819,
+          0,
+          0.931,
+          0.243
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S11",
+      "text": "“칼이냐, 우리냐!”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“칼이냐,우리냐!”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S11_STATE_01",
+      "heads": [
+        [
+          0.115,
+          0.001,
+          0.252,
+          0.224
+        ],
+        [
+          0.292,
+          0.129,
+          0.399,
+          0.293
+        ],
+        [
+          0.878,
+          0.009,
+          0.939,
+          0.133
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S11",
+      "text": "쿵",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "쿵"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S13_STATE_01",
+      "heads": [
+        [
+          0.239,
+          0.249,
+          0.401,
+          0.557
+        ],
+        [
+          0.512,
+          0.269,
+          0.64,
+          0.461
+        ],
+        [
+          0.193,
+          0.005,
+          0.24,
+          0.104
+        ],
+        [
+          0.644,
+          0.047,
+          0.675,
+          0.105
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S13",
+      "text": "“팔 줘. 내려가자.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“팔 줘.내려가자.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S13_STATE_01",
+      "heads": [
+        [
+          0.239,
+          0.249,
+          0.401,
+          0.557
+        ],
+        [
+          0.512,
+          0.269,
+          0.64,
+          0.461
+        ],
+        [
+          0.193,
+          0.005,
+          0.24,
+          0.104
+        ],
+        [
+          0.644,
+          0.047,
+          0.675,
+          0.105
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S13",
+      "text": "“오른쪽 다리는 들고요.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“오른쪽 다리는들고요.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S14_STATE_01",
+      "heads": [
+        [
+          0.169,
+          0.105,
+          0.367,
+          0.51
+        ],
+        [
+          0.529,
+          0.002,
+          0.666,
+          0.26
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S14",
+      "text": "“너, 얼마나 난 거야.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“너, 얼마나 난거야.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S14_STATE_01",
+      "heads": [
+        [
+          0.169,
+          0.105,
+          0.367,
+          0.51
+        ],
+        [
+          0.529,
+          0.002,
+          0.666,
+          0.26
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S14",
+      "text": "“아래 가서 보면 돼요.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“아래 가서 보면돼요.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S14_STATE_01",
+      "heads": [
+        [
+          0.169,
+          0.105,
+          0.367,
+          0.51
+        ],
+        [
+          0.529,
+          0.002,
+          0.666,
+          0.26
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S14",
+      "text": "“네가 짐이면 벌써 내려놨어.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“네가 짐이면 벌써내려놨어.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S15_STATE_01",
+      "heads": [
+        [
+          0.181,
+          0.059,
+          0.254,
+          0.222
+        ],
+        [
+          0.51,
+          0.28,
+          0.675,
+          0.657
+        ],
+        [
+          0.714,
+          0.078,
+          0.911,
+          0.388
+        ],
+        [
+          0,
+          0.18,
+          0.065,
+          0.409
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S15",
+      "text": "“저 사람은 불러도 돼.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“저 사람은 불러도돼.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S15_STATE_02",
+      "heads": [
+        [
+          0.087,
+          0.192,
+          0.249,
+          0.539
+        ],
+        [
+          0.376,
+          0.006,
+          0.518,
+          0.24
+        ],
+        [
+          0.725,
+          0.006,
+          0.858,
+          0.309
+        ],
+        [
+          0.864,
+          0.602,
+          1,
+          1
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S15",
+      "text": "“너희가 왜 여기 있어?”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“너희가 왜 여기있어?”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S16_STATE_01",
+      "heads": [
+        [
+          0.126,
+          0.016,
+          0.276,
+          0.335
+        ],
+        [
+          0.407,
+          0.113,
+          0.557,
+          0.413
+        ],
+        [
+          0.797,
+          0.171,
+          0.939,
+          0.401
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S16",
+      "text": "“보면 몰라? 살아서 나왔지.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“보면 몰라?살아서 나왔지.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S16_STATE_01",
+      "heads": [
+        [
+          0.126,
+          0.016,
+          0.276,
+          0.335
+        ],
+        [
+          0.407,
+          0.113,
+          0.557,
+          0.413
+        ],
+        [
+          0.797,
+          0.171,
+          0.939,
+          0.401
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S16",
+      "text": "“너희 죽었다고 했어. 먼저 나온 철산문 놈들이.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“너희 죽었다고 했어.먼저 나온 철산문놈들이.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S16_STATE_02",
+      "heads": [
+        [
+          0.302,
+          0.013,
+          0.404,
+          0.185
+        ],
+        [
+          0.052,
+          0.261,
+          0.187,
+          0.46
+        ],
+        [
+          0.59,
+          0.017,
+          0.816,
+          0.447
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S16",
+      "text": "“누가 저희를 봤다고 하면, 그 사람도 데려갈 겁니다.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“누가 저희를봤다고 하면, 그사람도 데려갈겁니다.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S17_STATE_01",
+      "heads": [
+        [
+          0.082,
+          0.025,
+          0.19,
+          0.2
+        ],
+        [
+          0.441,
+          0.042,
+          0.544,
+          0.321
+        ],
+        [
+          0.673,
+          0,
+          0.879,
+          0.366
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S17",
+      "text": "“아는 길로 여기까지 왔나?”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“아는 길로여기까지 왔나?”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S17_STATE_01",
+      "heads": [
+        [
+          0.082,
+          0.025,
+          0.19,
+          0.2
+        ],
+        [
+          0.441,
+          0.042,
+          0.544,
+          0.321
+        ],
+        [
+          0.673,
+          0,
+          0.879,
+          0.366
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S17",
+      "text": "“몰라서 이 꼴이지.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“몰라서 이꼴이지.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S17_STATE_01",
+      "heads": [
+        [
+          0.082,
+          0.025,
+          0.19,
+          0.2
+        ],
+        [
+          0.441,
+          0.042,
+          0.544,
+          0.321
+        ],
+        [
+          0.673,
+          0,
+          0.879,
+          0.366
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S17",
+      "text": "“오늘은 네가 실려.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“오늘은 네가실려.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S18_STATE_01",
+      "heads": [
+        [
+          0.081,
+          0.195,
+          0.254,
+          0.535
+        ],
+        [
+          0.343,
+          0.18,
+          0.477,
+          0.384
+        ],
+        [
+          0.592,
+          0.002,
+          0.761,
+          0.397
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S18",
+      "text": "“중개소까지 가면 되지?”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“중개소까지 가면되지?”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S18_STATE_01",
+      "heads": [
+        [
+          0.081,
+          0.195,
+          0.254,
+          0.535
+        ],
+        [
+          0.343,
+          0.18,
+          0.477,
+          0.384
+        ],
+        [
+          0.592,
+          0.002,
+          0.761,
+          0.397
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S18",
+      "text": "“의원으로 가주세요.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“의원으로가주세요.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S18_STATE_01",
+      "heads": [
+        [
+          0.081,
+          0.195,
+          0.254,
+          0.535
+        ],
+        [
+          0.343,
+          0.18,
+          0.477,
+          0.384
+        ],
+        [
+          0.592,
+          0.002,
+          0.761,
+          0.397
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S18",
+      "text": "“품삯은?”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“품삯은?”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S18_STATE_02",
+      "heads": [
+        [
+          0.074,
+          0.002,
+          0.272,
+          0.343
+        ],
+        [
+          0.329,
+          0.09,
+          0.492,
+          0.37
+        ],
+        [
+          0.707,
+          0.002,
+          0.858,
+          0.365
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S18",
+      "text": "“살아서 받으러 갈 겁니다.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“살아서 받으러 갈겁니다.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S19_STATE_02",
+      "heads": [
+        [
+          0.036,
+          0.106,
+          0.162,
+          0.361
+        ],
+        [
+          0.275,
+          0.086,
+          0.399,
+          0.4
+        ],
+        [
+          0.441,
+          0.192,
+          0.579,
+          0.424
+        ],
+        [
+          0.63,
+          0.218,
+          0.74,
+          0.418
+        ],
+        [
+          0.82,
+          0.017,
+          0.946,
+          0.353
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S19",
+      "text": "“이름은 둘이다. 서진, 도겸. 중개소로 보내지 말고 별원에 데려가.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“이름은 둘이다. 서진,도겸. 중개소로 보내지말고 별원에 데려가.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S20_STATE_01",
+      "heads": [
+        [
+          0.071,
+          0,
+          0.263,
+          0.365
+        ],
+        [
+          0.241,
+          0.35,
+          0.407,
+          0.581
+        ],
+        [
+          0.425,
+          0.294,
+          0.61,
+          0.577
+        ],
+        [
+          0.847,
+          0.004,
+          0.945,
+          0.275
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S20",
+      "text": "“덮개 걷어.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“덮개 걷어.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S20_STATE_02",
+      "heads": [
+        [
+          0.104,
+          0.201,
+          0.267,
+          0.492
+        ],
+        [
+          0.306,
+          0.275,
+          0.441,
+          0.502
+        ],
+        [
+          0.479,
+          0.002,
+          0.641,
+          0.367
+        ],
+        [
+          0.843,
+          0.007,
+          1,
+          0.354
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S20",
+      "text": "“먼저 이것부터 적으시오.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“먼저 이것부터적으시오.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S20_STATE_02",
+      "heads": [
+        [
+          0.104,
+          0.201,
+          0.267,
+          0.492
+        ],
+        [
+          0.306,
+          0.275,
+          0.441,
+          0.502
+        ],
+        [
+          0.479,
+          0.002,
+          0.641,
+          0.367
+        ],
+        [
+          0.843,
+          0.007,
+          1,
+          0.354
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S20",
+      "text": "“뭘.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“뭘.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S20_STATE_02",
+      "heads": [
+        [
+          0.104,
+          0.201,
+          0.267,
+          0.492
+        ],
+        [
+          0.306,
+          0.275,
+          0.441,
+          0.502
+        ],
+        [
+          0.479,
+          0.002,
+          0.641,
+          0.367
+        ],
+        [
+          0.843,
+          0.007,
+          1,
+          0.354
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S20",
+      "text": "“당신이 짐을 멈춰 세운 시각. 여기서 사람이 죽으면 누구한테 따질지 알아야 하니까.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“당신이 짐을 멈춰 세운시각. 여기서 사람이 죽으면누구한테 따질지 알아야하니까.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S20_STATE_02",
+      "heads": [
+        [
+          0.104,
+          0.201,
+          0.267,
+          0.492
+        ],
+        [
+          0.306,
+          0.275,
+          0.441,
+          0.502
+        ],
+        [
+          0.479,
+          0.002,
+          0.641,
+          0.367
+        ],
+        [
+          0.843,
+          0.007,
+          1,
+          0.354
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S20",
+      "text": "“비켜요. 의원부터 갑니다.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“비켜요. 의원부터갑니다.”"
+        }
+      ]
+    },
+    {
+      "asset": "E03_S20_STATE_03",
+      "heads": [
+        [
+          0,
+          0,
+          0.247,
+          0.345
+        ],
+        [
+          0.254,
+          0.039,
+          0.514,
+          0.493
+        ],
+        [
+          0.576,
+          0.065,
+          0.671,
+          0.34
+        ],
+        [
+          0.845,
+          0.015,
+          0.944,
+          0.263
+        ]
+      ],
+      "image_decoded": true,
+      "scene": "E03_S20",
+      "text": "“형. 이번엔 제가 말할게요.”",
+      "text_boxes": [
+        {
+          "head_overlap": false,
+          "inside": true,
+          "text": "“형. 이번엔 제가말할게요.”"
+        }
+      ]
+    }
+  ]
+}

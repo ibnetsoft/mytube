@@ -1,0 +1,14 @@
+{
+  "graphics": 50,
+  "unsafe": 0,
+  "coordinate_system": "1920x1080 normalized head boxes",
+  "checks": [
+    "body bounds including peak scale and rotation",
+    "full unified tail contour vertices AND tail-segment intersections vs all heads",
+    "maximum tail length54px with64px speaker clearance",
+    "frame bounds",
+    "font wrapping"
+  ],
+  "all_text_editable": true,
+  "narration_caption_count": 0
+}

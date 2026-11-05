@@ -1,0 +1,19 @@
+{
+  "topic_id": 3432,
+  "queue_visible": true,
+  "visible_title": "죽었다던 짐꾼 둘이 돌아왔다 | 나 혼자 무공을 진화시킨다 3화",
+  "visible_scene_count": 20,
+  "visible_video_indicator": "영상 X",
+  "topic_card_image_rendered": true,
+  "registered_package_exact_readback": true,
+  "new_topic_claimed": false,
+  "existing_active_project_not_changed": true,
+  "raw_final_image_browser_title": "gcs-file (1672×941)",
+  "raw_final_image_asset": "images/E03_S20_STATE_03.png",
+  "raw_final_image_dom_probe": "unavailable: browser reported another extension UI open; native image-page title and dimensions observed",
+  "all_73_remote_files_download_sha256_verified": true,
+  "component_graphics": 50,
+  "component_issues": 0,
+  "screenshot": "packaging/user-web-registration.png",
+  "legacy_detail_modal_note": "상세 모달의 1~12씬 5초 비디오, Cinematic/Ghibli, 1줄 자막 안내는 공통 하드코딩 문구이다. 실제 저장 구조는 wuxia_webtoon, required_video_scene_count0, subtitles_enabledfalse이다. 이 문구를 실제 제작 지시로 사용하지 않았다."
+}

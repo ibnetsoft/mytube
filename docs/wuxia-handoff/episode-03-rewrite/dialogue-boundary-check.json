@@ -1,0 +1,25 @@
+{
+  "source_content_preserved_ignoring_whitespace": true,
+  "original_paragraph_blocks": 84,
+  "final_spoken_blocks": 85,
+  "changes": [
+    {
+      "scene_id": "E03_S01",
+      "original_block": 2,
+      "original_text": "“짐꾼이면 따로 빼. 먼저 나온 자들하고 말 섞게 하지 말고.” 도겸의 손이 서진의 소매를 세게 쥐었습니다.",
+      "parts": [
+        {
+          "kind": "dialogue",
+          "text": "“짐꾼이면 따로 빼. 먼저 나온 자들하고 말 섞게 하지 말고.”",
+          "speaker": "guard"
+        },
+        {
+          "kind": "narration",
+          "text": "도겸의 손이 서진의 소매를 세게 쥐었습니다."
+        }
+      ]
+    }
+  ],
+  "all_dialogue_exactly_quoted": true,
+  "narration_in_speech_bubbles": 0
+}

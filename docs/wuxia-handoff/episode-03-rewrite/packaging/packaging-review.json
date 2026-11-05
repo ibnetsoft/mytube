@@ -1,0 +1,21 @@
+{
+  "title": "죽었다던 짐꾼 둘이 돌아왔다 | 나 혼자 무공을 진화시킨다 3화",
+  "title_score": null,
+  "review_status": "actual_shared_renderer_output_inspected",
+  "hook_alternatives": [
+    "장부에는 죽었다",
+    "우린 살아 있다",
+    "칼보다 동료"
+  ],
+  "youtube_publication": false,
+  "thumbnail_review": {
+    "source": "thumbnail-final.png actual 1280x720 rendered output",
+    "text_layers": 3,
+    "face_coverage": false,
+    "composition": "two wounded porters on cart right, editable text left, checkpoint background",
+    "quality_notes": [
+      "서진의 먹색 속소매가 그림에서 생략되어 승인 복장과 차이가 있다. 썸네일 품질 기록으로 보존한다."
+    ],
+    "shared_renderer": "auth-web/lib/stdThumbnailRender.ts:drawThumbnail"
+  }
+}

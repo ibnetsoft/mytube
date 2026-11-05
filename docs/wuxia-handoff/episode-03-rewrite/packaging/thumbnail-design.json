@@ -1,0 +1,47 @@
+{
+  "contract": "editable-background-v1",
+  "width": 1280,
+  "height": 720,
+  "editor_width": 480,
+  "text_layers": [
+    {
+      "id": "ep03-kicker",
+      "text": "장부에는 죽었다",
+      "fontSize": 19,
+      "fontFamily": "Noto Sans KR",
+      "color": "#FFFFFF",
+      "strokeColor": "#08151B",
+      "strokeWidth": 1.5,
+      "x": 25,
+      "y": 25
+    },
+    {
+      "id": "ep03-headline",
+      "text": "우린\n살아 있다",
+      "fontSize": 36,
+      "fontFamily": "Black Han Sans",
+      "color": "#FFE19A",
+      "strokeColor": "#071820",
+      "strokeWidth": 2,
+      "x": 25,
+      "y": 52
+    },
+    {
+      "id": "ep03-badge",
+      "text": "살아 돌아온 짐꾼 · 3화",
+      "fontSize": 12,
+      "fontFamily": "Noto Sans KR",
+      "color": "#82DFE5",
+      "strokeColor": "#071820",
+      "strokeWidth": 1,
+      "x": 25,
+      "y": 83
+    }
+  ],
+  "render_status": "completed",
+  "editor_bg_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rewrite%2Fepisode-03%2Fthumbnail-bg-v1-a155573d79e95296d89df4554d14a202545d0c6f4a184b9bd3f9c5d11364c1c4.png",
+  "bg_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rewrite%2Fepisode-03%2Fthumbnail-bg-v1-a155573d79e95296d89df4554d14a202545d0c6f4a184b9bd3f9c5d11364c1c4.png",
+  "thumbnail_url": "/api/std/assets/gcs-file?bucket=air-studio-prod&path=codex-productions%2Fwuxia-series-rewrite%2Fepisode-03%2Fthumbnail-final-d8cef62f79dfc6c29a880f257a23d2dace3b43175efcb70eaae0d2e485f255ff.png",
+  "renderer": "auth-web/lib/stdThumbnailRender.ts:drawThumbnail",
+  "thumbnail_completed": true
+}
