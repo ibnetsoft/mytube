@@ -9355,7 +9355,6 @@ export default function StdPortalPage() {
                         const narrationVoiceName = voiceNameById.get(narrationVoiceId) || narrationVoiceId.replace('gemini:', '')
                         return (
                         <div className="space-y-3 w-full flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
-                            {wuxiaMode && <div role="note" className="rounded border border-cyan-700/50 bg-cyan-950/30 p-2 text-xs text-cyan-100">무협 무빙툰 · 아래 대본은 음성·화자 편집용입니다. 일반 자막은 출력하지 않습니다. 화면에는 저장된 말풍선·반응·효과음 타이포만 표시합니다. 현재 연출 미리보기는 실제 녹음의 단어별 동기화 검증과 구분됩니다.</div>}
                             {/* 1. 상단 2줄 스타일 툴바 (설치형 유저앱과 100% 동일 + 모바일 오밀조밀 최적화 & 숨김/펼침) */}
                             <div className={`${wuxiaMode ? 'hidden' : 'flex'} std-subtitle-controls relative z-30 bg-[#1c2027] border border-white/10 rounded-lg sm:rounded-xl p-2 sm:p-2.5 shadow-md flex-col gap-2 shrink-0 overflow-visible`}>
                                 {/* 모바일 전용 상단 패널 숨김/펼침 토글 바 (기본값: 숨김 ▲) */}
@@ -10844,6 +10843,7 @@ export default function StdPortalPage() {
                                         speakerProgress={dialogueSpeakerProgress}
                                         onMotionApplied={() => { void (async () => { const r = await fetch(`/api/std/projects/${selectedProject.project.id}`, { headers: authedJsonHeaders }); if (r.ok) { const value = await r.json(); setSelectedProject(prev => prev && prev.project.id === value.project?.id ? { ...prev, scenes: value.scenes, assets: value.assets } : prev) } })() }}
                                         selectedSceneNumber={Number(localSubtitles[selectedSubIndex]?.scene_number || 0)} />
+                                    {wuxiaMode && <div role="note" className="order-5 lg:order-none lg:mt-auto rounded border border-cyan-700/50 bg-cyan-950/30 p-2 text-xs text-cyan-100">무협 무빙툰 · 아래 대본은 음성·화자 편집용입니다. 일반 자막은 출력하지 않습니다. 화면에는 저장된 말풍선·반응·효과음 타이포만 표시합니다. 현재 연출 미리보기는 실제 녹음의 단어별 동기화 검증과 구분됩니다.</div>}
                                     {isVrewSubtitleMode && message && (
                                         <div role="status" aria-live="polite" data-subtitle-action-status title={message}
                                             className="order-5 rounded-lg border border-cyan-400/20 bg-[#172333] px-3 py-2 text-xs text-cyan-100 lg:order-none">
