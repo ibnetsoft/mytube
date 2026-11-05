@@ -34,3 +34,5 @@
 재생성 시 순서: 기존 방향 패키지 생성 후 저장소 루트에서 `node tools/repair_wuxia_episode02.cjs`를 실행한다. 보호 영역과 전체 그래픽 재검증을 거치며, 생성만으로 시각 검증을 대신하지 않는다. 교정 도구는 운영 DB를 변경하지 않는다.
 
 교정 증거: `output/wuxia-episode02-audit/fixed1.png`–`fixed5.png`, `scene13-component-fixed.png`. 검사: `auth-web/tests/std-wuxia-episode02.cjs` 및 무협 표시·타이밍·렌더 내용 보존 회귀 검사.
+
+최종 브라우저 검증에서는 실제 `StdWuxiaScenePreview`로 35개를 순회했고 빈 표시 0개, 원문 대비 누락 0개를 확인했다. 실제 글자·도형 외곽의 브라우저 좌표도 보호 영역과 겹침 0개다. 22씬은 꼬리 주위에 추가 여백을 확보했다. 검증 기록: `component-render-checks.json`, `browser-layout-checks.json` (점검 출력 폴더).

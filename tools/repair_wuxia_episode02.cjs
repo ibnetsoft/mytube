@@ -12,6 +12,7 @@ for(const scene of pkg.scenes){const n=+scene.scene_id.slice(-2);let total=scene
   g.voice_binding={...g.voice_binding,exact_anchor:anchor,block_id:b.block_id};
   if(g.kind==='speech_bubble'){g.bubble_style=shout.has(n)?'shout':n===3?'whisper':gentle.has(n)?'rounded':'dialogue';g.style={...g.style,size:46,scale_peak:100};}
   const state=scene.states.find(s=>s.asset_id===g.state_asset_id),boxes=state.face_exclusion_boxes;
+  if(n===22&&g.kind==='speech_bubble')g.layout.center=[.41,.80];
   if(n===21&&g.kind==='sfx'){g.layout.center=[.11,.14];g.layout.size=[.14,.14]}
   const original=JSON.parse(JSON.stringify(g.layout));let candidates=[];
   // Preserve the authored position whenever it is actually safe, otherwise use inspected negative space.
