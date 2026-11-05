@@ -19,8 +19,26 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const start = Math.min(...timing.map(r => Number(r.start_num ?? r.start_time)))
     const end = Math.max(...timing.map(r => Number(r.end_num ?? r.end_time)))
     const fraction = Number.isFinite(start) && end > start ? Math.max(0, Math.min(.999999, (seconds - start) / (end - start))) : 0
-    const state = scene.states?.find((s: any) => fraction >= s.start && fraction < s.end) || scene.states?.[0]
-    const graphics = (scene.graphics || []).filter((g: any) => g.state_asset_id === state?.asset_id
-        && fraction >= g.preview_start && fraction < g.preview_end)
-    return { state, graphics, fraction, timingBasis: 'authored_preview_not_word_aligned_recording' }
+    const normalize = (value: any) => String(value || '').replace(/[\s\p{P}\p{S}]/gu, '')
+    const rowRange = (g: any) => {
+        const target = normalize(g.text)
+        if (!target || g.kind !== 'speech_bubble') return null
+        const matching = timing.filter((r: any) => normalize(r.text) === target)
+        if (matching.length !== 1) return null
+        const start = Number(matching[0].start_num ?? matching[0].start_time)
+        const end = Number(matching[0].end_num ?? matching[0].end_time)
+        return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : null
+    }
+    const dialogue = (scene.graphics || []).find((g: any) => {
+        const range = rowRange(g)
+        return range && seconds >= range.start && seconds < range.end
+    })
+    const state = (dialogue && scene.states?.find((s: any) => s.asset_id === dialogue.state_asset_id))
+        || scene.states?.find((s: any) => fraction >= s.start && fraction < s.end) || scene.states?.[0]
+    const graphics = (scene.graphics || []).filter((g: any) => {
+        if (g.state_asset_id !== state?.asset_id) return false
+        const range = rowRange(g)
+        return range ? seconds >= range.start && seconds < range.end : fraction >= g.preview_start && fraction < g.preview_end
+    })
+    return { state, graphics, fraction, timingBasis: 'subtitle_row_bound_or_authored_preview' }
 }
