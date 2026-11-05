@@ -33,14 +33,27 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
     const end = Math.max(...timing.map(r => Number(r.end_num ?? r.end_time)))
     const fraction = Number.isFinite(start) && end > start ? Math.max(0, Math.min(.999999, (seconds - start) / (end - start))) : 0
     const normalize = (value: any) => String(value || '').replace(/[\s\p{P}\p{S}]/gu, '')
+    // Match a frozen sentence across any number of split voice rows.
+    // Punctuation-only rows contribute no text and never reset the speaker.
     const rowRange = (g: any) => {
-        const target = normalize(g.text)
-        if (!target || g.kind !== 'speech_bubble') return null
-        const matching = timing.filter((r: any) => normalize(r.text) === target)
-        if (matching.length !== 1) return null
-        const start = Number(matching[0].start_num ?? matching[0].start_time)
-        const end = Number(matching[0].end_num ?? matching[0].end_time)
-        return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : null
+        const target = normalize(g.voice_binding?.exact_anchor || g.text)
+        if (!target) return null
+        let joined = '', parts: any[] = []
+        for (const r of timing) {
+            const text = normalize(r.text), from = joined.length
+            const start = Number(r.start_num ?? r.start_time), end = Number(r.end_num ?? r.end_time)
+            if (!text || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue
+            joined += text; parts.push({ from, to: joined.length, start, end })
+        }
+        const at = joined.indexOf(target)
+        if (at < 0 || joined.indexOf(target, at + 1) >= 0) return null
+        const first = parts.find(r => r.from <= at && at < r.to)
+        const last = parts.find(r => r.from < at + target.length && at + target.length <= r.to)
+        if (!first || !last) return null
+        return {
+            start: first.start + (first.end - first.start) * (at - first.from) / (first.to - first.from),
+            end: last.start + (last.end - last.start) * (at + target.length - last.from) / (last.to - last.from),
+        }
     }
     const dialogue = (scene.graphics || []).find((g: any) => {
         const range = rowRange(g)
@@ -56,6 +69,10 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
         if (g.state_asset_id !== (state?.parent_asset_id || state?.asset_id)) return false
         const range = rowRange(g)
         return range ? seconds >= range.start && seconds < range.end : fraction >= g.preview_start && fraction < g.preview_end
+    }).map((g: any) => {
+        const range = rowRange(g)
+        const progress = range ? (seconds-range.start)/(range.end-range.start) : (fraction-g.preview_start)/(g.preview_end-g.preview_start)
+        return { ...g, progress: Math.max(0, Math.min(1, progress)) }
     })
     return { state, graphics, fraction, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
 }

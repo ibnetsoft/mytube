@@ -10516,7 +10516,7 @@ export default function StdPortalPage() {
                                             {selectedImageTemplatePreset && <StdTemplateOverlay locale={currentLocale} layers={textLayers}
                                                 savedImage={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_png_data_url}
                                                 savedLayers={selectedProject?.project?.project_payload?.render_settings?.std_template_overlay_layers} />}
-                                            {wuxiaMode && <StdWuxiaScenePreview project={selectedProject.project} sceneNumber={Number(currentSub.scene_number)} subtitles={localSubtitles} seconds={playbackTime} headers={authedJsonHeaders} />}
+                                            {wuxiaMode && <StdWuxiaScenePreview project={selectedProject.project} sceneNumber={Number(currentSub.scene_number)} subtitles={localSubtitles} seconds={playbackTime} headers={authedJsonHeaders} playing={isPlayingPreview} />}
                                             {/* 실시간 폰트/스타일 자막 오버레이 (항상 1줄 고정) */}
                                             {(() => {
                                                 if (!usesStandardSubtitles(selectedProject.project)) return null

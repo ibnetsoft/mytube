@@ -279,3 +279,11 @@ body {
   background-size: 200% 200%;
   animation: gradientShift 2.5s ease infinite;
 }
+
+@font-face {
+    font-family: 'Wuxia Noto Sans KR';
+    src: url('/fonts/NotoSansKR-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
