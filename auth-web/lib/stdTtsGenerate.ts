@@ -1,3 +1,4 @@
+import { changeMp3Tempo } from '@/lib/stdNarrationMp3'
 import { preserveAudioAnchors } from '@/lib/stdAudioAnchors'
 import { normalizeVoicePerformance, performanceTextForChunk, elevenLabsVoiceSettings, VoicePerformance } from '@/lib/stdVoicePerformance'
 import { ensureSyncedMouthPreview } from '@/lib/stdSubmissionPipeline'
@@ -750,6 +751,7 @@ export async function runTts(body: any, auth: any, project: any, finalizeSubtitl
             direction: String(body?.direction || ''),
             stability: body?.stability ?? 0.7, style: body?.style ?? null,
             language: String(project.language || 'ko'),
+            ...(projectTtsSpeed !== 1 && (provider === 'google_free' || (provider === 'elevenlabs' && modelId === 'eleven_v4')) ? { tempoProcessing: 'atempo-v1' } : {}),
             ...(performance ? { performance } : {}),
         }
         const segmentCacheKey = segmentPreview ? segmentAudioKey(segmentIdentity) : ''
@@ -881,13 +883,17 @@ export async function runTts(body: any, auth: any, project: any, finalizeSubtitl
         }
         if (!segmentPreview && voiceSegments.length) {
             stage = 'assemble_saved_segments'
-            const segmentKey = (segment: { text: string; voiceId: string; direction?: string; performance?: VoicePerformance }) => segmentAudioKey({
-                ...segmentIdentity, text: segment.text, voiceId: segment.voiceId,
-                modelId: cacheModelForVoice(segment.voiceId),
-                ...(segment.performance ? { performance: segment.performance } : {}),
-                provider: isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs',
-                direction: segment.direction || '',
-            })
+            const segmentKey = (segment: { text: string; voiceId: string; direction?: string; performance?: VoicePerformance }) => {
+                const segmentProvider = isVoiceStudioVoice(segment.voiceId) ? 'voice_studio' : segment.voiceId.startsWith('google_') ? 'google_free' : 'elevenlabs'
+                const segmentModel = cacheModelForVoice(segment.voiceId)
+                return segmentAudioKey({
+                    text: segment.text, provider: segmentProvider, voiceId: segment.voiceId, modelId: segmentModel,
+                    speed: projectTtsSpeed, direction: segment.direction || '',
+                    stability: body?.stability ?? 0.7, style: body?.style ?? null, language: String(project.language || 'ko'),
+                    ...(projectTtsSpeed !== 1 && (segmentProvider === 'google_free' || (segmentProvider === 'elevenlabs' && modelId === 'eleven_v4')) ? { tempoProcessing: 'atempo-v1' } : {}),
+                    ...(segment.performance ? { performance: segment.performance } : {}),
+                })
+            }
             const preparedAssets = new Map<string, any>()
             if (assembleOnly || prepareOnly) {
                 // Fetch metadata in batches instead of one or two DB calls per subtitle.
@@ -1035,6 +1041,13 @@ export async function runTts(body: any, auth: any, project: any, finalizeSubtitl
                 chunkCount,
                 keyPreflight: elevenLabsKeyInspections,
             })
+        }
+
+        // v4 and Google free do not accept the synthesis speed parameter.
+        // Stored segment audio is already processed, so never process an assembly twice.
+        if ((!voiceSegments.length || segmentPreview) && projectTtsSpeed !== 1
+            && (provider === 'google_free' || (provider === 'elevenlabs' && modelId === 'eleven_v4'))) {
+            audioBuffer = await changeMp3Tempo(audioBuffer, projectTtsSpeed)
         }
 
         const now = new Date().toISOString()

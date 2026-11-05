@@ -1090,6 +1090,7 @@ export default function StdPortalPage() {
         || selectedProject?.project?.source_payload?.progress_payload?.tts_speed
         || 1
     ) || 1)))
+    const [savingTtsSpeed, setSavingTtsSpeed] = useState(false)
     const [elevenLabsModelChoices, setElevenLabsModelChoices] = useState<Record<string, string>>({})
     const elevenLabsModel = elevenLabsModelChoices[selectedProject?.project?.id || '']
         || 'eleven_v4'
@@ -3711,7 +3712,7 @@ export default function StdPortalPage() {
             && ['uploaded', 'assigned'].includes(String(item?.status || ''))
         )
         const assetId = String(asset?.id || '').trim()
-        if (!projectId || !assetId) return null
+        if (!projectId || !assetId || Number(asset?.metadata?.tts_speed ?? 1) !== Number(ttsSpeed)) return null
         const aligned = alignedNarrationSubtitles(localSubtitles, asset.metadata?.subtitle_timeline, selectedVoice)
         if (!aligned) return null
 
@@ -3743,6 +3744,7 @@ export default function StdPortalPage() {
             && m?.kind === 'vrew_segment_tts' && m.text === String(subtitle?.text || '').trim()
             && m.voice_id === String(subtitle?.voice_id || selectedVoice)
             && (m.model_id === cacheModelForVoice(String(subtitle?.voice_id || selectedVoice)) || (preserveExistingAudio && m.provider === 'elevenlabs')) && Number(m.tts_speed) === Number(ttsSpeed)
+            && (Number(ttsSpeed) === 1 || !['eleven_v4', 'google_free'].includes(String(m.model_id === 'eleven_v4' ? m.model_id : m.provider)) || m.tempo_processing === 'atempo-v1')
             && Number(m.stability) === Number(elStability) && Number(m.style) === Number(elStyle)
             && String(m.direction || '') === String(subtitle?.voice_direction || '')
             && voicePerformanceKey(m.voice_performance) === voicePerformanceKey(performanceForRow(subtitle))
@@ -9861,6 +9863,36 @@ export default function StdPortalPage() {
                                                     {subtitleReviewCopy?.retry}
                                                 </span>
                                             )}
+                                            {wuxiaMode && renderVoicePicker('all-dialogue-bulk', '', async (voiceId) => {
+                                                const nextVoiceId = String(voiceId || '')
+                                                const nextVoiceName = voiceNameById.get(nextVoiceId) || nextVoiceId
+                                                if (!nextVoiceId) return
+                                                stopVrewPlayback()
+                                                const updated = localSubtitles.map((row: any, index: number) => {
+                                                    if (!isSubtitleDialogue(row, index)) return row
+                                                    const next = { ...row, voice_id: nextVoiceId, voice_name: nextVoiceName }
+                                                    markVrewSegmentStale(next, index)
+                                                    return next
+                                                })
+                                                if (await persistVrewVoiceSubtitles(updated)) setMessage(`모든 대사 성우를 ${nextVoiceName}(으)로 지정했습니다.`)
+                                            }, '전체 대사 성우', 'dialogue', 'right', !localSubtitles.some(isSubtitleDialogue), { buttonLabel: '대사 성우', elevenLabsOnly: true })}
+                                            <label className="inline-flex items-center gap-1 text-[10px] text-cyan-100">
+                                                음성 속도
+                                                <select aria-label="전체 음성 속도" value={ttsSpeed} disabled={savingTtsSpeed || generatingTts || backgroundTtsActive || isSubtitleSyncing}
+                                                    className="rounded border border-cyan-700/50 bg-[#172333] px-1 py-1 text-cyan-100 disabled:opacity-50"
+                                                    onChange={async event => {
+                                                        const speed = Number(event.target.value), projectId = selectedProject.project.id
+                                                        stopVrewPlayback(); setSavingTtsSpeed(true)
+                                                        try {
+                                                            const project = await saveSubtitleProject(projectId, { project_payload: { tts_speed: speed } }, authedJsonHeaders)
+                                                            setSelectedProject(prev => prev && prev.project.id === projectId ? { ...prev, project } : prev)
+                                                            setMessage('음성 속도를 저장했습니다. 음성 길이 보정으로 새 음성을 준비한 뒤 저장+TTS를 실행해 주세요.')
+                                                        } catch (error: any) { setMessage(`음성 속도 저장 실패: ${error?.message || '다시 시도해 주세요.'}`) }
+                                                        finally { setSavingTtsSpeed(false) }
+                                                    }}>
+                                                    {[...new Set([0.7, 0.8, 0.9, 1, 1.05, 1.1, 1.15, 1.2, Number(ttsSpeed)])].sort((a,b) => a-b).map(speed => <option key={speed} value={String(speed)}>{speed.toFixed(2)}×</option>)}
+                                                </select>
+                                            </label>
                                             <button
                                                 type="button"
                                                 onClick={() => void syncSubtitleTimingsToNarration()}

@@ -16,6 +16,7 @@ export function legacySegmentMatches(metadata: any, identity: Record<string, any
             && metadata.provider === 'elevenlabs'
             && ['eleven_multilingual_v2', 'eleven_v3', 'eleven_v4'].includes(metadata.model_id)))
         && Number(metadata.tts_speed) === identity.speed
+        && (!identity.tempoProcessing || metadata.tempo_processing === identity.tempoProcessing)
         && Number(metadata.stability) === Number(identity.stability)
         && Number(metadata.style) === Number(identity.style)
         && String(metadata.direction || '') === identity.direction)
@@ -41,7 +42,7 @@ export async function persistSegmentAudio(db: any, args: {
             sha256: fileContentHash(args.audioBuffer),
             segment_index: args.segmentIndex, provider: identity.provider,
             voice_id: identity.voiceId, model_id: identity.modelId,
-            tts_speed: identity.speed, stability: identity.stability, style: identity.style,
+            tts_speed: identity.speed, tempo_processing: identity.tempoProcessing || null, stability: identity.stability, style: identity.style,
             direction: identity.direction, language: identity.language, text: identity.text,
             ...(identity.performance ? { voice_performance: identity.performance } : {}),
             text_hash: createHash('sha1').update(identity.text).digest('hex'),

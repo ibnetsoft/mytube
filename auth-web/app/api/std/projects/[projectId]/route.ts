@@ -541,6 +541,7 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     ])
     const allowedProjectPayloadKeys = new Set([
         'script',
+        'tts_speed',
         'original_worker_script',
         'subtitles',
         'subtitles_saved',
@@ -557,6 +558,8 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
         'thumbnail_url',
         'bgm_sfx_saved',
     ])
+    if (incomingProjectPayload.tts_speed !== undefined && (typeof incomingProjectPayload.tts_speed !== 'number' || !Number.isFinite(incomingProjectPayload.tts_speed) || incomingProjectPayload.tts_speed < 0.7 || incomingProjectPayload.tts_speed > 1.2)) return NextResponse.json({ success: false, error: '음성 속도는 0.7~1.2 사이여야 합니다.' }, { status: 400 })
+    const speedChanged = incomingProjectPayload.tts_speed !== undefined && Number(incomingProjectPayload.tts_speed) !== Number(currentSubtitlePayload.tts_speed ?? project.progress_payload?.tts_speed ?? 1)
     const progressPatch = Object.fromEntries(
         Object.entries(incomingProgress).filter(([key]) => allowedProgressKeys.has(key))
     )
@@ -718,10 +721,11 @@ export async function PATCH(req: Request, { params }: { params: { projectId: str
     const updatePayload: Record<string, any> = {
         updated_at: new Date().toISOString(),
     }
-    if (Object.keys(progressPatch).length > 0 || scriptChanged) {
+    if (Object.keys(progressPatch).length > 0 || scriptChanged || speedChanged) {
         updatePayload.progress_payload = {
             ...(project.progress_payload || {}),
             ...progressPatch,
+            ...(speedChanged ? { has_tts_audio: false, tts_completed: false, subtitle_tts_completed: false, subtitles_completed: false, subtitle_tts_completed_at: null, tts_invalidated_at: new Date().toISOString(), tts_invalidated_reason: 'speed_changed' } : {}),
             ...(scriptChanged ? {
                 has_tts_audio: false,
                 tts_completed: false,

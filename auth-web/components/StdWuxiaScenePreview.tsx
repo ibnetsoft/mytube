@@ -18,20 +18,26 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
 }) {
     const frame = wuxiaSceneFrame(project, sceneNumber, subtitles, seconds)
     const source = String(frame?.state?.media_url || frame?.state?.image_url || '')
-    const [image, setImage] = useState({ source: '', url: '' })
+    // Fetch each authored still ahead of the cut, so a slow download does not
+    // leave the previous state visible over the next spoken segment.
+    const sourcesKey = JSON.stringify(frame?.sources || [])
+    const [images, setImages] = useState<Record<string, string>>({})
     useEffect(() => {
-        if (!source) return
-        let live = true, url = ''
-        const controller = new AbortController()
-        fetch(source, { headers, signal: controller.signal }).then(r => { if (!r.ok) throw Error('source unavailable'); return r.blob() })
-            .then(blob => { if (live) { url = URL.createObjectURL(blob); setImage({ source, url }) } })
-            .catch(() => { if (live) setImage({ source, url: '' }) })
-        return () => { live = false; controller.abort(); if (url) URL.revokeObjectURL(url) }
-    }, [source, headers])
+        const sources: string[] = JSON.parse(sourcesKey)
+        let live = true
+        const controller = new AbortController(), urls: string[] = []
+        setImages({})
+        for (const item of sources) {
+            fetch(item, { headers, signal: controller.signal }).then(r => { if (!r.ok) throw Error('source unavailable'); return r.blob() })
+                .then(blob => { if (live) { const url = URL.createObjectURL(blob); urls.push(url); setImages(prev => ({ ...prev, [item]: url })) } })
+                .catch(() => {})
+        }
+        return () => { live = false; controller.abort(); urls.forEach(url => URL.revokeObjectURL(url)) }
+    }, [sourcesKey, headers])
     if (!frame) return null
     return <div className="absolute inset-0 pointer-events-none" data-wuxia-presentation="authored-graphics" aria-label="무협 말풍선·타이포 미리보기">
-        {image.source === source && image.url && <img src={image.url} alt="" className="absolute inset-0 h-full w-full object-cover" />}
-        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1920 1080" role="img" aria-label="저장된 말풍선과 선택 타이포">
+        {images[source] && <img src={images[source]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+        {(!source || images[source]) && <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1920 1080" role="img" aria-label="저장된 말풍선과 선택 타이포">
             {frame.graphics.map((g: any, i: number) => {
                 const l = g.layout, speech = g.kind === 'speech_bubble'
                 if (!l?.center || !l?.size) return null
@@ -46,6 +52,6 @@ export default function StdWuxiaScenePreview({ project, sceneNumber, subtitles, 
                     </text>
                 </g>
             })}
-        </svg>
+        </svg>}
     </div>
 }

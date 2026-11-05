@@ -48,3 +48,20 @@ export async function finalizeNarrationMp3(clips: Buffer[]) {
         await rm(directory, { recursive: true, force: true })
     }
 }
+
+// Some TTS providers do not expose a synthesis speed. Change tempo without
+// changing pitch before the clip is cached or measured for the timeline.
+export async function changeMp3Tempo(input: Buffer, speed: number) {
+    if (!Number.isFinite(speed) || speed < 0.7 || speed > 1.2) throw new Error('Invalid speech tempo')
+    if (speed === 1) return input
+    if (!ffmpeg) throw new Error('Narration audio encoder is unavailable')
+    const directory = await mkdtemp(path.join(tmpdir(), 'air-tempo-'))
+    try {
+        const source = path.join(directory, 'source.mp3'), output = path.join(directory, 'tempo.mp3')
+        await writeFile(source, input)
+        await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-i', source, '-filter:a', `atempo=${speed}`, '-ar', '44100', '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '128k', output], { timeout: 60000 })
+        const result = await readFile(output)
+        mp3FrameDuration(joinMp3Segments([result]))
+        return result
+    } finally { await rm(directory, { recursive: true, force: true }) }
+}

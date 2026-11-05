@@ -8,3 +8,11 @@ test('dialogue follows its timed voice row and selects its authored image even i
  assert.equal(wuxiaSceneFrame(p,1,rows,6).graphics.length,1);
  assert.equal(wuxiaSceneFrame(p,1,rows,8).graphics.length,0);
 });
+const {correctedWuxiaPackage}=load('lib/stdWuxiaPresentation.ts');
+test('first scene correction applies only to the inspected original layout and preserves artist edits',()=>{
+ const state={asset_id:'s',sha256:'18feb83a4b3cd8873870adc0e13baffc75f3693afeeb568951074593915977dc'};
+ const graphic={kind:'speech_bubble',text:'짐꾼. 거기 서 있지 말고 내려놔.',state_asset_id:'s',layout:{center:[.29,.19],size:[.34,.23],tail:[.2,.43]}};
+ const pkg={scenes:[{states:[state],graphics:[graphic]}]};const corrected=correctedWuxiaPackage(pkg);
+ assert.deepEqual(corrected.scenes[0].graphics[0].layout.center,[.49,.14]);assert.deepEqual(graphic.layout.center,[.29,.19]);
+ const edited={scenes:[{states:[state],graphics:[{...graphic,layout:{...graphic.layout,center:[.6,.2]}}]}]};assert.deepEqual(correctedWuxiaPackage(edited),edited);
+});

@@ -96,6 +96,10 @@ export function selectNarrationAsset(project: any, assets: any[]) {
 }
 export function assertNarrationIdentity(project: any, audio: any, subtitles: any[]) {
     assertAssetScope(project, audio)
+    const expectedSpeed = Number(project.project_payload?.tts_speed ?? project.progress_payload?.tts_speed ?? 1)
+    const recordedSpeed = Number(audio.metadata?.tts_speed ?? 1)
+    if (!Number.isFinite(recordedSpeed) || Math.abs(recordedSpeed - expectedSpeed) > 0.001)
+        mismatch('음성 속도가 변경됐습니다. 현재 속도로 음성을 다시 생성해 주세요.')
     const identity = projectContentIdentity(project), stored = audio.metadata?.content_identity
     if (project.project_payload?.subtitle_source_audio_id && project.project_payload.subtitle_source_audio_id !== audio.id)
         mismatch('자막이 다른 음성 파일에 연결돼 있습니다.')
