@@ -1,4 +1,5 @@
 import { correctedWuxiaPackage, isWuxiaMovingtoon, usesStandardSubtitles } from './stdWuxiaPresentation'
+import { hasAmbientLoops } from './stdAmbientLoop'
 import { productionEngineError } from './stdProductionEnginePolicy'
 import { assetMatchesContentRevision, projectContentIdentity, selectNarrationAsset, assertNarrationIdentity, renderAssetIdentity, assetContentIdentity, persistContentRevision, finalizeRecordedRenderConfig } from './stdContentIdentity'
 import { isNonverbalProject, hasReadyNonverbalPlan, nonverbalStructure } from './stdNonverbal'
@@ -928,6 +929,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
         const hash = (v: any) => createHash('sha256').update(JSON.stringify(stable(v))).digest('hex')
         const visualSettings = Object.fromEntries(Object.entries(resolved.render_settings).filter(([key]) => !key.startsWith('bgm_') && !key.startsWith('sfx_')))
         resolved.visual_recipe_sha256 = hash({ images: resolved.images, starts: resolved.image_timing_starts,
+            wuxia_ae_package: resolved.wuxia_ae_package,
             final_renderer:resolved.final_renderer,final_renderer_contract:resolved.final_renderer_contract,
             subtitles: resolved.subtitles.map(({ volume, voice_id, voice_name, ...row }: any) => row),
             effects: resolved.image_effects, transitions: resolved.transition_effects, settings: visualSettings,
@@ -943,6 +945,7 @@ async function buildGcsRenderConfig(project: any, scenes: any[], assets: any[], 
 
 export async function enqueueStdProjectRender(projectId: string, automatic?: { jobId: string; taskId: string }) {
     const { project, scenes, assets } = (automatic && await frozenRenderBundle(projectId, automatic.jobId)) || await loadBundle(projectId)
+    if(hasAmbientLoops(project))throw new Error('보조 움직임은 통합워커의 AE 제출 경로에서 제작해 주세요. 일반 슬라이드 렌더로 생략하지 않습니다.')
     const engineError=productionEngineError(project)
     if(engineError)throw new Error(engineError)
     if (!project.topic_queue_id) throw new Error('Project has no topic_queue_id')

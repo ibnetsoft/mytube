@@ -311,6 +311,10 @@ This capability supersedes the prohibition on requesting supplemental artwork ab
 
 
 def renderer_cache_is_current(snapshot,record):
+    ambient_scene=next((s for s in snapshot.get('scenes',[]) if s.get('number')==record.get('number')),None)
+    if (ambient_scene or {}).get('ambient_loops') or (ambient_scene or {}).get('wuxia_timeline'):
+        # Frozen input_fingerprint also binds every frame hash and timing.
+        if record.get('ambient_renderer')!='ambient_loop/v1':return False
     from services.video_playback_policy import POLICY
     if record.get('video_playback_policy')!=POLICY:return False
     from camera_speed_policy import constrain, VERSION as CAMERA_POLICY
@@ -389,6 +393,22 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
         from ae_flat_scene import prepare
         from ae_scene_production import _render_native
         prepared=prepare(source,scene,snapshot['motion'],plan['scene'])
+        if scene.get('wuxia_timeline'):
+            from wuxia_native_timeline import prepare as prepare_wuxia
+            from ae_scene_production import _download
+            def download_wuxia(frame,path):_download(frame['gcs_bucket'],frame['gcs_path'],path)
+            prepared['plan']['wuxia_runtime']=prepare_wuxia(scene['wuxia_timeline'],directory/'wuxia',fresh,download_wuxia,duration,snapshot['motion']['fps'])
+            runtime=prepared['plan']['wuxia_runtime']
+            prepared['plan']['width'],prepared['plan']['height']=runtime['size']
+            prepared['layers']['original']=Path(runtime['states'][0]['file'])
+            prepared['plan']['camera']=[dict(t=t,x=.5,y=.5,scale=1,rotation=0,opacity=100) for t in (0,1)]
+            prepared['plan']['fit']='cover'
+        elif scene.get('ambient_loops'):
+            from ambient_loop import prepare_runtime
+            from ae_scene_production import _download
+            def download_patch(frame,path):
+                _download(frame['gcs_bucket'],frame['gcs_path'],path)
+            prepared['plan']['ambient_runtime']=prepare_runtime(source,scene['ambient_loops'],directory/'ambient',fresh,download_patch)
         validate_purpose_native(scene,prepared['plan'])
         native=_render_native(prepared,directory,duration)
         run([ffmpeg(),'-v','error','-y','-i',str(native),'-an','-t',str(duration),'-r',str(snapshot['motion']['fps']),'-c:v','libx264','-pix_fmt','yuv420p',str(output)])
@@ -398,6 +418,7 @@ def render_base(snapshot,scene,plan,source,preview,runner,directory,fresh):
 
 def assemble_master(snapshot,*,sources,plans,voice,ordered,settings,cues,overlay,final_dir,fresh,ai_sources):
     """Use the selected final composer after scene effects have been reviewed."""
+    screen_subtitles=[] if settings.get('subtitles_enabled') is False else snapshot['subtitles']
     if snapshot.get('final_renderer') and snapshot.get('renderer',{}).get('engine')=='filmcraft':
         from filmcraft_render import render_master
         return render_master(snapshot,sources=sources,plans=plans,voice=voice,directory=final_dir/'filmcraft-master',
@@ -405,14 +426,14 @@ def assemble_master(snapshot,*,sources,plans,voice,ordered,settings,cues,overlay
     if not snapshot.get('final_renderer'):
         from services.ffmpeg_slideshow_service import render_ffmpeg_slideshow
         return Path(render_ffmpeg_slideshow(temp_dir=str(final_dir),images=[r['path'] for r in ordered],durations=[s['end']-s['start'] for s in snapshot['scenes']],
-            audio_path=str(voice),subtitles=snapshot['subtitles'],subtitle_settings=settings,
+            audio_path=str(voice),subtitles=screen_subtitles,subtitle_settings=settings,
             image_effects=['none']*len(ordered),transition_effects=['none']*len(ordered),
             resolution=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080),
             use_gpu=os.getenv('USE_GPU_RENDER','true').lower() in ('true','1','yes'),
             sfx_cues=cues,template_overlay_path=str(overlay) if overlay else None))
     from services.filmcraft_final_service import render_final
     return Path(render_final(temp_dir=str(final_dir),images=[r['path'] for r in ordered],durations=[s['end']-s['start'] for s in snapshot['scenes']],
-        audio_path=str(voice),subtitles=snapshot['subtitles'],settings=settings,resolution=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080),
+        audio_path=str(voice),subtitles=screen_subtitles,settings=settings,resolution=(1080,1920) if snapshot['motion']['aspect']=='9:16' else (1920,1080),
         scene_numbers=[s['number'] for s in snapshot['scenes']],sfx_cues=cues,template_overlay_path=str(overlay) if overlay else None,fresh=fresh))
 
 
@@ -859,6 +880,7 @@ def process_one(engine='ae'):
             from camera_speed_policy import VERSION as CAMERA_POLICY
             record['camera_speed_policy']=CAMERA_POLICY
             record['mouth_applied']=bool((scene.get('_mouth_runtime') or {}).get('enabled'))
+            if scene.get('ambient_loops') or scene.get('wuxia_timeline'):record['ambient_renderer']='ambient_loop/v1'
             if scene.get('saved_direction_binding'):record['saved_direction_binding']=copy.deepcopy(scene['saved_direction_binding'])
             if video_postwork_enabled(scene):
                 from submitted_video_postwork import result_receipt

@@ -4,6 +4,9 @@ function fixture(mode='ae_only', alternativesEnabled=false) {
  const project={id:'qa-project',updated_at:'now',employee_email:'owner@test',project_payload:{render_settings:{motion:{version:1,enabled:true,aspect:'9:16',fps:24,scenes:{},automation:{mode,max_ai_clips:1,max_ai_seconds:5}}},subtitles:[{text:'Final voice',scene_number:1,start:0,end:20}]}}
  const audio={id:'voice',asset_type:'audio',status:'uploaded',metadata:{gcs_path:'voice.wav',subtitle_timeline:[{start:0,end:20}]}},image={id:'image',asset_type:'image',scene_number:1,status:'uploaded',created_at:'now',metadata:{gcs_path:'source.png'}}
  new Function('exports','require',ts.transpileModule(fs.readFileSync('lib/stdMotionAutomation.ts','utf8'),{compilerOptions:{module:1,target:9,esModuleInterop:true}}).outputText)(exports,name=>{
+ if(name.includes('stdAmbientLoop'))return require('./load-ts-module.cjs')('lib/stdAmbientLoop.ts');
+ if(name.includes('stdWuxiaPresentation'))return require('./load-ts-module.cjs')('lib/stdWuxiaPresentation.ts');
+ if(name.includes('stdWuxiaNative'))return require('./load-ts-module.cjs')('lib/stdWuxiaNative.ts');
  if(name.includes('stdProductionEnginePolicy'))return alternativesEnabled?{productionEngineError:()=>null}:require('./load-ts-module.cjs')('lib/stdProductionEnginePolicy.ts');
   if(name.includes('stdSavedSceneExecution'))return require('./load-ts-module.cjs')('lib/stdSavedSceneExecution.ts')
   if(name.includes('stdSubmittedVideoPostwork'))return require('./load-ts-module.cjs')('lib/stdSubmittedVideoPostwork.ts')
@@ -140,3 +143,14 @@ test('script bubble-only still projects automatically enter native AE without mo
 })
 
 test('saved numbered v1 direction reaches the frozen production snapshot',async()=>{const f=fixture();f.project.project_payload.structure={scenes:[{scene_number:1,ae_directorial_plan:{contract:'scene_direction_plan/v1',ae_operations:['camera_move'],effect_limits:{max_scale_delta:.04}}}]};await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);assert.equal(s.scenes[0].saved_direction_binding.contract,'saved_scene_execution/v1');assert.equal(s.scenes[0].prepared_direction.keys.at(-1).scale,1.04);assert.deepEqual(s.scenes[0].saved_direction_binding.applied_operations,['camera_move']);});
+test('wuxia ambient frames enter the integrated AE snapshot and retain immutable voice timing',async()=>{
+ const f=fixture();f.project.project_payload.render_settings.motion.enabled=false;
+ f.project.project_payload.render_settings.motion.aspect='16:9';f.image.metadata.gcs_bucket='bucket';
+
+ const hash='a'.repeat(64);f.image.metadata.sha256=hash;
+ const loop={contract:'ambient_loop/v1',enabled:true,width:1920,height:1080,source_sha256:hash,role:'background',region:[0,0,.2,.2],protected_regions:[[.4,.3,.7,.8]],start_ms:100,end_ms:1000,phase_ms:0,repeat:true,frames:[100,200].map((duration_ms,i)=>({media_url:`/api/std/frames/${i}`,sha256:String(i).repeat(64),duration_ms,gcs_bucket:'bucket',gcs_path:`frame-${i}.png`}))};
+ f.project.project_payload.structure={wuxia_ae_package:{contract:'wuxia_still_ae_episode/v1',scenes:[{scene_id:'S001',states:[{asset_id:'state',sha256:hash,start:0,end:1,ambient_loops:[loop]}]}]}};
+ await f.run();const s=JSON.parse(f.calls.rpc[0].args.p_manifest.automation.snapshot_json);
+ assert.deepEqual(s.scenes[0].ambient_loops,[loop]);assert.equal(s.scenes[0].start,0);assert.equal(s.scenes[0].end,20);
+ assert.equal(s.settings.subtitles_enabled,false);assert.equal(s.motion.production_method,'ae');assert.equal(f.calls.models,0);
+});

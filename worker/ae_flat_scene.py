@@ -67,6 +67,14 @@ def write_jsx(plan, layer_paths, project, native, jsx, duration, fps=24):
             'duration':duration,'fps':fps,'project':str(project.resolve()),'native':str(native.resolve()),
             'status':str(jsx.with_suffix('.status.txt').resolve())}
     script = SCENE_JSX.replace('/* SCENE_EFFECTS */', EFFECTS_JSX)
+    graphic_js=''
+    if plan.get('wuxia_runtime'):
+        from wuxia_native_timeline import jsx as wuxia_jsx
+        source_js,graphic_js=wuxia_jsx(plan['wuxia_runtime'],duration,fps)
+        script=script.replace('    applySceneEffects(source,semanticLayers);',source_js+'\n    applySceneEffects(source,semanticLayers);')
+    if plan.get('ambient_runtime'):
+        from ambient_loop import jsx as ambient_jsx
+        script=script.replace('    applySceneEffects(source,semanticLayers);',ambient_jsx(plan['ambient_runtime'],duration,fps)+'\n    applySceneEffects(source,semanticLayers);')
     if plan.get('mouth_runtime'):
         from ae_mouth import mouth_jsx
         script=script.replace('var footage=app.project.importFile(new ImportOptions(f));', 'var footage=app.project.importFile(new ImportOptions(f)); footage=(function(footage){var DUR=S.duration,FPS=S.fps;'+mouth_jsx(plan['mouth_runtime'])+' return footage;})(footage);')
@@ -80,7 +88,9 @@ def write_jsx(plan, layer_paths, project, native, jsx, duration, fps=24):
     for(var a=0;a<P.camera.length;a++) key(opacity,P.camera[a].t,P.camera[a].opacity);
     linear(opacity);
 ''' + script[end:]
-    if plan.get('speech_bubbles'):
+    if graphic_js:
+        script=script.replace('    var item=app.project.renderQueue.items.add(comp);',graphic_js+'\n    var item=app.project.renderQueue.items.add(comp);')
+    if plan.get('speech_bubbles') and not plan.get('wuxia_runtime'):
         from speech_bubble_shapes import BUBBLE_JSX
         script=script.replace('    var item=app.project.renderQueue.items.add(comp);', BUBBLE_JSX+'\n    var item=app.project.renderQueue.items.add(comp);')
     jsx.write_text('var S = '+json.dumps(data,ensure_ascii=True,allow_nan=False)+';\n'+script,encoding='utf-8')

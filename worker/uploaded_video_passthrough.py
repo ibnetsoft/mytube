@@ -3,6 +3,8 @@ import math
 VERSION='uploaded_video_passthrough/v1'
 SOURCE_VERSION='unchanged_source_passthrough/v1'
 def eligible(scene,plan,*,runtime_resolved=False):
+    if scene.get('ambient_loops') or scene.get('wuxia_timeline'):
+        return False
     if scene.get('source_kind') not in ('video','image') or scene.get('webtoon') or plan.get('ai'):
         return False
     direction=plan.get('scene') or {}

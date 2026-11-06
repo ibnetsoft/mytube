@@ -1,4 +1,7 @@
 import { bindSavedSceneExecution, savedScene, hasSavedSceneExecution } from './stdSavedSceneExecution'
+import { freezeAmbientLoops, hasAmbientLoops } from './stdAmbientLoop'
+import { isWuxiaMovingtoon } from './stdWuxiaPresentation'
+import { freezeWuxiaScene } from './stdWuxiaNative'
 import scenePurposePolicy from './scenePurposePolicy.json'
 import { hasScriptSpeechBubbles, hasAllSceneParallax, freezeParallaxMouth } from './stdSubmittedVideoPostwork'
 import { videoDialoguePostworkTargets } from './stdSubmittedVideoPostwork'
@@ -26,7 +29,7 @@ import { horizontalWebtoon, webtoonInputs, readyWebtoonPlan } from './stdHorizon
 
 export function nativeVideoEligible(asset:any) { const m=asset?.metadata||{};return !['repaired_source_clip','motion_source_repair'].includes(m.kind)&&!m.source_repair&&(['original_speed_no_freeze_no_loop_v1','original_speed_no_freeze_no_loop/v1'].includes(String(m.video_tail_policy||m.tail_policy))||!/(hold|freeze|loop)/i.test(String(m.video_tail_policy||m.tail_policy||''))) }
 
-export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project) }
+export function motionAutomationEnabled(project:any) { const m=motionForProject(project);return Boolean(m?.enabled && m.automation)||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||hasAmbientLoops(project) }
 export async function registerMotionAutomation(project:any,scenes:any[],assets:any[],userId:string,resubmission=false) {
     const engineError=productionEngineError(project)
     if(engineError)throw new Error(engineError)
@@ -34,7 +37,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
     const videoPostwork=hasSubmittedVideoPostwork(project,scenes,assets)
     const postworkNumbers=new Set(videoPostwork?assets.filter(a=>originalPostworkVideo(a)&&Number(a.scene_number)>=1&&Number(a.scene_number)<=18).map(a=>Number(a.scene_number)):[])
     assertPreparationFinished(assets.filter(a=>!postworkNumbers.has(Number(a.scene_number))))
-    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)?postworkMotion(project):motionForProject(project)!
+    const motion=videoPostwork||allParallax||hasScriptSpeechBubbles(project)||hasSavedSceneExecution(project)||hasAmbientLoops(project)?postworkMotion(project):motionForProject(project)!
     if(allParallax)motion.edit_mode=undefined
     const horizontal=!allParallax&&horizontalWebtoon(project)
     const horizontalInputs=horizontal?webtoonInputs(project,scenes,assets):[]
@@ -89,7 +92,13 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
         const stillMouth=!allParallax&&videoPostwork&&!postwork?freezePreparedStillMouth(project,n,source,recordedRows,assets,scenes):null
         const savedBinding=horizontal||postwork?null:bindSavedSceneExecution(planned,sourceKind,start,end,preparation)
         const explicit=project.project_payload?.render_settings?.motion?.scenes?.[String(n)]
+        const wuxiaTimeline=hasAmbientLoops(project)?freezeWuxiaScene(project,n,recordedRows,start,end,motion.fps,source):null
+        const ambientLoops=wuxiaTimeline?wuxiaTimeline.states.flatMap((s:any)=>s.ambient_loops):freezeAmbientLoops(project,n,source)
+        if((ambientLoops.length||wuxiaTimeline)&&(sourceKind!=='image'||horizontal||effectcraft||filmcraft||postwork))throw new Error(`${n}번 씬의 보조 움직임은 PNG 원화와 기본 AE 제작 방식을 사용해 주세요.`)
+        if(wuxiaTimeline&&motion.aspect!=='16:9')throw new Error('무협 원화·말풍선 보조 움직임은 기존 16:9 구도를 유지해 주세요.')
         return {number:n,text:scene.scene_text||'',title:scene.scene_title||'',direction:motion.scenes[String(n)]?.direction||'',
+            ...(wuxiaTimeline?{wuxia_timeline:wuxiaTimeline}:{}),
+            ...(ambientLoops.length?{ambient_loops:ambientLoops}:{}),
             ...(effectivePurpose?{purpose_policy:effectivePurpose}:{}),
             ...(creative?.speech_bubble_plan?.contract==='speech_bubble_presets/v1'?{speech_bubble_plan:creative.speech_bubble_plan}:{}),
             ...(reviewedDepth.length?{reviewed_depth_effects:reviewedDepth}:{}),
@@ -100,7 +109,7 @@ export async function registerMotionAutomation(project:any,scenes:any[],assets:a
             creative_reference:postwork?null:planned?.scene_direction_plan||planned?.ae_directorial_plan||null,
             ...(webtoon?{webtoon}:{}),...(stillMouth?{still_mouth:stillMouth}:{}),preparation,start,end,source,...(source.asset_type==='video'&&image&&!postwork?{source_reference_image:image}:{}),...(source.metadata?.ae_mouth_fingerprint?{recorded_source_reuse:recordedMotionSourceReuse(project,source,assets,audio)}:{}),source_kind:sourceKind}
     })
-    const settings=await persistTemplateOverlay(project.id,{...project.project_payload?.settings,...project.project_payload?.render_settings})
+    const settings=await persistTemplateOverlay(project.id,{...project.project_payload?.settings,...project.project_payload?.render_settings,...(isWuxiaMovingtoon(project)?{subtitles_enabled:false}:{})})
     await templateOverlayPng(settings)
     const subtitles=project.project_payload.subtitles.map((row:any,index:number)=>({...row,start:timeline[index].start,end:timeline[index].end,voice_id:timeline[index].voice_id||row.voice_id||''}))
     const bgmId=settings.bgm_asset_id||project.project_payload.bgm_asset_id

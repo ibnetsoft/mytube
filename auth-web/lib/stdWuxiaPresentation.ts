@@ -1,3 +1,4 @@
+import { ambientFrameIndex, ambientLoopsForState } from './stdAmbientLoop'
 /** Wuxia voice rows are speech input, never the on-screen caption track. */
 export function isWuxiaMovingtoon(project: any): boolean {
     const p = project?.project_payload || project || {}, s = p.structure || {}
@@ -74,5 +75,13 @@ export function wuxiaSceneFrame(project: any, number: number, rows: any[], secon
         const progress = range ? (seconds-range.start)/(range.end-range.start) : (fraction-g.preview_start)/(g.preview_end-g.preview_start)
         return { ...g, progress: Math.max(0, Math.min(1, progress)) }
     })
-    return { state, graphics, fraction, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
+    // Scene-local clock is continuous through a state cut, pause and seek.
+    // Explicit start_ms controls restart/phase; wall-clock time is never used.
+    const localMs = Number.isFinite(start) ? (seconds-start)*1000 : 0
+    const ambient = ambientLoopsForState(state).flatMap(loop => {
+        const index = ambientFrameIndex(loop, localMs)
+        return index === null ? [] : [{ loop, index, frame: loop.frames[index] }]
+    })
+    const ambientSources = (scene.states || []).flatMap((item: any) => ambientLoopsForState(item).filter(loop => loop.enabled).flatMap(loop => loop.frames.map(f=>({...f,region:loop.region,width:loop.width,height:loop.height}))))
+    return { state, graphics, fraction, ambient, ambientSources, sources: (scene.states || []).map((item: any) => String(item.media_url || item.image_url || '')).filter(Boolean), timingBasis: 'subtitle_row_bound_or_authored_preview' }
 }
