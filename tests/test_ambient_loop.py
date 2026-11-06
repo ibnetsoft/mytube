@@ -88,3 +88,4 @@ class WuxiaNativeTest(unittest.TestCase):
   self.assertIn('comp.layers.addText',text)
   self.assertIn('semanticLayers.original.enabled=false',text)
   self.assertIn('whold(op);whold(sc);whold(rot)',text)
+  subprocess.run(['node','--check'],input=text,text=True,capture_output=True,check=True)
