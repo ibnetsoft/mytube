@@ -137,3 +137,7 @@ npm install --prefix output/wuxia-series-rebuild/episode-01/packaging/tooling ty
 함께 보존한 변경: `AGENTS.md`, `worker/script_worker_guidance.py`, `worker/wuxia_delivery_state.py`, `worker/codex_content_runner.py`, 상태/원화 체크포인트 스크립트와 관련 테스트. 유저웹 기능·배포는 변경하지 않았다.
 
 등록 도구는 복원한 `episode-01/packaging/prepare_registration.py`와 `register_topic.py`다. `WUXIA_EPISODE_DIR`로 대상 회차를 지정한다. **기존 1·2화 확인 용도로 `--register`를 실행하지 않는다.** 새 회차의 준비가 끝난 경우에만 사용하며, 동일 식별자·동일 제목 충돌과 소유권을 먼저 확인한다.
+
+## 2026-11-07 4화 등록 갱신
+
+4화 **#3433 「문턱의 증인」**은 3화 #3432의 공개 검문에서 의원 호송으로 이어진다. [등록 기록과 다음 회차 연속성](WUXIA_EPISODE04_DELIVERY_2026-11-07.md)을 읽는다. 다음은 의원에서 수레꾼의 별원 인계를 막는 갈등이며 예전 지하수로 탈출 계획으로 돌아가지 않는다. 실제 등록·브라우저 확인은 회차 확인서의 증거 범위를 따른다.
