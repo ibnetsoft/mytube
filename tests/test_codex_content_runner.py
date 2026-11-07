@@ -447,7 +447,8 @@ def test_final_package_rejects_missing_story_review():
         runner_module._validate_package(package)
 
 
-@pytest.mark.parametrize('stage', ['03_ae_mouth_visibility', '04_automatic_ae_review'])
+@pytest.mark.parametrize('stage', ['03_ae_mouth_visibility', '04_automatic_ae_review',
+                                   'motion_actual_output_review', 'motion_final_review_26'])
 def test_image_analysis_prompt_is_not_consumed_as_an_image_argument(monkeypatch, tmp_path, stage):
     monkeypatch.setattr(runner_module, 'PROJECT_ROOT', tmp_path)
     monkeypatch.setattr(runner_module, 'OUTPUT_DIR', tmp_path/'worker-output')
