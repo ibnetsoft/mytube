@@ -333,7 +333,7 @@ def renderer_cache_is_current(snapshot,record):
         scene=next((s for s in snapshot.get('scenes',[]) if s.get('number')==record.get('number')),None)
         direction=copy.deepcopy((scene or {}).get('prepared_direction') or {})
         if scene:direction['keys'],_=constrain(direction.get('keys'),scene.get('end',0)-scene.get('start',0))
-        if scene and not (record.get('mouth_applied') or (record.get('submitted_video_postwork') or {}).get('mouth_applied')) and eligible(scene,{'scene':direction},runtime_resolved=True):
+        if scene and not scene.get('wuxia_timeline') and not (record.get('mouth_applied') or (record.get('submitted_video_postwork') or {}).get('mouth_applied')) and eligible(scene,{'scene':direction},runtime_resolved=True):
             return record.get('source_passthrough')==SOURCE_VERSION
         if any(s.get('number')==record.get('number') and s.get('source_kind') in ('image','video') and not s.get('webtoon') for s in snapshot.get('scenes',[])):
             from ae_flat_scene import VERSION
